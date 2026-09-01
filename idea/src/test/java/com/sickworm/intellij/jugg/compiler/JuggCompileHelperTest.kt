@@ -59,6 +59,7 @@ class JuggCompileHelperTest {
 
     companion object {
         private const val DIRECT_RUN_FALLBACK_HINT = "Run again directly will fall back to gradle compile."
+        private const val EMPTY_COMPILE_NOTIFICATION = "Compiling 0 files..."
         private const val NO_FILE_CHANGES_FALLBACK = "No file changes. will fallback to gradle compile."
         private const val NO_FILE_CHANGES_DRY_DEPLOY = "No file changes, dry deploy once."
         private const val TOO_MANY_FILES_FALLBACK = "Compile files too much"
@@ -83,9 +84,8 @@ class JuggCompileHelperTest {
     }
 
     @Test
-    fun incrementalCompile_noFileChanges_projectSwitched_deployDirectlyWithoutConfirm() {
+    fun incrementalCompile_noFileChanges_firstRun_notifiesEmptyCompileAndDeploysDirectly() {
         val fixture = createFixture()
-        fixture.juggRunningTaskStatusManager.isProjectSwitchedThisRun = true
         whenever(fixture.deployFileManager.isNoFileChanges()).thenReturn(true)
         whenever(fixture.dependencyChangeManager.isNeedCompilation).thenReturn(false)
         whenever(fixture.deployTargetManager.getDeviceNameList()).thenReturn("device-1")
@@ -96,6 +96,27 @@ class JuggCompileHelperTest {
         val result = fixture.helper.incrementalCompile(fixture.uiHandler)
 
         assertTrue(result.isSuccess)
+        verify(fixture.uiHandler).notifyByBalloon(EMPTY_COMPILE_NOTIFICATION)
+        verify(fixture.uiHandler, never()).confirmFallbackWhenNoFileChanges()
+        verify(fixture.helper.juggCompiler!!, never()).compile(any())
+    }
+
+    @Test
+    fun incrementalCompile_noFileChanges_projectSwitched_deployDirectlyWithoutConfirm() {
+        val fixture = createFixture()
+        fixture.juggRunningTaskStatusManager.isProjectSwitchedThisRun = true
+        whenever(fixture.deployFileManager.isNoFileChanges()).thenReturn(true)
+        whenever(fixture.dependencyChangeManager.isNeedCompilation).thenReturn(false)
+        whenever(fixture.deployTargetManager.getDeviceNameList()).thenReturn("device-1")
+        whenever(fixture.deployFileManager.getUncompiledFiles()).thenReturn(emptyList())
+        whenever(fixture.uiHandler.createCompileStatusHolder()).thenReturn(CompileStatusHolder.DEFAULT)
+        fixture.juggRunningTaskStatusManager.setHasRun("device-1")
+        fixture.helper.juggCompiler = mock<JuggCompiler>()
+
+        val result = fixture.helper.incrementalCompile(fixture.uiHandler)
+
+        assertTrue(result.isSuccess)
+        verify(fixture.uiHandler).notifyByBalloon(EMPTY_COMPILE_NOTIFICATION)
         verify(fixture.uiHandler, never()).confirmFallbackWhenNoFileChanges()
     }
 
@@ -128,6 +149,7 @@ class JuggCompileHelperTest {
         assertFalse(result.hasFileChanges)
         assertTrue(logger.messages.contains(NO_FILE_CHANGES_FALLBACK))
         assertFalse(logger.messages.contains(NO_FILE_CHANGES_DRY_DEPLOY))
+        verify(fixture.uiHandler, never()).notifyByBalloon(any())
         verify(fixture.uiHandler).confirmFallbackWhenNoFileChanges()
         verify(fixture.helper.juggCompiler!!, never()).compile(any())
     }
@@ -163,6 +185,7 @@ class JuggCompileHelperTest {
         assertFalse(result.isCanFallback)
         assertTrue(logger.messages.contains(NO_FILE_CHANGES_DRY_DEPLOY))
         assertFalse(logger.messages.contains(NO_FILE_CHANGES_FALLBACK))
+        verify(fixture.uiHandler).notifyByBalloon(EMPTY_COMPILE_NOTIFICATION)
     }
 
     @Test
@@ -184,6 +207,7 @@ class JuggCompileHelperTest {
         assertTrue(result.isSuccess)
         assertFalse(result.isGradleCompile)
         assertFalse(result.hasFileChanges)
+        verify(fixture.uiHandler).notifyByBalloon(EMPTY_COMPILE_NOTIFICATION)
         verify(fixture.uiHandler, never()).confirmFallbackWhenNoFileChanges()
         verify(fixture.helper.juggCompiler!!, never()).compile(any())
     }
@@ -228,6 +252,7 @@ class JuggCompileHelperTest {
         assertTrue(result.isSuccess)
         assertFalse(result.isGradleCompile)
         assertFalse(result.hasFileChanges)
+        verify(fixture.uiHandler).notifyByBalloon(EMPTY_COMPILE_NOTIFICATION)
         verify(fixture.uiHandler, never()).confirmFallbackWhenNoFileChanges()
         verify(fixture.helper.juggCompiler!!, never()).compile(any())
     }

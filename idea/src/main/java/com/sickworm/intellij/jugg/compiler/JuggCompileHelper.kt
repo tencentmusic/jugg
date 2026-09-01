@@ -591,6 +591,7 @@ class JuggCompilerHelper(
             val uncompiledFiles = deployFileManager.getUncompiledFiles()
             if (uncompiledFiles.isEmpty() && buildTarget == BuildTarget.ANDROID_TEST && isAndroidTestRun) {
                 logger.info("No file changes for androidTest, but current run should deploy directly.")
+                notifyEmptyCompile(uiHandler)
                 return CompileTaskResult.incrementalSuccess(
                     CompileResult.empty(uiHandler.createCompileStatusHolder()),
                 ).copy(hasFileChanges = false)
@@ -600,6 +601,7 @@ class JuggCompilerHelper(
             if (juggRunningTaskStatusManager.isFirstTimeRun(deviceName)) {
                 if (uncompiledFiles.isEmpty()) {
                     logger.info("No file changes, but it's first time run, deploy directly.")
+                    notifyEmptyCompile(uiHandler)
                     return CompileTaskResult.incrementalSuccess(CompileResult.empty(uiHandler.createCompileStatusHolder()))
                 } else {
                     logger.info("No file changes, but last compilation not finished" +
@@ -608,6 +610,7 @@ class JuggCompilerHelper(
             } else if (juggRunningTaskStatusManager.isProjectSwitchedThisRun) {
                 if (uncompiledFiles.isEmpty()) {
                     logger.info("No file changes, but project switched since last run, deploy directly.")
+                    notifyEmptyCompile(uiHandler)
                     return CompileTaskResult.incrementalSuccess(CompileResult.empty(uiHandler.createCompileStatusHolder()))
                 } else {
                     logger.info("No file changes, but project switched since last run" +
@@ -615,6 +618,7 @@ class JuggCompilerHelper(
                 }
             } else if (uiHandler.isDebugRun && uncompiledFiles.isEmpty()) {
                 logger.info("No file changes for debug run, deploy directly.")
+                notifyEmptyCompile(uiHandler)
                 return CompileTaskResult.incrementalSuccess(
                     CompileResult.empty(uiHandler.createCompileStatusHolder()),
                 ).copy(hasFileChanges = false)
@@ -679,6 +683,10 @@ class JuggCompilerHelper(
             skipTooManyChangesCheck = allowLargeIncrementalThisCompile,
         )
         return incrementalCompilerHelper.compile(undeployedFiles, uiHandler, uiHandler.createCompileStatusHolder())
+    }
+
+    private fun notifyEmptyCompile(uiHandler: CompileUiHandler) {
+        uiHandler.notifyByBalloon("Compiling 0 files...")
     }
 
     fun warmUp() {

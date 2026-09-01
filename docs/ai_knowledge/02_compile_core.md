@@ -163,6 +163,8 @@ Run 前判断的完整优先级见 §4.1。可回退条件分为三类：
 
 无文件变化的 fallback 确认框和手动 `Force Gradle Compile` 确认框均允许用户选择忽略 Gradle build cache。选中后，本轮 Gradle command 追加 `--no-build-cache --rerun-tasks`；该选项只影响本轮回退，不写回 Run Configuration，并在任务启动后清除。
 
+无文件变化但继续 Jugg 流程时统一显示 `Compiling 0 files...`。这包括首次运行、项目切换、Debug、androidTest 的直接部署分支，以及用户选择 `Don't fallback` 的 dry deploy 分支；转入 Gradle fallback 或取消时不显示该提示。
+
 ### 7.2 增量内重试
 
 - 重试策略接口：`IIncrementalCompileRetryResolver`，由 `IncrementalCompileRetryResolverChain` 串联多个实现。
