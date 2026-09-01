@@ -1,3 +1,10 @@
+- version: 3.3.5
+  date: 2026.09.01
+  updates:
+    - Gradle 构建失败后直接降级，不再重复显示大变更确认
+    - Gradle Sync 期间保留自定义 Jugg 运行配置
+    - 重启后不再重复重建源码数据库
+
 - version: 3.3.4
   date: 2026.08.29
   updates:
