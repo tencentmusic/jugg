@@ -51,7 +51,7 @@ jugg.py
 
 传入 `--project-dir <path>` 或 `--project-dir=<path>` 时，CLI 仍用该路径发现 Runtime，并允许将最长前缀匹配到的已初始化项目目录作为 MCP `projectDir`。因此，显式传入 IDEA 工程根目录下的普通子目录时会由该 IDEA Runtime 处理；未匹配时才按 standalone 启动流程处理。`--projectDir` 作为 camelCase 全局别名也会被归一化。
 
-macOS 上 Runtime 归属匹配会使用大小写折叠后的路径 key；`Checking Jugg runtime`、IDE Runtime 未找到和 standalone 启动进度仍显示用户输入或当前工程的原始大小写路径。
+macOS 上 Runtime 归属匹配会使用大小写折叠后的路径 key；Runtime 探测进度、IDE Runtime 未找到和 standalone 启动进度均显示用户输入或当前工程的原始大小写路径。
 
 ### 3.1.1 设备 serial
 
@@ -92,6 +92,8 @@ jugg --console=json <subcommand>
 - `plain`：直接 `python3 jugg.py` 的默认模式，不显示 spinner。
 - `rich`：shell / Windows wrapper 默认注入，面向人工终端显示 spinner。
 - `json`：输出 MCP `structuredContent` JSON，供脚本或 Agent 消费。
+
+快速复用已存在 IDEA 或 standalone Runtime 时不保留发现/端口日志。`rich` 交互终端以临时 spinner 显示探测进度；`plain` 或非交互输出仅在探测超过 1 秒后打印 `Checking Jugg runtime`，并在完成后打印选择结果。复用 standalone 注册新项目、实际启动 standalone、启动等待和错误诊断始终保留对应进度；`json` 不输出这些提示。
 
 `compile` / `deploy` / `gradle-build` / `instrument` 的长耗时进度提示不进入结果 stdout。`plain` 会在触发前向 stderr 输出一次起始进度（如 `Running Gradle build...`），并在运行中输出无额外前缀的 heartbeat；`rich` 会更新同一行 spinner 文案；`json` 保持 stdout 纯 JSON，默认不输出 heartbeat。
 

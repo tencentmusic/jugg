@@ -99,6 +99,7 @@ device_serial_override: str = ""
 _STANDALONE_STARTUP_TIMEOUT_SECONDS = 60
 _STANDALONE_STARTUP_HEARTBEAT_SECONDS = 10
 _STANDALONE_STARTUP_POLL_INTERVAL_SECONDS = 0.2
+_RUNTIME_DISCOVERY_PROGRESS_DELAY_SECONDS = 1.0
 _STANDALONE_LAUNCH_LOCK_TIMEOUT_SECONDS = _STANDALONE_STARTUP_TIMEOUT_SECONDS + 15
 _STANDALONE_RUNTIME_LOG_READ_BYTES = 1024 * 1024
 _STANDALONE_RUNTIME_LOG_LINE_MAX_CHARS = 500
@@ -564,6 +565,34 @@ def _hook_can_launch(project_dir: str) -> bool:
     return complete_flag.is_file()
 
 
+@contextlib.contextmanager
+def _runtime_discovery_progress(project_dir: str):
+    """Show transient TTY progress or delayed plain output for runtime discovery."""
+    progress_reported = threading.Event()
+    if json_mode:
+        yield progress_reported
+        return
+
+    stop_event = threading.Event()
+    label = f"Checking Jugg runtime for {project_dir}"
+    if spinner_enabled and sys.stderr.isatty():
+        thread = threading.Thread(target=_run_spinner, args=(stop_event, label), daemon=True)
+    else:
+        def report_if_slow() -> None:
+            if stop_event.wait(_RUNTIME_DISCOVERY_PROGRESS_DELAY_SECONDS):
+                return
+            progress_reported.set()
+            _print_progress_heartbeat(f"{label}...")
+
+        thread = threading.Thread(target=report_if_slow, daemon=True)
+    thread.start()
+    try:
+        yield progress_reported
+    finally:
+        stop_event.set()
+        thread.join()
+
+
 def resolve_port() -> int:
     """Resolve the runtime owning the target project, starting standalone when needed."""
     global _selected_runtime_port, _selected_project_dir, _selected_project_registered
@@ -573,13 +602,15 @@ def resolve_port() -> int:
     display_project_dir = candidate_project_dir()
     runtime_project_dir = normalize_project_dir(display_project_dir)
     allow_parent_project = bool(project_dir_override.strip())
-    _print_progress_heartbeat(f"Checking Jugg runtime for {display_project_dir}...")
-    endpoints = discover_runtime_endpoints()
+    with _runtime_discovery_progress(display_project_dir) as discovery_reported:
+        endpoints = discover_runtime_endpoints()
     selected, project_registered = _select_runtime_or_standalone(
         endpoints,
         runtime_project_dir,
         allow_parent_project,
     )
+    if selected is not None and project_registered and discovery_reported.is_set():
+        _print_progress_heartbeat(f"Using {selected.runtime_type} runtime on port {selected.port}.")
     launch: Optional[StandaloneLaunch] = None
     if selected is None or not project_registered:
         if runtime_type_override == "idea":
@@ -587,6 +618,10 @@ def resolve_port() -> int:
             sys.exit(1)
         if not _hook_can_launch(display_project_dir):
             sys.exit(0)
+    if selected is not None and not project_registered:
+        _print_progress_heartbeat(
+            f"Registering project with standalone runtime on port {selected.port}..."
+        )
     if selected is None:
         try:
             with _standalone_launch_lock(display_project_dir):
@@ -649,8 +684,6 @@ def resolve_port() -> int:
     write_port_cache(selected.port)
     if launch is not None:
         _print_progress_heartbeat(f"Standalone runtime ready on port {selected.port}.")
-    else:
-        _print_progress_heartbeat(f"Using {selected.runtime_type} runtime on port {selected.port}.")
     return selected.port
 
 

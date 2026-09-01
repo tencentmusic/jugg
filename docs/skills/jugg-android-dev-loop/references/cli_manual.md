@@ -16,6 +16,8 @@ Controlled by the global `--console` flag (must appear before the subcommand):
 | `rich` | on | human-readable key: value | human interactive terminal (set by shell wrappers) |
 | `json` | off | raw JSON `{status, message, data, ...}` | agent needing structured data |
 
+Runtime discovery uses a transient spinner in an interactive `rich` terminal. Fast `plain` or captured calls stay silent; if discovery takes longer than one second, they print one checking line and the selected Runtime. Registering a project in an existing standalone Runtime, starting standalone, startup waits, and failures remain visible. `json` mode suppresses all of these progress messages.
+
 **DO NOT USE** `--console=rich` on agent, TUI refresh behavior will pollute the context.
 
 Example:

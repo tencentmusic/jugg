@@ -143,6 +143,65 @@ class ResolvePortTest(unittest.TestCase):
         self.assertGreaterEqual(mock_urlopen.call_count, 11)
         mock_sleep.assert_called_once()
 
+    def test_resolve_port_keeps_fast_existing_runtime_discovery_silent(self):
+        project_dir = os.path.join(self.tmp, "project")
+        endpoint = jugglib.RuntimeEndpoint(12320, "idea", [project_dir])
+        stderr = io.StringIO()
+
+        with patch.object(jugglib, "candidate_project_dir", return_value=project_dir), \
+             patch.object(jugglib, "discover_runtime_endpoints", return_value=[endpoint]), \
+             contextlib.redirect_stderr(stderr):
+            port = jugglib.resolve_port()
+
+        self.assertEqual(12320, port)
+        self.assertEqual("", stderr.getvalue())
+
+    def test_resolve_port_reports_slow_plain_runtime_discovery(self):
+        project_dir = os.path.join(self.tmp, "project")
+        endpoint = jugglib.RuntimeEndpoint(12320, "idea", [project_dir])
+        stderr = io.StringIO()
+
+        def discover_runtime_endpoints():
+            time.sleep(0.03)
+            return [endpoint]
+
+        with patch.object(jugglib, "candidate_project_dir", return_value=project_dir), \
+             patch.object(jugglib, "discover_runtime_endpoints", side_effect=discover_runtime_endpoints), \
+             patch.object(jugglib, "_RUNTIME_DISCOVERY_PROGRESS_DELAY_SECONDS", 0.01), \
+             contextlib.redirect_stderr(stderr):
+            port = jugglib.resolve_port()
+
+        self.assertEqual(12320, port)
+        self.assertIn(f"Checking Jugg runtime for {project_dir}", stderr.getvalue())
+        self.assertIn("Using idea runtime on port 12320", stderr.getvalue())
+
+    def test_resolve_port_uses_transient_progress_in_an_interactive_terminal(self):
+        class TtyBuffer(io.StringIO):
+            def isatty(self):
+                return True
+
+        project_dir = os.path.join(self.tmp, "project")
+        endpoint = jugglib.RuntimeEndpoint(12320, "idea", [project_dir])
+        stderr = TtyBuffer()
+        original_spinner_enabled = jugglib.spinner_enabled
+        jugglib.spinner_enabled = True
+
+        try:
+            with patch.object(jugglib, "candidate_project_dir", return_value=project_dir), \
+                 patch.object(
+                     jugglib,
+                     "discover_runtime_endpoints",
+                     side_effect=lambda: (time.sleep(0.2), [endpoint])[1],
+                 ), \
+                 contextlib.redirect_stderr(stderr):
+                port = jugglib.resolve_port()
+        finally:
+            jugglib.spinner_enabled = original_spinner_enabled
+
+        self.assertEqual(12320, port)
+        self.assertIn(f"Checking Jugg runtime for {project_dir}", stderr.getvalue())
+        self.assertNotIn("Using idea runtime on port 12320", stderr.getvalue())
+
     def test_resolve_port_launches_standalone_for_unowned_project(self):
         project_dir = os.path.join(self.tmp, "project")
         os.makedirs(project_dir)
@@ -174,19 +233,41 @@ class ResolvePortTest(unittest.TestCase):
         os.makedirs(project_dir)
         endpoint = jugglib.RuntimeEndpoint(12324, "standalone", [other_project])
 
+        stderr = io.StringIO()
         with patch.object(jugglib, "candidate_project_dir", return_value=project_dir), \
              patch.object(jugglib, "discover_runtime_endpoints", return_value=[endpoint]), \
              patch.object(
                  jugglib,
                  "launch_standalone",
                  side_effect=AssertionError("must reuse the running standalone"),
-             ) as mock_launch:
+             ) as mock_launch, \
+             contextlib.redirect_stderr(stderr):
             port = jugglib.resolve_port()
 
         self.assertEqual(12324, port)
         self.assertEqual(jugglib.normalize_project_dir(project_dir), jugglib._selected_project_dir)
         self.assertFalse(jugglib._selected_project_registered)
+        self.assertIn("Registering project with standalone runtime on port 12324", stderr.getvalue())
         mock_launch.assert_not_called()
+
+    def test_resolve_port_keeps_standalone_registration_progress_out_of_json_mode(self):
+        project_dir = os.path.join(self.tmp, "project")
+        other_project = os.path.join(self.tmp, "other-project")
+        endpoint = jugglib.RuntimeEndpoint(12324, "standalone", [other_project])
+        stderr = io.StringIO()
+        original_json_mode = jugglib.json_mode
+        jugglib.json_mode = True
+
+        try:
+            with patch.object(jugglib, "candidate_project_dir", return_value=project_dir), \
+                 patch.object(jugglib, "discover_runtime_endpoints", return_value=[endpoint]), \
+                 contextlib.redirect_stderr(stderr):
+                port = jugglib.resolve_port()
+        finally:
+            jugglib.json_mode = original_json_mode
+
+        self.assertEqual(12324, port)
+        self.assertEqual("", stderr.getvalue())
 
     def test_resolve_port_waits_for_slow_standalone_and_reports_latest_runtime_log(self):
         project_dir = os.path.join(self.tmp, "project")
