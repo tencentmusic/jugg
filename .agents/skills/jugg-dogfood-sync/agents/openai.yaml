@@ -1,4 +1,4 @@
 interface:
   display_name: "Jugg Dogfood Sync"
-  short_description: "Incrementally refresh, verify, and promote local dogfood"
+  short_description: "Refresh, reanchor, verify, and promote local dogfood"
   default_prompt: "使用 $jugg-dogfood-sync 更新 dogfood。"
