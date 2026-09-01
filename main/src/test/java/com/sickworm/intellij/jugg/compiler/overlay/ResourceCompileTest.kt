@@ -314,6 +314,44 @@ open class ResourceCompileTest {
     }
 
     @Test
+    fun compileSameNamedValuesFromDifferentResourceRoots() {
+        val mainResDir = File(buildDir, "resource_roots/main/res")
+        val legacyResDir = File(buildDir, "resource_roots/legacy/res")
+        val mainStrings = File(mainResDir, "values/strings.xml").apply {
+            parentFile.mkdirs()
+            writeText("""
+                <resources>
+                    <string name="jugg_main_resource_root_value">main</string>
+                </resources>
+            """.trimIndent())
+        }
+        val legacyStrings = File(legacyResDir, "values/strings.xml").apply {
+            parentFile.mkdirs()
+            writeText("""
+                <resources>
+                    <string name="jugg_legacy_resource_root_value">legacy</string>
+                </resources>
+            """.trimIndent())
+        }
+        val task = CompileTask(
+            listOf(
+                CompileFile(CompileFile.Type.Resource, mainStrings, mainResDir, mockModule),
+                CompileFile(CompileFile.Type.Resource, legacyStrings, legacyResDir, mockModule),
+            ),
+            stagingDir,
+        )
+
+        val result = resourceOverlayCompiler.compile(task)
+
+        checkArscResult(task, result, 0, isRJavaChanged = true)
+        val rFileText = result.outputs.first {
+            it.type == CompileOutput.Type.Java && it.file.name == "R.java"
+        }.file.readText()
+        assertTrue(rFileText.contains("jugg_main_resource_root_value"))
+        assertTrue(rFileText.contains("jugg_legacy_resource_root_value"))
+    }
+
+    @Test
     open fun compileStyleableLayout() {
 
         val compileStyleableLayoutTask = CompileTask(

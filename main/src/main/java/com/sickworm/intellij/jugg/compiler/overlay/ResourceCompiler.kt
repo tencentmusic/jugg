@@ -38,25 +38,26 @@ class ResourceCompiler(
         val outputDir = task.outputDir.resolve(subDir)
         outputDir.mkdirs()
 
-        val singleResCompileSet = ResCompileSet(
-            task,
-            task.files.filter { it.file.isFile }.associateWith { listOf(it.file) },
-            outputDir.resolve("single_files"),
-        )
-        // if compile file is a directory, compile all files in the directory
+        // Expand directory inputs before grouping every resource by its owning root.
         val dirToFilesMap: Map<File, List<File>> = DirToFileMapHelper.createDirToResFileMap(task.files, logger)
-        val dirResCompileSet = dirToFilesMap.map { (taskFile, files) ->
-            val compileFile = task.files.find { it.file == taskFile }!!
-            val outputDirName = taskFile.path.md5
-            val outputSubDir = outputDir.resolve(outputDirName)
-            logger.debug("res dir ${taskFile.path}, output $outputSubDir")
+        val compileFilesSet = task.files.groupBy { compileFile ->
+            val resourceRoot = if (compileFile.file.isDirectory) compileFile.file else compileFile.baseDir
+            resourceRoot.absoluteFile.normalize().path
+        }.map { (resourceRootPath, compileFiles) ->
+            val outputSubDir = outputDir.resolve(resourceRootPath.md5)
+            logger.debug("res root $resourceRootPath, output $outputSubDir")
             ResCompileSet(
                 task,
-                mapOf(compileFile to files),
+                compileFiles.associateWith { compileFile ->
+                    if (compileFile.file.isDirectory) {
+                        dirToFilesMap[compileFile.file].orEmpty()
+                    } else {
+                        listOf(compileFile.file)
+                    }
+                },
                 outputSubDir,
             )
         }
-        val compileFilesSet: List<ResCompileSet> = dirResCompileSet + listOf(singleResCompileSet)
         val compileResultSet = compileFilesSet.map {
             compileResSet(it, module)
         }
