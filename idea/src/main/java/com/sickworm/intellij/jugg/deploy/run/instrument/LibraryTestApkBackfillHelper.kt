@@ -164,6 +164,7 @@ class LibraryTestApkBackfillHelper(
             syncMode = SyncMode.RSYNC_SIMPLE,
             environmentVariables = "",
             buildTarget = BuildTarget.APP,
+            isCleanupFetchedApks = false,
         )
     }
 
