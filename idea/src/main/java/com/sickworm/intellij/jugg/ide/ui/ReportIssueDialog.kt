@@ -42,7 +42,7 @@ class ReportIssueDialog(
     override fun createCenterPanel(): JComponent {
         val panel = JPanel(BorderLayout(0, 12)).apply {
             border = JBUI.Borders.empty(12)
-            preferredSize = Dimension(760, 360)
+            preferredSize = Dimension(760, 500)
         }
         val entries = JPanel().apply {
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
