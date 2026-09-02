@@ -1,3 +1,8 @@
+- version: 3.3.7
+  date: 2026.09.02
+  updates:
+    - prevent compatibility deployment from repeatedly failing after heap exhaustion
+
 - version: 3.3.6
   date: 2026.09.01
   updates:
