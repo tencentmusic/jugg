@@ -35,10 +35,10 @@
 | Plugin XML ID | `com.sickworm.intellij.jugg` |
 | 名称 | `Jugg` |
 | 发行模式 | Free，Stable channel |
-| 许可证 | MIT，链接到 `https://github.com/sickworm/jugg/blob/main/LICENSE` |
-| 源码 | `https://github.com/sickworm/jugg` |
+| 许可证 | MIT，链接到 `https://github.com/tencentmusic/jugg/blob/main/LICENSE` |
+| 源码 | `https://github.com/tencentmusic/jugg` |
 | 文档 | 发布前填写公开可访问的 Wiki 地址；仓库内 Wiki 不能直接作为用户链接 |
-| Issue tracker | `https://github.com/sickworm/jugg/issues` |
+| Issue tracker | `https://github.com/tencentmusic/jugg/issues` |
 | Vendor | `sickworm`；当前 `plugin.xml` 已声明 `https://sickworm.com` 与 `ch.operation@gmail.com` |
 | Ads | No；若页面或插件后续出现推广第三方服务的商业内容，需要重新声明 |
 

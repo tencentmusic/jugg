@@ -12,8 +12,8 @@ Jugg is an open-source incremental build and deployment tool from the Tencent Mu
 
 Jugg only requires an IDE plugin. It does not modify Gradle scripts or require an SDK integration. Developers keep using the familiar Run action; when a project change falls outside the incremental path, Jugg falls back to Gradle and establishes a new baseline.
 
-- [Download the latest stable release](https://github.com/sickworm/jugg/releases/latest)
-- [Jugg Wiki](https://sickworm.github.io/jugg/)
+- [Download the latest stable release](https://github.com/tencentmusic/jugg/releases/latest)
+- [Jugg Wiki](https://tencentmusic.github.io/jugg/)
 - [Watch the demo](https://www.bilibili.com/video/BV1W3411C7PU/)
 
 ## How Jugg works
@@ -53,7 +53,7 @@ Jugg is fast because it processes only the necessary inputs. Impact propagation,
 | Android Test | Application / Library Android Test, Test Results UI, and Logcat attribution |
 | Automation | Jugg CLI, MCP, Agent Skills, build and deployment, device and runtime queries, UI automation, and remote diagnostics |
 
-See the [compatibility reference](https://sickworm.github.io/jugg/reference/compatibility) for detailed requirements and behavior boundaries.
+See the [compatibility reference](https://tencentmusic.github.io/jugg/reference/compatibility) for detailed requirements and behavior boundaries.
 
 ## Verified compatibility
 
@@ -66,15 +66,15 @@ See the [compatibility reference](https://sickworm.github.io/jugg/reference/comp
 | Kotlin | 1.3 to 2.2 |
 | Android | 8 to 16 |
 
-Versions outside these ranges may still work, but they can contain compatibility differences that have not yet been covered. Please open an [Issue](https://github.com/sickworm/jugg/issues) when you encounter a reproducible problem.
+Versions outside these ranges may still work, but they can contain compatibility differences that have not yet been covered. Please open an [Issue](https://github.com/tencentmusic/jugg/issues) when you encounter a reproducible problem.
 
 ## Quick start
 
-1. Download and install the plugin from [Releases](https://github.com/sickworm/jugg/releases/latest).
+1. Download and install the plugin from [Releases](https://github.com/tencentmusic/jugg/releases/latest).
 2. Open an existing Android project and create or select a Jugg Run Configuration.
 3. The first Run uses Gradle to establish a trusted baseline. After that, modify source code or resources and click Run again to see the incremental result.
 
-See [Getting started](https://sickworm.github.io/jugg/onboarding/) for the complete setup guide.
+See [Getting started](https://tencentmusic.github.io/jugg/onboarding/) for the complete setup guide.
 
 ## Network and diagnostic privacy
 

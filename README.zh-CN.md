@@ -12,8 +12,8 @@ Jugg 是腾讯音乐技术团队开源的 Android 秒级增量编译与部署工
 
 Jugg 仅需安装 IDE 插件，不修改 Gradle 脚本，也不要求工程接入 SDK。日常开发仍然使用熟悉的 Run 入口；当工程变化超出增量路径的处理范围时，Jugg 会回退 Gradle 构建并重新建立基线。
 
-- [下载最新稳定版](https://github.com/sickworm/jugg/releases/latest)
-- [Jugg Wiki](https://sickworm.github.io/jugg/zh/)
+- [下载最新稳定版](https://github.com/tencentmusic/jugg/releases/latest)
+- [Jugg Wiki](https://tencentmusic.github.io/jugg/zh/)
 - [观看演示视频](https://www.bilibili.com/video/BV1W3411C7PU/)
 
 ## Jugg 方案介绍
@@ -53,7 +53,7 @@ Jugg 的速度来自只处理必要输入；结果的可信度来自影响扩散
 | Android Test | Application / Library Android Test、Test Results UI、Logcat 归因 |
 | 自动化 | Jugg CLI、MCP、Agent Skills、构建部署、设备与运行时查询、UI 自动化、远端诊断 |
 
-更完整的支持条件和行为边界请查看 [兼容范围](https://sickworm.github.io/jugg/zh/reference/compatibility)。
+更完整的支持条件和行为边界请查看 [兼容范围](https://tencentmusic.github.io/jugg/zh/reference/compatibility)。
 
 ## 已验证兼容范围
 
@@ -66,15 +66,15 @@ Jugg 的速度来自只处理必要输入；结果的可信度来自影响扩散
 | Kotlin | 1.3 至 2.2 |
 | Android | 8 至 16 |
 
-未列出的版本不代表一定不可用，但可能存在尚未覆盖的兼容差异。遇到明确问题请提交 [Issue](https://github.com/sickworm/jugg/issues)。
+未列出的版本不代表一定不可用，但可能存在尚未覆盖的兼容差异。遇到明确问题请提交 [Issue](https://github.com/tencentmusic/jugg/issues)。
 
 ## 快速开始
 
-1. 从 [Releases](https://github.com/sickworm/jugg/releases/latest) 下载并安装插件。
+1. 从 [Releases](https://github.com/tencentmusic/jugg/releases/latest) 下载并安装插件。
 2. 打开现有 Android 工程，创建或选择 Jugg Run Configuration。
 3. 首次 Run 通过 Gradle 建立可信基线；之后修改源码或资源，再次点击 Run 查看增量结果。
 
-详细步骤见 [开始接入](https://sickworm.github.io/jugg/zh/onboarding/)。
+详细步骤见 [开始接入](https://tencentmusic.github.io/jugg/zh/onboarding/)。
 
 ## 网络与诊断隐私
 

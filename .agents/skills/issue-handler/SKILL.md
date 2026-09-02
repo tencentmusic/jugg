@@ -1,6 +1,6 @@
 ---
 name: issue-handler
-description: Investigate and handle issues for the sickworm/jugg repository. Use when asked to analyze a Jugg issue, diagnose a crash, trace a Jugg report, validate a suspected root cause, or when a maintainer summons the bot.
+description: Investigate and handle issues for the tencentmusic/jugg repository. Use when asked to analyze a Jugg issue, diagnose a crash, trace a Jugg report, validate a suspected root cause, or when a maintainer summons the bot.
 ---
 
 # Jugg Issue Handler
