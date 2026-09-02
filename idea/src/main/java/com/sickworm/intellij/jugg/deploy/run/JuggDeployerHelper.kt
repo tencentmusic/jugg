@@ -475,10 +475,18 @@ class JuggDeployerHelper(
                 finalIsFallbackAllHotFix = outcome.finalIsFallbackAllHotFix
                 outcome.result
             }
+        } catch (e: OutOfMemoryError) {
+            incrementalSnapshot?.let { snapshot ->
+                deployData = snapshot.deployData
+            }
+            handleOutOfMemoryFailure(deployOptions, deployData, costTime(), e)
         } catch (e: Exception) {
             incrementalSnapshot?.let { snapshot ->
                 deployData = snapshot.deployData
                 finalIsFallbackAllHotFix = snapshot.finalIsFallbackAllHotFix
+            }
+            if (isOutOfMemoryFailure(e)) {
+                return handleOutOfMemoryFailure(deployOptions, deployData, costTime(), e)
             }
             val reason = e.message ?: e.cause?.message ?: e.toString()
             val retryReason = deployOptions.retryReason
@@ -672,6 +680,7 @@ class JuggDeployerHelper(
         }
         publishDeployState(deployData, finalIsFallbackAllHotFix)
 
+        logDeployPayloadMemory(deployData)
         logger.debug("Deploying data(debug):\n$deployData")
         logger.info("Deploying data:\n${deployData.toDescString()}")
         if (deployData.isFullRes && !deployData.isCompatDeploy) {
@@ -687,6 +696,13 @@ class JuggDeployerHelper(
             ),
         )
         if (!launchResult.success) {
+            if (DeployRetryHandler.isOutOfMemoryReason(launchResult.consoleError.orEmpty())) {
+                return ChangesDeployOutcome(
+                    handleOutOfMemoryFailure(deployOptions, deployData, costTime(), null),
+                    deployData,
+                    finalIsFallbackAllHotFix,
+                )
+            }
             if (deployOptions.androidTestRunSpec != null && deployOptions.isLastDevice) {
                 logger.debug("AndroidTest launch failed after deploy, update deploy info before returning failure.")
                 updateInfoAfterIncDeploy(launchResult, deployData)
@@ -720,6 +736,58 @@ class JuggDeployerHelper(
             deployData,
             finalIsFallbackAllHotFix,
         )
+    }
+
+    private fun handleOutOfMemoryFailure(
+        deployOptions: DeployOptions,
+        deployData: JuggDeployData,
+        costTime: Long,
+        error: Throwable?,
+    ): DeployTaskResult {
+        try {
+            deployFileManager.clearResourceApkCache()
+        } catch (cacheError: Throwable) {
+            logger.debug("Clear resource APK cache after out of memory failure failed", cacheError)
+        }
+        if (deployOptions.isInstall) {
+            logger.warn("Install APK failed. Reason: $OUT_OF_MEMORY_GUIDANCE")
+        } else {
+            logger.warn("Deploy Changes failed. Reason: $OUT_OF_MEMORY_GUIDANCE")
+        }
+        if (error != null) {
+            logger.debug(error)
+        }
+        return DeployTaskResult(
+            isSuccess = false,
+            costTime = costTime,
+            deployType = deployData.deployType,
+            failedReason = OUT_OF_MEMORY_GUIDANCE,
+        )
+    }
+
+    private fun isOutOfMemoryFailure(error: Throwable): Boolean {
+        var current: Throwable? = error
+        repeat(16) {
+            if (current is OutOfMemoryError || DeployRetryHandler.isOutOfMemoryReason(current?.message.orEmpty())) {
+                return true
+            }
+            val next = current?.cause
+            if (next === current) {
+                return false
+            }
+            current = next
+        }
+        return false
+    }
+
+    private fun logDeployPayloadMemory(deployData: JuggDeployData) {
+        val overlayBytes = deployData.overlays.sumOf { it.content.size.toLong() }
+        val maxOverlayBytes = deployData.overlays.maxOfOrNull { it.content.size } ?: 0
+        val runtime = Runtime.getRuntime()
+        val heapUsedBytes = runtime.totalMemory() - runtime.freeMemory()
+        logger.debug("Deploy payload memory: overlayCount=${deployData.overlays.size}, " +
+                "overlayBytes=$overlayBytes, maxOverlayBytes=$maxOverlayBytes, " +
+                "heapUsedBytes=$heapUsedBytes, heapMaxBytes=${runtime.maxMemory()}")
     }
 
     private fun embeddedToApk(deployOptions: DeployOptions): DeployTaskResult {
@@ -845,6 +913,8 @@ class JuggDeployerHelper(
         private val runTaskLock = Object()
 
         const val DO_NOT_RETRY = "DO_NOT_RETRY"
+        private const val OUT_OF_MEMORY_GUIDANCE = "Java heap space. Resource APK cache was cleared. " +
+            "Restart Android Studio, increase the IDE heap, or run a Gradle install before retrying Jugg."
         /**
          * Merges newly installed APK overlay ids into the existing deploy-state checkpoint.
          */

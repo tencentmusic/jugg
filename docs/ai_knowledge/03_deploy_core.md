@@ -119,6 +119,8 @@ JuggDeployerHelper.deploy(isInstall=false)
 
 `updateInfoAfterIncDeploy()` 顺序不能乱：先更新 deploy history，再 `DeployFileManager.commit(deployData)`，最后写 `lastDeployOverlayIds`。这个顺序保证文件历史和 overlay checkpoint 一起前进。
 
+兼容部署的 `resource.ap_` 保留 JVM 14+ ZipFS 快速更新，但每次生成或增量修改都在同目录唯一临时文件上完成，ZipFS 关闭成功后才替换正式文件。这样异常后不会再次打开同一个残留 ZipFS URI，也不会把半生成文件发布为缓存。首次生成只在最终返回部署数据时读取一次完整 APK 字节。
+
 ### 4.3 runTask 内部决策点
 
 ```text
@@ -185,6 +187,7 @@ reinstall recover 不恢复历史资源类型：重装已经停止或替换了�
 | transient offline | 等待 ADB transport 恢复，成功后用原 deploy data redeploy。 |
 | `REDEPLOY_WITH_COMPAT_MESSAGE` | `appendCompatDeployFiles()` 后 compat redeploy。 |
 | `JVMTI_ERROR_UNMODIFIABLE_CLASS` / `app restart` / redefiner/internal error | fallback 到 HOT_FIX 后 redeploy。 |
+| `OutOfMemoryError` / `Java heap space` / `GC overhead limit exceeded` | 不在当前 IDE 进程重试或自动 Gradle fallback；清理兼容资源 APK 缓存，并提示重启 Android Studio、增大 IDE heap 或执行 Gradle install。 |
 | `INSTRUMENTATION_FAILED` / `IOException occurred` | 不改 payload，直接重试。 |
 | agent no response | 先检测 JVMTI compat；必要时 compat deploy；JVMTI 可用且调用方允许 direct overlay 时，强制重试一次 direct overlay，避免依赖 agent responses。 |
 | deploy timeout | 先检测 JVMTI compat；必要时 compat deploy；timeout 规则继续按下方计数策略处理。 |

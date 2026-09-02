@@ -51,7 +51,6 @@ class ResourceApkGenerator(
 
             val fullResAndAssets = deployDataDatabase.addFullRes(deployedItems, isNeedRes = true, isNeedAsset = true)
             resourceModifier.createResourceApk(fullResAndAssets.scopedDistinctByName(originApkPath))
-            resourceModifier.toDeployItems()
         } else {
             resourceModifier.incrementalUpdateResourceApk(changedOverlays)
         }
@@ -90,6 +89,8 @@ class ResourceApkGenerator(
     }
 
     fun deleteResourceApk() {
-        resourceApkDir.deleteRecursively()
+        if (resourceApkDir.exists() && !resourceApkDir.deleteRecursively()) {
+            logger.debug("Delete resource APK cache failed: $resourceApkDir")
+        }
     }
 }

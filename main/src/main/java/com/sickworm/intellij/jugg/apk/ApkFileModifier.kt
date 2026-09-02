@@ -103,6 +103,7 @@ class ApkFileModifier(
         val zipProperties = mapOf("create" to "false", "compressionMethod" to "STORED")
 
         val zipDisk: URI = URI.create("jar:" + apkFileToUpdate.toURI().toString())
+        logger.debug("Open ZipFS, apkFile=$apkFileToUpdate, insertFileCount=${insertFiles.size}")
         FileSystems.newFileSystem(zipDisk, zipProperties).use { zipFileSystem ->
             insertFiles.forEach { (path, content) ->
                 val pathInZipFile: Path = zipFileSystem.getPath(path)

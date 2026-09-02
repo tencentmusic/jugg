@@ -22,6 +22,25 @@ import org.mockito.Mockito
 class DeployRetryHandlerTest {
 
     @Test
+    fun `tryRetry should not retry wrapped out of memory failure`() {
+        val device = Mockito.mock(IDevice::class.java)
+        val deployOptions = DeployOptions(device = device, isLastDevice = true)
+        val deployData = JuggDeployData.forInstall(emptyList())
+        val deployRunHost = RecordingDeployRunHost(DeployTaskResult(isSuccess = true, costTime = 1L))
+        val handler = createHandler(deployRunHost = deployRunHost)
+
+        val result = handler.tryRetry(
+            deployOptions,
+            finalIsFallbackAllHotFix = false,
+            deployData = deployData,
+            reason = "IOException occurred: java.lang.OutOfMemoryError: Java heap space",
+        )
+
+        assertNull(result)
+        assertNull(deployRunHost.lastRedeployOptions)
+    }
+
+    @Test
     fun `tryRetry should redeploy when device offline recovers within wait window`() {
         val device = Mockito.mock(IDevice::class.java)
         val deployOptions = DeployOptions(device = device, isLastDevice = true)
