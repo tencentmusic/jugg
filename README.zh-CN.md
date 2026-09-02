@@ -16,6 +16,14 @@ Jugg 仅需安装 IDE 插件，不修改 Gradle 脚本，也不要求工程接�
 - [Jugg Wiki](https://tencentmusic.github.io/jugg/zh/)
 - [观看演示视频](https://www.bilibili.com/video/BV1W3411C7PU/)
 
+## 社区交流
+
+加入 Jugg 微信交流群，交流使用经验和问题排查。
+
+<p align="center">
+  <img src="./docs/images/wechat-group.jpg" alt="Jugg 微信交流群二维码" width="360">
+</p>
+
 ## Jugg 方案介绍
 
 Gradle 和 AGP 负责生成完整、可信的 Android 构建产物，但 Gradle 启动、Configuration 和 Task 编排的固定开销不会随着修改量减少。大型工程中，即使只修改一行代码或一个资源文件，也可能需要等待较长时间才能看到结果。

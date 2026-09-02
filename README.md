@@ -16,6 +16,14 @@ Jugg only requires an IDE plugin. It does not modify Gradle scripts or require a
 - [Jugg Wiki](https://tencentmusic.github.io/jugg/)
 - [Watch the demo](https://www.bilibili.com/video/BV1W3411C7PU/)
 
+## Community
+
+Join the Jugg WeChat group to discuss usage and troubleshooting.
+
+<p align="center">
+  <img src="./docs/images/wechat-group.jpg" alt="Jugg WeChat group QR code" width="360">
+</p>
+
 ## How Jugg works
 
 Gradle and AGP produce complete, trusted Android build outputs, but the fixed cost of Gradle startup, configuration, and task orchestration does not shrink with the size of a change. In a large codebase, changing a single line of code or one resource file can still require a long wait before the result becomes visible.
