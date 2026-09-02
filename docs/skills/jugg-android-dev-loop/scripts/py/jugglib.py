@@ -7,6 +7,7 @@ Provides: port detection, projectDir resolution, record session management,
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import json
 import os
 import re
@@ -108,6 +109,17 @@ _WINDOWS_CREATE_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
 _JUGG_RUNTIME_LOG_PATTERN = re.compile(
     r"^\[[^]]+\]\s+\[[^]]+\]\s+\[([^]]+)\]\s+(.*)$"
 )
+
+
+def _file_sha256(path: Path) -> str:
+    try:
+        digest = hashlib.sha256()
+        with path.open("rb") as source:
+            for chunk in iter(lambda: source.read(1024 * 1024), b""):
+                digest.update(chunk)
+        return digest.hexdigest()
+    except OSError:
+        return "unavailable"
 
 DEVICE_TARGET_TOOLS = {
     "restart",
@@ -437,14 +449,26 @@ def launch_standalone(project_dir: str) -> StandaloneLaunch:
     startup_log = Path(project_dir) / "build" / "jugg" / "log" / "standlone_cli" / "standalone_startup.log"
     startup_log.parent.mkdir(parents=True, exist_ok=True)
     popen_args = {"stdin": subprocess.DEVNULL, "close_fds": True}
+    creation_flags = 0
     if sys.platform == "win32":
-        popen_args["creationflags"] = (
+        creation_flags = (
             _WINDOWS_CREATE_NEW_PROCESS_GROUP | _WINDOWS_CREATE_NO_WINDOW
         )
+        popen_args["creationflags"] = creation_flags
     else:
         popen_args["start_new_session"] = True
     with startup_log.open("w", encoding="utf-8") as output:
         output.write(f"=== Starting Jugg standalone for {project_dir} ===\n")
+        output.write(
+            "launcher_diagnostics="
+            f"caller={os.environ.get('JUGG_CALLER', 'cli')} "
+            f"python={sys.executable} "
+            f"script={Path(__file__).resolve()} "
+            f"scriptSha256={_file_sha256(Path(__file__))} "
+            f"launcher={launcher.resolve()} "
+            f"launcherSha256={_file_sha256(launcher)} "
+            f"creationFlags=0x{creation_flags:08x}\n"
+        )
         output.flush()
         process = subprocess.Popen(command, stdout=output, stderr=subprocess.STDOUT, **popen_args)
     return StandaloneLaunch(process, startup_log)
