@@ -344,6 +344,24 @@ class JuggCompileHelperTest {
     }
 
     @Test
+    fun preprocessIncrementalCompile_firstRun_prefersMissingGradleBaselineOverProjectInfo() {
+        val fixture = createFixture()
+        whenever(fixture.deployHistoryManager.hasBeenFullCompiled).thenReturn(false)
+        whenever(fixture.gradleProjectInfoLocalFetchManager.isIncrementalCompileAvailable).thenReturn(false)
+        whenever(fixture.deployStateManager.updateDeployState()).thenReturn(
+            JuggDeployState.READY.copy(
+                state = JuggDeployState.State.READY_FULL_COMPILE,
+                msg = "not gradle compile yet",
+            ),
+        )
+
+        val result = invokePreprocessIncrementalCompile(fixture.helper, fixture.options, fixture.uiHandler)
+
+        assertTrue(result!!.isCanFallback)
+        assertEquals("not gradle compile yet", result.failedReason)
+    }
+
+    @Test
     fun preprocessIncrementalCompile_missingProjectInfoRebuilding_waitsBeforeIncrementalDecision() {
         val fixture = createFixture()
         val isRebuilding = AtomicBoolean(true)
@@ -545,6 +563,21 @@ class JuggCompileHelperTest {
         withLoweredSourceFilePointLimit(2) {
             assertEquals("last gradle compile not success", fixture.helper.checkFallback())
         }
+    }
+
+    @Test
+    fun checkFallback_firstRun_prefersMissingGradleBaselineOverProjectInfo() {
+        val fixture = createFixture()
+        whenever(fixture.deployHistoryManager.hasBeenFullCompiled).thenReturn(false)
+        whenever(fixture.gradleProjectInfoLocalFetchManager.isIncrementalCompileAvailable).thenReturn(false)
+        whenever(fixture.deployStateManager.updateDeployState()).thenReturn(
+            JuggDeployState.READY.copy(
+                state = JuggDeployState.State.READY_FULL_COMPILE,
+                msg = "not gradle compile yet",
+            ),
+        )
+
+        assertEquals("not gradle compile yet", fixture.helper.checkFallback())
     }
 
     @Test
@@ -750,6 +783,7 @@ class JuggCompileHelperTest {
         val options = mock<JuggGradleCompileOptions>()
 
         whenever(uiHandler.isForceGradleCompile).thenReturn(false)
+        whenever(deployHistoryManager.hasBeenFullCompiled).thenReturn(true)
         whenever(deployHistoryManager.isLastFullCompileFailed).thenReturn(false)
         whenever(deployHistoryManager.isBuildTargetChanged(options)).thenReturn(false)
         whenever(deployFileManager.getUndeployedFiles()).thenReturn(emptyList())

@@ -1,6 +1,6 @@
 # 编译系统：核心架构
 
-> 最后核对：2026-08-31
+> 最后核对：2026-09-03
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -60,11 +60,12 @@ JuggCompilerHelper.compile(options, uiHandler)
         1. Force Gradle Compile
         2. BuildTarget 切换（APP <-> ANDROID_TEST）
         3. compile command 与 full-build 基线不一致
-        4. 等待已存在 full-build 基线的 project-info 重建，再检查 project info 是否可用
-        5. INVALID_DEVICE
-        6. 回滚内容未变的文件，再检查 build file / dependency 变化
-        7. DeployState 要求 full compile（未建立基线、上次 Gradle 失败、build file 要求 rebuild）
-        8. 变更文件过多的确认；仅此前各项仍允许增量时才弹出
+        4. 未建立 full-build 基线（`not gradle compile yet`）
+        5. 等待已存在 full-build 基线的 project-info 重建，再检查 project info 是否可用
+        6. INVALID_DEVICE
+        7. 回滚内容未变的文件，再检查 build file / dependency 变化
+        8. DeployState 要求 full compile（上次 Gradle 失败、build file 要求 rebuild）
+        9. 变更文件过多的确认；仅此前各项仍允许增量时才弹出
      -> 用户在“变更过多”确认中选择 Continue 仅影响本轮；选择 Gradle 或任一强制条件都返回可回退结果
      -> 返回 null 才进入 incrementalCompile()
   -> 增量成功：直接返回
@@ -72,7 +73,7 @@ JuggCompilerHelper.compile(options, uiHandler)
   -> 需要回退：通知 fallback，执行 gradleCompile()
 ```
 
-`checkFallback()` 是 MCP/status 使用的无副作用预检，不能读取 Run options 或弹窗，因此顺序不同：`project info 不可用 -> INVALID_DEVICE -> DeployState 必须 full compile -> 变更文件过多`。它不会报告 Force Gradle、BuildTarget/command 切换、依赖差异确认或无文件变化确认；status 的 reason 不能替代实际 Run 的最终决策。
+`checkFallback()` 是 MCP/status 使用的无副作用预检，不能读取 Run options 或弹窗，因此顺序不同：`未建立 full-build 基线 -> project info 不可用 -> INVALID_DEVICE -> 其他 DeployState 必须 full compile -> 变更文件过多`。首次运行同时缺少基线和 project info 时，优先报告 `not gradle compile yet`。它不会报告 Force Gradle、BuildTarget/command 切换、依赖差异确认或无文件变化确认；status 的 reason 不能替代实际 Run 的最终决策。
 
 ### 4.2 单轮增量编译与影响传播
 

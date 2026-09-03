@@ -92,6 +92,7 @@ class JuggCompilerHelper(
      * can proceed.
      */
     override fun checkFallback(): String? {
+        getInitialFullCompileReason()?.let { return it }
         if (!gradleProjectInfoLocalFetchManager.isIncrementalCompileAvailable) {
             return GRADLE_PROJECT_INFO_UNAVAILABLE
         }
@@ -104,6 +105,13 @@ class JuggCompilerHelper(
             return it.failedReason
         }
         return null
+    }
+
+    private fun getInitialFullCompileReason(): String? {
+        if (deployHistoryManager.hasBeenFullCompiled) {
+            return null
+        }
+        return deployStateManager.updateDeployState().msg
     }
 
     @Synchronized
@@ -401,6 +409,10 @@ class JuggCompilerHelper(
             logger.info("Compile command changed, forcing Gradle full compile. " +
                     "last=$lastCompileCommand current=${options.compileCommand}")
             return CompileTaskResult.incrementalFailed(true, "Compile command changed")
+        }
+
+        getInitialFullCompileReason()?.let {
+            return CompileTaskResult.incrementalFailed(true, it)
         }
 
         if (gradleProjectInfoLocalFetchManager.isRebuildingMissingProjectInfo &&
