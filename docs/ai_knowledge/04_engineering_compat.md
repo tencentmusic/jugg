@@ -75,6 +75,8 @@ Quail 的 deployer API 已迁移到 `com.android.tools.deployer.common` 与 `com
 
 Quail 新版 `AdbClient` 的标准/full install 路径强制要求 `AdbSession`，无 session 时不再回退 ddmlib，而是抛出 `AdbSession is required for installation`。`QuailAsDeployerCompat` 创建 `AdbClient` 时必须使用三参数构造并传入 `AdbLibApplicationService` 的 application session；同一 helper 同时供 daemon installer 与 `ApkInstaller` 使用，确保 delta install 回退 full install 时仍可正常安装。
 
+Quail 4 将 `InstallOptions.Builder.setSkipVerification()` 的设备参数从 `IDevice` 改为 `DeviceHolder`，而 Quail 1 不包含 `DeviceHolder`。`deploy_compat/v_quail` 通过两个版本都提供的 `AdbClient.getSkipVerificationOption()` 计算安装参数，再将非空参数写入 `InstallOptions`，避免在兼容实现中静态引用任一版本专属签名；同一个 `AdbClient` 必须同时用于参数计算和 `ApkInstaller`。
+
 Meerkat～Panda 与 Quail 的设备选择通过 `DeployTargetContext` 获取当前 deploy target，再调用无启动副作用的 `getAndroidDevices(project)` 读取 IDE 选中顺序。只有全部选中设备都已运行并可解析为 `IDevice` 时才返回完整列表；任一选中 AVD 未运行时返回空，不启动 AVD，也不静默执行部分设备。不能用 ADB 已连接设备列表代替选中列表，否则单选设备时会错误部署到所有在线设备。
 
 ### 3.2 平台抽象

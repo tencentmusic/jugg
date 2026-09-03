@@ -89,7 +89,7 @@ open class QuailAsDeployerCompat : IAsDeployerCompat {
         return JuggInstallSession(installer, installer.version, onPrompt, onMessage)
     }
 
-    private fun createInstallOptions(device: IDevice, applicationId: String): InstallOptions {
+    private fun createInstallOptions(device: IDevice, adbClient: AdbClient, applicationId: String): InstallOptions {
         val options = InstallOptions.builder().setAllowDebuggable()
         if (device.supportsFeature(IDevice.HardwareFeature.EMBEDDED)) {
             options.setGrantAllPermissions()
@@ -100,7 +100,8 @@ open class QuailAsDeployerCompat : IAsDeployerCompat {
         if (device.version.isGreaterOrEqualThan(AndroidVersion.VersionCodes.N)) {
             options.setDontKill()
         }
-        options.setSkipVerification(device, applicationId)
+        // Quail 4 moved skip-verification checks to DeviceHolder. AdbClient keeps a compatible API across versions.
+        adbClient.getSkipVerificationOption(applicationId)?.let { options.setUserInstallOptions(it) }
         return options.build()
     }
 
@@ -112,8 +113,9 @@ open class QuailAsDeployerCompat : IAsDeployerCompat {
         apks: List<String>,
         installMode: JuggInstallSession.Mode,
     ): Boolean {
+        val adbClient = createAdbClient(device, logger)
         val apkInstaller = ApkInstaller(
-            createAdbClient(device, logger),
+            adbClient,
             session.toQuailUiService(),
             session.rawInstaller as Installer,
             logger,
@@ -124,7 +126,7 @@ open class QuailAsDeployerCompat : IAsDeployerCompat {
         return apkInstaller.install(
             deploymentPlan,
             noDeltaFallback,
-            createInstallOptions(device, packageName),
+            createInstallOptions(device, adbClient, packageName),
             installMode.toQuailInstallMode(),
             metrics.deployMetrics,
         )
