@@ -1,4 +1,4 @@
-<p align="right">
+<p align="left">
   <a href="./README.md">English</a> | <strong>简体中文</strong>
 </p>
 
