@@ -317,7 +317,7 @@ class BaseCompileContext(
         ) {
             return emptyList()
         }
-        val targetModules = (listOf(findRelativeApkModule(moduleInfo)) +
+        val targetModules = (listOf(resolveApkOwnerModule(moduleInfo)) +
                 listOfNotNull(applicationModule) + dynamicFeatureModules)
             .distinctBy { it.moduleRootDir.normalizedPath }
             .filter { it.moduleRootDir.normalizedPath !in includedBuildModuleRootPaths }
@@ -464,27 +464,9 @@ class BaseCompileContext(
         val apkFile = moduleBelongsApkMap.getBelongsApk(moduleInfo)!!.apkFile // should not be null
         desugaredLibraryConfigurationCache[apkFile.path]?.let { return it }
 
-        val targetModule = findRelativeApkModule(moduleInfo) ?: moduleInfo
+        val targetModule = resolveApkOwnerModule(moduleInfo)
         desugaredLibraryConfigurationCache[apkFile.path] = findDesugaredLibraryConfigurationTarget(targetModule)
         return desugaredLibraryConfigurationCache[apkFile.path]
-    }
-
-    private fun findRelativeApkModule(moduleInfo: ModuleInfo): ModuleInfo {
-        val apkFile = moduleBelongsApkMap.getBelongsApk(moduleInfo)!!.apkFile // should not be null
-        val applicationModule = applicationModule
-        if (applicationModule != null && moduleBelongsApkMap.getBelongsApk(applicationModule)?.apkFile == apkFile) {
-            return applicationModule
-        }
-        dynamicFeatureModules.forEach {
-            if (moduleBelongsApkMap.getBelongsApk(it)?.apkFile == apkFile) {
-                return it
-            }
-        }
-
-        val fallback = applicationModule ?: moduleInfo
-        logger.debug("findRelativeApkModule failed, cannot find ${moduleInfo.name} relative apk module, " +
-                "use ${fallback.name} for fallback.")
-        return fallback
     }
 
     private fun findDesugaredLibraryConfigurationTarget(targetModule: ModuleInfo): String? {
