@@ -10,8 +10,8 @@ import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 
 /**
- * Runs the project Kotlin compiler in a child JVM so KAPT can use javac internals without
- * inheriting Android Studio's module restrictions.
+ * Runs the project Kotlin compiler in a child JVM so it does not inherit incompatible IDE
+ * process state, while retaining the module exports required by KAPT.
  */
 internal class KotlinCompilerProcessRunner(private val logger: Logger) {
 

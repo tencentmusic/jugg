@@ -27,6 +27,7 @@ class KotlinCompilerInvoker {
     }
 
     private var hasRetryCompile = false
+    private var useIsolatedProcessAfterFileSystemConflict = false
     private var tryDisablePlugins: List<File> = emptyList()
     private var disablePlugins: List<File> = emptyList()
 
@@ -381,14 +382,21 @@ class KotlinCompilerInvoker {
             logger = logger,
             forceCompilerOutputDebug = options.isEnableKapt,
         )
+        val executionMode = if (options.executionMode == ExecutionMode.IN_PROCESS &&
+            useIsolatedProcessAfterFileSystemConflict && kotlinCompile.isUseProjectCompiler &&
+            !classpath.isNullOrEmpty()) {
+            ExecutionMode.ISOLATED_PROCESS
+        } else {
+            options.executionMode
+        }
         val shouldTrackExpectActual = options.isNeedComplementaryFiles &&
-            options.executionMode == ExecutionMode.IN_PROCESS && kotlinCompile.isUseProjectCompiler
+            executionMode == ExecutionMode.IN_PROCESS && kotlinCompile.isUseProjectCompiler
         if (options.isNeedComplementaryFiles && !shouldTrackExpectActual) {
             logger.debug("Skip expect/actual tracking without in-process project Kotlin compiler")
         }
         var trackingResult: K2JVMCompilerIsolate.ExpectActualTrackingResult? = null
         val exitCode = try {
-            if (options.executionMode == ExecutionMode.ISOLATED_PROCESS) {
+            if (executionMode == ExecutionMode.ISOLATED_PROCESS) {
                 check(!classpath.isNullOrEmpty()) { "Project Kotlin compiler classpath is required for isolated compilation" }
                 KotlinCompilerProcessRunner(logger).exec(
                     compileEnv = context.cmdCompileEnv,
@@ -413,6 +421,19 @@ class KotlinCompilerInvoker {
         }
         outputParser.flush()
         logger.debug("kotlin compile result code: $exitCode")
+
+        if (outputParser.isGotIdeFileSystemCloseException &&
+            executionMode == ExecutionMode.IN_PROCESS && kotlinCompile.isUseProjectCompiler &&
+            !classpath.isNullOrEmpty()) {
+            useIsolatedProcessAfterFileSystemConflict = true
+            if (task.files.isEmpty()) {
+                logger.debug("Kotlin compiler warm-up conflicts with IDE file system, use isolated process later")
+                hasRetryCompile = true
+            } else {
+                logger.warn("Kotlin compiler conflicts with IDE file system, retry in an isolated process once.")
+                return compile(context, module, task, logger, options.copy(isCanAutoRetry = false))
+            }
+        }
 
         // retry strategy
         if (options.isCanAutoRetry && !hasRetryCompile && handleMetadataError(outputParser, logger)) {

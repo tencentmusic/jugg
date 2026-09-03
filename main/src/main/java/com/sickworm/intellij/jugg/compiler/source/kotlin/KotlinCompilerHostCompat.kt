@@ -5,17 +5,23 @@ import java.io.File
 import java.lang.reflect.InvocationTargetException
 
 /**
- * KotlinCompilerHostCompat works around host JDK incompatibilities when old Kotlin compilers
- * (< 2.1.20) run inside the IDE process on JDK 25+.
+ * KotlinCompilerHostCompat handles host incompatibilities when project Kotlin compilers run
+ * inside the IDE process.
  *
  * Those compilers shade an intellij-core `JavaVersion` whose `parse()` caps the accepted java
  * feature version below 25 (fixed upstream in Kotlin 2.1.20, commit e0bf708). On a JDK 25+ host
  * the first `JavaVersion.current()` call inside the compiler throws IllegalArgumentException
  * (e.g. "25.0.3") and the whole compilation fails with INTERNAL_ERROR.
+ *
+ * Some old compilers also close the IDE-managed file system while disposing their loading
+ * context. The full exception signature is used to select the isolated compiler process.
  */
 object KotlinCompilerHostCompat {
 
     private const val SHADED_JAVA_VERSION_CLASS = "org.jetbrains.kotlin.com.intellij.util.lang.JavaVersion"
+    private const val IDE_FILE_SYSTEM_CLOSE = "com.intellij.platform.core.nio.fs.DelegatingFileSystem.close"
+    private const val DESCRIPTOR_LOADING_CONTEXT_CLOSE =
+        "org.jetbrains.kotlin.com.intellij.ide.plugins.DescriptorLoadingContext.close"
 
     private const val MIN_BROKEN_HOST_JAVA_FEATURE = 25
 
@@ -58,5 +64,12 @@ object KotlinCompilerHostCompat {
             return false
         }
         return dependencies.any { File(it).name == "android.jar" }
+    }
+
+    /** Returns true for the known project compiler and IDE file-system ownership conflict. */
+    fun isIdeFileSystemCloseConflict(message: String): Boolean {
+        return message.contains("java.lang.UnsupportedOperationException") &&
+                message.contains(IDE_FILE_SYSTEM_CLOSE) &&
+                message.contains(DESCRIPTOR_LOADING_CONTEXT_CLOSE)
     }
 }
