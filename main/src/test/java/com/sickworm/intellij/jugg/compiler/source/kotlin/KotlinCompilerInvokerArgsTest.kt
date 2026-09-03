@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.compiler.source.kotlin
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -60,6 +61,25 @@ class KotlinCompilerInvokerArgsTest {
                 "plugin:androidx.compose.compiler.plugins.kotlin:sourceInformation=true",
             ),
             KotlinCompilerInvoker.buildMissingComposeOptions(emptyList()),
+        )
+    }
+
+    @Test
+    fun `compiler toolchain key isolates different project compiler classpaths`() {
+        val oldCompiler = listOf(File("/tmp/kotlin-compiler-1.6.21.jar"), File("/tmp/kotlin-stdlib.jar"))
+        val sameCompiler = listOf(
+            File("/tmp/cache/../kotlin-compiler-1.6.21.jar"),
+            File("/tmp/kotlin-stdlib.jar"),
+        )
+        val newCompiler = listOf(File("/tmp/kotlin-compiler-2.2.10.jar"), File("/tmp/kotlin-stdlib.jar"))
+
+        assertEquals(
+            KotlinCompilerInvoker.buildCompilerToolchainKey(oldCompiler),
+            KotlinCompilerInvoker.buildCompilerToolchainKey(sameCompiler),
+        )
+        assertNotEquals(
+            KotlinCompilerInvoker.buildCompilerToolchainKey(oldCompiler),
+            KotlinCompilerInvoker.buildCompilerToolchainKey(newCompiler),
         )
     }
 }

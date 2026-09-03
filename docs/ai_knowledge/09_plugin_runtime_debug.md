@@ -127,7 +127,7 @@
 | `source_files.db` 每次启动都重建 | 检查 rebuild stamp、删除失败与 `SQLITE_BUSY`；不要使用 DB creation/modified time 判断最近重建 | `SourceFileManager`、`SourceFileDatabaseSqLiteHelper`；本节 4.3 |
 | release 增量后 runtime crash | 先确认 mapping 加载与 `Obfuscated:`，再对比 staging DEX 和 APK DEX；异常名不能单独决定映射缺口 | `DexObfuscator`、`DexMinifyCompiler`；`02_compile_obfuscation.md` |
 | Kotlin `INTERNAL_ERROR` 且栈含 shaded `JavaVersion` | recreate compiler 同样失败只能增强“宿主环境”推断；继续核对宿主 JDK、项目 Kotlin 版本和兼容日志 | `KotlinCompilerHostCompat`；`02_compile_source.md` |
-| Kotlin `INTERNAL_ERROR` 且栈含 `DelegatingFileSystem.close`、`DescriptorLoadingContext.close` | 确认同一异常块还包含 `UnsupportedOperationException`；命中后预热只缓存状态，真实源码应出现独立 JVM 重试日志，不能归因于源码语法或协程写法 | `KotlinCompilerOutputParser`、`KotlinCompilerInvoker`；`02_compile_source.md` |
+| Kotlin `INTERNAL_ERROR` 且栈含 `DelegatingFileSystem.close`、`DescriptorLoadingContext.close` | 确认同一异常块还包含 `UnsupportedOperationException`；命中后预热只缓存当前 compiler classpath 状态，真实源码应出现独立 JVM 重试日志。子进程只接收一个 Kotlin argfile 参数；不同 toolchain 不应同步降级 | `KotlinCompilerOutputParser`、`KotlinCompilerInvoker`、`KotlinCompilerProcessRunner`；`02_compile_source.md` |
 | Windows 命令中文乱码 | 保留原始字节链路；出现 `�` 表示可能已发生不可逆解码损失 | `ProcessOutputReader`；`04_engineering_compat.md` |
 
 ### 4.1 IDE freeze 的最小证据集

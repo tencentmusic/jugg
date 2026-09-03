@@ -27,7 +27,7 @@ class KotlinCompilerInvoker {
     }
 
     private var hasRetryCompile = false
-    private var useIsolatedProcessAfterFileSystemConflict = false
+    private val ideFileSystemConflictCompilerKeys = mutableSetOf<String>()
     private var tryDisablePlugins: List<File> = emptyList()
     private var disablePlugins: List<File> = emptyList()
 
@@ -382,9 +382,11 @@ class KotlinCompilerInvoker {
             logger = logger,
             forceCompilerOutputDebug = options.isEnableKapt,
         )
+        val compilerToolchainKey = classpath
+            ?.takeIf { kotlinCompile.isUseProjectCompiler && it.isNotEmpty() }
+            ?.let(::buildCompilerToolchainKey)
         val executionMode = if (options.executionMode == ExecutionMode.IN_PROCESS &&
-            useIsolatedProcessAfterFileSystemConflict && kotlinCompile.isUseProjectCompiler &&
-            !classpath.isNullOrEmpty()) {
+            compilerToolchainKey != null && compilerToolchainKey in ideFileSystemConflictCompilerKeys) {
             ExecutionMode.ISOLATED_PROCESS
         } else {
             options.executionMode
@@ -423,9 +425,8 @@ class KotlinCompilerInvoker {
         logger.debug("kotlin compile result code: $exitCode")
 
         if (outputParser.isGotIdeFileSystemCloseException &&
-            executionMode == ExecutionMode.IN_PROCESS && kotlinCompile.isUseProjectCompiler &&
-            !classpath.isNullOrEmpty()) {
-            useIsolatedProcessAfterFileSystemConflict = true
+            executionMode == ExecutionMode.IN_PROCESS && compilerToolchainKey != null) {
+            ideFileSystemConflictCompilerKeys += compilerToolchainKey
             if (task.files.isEmpty()) {
                 logger.debug("Kotlin compiler warm-up conflicts with IDE file system, use isolated process later")
                 hasRetryCompile = true
@@ -789,6 +790,10 @@ class KotlinCompilerInvoker {
     }
 
     companion object {
+
+        internal fun buildCompilerToolchainKey(classpath: List<File>): String {
+            return classpath.joinToString("\n") { it.absoluteFile.normalize().path }
+        }
 
         internal fun buildCommonSourceArgs(files: List<File>): List<String> {
             if (files.isEmpty()) return emptyList()
