@@ -12,17 +12,19 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.net.URI
+import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.FileSystems
 import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.StandardCopyOption
 import java.util.zip.CRC32
 import java.util.zip.ZipInputStream
 import kotlin.io.path.exists
 
 /**
- * ApkFileModifier applies in-place APK file updates and optional align/sign/replace steps.
+ * ApkFileModifier applies APK file updates and optional align/sign/replace steps.
  * Collaboration: Used by [ResourceApkModifier.incrementalUpdateResourceApk] and incremental deploy flows, delegating shell execution to [CmdExecutor.invoke].
- * Data Contract: [addFile] appends path-content pairs, and [insertAndResign] performs update -> align -> sign -> replace on the target APK.
+ * Data Contract: [addFile] appends path-content pairs, and [insertAndResign] publishes changes only after the temporary APK is signed and verified.
  */
 class ApkFileModifier(
     private val apkFile: File,
@@ -59,11 +61,20 @@ class ApkFileModifier(
 
     fun insertAndResign() {
         TimeLogger.start("insertAndResign")
-        var tmpApkFile = updateFiles(apkFile)
-        tmpApkFile = alignApk(tmpApkFile)
-        tmpApkFile = resignApk(tmpApkFile)
-        replaceOldApk(tmpApkFile, apkFile)
-        TimeLogger.end("insertAndResign", logger)
+        val tmpApkFiles = mutableSetOf<File>()
+        val workingApkFile = Files.createTempFile(apkFile.parentFile.toPath(), ".${apkFile.name}.", ".tmp_working").toFile()
+        tmpApkFiles.add(workingApkFile)
+        try {
+            apkFile.copyTo(workingApkFile, overwrite = true)
+            var tmpApkFile = updateFiles(workingApkFile).also(tmpApkFiles::add)
+            tmpApkFile = alignApk(tmpApkFile).also(tmpApkFiles::add)
+            tmpApkFile = resignApk(tmpApkFile)
+            verifyApk(tmpApkFile)
+            replaceOldApk(tmpApkFile, apkFile)
+            TimeLogger.end("insertAndResign", logger)
+        } finally {
+            tmpApkFiles.forEach { it.delete() }
+        }
     }
 
     fun updateDirectly() {
@@ -177,7 +188,7 @@ class ApkFileModifier(
 
     private fun alignApk(tmpUpdateApkFile: File): File {
         TimeLogger.start("alignApk")
-        val tmpAlignedApkFile = File(apkFile.parentFile, ".${apkFile.name}.tmp_aligned")
+        val tmpAlignedApkFile = File(tmpUpdateApkFile.parentFile, ".${tmpUpdateApkFile.name}.tmp_aligned")
         if (tmpAlignedApkFile.exists() && !tmpAlignedApkFile.delete()) {
             throw IllegalStateException("delete $tmpAlignedApkFile failed")
         }
@@ -280,28 +291,23 @@ class ApkFileModifier(
     }
 
     private fun replaceJavaHome(envArray: List<String>?, jdkPath: String): List<String> {
-        if (envArray == null) {
-            return listOf("JAVA_HOME=$jdkPath")
-        }
-        return envArray.map {
-            if (it.startsWith("JAVA_HOME=")) {
-                "JAVA_HOME=$jdkPath"
-            } else {
-                it
-            }
-        }
+        return envArray.orEmpty()
+            .filterNot { it.startsWith("JAVA_HOME=", ignoreCase = true) }
+            .plus("JAVA_HOME=$jdkPath")
     }
 
     private fun replaceOldApk(tmpApkFile: File, outputFile: File) {
         TimeLogger.start("replaceApk")
         if (tmpApkFile != outputFile) {
-            if (outputFile.exists()) {
-                if (!outputFile.delete()) {
-                    throw IllegalStateException("Delete $outputFile failed")
-                }
-            }
-            if (!tmpApkFile.renameTo(outputFile)) {
-                throw IllegalStateException("Rename $tmpApkFile to $outputFile failed")
+            try {
+                Files.move(
+                    tmpApkFile.toPath(),
+                    outputFile.toPath(),
+                    StandardCopyOption.ATOMIC_MOVE,
+                    StandardCopyOption.REPLACE_EXISTING,
+                )
+            } catch (_: AtomicMoveNotSupportedException) {
+                Files.move(tmpApkFile.toPath(), outputFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
             }
         } else {
             logger.debug("replaceOldApk skipped, apk file not changed")
@@ -310,10 +316,14 @@ class ApkFileModifier(
     }
 
     fun verify() {
+        verifyApk(apkFile)
+    }
+
+    private fun verifyApk(apkFileToVerify: File) {
         TimeLogger.start("verifyApk")
         // see: https://developer.android.com/tools/apksigner
         val apksigner = File(buildToolsFolder, "apksigner").absolutePath
-        val cmdString = "$apksigner verify ${apkFile.absolutePath}"
+        val cmdString = "$apksigner verify ${apkFileToVerify.absolutePath}"
         val cmd = SimpleSshCommand(cmdString, logger)
         val exitCode = CmdExecutor(logger).invoke(cmd)
         if (exitCode != 0) {
