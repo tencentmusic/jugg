@@ -10,6 +10,8 @@ tags:
 
 Jugg is an Android incremental build plugin for Android Studio. Its main purpose is to reduce full Gradle builds during everyday debugging. It does not require changes to your project code or Gradle configuration. You still select a run configuration and click Run in Android Studio; Jugg decides whether to use incremental compilation and hot deployment or fall back to Gradle for that run.
 
+The Jugg Run Configuration and the native App Run Configuration remain available as separate entry points. You do not need to uninstall the plugin or restore project configuration to pause using Jugg. After you select the native App configuration, Android Studio's original flow remains responsible for compilation, installation, and launch, and Jugg does not take over that Run. Select the Jugg configuration again whenever you want to resume incremental development.
+
 ## Complete the first run
 
 Start with these two steps:

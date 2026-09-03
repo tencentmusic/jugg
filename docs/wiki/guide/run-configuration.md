@@ -41,6 +41,12 @@ Change the Android Studio Build Variant
 
 The first run after switching usually requires a Gradle build because the APK, classpath, mapping, and project information belong to a new baseline.
 
+## Switch between Jugg and native Run
+
+Jugg configurations do not replace or rewrite native App Run Configurations. To stop using the Jugg run flow, select the native App configuration directly in Android Studio. The native configuration remains responsible for compilation, installation, and launch, and Jugg does not take over that Run. Select the corresponding Jugg configuration again when you want to resume incremental compilation.
+
+A native Run may update local build outputs or replace the APK installed on the device. After you switch back, Jugg checks the Gradle baseline and device deployment state again. If they no longer match, the next Jugg Run performs a Gradle build, installation, or state recovery as required by those checks. This only realigns Jugg's incremental starting point; it does not modify the native Run Configuration or project configuration.
+
 ## Which configuration CLI and MCP use
 
 CLI/MCP does not store a separate set of build arguments. It selects a configuration in this order:

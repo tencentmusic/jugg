@@ -10,7 +10,7 @@
 
 Jugg 是腾讯音乐技术团队开源的 Android 秒级增量编译与部署工具，以 Android Studio / IntelliJ IDEA 插件形式提供。它复用最近一次 Gradle 构建留下的可信产物，只编译本轮变化及其影响范围，再将代码和资源快速部署到设备。少量日常修改通常可以在 3 秒内看到效果。
 
-Jugg 仅需安装 IDE 插件，不修改 Gradle 脚本，也不要求工程接入 SDK。日常开发仍然使用熟悉的 Run 入口；当工程变化超出增量路径的处理范围时，Jugg 会回退 Gradle 构建并重新建立基线。
+Jugg 仅需安装 IDE 插件，不修改 Gradle 脚本，也不要求工程接入 SDK。Jugg Run Configuration 与原生 App Run Configuration 同时保留：选择 Jugg 配置时使用增量编译与部署；需要原来的 Android Studio / Gradle 构建、安装和启动流程时，随时切回原生 App 配置即可，Jugg 不会接管该次 Run。重新选择 Jugg 配置即可恢复增量流程；当工程变化超出增量路径的处理范围时，Jugg 自身也会回退 Gradle 构建并重新建立基线。
 
 - [下载最新稳定版](https://github.com/tencentmusic/jugg/releases/latest)
 - [Jugg Wiki](https://tencentmusic.github.io/jugg/zh/)
