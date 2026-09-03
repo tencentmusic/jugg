@@ -462,7 +462,7 @@ class JuggProjectInfoMergerAndroidTestTest {
     }
 
     @Test
-    fun `doMerge does not add missing Gradle dependency when target module exists in IDE project info`() {
+    fun `doMerge adds missing Gradle dependency when target module exists in IDE project info`() {
         val ideFile = saveToTempFile(
             projectInfoWithoutAgpR8(
                 mapOf(
@@ -478,6 +478,48 @@ class JuggProjectInfoMergerAndroidTestTest {
                     "app" to module("app", ModuleInfo.Type.Application, listOf("library1", "shared")),
                     "library1" to module("library1", ModuleInfo.Type.Library),
                     "shared" to module("shared", ModuleInfo.Type.Library),
+                )
+            )
+        )
+        val now = System.currentTimeMillis()
+        check(gradleFile.setLastModified(now - 20_000))
+        check(ideFile.setLastModified(now - 10_000))
+        try {
+            val merger = JuggProjectInfoMerger(logger)
+            merger.afterSync(ProjectInfoSerializer(ideFile, logger), BuildTarget.APP)
+
+            val result = merger.afterLocalFetch(
+                listOf(ProjectInfoSerializer(gradleFile, logger)),
+                BuildTarget.APP,
+            )
+
+            assertEquals(
+                listOf("library1", "shared"),
+                result.mergedInfo?.modules?.get("app")?.moduleDependencies?.map { it.moduleName },
+            )
+        } finally {
+            ideFile.delete()
+            gradleFile.delete()
+        }
+    }
+
+    @Test
+    fun `doMerge skips IDE-known Gradle dependency when adding it creates a cycle`() {
+        val ideFile = saveToTempFile(
+            projectInfoWithoutAgpR8(
+                mapOf(
+                    "app" to module("app", ModuleInfo.Type.Unknown, listOf("library1")),
+                    "library1" to module("library1", ModuleInfo.Type.Unknown),
+                    "shared" to module("shared", ModuleInfo.Type.Unknown, listOf("app")),
+                )
+            )
+        )
+        val gradleFile = saveToTempFile(
+            projectInfoWithoutAgpR8(
+                mapOf(
+                    "app" to module("app", ModuleInfo.Type.Application, listOf("library1", "shared")),
+                    "library1" to module("library1", ModuleInfo.Type.Library),
+                    "shared" to module("shared", ModuleInfo.Type.Library, listOf("app")),
                 )
             )
         )

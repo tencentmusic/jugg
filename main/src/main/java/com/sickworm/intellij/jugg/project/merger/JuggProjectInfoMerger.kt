@@ -353,10 +353,9 @@ class JuggProjectInfoMerger(
         }
 
         logger.debug("modules not found in gradleModuleInfo, won't merge: $noMergeModules")
-        mergeGradleOnlyModuleDependencies(
+        mergeMissingGradleModuleDependencies(
             mergedModules,
             finalGradleProjectInfo.modules,
-            ideProjectInfo.modules.keys,
             mergeResult,
         )
 
@@ -366,27 +365,25 @@ class JuggProjectInfoMerger(
         ))
     }
 
-    /** Adds missing dependencies to Gradle-only modules without introducing a new dependency cycle. */
-    private fun mergeGradleOnlyModuleDependencies(
+    /** Adds Gradle-confirmed dependencies missing from the IDE snapshot without introducing a cycle. */
+    private fun mergeMissingGradleModuleDependencies(
         mergedModules: MutableMap<String, ModuleInfo>,
         gradleModules: Map<String, ModuleInfo>,
-        ideModuleNames: Set<String>,
         mergeResult: JuggProjectInfoMergeResult,
     ) {
-        val gradleOnlyModuleNames = gradleModules.keys - ideModuleNames
         gradleModules.toSortedMap().forEach { (ownerName, gradleModule) ->
             val ownerModule = mergedModules[ownerName] ?: return@forEach
             val dependencies = ownerModule.moduleDependencies.mapTo(mutableSetOf()) { it.moduleName }
             gradleModule.moduleDependencies.forEach dependencyLoop@{ dependency ->
                 val dependencyName = dependency.moduleName
-                if (dependencyName !in gradleOnlyModuleNames || dependencyName !in mergedModules ||
+                if (dependencyName !in mergedModules ||
                     dependencyName == ownerName || !dependencies.add(dependencyName)
                 ) {
                     return@dependencyLoop
                 }
                 if (canReach(mergedModules, dependencyName, ownerName)) {
                     dependencies.remove(dependencyName)
-                    logger.warn("Skip Gradle-only module dependency $ownerName -> $dependencyName " +
+                    logger.warn("Skip Gradle module dependency $ownerName -> $dependencyName " +
                             "because it forms a cycle")
                     return@dependencyLoop
                 }
