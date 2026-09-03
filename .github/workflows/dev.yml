@@ -1,0 +1,64 @@
+name: Build Dev
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dev-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build Dev
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out dispatched ref
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Install Android build tools
+        run: sdkmanager "platforms;android-33" "ndk;27.0.12077973" "cmake;3.22.1"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Generate dev version
+        id: version
+        shell: bash
+        run: |
+          base_version="$(sed -n "s/^def versionName = '\([^']*\)'$/\1/p" build.gradle)"
+          if [[ -z "$base_version" ]]; then
+            echo "Cannot read versionName from build.gradle." >&2
+            exit 1
+          fi
+          dev_version="${base_version}-dev.$(TZ=Asia/Shanghai date +%Y%m%d).${GITHUB_RUN_NUMBER}"
+          echo "value=$dev_version" >> "$GITHUB_OUTPUT"
+
+      - name: Build plugin
+        run: |
+          ./gradlew :idea:buildPlugin \
+            -PpluginVersion="${{ steps.version.outputs.value }}" \
+            --no-daemon
+
+      - name: Upload dev artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: jugg-${{ steps.version.outputs.value }}
+          path: idea/build/distributions/*.zip
+          if-no-files-found: error
+          retention-days: 14
