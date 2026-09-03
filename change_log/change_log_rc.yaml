@@ -1,3 +1,11 @@
+- version: 3.3.8
+  date: 2026.09.03
+  updates:
+    - report the missing Gradle baseline clearly on first run
+    - prevent APK installation failure on Android Studio Quail 4
+    - keep Kotlin compilation working after IDE file system conflicts
+    - prevent isolated Kotlin compilation failures on large projects
+
 - version: 3.3.7
   date: 2026.09.02
   updates:

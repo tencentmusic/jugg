@@ -1,3 +1,11 @@
+- version: 3.3.8
+  date: 2026.09.03
+  updates:
+    - 首次运行时明确提示缺少 Gradle 基线
+    - 修复 Android Studio Quail 4 安装 APK 失败的问题
+    - 修复 IDE 文件系统冲突后 Kotlin 编译失败的问题
+    - 修复大型工程隔离 Kotlin 编译失败的问题
+
 - version: 3.3.7
   date: 2026.09.02
   updates:
