@@ -68,8 +68,8 @@ class ApkFileModifier(
             apkFile.copyTo(workingApkFile, overwrite = true)
             var tmpApkFile = updateFiles(workingApkFile).also(tmpApkFiles::add)
             tmpApkFile = alignApk(tmpApkFile).also(tmpApkFiles::add)
-            tmpApkFile = resignApk(tmpApkFile)
-            verifyApk(tmpApkFile)
+            val signEnv = resignApk(tmpApkFile)
+            verifyApk(tmpApkFile, signEnv)
             replaceOldApk(tmpApkFile, apkFile)
             TimeLogger.end("insertAndResign", logger)
         } finally {
@@ -206,7 +206,7 @@ class ApkFileModifier(
         return tmpAlignedApkFile
     }
 
-    private fun resignApk(tmpApkFile: File): File {
+    private fun resignApk(tmpApkFile: File): List<String>? {
         TimeLogger.start("signApk")
         // see: https://developer.android.com/tools/apksigner
         val apksigner = File(buildToolsFolder, "apksigner").absolutePath
@@ -234,14 +234,14 @@ class ApkFileModifier(
             .replace(signConfig.keyPassword ?: "null", "***")
         logger.debug("signConfig storeType: ${signConfig.storeType}, cmdString: $cmdStringSafeForPrint")
 
-        doResign(cmdString)
+        val signEnv = doResign(cmdString)
         val costTime = TimeLogger.end("signApk", logger)
         logger.info(" * Sign APK finished, cost $costTime ms.")
 
-        return tmpApkFile
+        return signEnv
     }
 
-    private fun doResign(cmdString: String) {
+    private fun doResign(cmdString: String): List<String>? {
         val availableJdksForSign = PlatformApi.allAvailableJavaHomes().filter { javaHome ->
             if (envArray == null) {
                 return@filter true
@@ -262,7 +262,7 @@ class ApkFileModifier(
         val exitCode = CmdExecutor(logger).invoke(cmd, envArray)
         if (exitCode == 0) {
             logger.debug("doResign success")
-            return
+            return envArray
         }
 
         // Oops, apksigner failed maybe JDK is incorrect. try all available JDKs
@@ -281,7 +281,7 @@ class ApkFileModifier(
                 val newExitCode = CmdExecutor(logger).invoke(cmd, newEnvArray)
                 if (newExitCode == 0) {
                     logger.debug("doResign try success with JAVA_HOME: $javaHome")
-                    return
+                    return newEnvArray
                 }
             }
         }
@@ -316,16 +316,16 @@ class ApkFileModifier(
     }
 
     fun verify() {
-        verifyApk(apkFile)
+        verifyApk(apkFile, envArray)
     }
 
-    private fun verifyApk(apkFileToVerify: File) {
+    private fun verifyApk(apkFileToVerify: File, verifyEnv: List<String>?) {
         TimeLogger.start("verifyApk")
         // see: https://developer.android.com/tools/apksigner
         val apksigner = File(buildToolsFolder, "apksigner").absolutePath
         val cmdString = "$apksigner verify ${apkFileToVerify.absolutePath}"
         val cmd = SimpleSshCommand(cmdString, logger)
-        val exitCode = CmdExecutor(logger).invoke(cmd)
+        val exitCode = CmdExecutor(logger).invoke(cmd, verifyEnv)
         if (exitCode != 0) {
             throw IllegalStateException("verify APK failed, exit code: $exitCode")
         }
