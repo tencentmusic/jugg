@@ -57,14 +57,16 @@ Issue #26 标题描述的是 `dispatchActivityCreated` 未执行；本次修复�
 | **标志语义** | APK DB 中是否观察到 `$-CC` / `$DefaultImpls`（启发式，非 variant minSdk） |
 | **决策** | **minApi 计算不再读取该标志** |
 | **理由** | 标志不能表达「当前 variant 应对哪些 API 做 core-library rewrite」；误用会导致 minApi 与基线 Gradle 构建分叉 |
-| **保留用途** | APK 解析写 DB；default-interface / core-library 具体策略仍由 `getDesugarInfo()` 按变更 class 与基线 APK 内容驱动 |
+| **保留用途** | 仅作为诊断信号：随 minApi 一起打印到编译日志，记录基线 APK 是否存在语言级脱糖痕迹；default-interface / core-library 具体策略仍由 `getDesugarInfo()` 按变更 class 与基线 APK 内容驱动 |
 
 ### 2.4 minSdk 不可读时 fallback 21
 
 | 项 | 内容 |
 |---|---|
 | **决策** | fallback **`21`**（与 `DexMinifyCompiler` 一致） |
-| **理由** | 21 是 desugar 常见下界；比旧逻辑「无 desugar 用 31」更保守，避免误跳过必要脱糖 |
+| **理由** | `minSdk` 读不到时无法判断 variant 真实下界，21 与 `DexMinifyCompiler` 已有缺省值同口径，且不会跳过必要的语言级脱糖 |
+| **风险方向** | 21 对语言级脱糖是**更激进**的一侧，不是更保守。旧逻辑的 `else -> 31` 只在 `isEnableDesugared == false`（基线无 `$-CC` 痕迹）时生效，那种基线下 minApi=21 会让 D8 为改动类生成指向基线不存在的 `Iface$-CC` 的调用 |
+| **可接受依据** | app `minSdk` 几乎总能从 project info 读到，且 `resolveApkOwnerModule` 在归属解析失败时已回落 applicationModule，fallback 实际极少命中；命中时 `isEnableDesugared` 会同时打进日志，可直接判断基线形态 |
 
 ### 2.5 明确不采用的缓解方案
 
@@ -80,8 +82,9 @@ Issue #26 标题描述的是 `dispatchActivityCreated` 未执行；本次修复�
 
 | 文件 | 变更 |
 |------|------|
-| `ICompiler.kt` | 新增 `resolveApkOwnerModule()`、`getDexMinApi()` |
-| `DexCompiler.kt` | 使用 `getDexMinApi(module)`，删除 `isEnableDesugared` 相关 `when` |
+| `ICompiler.kt` | 新增 `resolveApkOwnerModule()`、`getDexMinApi()`；`isEnableDesugared` 标注为诊断信号，不参与 minApi |
+| `DexCompiler.kt` | 使用 `getDexMinApi(module)`，删除 `isEnableDesugared` 相关 `when`，改为把该标志与 minApi 一起打进 debug 日志 |
+| `DexMinifyCompiler.kt` | `_jugg_fix` dex 改用 `getDexMinApi(applicationModule)`，与 `DexCompiler` 同口径 |
 | `BaseCompileContext.kt` | 复用 `resolveApkOwnerModule`，删除重复 `findRelativeApkModule` |
 | `02_compile_source.md` | §4.2 更新 D8 minApi 决策描述 |
 | `DexMinApiTest.kt` | L1：minApi 解析 + LocalDate descriptor 矩阵 |

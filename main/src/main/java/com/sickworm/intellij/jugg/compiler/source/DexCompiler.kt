@@ -34,7 +34,7 @@ class DexCompiler(
 
         val minApi = context.getDexMinApi(module)
         logger.debug("get minSdkVersion module=${module.name}, ownerModule=${context.resolveApkOwnerModule(module).name}, " +
-                "use $minApi as DEX min API.")
+                "baseline isEnableDesugared=${context.isEnableDesugared}, use $minApi as DEX min API.")
 
         return try {
             val classFiles = task.files.filter { it.file.extension == "class" }

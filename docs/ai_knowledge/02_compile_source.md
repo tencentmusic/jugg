@@ -138,7 +138,9 @@ Kotlin 1.9 的 baseline Kotlin output 可能同时包含 dirty expect/actual clo
 - minified 场景下 dex 先写到 `context.tempCompileDir/un_minify`，再由 `DexMinifyCompiler` 输出到最终 task outputDir；排查路径时不要只看最终目录。
 - `DexCompiler` 输出仍保留旧 `apkPath` 锚点，同时写入 module 的所有 `targetApkPaths`；部署层用 target 集合做多 APK 分流。
 - D8 版本选择以项目 AGP 实际加载的 R8 为准；Gradle instrumentation cache 必须先恢复为原始 buildscript artifact。project info 无安全路径、隔离 runtime 无法建立或外部 D8 执行失败时使用 Jugg 内置 R8。
-- D8 `minApi` 使用归属 APK owner variant 的真实 `minSdk`，与 Gradle dex 行为对齐；`minSdk` 不可读时回落 21。default interface 兼容通过临时 classpath 补齐，core-library rewrite 由 `desugar.json` 与真实 `minApi` 共同决定。
+- D8 `minApi` 使用归属 APK owner variant 的真实 `minSdk`，与 Gradle dex 行为对齐；`minSdk` 不可读时回落 21，`DexMinifyCompiler` 的 `_jugg_fix` dex 走同一解析口径。default interface 兼容通过临时 classpath 补齐，core-library rewrite 由 `desugar.json` 与真实 `minApi` 共同决定。
+- 回落值 21 对语言级脱糖是更激进的一侧，不是更保守：基线未脱糖时它会让 D8 生成指向基线不存在的 `$-CC` 的调用。因此只在 `minSdk` 完全读不到时使用，不要用它替代真实 `minSdk`。
+- `isEnableDesugared`（基线 APK 是否存在 `$-CC` / `$DefaultImpls`）只是诊断信号，与 minApi 一起打进 debug 日志。它表达不了 variant `minSdk`，一旦参与 minApi 决策就会让增量 DEX 与 Gradle 基线分叉（`java.time` 被改写成 `j$.time`）。
 - default interface class 进入临时 classpath 是脱糖上下文，不是普通业务依赖补全；删除这一步可能让改动类生成与基线不同的 default method 调用形态。
 - core library rewrite 只在 APK database 已发现 `j$.*` 时查找 `desugar.json`；不能因为工程声明了依赖就无条件为所有模块启用。
 - KAPT 场景下 Kotlin 编译器 warning/error 文本会按 debug 记录，避免用户可见输出被 APT/KAPT 噪音淹没；失败判定仍由 parser 处理。

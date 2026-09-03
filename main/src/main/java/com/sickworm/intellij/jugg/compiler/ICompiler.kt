@@ -378,6 +378,10 @@ interface ICompileContext {
 
     val dynamicFeatureModules: List<ModuleInfo>
 
+    /**
+     * True when baseline APK contains `$-CC` / `$DefaultImpls` classes. Diagnostic signal only:
+     * it cannot express the variant minSdk, so it must not take part in D8 minApi selection.
+     */
     val isEnableDesugared: Boolean
 
     val modulesWithOrder: List<ModuleInfo>

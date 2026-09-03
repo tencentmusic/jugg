@@ -298,7 +298,7 @@ class DexMinifyCompiler(
 
         try {
             val dexFileMaker = com.sickworm.intellij.jugg.compiler.source.DexFileMaker(logger)
-            val minApi = context.applicationModule?.minSdkVersion?.toIntOrNull() ?: 21
+            val minApi = context.applicationModule?.let { context.getDexMinApi(it) } ?: 21
 
             dexFileMaker.dex(
                 outputDir = dexOutputDir,
