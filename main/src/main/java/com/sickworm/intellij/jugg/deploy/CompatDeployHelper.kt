@@ -21,6 +21,8 @@ class CompatDeployHelper(
 
     companion object {
         private const val HARMONY_OS_VERSION_PROPERTY = "hw_sc.build.platform.version"
+        private const val MANUFACTURER_PROPERTY = "ro.product.manufacturer"
+        private const val ASUS_MANUFACTURER = "asus"
 
         var type: Type = object : TypeToken<List<CompatDeployRecord>?>() {}.type
     }
@@ -56,6 +58,9 @@ class CompatDeployHelper(
             // device not supports overlay swap, use compat deploy
             return true
         }
+        if (isAsusDevice(device)) {
+            return true
+        }
         if (isHarmonyOsDevice(device)) {
             return true
         }
@@ -73,6 +78,15 @@ class CompatDeployHelper(
             }
             return isMatchApplication
         }
+        return true
+    }
+
+    private fun isAsusDevice(device: IDeviceAdb): Boolean {
+        val manufacturer = device.getProperty(MANUFACTURER_PROPERTY)?.trim().orEmpty()
+        if (!manufacturer.equals(ASUS_MANUFACTURER, ignoreCase = true)) {
+            return false
+        }
+        logger.debug("Enable compat deploy automatically for ASUS device")
         return true
     }
 

@@ -213,6 +213,40 @@ class JuggDeployerHelperDeployFlowTest {
     }
 
     @Test
+    fun `all ASUS devices automatically use compat deploy`() {
+        val oldRecordJson = JuggSettings.deviceCompatRecordJson
+        JuggSettings.deviceCompatRecordJson = ""
+        try {
+            mapOf<String?, JuggDeployData.DeployType>(
+                null to JuggDeployData.DeployType.HOT_RELOAD,
+                "samsung" to JuggDeployData.DeployType.HOT_RELOAD,
+                "asus" to JuggDeployData.DeployType.COMPAT_HOT_FIX,
+                " ASUS " to JuggDeployData.DeployType.COMPAT_HOT_FIX,
+            ).forEach { (manufacturer, expectedDeployType) ->
+                val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_006)
+                fixture.virtualDevice.manufacturer = manufacturer
+                val normalData = DeployFlowTestSupport.incrementalDeployDataWithoutAppRestart()
+                Mockito.`when`(
+                    fixture.deployFileManager.getDeployData(Mockito.anyBoolean(), Mockito.anyBoolean()),
+                ).thenAnswer { invocation ->
+                    if (invocation.getArgument<Boolean>(1)) {
+                        normalData.copy(isCompatDeploy = true, isPushOverlayOnly = true)
+                    } else {
+                        normalData
+                    }
+                }
+
+                val result = fixture.helper.deploy(fixture.deployOptions)
+
+                assertTrue("deploy failed for manufacturer $manufacturer: ${result.failedReason}", result.isSuccess)
+                assertEquals("unexpected deploy type for manufacturer $manufacturer", expectedDeployType, result.deployType)
+            }
+        } finally {
+            JuggSettings.deviceCompatRecordJson = oldRecordJson
+        }
+    }
+
+    @Test
     fun `debug restart flag restarts app after hot reload deploy`() {
         val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_003)
         val compileUiHandler = object : CompileUiHandler by CompileUiHandler.DEFAULT {

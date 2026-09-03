@@ -165,6 +165,7 @@ hook 不限制资源名。部署到 `.overlay` 的内容是预期覆盖状态，
 - `isHasJvmtiCompatIssue()` 最多等待 3 秒，每 100ms 轮询一次；返回 `null` 的 app 会继续等，全部 app 都非 null 才收口。
 - not-available flag 优先级高于 available flag；排查时如果两个都存在，应先按不可用处理并清理 app `code_cache` 后复测。
 - `AsStartupAgentPusher` 推 AS agent 的路径不要求 app 进程在线；它用 host matryoshka 解析出的 agent so，经 `run-as cp` 放进 app sandbox。
+- `CompatDeployHelper` 读取 `ro.product.manufacturer`；值去除首尾空白后等于 `asus`（忽略大小写）时，所有 App 都直接启用 compat deploy。该自动策略不写入设备兼容记录，因此 More Options 的手动 Force 选项不会自动勾选，也不能用来关闭自动策略。
 - `CompatDeployHelper` 读取 `hw_sc.build.platform.version`；属性非空时即识别为 HarmonyOS 并直接启用 compat deploy，不限制系统版本。该自动策略不写入设备兼容记录，因此 More Options 的手动 Force 选项不会自动勾选，也不能用来关闭自动策略。
 - `jugg_agent_setup.sh` 不再按 HarmonyOS 版本创建 `.need_fix_dex_path_list`。升级前已经存在的旧 flag 不在本轮主动清理，避免误删 `DexPathListFixer` 自检测产生的状态。
 - `AndroidNClassLoader` 重建 dex path 时，仅在非 isolated split 场景使用 `sourceDir + splitSourceDirs`；无 split APK、启用 isolated split loading 或无法可靠识别隔离状态时继续沿用原有 base APK 筛选。不能只从原 `dexElements` 取 split 路径，因为应用早期启动阶段已安装的 split APK 可能尚未挂入该数组。
@@ -182,6 +183,7 @@ hook 不限制资源名。部署到 `.overlay` 的内容是预期覆盖状态，
 | 部署后被判 JVMTI 不可用 | `JuggJvmtiAgentManagerHelper.isHasJvmtiCompatIssue()`，检查 `.jugg_jvmti_not_available` |
 | 检测一直不收口 | app 是否 restart、`code_cache` 是否存在、native `Agent_OnAttach` 是否写 flag |
 | Direct Overlay 缺 AS startup agent | `AsStartupAgentPusher.hasApplyChangesStartupAgent()` 与 `pushApplyChangesStartupAgent()` |
+| ASUS 未进入兼容部署 | `CompatDeployHelper.isEnableCompatDeploy()` 读取的 `ro.product.manufacturer` 是否为 `asus`（忽略大小写与首尾空白） |
 | HarmonyOS 未进入兼容部署 | `CompatDeployHelper.isEnableCompatDeploy()` 读取的 `hw_sc.build.platform.version`；`JuggSettings.finalIsEnableCompatibleDeploymentMode` 应恒为 `true` |
 | WebView 初始化报 `Already registered a list of actions in this process` | 检查 `assetManager hook action=fix`、非宿主 `resDir` 和宿主 APK 路径是否已由 `ApplyChangesOverlayPolicy` 记录 |
 | compat deploy 中 Application 资源正常、Activity 报 `Resources$NotFoundException` | 检查 `isEnableHotfix()` 是否过早缓存 false，以及 `createAssetManagerNewExit()` 是否删除了 `resource.ap_` |
