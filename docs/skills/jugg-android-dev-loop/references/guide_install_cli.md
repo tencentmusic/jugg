@@ -2,14 +2,9 @@
 
 Install the `jugg` CLI so it can be called directly from any terminal/cmd/PowerShell session.
 
-**Source directory** (the path you copy *from*):  
-`{SKILL_DIR}/scripts/`  
-where `{SKILL_DIR}` is the absolute path of this skill on disk
-(e.g. `.../docs/skills/jugg-android-dev-loop`).
+**Source directory**: `{SKILL_DIR}/scripts/`, where `{SKILL_DIR}` is the absolute path of this skill on disk.
 
-**Runtime requirement**: Python 3.7+ must be installed and available as `python3` or `python`. Jugg prefers `python3` and falls back to `python`.
-
----
+**Runtime requirement**: Python 3.7+ must be installed. Jugg uses `python3` or `python`; the Windows wrapper also supports the standard `py -3` launcher.
 
 ## macOS / Linux
 
@@ -77,8 +72,6 @@ jugg --help
 
 Expected: usage text listing all subcommands.
 
----
-
 ## Windows
 
 ### Step 1 — Copy scripts to an install directory
@@ -123,10 +116,7 @@ jugg --help
 
 Expected: usage text listing all subcommands.
 
-> **Note**: On Windows `jugg.cmd` is the entry point.  
-> Python 3.7+ must be available on PATH as `python3` or `python` (`python3 --version` or `python --version`).
-
----
+> **Note**: On Windows `jugg.cmd` is the entry point. It tries `python3`, `python`, then `py -3`, and only accepts Python 3.7+.
 
 ## Troubleshooting
 
@@ -136,9 +126,7 @@ Expected: usage text listing all subcommands.
 | `jugg: Permission denied` | Shell wrapper not executable | `chmod +x <install-dir>/jugg <install-dir>/jugg.py` |
 | `jugg: Python 3.7+ was not found` | Neither `python3` nor `python` is a supported Python 3 interpreter | Install Python 3.7+ via `brew install python3` (macOS) or your distro package manager |
 | `jugg` not recognized (Windows) | PATH change not applied | Open a **new** terminal window; confirm with `echo %PATH%` |
-| `jugg: Python 3.7+ was not found` (Windows) | Python is not on PATH | Install Python 3.7+ from python.org; check "Add to PATH" during install |
-
----
+| `jugg: Python 3.7+ was not found` (Windows) | `python3`, `python`, and `py -3` cannot start Python 3.7+ | Run `python --version` and `py -3 --version`; reinstall Python with the launcher or PATH option if both fail |
 
 ## Uninstall
 

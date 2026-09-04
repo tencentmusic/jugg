@@ -118,6 +118,7 @@ jugg --if-compiling interrupt compile
 | Port connection fails | Confirm that the Jugg plugin is initialized; multiple IDE instances increment through the port range automatically |
 | A command waits indefinitely | Use `jugg status` to inspect `isCompiling`; use `--if-compiling interrupt` if necessary |
 | `instrument` reports that AndroidTest is disabled | Enable Android Test in the Jugg Run Configuration and establish a full-build baseline first |
+| Windows reports that Python 3.7+ was not found | Check `python3 --version`, `python --version`, and `py -3 --version` in order; `jugg.cmd` selects the first available Python 3.7+ runtime |
 | Output is noisy | Use `--console=plain` or `--console=json` for agents |
 
 ## Related pages
