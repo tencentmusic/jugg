@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.apk
 
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.compiler.isWindows
 import com.sickworm.intellij.jugg.gradle.compile.CmdExecutor
 import com.sickworm.intellij.jugg.gradle.compile.SimpleSshCommand
 import com.sickworm.intellij.jugg.logger.TimeLogger
@@ -195,7 +196,13 @@ class ApkFileModifier(
 
         // see: https://developer.android.com/tools/zipalign
         val zipalign = File(buildToolsFolder, "zipalign").absolutePath
-        val cmdString = "$zipalign -f 4 ${tmpUpdateApkFile.absolutePath} ${tmpAlignedApkFile.absolutePath}"
+        val cmdString = shellCommand(listOf(
+            zipalign,
+            "-f",
+            "4",
+            tmpUpdateApkFile.absolutePath,
+            tmpAlignedApkFile.absolutePath,
+        ))
         val cmd = SimpleSshCommand(cmdString, outputFilter = { line, _ -> !line.endsWith("header mismatch") })
         val exitCode = CmdExecutor(logger).invoke(cmd)
         if (exitCode != 0) {
@@ -227,7 +234,7 @@ class ApkFileModifier(
         }
         args.add(tmpApkFile.absolutePath)
 
-        val cmdString = "$apksigner ${args.joinToString(" ")}"
+        val cmdString = shellCommand(listOf(apksigner) + args)
         val cmdStringSafeForPrint = cmdString
             .replace(signConfig.storePassword ?: "null", "***")
             .replace(signConfig.keyAlias ?: "null", "***")
@@ -323,12 +330,22 @@ class ApkFileModifier(
         TimeLogger.start("verifyApk")
         // see: https://developer.android.com/tools/apksigner
         val apksigner = File(buildToolsFolder, "apksigner").absolutePath
-        val cmdString = "$apksigner verify ${apkFileToVerify.absolutePath}"
+        val cmdString = shellCommand(listOf(apksigner, "verify", apkFileToVerify.absolutePath))
         val cmd = SimpleSshCommand(cmdString, logger)
         val exitCode = CmdExecutor(logger).invoke(cmd, verifyEnv)
         if (exitCode != 0) {
             throw IllegalStateException("verify APK failed, exit code: $exitCode")
         }
         TimeLogger.end("verifyApk", logger)
+    }
+
+    private fun shellCommand(arguments: List<String>): String {
+        return arguments.joinToString(" ") { argument ->
+            if (isWindows) {
+                "\"${argument.replace("\"", "\"\"")}\""
+            } else {
+                "'${argument.replace("'", "'\"'\"'")}'"
+            }
+        }
     }
 }
