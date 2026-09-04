@@ -87,6 +87,47 @@ class KotlinCompilerInvokerArgsTest {
     }
 
     @Test
+    fun `does not pass project plugin options when project plugins are not loaded`() {
+        assertTrue(
+            KotlinCompilerInvoker.buildPluginOptionArgs(
+                listOf("plugin:dev.zacsweers.moshix.compiler:enabled=true"),
+                isProjectPluginEnabled = false,
+            ).isEmpty(),
+        )
+    }
+
+    @Test
+    fun `removes only resolved options for unsupported plugin`() {
+        val options = listOf(
+            "plugin:dev.zacsweers.moshix.compiler:enabled=true",
+            "plugin:dev.zacsweers.moshix.compiler:newOption=true",
+            "plugin:sample.other:enabled=true",
+        )
+        val messages = listOf(
+            "error: unsupported plugin option: dev.zacsweers.moshix.compiler:newOption=true",
+        )
+
+        val pluginId = KotlinCompilerInvoker.findUnsupportedProjectPluginId(messages, options)
+
+        assertEquals("dev.zacsweers.moshix.compiler", pluginId)
+        assertEquals(
+            listOf("plugin:sample.other:enabled=true"),
+            KotlinCompilerInvoker.removePluginOptions(options, pluginId!!),
+        )
+    }
+
+    @Test
+    fun `does not downgrade unsupported option outside resolved plugin options`() {
+        assertEquals(
+            null,
+            KotlinCompilerInvoker.findUnsupportedProjectPluginId(
+                listOf("error: unsupported plugin option: sample.manual:enabled=true"),
+                listOf("plugin:sample.resolved:enabled=true"),
+            ),
+        )
+    }
+
+    @Test
     fun `compiler toolchain key isolates different project compiler classpaths`() {
         val oldCompiler = listOf(File("/tmp/kotlin-compiler-1.6.21.jar"), File("/tmp/kotlin-stdlib.jar"))
         val sameCompiler = listOf(

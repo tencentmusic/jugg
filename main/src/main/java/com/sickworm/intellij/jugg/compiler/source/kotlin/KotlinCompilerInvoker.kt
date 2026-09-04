@@ -31,6 +31,10 @@ class KotlinCompilerInvoker {
     private val ideFileSystemConflictCompilerKeys = mutableSetOf<String>()
     private var tryDisablePlugins: List<File> = emptyList()
     private var disablePlugins: List<File> = emptyList()
+    private var tryDisableProjectPluginOptionId: String? = null
+    private var tryDisableProjectPluginOptionFingerprint: String? = null
+    // Cache only option groups whose removal has already restored compilation for the same toolchain.
+    private val disabledProjectPluginOptionFingerprints = mutableSetOf<String>()
 
     private var tryProperJvmTarget: String? = null
     private var properJvmTarget: String? = null
@@ -176,9 +180,26 @@ class KotlinCompilerInvoker {
         val kotlinExtensions = options.kotlinExtensions
             .filter { !disablePlugins.contains(it) && !tryDisablePlugins.contains(it) }
 
-        val configuredPluginOptions = module.kotlinFreeCompilerArgs + options.kotlinPluginOptions
+        val isProjectPluginEnabled = kotlinCompile.isUseProjectCompiler || options.forceUseEmbeddedKotlinCompiler
+        val pluginOptionToolchainKey = buildCompilerToolchainKey(
+            (classpath.orEmpty() + kotlinPlugins + kotlinExtensions).distinct(),
+        )
+        val disabledProjectPluginOptionIds = options.kotlinPluginOptions
+            .mapNotNull(::pluginOptionId)
+            .distinct()
+            .filterTo(mutableSetOf()) { pluginId ->
+                buildPluginOptionFingerprint(pluginOptionToolchainKey, pluginId, options.kotlinPluginOptions) in
+                    disabledProjectPluginOptionFingerprints
+            }
+        tryDisableProjectPluginOptionId?.let(disabledProjectPluginOptionIds::add)
+        val projectPluginOptions = if (isProjectPluginEnabled) {
+            disabledProjectPluginOptionIds.fold(options.kotlinPluginOptions, ::removePluginOptions)
+        } else {
+            emptyList()
+        }
+        val configuredPluginOptions = module.kotlinFreeCompilerArgs + projectPluginOptions
         val pluginArgs = mutableListOf<String>()
-        if (kotlinCompile.isUseProjectCompiler || options.forceUseEmbeddedKotlinCompiler) {
+        if (isProjectPluginEnabled) {
             // if we use project compiler, we can use project plugins
             kotlinPlugins.forEach {
                 pluginArgs.add("-Xplugin=${it.path}")
@@ -280,7 +301,7 @@ class KotlinCompilerInvoker {
 
         val kspArgsManager = KspArgsManager(module, context, options)
         val kspArgs = kspArgsManager.handleKspArgs()
-        val projectPluginArgs = buildPluginOptionArgs(options.kotlinPluginOptions)
+        val projectPluginArgs = buildPluginOptionArgs(projectPluginOptions, isProjectPluginEnabled)
         val composeArgs = handleComposeArgs(
             options,
             kotlinExtensions,
@@ -454,6 +475,25 @@ class KotlinCompilerInvoker {
         val errorResults = compileResults.sumOf {
             if (it.isSuccess) 0 else it.getFailure().errors.size
         }
+        val compileErrorMessages = compileResults
+            .filter { it.isFailed }
+            .flatMap { it.getFailure().errors.map { error -> error.second } }
+        val unsupportedProjectPluginId = findUnsupportedProjectPluginId(
+            compileErrorMessages,
+            projectPluginOptions,
+        )
+        if (unsupportedProjectPluginId != null && options.isCanAutoRetry && !hasRetryCompile) {
+            logger.warn("Kotlin compiler plugin $unsupportedProjectPluginId does not support Gradle-resolved options, " +
+                    "retry once without its resolved options.")
+            hasRetryCompile = true
+            tryDisableProjectPluginOptionId = unsupportedProjectPluginId
+            tryDisableProjectPluginOptionFingerprint = buildPluginOptionFingerprint(
+                pluginOptionToolchainKey,
+                unsupportedProjectPluginId,
+                options.kotlinPluginOptions,
+            )
+            return compile(context, module, task, logger, options)
+        }
         var shouldRecreate = false
         var retryReason = ""
         if (exitCode != ExitCode.OK && errorResults > JuggSettings.minErrorToRecreateCompiler) {
@@ -555,6 +595,7 @@ class KotlinCompilerInvoker {
             // print infos
             context.printClasspathCheck(module)
             hasRetryCompile = false
+            clearProjectPluginOptionRetry()
             return CompileResult(task, compileResults, emptyList())
         }
 
@@ -605,6 +646,8 @@ class KotlinCompilerInvoker {
         }
 
         hasRetryCompile = false
+        tryDisableProjectPluginOptionFingerprint?.let(disabledProjectPluginOptionFingerprints::add)
+        clearProjectPluginOptionRetry()
         disablePlugins = tryDisablePlugins
         properJvmTarget = tryProperJvmTarget
         return CompileResult(
@@ -734,6 +777,20 @@ class KotlinCompilerInvoker {
         return true
     }
 
+    private fun buildPluginOptionFingerprint(
+        toolchainKey: String,
+        pluginId: String,
+        options: List<String>,
+    ): String {
+        val pluginOptions = options.filter { pluginOptionId(it) == pluginId }
+        return "$toolchainKey\n$pluginId\n${pluginOptions.joinToString("\n")}"
+    }
+
+    private fun clearProjectPluginOptionRetry() {
+        tryDisableProjectPluginOptionId = null
+        tryDisableProjectPluginOptionFingerprint = null
+    }
+
     private fun logCompileCommand(options: List<String>, baseDir: File, logger: Logger) {
         var lastOption = ""
         val shortOptions = options.map {
@@ -820,9 +877,37 @@ class KotlinCompilerInvoker {
                 .flatMap { listOf("-P", it) }
         }
 
-        internal fun buildPluginOptionArgs(options: List<String>): List<String> {
+        internal fun buildPluginOptionArgs(
+            options: List<String>,
+            isProjectPluginEnabled: Boolean = true,
+        ): List<String> {
+            if (!isProjectPluginEnabled) return emptyList()
             return options.flatMap { listOf("-P", it) }
         }
+
+        internal fun findUnsupportedProjectPluginId(
+            messages: List<String>,
+            projectPluginOptions: List<String>,
+        ): String? {
+            val configuredPluginIds = projectPluginOptions.mapNotNull(::pluginOptionId).toSet()
+            return messages.asSequence()
+                .mapNotNull { UNSUPPORTED_PLUGIN_OPTION_REGEX.find(it)?.groupValues?.get(1) }
+                .firstOrNull { it in configuredPluginIds }
+        }
+
+        internal fun removePluginOptions(options: List<String>, pluginId: String): List<String> {
+            return options.filterNot { pluginOptionId(it) == pluginId }
+        }
+
+        private fun pluginOptionId(option: String): String? {
+            if (!option.startsWith("plugin:")) return null
+            return option.removePrefix("plugin:").substringBefore(':').takeIf { it.isNotEmpty() }
+        }
+
+        private val UNSUPPORTED_PLUGIN_OPTION_REGEX = Regex(
+            "unsupported plugin option:\\s*(?:plugin:)?([^:\\s]+):",
+            RegexOption.IGNORE_CASE,
+        )
 
         /** Resolves plugin artifacts by the ID embedded in their CommandLineProcessor implementation. */
         internal fun findPluginFilesById(pluginId: String, files: List<File>): List<File> {
