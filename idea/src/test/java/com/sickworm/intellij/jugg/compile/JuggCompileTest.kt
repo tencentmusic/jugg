@@ -301,6 +301,42 @@ class JuggCompileTest {
         }
     }
 
+    @Test
+    fun compileDataBindingWithStaleClassPathSource() {
+        CompileHelper.outputDir.clearDir()
+        val baselineResult = juggCompiler.compile(CompileHelper.makeTask(
+            File(assetsAndroidDir, "app/src/main/res/layout/activity_data_binding_include.xml"),
+        ))
+        assertTrue(baselineResult.isAllSuccess)
+
+        val staleSourceFile = File(
+            TestGlobal.projectInfo.projectRoot,
+            "build/app/intermediates/javac/debug/classes/com/example/myapplication/databinding/" +
+                    "ActivityDataBindingIncludeBindingImpl.java",
+        )
+        val originalStaleSource = staleSourceFile.takeIf(File::exists)?.readBytes()
+        try {
+            staleSourceFile.parentFile.mkdirs()
+            staleSourceFile.writeText("""
+                package com.example.myapplication.databinding;
+                public class ActivityDataBindingIncludeBindingImpl { invalid }
+            """.trimIndent())
+
+            CompileHelper.outputDir.clearDir()
+            val result = juggCompiler.compile(CompileHelper.makeTask(
+                File(TestGlobal.projectInfo.modifiedSource, "app/src/main/res/layout/activity_data_binding_new2.xml"),
+            ))
+
+            assertTrue(result.isAllSuccess)
+        } finally {
+            if (originalStaleSource == null) {
+                staleSourceFile.delete()
+            } else {
+                staleSourceFile.writeBytes(originalStaleSource)
+            }
+        }
+    }
+
 
     private fun assertCompileResultJugg(task: CompileTask, result: CompileResult, isRFileChanged: Boolean = false) {
         val mapper: OutputFileMapper = {
