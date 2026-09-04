@@ -10,6 +10,14 @@ Double-click the script on macOS, input the Android project directory, then use
 the generated `jugg_scene_*` folder beside the script. Finder opens the folder
 after collection.
 
+To collect a scene on a user's machine that does not have this repository,
+send `tools/collect_jugg_scene_prompt.md` as-is. The user pastes the whole file
+into their Android project's coding agent. The agent writes and runs the
+collector, then reveals `~/Desktop/jugg_scene_*.zip` in Finder for the user to
+send back. Keep the embedded script in that prompt aligned with this command;
+the prompt-only differences are Desktop output, zip packaging, and revealing
+the zip.
+
 Command-line usage:
 
 ```bash
