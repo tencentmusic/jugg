@@ -183,6 +183,7 @@ class ProjectInfoSerializerInGradleAndroidTestTest {
                     "debug",
                     buildDirRelativePath = "app/build",
                 ),
+                // New ModuleInfo Boolean is* fields must be true here so Groovy writes them.
                 isUseCompose = true,
                 isUseViewBinding = true,
                 isUseDataBinding = true,
@@ -191,9 +192,16 @@ class ProjectInfoSerializerInGradleAndroidTestTest {
 
             val loaded = ProjectInfoSerializer(tmpFile, StdLogger("ProjectInfoSerializer")).load()
             val module = loaded?.modules?.get("app")
-            assertEquals(true, module?.isUseDataBinding)
-            assertEquals(true, module?.isUseViewBinding)
-            assertEquals(true, module?.isUseCompose)
+            val isProperties = ProjectInfoSerializer.booleanIsPropertyFields()
+            org.junit.Assert.assertFalse(isProperties.isEmpty())
+            for (field in isProperties) {
+                field.isAccessible = true
+                assertEquals(
+                    "${field.name} dropped after Groovy JSON load",
+                    true,
+                    field.get(module),
+                )
+            }
         } finally {
             tmpFile.delete()
         }

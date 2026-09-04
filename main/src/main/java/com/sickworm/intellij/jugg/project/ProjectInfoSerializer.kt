@@ -10,7 +10,9 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
 import com.sickworm.intellij.jugg.project.data.JuggProjectInfoSerialize
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import java.beans.Introspector
 import java.io.File
+import java.lang.reflect.Field
 
 
 /**
@@ -91,16 +93,28 @@ class ProjectInfoSerializer(val dataFile: File, private val logger: Logger) {
             .registerTypeAdapter(File::class.java, fileAdapter)
             .registerTypeAdapter(ModuleInfo::class.java, JsonDeserializer { json, _, _ ->
                 val obj = json.asJsonObject
-                copyBeanBooleanAlias(obj, "useDataBinding", "isUseDataBinding")
-                copyBeanBooleanAlias(obj, "useViewBinding", "isUseViewBinding")
-                copyBeanBooleanAlias(obj, "useCompose", "isUseCompose")
+                copyGroovyBooleanIsPropertyAliases(obj)
                 moduleInfoGson.fromJson(obj, ModuleInfo::class.java)
             })
             .create()
 
-        private fun copyBeanBooleanAlias(obj: JsonObject, beanName: String, fieldName: String) {
-            if (!obj.has(fieldName) && obj.has(beanName)) {
-                obj.add(fieldName, obj.get(beanName))
+        internal fun booleanIsPropertyFields(): List<Field> {
+            return ModuleInfo::class.java.declaredFields.filter(::isBooleanIsProperty)
+        }
+
+        private fun isBooleanIsProperty(field: Field): Boolean {
+            if (field.isSynthetic || !field.name.startsWith("is") || field.name.length < 3) {
+                return false
+            }
+            return field.type == java.lang.Boolean::class.java || field.type == java.lang.Boolean.TYPE
+        }
+
+        private fun copyGroovyBooleanIsPropertyAliases(obj: JsonObject) {
+            for (field in booleanIsPropertyFields()) {
+                val beanName = Introspector.decapitalize(field.name.removePrefix("is"))
+                if (!obj.has(field.name) && obj.has(beanName)) {
+                    obj.add(field.name, obj.get(beanName))
+                }
             }
         }
     }

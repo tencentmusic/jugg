@@ -206,7 +206,7 @@ APK 拉取全部成功后，`LocalGradleCompileClient` / `RemoteGradleCompileCli
 ## 6. 隐形约束
 
 - `ModuleInfo` 新增字段时必须同步 `JuggProjectInfoSerialize`、`JuggProjectInfoMerger`、`ProjectInfoSerializerInGradle`、`CmdLineContextManager`、`LibrariesBackupHelper`；否则 Gradle/IDE/CLI 任一侧会丢字段。
-- Gradle 侧 Groovy `JsonGenerator` 会把 Kotlin `isUse*` 写成 JavaBean 名（`useDataBinding` / `useViewBinding` / `useCompose`）。IDE `ProjectInfoSerializer` 用 Gson 按字段名 `isUse*` 读取，必须在反序列化边界把 bean 名拷到字段名；只修 merger 保留逻辑挡不住 JSON 回读丢开关。
+- Gradle 侧 Groovy `JsonGenerator` 会把 Kotlin Boolean `is*` 字段写成 JavaBean 名（`isUseDataBinding` → `useDataBinding`）。IDE `ProjectInfoSerializer` 用 Gson 按字段名读取，加载时按 `ModuleInfo` 声明的 `is*` 布尔字段自动把 bean 名拷到字段名，不要为单个开关加白名单。新增同类字段时，`gson load of groovy snapshot preserves DataBinding setting` 会要求 fixture 赋值为 true 并完成 Groovy→Gson 回读。只修 merger 保留逻辑挡不住 JSON 回读丢开关。
 - `runtimeModuleDependencies` 只对 Application / Dynamic Feature 根模块读取；非空或空列表都是 Gradle resolved runtime 的权威结果，`null` 才触发旧逻辑。`ProjectComponentIdentifier.projectPath` 必须用独立规则去除开头的 `:` 后再把层级分隔符转换为 `.`，composite build 根项目则使用 `projectName`；不能复用面向 display name 的通用转换，也不能继续依赖 `ResolvedDependency.moduleVersion == unspecified` 的启发式判断。
 - `JuggProjectInfo.agpR8Classpath` 只保存可脱离 Gradle classloader 使用的直接引用路径，不把 R8 文件复制到 classpath backup，也不进入 `FullBuildInfo` 或 compile context 磁盘格式；Gradle instrumentation code source 找不到原始 buildscript artifact 或旧 project info 缺失该字段时按 `null` 兼容，并由 dex 阶段回退到 Jugg 内置 R8。
 - `JuggProjectInfo.agpR8Classpath` 类型允许为 `null`，但构造参数没有默认值；所有构造点必须明确传递现有路径或显式传入 `null`。仅转换 modules 的流程必须使用 `projectInfo.copy(modules = ...)`，禁止重新构造根快照导致项目级字段丢失。
