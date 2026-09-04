@@ -33,7 +33,7 @@ class JuggHotUpdateDownloader(private val juggServer: JuggServer, loggerArg: Log
     private val installUpdateFlag = File(JuggHotUpdateManager.hotUpdateDir, "install_update_flag")
 
     private val ideaPluginDescriptor: IdeaPluginDescriptor?
-        get() = PluginManagerCore.getPlugin(PluginId.getId("com.sickworm.intellij.jugg"))
+        get() = PluginManagerCore.getPlugin(PluginId.getId("com.sickworm.jugg"))
 
     fun init(project: Project) {
         start()
