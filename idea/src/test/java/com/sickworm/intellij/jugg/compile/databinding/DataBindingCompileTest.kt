@@ -142,17 +142,14 @@ open class DataBindingCompileTest {
             "generated/source/kapt/${gradleModule.buildVariant}/androidx/databinding",
         )
         assertTrue(!kaptGuessDir.exists(), "java APT fixture must not generate KAPT DataBinding output: $kaptGuessDir")
-
-        // Test harness loads Gradle JSON without merger; keep the enabled flag that merge now preserves.
-        val module = gradleModule.copy(isUseDataBinding = true)
-        val compileContext = context.copy(modules = context.modules + (module.name to module))
-        val compileTask = CompileTask(
-            listOf(CompileFile(CompileFile.Type.Resource, javaAptLayoutFile, javaAptResBaseDir, module)),
-            CompileHelper.outputDir,
-            CompileStatusHolder.DEFAULT,
+        assertTrue(
+            gradleModule.isUseDataBinding == true,
+            "Groovy gradle_project_infos.json must load DataBinding enabled, actual: ${gradleModule.isUseDataBinding}",
         )
 
-        val baseClassCompiler = DataBindingGenBaseClassesCompiler(compileContext, mockParentDisposable)
+        val compileTask = makeTask("databindingApt", javaAptResBaseDir, javaAptLayoutFile)
+
+        val baseClassCompiler = DataBindingGenBaseClassesCompiler(context, mockParentDisposable)
         val result = baseClassCompiler.compile(compileTask)
         assertTrue(result.isAllSuccess)
         checkOutputFiles(result, listOf(
@@ -160,7 +157,7 @@ open class DataBindingCompileTest {
             "layout/activity_data_binding_java_apt.xml",
         ))
 
-        val mapperCompiler = DataBindingGenMapperCompiler(compileContext, mockParentDisposable)
+        val mapperCompiler = DataBindingGenMapperCompiler(context, mockParentDisposable)
         val mapperResult = mapperCompiler.compile(createBindingTask(compileTask, result))
         assertTrue(mapperResult.isAllSuccess)
         checkDataBindingOutputs(compileTask, mapperResult, 1)
