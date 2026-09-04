@@ -84,6 +84,28 @@ Jugg 的速度来自只处理必要输入；结果的可信度来自影响扩散
 
 详细步骤见 [开始接入](https://tencentmusic.github.io/jugg/zh/onboarding/)。
 
+## AI Agent Skill 与 CLI
+
+Jugg 提供 `jugg-android-dev-loop` Agent Skill 和 `jugg` CLI，让 AI 编码助手、终端用户及脚本使用与 IDE 插件相同的构建、部署、测试、运行时检查和 UI 自动化能力。Skill 引导 Agent 完成完整的 **修改 -> 增量编译 -> 部署 -> 验证 -> 继续迭代** 工作流；CLI 则封装本地 Jugg MCP 服务，负责工程发现、异步任务轮询和稳定的终端输出。
+
+安装器目前支持 Codex、Claude Code、Gemini、CodeBuddy 和 Cursor：
+
+1. 在 Android Studio 中打开 Android 工程并完成 Jugg 初始化。
+2. 打开 Search Everywhere，执行 `Install Jugg Skills`；也可以选择 **Jugg 面板 -> More Options -> Tools -> Install Jugg Skills**。
+3. 选择需要安装的 Agent Skills、CLI 和可选 hooks。
+
+常用命令：
+
+```shell
+jugg status
+jugg compile
+jugg deploy
+jugg instrument --source-path app/src/androidTest/java/com/example/FooTest.kt
+jugg layout-dump
+```
+
+CLI 调用的是 IDE 内的本地 Jugg 插件运行时，因此目标工程必须保持打开并完成初始化。安装细节、输出模式和工作流边界见 [CLI 使用指南](https://tencentmusic.github.io/jugg/zh/guide/cli) 与 [Agent Skills](https://tencentmusic.github.io/jugg/zh/capabilities/tools/agent-skills)。
+
 ## 网络与诊断隐私
 
 标准 `buildPlugin` 产物不包含预设的 Jugg 后端配置，默认离线运行。用户仍可自行配置 Custom Server。
