@@ -8,15 +8,14 @@ folder. It is intended for on-site extraction when a user machine has useful
 
 Double-click the script on macOS, input the Android project directory, then use
 the generated `jugg_scene_*` folder beside the script. Finder opens the folder
-after collection.
+after collection. Git Bash or WSL can run the same script on Windows.
 
 To collect a scene on a user's machine that does not have this repository,
 send `tools/collect_jugg_scene_prompt.md` as-is. The user pastes the whole file
-into their Android project's coding agent. The agent writes and runs the
-collector, then reveals `~/Desktop/jugg_scene_*.zip` in Finder for the user to
-send back. Keep the embedded script in that prompt aligned with this command;
-the prompt-only differences are Desktop output, zip packaging, and revealing
-the zip.
+into their Android project's coding agent. The agent downloads
+`tools/collect_jugg_scene.command` from the public GitHub repository, runs it
+with `--output-root` on the desktop and `--zip`, then the user sends back the
+revealed `jugg_scene_*.zip`.
 
 Command-line usage:
 
@@ -26,6 +25,7 @@ tools/collect_jugg_scene.command /path/to/android/project --package-name com.exa
 tools/collect_jugg_scene.command /path/to/android/project --device-serial emulator-5554
 tools/collect_jugg_scene.command /path/to/android/project --skip-adb --no-open
 tools/collect_jugg_scene.command /path/to/android/project --output-root /tmp/jugg-scenes
+tools/collect_jugg_scene.command /path/to/android/project --output-root ~/Desktop --zip
 ```
 
 Collected content:
@@ -40,7 +40,8 @@ Collected content:
 - Git metadata and optional `adb devices`, crash buffer, and logcat tail snapshots.
 - ADB resolution metadata in `meta/adb_resolution.txt`. The collector checks
   `PATH`, Android SDK environment variables, project `local.properties`, and
-  standard SDK directories so macOS double-click launches can still find ADB.
+  standard SDK directories on macOS, Linux, and Windows so double-click or Git
+  Bash launches can still find ADB.
 - ADB device selection metadata in `meta/adb_targets.txt`; when multiple online
   devices are connected, each device is collected under `device/devices/<serial>`.
   Pass `--device-serial` or set `ANDROID_SERIAL` to collect only one device.

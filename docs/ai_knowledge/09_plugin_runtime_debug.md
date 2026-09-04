@@ -209,7 +209,7 @@ cp -r {projectDir}/build/jugg/database/ "$BACKUP/database/"
 | 部署历史 | `build/jugg/database/deploy_history.db/` | 增量状态和恢复问题 |
 | crash / logcat / 设备 overlay | 设备现场 | runtime crash、资源和部署问题 |
 
-可使用 `tools/collect_jugg_scene.command <projectDir>` 一键保存 APK、R.jar、设备 crash/logcat、实际安装 APK 和 overlay 产物；ADB 定位过程写入 `meta/adb_resolution.txt`。用户侧没有本仓库时，把 `tools/collect_jugg_scene_prompt.md` 全文发给用户，让其在出问题的 Android 工程里用 Agent 执行；采集完成后 Finder 会选中桌面上的 `jugg_scene_*.zip`。资源运行时问题必须在再次 Run、重装或清数据前采集，避免 staging 和设备 overlay 被覆盖。
+可使用 `tools/collect_jugg_scene.command <projectDir>` 一键保存 APK、R.jar、设备 crash/logcat、实际安装 APK 和 overlay 产物；ADB 定位过程写入 `meta/adb_resolution.txt`。用户侧没有本仓库时，把 `tools/collect_jugg_scene_prompt.md` 全文发给用户，让其在出问题的 Android 工程里用 Agent 执行；Agent 从 GitHub 下载官方脚本，采集完成后文件管理器会打开桌面上的 `jugg_scene_*.zip`。资源运行时问题必须在再次 Run、重装或清数据前采集，避免 staging 和设备 overlay 被覆盖。
 
 included build 资源 ID 与 Application / Dynamic Feature 归属问题分别按 `02_compile_source.md`、`04_engineering_project.md` 的排查入口继续，不在本文重复项目模型和 classpath 规则。
 

@@ -17,11 +17,14 @@ ADB_TARGET_ARGS=()
 ADB_TARGET_SERIALS=()
 DEVICE_OUTPUT_DIR="device"
 INTERACTIVE_MODE=false
+MAKE_ZIP=false
+ZIP_PATH=""
+PYTHON_BIN=""
 
 usage() {
   cat <<'USAGE'
 Usage:
-  collect_jugg_scene.command [project_dir] [--output-root DIR] [--include-apks yes|no] [--package-name NAME] [--device-serial SERIAL] [--skip-adb] [--no-open]
+  collect_jugg_scene.command [project_dir] [--output-root DIR] [--include-apks yes|no] [--package-name NAME] [--device-serial SERIAL] [--skip-adb] [--no-open] [--zip]
 
 Double-click usage:
   Run this .command file, input the Android project directory, then find the
@@ -34,6 +37,8 @@ Notes:
   When multiple devices are connected, pass --device-serial SERIAL or set
   ANDROID_SERIAL to collect one device. Otherwise all online devices from
   adb devices are collected.
+  Use --zip to write a sibling .zip and reveal it in Finder, Explorer, or the
+  file manager. Git Bash and WSL can run this script on Windows.
 USAGE
 }
 
@@ -66,6 +71,70 @@ clean_input_path() {
   printf '%s' "$value"
 }
 
+to_unix_path() {
+  local value="$1"
+  [[ -n "$value" ]] || return 0
+  if command -v cygpath >/dev/null 2>&1 && [[ "$value" == [A-Za-z]:* || "$value" == *\\* ]]; then
+    cygpath -u "$value"
+  elif command -v wslpath >/dev/null 2>&1 && [[ "$value" == [A-Za-z]:* || "$value" == *\\* ]]; then
+    wslpath -u "$value"
+  else
+    printf '%s' "$value"
+  fi
+}
+
+to_native_path() {
+  local value="$1"
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -w "$value"
+  elif command -v wslpath >/dev/null 2>&1; then
+    wslpath -w "$value"
+  else
+    printf '%s' "$value"
+  fi
+}
+
+unescape_sdk_dir() {
+  local sdk_dir="$1"
+  sdk_dir="${sdk_dir%$'\r'}"
+  sdk_dir="${sdk_dir//\\:/:}"
+  sdk_dir="${sdk_dir//\\//}"
+  to_unix_path "$sdk_dir"
+}
+
+resolve_python() {
+  if command -v python3 >/dev/null 2>&1; then
+    PYTHON_BIN="python3"
+  elif command -v python >/dev/null 2>&1; then
+    PYTHON_BIN="python"
+  fi
+}
+
+file_sha256() {
+  local file="$1"
+  if command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$file" | awk '{print $1}'
+  elif command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$file" | awk '{print $1}'
+  elif command -v openssl >/dev/null 2>&1; then
+    openssl dgst -sha256 "$file" | awk '{print $NF}'
+  else
+    printf 'unavailable'
+    return 1
+  fi
+}
+
+file_sha256_line() {
+  local file="$1"
+  local display="$2"
+  local hash
+  if hash="$(file_sha256 "$file")"; then
+    printf '%s  %s\n' "$hash" "$display"
+  else
+    printf 'sha256 unavailable: %s\n' "$display"
+  fi
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --output-root)
@@ -96,6 +165,10 @@ while [[ $# -gt 0 ]]; do
       OPEN_FINDER=false
       shift
       ;;
+    --zip)
+      MAKE_ZIP=true
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -117,10 +190,11 @@ if [[ -z "$PROJECT_DIR" ]]; then
   read -r -p "Project directory: " PROJECT_DIR
 fi
 
-PROJECT_DIR="$(clean_input_path "$PROJECT_DIR")"
-OUTPUT_ROOT="$(clean_input_path "$OUTPUT_ROOT")"
+PROJECT_DIR="$(to_unix_path "$(clean_input_path "$PROJECT_DIR")")"
+OUTPUT_ROOT="$(to_unix_path "$(clean_input_path "$OUTPUT_ROOT")")"
 PACKAGE_NAME="$(clean_input_path "$PACKAGE_NAME")"
 DEVICE_SERIAL="$(clean_input_path "$DEVICE_SERIAL")"
+resolve_python
 
 [[ -d "$PROJECT_DIR" ]] || fail "project directory does not exist: $PROJECT_DIR"
 [[ -d "$OUTPUT_ROOT" ]] || fail "output root does not exist: $OUTPUT_ROOT"
@@ -178,11 +252,21 @@ try_adb_candidate() {
 
   ADB_RESOLUTION_SOURCES+=("$source")
   ADB_RESOLUTION_CANDIDATES+=("$candidate")
-  if [[ -x "$candidate" ]]; then
+  if [[ -x "$candidate" ]] || { [[ -f "$candidate" ]] && [[ "$candidate" == *.exe ]]; }; then
     ADB_BIN="$candidate"
     ADB_RESOLUTION_SOURCE="$source"
     return 0
   fi
+  return 1
+}
+
+try_adb_pair() {
+  local source="$1"
+  local sdk_dir="$2"
+  [[ -n "$sdk_dir" ]] || return 1
+  sdk_dir="$(to_unix_path "$sdk_dir")"
+  try_adb_candidate "$source" "$sdk_dir/platform-tools/adb" && return 0
+  try_adb_candidate "$source" "$sdk_dir/platform-tools/adb.exe" && return 0
   return 1
 }
 
@@ -193,26 +277,32 @@ resolve_adb() {
   if path_adb="$(command -v adb 2>/dev/null)" && try_adb_candidate "PATH" "$path_adb"; then
     return 0
   fi
-
-  if try_adb_candidate "ANDROID_SDK_ROOT" "${ANDROID_SDK_ROOT:+$ANDROID_SDK_ROOT/platform-tools/adb}"; then
+  if path_adb="$(command -v adb.exe 2>/dev/null)" && try_adb_candidate "PATH" "$path_adb"; then
     return 0
   fi
-  if try_adb_candidate "ANDROID_HOME" "${ANDROID_HOME:+$ANDROID_HOME/platform-tools/adb}"; then
+
+  if try_adb_pair "ANDROID_SDK_ROOT" "${ANDROID_SDK_ROOT:-}"; then
+    return 0
+  fi
+  if try_adb_pair "ANDROID_HOME" "${ANDROID_HOME:-}"; then
     return 0
   fi
 
   if [[ -f "$PROJECT_DIR/local.properties" ]]; then
     sdk_dir="$(sed -n 's/^sdk\.dir=//p' "$PROJECT_DIR/local.properties" | tail -n 1)"
-    sdk_dir="${sdk_dir%$'\r'}"
-    if try_adb_candidate "local.properties" "${sdk_dir:+$sdk_dir/platform-tools/adb}"; then
+    sdk_dir="$(unescape_sdk_dir "$sdk_dir")"
+    if try_adb_pair "local.properties" "$sdk_dir"; then
       return 0
     fi
   fi
 
-  if try_adb_candidate "macOS default SDK" "$HOME/Library/Android/sdk/platform-tools/adb"; then
+  if try_adb_pair "macOS default SDK" "$HOME/Library/Android/sdk"; then
     return 0
   fi
-  try_adb_candidate "Linux default SDK" "$HOME/Android/Sdk/platform-tools/adb"
+  if try_adb_pair "Linux default SDK" "$HOME/Android/Sdk"; then
+    return 0
+  fi
+  try_adb_pair "Windows default SDK" "${LOCALAPPDATA:-$HOME/AppData/Local}/Android/Sdk"
 }
 
 write_adb_resolution() {
@@ -234,9 +324,11 @@ CollectedAt: $(date '+%Y-%m-%d %H:%M:%S %z')
 Project: $PROJECT_DIR
 JuggDir: $JUGG_DIR
 Output: $OUT_DIR
+Zip: pending
 IncludeApks: $INCLUDE_APKS
 SkipAdb: $SKIP_ADB
 OpenFinder: $OPEN_FINDER
+MakeZip: $MAKE_ZIP
 PackageName: ${PACKAGE_NAME:-auto}
 DeviceSerial: ${DEVICE_SERIAL:-all-online}
 SUMMARY
@@ -278,11 +370,7 @@ collect_classpath() {
     echo "APK hashes:"
     find "$classpath_dir" -type f -name '*.apk' -print0 |
       while IFS= read -r -d '' apk; do
-        if command -v shasum >/dev/null 2>&1; then
-          shasum -a 256 "$apk"
-        else
-          echo "sha256 unavailable: $apk"
-        fi
+        file_sha256_line "$apk" "$apk"
       done
   } > "$inventory"
 
@@ -308,9 +396,7 @@ collect_classpath() {
         else
           modified_at="unavailable"
         fi
-        if command -v shasum >/dev/null 2>&1; then
-          sha256="$(shasum -a 256 "$file" | awk '{print $1}')"
-        fi
+        sha256="$(file_sha256 "$file" || true)"
         printf '%s\tsize=%s\tmtime=%s\tsha256=%s\n' "$rel" "$size" "$modified_at" "$sha256" >> "$r_jar_inventory"
         copy_file "$file" "classpath/$rel"
       done
@@ -345,8 +431,8 @@ infer_package_names() {
     printf '%s\n' "$PACKAGE_NAME" >> "$candidates_file"
   fi
 
-  if command -v python3 >/dev/null 2>&1; then
-    python3 - "$JUGG_DIR" >> "$candidates_file" <<'PY' || true
+  if [[ -n "$PYTHON_BIN" ]]; then
+    "$PYTHON_BIN" - "$JUGG_DIR" >> "$candidates_file" <<'PY' || true
 import json
 import re
 import sys
@@ -397,14 +483,10 @@ hash_files_under() {
     echo "Missing directory: $src_dir" > "$OUT_DIR/$dest_rel"
     return 0
   fi
-  if ! command -v shasum >/dev/null 2>&1; then
-    echo "shasum unavailable" > "$OUT_DIR/$dest_rel"
-    return 0
-  fi
   find "$src_dir" -type f -name '*.apk' -print0 |
     while IFS= read -r -d '' file; do
       local rel="${file#"$OUT_DIR/"}"
-      shasum -a 256 "$file" | sed "s#  $file#  $rel#"
+      file_sha256_line "$file" "$rel"
     done | sort > "$OUT_DIR/$dest_rel"
 }
 
@@ -494,9 +576,7 @@ dump_device_overlay_resources() {
       continue
     fi
 
-    if command -v shasum >/dev/null 2>&1; then
-      shasum -a 256 "$dest" | sed "s#  $dest#  $rel#" >> "$hashes_file"
-    fi
+    file_sha256_line "$dest" "$rel" >> "$hashes_file"
     rm -f "$tmp_error"
   done < "$listing_file"
 
@@ -640,6 +720,74 @@ write_manifest() {
     sort > "$OUT_DIR/manifest.txt"
 }
 
+update_summary_zip() {
+  local zip_value="${1:-unavailable}"
+  local summary="$OUT_DIR/summary.txt"
+  local tmp="$summary.tmp"
+  awk -v zip="$zip_value" '
+    BEGIN { done = 0 }
+    /^Zip:/ { print "Zip: " zip; done = 1; next }
+    { print }
+    END { if (!done) print "Zip: " zip }
+  ' "$summary" > "$tmp"
+  mv "$tmp" "$summary"
+}
+
+package_zip() {
+  [[ "$MAKE_ZIP" == "true" ]] || return 0
+  ZIP_PATH="${OUT_DIR}.zip"
+  rm -f "$ZIP_PATH"
+  if command -v ditto >/dev/null 2>&1; then
+    ditto -c -k --keepParent "$OUT_DIR" "$ZIP_PATH" || ZIP_PATH=""
+  elif command -v zip >/dev/null 2>&1; then
+    (
+      cd "$(dirname "$OUT_DIR")"
+      zip -r -q "$(basename "$ZIP_PATH")" "$(basename "$OUT_DIR")"
+    ) || ZIP_PATH=""
+  elif command -v tar >/dev/null 2>&1; then
+    tar -a -cf "$ZIP_PATH" -C "$(dirname "$OUT_DIR")" "$(basename "$OUT_DIR")" || ZIP_PATH=""
+  elif command -v powershell.exe >/dev/null 2>&1; then
+    local win_src
+    local win_zip
+    win_src="$(to_native_path "$OUT_DIR")"
+    win_zip="$(to_native_path "$ZIP_PATH")"
+    powershell.exe -NoProfile -Command "Compress-Archive -Path \"$win_src\" -DestinationPath \"$win_zip\" -Force" || ZIP_PATH=""
+  else
+    ZIP_PATH=""
+  fi
+  if [[ -n "$ZIP_PATH" && -f "$ZIP_PATH" ]]; then
+    update_summary_zip "$ZIP_PATH"
+  else
+    ZIP_PATH=""
+    update_summary_zip "unavailable"
+  fi
+}
+
+open_result() {
+  [[ "$OPEN_FINDER" == "true" ]] || return 0
+  local target="$OUT_DIR"
+  if [[ -n "$ZIP_PATH" && -f "$ZIP_PATH" ]]; then
+    target="$ZIP_PATH"
+  fi
+  if command -v open >/dev/null 2>&1; then
+    if [[ -f "$target" ]]; then
+      open -R "$target" || open "$OUT_DIR" || true
+    else
+      open "$OUT_DIR" || true
+    fi
+    return 0
+  fi
+  if command -v explorer.exe >/dev/null 2>&1; then
+    local win_target
+    win_target="$(to_native_path "$target")"
+    MSYS_NO_PATHCONV=1 explorer.exe /select,"$win_target" >/dev/null 2>&1 || true
+    return 0
+  fi
+  if command -v xdg-open >/dev/null 2>&1; then
+    xdg-open "$OUT_DIR" >/dev/null 2>&1 || true
+  fi
+}
+
 write_summary
 collect_logs
 collect_jugg_state
@@ -647,11 +795,14 @@ collect_classpath
 collect_project_meta
 collect_adb_snapshot
 write_manifest
+package_zip
+write_manifest
 
 echo
 echo "Scene collected at: $OUT_DIR"
 echo "Manifest: $OUT_DIR/manifest.txt"
-if [[ "$OPEN_FINDER" == "true" ]] && command -v open >/dev/null 2>&1; then
-  open "$OUT_DIR" || true
+if [[ -n "$ZIP_PATH" && -f "$ZIP_PATH" ]]; then
+  echo "Zip: $ZIP_PATH"
 fi
+open_result
 pause_if_interactive
