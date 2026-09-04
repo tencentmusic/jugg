@@ -41,6 +41,8 @@ class AdbLogWrapper(val logger: Logger) : LogWrapper(logger) {
         val installFailureReason = parseInstallFailureReason(message)
         if (installFailureReason != null) {
             realErrorMessage = installFailureReason
+        } else if (message.contains("run-as: package not debuggable:")) {
+            realErrorMessage = message
         } else if (message.contains("MessagePipeWrapper read() timeout")) {
             realErrorMessage = message
         } else if (message.contains("device") && message.contains("not found")) {

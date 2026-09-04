@@ -32,4 +32,16 @@ class AdbLogWrapperTest {
 
         assertEquals("device offline", logger.realErrorMessage)
     }
+
+    @Test
+    fun `records non debuggable package from deployer output`() {
+        val logger = AdbLogWrapper(mock(Logger::class.java))
+
+        logger.error(null, "Could not get package user id: run-as: package not debuggable: %s", "com.example.test")
+
+        assertEquals(
+            "Could not get package user id: run-as: package not debuggable: com.example.test",
+            logger.realErrorMessage,
+        )
+    }
 }

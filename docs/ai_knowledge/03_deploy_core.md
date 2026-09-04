@@ -99,7 +99,7 @@ JuggDeployerHelper.deploy(isInstall=true)
   -> deployHistoryManager.lastDeployOverlayIds = launchResult.overlayIds
 ```
 
-install 前会先 stop app，避免用户看到“安装后又被停止”的错觉。安装失败时优先透出 `AdbLogWrapper.realErrorMessage`，不要先改高层错误文案。
+install 前会先 stop app，避免用户看到“安装后又被停止”的错觉。安装与增量部署失败时优先透出 `AdbLogWrapper.realErrorMessage`，不要先改高层错误文案；`run-as: package not debuggable` 等设备侧明确原因必须覆盖 deployer 的通用失败信息。
 
 ### 4.2 incremental deploy 链路
 
