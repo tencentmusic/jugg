@@ -403,6 +403,51 @@ class ReadProjectInfoGradle9CompatTest : ReadProjectInfoGradleCompatTestBase() {
         }
     }
 
+    @Test
+    fun generatedScript_shouldMinifyReleaseWithBundledRuntime() {
+        val fixtureDir = Files.createTempDirectory("jugg_runtime_release_minify").toFile()
+        try {
+            File(System.getProperty("user.dir"), "src/test/assets/android-app-agp9")
+                .copyRecursively(fixtureDir, overwrite = true)
+            val buildFile = File(fixtureDir, "build.gradle")
+            buildFile.writeText(buildFile.readText().replace("8.7.2", "8.9.1"))
+            val appBuildFile = File(fixtureDir, "app/build.gradle")
+            appBuildFile.writeText(
+                appBuildFile.readText().replace(
+                    "minifyEnabled false",
+                    "minifyEnabled true\n            proguardFiles 'proguard-rules.pro'",
+                ),
+            )
+            writeFile(
+                File(fixtureDir, "app/proguard-rules.pro"),
+                "-keep class com.sickworm.intellij.jugg.internal.dragonfly.node.WalkerSequence\$WalkerIterator { *; }",
+            )
+            writeSdkLocalProperties(fixtureDir)
+            writeWrapper(fixtureDir, "8.11.1")
+            val initScript = copyGeneratedInitScript(fixtureDir)
+            val runtimeJar = File(fixtureDir, ".gradle/jugg/jugg-runtime.jar")
+            runtimeJar.parentFile.mkdirs()
+            javaClass.getResourceAsStream("/deploy/jugg-runtime.jar")!!.use { input ->
+                runtimeJar.outputStream().use(input::copyTo)
+            }
+
+            val result = runGradle(
+                fixtureDir,
+                ":app:assembleRelease",
+                "-I", initScript.absolutePath,
+                "-P${PARAM_INJECT_ENABLE}=true",
+                "-Pjugg.projectDir=${fixtureDir.absolutePath}",
+                "--stacktrace",
+                "--console=plain",
+                "--no-build-cache",
+            )
+
+            assertEquals(0, result.exitCode, "Jugg release minify build failed.\n${result.output}")
+        } finally {
+            fixtureDir.deleteRecursively()
+        }
+    }
+
     private fun apkContainsClass(apkFile: File, className: String): Boolean {
         val dexFileNode = DexFileNode()
         MultiDexFileReader.open(apkFile.readBytes()).accept(dexFileNode)
