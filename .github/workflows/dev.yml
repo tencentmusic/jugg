@@ -89,7 +89,7 @@ jobs:
         run: |
           commit_sha="$(git rev-parse HEAD)"
           short_sha="${commit_sha:0:7}"
-          release_notes="$(printf 'Manually published from a Build Dev run for build verification. Dev builds are not verified at all and may be broken; use the Canary release unless you need this exact ref.\n\n- Version: `%s`\n- Ref: `%s`\n- Commit: [`%s`](%s/%s/commit/%s)\n- Workflow: [run %s](%s/%s/actions/runs/%s)\n' \
+          release_notes="$(printf 'Manually published from a Build Dev run for build verification. Dev builds are not verified at all and may be broken; they only exist to try out the ref below.\n\n- Version: `%s`\n- Ref: `%s`\n- Commit: [`%s`](%s/%s/commit/%s)\n- Workflow: [run %s](%s/%s/actions/runs/%s)\n' \
             '${{ steps.version.outputs.value }}' \
             "$GITHUB_REF_NAME" \
             "$short_sha" \
