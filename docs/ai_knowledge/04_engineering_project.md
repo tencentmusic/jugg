@@ -64,7 +64,7 @@
 | `isUseDataBinding` | Gradle 读取的 DataBinding build feature；合并后必须保留，供增量 layout 编译选择 DataBinding 模式 |
 | `instrumentationTargetPackage` | 非空表示 synthetic androidTest module |
 | `kaptDependencies` / `kspDependencies` / `kotlinPlugins` | 注解处理和 Kotlin 编译输入 |
-| `kotlinJvmTarget` / `kotlinFreeCompilerArgs` | Kotlin 编译任务的有效 JVM target 与附加编译参数 |
+| `kotlinJvmTarget` / `kotlinFreeCompilerArgs` / `kotlinPluginOptions` | Kotlin 编译任务的有效 JVM target、附加编译参数与 Gradle subplugin 参数 |
 | `kotlinCommonSourceDirs` | 选中 Android Kotlin compilation 视为 common 的 Kotlin source roots；非 KMP 或读取失败时为空列表 |
 | `kotlinFragmentSourceDirs` | 选中 Android Kotlin task 暴露的 fragment 到 source roots 映射；旧快照或不支持时为空 map |
 | `kotlinFragmentRefines` | fragment refinement edge，key 为 refining fragment，value 为其直接 refined fragments |
@@ -73,7 +73,7 @@
 
 `JuggProjectInfo.agpR8Classpath` 是根项目级字段。Gradle init script 从实际 Android plugin classloader 加载 `com.android.tools.r8.D8` 并读取 code source；若该路径属于 Gradle `jars-*` / `transforms-*` instrumentation cache，则从 Android module 或 root project 的 buildscript classpath 恢复同名原始 artifact。原始 artifact 不可用时字段保持 `null`，由 dex 阶段使用 Jugg 内置 R8，避免把依赖 Gradle 私有类的 instrumentation 产物带出 Gradle classloader。Jugg 不复制 R8 分发包；IDE/CLI 只把路径注入内存中的 compile context，不写入 `FullBuildInfo` 或 `compile_context.db`。合并 composite build 快照时优先选择最终 Application module 所属 Gradle 快照的路径，避免 included build 的 AGP R8 覆盖主应用。
 
-`kotlinJvmTarget` 与 `kotlinFreeCompilerArgs` 优先从当前变体 Kotlin 编译任务的 `compilerOptions` 读取，以兼容 Kotlin 2.x typed compiler options；旧版 Kotlin Gradle Plugin 才回退到 task 或 Android extension 的 `kotlinOptions`。Kotlin task 发现不依赖旧 Kotlin Android plugin ID，兼容 AGP 9 Built-in Kotlin，并在传统 variant task 之后尝试 KMP Android task `compileAndroidMain`。不得直接对 Android extension 调用 `getByName("kotlinOptions")`，否则属性不存在时会产生反射异常，并让增量编译错误回退到默认 JVM target 1.8。
+`kotlinJvmTarget` 与 `kotlinFreeCompilerArgs` 优先从当前变体 Kotlin 编译任务的 `compilerOptions` 读取，以兼容 Kotlin 2.x typed compiler options；旧版 Kotlin Gradle Plugin 才回退到 task 或 Android extension 的 `kotlinOptions`。`kotlinPluginOptions` 从 task 的 `KotlinCompilerPluginData.options.arguments` 读取，保留 Gradle subplugin 已解析的必填参数，读取失败时为空并由 Kotlin 编译失败兜底处理。Kotlin task 发现不依赖旧 Kotlin Android plugin ID，兼容 AGP 9 Built-in Kotlin，并在传统 variant task 之后尝试 KMP Android task `compileAndroidMain`。不得直接对 Android extension 调用 `getByName("kotlinOptions")`，否则属性不存在时会产生反射异常，并让增量编译错误回退到默认 JVM target 1.8。
 
 `kotlinCommonSourceDirs` 从 `compile<Variant>Kotlin` / `compile<Variant>KotlinAndroid` task 的 `commonSourceSet` 结构读取，保留 direct common root、中间 `sharedMain` root 和 task 配置的 generated common roots。K2 task 另从 `multiplatformStructure` 读取 fragment sources、refines edge 和 default fragment。两者都不依据 source-set 名称或 `src/<name>` 路径猜测。Gradle reader 会把这些 roots 同时加入 `sourceDirs`；merge 出口保证 common roots 是 `sourceDirs` 子集，并完整保留 Gradle authoritative fragment graph，IDE 的扁平 `sourceDirs` 不覆盖这些身份。
 

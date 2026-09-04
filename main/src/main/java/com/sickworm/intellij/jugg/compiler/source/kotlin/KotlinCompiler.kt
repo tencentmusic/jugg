@@ -114,6 +114,7 @@ class KotlinCompiler(
             kspDependencies = options.kspDependencies,
             kotlinPlugins = options.kotlinPlugins,
             kotlinExtensions = options.kotlinExtensions,
+            kotlinPluginOptions = options.kotlinPluginOptions,
             javaSourceDirs = options.javaSourceDirs,
         )
         TimeLogger.start("kspCompile")
@@ -249,6 +250,9 @@ class KotlinCompiler(
             .flatMap { it.kotlinPlugins ?: emptyList() }
         val kotlinExtensions = allRelativeModules
             .flatMap { it.kotlinExtensions ?: emptyList() }
+        val kotlinPluginOptions = allRelativeModules
+            .flatMap { it.kotlinPluginOptions }
+            .distinct()
         val kspDependencies = allRelativeModules
            .flatMap { it.kspDependencies ?: emptyList() }
            .map { it.file }
@@ -284,6 +288,7 @@ class KotlinCompiler(
             kaptDependencies = module.kaptDependencies.map { it.file },
             kotlinPlugins = kotlinPlugins,
             kotlinExtensions = kotlinExtensions,
+            kotlinPluginOptions = kotlinPluginOptions,
             kspDependencies = kspDependencies,
             isNeedComplementaryFiles = isNeedComplementaryFiles,
         )

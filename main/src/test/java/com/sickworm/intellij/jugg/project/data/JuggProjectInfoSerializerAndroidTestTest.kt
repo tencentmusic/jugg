@@ -146,6 +146,24 @@ class JuggProjectInfoSerializerAndroidTestTest {
     }
 
     @Test
+    fun `serialize and deserialize preserves Kotlin compiler plugin options`() {
+        val pluginOptions = listOf("plugin:dev.zacsweers.moshix.compiler:enabled=true")
+        val original = projectInfoWithoutAgpR8(
+            modules = mapOf("app" to ModuleInfo.virtualModule.copy(
+                name = "app",
+                kotlinPluginOptions = pluginOptions,
+            ))
+        )
+
+        val restored = JuggProjectInfoSerialize.deserialize(
+            JuggProjectInfoSerialize.serialize(original),
+            isSkipVersionCheck = true,
+        )
+
+        assertEquals(pluginOptions, restored.modules["app"]?.kotlinPluginOptions)
+    }
+
+    @Test
     fun `serialize and deserialize preserves AGP R8 classpath`() {
         val r8Classpath = File("/gradle/caches/builder-9.2.0.jar")
         val original = JuggProjectInfo(
@@ -213,5 +231,24 @@ class JuggProjectInfoSerializerAndroidTestTest {
         val restored = JuggProjectInfoSerialize.deserialize(serialized, isSkipVersionCheck = true)
 
         assertEquals(emptyList<File>(), restored.modules["shared"]?.kotlinCommonSourceDirs)
+    }
+
+    @Test
+    fun `deserialize old project info without Kotlin compiler plugin options defaults to empty list`() {
+        val original = projectInfoWithoutAgpR8(
+            modules = mapOf("app" to ModuleInfo.virtualModule.copy(name = "app"))
+        )
+        val json = JsonParser.parseString(
+            ProjectInfoSerializer.gson.toJson(JuggProjectInfoSerialize.serialize(original))
+        ).asJsonObject
+        json.getAsJsonArray("modules")[0]
+            .asJsonObject
+            .getAsJsonObject("moduleInfoExceptLibraries")
+            .remove("kotlinPluginOptions")
+        val serialized = ProjectInfoSerializer.gson.fromJson(json, JuggProjectInfoSerialize::class.java)
+
+        val restored = JuggProjectInfoSerialize.deserialize(serialized, isSkipVersionCheck = true)
+
+        assertEquals(emptyList<String>(), restored.modules["app"]?.kotlinPluginOptions)
     }
 }

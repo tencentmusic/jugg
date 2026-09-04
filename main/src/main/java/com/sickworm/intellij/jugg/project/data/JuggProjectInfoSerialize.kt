@@ -96,6 +96,7 @@ class JuggProjectInfoSerialize(
                     kotlinCommonSourceDirs = serialize.moduleInfoExceptLibraries.kotlinCommonSourceDirs ?: emptyList(),
                     kotlinFragmentSourceDirs = serialize.moduleInfoExceptLibraries.kotlinFragmentSourceDirs ?: emptyMap(),
                     kotlinFragmentRefines = serialize.moduleInfoExceptLibraries.kotlinFragmentRefines ?: emptyMap(),
+                    kotlinPluginOptions = serialize.moduleInfoExceptLibraries.kotlinPluginOptions ?: emptyList(),
                     libraryDependencies = serialize.libraryDependencies?.map { dependencyMap[it]!! } ?: emptyList(),
                     runtimeLibraryDependencies = serialize.runtimeLibraryDependencies?.map { dependencyMap[it]!! } ?: emptyList(),
                     annotationProcessorDependencies = serialize.annotationProcessorDependencies?.map { dependencyMap[it]!! } ?: emptyList(),

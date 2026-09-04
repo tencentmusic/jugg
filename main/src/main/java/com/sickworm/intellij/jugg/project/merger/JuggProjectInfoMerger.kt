@@ -346,6 +346,7 @@ class JuggProjectInfoMerger(
                 signingConfigs = gradleModuleInfo.signingConfigs,
                 kotlinExtensions = gradleModuleInfo.kotlinExtensions,
                 kotlinPlugins = gradleModuleInfo.kotlinPlugins,
+                kotlinPluginOptions = gradleModuleInfo.kotlinPluginOptions,
                 coreLibraryDesugaring = gradleModuleInfo.coreLibraryDesugaring,
                 isUseDataBinding = gradleModuleInfo.isUseDataBinding ?: moduleInfo.isUseDataBinding,
                 kspDependencies = gradleModuleInfo.kspDependencies,

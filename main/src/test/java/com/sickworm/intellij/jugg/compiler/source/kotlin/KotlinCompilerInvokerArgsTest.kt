@@ -1,10 +1,14 @@
 package com.sickworm.intellij.jugg.compiler.source.kotlin
 
+import com.sickworm.intellij.jugg.org.objectweb.asm.ClassWriter
+import com.sickworm.intellij.jugg.org.objectweb.asm.Opcodes
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
+import java.util.jar.JarEntry
+import java.util.jar.JarOutputStream
 
 /** L1 tests for deterministic Kotlin compiler argument assembly. */
 class KotlinCompilerInvokerArgsTest {
@@ -65,6 +69,24 @@ class KotlinCompilerInvokerArgsTest {
     }
 
     @Test
+    fun `passes Gradle compiler plugin options through Kotlin CLI protocol`() {
+        assertEquals(
+            listOf(
+                "-P",
+                "plugin:dev.zacsweers.moshix.compiler:enabled=true",
+                "-P",
+                "plugin:dev.zacsweers.moshix.compiler:enableSealed=true",
+            ),
+            KotlinCompilerInvoker.buildPluginOptionArgs(
+                listOf(
+                    "plugin:dev.zacsweers.moshix.compiler:enabled=true",
+                    "plugin:dev.zacsweers.moshix.compiler:enableSealed=true",
+                ),
+            ),
+        )
+    }
+
+    @Test
     fun `compiler toolchain key isolates different project compiler classpaths`() {
         val oldCompiler = listOf(File("/tmp/kotlin-compiler-1.6.21.jar"), File("/tmp/kotlin-stdlib.jar"))
         val sameCompiler = listOf(
@@ -81,5 +103,47 @@ class KotlinCompilerInvokerArgsTest {
             KotlinCompilerInvoker.buildCompilerToolchainKey(oldCompiler),
             KotlinCompilerInvoker.buildCompilerToolchainKey(newCompiler),
         )
+    }
+
+    @Test
+    fun `finds compiler plugin by declared id instead of artifact name`() {
+        val jar = File.createTempFile("moshi-ir-compiler-plugin", ".jar")
+        try {
+            JarOutputStream(jar.outputStream()).use { output ->
+                output.putNextEntry(JarEntry("META-INF/services/org.jetbrains.kotlin.compiler.plugin.CommandLineProcessor"))
+                output.write("sample.MoshiXCommandLineProcessor".toByteArray())
+                output.closeEntry()
+                output.putNextEntry(JarEntry("sample/MoshiXCommandLineProcessor.class"))
+                val classWriter = ClassWriter(0)
+                classWriter.visit(
+                    Opcodes.V1_8,
+                    Opcodes.ACC_PUBLIC,
+                    "sample/MoshiXCommandLineProcessor",
+                    null,
+                    "java/lang/Object",
+                    null,
+                )
+                classWriter.visitField(
+                    Opcodes.ACC_PRIVATE or Opcodes.ACC_STATIC or Opcodes.ACC_FINAL,
+                    "PLUGIN_ID",
+                    "Ljava/lang/String;",
+                    null,
+                    "dev.zacsweers.moshix.compiler",
+                ).visitEnd()
+                classWriter.visitEnd()
+                output.write(classWriter.toByteArray())
+                output.closeEntry()
+            }
+
+            assertEquals(
+                listOf(jar),
+                KotlinCompilerInvoker.findPluginFilesById(
+                    "dev.zacsweers.moshix.compiler",
+                    listOf(jar),
+                ),
+            )
+        } finally {
+            jar.delete()
+        }
     }
 }

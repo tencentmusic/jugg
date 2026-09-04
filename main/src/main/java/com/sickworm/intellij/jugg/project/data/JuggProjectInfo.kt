@@ -95,6 +95,8 @@ data class ModuleInfo(
     val kspDependencies: List<LibraryDependency>? = null,
     val instrumentationTargetPackage: String? = null,
     val composeResourceInfo: ComposeResourceInfo? = null,
+    /** Effective options declared by Kotlin compiler subplugins for this module. */
+    val kotlinPluginOptions: List<String> = emptyList(),
 ) {
     // do not add unnecessary content before ") {", for kotlin 1.3 compat: buildReadProjectInfoScript.gradle
     // if adds new fields, also updates:

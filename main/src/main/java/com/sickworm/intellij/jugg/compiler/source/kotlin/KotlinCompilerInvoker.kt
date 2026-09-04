@@ -13,6 +13,7 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.ObjectOutputStream
 import java.util.*
+import java.util.zip.ZipFile
 import kotlin.collections.filter
 
 /**
@@ -110,6 +111,7 @@ class KotlinCompilerInvoker {
         val kspDependencies: List<File> = emptyList(),
         val kotlinPlugins: List<File> = emptyList(),
         val kotlinExtensions: List<File> = emptyList(),
+        val kotlinPluginOptions: List<String> = emptyList(),
         val executionMode: ExecutionMode = ExecutionMode.IN_PROCESS,
         val commonSourceFiles: List<File> = emptyList(),
         val isNeedComplementaryFiles: Boolean = false,
@@ -174,6 +176,7 @@ class KotlinCompilerInvoker {
         val kotlinExtensions = options.kotlinExtensions
             .filter { !disablePlugins.contains(it) && !tryDisablePlugins.contains(it) }
 
+        val configuredPluginOptions = module.kotlinFreeCompilerArgs + options.kotlinPluginOptions
         val pluginArgs = mutableListOf<String>()
         if (kotlinCompile.isUseProjectCompiler || options.forceUseEmbeddedKotlinCompiler) {
             // if we use project compiler, we can use project plugins
@@ -181,8 +184,10 @@ class KotlinCompilerInvoker {
                 pluginArgs.add("-Xplugin=${it.path}")
             }
             // compat with kuikly
-            pluginArgs.addAll(listOf("-P", "plugin:kuikly:statisticsPath=" +
-                    "${context.tempCompileDir.resolve("kuikly")}"))
+            if (configuredPluginOptions.none { it.substringBefore('=') == "plugin:kuikly:statisticsPath" }) {
+                pluginArgs.addAll(listOf("-P", "plugin:kuikly:statisticsPath=" +
+                        "${context.tempCompileDir.resolve("kuikly")}"))
+            }
         } else {
             // we are using embedded compiler, which may conflict with the plugin version in project
         }
@@ -275,11 +280,12 @@ class KotlinCompilerInvoker {
 
         val kspArgsManager = KspArgsManager(module, context, options)
         val kspArgs = kspArgsManager.handleKspArgs()
+        val projectPluginArgs = buildPluginOptionArgs(options.kotlinPluginOptions)
         val composeArgs = handleComposeArgs(
             options,
             kotlinExtensions,
             kotlinPlugins,
-            module.kotlinFreeCompilerArgs,
+            configuredPluginOptions,
             logger,
         )
 
@@ -364,7 +370,7 @@ class KotlinCompilerInvoker {
         val fragmentArgs = buildFragmentArgs(module, task.files.map { it.file }, options)
         val fileArgs = task.files.map { it.file.absolutePath }
 
-        val command = pluginArgs + extensionArgs + kaptArgs + kspArgs + composeArgs + compileArgs + classPathArgs +
+        val command = pluginArgs + projectPluginArgs + extensionArgs + kaptArgs + kspArgs + composeArgs + compileArgs + classPathArgs +
                 commonSourceArgs + fragmentArgs + fileArgs
         logCompileCommand(command, context.projectDir, logger)
 
@@ -476,8 +482,9 @@ class KotlinCompilerInvoker {
                 // Plugin "(.*)" usage
                 val pluginName = regex.find(message)?.groupValues?.get(1)
                 if (pluginName != null) {
-                    val relativePlugins = (kotlinPlugins + kotlinExtensions).filter {
-                        it.path.contains(pluginName, ignoreCase = true)
+                    val candidates = kotlinPlugins + kotlinExtensions
+                    val relativePlugins = findPluginFilesById(pluginName, candidates).ifEmpty {
+                        candidates.filter { it.path.contains(pluginName, ignoreCase = true) }
                     }
                     noOptionPlugins.addAll(relativePlugins)
                 }
@@ -812,6 +819,47 @@ class KotlinCompilerInvoker {
             ).filterNot { it.substringBefore('=') in existingOptionNames }
                 .flatMap { listOf("-P", it) }
         }
+
+        internal fun buildPluginOptionArgs(options: List<String>): List<String> {
+            return options.flatMap { listOf("-P", it) }
+        }
+
+        /** Resolves plugin artifacts by the ID embedded in their CommandLineProcessor implementation. */
+        internal fun findPluginFilesById(pluginId: String, files: List<File>): List<File> {
+            val pluginIdBytes = pluginId.toByteArray()
+            return files.distinct().filter { file ->
+                if (!file.isFile) return@filter false
+                try {
+                    ZipFile(file).use { zip ->
+                        val service = zip.getEntry(COMMAND_LINE_PROCESSOR_SERVICE) ?: return@use false
+                        zip.getInputStream(service).bufferedReader().useLines { lines ->
+                            if (lines.none { it.substringBefore('#').trim().isNotEmpty() }) return@use false
+                        }
+                        zip.entries().asSequence()
+                            .filter { !it.isDirectory && it.name.endsWith(".class") }
+                            .any { entry ->
+                                zip.getInputStream(entry).use { it.readBytes().containsSequence(pluginIdBytes) }
+                            }
+                    }
+                } catch (_: Exception) {
+                    false
+                }
+            }
+        }
+
+        private fun ByteArray.containsSequence(target: ByteArray): Boolean {
+            if (target.isEmpty() || target.size > size) return false
+            search@ for (start in 0..size - target.size) {
+                for (offset in target.indices) {
+                    if (this[start + offset] != target[offset]) continue@search
+                }
+                return true
+            }
+            return false
+        }
+
+        private const val COMMAND_LINE_PROCESSOR_SERVICE =
+            "META-INF/services/org.jetbrains.kotlin.compiler.plugin.CommandLineProcessor"
 
         private fun encodeList(options: Map<String, String>): String {
             // see https://kotlinlang.org/docs/kapt.html#use-in-cli
