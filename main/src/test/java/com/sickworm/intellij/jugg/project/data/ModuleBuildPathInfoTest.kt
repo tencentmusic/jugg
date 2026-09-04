@@ -136,6 +136,16 @@ class ModuleBuildPathInfoTest {
     }
 
     @Test
+    fun `kotlinClassPath resolves KMP Android output`() {
+        val moduleRootDir = tempFolder.newFolder("foundation")
+        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "androidMain", buildDirRelativePath = "")
+        val kmpAndroidKotlinDir = File(moduleRootDir, "build/classes/kotlin/android/main").apply { mkdirs() }
+
+        assertEquals(kmpAndroidKotlinDir.canonicalPath, info.kotlinClassPath.canonicalPath)
+        assertTrue(info.allClassPath.any { it.canonicalPath == kmpAndroidKotlinDir.canonicalPath })
+    }
+
+    @Test
     fun `kotlinClassPath selects built-in output when it is newer`() {
         val moduleRootDir = tempFolder.newFolder("app")
         val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug", buildDirRelativePath = "")
@@ -221,6 +231,19 @@ class ModuleBuildPathInfoTest {
                 it.path == File(
                     "app/build/intermediates/built_in_kotlinc/release/compileReleaseKotlin/classes",
                 ).path
+            },
+        )
+    }
+
+    @Test
+    fun `allBuildPathRelative includes KMP Android output`() {
+        val projectRootDir = File("/tmp/jugg-project")
+        val moduleRootDir = File(projectRootDir, "foundation")
+        val info = ModuleBuildPathInfo(projectRootDir, moduleRootDir, "androidMain", buildDirRelativePath = "")
+
+        assertTrue(
+            info.allBuildPathRelative.any {
+                it.path == File("foundation/build/classes/kotlin/android/main").path
             },
         )
     }

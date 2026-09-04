@@ -231,9 +231,13 @@ data class ModuleBuildPathInfo(
             "intermediates/built_in_kotlinc/$buildVariant/compile${buildVariant.camelCompat}Kotlin/classes",
         )
 
-    /** Existing Kotlin class path candidates across Built-in and legacy layouts. */
+    /** Kotlin Multiplatform Android target compiler output. */
+    private val kmpAndroidKotlinClassPath get() = File(buildDir, "classes/kotlin/android/main")
+
+    /** Existing Kotlin class path candidates across Built-in, KMP Android, and legacy layouts. */
     private val kotlinClassPathCandidates get() = listOfNotNull(
         builtInKotlinClassPath.takeIf(File::exists),
+        kmpAndroidKotlinClassPath.takeIf(File::exists),
         legacyKotlinClassPath.takeIf(File::exists),
     ).distinctByAbsolutePath()
 
@@ -281,7 +285,8 @@ data class ModuleBuildPathInfo(
     val allClassPath get() = customClasspathFiles + listOf(kotlinClassPath, javaClassPath, rFilePath, kotlinClassPathForJavaLibrary, javaClassPathForJavaLibrary, libraryRFilePathInLowAgp)
 
     // use to fetch all class path after full build
-    val allBuildPaths get() = listOf(legacyKotlinClassPath, builtInKotlinClassPath, javaClassPathNew, javaClassPathOld, rFilePathDir,
+    val allBuildPaths get() = listOf(legacyKotlinClassPath, builtInKotlinClassPath, kmpAndroidKotlinClassPath,
+        javaClassPathNew, javaClassPathOld, rFilePathDir,
         kotlinClassPathForJavaLibrary, javaClassPathForJavaLibrary, generatedSourcePath,
         oldLibraryMergedManifestDir, libraryMergedManifestDir, applicationMergedManifestDir, libraryRFileDirInLowAgp,
         dataBindingInfoDir, dataBindingDependencyInfoDir, dataBindingArtifactDir,
