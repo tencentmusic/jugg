@@ -31,7 +31,7 @@ These pages are for everyday Jugg users who have already installed the plugin an
 | Extend compilation stages | [Custom compiler](./custom-compiler.md) | Add project-specific generation, transformation, or validation logic |
 | Adjust More Options settings | [Advanced options](./advanced-options.md) | Understand runtime strategies, tool entry points, and internal diagnostics settings |
 | Upload issue logs | [Report an issue](./report-issue.md) | Upload logs and obtain an Issue ID when compilation, deployment, or runtime results are unexpected |
-| Self-host a backend for configuration, updates, and diagnostics | [Jugg backend](./jugg-backend/) | Centrally distribute project configuration, plugin upgrades, hot updates, and issue logs |
+| Self-host a backend for configuration, updates, and event reporting | [Jugg backend](./jugg-backend/) | Centrally distribute project configuration, plugin upgrades, hot updates, and usage events |
 
 ## A typical development loop
 

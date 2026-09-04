@@ -9,7 +9,7 @@ tags:
 
 # Jugg backend
 
-Jugg can connect to an HTTP backend for centralized plugin upgrades, hot updates, project defaults, issue diagnostics, and remote-machine applications. A backend is not required to run Jugg. Local features such as incremental compilation, deployment, CLI, and MCP remain available without one.
+Jugg can connect to an HTTP backend for centralized plugin upgrades, hot updates, project defaults, usage events, and remote-machine applications. A backend is not required to run Jugg. Local features such as incremental compilation, deployment, CLI, and MCP remain available without one. User-submitted issue logs do not go through this backend.
 
 Public builds do not include a predefined `servers.json`, so they do not connect to a Jugg backend automatically. Internal teams can use `buildPluginInternal` to package local configuration into the plugin. A Custom Server explicitly configured by the user still takes effect when there is no built-in configuration.
 
@@ -22,7 +22,6 @@ These pages are for teams that need to self-host a backend. They explain which b
 | Update check | Tell the plugin whether a new full plugin package is available and optionally display a notification | Recommended |
 | Project configuration distribution | Distribute server lists, compilation rules, module configuration, and custom compilers by project | As needed |
 | Event reporting | Record results of compilation, deployment, update checks, and other actions | Optional |
-| Issue log upload | Upload a Jugg log bundle when a user reports a problem | Recommended |
 | Hot update | Download JAR-level plugin updates and request restart or reinstallation when necessary | Optional |
 | Custom compiler distribution | Distribute a team's custom compiler JAR to specified projects | As needed |
 | Remote-machine application | Guide users through applying for a remote build machine in the IDE and fill in the configuration | Optional; usually depends on an internal platform |
@@ -35,9 +34,8 @@ Android Studio starts or the user checks for updates
   -> The backend returns a notification, upgrade entry point, and customConfigJson
   -> The plugin applies project defaults
 
-Everyday compilation, deployment, and diagnostics
+Everyday compilation and deployment
   -> The plugin reports events as needed
-  -> The plugin uploads a log bundle when the user reports an issue
 
 Hot-update check
   -> The backend returns the target version, update notes, and a list of JAR files
@@ -50,7 +48,7 @@ Hot-update check
 1. [Self-hosting checklist](./self-hosting.md): Implement the minimum viable backend first.
 2. [Project configuration distribution](./project-config.md): Maintain Jugg defaults by project.
 3. [Plugin distribution and hot updates](./plugin-delivery.md): Provide full plugin package downloads or hot updates.
-4. [Diagnostics reporting](./diagnostics.md): Collect events and issue logs.
+4. [Diagnostics reporting](./diagnostics.md): Collect usage events.
 5. [Remote-machine application](./remote-server-apply.md): Integrate with an internal cloud development machine application flow.
 
 ## Related pages
