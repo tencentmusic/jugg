@@ -1,3 +1,20 @@
+- version: 3.3.9
+  date: 2026.09.04
+  updates:
+    - ASUS 设备自动使用兼容部署，避免标准部署失败
+    - IDE 工程依赖边或 Android 构建产物不完整时，避免 KMP typealias 和跨模块引用编译失败
+    - 展示 Gradle 依赖合并诊断，便于定位缺失或歧义的模块依赖
+    - APK 签名或校验需要回退 JDK 时保留内嵌 APK，并避免误报失败
+    - 支持从任意指定分支手动构建可直接下载的 dev 包，并展示对应 ref 的发布说明
+    - Bootstrap Application 切换到真实 Application 后继续保留 Activity 生命周期回调
+    - 增量与混淆 Dex 编译按所属 APK Variant 的 minSdk 执行脱糖
+    - Windows 启动 Jugg CLI 时支持使用 Python Launcher
+    - Gradle 项目信息重新加载后继续保留 DataBinding 开关
+    - 增量布局信息缺失时避免 DataBinding include 类型错误
+    - Java APT DataBinding 工程缺少 KAPT mapper 基线时仍可增量编译
+    - 避免过期的 DataBinding 生成源码破坏后续增量构建
+    - 避免复用 Gradle Daemon 时 jvmti_agent 资源打包失败
+
 - version: 3.3.8
   date: 2026.09.03
   updates:
