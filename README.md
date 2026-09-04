@@ -84,6 +84,28 @@ Versions outside these ranges may still work, but they can contain compatibility
 
 See [Getting started](https://tencentmusic.github.io/jugg/onboarding/) for the complete setup guide.
 
+## AI Agent Skill and CLI
+
+Jugg provides the `jugg-android-dev-loop` Agent Skill and the `jugg` CLI so AI coding assistants, terminal users, and scripts can use the same build, deployment, testing, runtime inspection, and UI automation capabilities as the IDE plugin. The Skill guides an agent through the complete **edit -> incremental compile -> deploy -> verify -> iterate** workflow, while the CLI wraps the local Jugg MCP service with project discovery, asynchronous task polling, and stable terminal output.
+
+The installer currently supports Codex, Claude Code, Gemini, CodeBuddy, and Cursor:
+
+1. Open the Android project in Android Studio and initialize Jugg.
+2. Open Search Everywhere and run `Install Jugg Skills`, or select **Jugg panel -> More Options -> Tools -> Install Jugg Skills**.
+3. Select the Agent Skills, CLI, and optional hooks to install.
+
+Common commands:
+
+```shell
+jugg status
+jugg compile
+jugg deploy
+jugg instrument --source-path app/src/androidTest/java/com/example/FooTest.kt
+jugg layout-dump
+```
+
+The target project must remain open and initialized in the IDE because the CLI calls the local Jugg plugin runtime. See the [CLI guide](https://tencentmusic.github.io/jugg/guide/cli) and [Agent Skills](https://tencentmusic.github.io/jugg/capabilities/tools/agent-skills) for installation details, command modes, and workflow boundaries.
+
 ## Network and diagnostic privacy
 
 The standard `buildPlugin` artifact contains no predefined Jugg backend configuration and runs offline by default. Users can still configure a Custom Server.
