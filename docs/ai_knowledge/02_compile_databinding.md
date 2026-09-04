@@ -1,6 +1,6 @@
 # 编译系统：DataBinding / ViewBinding
 
-> 最后核对：2026-07-23
+> 最后核对：2026-09-04
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -126,6 +126,7 @@ SourceCompiler.prepareSourceCompile()
 - `mergeLibraryBr()` / `mergeAppBr()` 要求 Gradle 上一次生成的 BR 文件存在；不存在时会抛异常，而不是新建一个空 BR。
 - include 关系不是靠扫描当前 XML 文本直接编译所有引用方，而是基于 layout info 文件补齐到 `tempDataBindingLayoutXmlDir`。
 - AGP 7.2.2 和 AGP 8.4 的中间产物路径不同，`DataBindingArgsManager` 通过候选目录匹配；路径问题优先看这里，不要先改编译器参数。
+- mapper / BR 基线按文件匹配：优先 `generated/source/kapt/<variant>`，没有对应文件时再看 Java APT 的 `generated/ap_generated_sources/<variant>/out`。无 KAPT 的 DataBinding 工程走后一条；两条都不存在时仍回落到 kapt 路径，错误信息保持原样。
 - DataBinding trigger file 只是为了触发 annotation processor；真实 mapper 和 BR 仍来自 processor 输出。
 - setter store cache 以 Gradle module store 内容 hash 作为 baseline 身份；baseline 变化时旧 generation 不再命中。
 - current-module store 中出现的 declaring types 会先从上一版 merged store移除，再合入本轮官方结果；无法从当前 store 得到旧 declaring type 的删除/改名场景不在 B1 范围。
@@ -138,7 +139,7 @@ SourceCompiler.prepareSourceCompile()
 |------|----------|
 | 明明启用了 DataBinding 但未进入 mapper 阶段 | `DataBindingArgsManager.isUseDataBinding()` 与 module `packageName` |
 | ViewBinding class 未生成 | `DataBindingGenBaseClassesCompiler.splitLayoutXml()` / `generateBaseClasses()` |
-| DataBinding mapper 生成失败 | `DataBindingGenMapperCompiler.runAnnotationProcessor()`，重点看 `runAnnotationProcessor apt output` 日志 |
+| DataBinding mapper 生成失败 | `DataBindingGenMapperCompiler.runAnnotationProcessor()`，重点看 `runAnnotationProcessor apt output` 日志；若 `FileNotFoundException` 指向 kapt `DataBinderMapperImpl.java`，同时核对 Java APT 的 `ap_generated_sources` |
 | 自定义属性提示找不到 setter 或参数类型不匹配 | 先检查 `DataBindingClasspathHelper` 是否选择 module merged store，再检查 `DataBindingGenMapperCompiler` 是否从 `dataBindingAarOutDir` 取得 current-module store并发布 cache |
 | adapter-only 后下一轮 layout 找不到属性 | 检查 `SourceDataBindingProcessor` 是否因 adapter declaration 触发 processor，以及 setter store cache 的 baseline hash 是否命中 |
 | 删除/改名 adapter 后旧属性仍存在 | B1 不处理删除语义；执行 Gradle fallback恢复完整 baseline |
