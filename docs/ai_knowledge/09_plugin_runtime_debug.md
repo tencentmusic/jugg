@@ -129,6 +129,7 @@
 | Kotlin `INTERNAL_ERROR` 且栈含 shaded `JavaVersion` | recreate compiler 同样失败只能增强“宿主环境”推断；继续核对宿主 JDK、项目 Kotlin 版本和兼容日志 | `KotlinCompilerHostCompat`；`02_compile_source.md` |
 | Kotlin `INTERNAL_ERROR` 且栈含 `DelegatingFileSystem.close`、`DescriptorLoadingContext.close` | 确认同一异常块还包含 `UnsupportedOperationException`；命中后预热只缓存当前 compiler classpath 状态，真实源码应出现独立 JVM 重试日志。子进程只接收一个 Kotlin argfile 参数；不同 toolchain 不应同步降级 | `KotlinCompilerOutputParser`、`KotlinCompilerInvoker`、`KotlinCompilerProcessRunner`；`02_compile_source.md` |
 | Kotlin `required plugin option not present` | 对比 `gradle_project_infos.json` 的 `kotlinPluginOptions` 与 `kotlin compile: kotlinc` 中的 `-P plugin:`；参数已存在仍失败时检查 plugin/Kotlin 版本，参数缺失时检查 `KotlinCompilerPluginData` 读取。兜底禁用必须按 `CommandLineProcessor` 声明的 plugin id 精确命中，不能禁用全部插件 | `GradleProjectInfoReader`、`KotlinCompilerInvoker`；`02_compile_source.md` |
+| Kotlin `unsupported plugin option` | 先确认错误参数是否来自 `kotlinPluginOptions`；Jugg 只会为 Gradle-resolved 参数移除同 plugin id 的整组参数并重试一次，用户 `kotlinFreeCompilerArgs` 不会自动修改。重复出现时检查 compiler toolchain、插件 JAR 与 Gradle task 是否属于同一 compilation | `KotlinCompiler`、`KotlinCompilerInvoker`；`02_compile_source.md` |
 | Windows 命令中文乱码 | 保留原始字节链路；出现 `�` 表示可能已发生不可逆解码损失 | `ProcessOutputReader`；`04_engineering_compat.md` |
 
 ### 4.1 IDE freeze 的最小证据集

@@ -1,6 +1,6 @@
 # 代码路径速查表（Code Map）
 
-> 最后核对：2026-08-31
+> 最后核对：2026-09-04
 > 口径：生产代码目录（不含 `build/` 与 `src/test/`）  
 > 一致性规则：文档与代码冲突时，以代码为准。
 
@@ -11,7 +11,7 @@
 | 领域 | 关键类/接口 | 目录 | 职责/说明 | 状态 | 最近同步 |
 |------|-------------|------|-----------|------|----------|
 | 编译总控 | `JuggCompiler`, `BaseCompiler`, `CompileTask` | `compiler/core` | 增量编译主流程、阶段顺序与循环重编译 | 稳定 | 2025-01-20 |
-| 源码编译 | `SourceCompiler`, `JuggAptCompiler`, `IJuggAptProcessor`, `JavaCompiler`, `KotlinCompiler`, `KotlinCompilerInvoker`, `KotlinComplementaryFilesCache`, `K2JVMCompilerIsolate`, `DexCompiler`, `DexFileMaker` | `compiler/source`, `compiler/source/apt`, `compiler/source/kotlin` | Java/Kotlin 编译与 DEX 生成；Kotlin 编译复用 Gradle subplugin 参数，并按 `CommandLineProcessor` plugin id 精确处理缺参降级；D8 优先隔离加载项目 AGP 的 R8 code source；typed common sources 与普通 KMP complementary/fragment/baseline 隔离保持 Gradle 语义 | 稳定 | 2026-09-04 |
+| 源码编译 | `SourceCompiler`, `JuggAptCompiler`, `IJuggAptProcessor`, `JavaCompiler`, `KotlinCompiler`, `KotlinCompilerInvoker`, `KotlinComplementaryFilesCache`, `K2JVMCompilerIsolate`, `DexCompiler`, `DexFileMaker` | `compiler/source`, `compiler/source/apt`, `compiler/source/kotlin` | Java/Kotlin 编译与 DEX 生成；Kotlin 编译按 current-to-parent compilation 选择 Gradle subplugin 参数，并按 plugin id 局部处理缺参或不支持参数的单次降级；D8 优先隔离加载项目 AGP 的 R8 code source；typed common sources 与普通 KMP complementary/fragment/baseline 隔离保持 Gradle 语义 | 稳定 | 2026-09-04 |
 | 资源编译 | `ComposeResourceCompiler`, `ComposeResourceGeneratorBridge`, `ComposeResourceScanner`, `ComposeValueResourceConverter`, `ResourceOverlayCompiler`, `ResourceCompiler`, `ArscCompiler`, `AssetOverlayCompiler`, `Aapt2DaemonInvoker` | `compiler/compose`, `compiler/overlay`, `aapt2` | Compose resource 准备、unsupported fail-closed、generated diagnostic 回映射、官方 accessor generator bridge、通过 `ModuleBuildPathInfo.composeResourceGeneratedSourcePath` 回写 generated Kotlin 以支持 IDE 索引、现代 `Asset` overlay、显式 `ClasspathResource` 类型的 legacy APK 根目录 classpath resource overlay，以及 Android res/manifest 的 aapt2 link；Compose resource 不进入 AAPT2 | 稳定 | 2026-08-03 |
 | DataBinding | `DataBindingArgsManager`, `DataBindingGenBaseClassesCompiler`, `DataBindingSetterStoreCache`, `DataBindingGenMapperCompiler` | `compiler/databinding` | DataBinding/ViewBinding 增量处理；GenMapper 单次 APT/KAPT 输出 current-module store并维护 merged setter store cache | 稳定 | 2026-07-22 |
 | Manifest | `AndroidManifestCompiler`, `AndroidManifestMerger`, `ManifestDiffer` | `compiler/manifest` | 清单差异合并；混淆映射由 `compiler/obfuscation` 承载 | 稳定 | 2026-05-23 |

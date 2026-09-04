@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.compiler.source.kotlin
 
 import com.sickworm.intellij.jugg.org.objectweb.asm.ClassWriter
 import com.sickworm.intellij.jugg.org.objectweb.asm.Opcodes
+import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
@@ -82,6 +83,79 @@ class KotlinCompilerInvokerArgsTest {
                     "plugin:dev.zacsweers.moshix.compiler:enabled=true",
                     "plugin:dev.zacsweers.moshix.compiler:enableSealed=true",
                 ),
+            ),
+        )
+    }
+
+    @Test
+    fun `uses current compilation plugin options instead of merging parent options`() {
+        val current = ModuleInfo.virtualModule.copy(
+            name = "app.androidMain",
+            kotlinPluginOptions = listOf("plugin:sample.current:enabled=true"),
+        )
+        val parent = ModuleInfo.virtualModule.copy(
+            name = "app",
+            kotlinPluginOptions = listOf("plugin:sample.parent:enabled=true"),
+        )
+
+        assertEquals(
+            current.kotlinPluginOptions,
+            KotlinCompiler.selectKotlinPluginOptions(listOf(current, parent)),
+        )
+    }
+
+    @Test
+    fun `falls back to nearest parent plugin options without removing repeated options`() {
+        val repeatedOptions = listOf(
+            "plugin:org.jetbrains.kotlin.allopen:annotation=sample.First",
+            "plugin:org.jetbrains.kotlin.allopen:annotation=sample.Second",
+        )
+        val current = ModuleInfo.virtualModule.copy(name = "app.androidMain")
+        val parent = ModuleInfo.virtualModule.copy(name = "app", kotlinPluginOptions = repeatedOptions)
+
+        assertEquals(
+            repeatedOptions,
+            KotlinCompiler.selectKotlinPluginOptions(listOf(current, parent)),
+        )
+    }
+
+    @Test
+    fun `does not pass project plugin options when project plugins are not loaded`() {
+        assertTrue(
+            KotlinCompilerInvoker.buildPluginOptionArgs(
+                listOf("plugin:dev.zacsweers.moshix.compiler:enabled=true"),
+                isProjectPluginEnabled = false,
+            ).isEmpty(),
+        )
+    }
+
+    @Test
+    fun `removes only resolved options for unsupported plugin`() {
+        val options = listOf(
+            "plugin:dev.zacsweers.moshix.compiler:enabled=true",
+            "plugin:dev.zacsweers.moshix.compiler:newOption=true",
+            "plugin:sample.other:enabled=true",
+        )
+        val messages = listOf(
+            "error: unsupported plugin option: dev.zacsweers.moshix.compiler:newOption=true",
+        )
+
+        val pluginId = KotlinCompilerInvoker.findUnsupportedProjectPluginId(messages, options)
+
+        assertEquals("dev.zacsweers.moshix.compiler", pluginId)
+        assertEquals(
+            listOf("plugin:sample.other:enabled=true"),
+            KotlinCompilerInvoker.removePluginOptions(options, pluginId!!),
+        )
+    }
+
+    @Test
+    fun `does not downgrade unsupported option outside resolved plugin options`() {
+        assertEquals(
+            null,
+            KotlinCompilerInvoker.findUnsupportedProjectPluginId(
+                listOf("error: unsupported plugin option: sample.manual:enabled=true"),
+                listOf("plugin:sample.resolved:enabled=true"),
             ),
         )
     }
