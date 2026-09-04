@@ -596,6 +596,29 @@ class JuggProjectInfoMergerAndroidTestTest {
         }
     }
 
+    @Test
+    fun `doMerge preserves Gradle DataBinding setting`() {
+        val ideModule = applicationModule(projectDir, appDir, ModuleInfo.Type.Unknown)
+        val gradleModule = applicationModule(projectDir, appDir, ModuleInfo.Type.Application).copy(
+            isUseDataBinding = true,
+        )
+        val ideFile = saveToTempFile(projectInfoWithoutAgpR8(mapOf("app" to ideModule)))
+        val gradleFile = saveToTempFile(projectInfoWithoutAgpR8(mapOf("app" to gradleModule)))
+        try {
+            val merger = JuggProjectInfoMerger(logger)
+            merger.afterSync(ProjectInfoSerializer(ideFile, logger), BuildTarget.APP)
+            val result = merger.afterLocalFetch(
+                listOf(ProjectInfoSerializer(gradleFile, logger)),
+                BuildTarget.APP,
+            )
+
+            assertEquals(true, result.mergedInfo?.modules?.get("app")?.isUseDataBinding)
+        } finally {
+            ideFile.delete()
+            gradleFile.delete()
+        }
+    }
+
     private fun applicationModule(
         projectDir: File,
         moduleDir: File,
