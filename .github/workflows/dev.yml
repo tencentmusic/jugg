@@ -4,10 +4,10 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
-  group: dev-build-${{ github.ref }}
+  group: dev-build
   cancel-in-progress: true
 
 jobs:
@@ -55,10 +55,70 @@ jobs:
             -PpluginVersion="${{ steps.version.outputs.value }}" \
             --no-daemon
 
+      - name: Prepare dev assets
+        env:
+          ASSET_NAME: jugg-dev.zip
+        shell: bash
+        run: |
+          shopt -s nullglob
+          plugin_zips=(idea/build/distributions/*.zip)
+          if [[ ${#plugin_zips[@]} -ne 1 ]]; then
+            echo "Expected one plugin zip, found ${#plugin_zips[@]}." >&2
+            exit 1
+          fi
+          cp "${plugin_zips[0]}" "$ASSET_NAME"
+          sha256sum "$ASSET_NAME" > "$ASSET_NAME.sha256"
+
       - name: Upload dev artifact
         uses: actions/upload-artifact@v7
         with:
           name: jugg-${{ steps.version.outputs.value }}
-          path: idea/build/distributions/*.zip
+          path: |
+            jugg-dev.zip
+            jugg-dev.zip.sha256
           if-no-files-found: error
           retention-days: 14
+
+      - name: Publish rolling dev release
+        env:
+          ASSET_NAME: jugg-dev.zip
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: dev-latest
+          RELEASE_TITLE: Jugg Dev
+        shell: bash
+        run: |
+          commit_sha="$(git rev-parse HEAD)"
+          short_sha="${commit_sha:0:7}"
+          release_notes="$(printf 'Manually published from a Build Dev run for build verification. Dev builds are not verified at all and may be broken; use the Canary release unless you need this exact ref.\n\n- Version: `%s`\n- Ref: `%s`\n- Commit: [`%s`](%s/%s/commit/%s)\n- Workflow: [run %s](%s/%s/actions/runs/%s)\n' \
+            '${{ steps.version.outputs.value }}' \
+            "$GITHUB_REF_NAME" \
+            "$short_sha" \
+            "$GITHUB_SERVER_URL" \
+            "$GITHUB_REPOSITORY" \
+            "$commit_sha" \
+            "$GITHUB_RUN_NUMBER" \
+            "$GITHUB_SERVER_URL" \
+            "$GITHUB_REPOSITORY" \
+            "$GITHUB_RUN_ID")"
+
+          # GITHUB_TOKEN tag updates do not trigger the tagged release workflow.
+          git tag --force "$RELEASE_TAG" "$commit_sha"
+          git push --force origin "refs/tags/$RELEASE_TAG"
+
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release edit "$RELEASE_TAG" \
+              --title "$RELEASE_TITLE" \
+              --notes "$release_notes" \
+              --prerelease
+          else
+            gh release create "$RELEASE_TAG" \
+              --verify-tag \
+              --title "$RELEASE_TITLE" \
+              --notes "$release_notes" \
+              --prerelease
+          fi
+
+          gh release upload "$RELEASE_TAG" \
+            "$ASSET_NAME" \
+            "$ASSET_NAME.sha256" \
+            --clobber
