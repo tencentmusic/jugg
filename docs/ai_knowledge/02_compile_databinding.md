@@ -137,7 +137,7 @@ SourceCompiler.prepareSourceCompile()
 
 | 现象 | 优先入口 |
 |------|----------|
-| 明明启用了 DataBinding 但未进入 mapper 阶段 | `DataBindingArgsManager.isUseDataBinding()` 与 module `packageName` |
+| 明明启用了 DataBinding 但未进入 mapper 阶段 | `DataBindingArgsManager.isUseDataBinding()` 与 module `packageName`；若 layout info 已存在仍报 `data binding is not enabled`，先查 `ProjectInfoSerializer` 对 Groovy `useDataBinding` 的回读 |
 | ViewBinding class 未生成 | `DataBindingGenBaseClassesCompiler.splitLayoutXml()` / `generateBaseClasses()` |
 | DataBinding mapper 生成失败 | `DataBindingGenMapperCompiler.runAnnotationProcessor()`，重点看 `runAnnotationProcessor apt output` 日志；若 `FileNotFoundException` 指向 kapt `DataBinderMapperImpl.java`，同时核对 Java APT 的 `ap_generated_sources` |
 | 自定义属性提示找不到 setter 或参数类型不匹配 | 先检查 `DataBindingClasspathHelper` 是否选择 module merged store，再检查 `DataBindingGenMapperCompiler` 是否从 `dataBindingAarOutDir` 取得 current-module store并发布 cache |

@@ -1,5 +1,7 @@
 package com.sickworm.intellij.jugg.gradle.script
 
+import com.sickworm.intellij.jugg.mock.StdLogger
+import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
 import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
@@ -161,6 +163,37 @@ class ProjectInfoSerializerInGradleAndroidTestTest {
             val loaded = serializer.load()
 
             assertEquals(r8Classpath, loaded?.juggProjectInfoExceptModules?.agpR8Classpath)
+        } finally {
+            tmpFile.delete()
+        }
+    }
+
+    @Test
+    fun `gson load of groovy snapshot preserves DataBinding setting`() {
+        val tmpFile = Files.createTempFile("jugg_test_", ".json").toFile()
+        try {
+            val app = ModuleInfo.virtualModule.copy(
+                name = "app",
+                moduleType = ModuleInfo.Type.Application,
+                moduleRootDir = File("/project/app"),
+                projectRootDir = File("/project"),
+                buildPathInfo = ModuleBuildPathInfo(
+                    File("/project"),
+                    File("/project/app"),
+                    "debug",
+                    buildDirRelativePath = "app/build",
+                ),
+                isUseCompose = true,
+                isUseViewBinding = true,
+                isUseDataBinding = true,
+            )
+            ProjectInfoSerializerInGradle(tmpFile).save(projectInfoWithoutAgpR8(mapOf("app" to app)))
+
+            val loaded = ProjectInfoSerializer(tmpFile, StdLogger("ProjectInfoSerializer")).load()
+            val module = loaded?.modules?.get("app")
+            assertEquals(true, module?.isUseDataBinding)
+            assertEquals(true, module?.isUseViewBinding)
+            assertEquals(true, module?.isUseCompose)
         } finally {
             tmpFile.delete()
         }
