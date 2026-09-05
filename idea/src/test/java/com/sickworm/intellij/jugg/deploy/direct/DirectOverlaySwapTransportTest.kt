@@ -400,6 +400,8 @@ class DirectOverlaySwapTransportTest {
                 throw IllegalStateException("boom")
             }
             return when {
+                cmd.contains("__JUGG_RUN_AS_OK__") ->
+                    "__JUGG_RUN_AS_OK__:10001\n__JUGG_RUN_AS_CONTEXT__:ctx|ctx"
                 cmd.contains("__JUGG_OVERLAY_STATE__") -> "__JUGG_OVERLAY_STATE__ ID $overlayStateId"
                 cmd.contains("__JUGG_DIRECT_OVERLAY__") -> directOverlayResponse
                 cmd.contains("code_cache/startup_agents") -> "__JUGG_AS_AGENT__ OK"

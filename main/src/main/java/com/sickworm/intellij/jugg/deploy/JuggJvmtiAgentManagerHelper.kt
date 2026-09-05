@@ -14,7 +14,11 @@ class JuggJvmtiAgentManagerHelper(loggerArg: Logger) {
 
     private val logger = loggerArg.getInstance("JuggJvmtiAgentManagerHelper")
 
-    fun isNeedPushAgentAfterDeploy(adb: IDeviceAdb, data: JuggDeployData): Boolean {
+    fun isNeedPushAgentAfterDeploy(
+        adb: IDeviceAdb,
+        data: JuggDeployData,
+        sandboxProvider: ((String) -> AppSandboxExecutor)? = null,
+    ): Boolean {
         try {
             TimeLogger.start("isNeedPushAgentAfterDeploy")
             if (data.isInstall) {
@@ -24,7 +28,7 @@ class JuggJvmtiAgentManagerHelper(loggerArg: Logger) {
             data.apks
                 .filter { !it.isOtherTargetingTestApk }
                 .forEach {
-                if (isNeedPushAfterDeploy(adb, it.applicationId)) {
+                if (isNeedPushAfterDeploy(adb, it.applicationId, sandboxProvider)) {
                     // any App need push agent, do it all (they are always push together)
                     return true
                 }
@@ -36,7 +40,18 @@ class JuggJvmtiAgentManagerHelper(loggerArg: Logger) {
         }
     }
 
-    private fun isNeedPushAfterDeploy(adb: IDeviceAdb, packageName: String): Boolean {
+    private fun isNeedPushAfterDeploy(
+        adb: IDeviceAdb,
+        packageName: String,
+        sandboxProvider: ((String) -> AppSandboxExecutor)?,
+    ): Boolean {
+        val sandbox = sandboxProvider?.invoke(packageName) ?: AppSandboxExecutor(adb, packageName, logger)
+        if (adb.api >= 26 &&
+            sandbox.applyChangesCapability == AppSandboxExecutor.ApplyChangesCapability.INCOMPATIBLE
+        ) {
+            logger.debug("isNeedPushAfterDeploy=false for Direct app sandbox deploy")
+            return false
+        }
         val agents: List<String> = JuggJvmtiAgentManager(adb, logger).getCurrentAgentsInApp(packageName)
         logger.debug("isNeedPushAfterDeploy agents=$agents")
         val isAgentPushed = agents.any { it.startsWith(JuggJvmtiAgentManager.AGENT_SO_NAME_PREFIX) }
@@ -141,8 +156,7 @@ class JuggJvmtiAgentManagerHelper(loggerArg: Logger) {
      * @return null if not sure
      */
     private fun isJvmtiAvailable(adb: IDeviceAdb, packageName: String): Boolean? {
-        val cmd = "run-as $packageName ls -a code_cache"
-        val result = adb.execAdbShellCmd(cmd)
+        val result = AppSandboxExecutor(adb, packageName, logger).exec("ls -a code_cache")
         if (result.contains("No such file or directory")) {
             return null
         }

@@ -1,279 +1,364 @@
-# Root 系统应用 JVMTI Hot Reload 方案
+# run-as 不兼容应用 JVMTI Hot Reload 修复方案
 
-> 状态：方案 / 待确认 / 未授权实现
+> 状态：已落地 / SystemAppDemo privapp 脚本级 L3 已通过 / 插件端到端待复测
 > 关联报告：`d4fb4e20`
-> 目标场景：应用为 debuggable 系统应用，`run-as <package>` 返回 `package not an application`，但 `adb shell` 为 root
+> 目标场景：Android Studio Apply Changes 依赖的 `run-as`、普通应用 UID 或应用可读 SELinux context 假设不成立，但设备能够通过普通 shell、root adbd 或 `su` 操作目标应用 data 目录
 
 ## 1. 结论
 
-对满足条件的系统应用，Jugg 不再调用 Android Studio Deployer 的 Apply Changes 执行链路，而是复用现有增量编译和类结构分类结果，自行完成：
+本次修复不再根据 `FLAG_SYSTEM`、`PRIVATE_FLAG_PRIVILEGED`、Manifest `sharedUserId` 或具体 `run-as` 错误文本决定部署通道，而是直接判断 Android Studio Deployer 所需能力是否成立：
 
 ```text
-hotReloadModifiedClasses
-  -> root 写请求和 Jugg agent 到 app code_cache
-  -> am attach-agent
-  -> Agent_OnAttach
-  -> GetLoadedClasses + GetClassSignature
-  -> JVMTI RedefineClasses
-  -> 结果文件
-  -> Jugg 确认成功后提交部署历史
+run-as 能完整执行
+AND run-as 返回的原始 UID 位于 Android Studio Deployer 接受的 10000..19999 范围
+AND run-as 新建探针的 SELinux context 与既有 code_cache context 一致
+  -> 保留 Android Studio Apply Changes
+
+其他可确认的 run-as 不兼容结果
+  -> Jugg Direct Deploy
+  -> 普通 shell 能完成 app data 操作时直接使用
+  -> 否则尝试一次 adb root，等待重连后重新验证
+  -> 仍不可用时尝试 su
+  -> Direct Overlay -> Hot Reload -> 可降级失败时重启
 ```
 
-首版只覆盖 **纯代码 HOT_RELOAD、主进程、已加载且结构未变化的类**。普通应用和 `run-as` 可用设备继续走原 Apply Changes，避免扩大行为影响面。
+这套规则同时覆盖：
 
-## 2. 当前行为与缺口
+- `android:sharedUserId="android.uid.system"` 对应的 appId 1000 应用。
+- `/system/priv-app` 上因 `privapp_data_file` 等 SELinux 策略导致 `run-as` 失败的应用。
+- 厂商 ROM 上其他无法使用 `run-as`、但存在可用 Direct Deploy 权限的应用。
+- `adb shell` 默认是 root、需要执行 `adb root`、只支持 `su`，或普通 shell 已具备目标目录完整操作能力的设备。
 
-### 2.1 已确认事实
+现有 Direct Overlay、Jugg startup agent、dynamic attach 和重启降级语义保持不变。
 
-- 报告 `d4fb4e20` 中目标应用为 UID 1000 系统应用，Android Studio install-server 复制阶段依赖 `run-as`，最终以 errorId 34 失败。
-- 用户现场确认 `adb shell` 直接为 root，因此具备绕过 `run-as` 写入应用数据目录的前提。
-- `JuggDeployData.hotReloadModifiedClasses` 已保存在线可替换类的 Dex 和 `ClassNode.className`；agent 不需要自行推断哪些类发生变化。
-- `DeployDataGenerator` 已把 multi-class Dex 和 library Dex 归入 Hot Fix，因此首版 HOT_RELOAD 请求天然是一项 Dex 对应一个目标类。
-- `JuggDeployTask.perform()` 当前最终调用 `JuggDeployer.fullSwap()` / `codeSwap()`，仍进入 Android Studio Deployer。
-- 当前 Jugg native agent 已声明 `can_redefine_classes`，但 shell attach 分支为空，只处理 startup agent 初始化和 framework retransformation。
-- 当前 `JuggJvmtiAgentManager` 的 app sandbox setup、agent 查询和位数判断全部依赖 `run-as`，系统应用场景无法直接复用。
-- 修改 native agent 后必须递增根工程 `agentVersion`，否则设备可能继续复用旧 bundle。
+## 2. 已确认的失败原因
 
-### 2.2 尚待真机确认
+### 2.1 当前识别逻辑会把未知错误误判为 RUN_AS
 
-- 目标 ROM 是否允许 root shell 对该 UID 1000 debuggable 应用执行 `am attach-agent`。
-- 同一 Jugg agent 已作为 startup agent 加载后，再次动态 attach 相同 ELF 的 OEM 行为是否稳定。
-- root 写入 `code_cache` 后所需的 owner、mode 和 SELinux label；预计需要 `chown`、`chmod`，并在设备提供 `restorecon` 时修复 label。
-- ART 对目标应用具体构建和混淆产物执行 `RedefineClasses` 的实际错误码。
+当前 `AppSandboxExecutor.resolveMode()` 执行：
+
+```text
+run-as <package> true 2>&1
+```
+
+只有输出命中 `package not an application` 才尝试 `ROOT_DIRECT`，其他所有输出都被当成 `RUN_AS`。因此以下真实错误会被误判为成功：
+
+```text
+run-as: couldn't stat /data/user/0/<package>: Permission denied
+```
+
+`RootSystemAppDeployTransport.canTry()` 又要求 `mode == ROOT_DIRECT`，最终未接管部署，继续进入 Android Studio Installer 并以 `errorId: 34` 失败。
+
+执行 `adb root` 也不能修正识别：root adbd 下 `run-as` 可能变成成功，当前模式仍会得到 `RUN_AS`，Direct Deploy 依然不会被选中。
+
+### 2.2 Apply Changes 存在两类已确认的不兼容
+
+Android Studio Deployer 会通过 `run-as <package> id -u` 获取 UID，并通过 `run-as` 把 agent 和 install-server 复制到应用 `code_cache`。
+
+同时，当前 Deployer 的 Base Swap 和 Live Literal Update 只接受原始进程 UID 位于 `10000..19999`。因此：
+
+- system UID 应用即使某个 ROM 允许 `run-as`，UID 1000 仍会被 Deployer 的普通应用 UID 范围过滤。
+- privileged app 可以拥有 10000+ UID，但 `run-as` 仍可能因 `privapp_data_file` 等 SELinux 策略无法进入 data 目录。
+
+保留现场还确认了另一种边界：`com.jugg.demo.privapp` 的 `run-as` 返回 UID 10148 并能写入 `code_cache`，但 `run-as` 创建的目录为 `app_data_file:s0:c148,c256,c512,c768`，应用进程为 `platform_app:s0:c512,c768`。应用重启后对 `.overlay` 和 `startup_agents` 均出现 AVC denied。因此仅验证 UID 和写入成功仍会误判，必须同时验证新建文件与既有 `code_cache` 的 SELinux context 一致。
+
+Direct 模式首次修正后又暴露出两个独立边界。第一，`restorecon` 成功时会输出 `SELinux: Loaded file context from:`，原实现把这些辅助输出拼在业务 `success` 后，导致 startup agent 准备被误判为失败。第二，递归 `restorecon` 会把 JVMTI `.so` 标记为 `app_data_file:s0`；即使改成与目录相同的 `app_data_file:s0:c512,c768`，`platform_app` 仍会因 `{ execute }` 被拒。设备实测将普通文件设为既有 `code_cache` context、将 `.so` 设为 `apk_data_file:s0` 后，overlay Dex 可读，startup agent 在冷启动后的 `/proc/<pid>/maps` 中成功加载。
+
+`SystemAppDemo` 已确认：
+
+| 应用 | appId | data 目录 SELinux 类型 | 普通 shell 下 run-as |
+|---|---:|---|---|
+| `com.jugg.demo.systemapp` | 10207 | `app_data_file` | 成功 |
+| `com.jugg.demo.privapp` | 10148 | `app_data_file` | 成功，但新建文件 MCS categories 与应用进程不一致 |
+
+这说明应用类型只能解释常见原因，不能直接代表 Apply Changes 的实际可用性。
 
 ## 3. 范围
 
-### 3.1 首版支持
+### 3.1 本次修复支持
 
 - Android 8.0 / API 26 及以上。
-- `adb shell id -u` 为 `0`。
-- `run-as <package> true` 命中已知不可用错误，如 `package not an application`。
-- 应用进程已运行，首版仅处理默认主进程。
-- 部署数据只有 `hotReloadModifiedClasses`：
-  - 无新类；
-  - 无 Hot Fix 类；
-  - 无资源、assets、Manifest、native library 或 APK 更新；
-  - 每个目标类已经过现有结构兼容判定。
-- 所有目标类均已加载且 `IsModifiableClass` 返回 true。
+- 目标为默认主进程。
+- payload 只包含 class Dex 变更。
+- Apply Changes 能力探测明确不兼容后，进入 Jugg Direct Deploy。
+- Direct Deploy 依次支持普通 shell、root adbd 和非交互 `su`。
+- 方法体变更使用 Direct Overlay + 在线 redefine。
+- 新类或结构变化等现有 Hot Fix 类变更使用 Direct Overlay + 重启应用。
+- 同一次部署只解析一次 sandbox 模式，并在全部 Direct Deploy 组件中复用。
 
-### 3.2 非目标
+### 3.2 本次修复不支持
 
-- 不修改或 fork Android Studio installer/install-server。
-- 不替换普通应用的 Apply Changes。
-- 不处理新增类、字段、方法签名、继承关系等结构变化。
-- 不在首版支持资源混合部署、Activity 自动重建或多进程批量 attach。
-- 不通过主动加载类来规避“类未加载”；避免触发静态初始化和 ClassLoader 副作用。
-- 不把 attach 命令返回当作部署成功；必须收到 agent 结果文件。
+- 资源、assets、Manifest、native library 或 APK 更新进入 Direct Deploy。
+- 多进程批量 attach。
+- 主动加载尚未加载的类。
+- 修改或 fork Android Studio installer/install-server。
+- 通过应用类型推测 root 能力。
+- 交互式 `su` 授权流程。
 
-## 4. 方案比较
+当 run-as 不兼容而 payload 超出 Direct Deploy 范围时，应提前报告当前变化不受支持，不再进入必然失败的 Android Studio Apply Changes。
 
-| 方案 | 正确性与兼容性 | 实现/维护成本 | 结论 |
-|---|---|---|---|
-| A. Jugg 自有 root staging + JVMTI redefine | 不依赖 AS install-server；目标类由 Jugg 精确提供；仅绑定 Android JVMTI | 中；需要 host 协议和 native redefine | **推荐** |
-| B. 修改 AS Deployer/install-server 使用 root 代替 `run-as` | 可继续复用 AS code swap/full swap | 高；强绑定各 AS 版本内部实现和 protobuf/native installer | 不采用 |
-| C. root 写 overlay 后重启 App | 简单、稳定，但不是在线 Hot Reload | 低 | 作为后续 Hot Fix 兼容方案，不代替本方案 |
+## 4. Apply Changes 能力探测
 
-## 5. 推荐设计
+### 4.1 探测目标
 
-### 5.1 命中条件与路由
+能力探测只回答一个问题：当前包是否满足现有 Android Studio Deployer 对 `run-as`、UID 和应用可读文件 label 的前置假设。
 
-在每个 `applicationId` 的 scoped deploy data 进入 `JuggDeployer.fullSwap()` / `codeSwap()` 前尝试自有 transport：
+不再使用以下信息参与路由：
+
+- `FLAG_SYSTEM`
+- `PRIVATE_FLAG_PRIVILEGED`
+- APK 安装路径
+- Manifest `android:sharedUserId`
+- `run-as` 错误文本列表
+
+这些信息可以记录为排查日志，但不影响结果。
+
+### 4.2 成功标记
+
+通过一次最小、可回滚的命令验证 `run-as`、UID、`code_cache` 写入能力和新建文件 label：
+
+```shell
+run-as <package> sh -c '
+  uid=$(id -u) || exit 1
+  probe=code_cache/.jugg_run_as_probe_$$
+  touch "$probe" || exit 2
+  code_cache_context=$(ls -Zd code_cache) || exit 3
+  code_cache_context=${code_cache_context%% *}
+  probe_context=$(ls -Z "$probe") || exit 4
+  probe_context=${probe_context%% *}
+  rm -f "$probe" || exit 5
+  printf "__JUGG_RUN_AS_OK__:%s\n" "$uid"
+  printf "__JUGG_RUN_AS_CONTEXT__:%s|%s\n" "$code_cache_context" "$probe_context"
+'
+```
+
+判断规则：
+
+```text
+ADB 调用本身异常或设备 offline
+  -> 传播 transport 异常或复用现有 transient offline retry
+  -> 不得误判为 run-as 不兼容
+
+命令正常返回但没有唯一成功标记
+  -> RUN_AS_INCOMPATIBLE
+
+存在成功标记，但原始 UID 不在 10000..19999
+  -> RUN_AS_INCOMPATIBLE
+
+存在成功标记和 context 标记，但探针与 code_cache 的 SELinux context 不一致
+  -> RUN_AS_INCOMPATIBLE
+
+存在成功标记，原始 UID 在 10000..19999，且两个 SELinux context 一致
+  -> RUN_AS_COMPATIBLE
+```
+
+这里按 Android Studio Deployer 当前实现检查原始 UID，不把多用户 UID 转换为 appId。Deployer 自身直接比较 `/proc/<pid>` 的 `st_uid` 与 `10000..19999`，能力探测必须与其保持一致。
+
+成功标记必须严格整行匹配，不能把空输出或未知 stderr 当成成功。探测文件无论成功或失败都进行 best-effort 清理。
+
+## 5. Direct Deploy sandbox 获取
+
+只有能力探测得到 `RUN_AS_INCOMPATIBLE` 后才解析 Direct Deploy sandbox。解析结果固定为本次部署会话的一部分：
+
+```text
+DIRECT_SHELL
+ROOT_DIRECT
+SU_ROOT
+UNAVAILABLE
+```
+
+### 5.1 普通 shell 优先
+
+先在 PackageManager 返回的真实 `dataDir` 下执行可回滚的完整能力探测。只验证 `cd` 或 `test -w` 不足以代表 Direct Deploy 可用，探测必须覆盖：
+
+- 进入 `dataDir/code_cache`。
+- 创建并删除临时文件。
+- 将临时文件 owner/group 修正为应用目录 owner/group，或确认创建结果已经一致。
+- 优先通过 `chcon` 让普通文件继承既有 `code_cache` 的完整 SELinux context，并把 `.so` 修正为 `apk_data_file:s0`；仅在缺少 `chcon` 时使用 `restorecon` 降级。
+- 验证最终 owner/group 和必要的 SELinux 处理结果。
+- 输出唯一成功标记。
+
+普通 shell 能满足全部条件时使用 `DIRECT_SHELL`，不执行 `adb root`。这覆盖厂商为 shell 提供额外 DAC、capability 或 SELinux 权限的设备。
+
+### 5.2 root adbd
+
+普通 shell 探测失败后：
+
+1. 执行 `id -u`，若当前 shell 已是 UID 0，记录失败为 root shell 仍无目标目录能力，不重复执行 `adb root`。
+2. 当前 shell 非 root 时，通过宿主机 adb CLI 执行一次：
+
+   ```text
+   adb -s <serial> root
+   ```
+
+3. `adb root` 会重启 adbd。等待同一 serial 恢复为 `device`，再重新执行完整目录能力探测。
+4. 只有重新探测成功才进入 `ROOT_DIRECT`。不能根据 `adb root` 输出文本直接判定成功。
+5. 每次部署最多请求一次 `adb root`；重试必须以 adbd 状态变化为前提。
+
+`adb root` 成功后不需要每条命令重复执行。后续命令直接通过 root shell 运行，直到设备重启、adbd 重启、执行 `adb unroot` 或连接失效。
+
+现有 3 秒 transient offline 等待不一定足以覆盖 adbd 重启；`adb root` 使用独立、有上限的重连等待，并在恢复后重新验证能力。
+
+### 5.3 su
+
+`adb root` 不支持或重连后能力仍不可用时，以短超时探测非交互 `su`：
+
+```text
+su 0 sh -c '<完整能力探测脚本>'
+su -c '<完整能力探测脚本>'
+```
+
+只接受完整成功标记。超时、交互授权、拒绝或输出不完整均视为不可用。
+
+`su` 不改变 adbd 身份，每次独立的 adb shell 都需要通过 `su` 包装。相关文件操作应尽量合并成单个脚本，减少进程切换并保持阶段原子性。
+
+### 5.4 权限不可用
+
+三种 Direct 模式都不可用时提前失败，错误至少包含：
+
+- package name
+- run-as 能力探测结果
+- 当前 shell UID
+- 普通 shell 目录探测结果
+- `adb root` 是否请求、是否恢复、恢复后的探测结果
+- `su` 是否不可用
+
+不得返回 `null` 继续进入 Android Studio Apply Changes，也不得伪造部署成功。
+
+## 6. App sandbox 执行模型
+
+`AppSandboxExecutor` 不再通过错误文本推断应用类型。它持有一次部署已经解析完成的模式和真实 `dataDir`：
+
+- `DIRECT_SHELL`：普通 `sh -c`，作用域固定在真实 `dataDir`。
+- `ROOT_DIRECT`：root adbd 的普通 `sh -c`，作用域固定在真实 `dataDir`。
+- `SU_ROOT`：每个需要权限的完整脚本通过已验证的 `su` 形式执行。
+- `UNAVAILABLE`：明确失败。
+
+`RUN_AS_COMPATIBLE` 不需要创建 Direct Deploy sandbox，继续走 Android Studio Apply Changes。
+
+同一次部署必须复用一个已解析 executor。`DirectOverlayWriter`、`DirectOverlayStateChecker`、startup agent pusher、`JuggJvmtiAgentManager`、`RootHotReloadWriter` 和清理逻辑不得分别重新创建 executor。否则 `adb root` 前后的 `run-as` 结果变化会导致同一轮部署中途切换模式。
+
+所有 app-relative 路径继续以 PackageManager 返回的 `dataDir` 为根，禁止硬编码 `/data/data/<package>` 或 `/data/user/0/<package>`。
+
+## 7. 部署路由
+
+`JuggDeployer.optimisticSwap()` 在 Android Studio Deployer 之前完成能力探测：
 
 ```text
 API >= 26
-AND adb shell uid == 0
-AND run-as 对当前 package 命中已知不可用错误
-AND app 主进程在线
-AND payload 为纯 hotReloadModifiedClasses
-    -> RootJvmtiHotReloadTransport
-ELSE
-    -> 原 Jugg / Apply Changes 路径
+AND payload 只包含 class Dex 变更
+AND Apply Changes 能力 == RUN_AS_INCOMPATIBLE
+  -> DirectAppSandboxDeployTransport
+
+Apply Changes 能力 == RUN_AS_COMPATIBLE
+  -> 现有 Direct Overlay 用户通道或 Android Studio Deployer
+
+Apply Changes 能力 == RUN_AS_INCOMPATIBLE
+AND payload 超出 Direct Deploy 范围
+  -> 提前报告不支持
 ```
 
-root 可用但 `run-as` 正常时不接管，确保普通 rooted 调试设备行为不变。探测失败或输出不明确时也不接管。
+现有 `RootSystemAppDeployTransport` 的职责已经不再限定 root 或 system app，落地时改名为 `DirectAppSandboxDeployTransport`。`RootHotReloadWriter` 同理改为不携带 root 身份假设的名称，例如 `DirectHotReloadWriter`。
 
-### 5.2 请求目录与协议
+Direct transport 的固定顺序：
 
-Host 先生成 zip 并 push 到 `/data/local/tmp/jugg/hot-reload/`，再由 root 一次性解压到：
+1. 解析并固定 Direct Deploy sandbox；不可用则失败。
+2. 准备并安装现有 Jugg startup agent。
+3. 检查设备 `.overlay/id` 与本地缓存的一致性。
+4. 使用现有 `DirectOverlayWriteRequestBuilder` 和 `DirectOverlayWriter` 写入 overlay。
+5. payload 只有 `hotReloadModifiedClasses` 且主进程在线时尝试动态 attach。
+6. 在线成功时返回成功且不重建 Activity。
+7. 在线失败、类未加载、类不可修改或 redefine 失败时标记需要重启；startup agent 加载步骤 4 的 overlay。
+8. 新类、结构变化等 Hot Fix payload 不尝试 redefine，直接标记需要重启。
+
+成功写入 overlay 后，无论在线生效还是重启降级，都提交同一个 overlay id 和部署历史。
+
+## 8. Hot Reload 与持久化语义
+
+现有 Jugg agent 继续同时承担：
+
+- startup 模式：agent options 是应用 data 目录，进程启动时加载 `.overlay`。
+- dynamic attach 模式：agent options 是 `jugg_hot_reload:<requestDir>`，读取本次请求并调用 JVMTI `RedefineClasses()`。
+
+固定执行顺序仍是先持久化、再在线生效：
 
 ```text
-/data/user/0/<package>/code_cache/jugg_hot_reload/<requestId>/
-  request.txt
-  dex/0.dex
-  dex/1.dex
-  result.tmp       # agent 写入中
-  result.txt       # 原子完成标记
+增量 Dex
+  -> Direct Overlay 写入 code_cache/.overlay
+  -> 动态 attach 现有 Jugg JVMTI agent
+  -> 在线成功：当前进程立即生效，overlay 保证下次启动继续生效
+  -> 可降级失败：重启主应用，由 startup agent 加载同一 overlay
 ```
 
-`request.txt` 使用无需第三方 JSON 库的严格文本协议：
+不重新编译、不生成第二套 payload。attach 命令成功不代表 redefine 成功，仍以 agent 原子写入的 `result.txt` 为准。
 
-```text
-JUGG_HOT_RELOAD_V1
-0.dex\tLcom/example/MainActivity;
-1.dex\tLcom/example/Presenter;
-```
+## 9. 失败边界
 
-约束：
+| 失败阶段 | 行为 |
+|---|---|
+| ADB transport/offline | 传播或复用现有 transient retry，不误判为 run-as 不兼容 |
+| run-as 无成功标记、UID 越界或 SELinux context 不一致 | 进入 Direct Deploy |
+| Direct sandbox 全部模式不可用 | 提前失败，不进入 Apply Changes |
+| run-as 不兼容且 payload 不受支持 | 提前报告 Direct Deploy 当前只支持 class Dex |
+| startup agent bundle/安装失败 | 部署失败，不写 overlay |
+| overlay 写入前失败 | 部署失败，可在改变失败条件后最多重试一次 |
+| overlay 写入后 dirty | 保留真实异常，不重新执行整段写入 |
+| Hot Reload 请求 staging 失败 | overlay 已有效时重启降级，否则失败 |
+| app 未运行、类未加载、不可修改、redefine 失败 | 重启主应用，由 startup agent 加载 overlay |
+| attach 超时或结果格式错误 | 不重试 attach；overlay 有效时重启降级并记录原因 |
+| 应用重启失败 | 保留最终异常，不伪造部署完成 |
 
-- descriptor 直接取 `ClassDeployItem.classNodes.single().className`。
-- Dex 内容直接取 `ClassDeployItem.content`。
-- 文件名由 Host 顺序生成，不接受目标应用提供的路径。
-- descriptor、相对路径、请求数量、单文件大小和总大小均设上限。
-- root 脚本在 rename 为最终请求目录前完成解压、owner/mode 修正和可用时的 `restorecon`。
+只有已知且可恢复的在线替换失败才降级。权限、agent 准备和 overlay 持久化失败不能通过重启掩盖。
 
-### 5.3 Agent 准备与 attach
+## 10. 预计改动
 
-现有 agent bundle 仍 push 到 `/data/local/tmp/jugg/{AGENT_VERSION}`。系统应用命中 root 模式时：
+### 10.1 生产代码
 
-1. 根据 app 位数选择 `jugg_jvmti_agent.so` 或 `_alt.so`。
-2. root 将 so 复制到请求根目录下的版本化动态 attach 路径。
-3. 修正 owner、目录权限和 SELinux label。
-4. 执行：
+- 将 `AppSandboxExecutor` 的错误文本识别改为成功标记和固定模式。
+- 增加 Apply Changes run-as/UID/SELinux context 能力探测结果，区分兼容、不兼容和 transport 失败。
+- 在 `IDeviceAdb` 增加一次性请求 root adbd 的专用能力，由 `IdeaDeviceAdb` 通过 adb CLI 实现。
+- 增加普通 shell 完整目录能力探测和非交互 `su` 模式。
+- 同一次部署复用一个 sandbox executor，并传递给 Direct Overlay、agent、Hot Reload 和清理组件。
+- 将 `RootSystemAppDeployTransport` 重命名并调整为能力驱动的 Direct transport。
+- 将只表达 root 假设的 Hot Reload 类名调整为 Direct Deploy 语义。
+- 保留现有 JVMTI request handler、batch redefine、overlay id-last 和 dirty-state 实现。
 
-```shell
-am attach-agent <package> <absolute-agent-path>=jugg_hot_reload:<absolute-request-dir>
-```
+### 10.2 文档
 
-动态 attach 使用独立复制的 so，而不是直接复用 startup agent 路径，避免依赖 OEM 对同一路径重复 `dlopen` 的行为。是否确有必要保留独立副本由 Phase 0 真机结果决定。
+- 更新 `docs/ai_knowledge/03_deploy_system_app.md`，说明能力驱动的兼容边界。
+- 更新 `docs/ai_knowledge/03_deploy_core.md` 和代码地图中的 transport/sandbox 职责。
+- 检查 `docs/wiki` 是否已有 Apply Changes 或系统应用部署页面；存在时同步中英文内容。
 
-### 5.4 Native redefine
+## 11. 验证
 
-`Agent_OnAttach` 按 options 分派：
+自动化测试保护的是部署路由和权限模式等稳定可观察行为，具有独立回归价值。
 
-```text
-以 / 开头
-  -> 保持现有 startup agent 行为
-
-以 jugg_hot_reload: 开头
-  -> HandleHotReloadRequest
-
-其他
-  -> 明确记录 unknown options，返回失败结果
-```
-
-`HandleHotReloadRequest`：
-
-1. 校验请求路径必须位于当前应用 `code_cache/jugg_hot_reload/`。
-2. `AddCapabilities(REQUIRED_CAPABILITIES)`。
-3. 解析 request，读取并校验 Dex header/大小。
-4. `GetLoadedClasses()`，再用 `GetClassSignature()` 建立 descriptor 到 `jclass` 的映射。
-5. 对每个目标执行 `IsModifiableClass()`；任一类缺失或不可修改时不调用 redefine。
-6. 构造完整的 `jvmtiClassDefinition[]`，一次调用 `RedefineClasses()`。
-7. 将结果写入 `result.tmp`，`fsync` 后 rename 为 `result.txt`。
-8. 释放 JVMTI 分配的 signature、class array 和本地引用，最后 `DisposeEnvironment()`。
-
-一次 batch 调用避免 Host 把部分成功误判为完整成功。首版只返回整体结果，同时在失败内容中记录 descriptor 或 JVMTI error code。
-
-### 5.5 结果与状态提交
-
-结果协议：
-
-```text
-OK\t<count>
-ERROR\t<stage>\t<jvmtiError>\t<detail>
-MISSING\t<descriptor>
-UNMODIFIABLE\t<descriptor>
-```
-
-- Host 对 `result.txt` 做有上限轮询，建议总计 5 秒。
-- `am attach-agent` 失败、超时、结果格式错误、目标类缺失或 JVMTI 返回错误均视为部署失败。
-- 只有 `OK` 才返回 `LaunchResult.success=true`，随后沿用现有 `deployFileManager.commit()` 和 deploy history 更新。
-- 本路径不修改 `.overlay`，因此返回并保留当前 package 的既有 overlay id，不能写成空值覆盖可信 checkpoint。
-- 失败时不提交部署历史；保留本次请求目录用于日志采集，下一次请求清理更旧的成功目录。
-
-### 5.6 Activity 生命周期
-
-首版语义等同“在线替换类实现”，**不自动重建 Activity**：
-
-- 已存在对象下一次调用被替换的方法时立即执行新实现。
-- 仅在 `onCreate()` 等生命周期入口读取新逻辑的页面，需要用户重新进入页面。
-- 若要求严格保持当前 `APPLY_CHANGES_AND_RESTART_ACTIVITY` 体验，需要新增独立的进程内 Activity relaunch 能力；该能力不应混入首版 redefine 验证。
-
-## 6. 失败与降级
-
-| 失败阶段 | 首版行为 | 原因 |
+| 层级 | Owner / 证据 | 预期 |
 |---|---|---|
-| root 或 `run-as` 状态不满足 | 不命中自有路径，保留原路径 | 不扩大设备范围 |
-| 系统应用命中，但 app 未运行 | 明确提示在线 Hot Reload 需要运行中的主进程 | `RedefineClasses` 需要目标 VM |
-| agent/root staging 失败 | 部署失败，保留历史 | 防止伪造成功 |
-| 类未加载或不可修改 | 部署失败并报告类名 | 不主动加载类 |
-| JVMTI redefine 失败 | 部署失败并报告 error code | 保留真实失败边界 |
-| attach 成功但结果超时 | 部署失败，采集 agent/logcat 证据 | attach 返回不代表 redefine 成功 |
+| L1 | Apply Changes capability probe | 成功标记、UID 10000..19999 且探针 context 与 code_cache 一致时兼容；无标记、UID 1000、UID 越界或 context 不一致时不兼容；ADB 异常不被吞成不兼容 |
+| L1 | `AppSandboxExecutorTest` | 普通 shell 完整能力成功时不请求 root；失败后最多请求一次 adb root；重连后重新探测；su 命令逐脚本包装；修复辅助输出不污染业务结果；全部失败时返回真实原因 |
+| L1 | Direct Overlay 既有测试 | executor 复用后 overlay 的 id-last、dirty 失败和状态检查语义不变 |
+| L1 | Hot Reload request writer 测试 | 请求格式、路径、结果解析、超时和失败分类正确 |
+| L2 | deploy flow 等价回归 | run-as 兼容时保持 AS 路径；不兼容时不调用 AS swap；Direct 权限失败不回落 AS；在线成功不重启；可降级失败请求应用重启 |
+| 编译 | 定向测试、`:idea:compileKotlin`、JVMTI agent bundle 构建 | Kotlin 与 native 构建通过 |
+| L3 | `SystemAppDemo/systemapp` | 普通 shell 下 run-as 探测成功，保持 Apply Changes 路径 |
+| L3 | `SystemAppDemo/privapp` | 已验证 run-as context 不一致时进入 root Direct；普通 Dex 继承 `code_cache` context，agent `.so` 使用 `apk_data_file:s0`，冷启动后 agent 出现在进程 maps；插件端到端部署待复测 |
+| L3 | AOSP platform-signed system UID app | UID 1000 不进入 AS deployer；Direct Overlay 在线生效，或重启后由 startup agent 生效 |
 
-后续可增加“root overlay + 进程重启”作为系统应用 Hot Fix 降级，但它需要同时接管 AS startup agent 和 overlay 写入，不属于首版在线 Hot Reload 的最小改动。
+如果没有可取得 UID 1000 的 AOSP 镜像，必须明确保留该项为待设备验证，不能用普通 system/privileged app 结果替代。
 
-## 7. 预计改动文件
+## 12. 验收标准
 
-### 7.1 生产代码
-
-| 文件 | 预计改动 |
-|---|---|
-| `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/applychanges/JuggDeployTask.kt` | 在 AS `fullSwap/codeSwap` 前按 package 尝试 root Hot Reload；成功时保留当前 overlay id |
-| `idea/src/main/java/com/sickworm/intellij/jugg/deploy/hotreload/RootJvmtiHotReloadTransport.kt`（新增） | 集中管理命中条件、主进程检查、调用 writer 和结果到 deploy result 的转换 |
-| `main/src/main/java/com/sickworm/intellij/jugg/deploy/hotreload/RootHotReloadWriter.kt`（新增） | 构建请求、push zip、root 解压/权限修复、执行 attach、轮询和解析结果 |
-| `main/src/main/java/com/sickworm/intellij/jugg/deploy/JuggJvmtiAgentManager.kt` | 增加 root 模式的 bundle/agent 准备能力；原 `run-as` 路径保持不变 |
-| `jvmti_agent/src/main/cpp/native-lib.cpp` | 增加 `jugg_hot_reload:` options 分派，保持 startup 分支不变 |
-| `jvmti_agent/src/main/cpp/class_redefiner.h`（新增） | 声明请求处理和 class redefine 入口 |
-| `jvmti_agent/src/main/cpp/class_redefiner.cc`（新增） | 请求校验、loaded class 匹配、batch `RedefineClasses`、原子结果写入 |
-| `jvmti_agent/CMakeLists.txt` | 编译新增 native 文件 |
-| `build.gradle` | 递增 `agentVersion` |
-
-`JuggDeployData.kt` 和 `DeployDataGenerator.kt` 预计无需修改：当前数据模型和分类已提供所需 descriptor 与单类 Dex。
-
-### 7.2 测试与验证代码
-
-| 文件 | 预计改动 |
-|---|---|
-| `main/src/test/java/com/sickworm/intellij/jugg/deploy/hotreload/RootHotReloadWriterTest.kt`（新增） | 请求格式、路径安全、位数选择、root 脚本、结果解析、超时和失败不成功 |
-| `idea/src/test/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployerHelperDeployFlowTest.kt` | 增加 root 系统应用纯 Hot Reload 路由与 deploy history 行为 |
-| `idea/src/test/java/com/sickworm/intellij/jugg/deploy/run/deployflow/VirtualDeployDevice.kt` | 模拟 root uid、run-as 失败、attach-agent 和 result 文件 |
-| `main/src/test/java/com/sickworm/intellij/jugg/deploy/JuggJvmtiAgentManagerTest.kt` | 覆盖 root agent 准备；现有普通 `run-as` 行为必须保持 |
-
-不计划增加只 mock `jvmtiEnv` 的 native 单元测试：它无法证明 ART 接受实际 Dex。native redefine 以真机 L3 为行为 owner。
-
-### 7.3 实现完成后同步文档
-
-- `docs/ai_knowledge/03_runtime_jvmti.md`
-- `docs/ai_knowledge/03_deploy_core.md`
-- `docs/wiki/zh/concepts/jugg-jvmti-agent.md` 与英文镜像
-- `docs/wiki/zh/concepts/apply-changes.md` 与英文镜像
-- `docs/wiki/zh/capabilities/deploy/hot-reload.md` 与英文镜像
-
-## 8. 测试矩阵
-
-| 层级 | Owner / 路径 | 修改前预期 | 修改后预期 |
-|---|---|---|---|
-| L1 | `RootHotReloadWriterTest` | 无自有请求与结果协议 | 生成安全请求；仅 `OK` 成功；超时/错误失败 |
-| L1 | `JuggJvmtiAgentManagerTest` | root 系统应用无法准备 agent | root 写入 agent，普通 run-as 路径不变 |
-| L2 | `JuggDeployerHelperDeployFlowTest` | root + run-as 失败进入 AS Deployer 并失败 | 纯 Hot Reload 进入自有 transport，不调用 AS swap，成功后提交历史并保留 overlay id |
-| L2 | 同上 | 普通设备走原 Apply Changes | 未命中 root 条件时仍调用原路径 |
-| L3 | 报告设备/等价 root 系统应用 | `Deploy Changes` errorId 34 | 已加载 Activity 方法体在线生效，进程 PID 不变 |
-| L3 | 同一设备 | 未加载类/结构变化无明确自有边界 | 返回目标类或不支持原因，不提交部署历史 |
-
-## 9. 实施顺序
-
-1. **Phase 0 真机可行性门禁**：手工放置最小 agent，验证 `am attach-agent`、options、结果文件、同 agent 重复 attach、SELinux 和 UID 1000 行为。
-2. 先增加 L1 请求/结果协议测试，确认修改前因能力缺失而失败。
-3. 实现 `RootHotReloadWriter` 与 `JuggJvmtiAgentManager` root agent 准备。
-4. 实现 native request handler 和 batch redefine，递增 `agentVersion`。
-5. 增加 L2 Flow case，再在 `JuggDeployTask` 接入路由。
-6. 执行定向 L1/L2、`:idea:compileKotlin`、agent bundle 构建。
-7. 在报告设备执行 L3：修改普通 Activity 已加载方法，确认新行为生效且 PID 不变。
-8. 同步 ai_knowledge 和中英文 Wiki。
-
-若 Phase 0 证明该 ROM 禁止 `am attach-agent`，停止后续实现并回到“root overlay + 重启”方案，不为不可用能力继续增加协议和抽象。
-
-## 10. 验收标准
-
-- 报告设备修改普通 Activity 的已加载方法后，Jugg 显示 HOT_RELOAD 成功，App PID 不变，新方法实现被执行。
-- 日志明确显示命中 root Hot Reload、自有 request id、目标类数量和 redefine 结果。
-- 整条成功路径不调用 AS `optimisticSwap`、`overlayInstall` 或 install-server。
-- agent 未写 `OK` 时绝不提交 deploy history。
-- 普通 debuggable 应用、root 但 `run-as` 可用设备、非纯代码 payload 的现有行为不变。
-- 结构变化、新类、未加载类和多进程边界均有明确失败或原路径行为，不伪造成功。
-
-## 11. 待确认事项
-
-1. 首版是否接受“在线 redefine，但不自动重建 Activity”的语义。
-2. Phase 0 后决定动态 attach 是否必须使用独立 so 副本。
-3. root 系统应用 Hot Fix/资源变更是否另开后续方案，实现 root overlay + 重启降级。
+- 路由不依赖 `run-as` 错误文本、`FLAG_SYSTEM`、`PRIVATE_FLAG_PRIVILEGED` 或 Manifest `sharedUserId`。
+- `run-as` 只有出现唯一成功标记、原始 UID 位于 `10000..19999`，且探针与既有 `code_cache` 的 SELinux context 一致，才视为 Apply Changes 兼容。
+- ADB transport 失败不会被误判成 Direct Deploy 条件。
+- 普通 shell 已具备完整 app data 操作能力时不执行 `adb root`。
+- `adb root` 每次部署最多执行一次，重连后以完整能力探测结果为准，不按输出文本判断。
+- `su` 模式对每个权限脚本进行包装，不重复请求 `adb root`。
+- Direct sandbox 不可用或 payload 不受支持时提前失败，不进入必然失败的 Android Studio Deployer。
+- 同一次部署固定并复用一个 sandbox executor，不因 adbd 状态变化中途切换模式。
+- 方法体修改先持久化 overlay，再使用现有 Jugg agent 在线 redefine。
+- 在线成功后不重建 Activity，重启应用后修改仍然有效。
+- 在线失败且 overlay 有效时自动重启，startup agent 加载同一 overlay。
+- 普通 run-as 兼容应用保持现有 Apply Changes 行为。
+- 日志能区分 run-as 能力、UID 范围、sandbox 模式、root 请求、overlay 结果、Hot Reload 结果和重启降级原因。

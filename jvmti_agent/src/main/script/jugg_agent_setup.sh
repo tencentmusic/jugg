@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# must run by run-as {packageName}
+# Must run inside the target app sandbox.
 
 version=$1
 arch=$2

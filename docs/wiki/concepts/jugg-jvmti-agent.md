@@ -10,13 +10,25 @@ tags:
 
 # Jugg JVMTI Agent
 
-Android Studio Apply Changes relies on a JVMTI Agent to replace implementations of structurally unchanged classes in a running app. Jugg currently reuses the Apply Changes hot-reload channel directly: Apply Changes Agent still applies online-replaceable classes to the current process through JVMTI. Jugg's startup agent only adds JVMTI availability detection and corrections for known runtime problems, then passes the result to deployment so it can decide whether to switch to compatibility deployment.
+Android Studio Apply Changes relies on a JVMTI Agent to replace implementations of structurally unchanged classes in a running app. Apps where `run-as` completes fully, the UID is within `10000..19999`, and newly created files use the same SELinux label as the app's existing cache directory continue to use that channel. When those prerequisites fail but Jugg has complete sandbox access, it reuses its own JVMTI Agent for online replacement. The same Agent continues to load overlays at startup, detect JVMTI, and correct known runtime problems.
 
 ## Why Apply Changes still needs the Jugg Agent
 
 Jugg could merge these functions directly into Apply Changes Agent, but that would require it to take over agent distribution, online class replacement, deployment communication, and adaptation across Android Studio and device versions—in other words, the entire deployment path.
 
-Jugg instead adds an independent startup agent that handles only two supplementary responsibilities: detecting whether the current app process can obtain JVMTI and installing corrective hooks for known runtime problems. This preserves Android Studio's deployment implementation while letting Jugg control compatibility detection and fallback decisions.
+The Jugg Agent has startup and dynamic-attach entry points. The startup entry point detects whether the app process can obtain JVMTI, loads the persistent overlay, and installs corrective hooks for known runtime problems. The dynamic-attach entry point handles class redefinition, resource refresh, and Activity recreation for the current Direct app-sandbox request. Apps that satisfy Apply Changes prerequisites continue to use Android Studio's deployment implementation.
+
+## Online replacement for run-as-incompatible apps
+
+Jugg first writes the current Dex files to `code_cache/.overlay`. It then places the request and a request-specific Agent so under `code_cache/jugg_hot_reload` and attaches by the main-process PID. After finding every loaded and modifiable target class, the Agent calls JVMTI `RedefineClasses` once for the complete batch.
+
+When root or `su` writes these files, ordinary app data must regain the existing `code_cache` dynamic SELinux label, and the Agent `.so` must use the executable `apk_data_file` type. Restoring only ownership, or labeling the `.so` as ordinary `app_data_file`, can produce `Permission denied` during startup or dynamic attach.
+
+Successful online replacement does not recreate the Activity. If attachment fails, times out, or finds a missing or unmodifiable class, Jugg restarts the whole app. The startup entry point then loads the already committed overlay, so no recompilation or second Hot Fix payload is needed.
+
+Direct sandbox deployment also supports resources and assets. On Android 11+, Jugg refreshes host resources in the running main process and recreates all live Activities in that process, including instances in other tasks and multi-window. If refresh fails, it restarts the app and the startup entry loads the committed overlay. Non-host resource environments, such as WebView, remain unchanged. Android 8–10 require a process restart, while compatible deployment continues using the existing resource-APK mechanism.
+
+Direct dynamic attach currently handles one main process and recreates all live Activities in that process. Separate processes do not receive online class or resource updates in the same deployment and load the overlay after those processes restart. Direct deployment also submits the current changes as one batch and does not provide the slicing progress or per-slice retry used by official Apply Changes.
 
 ## Detecting JVMTI and correcting known problems
 

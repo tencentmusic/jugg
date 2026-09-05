@@ -2,6 +2,8 @@ package com.sickworm.intellij.jugg.deploy.run
 
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlayStateCheckResult
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlayStateChecker
+import com.sickworm.intellij.jugg.deploy.AppSandboxExecutor
+import com.sickworm.intellij.jugg.deploy.JuggJvmtiAgentManager
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
@@ -21,6 +23,8 @@ import org.junit.Assert.assertTrue
 import org.junit.BeforeClass
 import org.junit.Test
 import org.mockito.Mockito
+import org.mockito.kotlin.any
+import org.mockito.kotlin.whenever
 
 /**
  * L2 deploy-flow via [com.sickworm.intellij.jugg.deploy.run.deployflow.VirtualDeployDevice].
@@ -377,9 +381,10 @@ class JuggDeployerHelperDeployFlowTest {
             assertEquals(2, fixture.compatBoundary.optimisticSwapInvokeCount)
             assertFalse("partial overlay directory should be removed", fixture.virtualDevice.hasOverlayDir())
             assertTrue(
-                fixture.virtualDevice.shellCommands.contains(
-                    "run-as ${DeployFlowOverlaySeed.packageName()} rm -rf code_cache/.overlay",
-                ),
+                fixture.virtualDevice.shellCommands.any {
+                    it.contains("run-as ${DeployFlowOverlaySeed.packageName()}") &&
+                        it.contains("rm -rf code_cache/.overlay")
+                },
             )
         }
     }
@@ -398,6 +403,37 @@ class JuggDeployerHelperDeployFlowTest {
             )
             assertEquals(1, fixture.compatBoundary.createInstallSessionInvokeCount)
             assertEquals(0, fixture.compatBoundary.optimisticSwapInvokeCount)
+        }
+    }
+
+    @Test
+    fun `system app full resource deploy bypasses slicing when ordinary Direct is disabled`() {
+        withSingleOverlayPerSlice {
+            val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_010)
+            val adb = fixture.virtualDevice.asIDeviceAdb()
+            Mockito.mockConstruction(AppSandboxExecutor::class.java) { sandbox, _ ->
+                whenever(sandbox.applyChangesCapability).thenReturn(AppSandboxExecutor.ApplyChangesCapability.INCOMPATIBLE)
+                whenever(sandbox.mode).thenReturn(AppSandboxExecutor.Mode.DIRECT_SHELL)
+                // Delegate filesystem commands to the virtual device; only sandbox permissions are mocked.
+                whenever(sandbox.exec(any(), any())).thenAnswer {
+                    adb.execAdbShellScript("run-as ${DeployFlowOverlaySeed.packageName()} sh -c '${it.getArgument<String>(0)}'")
+                }
+                whenever(sandbox.execNoFallback(any(), any())).thenAnswer {
+                    adb.execAdbShellScript("run-as ${DeployFlowOverlaySeed.packageName()} sh -c '${it.getArgument<String>(0)}'")
+                }
+            }.use { sandboxes ->
+                Mockito.mockConstruction(JuggJvmtiAgentManager::class.java) { manager, _ ->
+                    whenever(manager.pushAgentToApp(any(), any())).thenReturn(true)
+                }.use {
+                    val result = fixture.helper.deploy(fixture.deployOptions.copy(isAllowDirectOverlayDeploy = false))
+
+                    assertTrue("deploy failed: ${result.failedReason}", result.isSuccess)
+                    assertEquals(1, fixture.virtualDevice.shellScripts.count { it.contains("__JUGG_DIRECT_OVERLAY__") })
+                    assertEquals(0, fixture.compatBoundary.optimisticSwapInvokeCount)
+                    assertEquals(1, sandboxes.constructed().size)
+                    Mockito.verify(fixture.deployTargetManager).restartApp(fixture.device)
+                }
+            }
         }
     }
 

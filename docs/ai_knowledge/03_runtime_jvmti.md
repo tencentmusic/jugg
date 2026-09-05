@@ -1,6 +1,6 @@
 # 运行时与 JVMTI 支持
 
-> 最后核对：2026-08-20
+> 最后核对：2026-09-10
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -22,10 +22,13 @@
 | `JuggDeployerHelper` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployerHelper.kt` | 在 deploy 前后串联 async agent 检查、push、restart、JVMTI compat 检测和 retry |
 | `DeployRetryHandler` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/flow/DeployRetryHandler.kt` | deploy 失败后通过 run host 触发 JVMTI 检测，必要时切换 compat deploy |
 | `AsStartupAgentPusher` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/direct/AsStartupAgentPusher.kt` | Direct Overlay 路径推 Android Studio Apply Changes startup agent，不依赖 app 进程在线 |
-| `native-lib.cpp` | `jvmti_agent/src/main/cpp/native-lib.cpp` | `Agent_OnAttach` 入口，写 `.jugg_jvmti_available` / `.jugg_jvmti_not_available` flag，并启动 instrumentation |
+| `DirectHotReloadWriter` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/DirectHotReloadWriter.kt` | 为 Direct app sandbox transport 生成 dynamic attach 请求、复制请求级 agent、等待结果文件 |
+| `native-lib.cpp` | `jvmti_agent/src/main/cpp/native-lib.cpp` | `Agent_OnAttach` 入口，区分 startup dataDir 与 `jugg_hot_reload:` dynamic attach options |
+| `class_redefiner.cc` | `jvmti_agent/src/main/cpp/class_redefiner.cc` | 解析 Hot Reload 请求、匹配已加载类并 batch `RedefineClasses()`，原子写结果 |
 | `instrumenter.cc` | `jvmti_agent/src/main/cpp/instrumenter.cc` | 加载 `jugg-instruments.jar`，设置 class file load hook 并 retransform 目标类 |
 | `InstrumentationHooks` | `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/instrument/InstrumentationHooks.java` | 处理 ResourcesManager、ClassLoader resource 等 framework hook；compat deploy 启用后必须跳过普通 Apply Changes overlay 修正 |
 | `ApplyChangesOverlayPolicy` | `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/instrument/ApplyChangesOverlayPolicy.java` | 记录宿主 APK 路径，判断非宿主资源环境是否需要移除 Apply Changes overlay |
+| `ResourceOverlays` | `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/instrument/ResourceOverlays.java` | 将展开 APK 目录中的资源和 assets 接入 Android 11+ ResourcesLoader；限 Direct sandbox 标记和宿主 APK，兼容部署沿用资源 APK |
 | `HotfixLoader` | `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/hotfix/HotfixLoader.java` | 初始化 app code cache 路径，识别 compat flag，并安装 dex/resource patch |
 | `jugg_agent_setup.sh` | `jvmti_agent/src/main/script/jugg_agent_setup.sh` | 在 app `code_cache/startup_agents` 中放置版本化 agent so |
 | `buildAgentBundle.gradle` | `jvmti_agent/buildAgentBundle.gradle` | 将 Jugg runtime 与预处理后的 Dragonfly JAR 编译进 `jugg-instruments.jar`，并打包 64/32 位 so 和 setup script，生成 plugin resource |
@@ -38,6 +41,7 @@
 |---|---|---|
 | Jugg agent bundle | `/data/local/tmp/jugg/{AGENT_VERSION}` | 设备全局临时目录，包含 `jugg-instruments.jar`、64/32 位 so、setup script |
 | App startup agent | `{app}/code_cache/startup_agents/{version}-jugg_jvmti_agent(.so/_alt.so)` | app sandbox 内真正被系统加载的 startup agent |
+| Direct instrumentation JAR | `{app}/code_cache/startup_agents/{version}-jugg-instruments.jar` | 仅 Direct app sandbox 复制；让 app 进程可映射 instrumentation class，普通 `run-as` 路径继续使用全局 JAR |
 | Apply Changes agent | `{app}/code_cache/startup_agents/{versionHash}-{dollName}` | Direct Overlay 复用的 AS startup agent；由 `AsStartupAgentPusher` 推送 |
 | `.jugg_jvmti_available` | `{app}/code_cache/.jugg_jvmti_available` | native `Agent_OnAttach` 成功取得 JVMTI/JNI 后写入；不表示所有可选 framework hook 都成功 |
 | `.jugg_jvmti_not_available` | `{app}/code_cache/.jugg_jvmti_not_available` | native 无法取得 JVMTI/JNI 时写入，触发 compat device record |
@@ -47,9 +51,9 @@
 
 ### 3.1 Apply Changes 与 Jugg 的职责边界
 
-Jugg 目前直接复用 Android Studio Apply Changes 的热重载通道。普通修改类仍由 Apply Changes Agent 通过 JVMTI 执行 class redefinition；Jugg startup agent 不重复实现这条普通类热重载能力。
+满足 `run-as` 可回滚写入、原始 UID 位于 `10000..19999`，且探针与既有 `code_cache` 的 SELinux context 一致的应用继续复用 Android Studio Apply Changes 热重载通道。前提不成立、但 Jugg 能通过普通 shell、root adbd 或非交互 `su` 完整访问 app dataDir 时，Jugg 复用同一个自有 agent，通过 dynamic attach 执行 class redefinition。
 
-Jugg startup agent 负责检测进程是否能取得 JVMTI/JNI，并对 framework 类安装有明确兼容目标的运行时 hook。IDE 部署编排负责准备两类 startup agent、读取可用性 flag，并在 JVMTI 不可用时记录 app/device 和切换 compat deploy。三者处于同一条部署链路，但行为 owner 不同。
+同一个 Jugg agent 有两种入口：startup options 为 app dataDir，负责 overlay 加载、JVMTI 检测和 framework hook；dynamic options 为 `jugg_hot_reload:<requestDir>`，处理本次 class redefine、资源刷新，并按请求标志选择是否重建 Activity。Direct app sandbox transport 先持久化 Direct Overlay，dynamic attach 失败时重启进程，复用 startup 入口加载同一 overlay。
 
 ---
 
@@ -64,7 +68,7 @@ JuggDeployerHelper.runTask()
   -> JuggDeployTask.run()
      先完成 install / apply changes / apply changes and restart activity
   -> detectJob.await() 后按需 JuggJvmtiAgentManagerHelper.pushAgentToApps()
-     push bundle 到 /data/local/tmp/jugg/{AGENT_VERSION}，再 run-as app 执行 setup script
+     push bundle 到 /data/local/tmp/jugg/{AGENT_VERSION}，再通过 AppSandboxExecutor 执行 setup script
   -> 根据部署数据和用户设置决定 restart/start/no-op
   -> 若本轮 push 过 agent 且会 restart app，调用 isHasJvmtiCompatIssue()
      等待 native flag 文件，失败时记录 compat device 并抛出 redeploy-with-compat 信号
@@ -72,7 +76,7 @@ JuggDeployerHelper.runTask()
 
 push agent 放在部署之后，是为了避免 Android Studio Apply Changes 首次部署清理 startup agents 后把 Jugg agent 删掉。JVMTI 检测必须等 restart 后进行，因为 startup agent 只有 app 进程启动时才会被系统加载。
 
-setup script 复制命令只把 `cp` 放进 `run-as <package>`，成功/失败 marker 由普通 adb shell 在 `run-as` 结束后输出。不能把 `cp && echo` 整段作为单次 `run-as` 命令传入；部分设备会让后续 shell 操作继续处于 app 身份或错误解析引号，导致脚本已经复制却无法稳定返回 setup 状态。
+`AppSandboxExecutor` 统一包装 setup script：Apply Changes 兼容应用使用 `run-as`；不兼容应用在真实 `dataDir` 以本轮固定的普通 shell、root adbd 或非交互 `su` 模式执行。普通文件修正为既有 `code_cache` 的 owner 与动态 MCS context，JVMTI `.so` 修正为 appdomain 可执行的 `apk_data_file:s0`；修复阶段输出不会混入 setup script 的 `success`/`failed` 结果。上层 agent manager 不再分别拼装权限命令。
 
 ### 4.2 失败重试中的兼容检测
 
@@ -96,14 +100,35 @@ DeployRetryHandler.tryRetry()
      失败写 .jugg_jvmti_not_available
   -> 成功写 .jugg_jvmti_available
   -> HandleStartupAgent()
-     AddCapabilities，加载 jugg-instruments.jar，instrument Application / AppComponentFactory / Resources
+     AddCapabilities
+     Direct sandbox 优先加载 app-local jugg-instruments.jar；否则使用 /data/local/tmp 中的全局 JAR
+     instrument Application / AppComponentFactory / Resources
 ```
 
-`options[0] == '/'` 才按 startup agent 处理；shell attach 场景不会进入完整 instrumentation。
+`options[0] == '/'` 时按 startup agent 处理；`jugg_hot_reload:` 前缀进入 dynamic redefine。dynamic 分支不写 startup 可用性 flag，也不重复安装 framework instrumentation。
+
+### 4.4 Direct app sandbox dynamic redefine
+
+```text
+Direct Overlay 已提交
+  -> request.txt + Dex 写入 code_cache/jugg_hot_reload/<requestId>
+  -> 为本次请求复制独立 agent so
+  -> am attach-agent <pid> <agent>=jugg_hot_reload:<requestDir>
+  -> 有 class 时执行 GetLoadedClasses、IsModifiableClass 与 batch RedefineClasses
+  -> refreshResources=true 时更新 ResourcesLoader providers 并挂载到现存宿主 Resources
+  -> restartActivity=true 时在同一个主线程任务中对当前进程全部存活 Activity 执行 recreate()
+  -> result.tmp rename result.txt
+```
+
+只有 `OK` 表示请求完成。V3 请求允许纯资源场景不携带 class；`refreshResources=false` 保持纯 class HOT_RELOAD 语义，`refreshResources=true` 对齐 Apply Changes 的资源切换顺序。`restartActivity=true` 在同一主线程任务中先刷新资源，再像 Apply Changes 一样遍历 `ActivityThread.mActivities` 并重建当前进程全部存活 Activity；读取失败时从 `WindowManagerGlobal` 收集窗口关联 Activity 作为回退，不重新调用 Android Studio `fullSwap/overlaySwap`。`MISSING`、`UNMODIFIABLE`、JVMTI redefine error、attach 失败或结果超时由外层降级为整应用重启；资源请求的刷新或 Activity 重建失败也显式降级为进程重启。纯 class 请求在类重定义后 Activity relaunch 失败时仍报告 Direct dirty failure。
+
+终态结果返回后 Host 删除对应请求目录；超时请求在下一次请求开始前清理，避免与仍在执行的 agent 竞争文件，同时限制请求 Dex 和动态 agent so 的累积。
 
 `.jugg_jvmti_available` 在取得 JVMTI/JNI 后、进入 `HandleStartupAgent()` 前写入。因此它只证明 JVMTI 基础环境可取得，不能用于断言后续每个 framework hook 都已安装成功。
 
-### 4.4 非宿主资源的 Apply Changes overlay 修正
+Direct transport 复制 app-local JAR 时沿用 `AppSandboxExecutor` 的 owner/SELinux 修复，只影响 `pushAgentToApp(packageName, sandboxExecutor)` 调用；普通 App 的无 sandbox manager 调用及 Android Studio deploy transport 不改变。
+
+### 4.5 非宿主资源的 Apply Changes overlay 修正
 
 Apply Changes 可能把宿主应用的 resource overlay 带入非宿主包的 `AssetManager`。WebView provider 初始化时如果拿到包含宿主 overlay package id 的资源环境，可能触发 `java.lang.IllegalStateException: Already registered a list of actions in this process` 并导致 WebView 崩溃。
 
@@ -117,7 +142,19 @@ Jugg 在 `ResourcesManager#createAssetManager` 的新旧签名中记录当前 `R
 
 宿主 APK 路径尚未记录时，策略退回到旧的 `/data/app` 路径判断。该修正只处理非宿主资源环境，不能删除宿主 Activity 正常热更新所需的 overlay；compat deploy 启用时也必须跳过这条普通 Apply Changes overlay 修正。
 
-### 4.5 ClassLoader resource overlay
+### 4.6 Direct sandbox 普通资源 overlay
+
+Direct transport 在 agent 准备阶段写入 `.jugg_direct_resource_overlay`；startup agent 使用系统传入的真实 dataDir 初始化资源路径。迁移自 Android Studio 的 `ResourceOverlays` 通过 `ResourcesProvider.loadFromDirectory()` 消费 `.overlay/*.apk` 中的资源和 assets，不额外生成资源 APK。`LoadedApk.getResources()` 的 entry hook 核对 dataDir 并收集宿主 base/split APK 路径，exit hook 只向包含宿主 APK 的 Resources 添加共享 loader。非宿主 Resources 和没有 Direct 标记的普通 Apply Changes 保持原路径。
+
+Android 11+ 的运行中资源请求会重新扫描已提交目录，通过 `ResourcesLoader.setProviders()` 更新已有 loader，再遍历 `ResourcesManager` 中现存的宿主 Resources 并补挂 loader，随后重建当前进程全部存活 Activity，包括其它 task 和多窗口实例。纯资源请求允许 Dex 列表为空；代码与资源混合时先完成 class redefine。资源刷新和 Activity 重建在同一个主线程任务中顺序执行，成功后保留进程；失败时外层重启 App，startup agent 继续从已提交 overlay 恢复。
+
+Android 11 以下不使用 ResourcesLoader；兼容部署 flag 存在时也不加载普通目录，由既有 `resource.ap_` 加载器处理。这两类场景继续通过进程重启生效。
+
+迁移参考：[AOSP ResourceOverlays](https://android.googlesource.com/platform/tools/base/+/refs/heads/mirror-goog-studio-main/deploy/agent/runtime/src/main/java/com/android/tools/deploy/instrument/ResourceOverlays.java)。
+
+Direct app sandbox 与官方 Apply Changes 在 Android 版本、进程与 Activity 覆盖、class payload、切片、状态恢复和诊断协议上的完整边界见 `03_deploy_core.md` §6.4。
+
+### 4.7 ClassLoader resource overlay
 
 legacy Compose resource 会通过 `ClassLoader#getResource()` 读取 APK 根目录文件，而不是通过 `AssetManager` 读取 `assets/`。Jugg 对 `java/lang/ClassLoader#getResource(String)` 做 retransformation，在原方法入口执行 overlay-first 查找：
 
@@ -163,7 +200,7 @@ hook 不限制资源名。部署到 `.overlay` 的内容是预期覆盖状态，
 
 - `JuggSettings.isEnableCompatibleDeploymentMode` 与 `finalIsEnableCompatibleDeploymentMode` 恒为 `true`，`pushAgentToApps()` 和 `attachAgentToApps()` 不提供用户关闭入口。
 - install 没有增量部署文件，`isNeedPushAgentAfterDeploy()` 直接返回 false；不要用 install 后缺 agent 判断为 push 失败。
-- `isNeedPushAfterDeploy()` 要同时看到 Jugg agent 和非 Jugg 的 `.so` startup agent；缺任意一类都会要求重新 push，因为 Apply Changes 首次写入 agent 时可能清空目录。
+- Apply Changes 兼容应用的 `isNeedPushAfterDeploy()` 要同时看到 Jugg agent 和非 Jugg 的 `.so` startup agent。Direct app sandbox transport 自行准备并复用 Jugg startup agent，不再由部署后检查重复补 push。
 - `isHasJvmtiCompatIssue()` 最多等待 3 秒，每 100ms 轮询一次；返回 `null` 的 app 会继续等，全部 app 都非 null 才收口。
 - not-available flag 优先级高于 available flag；排查时如果两个都存在，应先按不可用处理并清理 app `code_cache` 后复测。
 - `AsStartupAgentPusher` 推 AS agent 的路径不要求 app 进程在线；它用 host matryoshka 解析出的 agent so，经 `run-as cp` 放进 app sandbox。

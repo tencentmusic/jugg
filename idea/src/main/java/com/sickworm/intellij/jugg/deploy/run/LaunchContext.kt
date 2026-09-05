@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.deploy.run
 import com.android.ddmlib.IDevice
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
+import com.sickworm.intellij.jugg.deploy.AppSandboxExecutor
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 
 /**
@@ -21,6 +22,7 @@ class LaunchContext(
     val isDeviceReadyDeploy: Boolean,
     val isAllowDirectOverlayDeploy: Boolean,
     val forceDirectOverlayDeploy: Boolean = false,
+    private val appSandboxExecutors: MutableMap<String, AppSandboxExecutor> = mutableMapOf(),
 ) {
     val isDirectOverlayEnabled: Boolean
         get() = isDirectOverlaySettingsEnabled &&
@@ -29,6 +31,14 @@ class LaunchContext(
 
     var launchApp: Boolean = false
     var killBeforeLaunch: Boolean = false
+
+    fun getAppSandboxExecutor(packageName: String, logger: Logger): AppSandboxExecutor {
+        return synchronized(appSandboxExecutors) {
+            appSandboxExecutors.getOrPut(packageName) {
+                AppSandboxExecutor(deviceAdb, packageName, logger)
+            }
+        }
+    }
 
     fun logDirectOverlayEnabled(logger: Logger) {
         logger.debug(
@@ -54,6 +64,7 @@ class LaunchContext(
             isDeviceReadyDeploy = isDeviceReadyDeploy,
             isAllowDirectOverlayDeploy = isAllowDirectOverlayDeploy,
             forceDirectOverlayDeploy = forceDirectOverlayDeploy,
+            appSandboxExecutors = appSandboxExecutors,
         )
     }
 }

@@ -13,6 +13,7 @@ import com.sickworm.intellij.jugg.deploy.run.utils.AdbTransientOffline
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlayDeployFailedException
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlayDirtyException
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlaySwapTransport
+import com.sickworm.intellij.jugg.deploy.hotreload.DirectAppSandboxDeployTransport
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.IJuggDeployerDeploymentService
@@ -191,6 +192,18 @@ class JuggDeployer(
         }
 
         val startTime = System.currentTimeMillis()
+        tryDirectAppSandboxDeploy(packageName, data, speculativeDump, pids, arch)?.let { directResult ->
+            val costTime = System.currentTimeMillis() - startTime
+            logger.info(
+                "after direct app sandbox deploy, cost: ${costTime}ms, " +
+                    "overlay id: ${directResult.overlayId.sha}, needsRestart: ${directResult.needsRestart}",
+            )
+            deploymentService.storeEntry(deviceSerial, packageName, newFiles, directResult.overlayId, logger)
+            return Result().also {
+                it.overlayId = directResult.overlayId.sha
+                it.needsRestart = directResult.needsRestart
+            }
+        }
         tryDirectOverlaySwap(packageName, data, speculativeDump, arch)?.let { overlayId ->
             val costTime = System.currentTimeMillis() - startTime
             logger.info("after direct overlay deploy, cost: ${costTime}ms, overlay id: ${overlayId.sha}, is base install: ${overlayId.isBaseInstall}, isPushOverlayOnly: ${data.isPushOverlayOnly}")
@@ -234,6 +247,21 @@ class JuggDeployer(
             }
         }
     }
+
+    private fun tryDirectAppSandboxDeploy(
+        packageName: String,
+        data: JuggDeployData,
+        speculativeDump: JuggDeploymentCacheEntry?,
+        pids: List<Int>,
+        appArch: Deploy.Arch,
+    ) = DirectAppSandboxDeployTransport(launchContext, logger.logger).tryDeploy(
+            packageName = packageName,
+            data = data,
+            overlayUpdate = speculativeDump?.let { OverlayUpdateBuilder(asDeployerCompat).build(it, data) },
+            asDeployerCompat = asDeployerCompat,
+            pids = pids,
+            appArch = appArch,
+        )
 
     private fun tryDirectOverlaySwap(
         packageName: String,

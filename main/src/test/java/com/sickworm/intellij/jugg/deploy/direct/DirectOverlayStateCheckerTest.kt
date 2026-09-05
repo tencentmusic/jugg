@@ -10,6 +10,7 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 import org.mockito.Mockito
 import java.io.File
+import java.io.IOException
 
 class DirectOverlayStateCheckerTest {
 
@@ -202,6 +203,17 @@ class DirectOverlayStateCheckerTest {
         assertEquals(DirectOverlayStateCheckResult.UNKNOWN, checker.checkDevice("com.example.app", "overlay-id"))
     }
 
+    @Test(expected = IOException::class)
+    fun `checkDevice should propagate adb failure when requested`() {
+        val checker = DirectOverlayStateChecker(
+            adb = FailingAdb(),
+            logger = Mockito.mock(Logger::class.java),
+            propagateFailure = true,
+        )
+
+        checker.checkDevice("com.example.app", "overlay-id")
+    }
+
     private fun createRecoverChecker(
         adb: IDeviceAdb,
         historyOverlayIds: Map<String, String>,
@@ -229,11 +241,32 @@ class DirectOverlayStateCheckerTest {
         override val isOnline: Boolean = true
 
         override fun execAdbShellCmd(cmd: String): String = output
-        override fun execAdbShellScript(cmd: String): String = output
+        override fun execAdbShellScript(cmd: String): String {
+            return if (cmd.contains("__JUGG_RUN_AS_OK__")) {
+                "__JUGG_RUN_AS_OK__:10001\n__JUGG_RUN_AS_CONTEXT__:ctx|ctx"
+            } else {
+                output
+            }
+        }
         override fun push(from: File, to: String): Boolean = true
         override fun pull(from: String, to: File): Boolean = true
         override fun getDefaultLaunchActivity(apkFile: File): String? = null
         override fun getArch(packageName: String): String = "ARCH_64_BIT"
+        override fun getProperty(name: String): String? = null
+    }
+
+    private class FailingAdb : IDeviceAdb {
+        override val displayName: String = "fake"
+        override val api: Int = 35
+        override val serial: String = "serial"
+        override val isOnline: Boolean = false
+
+        override fun execAdbShellCmd(cmd: String): String = throw IOException("device offline")
+        override fun execAdbShellScript(cmd: String): String = throw IOException("device offline")
+        override fun push(from: File, to: String): Boolean = false
+        override fun pull(from: String, to: File): Boolean = false
+        override fun getDefaultLaunchActivity(apkFile: File): String? = null
+        override fun getArch(packageName: String): String = "ARCH_UNKNOWN"
         override fun getProperty(name: String): String? = null
     }
 }

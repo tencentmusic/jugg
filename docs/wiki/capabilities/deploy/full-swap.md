@@ -36,6 +36,8 @@ Full Swap remains an incremental deployment. It does not reinstall the APK. Inst
 
 The current implementation uses Full Swap for regular, non-empty incremental data that does not require an app restart. A method-body change can therefore be replaced online while the Activity is still usually recreated. The app process and its in-process state remain intact.
 
+When the target app is incompatible with `run-as` and deployment switches to the Direct app sandbox transport, Jugg does not call Android Studio Full Swap again. The Direct JVMTI request independently schedules Activity recreation after replacing the class, preserving the same result: the process stays alive while the current UI lifecycle runs again.
+
 ## Difference from Code Swap
 
 | Strategy | User-visible behavior | Suitable changes |

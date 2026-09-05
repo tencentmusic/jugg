@@ -7,6 +7,8 @@ import android.content.ContextWrapper;
 import android.content.res.ApkAssets;
 import android.content.res.AssetManager;
 import android.content.res.ResourcesKey;
+import android.content.res.Resources;
+import android.os.Build;
 import com.sickworm.intellij.jugg.hotfix.HotfixLoader;
 import com.sickworm.intellij.jugg.hotfix.LogUtils;
 import com.sickworm.intellij.jugg.hotfix.ReflectUtil;
@@ -28,6 +30,34 @@ public class InstrumentationHooks {
     private static final AtomicBoolean classpathResourceHookEntered = new AtomicBoolean();
     private static volatile ClassLoader classpathResourceHostClassLoader;
     private static volatile File classpathResourceOverlayRoot;
+
+    public static void initializeDirectResourceOverlays(String dataDir) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            ResourceOverlays.initialize(dataDir);
+        }
+    }
+
+    public static void prepareResourceOverlays(LoadedApk loadedApk) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            return;
+        }
+        try {
+            ResourceOverlays.prepare(loadedApk.getApplicationInfo());
+        } catch (Exception e) {
+            LogUtils.w(TAG, "Could not prepare Direct resource overlays: " + e);
+        }
+    }
+
+    public static Resources addResourceOverlays(Resources resources) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            try {
+                ResourceOverlays.addResourceOverlays(resources);
+            } catch (Exception e) {
+                LogUtils.w(TAG, "Could not load Direct resource overlays: " + e);
+            }
+        }
+        return resources;
+    }
 
     public static void handleAttachBaseContextEntry(ContextWrapper contextWrapper, Context base)
         throws Exception {

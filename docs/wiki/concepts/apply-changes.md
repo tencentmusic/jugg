@@ -31,7 +31,7 @@ The deployment cache records the APK snapshot and overlay ID after the last succ
 
 ## Classes are divided into online modifications and new content
 
-Apply Changes relies on JVMTI for online modification of loaded classes. After the Apply Changes Agent obtains JVMTI, it performs class redefinition for modified classes, so method-body changes can take effect without restarting the app process. Structural changes to fields, method signatures, or inheritance cannot use this online replacement path. They become Hot Fix data and are loaded after the app restarts. Jugg currently reuses this hot-reload channel directly. See [Jugg JVMTI Agent](./jugg-jvmti-agent.md) for JVMTI compatibility checks and runtime corrections.
+Apply Changes relies on JVMTI for online modification of loaded classes. After the Apply Changes Agent obtains JVMTI, it performs class redefinition for modified classes, so method-body changes can take effect without restarting the app process. Structural changes to fields, method signatures, or inheritance cannot use this online replacement path. They become Hot Fix data and are loaded after the app restarts. Apps where `run-as` completes fully, the UID is within `10000..19999`, and newly created files use the same SELinux label as the app's existing cache directory reuse this channel directly. When those prerequisites fail but the ordinary shell, root adbd, or non-interactive `su` can fully access the sandbox, Jugg uses its own Agent after persisting the same overlay. See [Jugg JVMTI Agent](./jugg-jvmti-agent.md) for details.
 
 Before deployment, Jugg compares old and new class structures and sends class changes to two Apply Changes input sets.
 
