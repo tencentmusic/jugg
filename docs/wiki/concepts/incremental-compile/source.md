@@ -101,14 +101,16 @@ Java and Kotlin produce classes that D8 then converts to DEX. D8 can also perfor
 
 Incremental compilation cannot decide whether to desugar only from the current module's `minSdk`. The device runs an APK produced by the latest Gradle build. If the baseline APK was desugared but current DEX is not, a recompiled subclass may no longer contain methods generated during desugaring while the old interface also lacks the original default method, producing `AbstractMethodError` at runtime. Conversely, if the baseline was not desugared, the current Run must not introduce another structural model unexpectedly.
 
-Jugg infers whether the application baseline was desugared from class structures in the APK and uses the same strategy for current D8. When desugaring is enabled, D8 also needs interfaces related to default methods. Sending the complete module classpath back through D8 would expand the scope, so Jugg first uses the reference index to find related interfaces, subclasses, and callers and builds the minimum temporary classpath for the current Run:
+Jugg uses the build variant's `minSdk` from the APK that owns the current class as D8's minimum API level, including product flavor overrides of the default configuration. It does not substitute the library's own `minSdk` or the presence of desugared classes in the APK. For example, when the default is 29 but the current flavor specifies 21, D8 must use 21; otherwise, core library desugaring produces different method signatures for `j$.time` and unmodified `java.time`.
+
+Class structures in the baseline APK identify default method interfaces needed by D8. When the baseline contains core library desugared classes, Jugg also passes the project's core library rewrite configuration. Sending the complete module classpath back through D8 would expand the scope, so Jugg first uses the reference index to find related interfaces, subclasses, and callers and builds the minimum temporary classpath for the current Run:
 
 ```text
 new class
-  -> query desugaring state from the baseline APK
+  -> read the effective minSdk of the owning APK's current variant
   -> find interfaces related to default methods and core library rewrite information
   -> assemble the minimum classpath required by the current Run
-  -> generate class-granularity DEX with the same desugaring strategy
+  -> generate class-granularity DEX with the same minimum API level and rewrite configuration
 ```
 
 Jugg also prefers D8 from the Android Gradle Plugin used by the current project, reducing bytecode differences caused by tool versions. It falls back to the Jugg-bundled version only if the project tool cannot load safely or execution fails, while preserving the original failure information for troubleshooting.

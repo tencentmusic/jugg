@@ -112,6 +112,51 @@ abstract class ReadProjectInfoGradleCompatTestBase {
         }
     }
 
+    /** Verifies flavor overrides and inherited defaults survive generated-script serialization. */
+    protected fun assertSelectedVariantMinSdk(assetDir: String) {
+        val fixtureDir = Files.createTempDirectory("jugg_variant_min_sdk").toFile()
+        try {
+            File(System.getProperty("user.dir"), "src/test/assets/$assetDir")
+                .copyRecursively(fixtureDir, overwrite = true)
+            val moduleNames = listOf("app", "library1").filter { File(fixtureDir, it).exists() }
+            moduleNames.forEach { name ->
+                File(fixtureDir, "$name/build.gradle").appendText("""
+
+                    android {
+                        defaultConfig { minSdk 29 }
+                        flavorDimensions 'api'
+                        productFlavors {
+                            compat { dimension 'api'; minSdk 21 }
+                            modern { dimension 'api' }
+                        }
+                    }
+                """.trimIndent())
+            }
+            writeSdkLocalProperties(fixtureDir)
+            writeWrapper(fixtureDir, gradleVersion)
+            val initScript = copyGeneratedInitScript(fixtureDir)
+            listOf("compatRelease" to "21", "modernDebug" to "29").forEach { (variant, minSdk) ->
+                val result = runGradle(
+                    fixtureDir, ":app:assemble${variant.replaceFirstChar { it.uppercase() }}",
+                    "-I", initScript.absolutePath, "--dry-run", "--console=plain", "--no-daemon",
+                    "-Pjugg.inject.application.enable=false",
+                )
+                assertEquals(0, result.exitCode, result.output)
+                val info = ProjectInfoSerializer(
+                    JuggPathManager(fixtureDir).gradleProjectInfoFile, mock(Logger::class.java),
+                ).load(isSkipVersionCheck = true)
+                assertNotNull(info, result.output)
+                moduleNames.forEach { name ->
+                    val module = info.modules.getValue(name)
+                    assertEquals(variant, module.buildVariant, "$name: ${result.output}")
+                    assertEquals(minSdk, module.minSdkVersion, "$name / $variant must use the merged minSdk")
+                }
+            }
+        } finally {
+            fixtureDir.deleteRecursively()
+        }
+    }
+
     protected fun writeWrapper(projectDir: File, version: String) {
         val gradlewSource = File("../gradlew").absoluteFile.normalize()
         val gradleWrapperJarSource = File("../gradle/wrapper/gradle-wrapper.jar").absoluteFile.normalize()

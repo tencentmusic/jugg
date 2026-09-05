@@ -19,6 +19,11 @@ class ReadProjectInfoGradle9CompatTest : ReadProjectInfoGradleCompatTestBase() {
     override val gradleVersion = "9.2.1"
 
     @Test
+    fun generatedScript_shouldUseSelectedVariantMinSdk() {
+        assertSelectedVariantMinSdk("android-app-agp90")
+    }
+
+    @Test
     fun generatedScript_shouldRunOnGradle921AndCollectFileDependencies() {
         assertInitScriptRunsAndCollectsProjectInfo()
 

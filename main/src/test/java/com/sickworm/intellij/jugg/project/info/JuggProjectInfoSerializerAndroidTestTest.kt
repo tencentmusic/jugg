@@ -107,6 +107,31 @@ class JuggProjectInfoSerializerAndroidTestTest {
     }
 
     @Test
+    fun `deserialize legacy variant preserves module minSdk and signing config`() {
+        val original = projectInfoWithoutAgpR8(mapOf("app" to ModuleInfo.virtualModule.copy(
+            name = "app",
+            buildVariant = "compatDebug",
+            minSdkVersion = "21",
+            variants = listOf(Variant("compatDebug", "debug", "21")),
+        )))
+        val json = JsonParser.parseString(
+            ProjectInfoSerializer.gson.toJson(JuggProjectInfoSerialize.serialize(original))
+        ).asJsonObject
+        json.getAsJsonArray("modules")[0].asJsonObject
+            .getAsJsonObject("moduleInfoExceptLibraries")
+            .getAsJsonArray("variants")[0].asJsonObject.remove("minSdkVersion")
+
+        val restored = JuggProjectInfoSerialize.deserialize(
+            ProjectInfoSerializer.gson.fromJson(json, JuggProjectInfoSerialize::class.java),
+            isSkipVersionCheck = true,
+        ).modules.getValue("app")
+
+        assertEquals("21", restored.minSdkVersion)
+        assertEquals("compatDebug", restored.buildVariant)
+        assertEquals(listOf(Variant("compatDebug", "debug")), restored.variants)
+    }
+
+    @Test
     fun `serialize and deserialize preserves Compose resource info`() {
         val original = projectInfoWithoutAgpR8(
             modules = mapOf("shared" to ModuleInfo.virtualModule.copy(

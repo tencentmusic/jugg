@@ -19,6 +19,11 @@ class ReadProjectInfoGradle7CompatTest : ReadProjectInfoGradleCompatTestBase() {
     override val gradleVersion = "7.3.3"
 
     @Test
+    fun generatedScript_shouldUseSelectedVariantMinSdk() {
+        assertSelectedVariantMinSdk("android-app-agp7")
+    }
+
+    @Test
     fun generatedScript_shouldRunOnGradle733AndCollectFileDependencies() {
         assertInitScriptRunsAndCollectsProjectInfo()
     }

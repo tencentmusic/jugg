@@ -99,6 +99,8 @@ included build 的 Library/JavaLibrary 源码可能同时看到 included build �
 
 ### 4.2 D8 脱糖决策
 
+Gradle project info 保存选中 variant 合并后的 `minSdk`，包含 product flavor 对 `defaultConfig` 的覆盖；D8 继续通过 APK owner 的 `ModuleInfo.minSdkVersion` 消费该值。例如默认值为 29、当前 flavor 为 21 时，必须使用 21，不能把默认值当作实际构建参数。
+
 ```text
 DexCompiler
   -> 解析 changed class 的 interface / static invocation

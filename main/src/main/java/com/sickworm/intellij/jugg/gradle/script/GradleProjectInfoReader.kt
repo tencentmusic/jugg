@@ -259,7 +259,6 @@ class GradleProjectInfoReader(
                 moduleInfo = moduleInfo.copy(
                     compileVersion = compileSdkVersion?.substringAfter("android-"),
                     buildToolsVersion = buildToolsVersion,
-                    minSdkVersion = defaultConfig["minSdkVersion"]["apiLevel"]?.valueString,
                     kotlinJvmTarget = kotlinJvmTarget,
                     kotlinFreeCompilerArgs = kotlinFreeCompilerArgs,
                     kotlinPluginOptions = kotlinPluginOptions,
@@ -616,6 +615,7 @@ class GradleProjectInfoReader(
                 variants.add(Variant(
                     variant["name"]?.valueString ?: return@mapNotNull null,
                     variant["signingConfig"]["name"]?.valueString,
+                    variant["mergedFlavor"]["minSdkVersion"]["apiLevel"]?.valueString,
                 ))
             }
 
@@ -648,6 +648,7 @@ class GradleProjectInfoReader(
                     Variant(
                         variant["name"]?.valueString ?: return@mapNotNull null,
                         variant["signingConfig"]["name"]?.valueString,
+                        variant["mergedFlavor"]["minSdkVersion"]["apiLevel"]?.valueString,
                     )
                 )
             }
@@ -655,7 +656,11 @@ class GradleProjectInfoReader(
             // com.android.build.gradle.api.LibraryVariant
             (androidExt["libraryVariants"]?.value as? Collection<*>)?.forEach { obj ->
                 val variant = reflector(obj)
-                variants.add(Variant(variant["name"]?.valueString ?: return@forEach,  null))
+                variants.add(Variant(
+                    variant["name"]?.valueString ?: return@forEach,
+                    null,
+                    variant["mergedFlavor"]["minSdkVersion"]["apiLevel"]?.valueString,
+                ))
             }
         }
 
@@ -667,6 +672,8 @@ class GradleProjectInfoReader(
 
         return moduleInfo.copy(
             buildVariant = buildVariant,
+            minSdkVersion = variants.firstOrNull { it.name == buildVariant }?.minSdkVersion
+                ?: androidExt["defaultConfig"]["minSdkVersion"]["apiLevel"]?.valueString,
             variants = variants,
             signingConfigs = signingConfigs,
             buildPathInfo = ModuleBuildPathInfo(

@@ -472,11 +472,12 @@ data class AndroidRunConfig(
 )
 
 /**
- * Build variant descriptor and optional signing-config name.
+ * Build variant descriptor with optional signing-config name and effective minimum SDK.
  */
 data class Variant(
     val name: String,
     val signingConfigName: String?,
+    val minSdkVersion: String? = null,
 )
 
 /**

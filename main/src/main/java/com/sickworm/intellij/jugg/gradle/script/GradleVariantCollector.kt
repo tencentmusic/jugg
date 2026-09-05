@@ -9,10 +9,11 @@ private val variantCollectorKey = "com.sickworm.intellij.jugg.collectedVariants"
 fun registerAndroidComponentsVariants(rootProject: Project, project: Project) {
     val androidComponents = project.extensions.findByName("androidComponents") ?: return
     val registered = invokeOnVariantsCompat(androidComponents) { variant ->
-        val name = reflector(variant)["name"]?.valueString ?: return@invokeOnVariantsCompat
+        val variantInfo = reflector(variant)
+        val name = variantInfo["name"]?.valueString ?: return@invokeOnVariantsCompat
         val variants = getOrCreateCollectedVariants(rootProject).getOrPut(project.path) { mutableListOf() }
         if (variants.none { it.name == name }) {
-            variants.add(Variant(name, null))
+            variants.add(Variant(name, null, variantInfo["minSdk"]["apiLevel"]?.valueString))
         }
     }
     if (!registered) {
