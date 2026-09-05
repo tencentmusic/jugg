@@ -8,7 +8,7 @@ tags:
 
 # Reference
 
-Reference pages provide quick access to stable Jugg terms, command options, tool contracts, configuration meanings, log locations, and runtime boundaries. They are not tutorials and do not explain mechanisms in depth. If you need step-by-step instructions for a run, debugging session, or troubleshooting workflow, start with the guides and troubleshooting pages.
+Reference pages provide quick access to stable Jugg terms, command options, tool contracts, configuration meanings, log locations, and runtime boundaries. They are not tutorials and do not explain mechanisms in depth. If you need step-by-step instructions for a run, debugging session, or a common problem, start with the guides and FAQ pages.
 
 ## Page index
 
@@ -30,4 +30,4 @@ Reference pages provide quick access to stable Jugg terms, command options, tool
 - **Need to decide whether to fall back to Gradle**: See [Limits](./limits.md).
 
 > [!TIP]
-> Reference pages are kept concise. For complete workflows, they link to the relevant guide, capability, or troubleshooting page instead of repeating every step.
+> Reference pages are kept concise. For complete workflows, they link to the relevant guide, capability, or FAQ page instead of repeating every step.

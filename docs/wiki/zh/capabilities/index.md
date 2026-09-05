@@ -61,5 +61,5 @@ Jugg 的能力页用于回答“这类修改或操作是否支持、会通过什
 - [使用指南](../guide/)
 - [实现原理](../concepts/)
 - [Jugg 工作原理](../concepts/how-jugg-works.md)
-- [问题排查](../troubleshooting/)
+- [常见问题](../troubleshooting/supported-packaging.md)
 - [参考](../reference/)

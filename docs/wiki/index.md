@@ -117,7 +117,7 @@ layout: page
       <a href="./guide/run"><strong>Run an app</strong><span>Everyday Run, cancellation, and visible results</span></a>
       <a href="./concepts/how-jugg-works"><strong>Understand Jugg</strong><span>Baselines, impact analysis, and deploy decisions</span></a>
       <a href="./capabilities/"><strong>Check capabilities</strong><span>Source, resources, deploy, and test support</span></a>
-      <a href="./troubleshooting/"><strong>Diagnose a problem</strong><span>Start from symptoms, logs, and run results</span></a>
+      <a href="./troubleshooting/supported-packaging"><strong>FAQ</strong><span>Packaging limits, failure symptoms, and recovery actions</span></a>
       <a href="./capabilities/tools/agent-skills"><strong>CLI and Agent Skills</strong><span>Connect build, deploy, and verification to automation</span></a>
     </nav>
   </section>

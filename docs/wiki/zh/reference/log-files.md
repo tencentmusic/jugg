@@ -9,7 +9,7 @@ tags:
 
 # 日志文件
 
-本页用于在排查或反馈问题时快速定位日志和 artifact。它只列路径、格式和关键词；具体问题的判断步骤见 [问题排查](../troubleshooting/)。
+本页用于在排查或反馈问题时快速定位日志和 artifact。它只列路径、格式和关键词；具体问题的判断步骤见 [常见问题](../troubleshooting/supported-packaging.md)。
 
 Jugg 的主日志位于项目目录下的 `build/jugg/log/`。排查编译、部署、Debug、MCP 和运行时问题时，通常先看 `compile_latest.log`。
 

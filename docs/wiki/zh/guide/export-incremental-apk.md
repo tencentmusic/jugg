@@ -41,8 +41,13 @@ Not all files are compiled:
 
 导出不是普通 Run 的替代品。它不会帮你判断设备状态，也不会自动启动 App。
 
+## 常见问题
+
+导出增量 APK 不会加快 GitHub Action 或正式 release 打包。它只把当前已经编译的 debug 增量结果写成可安装 APK。日常调试、流水线 debug 包和上架场景的对照见 [支持哪些打包方式](../troubleshooting/supported-packaging.md)。
+
 ## 相关页面
 
+- [支持哪些打包方式](../troubleshooting/supported-packaging.md)
 - [降级 Gradle 编译](./downgrade-gradle.md)
 - [运行 App](./run.md)
 - [Jugg 运行缓慢或卡住](../troubleshooting/jugg-slow-or-stuck.md)

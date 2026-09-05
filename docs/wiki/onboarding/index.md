@@ -24,6 +24,7 @@ Start with these two steps:
 | Topic | Page |
 |---|---|
 | Running the app after everyday changes | [Run the app](../guide/run.md) |
+| Which packaging methods Jugg supports | [Supported packaging methods](../troubleshooting/supported-packaging.md) |
 | When to fall back to Gradle | [Limits](../reference/limits.md) |
 | Connecting an available remote build machine | [Remote build machine setup](./agent-setup.md) |
 | How remote Gradle builds work | [Remote Gradle](../guide/remote-gradle.md) |

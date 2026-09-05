@@ -41,8 +41,13 @@ When this message appears, run Jugg Run or Jugg compile once to compile the curr
 
 Export is not a replacement for a normal Run. It does not evaluate device state or launch the app automatically.
 
+## FAQ
+
+Exporting an incremental APK does not speed up GitHub Action or official release packaging. It only writes the compiled debug incremental results into an installable APK. See [Supported packaging methods](../troubleshooting/supported-packaging.md) for the comparison of daily debugging, pipeline debug APKs, and store-listing scenarios.
+
 ## Related pages
 
+- [Supported packaging methods](../troubleshooting/supported-packaging.md)
 - [Fall back to Gradle compilation](./downgrade-gradle.md)
 - [Run an app](./run.md)
 - [Jugg is slow or stuck](../troubleshooting/jugg-slow-or-stuck.md)

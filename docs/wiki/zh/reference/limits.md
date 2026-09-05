@@ -21,6 +21,7 @@ Jugg 追求的是在常见开发循环中减少完整 Gradle 构建次数，而�
 | 源码修改 | 小范围 Java/Kotlin 修改 | 大批量跨模块修改、复杂编译器插件行为 |
 | 资源修改 | 常见 `res/`、`assets/`、Manifest 修改 | source set、variant、复杂资源生成逻辑变化 |
 | 部署 | install、code swap、full swap 等常见开发链路 | 设备状态异常、APK 结构大变更 |
+| 正式打包 | 日常 debug 循环、导出增量 debug APK | GitHub Action、上架、渠道包和正式 release 包 |
 | release | 尽量保持混淆映射一致 | R8 复杂优化、mapping 不完整或运行时不一致 |
 | androidTest | 常见 app androidTest 运行 | 复杂测试 APK 归属、测试目标切换 |
 | MCP / CLI 工具 | 辅助编译、部署、日志和 UI 验证 | 不替代人工判断和真实设备验证 |
@@ -103,6 +104,7 @@ MCP 和 CLI 是辅助能力，不是完整测试框架或设备自动化平台�
 
 ## 相关页面
 
+- [支持哪些打包方式](../troubleshooting/supported-packaging.md)
 - [Jugg 工作原理](../concepts/how-jugg-works.md)
 - [增量编译](../concepts/incremental-compile/)
 - [资源编译](../capabilities/compile/resource-compile.md)
