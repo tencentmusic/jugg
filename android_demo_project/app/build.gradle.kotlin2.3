@@ -93,6 +93,11 @@ android {
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
 //    implementation fileTree(dir: 'libs', include: ['*.aar'])
+    // ROM hidden api fixture: rom_framework.jar redeclares android.net.wifi.WifiManager with the
+    // SoftApCallback nested type that the public android.jar strips, and rom_sdk.jar subclasses it.
+    // The device provides both at runtime, so they stay compileOnly.
+    // Regenerate: javac -d out romlibs/src/**/*.java && jar cf romlibs/rom_*.jar -C out .
+    compileOnly fileTree(dir: 'romlibs', include: ['*.jar'])
     implementation"org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
     implementation 'androidx.appcompat:appcompat:1.0.2'
     implementation 'androidx.core:core-ktx:1.0.2'
