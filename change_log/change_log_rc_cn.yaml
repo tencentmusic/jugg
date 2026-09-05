@@ -1,3 +1,14 @@
+- version: 3.4.0
+  date: 2026.09.05
+  isNeedReinstall: true
+  updates:
+    - "[feature] 修改插件 ID，适配市场上架"
+    - "[bugfix] 部署失败时展示包不可调试的原因"
+    - "[bugfix] 编译器插件需要参数时避免增量 Kotlin 编译失败"
+    - "[bugfix] 路径含 shell 特殊字符时避免 APK 更新失败"
+    - "[bugfix] 避免 Dragonfly 缺失类导致 release R8 构建失败"
+    - "[bugfix] 避免编译器插件参数破坏增量构建"
+
 - version: 3.3.9
   date: 2026.09.04
   updates:

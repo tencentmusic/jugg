@@ -1,3 +1,14 @@
+- version: 3.4.0
+  date: 2026.09.05
+  isNeedReinstall: true
+  updates:
+    - "[feature] Change the plugin ID to support Marketplace listing"
+    - "[bugfix] Show the non-debuggable package cause on deploy failure"
+    - "[bugfix] Prevent incremental Kotlin compile failure when plugins require options"
+    - "[bugfix] Prevent APK updates from failing on paths with shell characters"
+    - "[bugfix] Prevent release R8 builds from failing on Dragonfly missing classes"
+    - "[bugfix] Prevent compiler plugin options from breaking incremental builds"
+
 - version: 3.3.9
   date: 2026.09.04
   updates:
