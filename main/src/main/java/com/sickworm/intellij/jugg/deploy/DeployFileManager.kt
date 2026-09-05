@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.deploy
 import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.project.ChangedFile
+import com.sickworm.intellij.jugg.compiler.ClassPreparation
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.compiler.DesugarInfo
@@ -322,9 +323,9 @@ class DeployFileManager(
     }
 
     @Synchronized
-    fun getDesugarInfo(compileFiles: List<CompileFile>, moduleInfo: ModuleInfo, toDir: File, apkFile: File): DesugarInfo {
+    fun getDesugarInfo(preparation: ClassPreparation, moduleInfo: ModuleInfo, toDir: File, apkFile: File): DesugarInfo {
         return compileEffectAnalyzer.getDesugarInfo(
-            compileFiles = compileFiles,
+            preparation = preparation,
             moduleInfo = moduleInfo,
             moduleInfos = moduleInfos,
             toDir = toDir,

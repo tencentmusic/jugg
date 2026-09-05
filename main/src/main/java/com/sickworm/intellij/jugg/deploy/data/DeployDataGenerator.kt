@@ -277,14 +277,10 @@ class DeployDataGenerator(
         }
     }
 
-    fun getDesugarInfo(classFiles: List<CompileFile>, apkFile: File): DesugarInfo {
+    internal fun getDesugarInfo(analysis: ClassAnalysisBatch, apkFile: File): DesugarInfo {
         TimeLogger.start("getDesugarInfo")
-        val files = classFiles.map { it.file }
-        val parser = ClassFileParser(files)
-        parser.parse()
-
         val allInterfacesWithDefaultMethod =  deployDataDatabase.getAllInterfacesWithDefaultMethod(
-            parser.interfaces.toList(), parser.staticInvocationRefs.toList()
+            analysis.interfaces.toList(), analysis.staticInvocationRefs.toList()
         )
         val coreLibraryRewriteClassMap = deployDataDatabase.getCoreLibraryRewriteClassMap(apkFile)
 

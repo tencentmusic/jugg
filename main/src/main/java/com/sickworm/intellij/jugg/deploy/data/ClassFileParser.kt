@@ -2,58 +2,123 @@ package com.sickworm.intellij.jugg.deploy.data
 
 import com.sickworm.intellij.jugg.deploy.classSigName
 import com.sickworm.intellij.jugg.deploy.isBootClasspathClass
-import com.sickworm.intellij.jugg.org.objectweb.asm.*
+import com.sickworm.intellij.jugg.org.objectweb.asm.AnnotationVisitor
+import com.sickworm.intellij.jugg.org.objectweb.asm.ClassReader
+import com.sickworm.intellij.jugg.org.objectweb.asm.ClassVisitor
+import com.sickworm.intellij.jugg.org.objectweb.asm.Handle
+import com.sickworm.intellij.jugg.org.objectweb.asm.MethodVisitor
+import com.sickworm.intellij.jugg.org.objectweb.asm.Opcodes
 import java.io.File
 import java.util.zip.ZipFile
 
-/**
- * Collect class and interface references and static invocation references from class files.
- * Won't collect references from classes in same class/jar.
- */
-class ClassFileParser(
-    private val classFiles: List<File>,
+/** Immutable analysis collected from one JVM class. */
+internal data class ClassAnalysis(
+    val className: String,
+    val superClass: String?,
+    val interfaces: Set<String>,
+    val staticInvocationRefs: Set<String>,
+    val annotationDescriptors: Set<String>,
+)
+
+/** Immutable batch view that excludes references declared by the same program input. */
+internal data class ClassAnalysisBatch(
+    val analyses: List<ClassAnalysis>,
+    val classes: Set<String>,
+    val interfaces: Set<String>,
+    val staticInvocationRefs: Set<String>,
+    val externalSuperClasses: Set<String>,
 ) {
+    companion object {
+        val EMPTY = from(emptyList())
 
-    val classes: MutableSet<String> = mutableSetOf()
-    val interfaces: MutableSet<String> = mutableSetOf()
-    val staticInvocationRefs: MutableSet<String> = mutableSetOf()
-    private val declaredSuperClasses: MutableSet<String> = mutableSetOf()
-
-    /** Superclasses referenced outside the current program input and Android boot classpath. */
-    val externalSuperClasses: Set<String>
-        get() = declaredSuperClasses.filterNot {
-            it in classes || it.isBootClasspathClass
-        }.toSet()
-
-    fun parse() {
-        for (classFile in classFiles) {
-            if (classFile.extension == "jar") {
-                ZipFile(classFile).use { jarFile ->
-                    val entries = jarFile.entries()
-                    while (entries.hasMoreElements()) {
-                        val entry = entries.nextElement()
-                        if (entry.name.endsWith(".class")) {
-                            jarFile.getInputStream(entry).use { ins ->
-                                val classReader = ClassReader(ins)
-                                val classVisitor = InvocationCollector()
-                                classReader.accept(classVisitor, ClassReader.SKIP_DEBUG or ClassReader.SKIP_FRAMES)
-                            }
-                        }
-                    }
-                }
-            } else {
-                classFile.inputStream().use { ins ->
-                    val classReader = ClassReader(ins)
-                    val classVisitor = InvocationCollector()
-                    classReader.accept(classVisitor, ClassReader.SKIP_DEBUG or ClassReader.SKIP_FRAMES)
-                }
-            }
+        fun from(analyses: List<ClassAnalysis>): ClassAnalysisBatch {
+            val immutableAnalyses = analyses.toList()
+            val classes = immutableAnalyses.mapTo(linkedSetOf(), ClassAnalysis::className)
+            return ClassAnalysisBatch(
+                analyses = immutableAnalyses,
+                classes = classes,
+                interfaces = immutableAnalyses.flatMapTo(linkedSetOf()) { it.interfaces }.filterTo(linkedSetOf()) {
+                    it !in classes
+                },
+                staticInvocationRefs = immutableAnalyses.flatMapTo(linkedSetOf()) { it.staticInvocationRefs }
+                    .filterTo(linkedSetOf()) { it !in classes },
+                externalSuperClasses = immutableAnalyses.mapNotNullTo(linkedSetOf(), ClassAnalysis::superClass)
+                    .filterTo(linkedSetOf()) { it !in classes && !it.isBootClasspathClass },
+            )
         }
 
+        fun merge(batches: List<ClassAnalysisBatch>): ClassAnalysisBatch {
+            return from(batches.flatMap { it.analyses })
+        }
+    }
+}
+
+/** Minimal class header used while walking an external superclass chain. */
+internal data class ClassHeader(
+    val className: String,
+    val superClass: String?,
+    val annotationDescriptors: Set<String>,
+)
+
+/**
+ * Collects class, interface, superclass, annotation, and static invocation references from JVM classes.
+ */
+internal class ClassFileParser(
+    private val classFiles: List<File>,
+) {
+    private var result = ClassAnalysisBatch.EMPTY
+    var parsedByteCount: Long = 0
+        private set
+
+    val classes: Set<String> get() = result.classes
+    val interfaces: Set<String> get() = result.interfaces
+    val staticInvocationRefs: Set<String> get() = result.staticInvocationRefs
+    val externalSuperClasses: Set<String> get() = result.externalSuperClasses
+
+    fun parse(): ClassAnalysisBatch {
+        parsedByteCount = 0
+        result = ClassAnalysisBatch.from(classFiles.flatMap(::analyzeFile))
+        return result
     }
 
+    private fun analyzeFile(classFile: File): List<ClassAnalysis> {
+        if (classFile.extension != "jar") {
+            return listOf(analyzeBytes(classFile.readBytes()))
+        }
+        return ZipFile(classFile).use { jarFile ->
+            jarFile.entries().asSequence()
+                .filter { it.name.endsWith(".class") }
+                .map { entry -> jarFile.getInputStream(entry).use { analyzeBytes(it.readBytes()) } }
+                .toList()
+        }
+    }
 
-    inner class InvocationCollector: ClassVisitor(Opcodes.ASM9) {
+    private fun analyzeBytes(bytes: ByteArray): ClassAnalysis {
+        parsedByteCount += bytes.size
+        return analyze(bytes)
+    }
+
+    companion object {
+        fun analyze(bytes: ByteArray): ClassAnalysis {
+            val collector = InvocationCollector()
+            ClassReader(bytes).accept(collector, ClassReader.SKIP_DEBUG or ClassReader.SKIP_FRAMES)
+            return collector.analysis()
+        }
+
+        fun analyzeHeader(bytes: ByteArray): ClassHeader {
+            val collector = HeaderCollector()
+            ClassReader(bytes).accept(
+                collector,
+                ClassReader.SKIP_CODE or ClassReader.SKIP_DEBUG or ClassReader.SKIP_FRAMES,
+            )
+            return collector.header()
+        }
+    }
+
+    private open class HeaderCollector : ClassVisitor(Opcodes.ASM9) {
+        private lateinit var className: String
+        private var superClass: String? = null
+        protected val annotationDescriptors = linkedSetOf<String>()
 
         override fun visit(
             version: Int,
@@ -61,37 +126,44 @@ class ClassFileParser(
             name: String,
             signature: String?,
             superName: String?,
-            interfaces: Array<out String>?
+            interfaces: Array<out String>?,
         ) {
-            val classSignName = name.classSigName
-            classes.add(classSignName)
-            if (this@ClassFileParser.interfaces.contains(classSignName)) {
-                // which means it will compile together, so no need to add it to interfaces
-                this@ClassFileParser.interfaces.remove(classSignName)
-            }
-            if (this@ClassFileParser.staticInvocationRefs.contains(classSignName)) {
-                // which means it will compile together, so no need to add it to staticInvocationRefs
-                this@ClassFileParser.staticInvocationRefs.remove(classSignName)
-            }
-            superName?.let {
-                declaredSuperClasses.add(it.classSigName)
-            }
+            className = name.classSigName
+            superClass = superName?.classSigName
+        }
 
-            interfaces?.forEach {
-                val interfaceSigName = it.classSigName
-                if (!this@ClassFileParser.classes.contains(interfaceSigName)) {
-                    this@ClassFileParser.interfaces.add(interfaceSigName)
-                }
-            }
+        override fun visitAnnotation(descriptor: String, visible: Boolean): AnnotationVisitor? {
+            annotationDescriptors.add(descriptor)
+            return null
+        }
+
+        fun header(): ClassHeader {
+            return ClassHeader(className, superClass, annotationDescriptors.toSet())
+        }
+    }
+
+    private class InvocationCollector : HeaderCollector() {
+        private val interfaces = linkedSetOf<String>()
+        private val staticInvocationRefs = linkedSetOf<String>()
+
+        override fun visit(
+            version: Int,
+            access: Int,
+            name: String,
+            signature: String?,
+            superName: String?,
+            interfaces: Array<out String>?,
+        ) {
             super.visit(version, access, name, signature, superName, interfaces)
+            interfaces?.mapTo(this.interfaces) { it.classSigName }
         }
 
         override fun visitMethod(
             access: Int,
             name: String?,
-            desc: String?,
+            descriptor: String?,
             signature: String?,
-            exceptions: Array<out String>?
+            exceptions: Array<out String>?,
         ): MethodVisitor {
             return object : MethodVisitor(Opcodes.ASM9) {
                 override fun visitMethodInsn(
@@ -99,15 +171,10 @@ class ClassFileParser(
                     owner: String?,
                     name: String?,
                     descriptor: String?,
-                    isInterface: Boolean
+                    isInterface: Boolean,
                 ) {
-                    owner ?: return
-                    val ownerSigName = owner.classSigName
-
-                    if (opcode == Opcodes.INVOKESTATIC) {
-                        if (!this@ClassFileParser.classes.contains(ownerSigName)) {
-                            staticInvocationRefs.add(ownerSigName)
-                        }
+                    if (opcode == Opcodes.INVOKESTATIC && owner != null) {
+                        staticInvocationRefs.add(owner.classSigName)
                     }
                 }
 
@@ -115,17 +182,22 @@ class ClassFileParser(
                     name: String?,
                     descriptor: String?,
                     bootstrapMethodHandle: Handle?,
-                    vararg bootstrapMethodArguments: Any?
+                    vararg bootstrapMethodArguments: Any?,
                 ) {
-                    descriptor ?: return
-                    val originInterface = descriptor.substringAfter(')')
-                    if (!this@ClassFileParser.classes.contains(originInterface)) {
-                        interfaces.add(originInterface)
-                    }
+                    descriptor?.substringAfter(')')?.let(interfaces::add)
                 }
-
             }
         }
-    }
 
+        fun analysis(): ClassAnalysis {
+            val header = header()
+            return ClassAnalysis(
+                className = header.className,
+                superClass = header.superClass,
+                interfaces = interfaces.toSet(),
+                staticInvocationRefs = staticInvocationRefs.toSet(),
+                annotationDescriptors = annotationDescriptors.toSet(),
+            )
+        }
+    }
 }

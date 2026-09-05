@@ -1,6 +1,9 @@
 package com.sickworm.intellij.jugg.compiler
 
 import com.sickworm.intellij.jugg.compiler.source.SourceCompiler
+import com.sickworm.intellij.jugg.deploy.classSigName
+import com.sickworm.intellij.jugg.deploy.data.ApkParser
+import com.sickworm.intellij.jugg.deploy.toDeployItem
 import com.sickworm.intellij.jugg.mock.*
 import com.sickworm.intellij.jugg.mock.TestGlobal.assetsAndroidDir
 import com.sickworm.intellij.jugg.project.ChangedFile
@@ -251,6 +254,127 @@ class SourceCompileTest {
             result.isAllSuccess,
             "Compile should recover by retrying once with the SDK android.jar last.",
         )
+    }
+
+    @Test
+    fun hiltEntryPoint_shouldExtendGeneratedBaseBeforeDex() {
+        val sourceDir = File(TestGlobal.buildDir, "hilt_entry_point_source")
+        val outputDir = File(TestGlobal.buildDir, "staging_hilt_entry_point")
+        val sources = writeHiltEntryPointSources(sourceDir, includeGeneratedBase = true)
+        val task = CompileTask(
+            files = sources.map { file ->
+                CompileFile(
+                    type = CompileFile.Type.Java,
+                    file = file,
+                    baseDir = sourceDir,
+                    module = TestGlobal.applicationModule,
+                )
+            },
+            outputDir = outputDir,
+            compileStatusHolder = CompileStatusHolder.DEFAULT,
+        )
+
+        val result = sourceCompiler.compile(task)
+        result.printCompileErrors()
+        assertTrue(result.isAllSuccess)
+        val classNode = ApkParser()
+            .parseDex(result.outputs.map { it.toDeployItem() })
+            .classDeployItems
+            .flatMap { it.classNodes }
+            .associateBy { it.className }
+
+        assertEquals(
+            "com.example.hilt.Hilt_TestActivity".classSigName,
+            classNode.getValue("com.example.hilt.TestActivity".classSigName).superClass,
+        )
+        assertEquals(
+            "com.example.hilt.Hilt_TestApplication".classSigName,
+            classNode.getValue("com.example.hilt.TestApplication".classSigName).superClass,
+        )
+    }
+
+    @Test
+    fun hiltEntryPoint_shouldFailClearlyWhenGeneratedBaseIsMissing() {
+        val sourceDir = File(TestGlobal.buildDir, "hilt_missing_base_source")
+        val task = CompileTask(
+            files = writeHiltEntryPointSources(sourceDir, includeGeneratedBase = false).map { file ->
+                CompileFile(CompileFile.Type.Java, file, sourceDir, TestGlobal.applicationModule)
+            },
+            outputDir = File(TestGlobal.buildDir, "staging_hilt_missing_base"),
+            compileStatusHolder = CompileStatusHolder.DEFAULT,
+        )
+
+        val result = sourceCompiler.compile(task)
+
+        assertTrue(!result.isAllSuccess)
+        assertTrue(result.outputs.isEmpty())
+        assertTrue(
+            result.failedFiles.any {
+                val message = it.getFailure().errorMessages
+                "generated base com.example.hilt.Hilt_" in message &&
+                    "not found" in message &&
+                    "run a full Gradle build" in message
+            },
+        )
+    }
+
+    private fun writeHiltEntryPointSources(sourceDir: File, includeGeneratedBase: Boolean): List<File> {
+        val sources = linkedMapOf(
+            "dagger/hilt/android/AndroidEntryPoint.java" to """
+                package dagger.hilt.android;
+                import java.lang.annotation.*;
+                @Retention(RetentionPolicy.CLASS)
+                @Target(ElementType.TYPE)
+                public @interface AndroidEntryPoint {}
+            """.trimIndent(),
+            "dagger/hilt/android/HiltAndroidApp.java" to """
+                package dagger.hilt.android;
+                import java.lang.annotation.*;
+                @Retention(RetentionPolicy.CLASS)
+                @Target(ElementType.TYPE)
+                public @interface HiltAndroidApp {}
+            """.trimIndent(),
+            "com/example/hilt/BaseActivity.java" to """
+                package com.example.hilt;
+                public class BaseActivity {
+                    public String value() { return "base"; }
+                }
+            """.trimIndent(),
+            "com/example/hilt/TestActivity.java" to """
+                package com.example.hilt;
+                import dagger.hilt.android.AndroidEntryPoint;
+                @AndroidEntryPoint
+                public class TestActivity extends BaseActivity {
+                    @Override public String value() { return super.value(); }
+                }
+            """.trimIndent(),
+            "com/example/hilt/BaseApplication.java" to """
+                package com.example.hilt;
+                public class BaseApplication {}
+            """.trimIndent(),
+            "com/example/hilt/TestApplication.java" to """
+                package com.example.hilt;
+                import dagger.hilt.android.HiltAndroidApp;
+                @HiltAndroidApp
+                public class TestApplication extends BaseApplication {}
+            """.trimIndent(),
+        )
+        if (includeGeneratedBase) {
+            sources["com/example/hilt/Hilt_TestActivity.java"] = """
+                package com.example.hilt;
+                public class Hilt_TestActivity extends BaseActivity {}
+            """.trimIndent()
+            sources["com/example/hilt/Hilt_TestApplication.java"] = """
+                package com.example.hilt;
+                public class Hilt_TestApplication extends BaseApplication {}
+            """.trimIndent()
+        }
+        return sources.map { (relativePath, content) ->
+            File(sourceDir, relativePath).apply {
+                parentFile.mkdirs()
+                writeText(content)
+            }
+        }
     }
 
     private fun assertCompileResult(task: CompileTask, result: CompileResult) {

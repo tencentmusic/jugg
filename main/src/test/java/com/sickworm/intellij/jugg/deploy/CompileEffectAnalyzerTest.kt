@@ -1,8 +1,12 @@
 package com.sickworm.intellij.jugg.deploy
 
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.compiler.ClassPreparation
+import com.sickworm.intellij.jugg.compiler.ClassPreparationInput
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.DesugarInfo
+import com.sickworm.intellij.jugg.deploy.data.ClassAnalysisBatch
+import com.sickworm.intellij.jugg.deploy.data.ClassFileParser
 import com.sickworm.intellij.jugg.deploy.data.DeployDataGenerator
 import com.sickworm.intellij.jugg.deploy.data.ParsedDex
 import com.sickworm.intellij.jugg.deploy.data.SourceFileManager
@@ -190,6 +194,7 @@ class CompileEffectAnalyzerTest {
             javaClassPath,
             "com/sickworm/jugg/demo/testcase/defaultinterface/ParentOverrideChildClass.class",
         )
+        val childBytes = childClass.readBytes()
         val deployDataGenerator = mock<DeployDataGenerator>()
         whenever(deployDataGenerator.getDesugarInfo(any(), any())).thenReturn(
             DesugarInfo(
@@ -211,8 +216,14 @@ class CompileEffectAnalyzerTest {
         )
 
         analyzer.getDesugarInfo(
-            compileFiles = listOf(
-                CompileFile(CompileFile.Type.Class, childClass, javaClassPath, appModule),
+            preparation = ClassPreparation(
+                inputs = listOf(
+                    ClassPreparationInput(
+                        CompileFile(CompileFile.Type.Class, childClass, javaClassPath, appModule),
+                        childBytes,
+                        ClassAnalysisBatch.from(listOf(ClassFileParser.analyze(childBytes))),
+                    ),
+                ),
             ),
             moduleInfo = appModule,
             moduleInfos = projectInfo.modules,
@@ -243,6 +254,65 @@ class CompileEffectAnalyzerTest {
                 outputDir,
                 "com/sickworm/jugg/demo/testcase/defaultinterface/ParentOverrideRootClass.class",
             ).exists()
+        )
+    }
+
+    @Test
+    fun `getDesugarInfo copies transformer required classpath without default interfaces`() {
+        val projectInfo = AssembleAndroidProjectOnce.getProjectInfo()
+        val appModule = projectInfo.modules.getValue("app")
+        val javaClassPath = appModule.buildPathInfo.javaClassPath
+        val childClass = File(
+            javaClassPath,
+            "com/sickworm/jugg/demo/testcase/defaultinterface/ParentOverrideChildClass.class",
+        )
+        val childBytes = childClass.readBytes()
+        val requiredClass = File(
+            javaClassPath,
+            "com/sickworm/jugg/demo/testcase/defaultinterface/ParentOverrideRootClass.class",
+        )
+        val compileFile = CompileFile(CompileFile.Type.Class, childClass, javaClassPath, appModule)
+        val deployDataGenerator = mock<DeployDataGenerator>()
+        whenever(deployDataGenerator.getDesugarInfo(any(), any())).thenReturn(
+            DesugarInfo(
+                allInterfacesWithDefaultMethod = emptyList(),
+                coreLibraryRewriteClassMap = emptyMap(),
+                isNeedRewriteCoreLibrary = false,
+                desugaredLibraryConfiguration = null,
+            ),
+        )
+        val outputDir = temporaryFolder.newFolder("transformer-classpath")
+        val analyzer = CompileEffectAnalyzer(
+            pathManager = JuggPathManager(TestGlobal.projectRootDir),
+            deployDataGenerator = deployDataGenerator,
+            sourceFileManager = mock(),
+            logger = mock(),
+        )
+
+        analyzer.getDesugarInfo(
+            preparation = ClassPreparation(
+                inputs = listOf(
+                    ClassPreparationInput(
+                        compileFile,
+                        childBytes,
+                        ClassAnalysisBatch.from(listOf(ClassFileParser.analyze(childBytes))),
+                    ),
+                ),
+                requiredClasspathFiles = listOf(
+                    CompileFile(CompileFile.Type.Class, requiredClass, javaClassPath, appModule),
+                ),
+            ),
+            moduleInfo = appModule,
+            moduleInfos = projectInfo.modules,
+            toDir = outputDir,
+            apkFile = TestGlobal.apkFile,
+        )
+
+        assertTrue(
+            File(
+                outputDir,
+                "com/sickworm/jugg/demo/testcase/defaultinterface/ParentOverrideRootClass.class",
+            ).exists(),
         )
     }
 

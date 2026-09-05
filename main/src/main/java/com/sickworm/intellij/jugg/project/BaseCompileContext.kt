@@ -448,9 +448,9 @@ class BaseCompileContext(
 
     private var desugaredLibraryConfigurationCache: MutableMap<String, String?> = mutableMapOf()
 
-    override fun getDesugarInfo(compileFiles: List<CompileFile>, moduleInfo: ModuleInfo, toDir: File): DesugarInfo {
+    override fun getDesugarInfo(preparation: ClassPreparation, moduleInfo: ModuleInfo, toDir: File): DesugarInfo {
         val apkFile = moduleBelongsApkMap.getBelongsApk(moduleInfo)!!.apkFile // should not be null
-        val incompleteInfo = deployFileManager.getDesugarInfo(compileFiles, moduleInfo, toDir, apkFile)
+        val incompleteInfo = deployFileManager.getDesugarInfo(preparation, moduleInfo, toDir, apkFile)
 
         return if (incompleteInfo.isNeedRewriteCoreLibrary) {
             incompleteInfo.copy(desugaredLibraryConfiguration = findDesugaredLibraryConfigurationWithCache(moduleInfo))

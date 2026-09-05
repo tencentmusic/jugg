@@ -401,7 +401,13 @@ interface ICompileContext {
 
     fun getGeneratedSourcePaths(moduleInfo: ModuleInfo): List<File>
 
-    fun getDesugarInfo(compileFiles: List<CompileFile>, moduleInfo: ModuleInfo, toDir: File): DesugarInfo
+    /** Kept for binary compatibility with custom compilers built against Jugg 3.4.x. */
+    @Deprecated("Use getDesugarInfo(ClassPreparation, ModuleInfo, File)")
+    fun getDesugarInfo(compileFiles: List<CompileFile>, moduleInfo: ModuleInfo, toDir: File): DesugarInfo {
+        return getDesugarInfo(ClassPreparation.analyze(compileFiles), moduleInfo, toDir)
+    }
+
+    fun getDesugarInfo(preparation: ClassPreparation, moduleInfo: ModuleInfo, toDir: File): DesugarInfo
 
     fun getMinifyInfo(compileFiles: List<CompileFile>): com.sickworm.intellij.jugg.compiler.obfuscation.MinifyInfo?
 
