@@ -125,6 +125,8 @@ Application 与 Dynamic Feature 的 APK 模块归属使用 Gradle 已解析的 v
 
 Android variant 读取保留 `applicationVariants`、`libraryVariants` 和 `featureVariants` 作为旧 AGP 的首选入口；仅当 legacy API 未返回 variant 时，才使用配置阶段从 `androidComponents.onVariants` 收集的名称。收集结果按 Gradle project path 存在 root project extra properties 中，不保留 AGP variant 实例；project info 的 `buildVariant` 推导和 AndroidTest assemble task 注入复用同一份回退数据。该注册同时覆盖 application、library 和 dynamic-feature plugin，反射注册失败时保持旧路径继续执行，不中断 Gradle 配置。
 
+同一次 task graph 出现多个 variant 时，`guessBuildVariant()` 优先按 Gradle 启动 task 的后缀精确匹配最长 variant 名称，再使用原有 Debug/Release 回退。例如 Flutter add-to-app 常见的 `profile { initWith debug }` 会同时执行 Debug 与 Profile 相关 task，但 `:app:assembleProfile` 必须选择 Profile，才能读取 `compileFlutterBuildProfile` 和 `mergeProfileNativeLibs` 元数据。
+
 Composite build 使用条件分流：普通项目继续只通过现有 `taskGraph.whenReady` 回调读取；只有根构建发现 `gradle.includedBuilds` 非空时，才把各 included build 的轻量 `:juggReadProjectInfo` task 注入当前请求任务依赖。included build 因此会进入自己的 task graph，并把 `gradle_project_infos.json` 写入自身工程目录，随后由根构建复制到主工程数据库目录。`jugg.projectDir` 仍用于统一计算相对路径，不能用于覆盖 included build 的快照输出目录。
 
 如果 included build 的读取或文件生成仍然失败，汇总时不能中断根项目快照写入；对应旧副本存在时继续保留并写入列表，从未成功生成过副本时才跳过。下一次成功读取会覆盖旧副本。
