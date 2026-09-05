@@ -225,6 +225,34 @@ class SourceCompileTest {
         }
     }
 
+    @Test
+    fun romHiddenApi_shouldRecoverWhenSdkAndroidJarShadowsFrameworkJar() {
+        val module = TestGlobal.applicationModule
+        val sourceBaseDir = File(assetsAndroidDir, "app/src/main/java")
+        val childFile = File(sourceBaseDir, "com/sickworm/jugg/demo/testcase/romhiddenapi/RomHiddenApiChild.kt")
+        assertTrue(childFile.exists(), "The rom hidden api testcase is missing: $childFile")
+
+        val task = CompileTask(
+            files = listOf(
+                CompileFile(
+                    type = CompileFile.Type.Kotlin,
+                    file = childFile,
+                    baseDir = sourceBaseDir,
+                    module = module,
+                ),
+            ),
+            outputDir = File(TestGlobal.buildDir, "staging_rom_hidden_api"),
+            compileStatusHolder = CompileStatusHolder.DEFAULT,
+        )
+
+        val result = sourceCompiler.compile(task)
+        result.printCompileErrors()
+        assertTrue(
+            result.isAllSuccess,
+            "Compile should recover by retrying once with the SDK android.jar last.",
+        )
+    }
+
     private fun assertCompileResult(task: CompileTask, result: CompileResult) {
         val mapper: OutputFileMapper = { _ ->
             emptyList()
