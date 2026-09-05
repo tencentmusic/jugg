@@ -23,6 +23,7 @@ Jugg 支持增量编译本轮变化的 Java 和 Kotlin 源码，并可继续处�
 | Kotlin Compose 源码 | 支持 | Compose 相关 class/DEX 随本轮增量产出；详见 [Kotlin Compose](./kotlin-compose.md) |
 | 已支持能力产生的源码 | 支持作为输入 | [DataBinding/ViewBinding](./databinding-viewbinding.md) 或[明确支持的注解入口](./annotation-processors.md)等生成源码可继续编译 |
 | 已生成或转换的 class 产物 | 支持作为输入 | 继续生成可部署 DEX，release 场景进入重混淆处理 |
+| 修改已有 Hilt Android 入口的普通逻辑 | 支持 | 已有 Hilt 生成物可用时，在 DEX 前恢复入口转换并保留注入；详见[注解器](./annotation-processors.md) |
 
 ## 触发与结果
 
@@ -42,6 +43,7 @@ Java / Kotlin 或已支持的生成产物变化
 - 变化范围超过当前增量限制，或构建配置、依赖与 source set 上下文发生变化时，Jugg 会回退 Gradle。
 - 删除或重命名整个 Java/Kotlin 源文件时，Jugg 不会移除设备中已有的 class；旧 class 仍可能通过直接引用、反射或类加载被访问。只有需要让旧 class 真正消失时，才执行完整 Gradle 构建刷新 APK 和引用基线。
 - 生成源码需要先由对应的已支持能力产出；不应默认任意 annotation processor、KSP 或 KAPT 都可以脱离 Gradle 完整运行。
+- Hilt 入口转换依赖最近一次完整 Gradle/Hilt 构建生成的入口父类和注入代码。修改注入声明或生成物缺失时，需要完整 Gradle 构建；必要生成父类缺失时本轮编译会明确失败。
 - release/minified 场景依赖与当前 APK 匹配的 mapping 基线；基线缺失、失配或运行结果异常时，使用 Gradle release 构建重新建立基线。
 
 ## 相关页面

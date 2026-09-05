@@ -1,6 +1,6 @@
 ---
 title: 注解器
-description: 说明 Jugg 当前明确支持的注解入口，以及这些注解如何进入源码增量编译。
+description: 说明 Jugg 当前明确支持的注解入口、Hilt 入口转换，以及哪些生成代码变化仍需 Gradle。
 status: active
 tags:
   - capability
@@ -12,7 +12,7 @@ tags:
 
 # 注解器
 
-Jugg 只对少量明确列出的注解入口提供增量处理，并把对应生成源码纳入本轮源码编译。未列出的 APT、KAPT 或 KSP processor 不会由 Jugg 独立增量执行，需要交给 Gradle。
+Jugg 只对少量明确列出的注解入口提供增量处理，并把对应生成源码纳入本轮源码编译。对于已有 Hilt 生成物，Jugg 还能在 DEX 生成前恢复 Android 入口 class 的 Hilt 字节码形态。未列出的 APT、KAPT 或 KSP processor 不会由 Jugg 独立增量执行，需要交给 Gradle。
 
 ## 支持范围
 
@@ -23,6 +23,8 @@ Jugg 只对少量明确列出的注解入口提供增量处理，并把对应生
 | 使用 KSP1 的 `com.squareup.moshi.JsonClass` / `@JsonClass` | 支持 | 通过项目 KSP1 compiler plugin 生成 Moshi adapter，并继续源码编译 |
 | 使用 KSP2 的 `com.squareup.moshi.JsonClass` / `@JsonClass` | 不支持 | 不独立运行 KSP2 processor，只能继续编译 Gradle 已生成的源码 |
 | [DataBinding `<layout>`](./databinding-viewbinding.md) | 支持 | 通过专用 DataBinding annotation processor 生成 mapper、BR 和绑定相关源码 |
+| 修改已有 `@AndroidEntryPoint` / `@HiltAndroidApp` 入口的普通逻辑 | 支持入口转换 | 复用最近一次 Gradle/Hilt 构建生成的 `Hilt_*` 等产物，在 DEX 前恢复父类、`super` 调用和 Receiver 注入入口 |
+| 修改 Hilt 注入字段、binding、构造依赖或入口注解 | 不支持重新生成 | 不运行 Hilt/Dagger processor；需要主动执行 Gradle 构建刷新生成代码和组件图 |
 
 > [!NOTE]
 > 除上表明确列出的入口外，其他 annotation processor 均视为不支持 Jugg 独立增量执行。相关源码需要重新生成时，使用对应 Gradle 构建。
@@ -32,6 +34,8 @@ Jugg 只对少量明确列出的注解入口提供增量处理，并把对应生
 - Kuikly `@Page` 增量处理依赖最近一次 Gradle/KSP 生成的路由入口基线，并且只补充缺失注册。删除页面、修改路由或重命名页面类时，应通过 Gradle 清理旧注册。
 - Moshi KSP 只在本轮 Kotlin 源码明确使用 `com.squareup.moshi.JsonClass` 且项目存在对应 KSP 依赖时触发。
 - KSP2 不由 Jugg 独立运行 processor；Jugg 只能继续编译 Gradle 已经生成的源码。
+- Hilt 入口转换只处理已有生成物对应的 Android 入口 class，不代表 Jugg 可以独立运行 Hilt/Dagger 注解处理器。普通方法逻辑变化可以增量生效；任何需要更新生成代码或组件图的修改都应先执行完整 Gradle 构建。
+- 如果入口 class 对应的 `Hilt_*` 生成父类不存在或不可读，本轮编译会明确失败并提示运行完整 Gradle 构建，不会把未转换的 class 继续生成 DEX。
 - 修改 processor 依赖、compiler plugin、参数或生成规则后，工程模型变化时先完成 Sync，再执行 Gradle 构建刷新生成源码基线。
 
 ## 相关页面

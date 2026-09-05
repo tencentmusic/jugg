@@ -227,7 +227,11 @@ class SourceCompiler(
         val dexOutputDir = if (context.isMinified) File(context.tempCompileDir, "un_minify") else task.outputDir
         val dexTask = CompileTask(compileClassFiles, dexOutputDir, task)
         val dexCompileResult = dexCompiler.compile(dexTask)
-        if (!dexCompileResult.isAllSuccess) return dexCompileResult.failedAll(task, "Dex compile failed")
+        if (!dexCompileResult.isAllSuccess) {
+            val errorMessage = dexCompileResult.failedFiles.firstOrNull()
+                ?.getFailure()?.errorMessages.orEmpty().ifEmpty { "Dex compile failed" }
+            return task.allFailed(errorMessage)
+        }
 
         if (!context.isMinified) {
             return CompileResult(task, classCompileResult.details, dexCompileResult.outputs + otherOutputs)

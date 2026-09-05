@@ -207,7 +207,7 @@ data class SimpleCompileContext(
 
     var desugarInfo = DesugarInfo.EMPTY
 
-    override fun getDesugarInfo(compileFiles: List<CompileFile>, moduleInfo: ModuleInfo, toDir: File): DesugarInfo {
+    override fun getDesugarInfo(preparation: ClassPreparation, moduleInfo: ModuleInfo, toDir: File): DesugarInfo {
         return desugarInfo
     }
 

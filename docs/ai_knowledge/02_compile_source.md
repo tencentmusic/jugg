@@ -1,6 +1,6 @@
 # 编译系统：源码编译链（Java/Kotlin/Dex）
 
-> 最后核对：2026-08-27
+> 最后核对：2026-09-10
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -30,7 +30,8 @@
 | `ComposeResourceCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/compose/ComposeResourceCompiler.kt` | 在常规 source 阶段前，以一次 Kotlin invocation 编译 Compose generated expect/actual sources |
 | `K2JVMCompilerIsolate` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/source/kotlin/K2JVMCompilerIsolate.kt` | Kotlin 编译器隔离加载、classpath 检查、项目版本 ExpectActualTracker 注入与 incremental cache API 适配 |
 | `JavaCompiler` / `JavaCompilerInvoker` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/source/JavaCompiler.kt`, `main/src/main/java/com/sickworm/intellij/jugg/compiler/source/JavaCompilerInvoker.kt` | Java 编译与 javac 参数组装 |
-| `DexCompiler` / `DexFileMaker` / `DexFileMerger` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/source/` | class 到 dex、file-per-class 输出、D8 脱糖上下文与 dex 合并 |
+| `TransformerCompiler` / `HiltAndroidEntryPointTransformer` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/source/` | 消费 `DexCompiler` 已分析的 program class，对 Hilt Android 入口执行等价字节码转换并更新最终 preparation |
+| `DexCompiler` / `DexFileMaker` / `DexFileMerger` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/source/` | D8 前统一读取并分析 program class、class 到 dex、file-per-class 输出、D8 脱糖上下文与 dex 合并 |
 | `CompileEffectAnalyzer` / `DeployDataGenerator` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/CompileEffectAnalyzer.kt`、`main/src/main/java/com/sickworm/intellij/jugg/deploy/data/DeployDataGenerator.kt` | 从 APK/deploy DB 识别 default interface 与 core library rewrite，补齐 D8 所需 classpath 和配置 |
 | `DexMinifyCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/obfuscation/DexMinifyCompiler.kt` | minified 变体的 dex 重映射与 `_jugg_fix` 生成 |
 
@@ -54,6 +55,7 @@
 | Kotlin module identity | `ModuleInfo` + Kotlin baseline output | `KotlinCompilerInvoker` | `module-name`、friend path、输出目录和 `.kotlin_module` 必须保持同一 Gradle module/variant 语义 |
 | Kotlin compiler plugin options | 选中 Kotlin Gradle task 的 `KotlinCompilerPluginData` | `KotlinCompilerInvoker` | 按模块保存 Gradle 已解析的 `plugin:<id>:<key>=<value>`，调用 CLI 时逐项配对 `-P`；与 plugin JAR 使用相同的 current-to-parent module 范围聚合并删除完全相同的重复项 |
 | `DesugarInfo` | APK/deploy DB + changed class parser | `DexCompiler` / D8 | default interface、`j$.*` rewrite 与 `desugar.json` 都以已安装 APK 的脱糖事实为基线 |
+| `ClassPreparation` | `DexCompiler`，由 `TransformerCompiler` 更新 | `getDesugarInfo` / `CompileEffectAnalyzer` / D8 | 显式携带最终 program files、一次分析结果和转换所需 classpath；不写入 `CompileFile.extraInfo` 或部署历史 |
 | included build module roots | 主 Gradle project info + `include_build_*` project info | `BaseCompileContext` | 只按快照来源识别；主快照中的同目录模块优先，不根据模块是否位于工程根目录外推断 |
 
 ---
@@ -70,7 +72,10 @@ SourceCompiler.doModuleCompile()
        -> JavaCompiler 再编译 Java + JuggApt Java + KAPT Java + DataBinding Java
        -> 若真实源码诊断直接指向 JuggApt 产物，移除 changed-file 登记并无 JuggApt 重试一次
   -> compileDexOutputs()
-       -> DexCompiler 编译 class / 原始 class 输入
+       -> DexCompiler 接收 class / 原始 class 输入
+       -> DexCompiler 单次分析 program class
+       -> TransformerCompiler 消费分析结果并准备最终 program class
+       -> DexCompiler 调用 D8
        -> minified 场景交给 DexMinifyCompiler；非 minified 直接返回 dex + 非 class 附属产物
 ```
 
@@ -103,7 +108,9 @@ included build 的 Library/JavaLibrary 源码可能同时看到 included build �
 ```text
 DexCompiler
   -> 依赖 JAR 按 class 内容差分；变化 class 属于 Java nest 时补齐新 JAR 内可用的完整 nest
-  -> 解析 changed class 的 interface / static invocation
+  -> DexCompiler 单次读取 program class，通过 ClassFileParser 收集 interface / static invocation / annotation / external superclass
+  -> TransformerCompiler 消费显式 ClassPreparation，不重新读取 program class
+  -> Hilt Android 入口命中时改写为对应 Hilt_* 生成父类；未命中保持原文件
   -> 选择 D8 minApi：使用当前 module 归属 APK 的 owner variant minSdk（base APK 用 application，split 用 dynamic feature）；minSdk 不可读时回落 21
   -> 从 APK/deploy DB 查找 `$-CC` / `$DefaultImpls` 对应的 default interface
   -> 把这些 baseline class 复制到临时 D8 classpath
@@ -114,6 +121,10 @@ DexCompiler
 这里不能只按当前模块 `minSdkVersion` 判断是否脱糖。Jugg 的增量 DEX 必须和已安装 APK 保持同一种字节码形态：基线存在 `$-CC` / `$DefaultImpls` 时，D8 需要看到对应接口 classpath，避免 default method 调用形态与 APK 不一致；基线存在 `j$.*` 时，还需要把项目 `coreLibraryDesugaring` 依赖中的 `desugar.json` 传给 D8。找不到配置时会 warn 并继续，最终风险是高版本 Java API 在设备端引用不一致。
 
 依赖 JAR 的 class 差分不能只保留 CRC 变化项。Java 11 nest host/member 通过 `NestHost`、`NestMembers` 形成一个 D8 输入单元；任一成员变化时，`DexCompiler` 会递归补齐新 JAR 中存在的整个 nest，避免未变化的匿名类或内部类被过滤后触发 `requires its nest mates ... unavailable`。
+
+Hilt `@AndroidEntryPoint` / `@HiltAndroidApp` class 在语言编译后仍是未执行 Gradle Transform 的原始形态。`TransformerCompiler` 根据 class 自身完整注解 descriptor 识别入口，按 Hilt 命名规则查找已有 `Hilt_*` 生成父类，并在受控临时目录改写直接父类、generic signature、真实 `super` 调用以及 Receiver marker 对应的 `onReceive` 调用。生成父类先查本轮 program class，再严格按当前编译 classpath 顺序查找目录和 jar；读取到的 class 同时加入 D8 classpath。找不到必要生成父类时本轮源码编译明确失败并提示执行完整 Gradle build，不把未转换 class 继续交给 D8。
+
+这项处理只复用最近一次完整 Gradle/Hilt 构建已经生成的代码，不运行 Hilt/Dagger APT、KAPT 或 KSP。修改注入字段、binding、构造依赖、入口注解或其他会改变生成图的内容后，仍需用户主动执行完整 Gradle build 刷新基线。已直接继承对应 `Hilt_*` 的 class 保持不变，Receiver 注入只在生成父类带官方 marker 时插入，避免重复转换。
 
 Compose resource generated source 是这条常规 source 链之前的独立前置步骤：`ComposeResourceCompiler` 将 Res、各 source set accessor、expect collector 和 Android actual collector 放进同一次 `KotlinCompilerInvoker` 调用，并显式传入 common source 文件列表。编译出的 class 随后才进入 `SourceCompiler` 的 class/dex 路径；不会分别编译 expect 与 actual。Gradle project info 仍可把 build directory 下的 generated source 保留在 `sourceDirs` 中，供 Kotlin compilation metadata 使用；`FileChangesHandler` 会在文件变更边界统一排除这些路径，避免它们再作为用户源码进入常规 Kotlin 阶段。JuggApt 等本轮由编译器直接登记的 generated source 不经过该文件事件过滤。
 
@@ -147,6 +158,8 @@ Kotlin 1.9 的 baseline Kotlin output 可能同时包含 dirty expect/actual clo
 - 回落值 21 对语言级脱糖是更激进的一侧，不是更保守：基线未脱糖时它会让 D8 生成指向基线不存在的 `$-CC` 的调用。因此只在 `minSdk` 完全读不到时使用，不要用它替代真实 `minSdk`。
 - `isEnableDesugared`（基线 APK 是否存在 `$-CC` / `$DefaultImpls`）只是诊断信号，与 minApi 一起打进 debug 日志。它表达不了 variant `minSdk`，一旦参与 minApi 决策就会让增量 DEX 与 Gradle 基线分叉（`java.time` 被改写成 `j$.time`）。
 - default interface class 进入临时 classpath 是脱糖上下文，不是普通业务依赖补全；删除这一步可能让改动类生成与基线不同的 default method 调用形态。
+- pre-D8 program class 分析由 `DexCompiler` 统一完成，并通过显式 `ClassPreparation` 依次交给 `TransformerCompiler`、`getDesugarInfo` 和 D8。`DeployDataGenerator` / `CompileEffectAnalyzer` 不再从 `CompileFile.extraInfo` 读取元数据或 fallback 完整解析 program class；递归父类只读取 header，不遍历方法体。
+- Hilt 入口转换不是完整注解处理支持。它只维护已有生成物对应的入口字节码形态；生成物缺失或无法读取时失败，用户自行选择 Gradle fallback，不新增 Hilt 专属自动回退。
 - core library rewrite 只在 APK database 已发现 `j$.*` 时查找 `desugar.json`；不能因为工程声明了依赖就无条件为所有模块启用。
 - KAPT 场景下 Kotlin 编译器 warning/error 文本会按 debug 记录，避免用户可见输出被 APT/KAPT 噪音淹没；失败判定仍由 parser 处理。
 - Kotlin compiler plugin 参数优先复用 Gradle task 已解析的 `KotlinCompilerPluginData.options.arguments`，兼容 Kotlin Gradle Plugin 的 `kotlin_gradle_plugin_common` 与旧 `kotlin_gradle_plugin` getter；读取不到时保持空列表，不伪造插件参数。参数与 plugin JAR 使用同一个 current-to-parent module 列表聚合，兼容 KMP 等将插件信息保存在父模块的场景，并删除完全相同的重复项。不得只收紧参数继承范围，否则可能加载父模块插件却遗漏其 required option；plugin owner 范围如需调整，必须同时覆盖 JAR、参数与 compiler classpath。

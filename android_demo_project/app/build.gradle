@@ -17,6 +17,10 @@ plugins {
     id 'com.google.devtools.ksp'
 }
 
+if (project.hasProperty('juggHiltFixture')) {
+    apply plugin: 'dagger.hilt.android.plugin'
+}
+
 //apply plugin: 'kotlin-android-extensions'
 apply from: './aabResGuard.gradle'
 
@@ -100,6 +104,10 @@ android {
     if (project.hasProperty('juggIsolatedSplitClassLoaderFixture')) {
         sourceSets.debug.manifest.srcFile 'src/isolatedSplit/AndroidManifest.xml'
     }
+    if (project.hasProperty('juggHiltFixture')) {
+        sourceSets.debug.java.srcDir 'src/hilt/java'
+        sourceSets.debug.manifest.srcFile 'src/hilt/AndroidManifest.xml'
+    }
 }
 
 dependencies {
@@ -132,7 +140,9 @@ dependencies {
 
     implementation 'com.alibaba:arouter-api:1.5.2'
 //    annotationProcessor 'com.alibaba:arouter-compiler:1.5.2'
-    kapt 'com.alibaba:arouter-compiler:1.5.2'
+    if (!project.hasProperty('juggHiltFixture')) {
+        kapt 'com.alibaba:arouter-compiler:1.5.2'
+    }
 
     // compose
     implementation 'androidx.compose.ui:ui-tooling-preview:1.4.0-alpha02'
@@ -147,6 +157,11 @@ dependencies {
     implementation 'com.squareup.moshi:moshi:1.14.0'
     implementation 'com.squareup.moshi:moshi-kotlin:1.14.0'
     ksp 'com.squareup.moshi:moshi-kotlin-codegen:1.14.0'
+
+    if (project.hasProperty('juggHiltFixture')) {
+        implementation 'com.google.dagger:hilt-android:2.51.1'
+        kapt 'com.google.dagger:hilt-compiler:2.51.1'
+    }
 
     implementation project(':library1')
     implementation project(':databindingApt')

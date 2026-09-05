@@ -3,10 +3,13 @@ package com.sickworm.intellij.jugg.deploy
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.CompileOutput
+import com.sickworm.intellij.jugg.compiler.ClassPreparation
 import com.sickworm.intellij.jugg.compiler.DesugarInfo
 import com.sickworm.intellij.jugg.compiler.obfuscation.ClassObfuscator
 import com.sickworm.intellij.jugg.compiler.obfuscation.MinifyInfo
 import com.sickworm.intellij.jugg.compiler.source.kotlin.KmModuleMergerForCompilation
+import com.sickworm.intellij.jugg.deploy.data.ClassAnalysis
+import com.sickworm.intellij.jugg.deploy.data.ClassAnalysisBatch
 import com.sickworm.intellij.jugg.deploy.data.ClassFileParser
 import com.sickworm.intellij.jugg.deploy.data.ClassSourceReader
 import com.sickworm.intellij.jugg.deploy.data.DeployDataGenerator
@@ -113,24 +116,25 @@ class CompileEffectAnalyzer(
     }
 
     fun getDesugarInfo(
-        compileFiles: List<CompileFile>,
+        preparation: ClassPreparation,
         moduleInfo: ModuleInfo,
         moduleInfos: Map<String, ModuleInfo>,
         toDir: File,
         apkFile: File,
     ): DesugarInfo {
         TimeLogger.start("getDesugarInfo")
-        val filteredClassFiles = compileFiles.filter { it.type == CompileFile.Type.Class }
-        val desugarInfo = deployDataGenerator.getDesugarInfo(filteredClassFiles, apkFile)
+        val desugarInfo = deployDataGenerator.getDesugarInfo(preparation.analysis, apkFile)
         val defaultInterfaces = desugarInfo.allInterfacesWithDefaultMethod
         logger.debug("getAllDesugarClasspath all defaultInterfaces: $defaultInterfaces")
         val interfaceFiles = getClassFilesByName(defaultInterfaces, moduleInfo, moduleInfos)
         val superclassFiles = if (defaultInterfaces.isEmpty()) {
             emptyList()
         } else {
-            getDesugarSuperclassFiles(filteredClassFiles, moduleInfo, moduleInfos)
+            getDesugarSuperclassFiles(preparation.analysis, moduleInfo, moduleInfos)
         }
-        val files = (interfaceFiles + superclassFiles).distinctBy {
+        val files = (interfaceFiles + superclassFiles + preparation.requiredClasspathFiles.map {
+            ChangedFile(it.type, it.file, it.baseDir, it.module, it.extraInfo)
+        }).distinctBy {
             it.file.relativeTo(it.baseDir).path
         }
         logger.debug("getAllDesugarClasspath all files: ${files.map { it.file.path }}")
@@ -145,11 +149,11 @@ class CompileEffectAnalyzer(
 
     /** Resolves the complete external superclass chain required by D8 method dispatch analysis. */
     private fun getDesugarSuperclassFiles(
-        compileFiles: List<CompileFile>,
+        analysis: ClassAnalysisBatch,
         moduleInfo: ModuleInfo,
         moduleInfos: Map<String, ModuleInfo>,
     ): List<ChangedFile> {
-        val pendingClasses = getExternalSuperClasses(compileFiles.map { it.file }).toMutableSet()
+        val pendingClasses = analysis.externalSuperClasses.toMutableSet()
         val visitedClasses = mutableSetOf<String>()
         val superclassFiles = mutableListOf<ChangedFile>()
         while (pendingClasses.isNotEmpty()) {
@@ -160,17 +164,24 @@ class CompileEffectAnalyzer(
             }
             val foundFiles = getClassFilesByName(classNames, moduleInfo, moduleInfos)
             superclassFiles.addAll(foundFiles)
-            pendingClasses.addAll(getExternalSuperClasses(foundFiles.map { it.file }))
+            pendingClasses.addAll(getExternalSuperClassesFromHeaders(foundFiles.map { it.file }))
         }
         logger.debug("getAllDesugarClasspath all superClasses: ${visitedClasses.toList()}")
         return superclassFiles
     }
 
-    private fun getExternalSuperClasses(classFiles: List<File>): Set<String> {
-        if (classFiles.isEmpty()) {
-            return emptySet()
+    private fun getExternalSuperClassesFromHeaders(classFiles: List<File>): Set<String> {
+        val analyses = classFiles.map { file ->
+            val header = ClassFileParser.analyzeHeader(file.readBytes())
+            ClassAnalysis(
+                className = header.className,
+                superClass = header.superClass,
+                interfaces = emptySet(),
+                staticInvocationRefs = emptySet(),
+                annotationDescriptors = header.annotationDescriptors,
+            )
         }
-        return ClassFileParser(classFiles).apply { parse() }.externalSuperClasses
+        return ClassAnalysisBatch.from(analyses).externalSuperClasses
     }
 
     fun getMinifyInfo(

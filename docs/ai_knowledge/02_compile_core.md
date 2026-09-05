@@ -1,6 +1,6 @@
 # 编译系统：核心架构
 
-> 最后核对：2026-09-03
+> 最后核对：2026-09-10
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -112,6 +112,7 @@ JuggCompiler.doCompile(task)
      -> DataBinding/ViewBinding 生成源暂存为下一步 source 输入
   -> RDexForSubmoduleCompiler：必要时把 R.class 生成 R.dex
   -> SourceCompiler：Kotlin/Java/DataBinding mapper/JuggApt/class -> dex/minify
+     -> DexCompiler 内部先执行通用 pre-D8 class preparation；当前只接入 Hilt Android 入口转换
   -> 任一阶段失败或取消：停止后续阶段，并把剩余输入收口为失败/取消结果
 ```
 
@@ -127,6 +128,8 @@ JuggCompiler.doCompile(task)
 - `dex`
 
 `JuggCompiler.doCompile()` 显式编排 Compose resource/asset/resource/source；Compose 阶段必须先完成，生成的 asset 才能进入 `AssetOverlayCompiler`，生成的 class 才能并入 source/dex 链。source 内部再处理 DataBinding mapper、JuggApt、Kotlin、Java、Dex、Minify。`CompileOrder` 主要服务自定义编译器插入点。
+
+pre-D8 class preparation 是 `DexCompiler` 的内部步骤，不是新的 `BaseCompiler` sibling，也不占用 `CompileOrder` 扩展点。`DexCompiler` 在实际 D8 输入确定后统一读取并分析 program class，通过显式 `ClassPreparation` 把同一份结果依次交给 `TransformerCompiler`、`getDesugarInfo` 和 D8；Transformer 只替换命中 Hilt Android 入口的 class，不再承担 program class 解析。第二个真实转换需求出现前不建立 Transformer SPI 或 registry。
 
 ### 5.2 自定义编译器插入点
 

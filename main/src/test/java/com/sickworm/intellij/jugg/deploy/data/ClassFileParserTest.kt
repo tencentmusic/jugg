@@ -3,9 +3,12 @@ package com.sickworm.intellij.jugg.deploy.data
 import com.sickworm.intellij.jugg.mock.assetsDir
 import com.sickworm.intellij.jugg.mock.assetsLibDir
 import com.sickworm.intellij.jugg.mock.AssembleAndroidProjectOnce
+import com.sickworm.intellij.jugg.org.objectweb.asm.ClassWriter
+import com.sickworm.intellij.jugg.org.objectweb.asm.Opcodes
 import org.junit.Test
 import java.io.File
 import kotlin.test.assertContentEquals
+import kotlin.test.assertEquals
 
 class ClassFileParserTest {
 
@@ -147,6 +150,28 @@ class ClassFileParserTest {
                 "Ljava/lang/reflect/Array;",
             ),
         )
+    }
+
+    @Test
+    fun `analyze bytes exposes annotations and header`() {
+        val writer = ClassWriter(0)
+        writer.visit(Opcodes.V1_8, Opcodes.ACC_PUBLIC, "test/Entry", null, "test/Base", null)
+        writer.visitAnnotation("Ldagger/hilt/android/AndroidEntryPoint;", false).visitEnd()
+        writer.visitEnd()
+        val bytes = writer.toByteArray()
+
+        val analysis = ClassFileParser.analyze(bytes)
+        val header = ClassFileParser.analyzeHeader(bytes)
+
+        assertEquals("Ltest/Entry;", analysis.className)
+        assertEquals("Ltest/Base;", analysis.superClass)
+        assertEquals(
+            setOf("Ldagger/hilt/android/AndroidEntryPoint;"),
+            analysis.annotationDescriptors,
+        )
+        assertEquals(analysis.className, header.className)
+        assertEquals(analysis.superClass, header.superClass)
+        assertEquals(analysis.annotationDescriptors, header.annotationDescriptors)
     }
 
     private fun assertResult(classFiles: List<File>,
