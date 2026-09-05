@@ -2,7 +2,6 @@ package com.sickworm.intellij.jugg.compiler.source.kotlin
 
 import com.sickworm.intellij.jugg.org.objectweb.asm.ClassWriter
 import com.sickworm.intellij.jugg.org.objectweb.asm.Opcodes
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
@@ -84,38 +83,6 @@ class KotlinCompilerInvokerArgsTest {
                     "plugin:dev.zacsweers.moshix.compiler:enableSealed=true",
                 ),
             ),
-        )
-    }
-
-    @Test
-    fun `uses current compilation plugin options instead of merging parent options`() {
-        val current = ModuleInfo.virtualModule.copy(
-            name = "app.androidMain",
-            kotlinPluginOptions = listOf("plugin:sample.current:enabled=true"),
-        )
-        val parent = ModuleInfo.virtualModule.copy(
-            name = "app",
-            kotlinPluginOptions = listOf("plugin:sample.parent:enabled=true"),
-        )
-
-        assertEquals(
-            current.kotlinPluginOptions,
-            KotlinCompiler.selectKotlinPluginOptions(listOf(current, parent)),
-        )
-    }
-
-    @Test
-    fun `falls back to nearest parent plugin options without removing repeated options`() {
-        val repeatedOptions = listOf(
-            "plugin:org.jetbrains.kotlin.allopen:annotation=sample.First",
-            "plugin:org.jetbrains.kotlin.allopen:annotation=sample.Second",
-        )
-        val current = ModuleInfo.virtualModule.copy(name = "app.androidMain")
-        val parent = ModuleInfo.virtualModule.copy(name = "app", kotlinPluginOptions = repeatedOptions)
-
-        assertEquals(
-            repeatedOptions,
-            KotlinCompiler.selectKotlinPluginOptions(listOf(current, parent)),
         )
     }
 

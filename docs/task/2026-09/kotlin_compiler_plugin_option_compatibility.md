@@ -8,22 +8,22 @@ Jugg 增量 Kotlin 编译会加载项目 compiler plugin。此前只传递 `-Xpl
 required plugin option not present: dev.zacsweers.moshix.compiler:enabled
 ```
 
-首轮修复已读取 `KotlinCompilerPluginData.options.arguments` 并转换为 Kotlin CLI `-P` 参数。进一步审查确认需要限制参数作用域并提供兼容降级，避免父子 compilation 参数混合或插件版本不匹配导致原本可编译的场景失败。
+首轮修复已读取 `KotlinCompilerPluginData.options.arguments` 并转换为 Kotlin CLI `-P` 参数。进一步审查确认需要提供插件版本不匹配时的兼容降级，同时保持 plugin JAR 与参数的父模块聚合范围一致。
 
 ## 2. 已确认行为
 
 - Kotlin CLI 对未加载 plugin ID 的 `-P` 参数直接忽略；Kotlin 1.9.23、2.2.10 实测编译成功。
 - plugin 已加载但 option 未声明时，Kotlin compiler 返回 `unsupported plugin option` 并终止编译。
 - compiler plugin option 可以声明 `allowMultipleOccurrences`，因此不能按 option 名全局去重。
-- `getParentModules(module, true)` 按当前模块、最近父模块的顺序返回，适合为 KMP synthetic module 提供缺失回退。
+- `kotlinPlugins` 已按 `getParentModules(module, true)` 聚合，用于兼容 KMP 等将插件信息保存在父模块的场景；对应参数必须使用相同范围，避免加载插件 JAR 却遗漏 required option。
 
 ## 3. 方案
 
-### 3.1 compilation 级参数选择
+### 3.1 参数聚合范围
 
-- 当前模块存在 `kotlinPluginOptions` 时，以当前模块为唯一来源。
-- 当前模块为空时，使用第一个具有参数的父模块。
-- 保留 Gradle 参数的原始顺序和重复项，不合并多个模块的 option 列表。
+- `kotlinPluginOptions` 与 `kotlinPlugins` 使用同一个 current-to-parent module 列表聚合。
+- 按模块顺序保留 Gradle 参数，并删除完全相同的重复项。
+- 不单独筛选当前模块或同根父模块；plugin owner 范围如需收紧，应同时调整 plugin JAR、参数与 compiler classpath，而不是只修改参数。
 
 ### 3.2 参数注入边界
 
@@ -54,8 +54,7 @@ required option 缺失仍沿用既有的单插件禁用回退。单次编译共�
 
 | 层级 | Owner | 场景 | 预期 |
 |---|---|---|---|
-| L1 | `KotlinCompilerInvokerArgsTest` | 当前模块与父模块均有参数 | 只选择当前模块参数 |
-| L1 | `KotlinCompilerInvokerArgsTest` | 当前模块无参数 | 回退最近父模块并保留重复 option |
+| L1 | `KotlinCompilerInvokerArgsTest` | Gradle-resolved plugin 参数 | 按 Kotlin CLI 协议逐项生成 `-P` |
 | L1 | `KotlinCompilerInvokerArgsTest` | 未加载项目插件 | 不生成项目 `-P` |
 | L1 | `KotlinCompilerInvokerArgsTest` | unsupported option 来自 resolved 参数 | 识别 plugin ID，只移除该插件的 resolved 参数 |
 | L1 | `KotlinCompilerInvokerArgsTest` | unsupported option 仅存在于 free args | 不触发新增降级 |
@@ -68,15 +67,15 @@ required option 缺失仍沿用既有的单插件禁用回退。单次编译共�
 ## 6. 完成标准
 
 - [x] MoshiX required option 可随对应 compilation 传入。
-- [x] 不混合当前模块与父模块的 compiler plugin 参数。
-- [x] 支持同名多值 option，保持 Gradle 顺序。
+- [x] plugin JAR 与参数使用相同的父模块聚合范围。
+- [x] 保持 Gradle 参数顺序，并删除完全相同的重复项。
 - [x] 新增 resolved 参数不兼容时只局部降级一次。
 - [x] 原有 free compiler args 和其他插件参数不被修改。
 - [x] 定向测试、普通源码编译回归和 Kotlin 编译检查通过。
 
 ## 7. 实施结果
 
-- `KotlinCompiler` 从 current-to-parent module 列表选择第一个非空 option 集合，不再扁平合并。
+- `KotlinCompiler` 按 plugin JAR 的 current-to-parent 范围聚合 Gradle-resolved option，并删除完全相同的重复项。
 - `KotlinCompilerInvoker` 将 Gradle-resolved 参数与项目 plugin 加载门禁绑定。
 - `unsupported plugin option` 只匹配本轮实际传入的 resolved 参数；命中后移除同 plugin id 参数并重试一次。
 - 降级成功后按 compiler/plugin classpath、plugin id 和原参数列表保存 fingerprint，避免相同配置重复失败；最终失败不会固化本次尝试。
