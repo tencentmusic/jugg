@@ -132,6 +132,7 @@
 | Kotlin `unsupported plugin option` | 先确认错误参数是否来自 `kotlinPluginOptions`；Jugg 只会为 Gradle-resolved 参数移除同 plugin id 的整组参数并重试一次，用户 `kotlinFreeCompilerArgs` 不会自动修改。重复出现时检查 compiler toolchain、插件 JAR 与 Gradle task 是否属于同一 compilation | `KotlinCompiler`、`KotlinCompilerInvoker`；`02_compile_source.md` |
 | Windows 命令中文乱码 | 保留原始字节链路；出现 `�` 表示可能已发生不可逆解码损失 | `ProcessOutputReader`；`04_engineering_compat.md` |
 | 系统应用装不上、无 `FLAG_SYSTEM`、或特权权限被拒 | 先看 `codePath` 是否在 `/system/`，以及本次是否只走了 `pm install` / `JuggDeployer.install`；不要先当普通部署失败修 | `JuggDeployer.install`；`03_deploy_system_app.md` |
+| 系统应用 Run 提示无法 update / 签名不一致 | 对比 `/system` 基线 APK 与本次安装 APK 的 cert；debug keystore 不能更新 platform 签名的系统包 | `03_deploy_system_app.md` |
 
 ### 4.1 IDE freeze 的最小证据集
 

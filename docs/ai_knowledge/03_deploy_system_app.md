@@ -45,6 +45,8 @@ dumpsys package <pkg>
 
 `FLAG_SYSTEM` 只证明扫描到了系统分区 APK，不证明特权权限。`sharedUserId="android.uid.system"` 只证明想加入 UID 1000，不证明安装路径正确。
 
+签名一致的 `pm install -r` 成功后，`dumpsys package` 会同时出现 `/system/...` 基线和 `/data/app/...` 更新项，更新项带 `UPDATED_SYSTEM_APP`。此时有效 `codePath` 指向 `/data/app`，**仍是系统应用更新**，不是变回第三方应用；`FLAG_SYSTEM` / `PRIVILEGED` 应保留。
+
 ### 3.2 权限保护级与签名
 
 - `signature`：必须与声明该权限的平台证书一致。
@@ -75,7 +77,9 @@ Jugg 现有部署（成为系统包之后才可能接上）
 
 不能乱序的点：先 `Jugg deploy` / `adb install` 再期望它变成系统应用，不会发生。系统化必须先 push 进系统目录并重启。
 
-系统包已经存在后，Android 允许 `pm install` 作为更新并保留原 `FLAG_SYSTEM`。Jugg install 走同一条 AS installer，**预期**可以更新已有系统包；本专题没有把 Jugg Run 在系统应用上的增量/overlay 作为已验证事实。
+系统包已经存在后，Android 允许 `pm install` 作为更新并保留原 `FLAG_SYSTEM`。这条路径要求**新 APK 与 `/system` 里那份基线 APK 签名一致**。Android Studio / Jugg 默认 debug keystore 与 platform 签名不同，会得到 `INSTALL_FAILED_UPDATE_INCOMPATIBLE`，看起来像“无法 update”。处理是让 debug/release 都使用首次 push 时的同一套 platform 密钥，而不是 uninstall 后改用 debug 包重装（系统分区 APK 卸不掉）。
+
+Jugg install 走同一条 AS installer，签名对齐后**预期**可以更新已有系统包；本专题没有把 Jugg Run 在系统应用上的增量/overlay 作为已验证事实。
 
 ## 5. 隐形约束
 
@@ -88,6 +92,7 @@ Jugg 现有部署（成为系统包之后才可能接上）
 - AGP debug 包默认 `android:testOnly="true"`，系统扫描后可能无法从启动器打开。系统应用 demo 应使用非 testOnly 的 release 包（可保持 `debuggable`）。
 - 隐藏 API / `framework.jar` 只影响编译能否引用 `@hide` 接口，不能代替系统目录安装，也不是 `FLAG_PRIVILEGED` 的充分条件。
 - Direct Overlay 依赖 `run-as`。系统应用若不可调试，或将来使用 `android.uid.system`，不能默认 overlay 可用；失败时应先看 `run-as` 输出，而不是改 compile。
+- 系统包已存在后，Android Studio Run / `adb install` / Jugg install 都是更新，不是首次安装。签名必须与 `/system` 内 APK 相同。`adb uninstall` 只能去掉 `/data` 里的更新，系统分区基线仍在；随后再用 debug 证书安装，照样会签名冲突。
 
 本机一次通过的对照（2026-09-05，`SystemApp_API35` + `~/IdeaProjects/demo/SystemAppDemo`）：
 
@@ -108,6 +113,8 @@ Jugg 现有部署（成为系统包之后才可能接上）
 | `sharedUserId` 后包消失或扫描失败 | 签名与 `android.uid.system` 不一致，或解析失败 | Jugg compile 失败 | 对比 `framework-res.apk` 与 APK 的 cert SHA-256；去掉 sharedUserId 后能否被扫描 |
 | `adb remount` 失败 / `/system` 只读 | 本次启动没有可写 system | Play 镜像或 root 方案整体不可用 | 是否 `-writable-system` 冷启动；`getprop ro.debuggable`；`pm path com.android.vending` |
 | Direct Overlay / `run-as` 失败 | overlay transport 写不进该包数据目录 | 系统化没做成 | `dumpsys package` flags、`debuggable`、`run-as <pkg> id` |
+| `INSTALL_FAILED_UPDATE_INCOMPATIBLE` / 无法 update | 设备上已有同名包，且签名与本次 APK 不同 | compile 失败或 `/system` 不可写 | 对比 `pm path` 指向 APK 与本地产物的 cert SHA-256；确认 Gradle `signingConfig` 不是 debug keystore |
+| 更新成功但 `codePath` 变成 `/data/app` | 这是系统应用的 data 更新（应有 `UPDATED_SYSTEM_APP`） | 系统化丢失 | `flags` 是否仍含 `SYSTEM`；特权应用是否仍含 `PRIVILEGED` |
 
 结论前反证：
 
