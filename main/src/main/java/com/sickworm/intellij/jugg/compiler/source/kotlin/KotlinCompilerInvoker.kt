@@ -13,6 +13,7 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.ObjectOutputStream
 import java.util.*
+import java.util.zip.ZipFile
 import kotlin.collections.filter
 
 /**
@@ -27,8 +28,13 @@ class KotlinCompilerInvoker {
     }
 
     private var hasRetryCompile = false
+    private val ideFileSystemConflictCompilerKeys = mutableSetOf<String>()
     private var tryDisablePlugins: List<File> = emptyList()
     private var disablePlugins: List<File> = emptyList()
+    private var tryDisableProjectPluginOptionId: String? = null
+    private var tryDisableProjectPluginOptionFingerprint: String? = null
+    // Cache only option groups whose removal has already restored compilation for the same toolchain.
+    private val disabledProjectPluginOptionFingerprints = mutableSetOf<String>()
 
     private var tryProperJvmTarget: String? = null
     private var properJvmTarget: String? = null
@@ -109,6 +115,7 @@ class KotlinCompilerInvoker {
         val kspDependencies: List<File> = emptyList(),
         val kotlinPlugins: List<File> = emptyList(),
         val kotlinExtensions: List<File> = emptyList(),
+        val kotlinPluginOptions: List<String> = emptyList(),
         val executionMode: ExecutionMode = ExecutionMode.IN_PROCESS,
         val commonSourceFiles: List<File> = emptyList(),
         val isNeedComplementaryFiles: Boolean = false,
@@ -173,15 +180,35 @@ class KotlinCompilerInvoker {
         val kotlinExtensions = options.kotlinExtensions
             .filter { !disablePlugins.contains(it) && !tryDisablePlugins.contains(it) }
 
+        val isProjectPluginEnabled = kotlinCompile.isUseProjectCompiler || options.forceUseEmbeddedKotlinCompiler
+        val pluginOptionToolchainKey = buildCompilerToolchainKey(
+            (classpath.orEmpty() + kotlinPlugins + kotlinExtensions).distinct(),
+        )
+        val disabledProjectPluginOptionIds = options.kotlinPluginOptions
+            .mapNotNull(::pluginOptionId)
+            .distinct()
+            .filterTo(mutableSetOf()) { pluginId ->
+                buildPluginOptionFingerprint(pluginOptionToolchainKey, pluginId, options.kotlinPluginOptions) in
+                    disabledProjectPluginOptionFingerprints
+            }
+        tryDisableProjectPluginOptionId?.let(disabledProjectPluginOptionIds::add)
+        val projectPluginOptions = if (isProjectPluginEnabled) {
+            disabledProjectPluginOptionIds.fold(options.kotlinPluginOptions, ::removePluginOptions)
+        } else {
+            emptyList()
+        }
+        val configuredPluginOptions = module.kotlinFreeCompilerArgs + projectPluginOptions
         val pluginArgs = mutableListOf<String>()
-        if (kotlinCompile.isUseProjectCompiler || options.forceUseEmbeddedKotlinCompiler) {
+        if (isProjectPluginEnabled) {
             // if we use project compiler, we can use project plugins
             kotlinPlugins.forEach {
                 pluginArgs.add("-Xplugin=${it.path}")
             }
             // compat with kuikly
-            pluginArgs.addAll(listOf("-P", "plugin:kuikly:statisticsPath=" +
-                    "${context.tempCompileDir.resolve("kuikly")}"))
+            if (configuredPluginOptions.none { it.substringBefore('=') == "plugin:kuikly:statisticsPath" }) {
+                pluginArgs.addAll(listOf("-P", "plugin:kuikly:statisticsPath=" +
+                        "${context.tempCompileDir.resolve("kuikly")}"))
+            }
         } else {
             // we are using embedded compiler, which may conflict with the plugin version in project
         }
@@ -274,11 +301,12 @@ class KotlinCompilerInvoker {
 
         val kspArgsManager = KspArgsManager(module, context, options)
         val kspArgs = kspArgsManager.handleKspArgs()
+        val projectPluginArgs = buildPluginOptionArgs(projectPluginOptions, isProjectPluginEnabled)
         val composeArgs = handleComposeArgs(
             options,
             kotlinExtensions,
             kotlinPlugins,
-            module.kotlinFreeCompilerArgs,
+            configuredPluginOptions,
             logger,
         )
 
@@ -363,7 +391,7 @@ class KotlinCompilerInvoker {
         val fragmentArgs = buildFragmentArgs(module, task.files.map { it.file }, options)
         val fileArgs = task.files.map { it.file.absolutePath }
 
-        val command = pluginArgs + extensionArgs + kaptArgs + kspArgs + composeArgs + compileArgs + classPathArgs +
+        val command = pluginArgs + projectPluginArgs + extensionArgs + kaptArgs + kspArgs + composeArgs + compileArgs + classPathArgs +
                 commonSourceArgs + fragmentArgs + fileArgs
         logCompileCommand(command, context.projectDir, logger)
 
@@ -381,14 +409,23 @@ class KotlinCompilerInvoker {
             logger = logger,
             forceCompilerOutputDebug = options.isEnableKapt,
         )
+        val compilerToolchainKey = classpath
+            ?.takeIf { kotlinCompile.isUseProjectCompiler && it.isNotEmpty() }
+            ?.let(::buildCompilerToolchainKey)
+        val executionMode = if (options.executionMode == ExecutionMode.IN_PROCESS &&
+            compilerToolchainKey != null && compilerToolchainKey in ideFileSystemConflictCompilerKeys) {
+            ExecutionMode.ISOLATED_PROCESS
+        } else {
+            options.executionMode
+        }
         val shouldTrackExpectActual = options.isNeedComplementaryFiles &&
-            options.executionMode == ExecutionMode.IN_PROCESS && kotlinCompile.isUseProjectCompiler
+            executionMode == ExecutionMode.IN_PROCESS && kotlinCompile.isUseProjectCompiler
         if (options.isNeedComplementaryFiles && !shouldTrackExpectActual) {
             logger.debug("Skip expect/actual tracking without in-process project Kotlin compiler")
         }
         var trackingResult: K2JVMCompilerIsolate.ExpectActualTrackingResult? = null
         val exitCode = try {
-            if (options.executionMode == ExecutionMode.ISOLATED_PROCESS) {
+            if (executionMode == ExecutionMode.ISOLATED_PROCESS) {
                 check(!classpath.isNullOrEmpty()) { "Project Kotlin compiler classpath is required for isolated compilation" }
                 KotlinCompilerProcessRunner(logger).exec(
                     compileEnv = context.cmdCompileEnv,
@@ -414,6 +451,18 @@ class KotlinCompilerInvoker {
         outputParser.flush()
         logger.debug("kotlin compile result code: $exitCode")
 
+        if (outputParser.isGotIdeFileSystemCloseException &&
+            executionMode == ExecutionMode.IN_PROCESS && compilerToolchainKey != null) {
+            ideFileSystemConflictCompilerKeys += compilerToolchainKey
+            if (task.files.isEmpty()) {
+                logger.debug("Kotlin compiler warm-up conflicts with IDE file system, use isolated process later")
+                hasRetryCompile = true
+            } else {
+                logger.warn("Kotlin compiler conflicts with IDE file system, retry in an isolated process once.")
+                return compile(context, module, task, logger, options.copy(isCanAutoRetry = false))
+            }
+        }
+
         // retry strategy
         if (options.isCanAutoRetry && !hasRetryCompile && handleMetadataError(outputParser, logger)) {
             hasRetryCompile = true
@@ -425,6 +474,25 @@ class KotlinCompilerInvoker {
         val compileResults = outputParser.getResult(isCompileSuccess)
         val errorResults = compileResults.sumOf {
             if (it.isSuccess) 0 else it.getFailure().errors.size
+        }
+        val compileErrorMessages = compileResults
+            .filter { it.isFailed }
+            .flatMap { it.getFailure().errors.map { error -> error.second } }
+        val unsupportedProjectPluginId = findUnsupportedProjectPluginId(
+            compileErrorMessages,
+            projectPluginOptions,
+        )
+        if (unsupportedProjectPluginId != null && options.isCanAutoRetry && !hasRetryCompile) {
+            logger.warn("Kotlin compiler plugin $unsupportedProjectPluginId does not support Gradle-resolved options, " +
+                    "retry once without its resolved options.")
+            hasRetryCompile = true
+            tryDisableProjectPluginOptionId = unsupportedProjectPluginId
+            tryDisableProjectPluginOptionFingerprint = buildPluginOptionFingerprint(
+                pluginOptionToolchainKey,
+                unsupportedProjectPluginId,
+                options.kotlinPluginOptions,
+            )
+            return compile(context, module, task, logger, options)
         }
         var shouldRecreate = false
         var retryReason = ""
@@ -454,8 +522,9 @@ class KotlinCompilerInvoker {
                 // Plugin "(.*)" usage
                 val pluginName = regex.find(message)?.groupValues?.get(1)
                 if (pluginName != null) {
-                    val relativePlugins = (kotlinPlugins + kotlinExtensions).filter {
-                        it.path.contains(pluginName, ignoreCase = true)
+                    val candidates = kotlinPlugins + kotlinExtensions
+                    val relativePlugins = findPluginFilesById(pluginName, candidates).ifEmpty {
+                        candidates.filter { it.path.contains(pluginName, ignoreCase = true) }
                     }
                     noOptionPlugins.addAll(relativePlugins)
                 }
@@ -526,6 +595,7 @@ class KotlinCompilerInvoker {
             // print infos
             context.printClasspathCheck(module)
             hasRetryCompile = false
+            clearProjectPluginOptionRetry()
             return CompileResult(task, compileResults, emptyList())
         }
 
@@ -576,6 +646,8 @@ class KotlinCompilerInvoker {
         }
 
         hasRetryCompile = false
+        tryDisableProjectPluginOptionFingerprint?.let(disabledProjectPluginOptionFingerprints::add)
+        clearProjectPluginOptionRetry()
         disablePlugins = tryDisablePlugins
         properJvmTarget = tryProperJvmTarget
         return CompileResult(
@@ -705,6 +777,20 @@ class KotlinCompilerInvoker {
         return true
     }
 
+    private fun buildPluginOptionFingerprint(
+        toolchainKey: String,
+        pluginId: String,
+        options: List<String>,
+    ): String {
+        val pluginOptions = options.filter { pluginOptionId(it) == pluginId }
+        return "$toolchainKey\n$pluginId\n${pluginOptions.joinToString("\n")}"
+    }
+
+    private fun clearProjectPluginOptionRetry() {
+        tryDisableProjectPluginOptionId = null
+        tryDisableProjectPluginOptionFingerprint = null
+    }
+
     private fun logCompileCommand(options: List<String>, baseDir: File, logger: Logger) {
         var lastOption = ""
         val shortOptions = options.map {
@@ -769,6 +855,10 @@ class KotlinCompilerInvoker {
 
     companion object {
 
+        internal fun buildCompilerToolchainKey(classpath: List<File>): String {
+            return classpath.joinToString("\n") { it.absoluteFile.normalize().path }
+        }
+
         internal fun buildCommonSourceArgs(files: List<File>): List<String> {
             if (files.isEmpty()) return emptyList()
             val paths = files.distinctBy { it.absolutePath }.joinToString(",") { it.absolutePath }
@@ -786,6 +876,75 @@ class KotlinCompilerInvoker {
             ).filterNot { it.substringBefore('=') in existingOptionNames }
                 .flatMap { listOf("-P", it) }
         }
+
+        internal fun buildPluginOptionArgs(
+            options: List<String>,
+            isProjectPluginEnabled: Boolean = true,
+        ): List<String> {
+            if (!isProjectPluginEnabled) return emptyList()
+            return options.flatMap { listOf("-P", it) }
+        }
+
+        internal fun findUnsupportedProjectPluginId(
+            messages: List<String>,
+            projectPluginOptions: List<String>,
+        ): String? {
+            val configuredPluginIds = projectPluginOptions.mapNotNull(::pluginOptionId).toSet()
+            return messages.asSequence()
+                .mapNotNull { UNSUPPORTED_PLUGIN_OPTION_REGEX.find(it)?.groupValues?.get(1) }
+                .firstOrNull { it in configuredPluginIds }
+        }
+
+        internal fun removePluginOptions(options: List<String>, pluginId: String): List<String> {
+            return options.filterNot { pluginOptionId(it) == pluginId }
+        }
+
+        private fun pluginOptionId(option: String): String? {
+            if (!option.startsWith("plugin:")) return null
+            return option.removePrefix("plugin:").substringBefore(':').takeIf { it.isNotEmpty() }
+        }
+
+        private val UNSUPPORTED_PLUGIN_OPTION_REGEX = Regex(
+            "unsupported plugin option:\\s*(?:plugin:)?([^:\\s]+):",
+            RegexOption.IGNORE_CASE,
+        )
+
+        /** Resolves plugin artifacts by the ID embedded in their CommandLineProcessor implementation. */
+        internal fun findPluginFilesById(pluginId: String, files: List<File>): List<File> {
+            val pluginIdBytes = pluginId.toByteArray()
+            return files.distinct().filter { file ->
+                if (!file.isFile) return@filter false
+                try {
+                    ZipFile(file).use { zip ->
+                        val service = zip.getEntry(COMMAND_LINE_PROCESSOR_SERVICE) ?: return@use false
+                        zip.getInputStream(service).bufferedReader().useLines { lines ->
+                            if (lines.none { it.substringBefore('#').trim().isNotEmpty() }) return@use false
+                        }
+                        zip.entries().asSequence()
+                            .filter { !it.isDirectory && it.name.endsWith(".class") }
+                            .any { entry ->
+                                zip.getInputStream(entry).use { it.readBytes().containsSequence(pluginIdBytes) }
+                            }
+                    }
+                } catch (_: Exception) {
+                    false
+                }
+            }
+        }
+
+        private fun ByteArray.containsSequence(target: ByteArray): Boolean {
+            if (target.isEmpty() || target.size > size) return false
+            search@ for (start in 0..size - target.size) {
+                for (offset in target.indices) {
+                    if (this[start + offset] != target[offset]) continue@search
+                }
+                return true
+            }
+            return false
+        }
+
+        private const val COMMAND_LINE_PROCESSOR_SERVICE =
+            "META-INF/services/org.jetbrains.kotlin.compiler.plugin.CommandLineProcessor"
 
         private fun encodeList(options: Map<String, String>): String {
             // see https://kotlinlang.org/docs/kapt.html#use-in-cli

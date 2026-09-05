@@ -71,6 +71,30 @@ public class BootstrapApplication extends Application {
         return rawApplication != null ? rawApplication : super.getApplicationContext();
     }
 
+    /**
+     * Framework dispatches activity lifecycle callbacks through Activity#getApplication(), which
+     * returns the raw application once replaceApplication() has run. Callbacks left on this
+     * bootstrap instance are never dispatched, and moveActivityLifecycleCallbacks() only migrates
+     * them once, so forward every registration to the raw application as soon as it exists.
+     */
+    @Override
+    public void registerActivityLifecycleCallbacks(ActivityLifecycleCallbacks callback) {
+        if (rawApplication != null) {
+            rawApplication.registerActivityLifecycleCallbacks(callback);
+            return;
+        }
+        super.registerActivityLifecycleCallbacks(callback);
+    }
+
+    @Override
+    public void unregisterActivityLifecycleCallbacks(ActivityLifecycleCallbacks callback) {
+        if (rawApplication != null) {
+            rawApplication.unregisterActivityLifecycleCallbacks(callback);
+            return;
+        }
+        super.unregisterActivityLifecycleCallbacks(callback);
+    }
+
     @Override public void onCreate() {
         LogUtils.i(TAG, "onCreate start");
         if (rawApplication != null) {
@@ -269,6 +293,7 @@ public class BootstrapApplication extends Application {
             //   - Replace mResDir to point to the external resource file instead of the .apk. This is
             //     used as the asset path for new Resources objects.
             //   - Set Application#mLoadedApk to the found LoadedApk instance
+            int replacedLoadedApkCount = 0;
             for (String fieldName : new String[]{"mPackages", "mResourcePackages"}) {
                 Field field = activityThread.getDeclaredField(fieldName);
                 field.setAccessible(true);
@@ -283,6 +308,7 @@ public class BootstrapApplication extends Application {
 
                     if (mApplication.get(loadedApk) == this) {
                         mApplication.set(loadedApk, rawApplication);
+                        replacedLoadedApkCount++;
                         if (mLoadedApk != null) {
                             mLoadedApk.set(rawApplication, loadedApk);
                         }
@@ -291,6 +317,16 @@ public class BootstrapApplication extends Application {
             }
             LogUtils.d(TAG, "replaceApplication: Enumerate all LoadedApk (or PackageInfo) fields in ActivityThread#mPackages and" +
                     " ActivityThread#mResourcePackages done.");
+            // Activity#getApplication() reads LoadedApk#mApplication. Without any replacement here
+            // activities keep the bootstrap instance and never dispatch to the raw application.
+            if (replacedLoadedApkCount == 0) {
+                LogUtils.w(TAG, "replaceApplication: no LoadedApk#mApplication replaced, " +
+                        "Activity#getApplication() may keep returning bootstrap application " +
+                        "and drop all ActivityLifecycleCallbacks");
+            } else {
+                LogUtils.i(TAG, "replaceApplication: replaced LoadedApk#mApplication count: " +
+                        replacedLoadedApkCount);
+            }
 
         } catch (Throwable e) {
             LogUtils.e(TAG, "replaceApplication: error = ", e);

@@ -75,4 +75,26 @@ class KotlinCompilerHostCompatTest {
         assertFalse(KotlinCompilerHostCompat.shouldUseNoJdk(21, withAndroidJar))
         assertFalse(KotlinCompilerHostCompat.shouldUseNoJdk(25, withoutAndroidJar))
     }
+
+    @Test
+    fun `recognizes IDE file system close conflict`() {
+        val message = """
+            exception: java.lang.UnsupportedOperationException
+            \tat java.base/sun.nio.fs.WindowsFileSystem.close(WindowsFileSystem.java:120)
+            \tat com.intellij.platform.core.nio.fs.DelegatingFileSystem.close(DelegatingFileSystem.java:68)
+            \tat org.jetbrains.kotlin.com.intellij.ide.plugins.DescriptorLoadingContext.close(DescriptorLoadingContext.kt:45)
+        """.trimIndent()
+
+        assertTrue(KotlinCompilerHostCompat.isIdeFileSystemCloseConflict(message))
+    }
+
+    @Test
+    fun `does not treat unrelated unsupported operation as IDE file system conflict`() {
+        val message = """
+            exception: java.lang.UnsupportedOperationException
+            \tat com.example.FileSystem.close(FileSystem.kt:10)
+        """.trimIndent()
+
+        assertFalse(KotlinCompilerHostCompat.isIdeFileSystemCloseConflict(message))
+    }
 }

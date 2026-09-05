@@ -3,18 +3,29 @@
 <ol>
     <li>[feature] 支持 Standalone Jugg CLI，不依赖 Android Studio 执行编译和部署</li>
 </ol>
-<h2>3.3.4 (2026.08.29)</h2>
+<h2>3.4.0 (2026.09.05)</h2>
+<ol>
+    <li>[feature] 修改插件 ID，适配市场上架</li>
+    <li>[bugfix] 部署失败时展示包不可调试的原因</li>
+    <li>[bugfix] 编译器插件需要参数时避免增量 Kotlin 编译失败</li>
+    <li>[bugfix] 路径含 shell 特殊字符时避免 APK 更新失败</li>
+    <li>[bugfix] 避免 Dragonfly 缺失类导致 release R8 构建失败</li>
+    <li>[bugfix] 避免编译器插件参数破坏增量构建</li>
+</ol>
+<h2>3.3.9 (2026.09.04)</h2>
 <ol>
     <li>[feature] 支持在选中的远程服务器运行自定义命令</li>
     <li>[feature] 自定义服务器可提供更新和编译器 JAR，保存前必须明确确认信任</li>
     <li>[feature] UI 元素定位支持精确组合 selector、限制返回数量并提供源码位置</li>
     <li>[feature] 旧版 Jugg 选项统一迁移到运行面板管理</li>
     <li>[feature] 变更文件过多时，降级 Gradle 构建前先征求确认</li>
+    <li>[feature] 支持从任意指定分支手动构建并直接下载 dev 包</li>
     <li>[optimize] 简化远程命令入口，空命令时禁用运行按钮</li>
     <li>[optimize] Gradle 项目信息不可用时继续增量编译，不再回退完整构建</li>
     <li>[optimize] 请求的 projectDir 未初始化时，列出当前已打开的 Jugg 项目</li>
     <li>[optimize] view-inspect 支持读取 public 字段和 Kotlin 属性</li>
     <li>[optimize] Jugg 运行面板准确记录编译、部署、用户操作和 MCP 调用，并对详情脱敏</li>
+    <li>[optimize] 展示 Gradle 依赖合并诊断，便于定位缺失或歧义的模块依赖</li>
     <li>[bugfix] CLI 传入子目录时自动解析到已初始化的父项目</li>
     <li>[bugfix] 修复 feature 资源 ID 导致增量编译失败的问题</li>
     <li>[bugfix] 修复 home 目录不可写时增量编译无法初始化的问题</li>
@@ -25,6 +36,26 @@
     <li>[bugfix] 修复接口父类变更后实现类未重新编译的问题</li>
     <li>[bugfix] 修复成员泛型变更后运行时类型崩溃的问题</li>
     <li>[bugfix] 修复应用使用自定义部署路径时无法找到 AndroidTest APK 的问题</li>
+    <li>[bugfix] Gradle 构建失败后直接降级，不再重复显示大变更确认</li>
+    <li>[bugfix] Gradle Sync 期间保留自定义 Jugg 运行配置</li>
+    <li>[bugfix] 重启后不再重复重建源码数据库</li>
+    <li>[bugfix] 默认问题上报对话框展示全部诊断信息</li>
+    <li>[bugfix] AndroidTest 编译保留项目依赖</li>
+    <li>[bugfix] 运行 library AndroidTest 时保留应用 APK</li>
+    <li>[bugfix] 没有文件变更而直接部署时展示编译状态</li>
+    <li>[bugfix] 修复同名资源文件位于多个根目录时资源 ID 缺失的问题</li>
+    <li>[bugfix] 修复堆内存耗尽后兼容部署重复失败的问题</li>
+    <li>[bugfix] 首次运行时明确提示缺少 Gradle 基线</li>
+    <li>[bugfix] 修复 Android Studio Quail 4 安装 APK 失败的问题</li>
+    <li>[bugfix] 修复 IDE 文件系统冲突后的 Kotlin 编译问题，兼容大型工程</li>
+    <li>[bugfix] ASUS 设备自动使用兼容部署，避免标准部署失败</li>
+    <li>[bugfix] IDE 模块依赖边或 Android 构建产物不完整时保持 KMP 编译正常</li>
+    <li>[bugfix] APK 签名或校验需要回退 JDK 时保护内嵌 APK</li>
+    <li>[bugfix] Bootstrap Application 切换后继续保留 Activity 生命周期回调</li>
+    <li>[bugfix] 增量与混淆 Dex 编译按所属 APK Variant 的 minSdk 执行脱糖</li>
+    <li>[bugfix] Windows 启动 Jugg CLI 时支持使用 Python Launcher</li>
+    <li>[bugfix] 修复项目信息重载、基线缺失和过期生成源码导致的 DataBinding 增量编译问题</li>
+    <li>[bugfix] 避免复用 Gradle Daemon 时 jvmti_agent 资源打包失败</li>
 </ol>
 <h2>3.2.6 (2026.08.17)</h2>
 <ol>

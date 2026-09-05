@@ -24,7 +24,7 @@ More Options 里有一些低频开关和工具入口。本页只保留日常场�
 | 选项 | 作用 |
 |---|---|
 | Install Jugg Skills | 安装 Jugg CLI、Agent skill 和 hooks。 |
-| Set custom server URL | 设置自定义 Jugg 后台地址，用于内部配置、更新或诊断服务。 |
+| Set custom server URL | 设置自定义 Jugg 后台地址，用于内部配置、更新或事件上报。 |
 | Check updates | 主动检查当前插件版本是否有可用更新。 |
 | Clean and reset Jugg | 删除 Jugg 本地缓存并重新打开项目，适合缓存状态明显异常时使用。 |
 

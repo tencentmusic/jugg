@@ -10,8 +10,8 @@ import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 
 /**
- * Runs the project Kotlin compiler in a child JVM so KAPT can use javac internals without
- * inheriting Android Studio's module restrictions.
+ * Runs the project Kotlin compiler in a child JVM so it does not inherit incompatible IDE
+ * process state, while retaining the module exports required by KAPT.
  */
 internal class KotlinCompilerProcessRunner(private val logger: Logger) {
 
@@ -23,9 +23,34 @@ internal class KotlinCompilerProcessRunner(private val logger: Logger) {
         compilerArgs: List<String>,
         outputStream: PrintStream,
     ): ExitCode {
+        val compilerArgsFile = File.createTempFile("jugg-kotlinc-", ".args")
+        return try {
+            compilerArgsFile.writeText(renderCompilerArgs(compilerArgs), Charsets.UTF_8)
+            execWithArgsFile(
+                compileEnv,
+                projectDir,
+                task,
+                compilerClasspath,
+                compilerArgsFile,
+                outputStream,
+            )
+        } finally {
+            if (!compilerArgsFile.delete()) compilerArgsFile.deleteOnExit()
+        }
+    }
+
+    /** Starts and monitors one isolated Kotlin compiler process. */
+    private fun execWithArgsFile(
+        compileEnv: List<String>,
+        projectDir: File,
+        task: CompileTask,
+        compilerClasspath: List<File>,
+        compilerArgsFile: File,
+        outputStream: PrintStream,
+    ): ExitCode {
         val javaHome = resolveJavaHome(compileEnv, System.getProperty("java.home"))
         val javaFeature = readJavaFeature(javaHome)
-        val command = buildCommand(javaHome, javaFeature, compilerClasspath, compilerArgs)
+        val command = buildCommand(javaHome, javaFeature, compilerClasspath, compilerArgsFile)
         logger.debug("isolated Kotlin compiler java: ${command.first()}, feature: $javaFeature")
 
         val processBuilder = ProcessBuilder(command)
@@ -100,7 +125,7 @@ internal class KotlinCompilerProcessRunner(private val logger: Logger) {
             javaHome: File,
             javaFeature: Int,
             compilerClasspath: List<File>,
-            compilerArgs: List<String>,
+            compilerArgsFile: File,
         ): List<String> {
             val javaExecutable = File(javaHome, if (isWindows) "bin/java.exe" else "bin/java")
             val moduleArgs = if (javaFeature >= 9) {
@@ -122,7 +147,14 @@ internal class KotlinCompilerProcessRunner(private val logger: Logger) {
                 "-cp",
                 compilerClasspath.joinToString(File.pathSeparator) { it.absolutePath },
                 COMPILER_MAIN_CLASS,
-            ) + compilerArgs
+                "@${compilerArgsFile.absolutePath}",
+            )
+        }
+
+        internal fun renderCompilerArgs(arguments: List<String>): String {
+            return arguments.joinToString(separator = "\n", postfix = "\n") { argument ->
+                "\"${argument.replace("\\", "\\\\").replace("\"", "\\\"")}\""
+            }
         }
 
         private fun readJavaFeature(javaHome: File): Int {

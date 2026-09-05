@@ -295,6 +295,39 @@ fun ICompileContext.getAllBelongsApkPaths(moduleInfo: ModuleInfo): List<String> 
 }
 
 /**
+ * Resolves the APK owner module for [moduleInfo], such as the application module for base APK
+ * or the dynamic feature module for split APK output.
+ */
+fun ICompileContext.resolveApkOwnerModule(moduleInfo: ModuleInfo): ModuleInfo {
+    val apkFile = moduleBelongsApkMap.getBelongsApk(moduleInfo)?.apkFile
+    if (apkFile == null) {
+        return applicationModule ?: moduleInfo
+    }
+    val applicationModule = applicationModule
+    if (applicationModule != null && moduleBelongsApkMap.getBelongsApk(applicationModule)?.apkFile == apkFile) {
+        return applicationModule
+    }
+    dynamicFeatureModules.forEach {
+        if (moduleBelongsApkMap.getBelongsApk(it)?.apkFile == apkFile) {
+            return it
+        }
+    }
+    logger.debug("resolveApkOwnerModule: cannot find APK owner for ${moduleInfo.name}, " +
+            "use ${(applicationModule ?: moduleInfo).name} for fallback.")
+    return applicationModule ?: moduleInfo
+}
+
+/**
+ * Resolves D8 min API for [moduleInfo] using the owning APK variant minSdk, matching Gradle dex behavior.
+ */
+fun ICompileContext.getDexMinApi(moduleInfo: ModuleInfo): Int {
+    val ownerModule = resolveApkOwnerModule(moduleInfo)
+    return ownerModule.minSdkVersion?.toIntOrNull()?.takeIf { it > 0 }
+        ?: applicationModule?.minSdkVersion?.toIntOrNull()?.takeIf { it > 0 }
+        ?: 21
+}
+
+/**
  * ICompileContext provides project/module/environment data required by compiler stages.
  */
 interface ICompileContext {
@@ -345,6 +378,10 @@ interface ICompileContext {
 
     val dynamicFeatureModules: List<ModuleInfo>
 
+    /**
+     * True when baseline APK contains `$-CC` / `$DefaultImpls` classes. Diagnostic signal only:
+     * it cannot express the variant minSdk, so it must not take part in D8 minApi selection.
+     */
     val isEnableDesugared: Boolean
 
     val modulesWithOrder: List<ModuleInfo>

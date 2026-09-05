@@ -14,6 +14,7 @@ import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import com.sickworm.intellij.jugg.project.info.ProjectInfoSerializer
 import com.sickworm.intellij.jugg.project.change.ChangedFile
 import com.sickworm.intellij.jugg.project.info.JuggProjectInfo
+import com.sickworm.intellij.jugg.project.info.ModuleDependency
 import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import com.sickworm.intellij.jugg.project.info.ComposeResourceSupportStatus
 import org.junit.AfterClass
@@ -523,6 +524,58 @@ class KmpComposeFlowReproTest {
                 )
             )
         }
+
+        private fun writeCrossModuleIdeProjectInfo() {
+            val gradleProjectInfo = ProjectInfoSerializer(pathManager.gradleProjectInfoFile, logger).load()
+                ?: error("KMP Compose Gradle project info was not generated")
+            val appModule = gradleProjectInfo.modules["app"]
+                ?: error("app module was not found in Gradle project info")
+            val kmpModule = gradleProjectInfo.modules["kmpCompose"]
+                ?: error("kmpCompose module was not found in Gradle project info")
+            val appOwner = appModule.copy(
+                moduleType = ModuleInfo.Type.Unknown,
+                moduleDependencies = listOf(ModuleDependency("library1")),
+                libraryDependencies = emptyList(),
+                runtimeLibraryDependencies = emptyList(),
+            )
+            val appCommonMain = ModuleInfo.virtualModule.copy(
+                name = "app.commonMain",
+                moduleType = ModuleInfo.Type.Unknown,
+                moduleRootDir = appModule.moduleRootDir,
+                projectRootDir = appModule.projectRootDir,
+                sourceDirs = listOf(File(appModule.moduleRootDir, "src/main/java")),
+                buildVariant = appModule.buildVariant,
+                buildPathInfo = appModule.buildPathInfo,
+            )
+            val kmpOwner = kmpModule.copy(
+                moduleType = ModuleInfo.Type.Unknown,
+                libraryDependencies = emptyList(),
+                runtimeLibraryDependencies = emptyList(),
+            )
+            val kmpCommonMain = ModuleInfo.virtualModule.copy(
+                name = "kmpCompose.commonMain",
+                moduleType = ModuleInfo.Type.Unknown,
+                moduleRootDir = kmpModule.moduleRootDir,
+                projectRootDir = kmpModule.projectRootDir,
+                sourceDirs = listOf(
+                    File(kmpModule.moduleRootDir, "src/commonMain/kotlin"),
+                    File(kmpModule.moduleRootDir, "src/sharedMain/kotlin"),
+                ),
+                buildVariant = kmpModule.buildVariant,
+                buildPathInfo = kmpModule.buildPathInfo,
+            )
+            ProjectInfoSerializer(pathManager.ideProjectInfoFile, logger).save(
+                JuggProjectInfo(
+                    modules = linkedMapOf(
+                        appCommonMain.name to appCommonMain,
+                        appOwner.name to appOwner,
+                        kmpOwner.name to kmpOwner,
+                        kmpCommonMain.name to kmpCommonMain,
+                    ),
+                    agpR8Classpath = null,
+                )
+            )
+        }
     }
 
     @Test
@@ -839,6 +892,28 @@ class KmpComposeFlowReproTest {
             assertTrue(stagingDexPaths(jugg).any { it.endsWith("/CommonPlatformHelperKt.dex") })
             assertFalse(jugg.readLatestProjectLog().contains("-Xcommon-sources="))
             assertNoComposeGradle(jugg)
+        }
+    }
+
+    @Test
+    fun compileVirtualCommonSourceUsingTypealiasFromIdeKnownKmpDependency() {
+        val source = File(
+            projectInfo.projectRoot,
+            "app/src/main/java/com/example/myapplication/CrossModuleLogConsumer.kt",
+        )
+        try {
+            writeCrossModuleIdeProjectInfo()
+            changeAndRevert(source, "baseline", "changed") {
+                val jugg = compileKmpChanges(source)
+                val log = jugg.readLatestProjectLog()
+
+                assertTrue(jugg.deployFileManager.getUncompiledFiles().isEmpty(), log)
+                assertTrue(stagingDexPaths(jugg).any { it.endsWith("/CrossModuleLogConsumerKt.dex") }, log)
+                assertFalse(log.contains("-Xcommon-sources="), log)
+                assertNoComposeGradle(jugg)
+            }
+        } finally {
+            writeCommonMainIdeProjectInfo("2.1")
         }
     }
 

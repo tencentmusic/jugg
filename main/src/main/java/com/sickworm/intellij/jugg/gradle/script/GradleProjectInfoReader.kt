@@ -250,6 +250,7 @@ class GradleProjectInfoReader(
                     ?: if (hasKotlinPlugin) extensions?.invoke("findByName", "kotlinOptions") else null
                 val kotlinJvmTarget = readKotlinJvmTarget(kotlinTask, kotlinJvmOptions)
                 val kotlinFreeCompilerArgs = readKotlinFreeCompilerArgs(kotlinTask, kotlinJvmOptions)
+                val kotlinPluginOptions = readKotlinPluginOptions(kotlinTask)
 
 
                 val kotlinExtensions: List<File>? = project.configurations.findByName("kotlin-extension")?.files?.toList()
@@ -261,6 +262,7 @@ class GradleProjectInfoReader(
                     minSdkVersion = defaultConfig["minSdkVersion"]["apiLevel"]?.valueString,
                     kotlinJvmTarget = kotlinJvmTarget,
                     kotlinFreeCompilerArgs = kotlinFreeCompilerArgs,
+                    kotlinPluginOptions = kotlinPluginOptions,
                     javaSourceCompatibility = compileOptions["sourceCompatibility"]?.valueString,
                     javaTargetCompatibility = compileOptions["targetCompatibility"]?.valueString,
                     manifestPlaceHolders = manifestPlaceholders,
@@ -295,6 +297,7 @@ class GradleProjectInfoReader(
                 moduleInfo = moduleInfo.copy(
                     kotlinJvmTarget = readKotlinJvmTarget(kotlinTask, kotlinJvmOptions),
                     kotlinFreeCompilerArgs = readKotlinFreeCompilerArgs(kotlinTask, kotlinJvmOptions),
+                    kotlinPluginOptions = readKotlinPluginOptions(kotlinTask),
                 )
             }
         }
@@ -869,6 +872,24 @@ class GradleProjectInfoReader(
         return args?.map { it.toString() }
             ?: (legacyOptions["freeCompilerArgs"]?.value as? Collection<*>)?.map { it.toString() }
             ?: emptyList()
+    }
+
+    /** Reads resolved subplugin arguments across Kotlin Gradle Plugin getter name changes. */
+    private fun readKotlinPluginOptions(kotlinTask: Any?): List<String> {
+        kotlinTask ?: return emptyList()
+        val propertyNames = listOf(
+            "kotlinPluginData\$kotlin_gradle_plugin_common",
+            "kotlinPluginData\$kotlin_gradle_plugin",
+        )
+        var pluginData: Any? = null
+        for (propertyName in propertyNames) {
+            val provider = readProperty(kotlinTask, propertyName) ?: continue
+            pluginData = invokeNoArg(provider, "getOrNull") ?: invokeNoArg(provider, "get")
+            if (pluginData != null) break
+        }
+        val options = readProperty(pluginData, "options") ?: return emptyList()
+        val arguments = readProperty(options, "arguments") as? Collection<*> ?: return emptyList()
+        return arguments.map { it.toString() }.filter { it.startsWith("plugin:") }
     }
 
     private fun readKotlinOptionValue(compilerOptions: Any?, name: String): Any? {

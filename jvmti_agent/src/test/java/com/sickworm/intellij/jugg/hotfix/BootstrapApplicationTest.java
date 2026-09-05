@@ -14,10 +14,11 @@ import static org.junit.Assert.assertSame;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Verifies the Application context exposed during BootstrapApplication startup.
+ * Verifies the Application instance exposed to the app during BootstrapApplication startup.
  */
 public class BootstrapApplicationTest {
 
@@ -33,6 +34,20 @@ public class BootstrapApplicationTest {
     @Test
     public void getApplicationContext_shouldKeepDefaultResultBeforeRawApplicationInitialized() {
         assertNull(new BootstrapApplication().getApplicationContext());
+    }
+
+    @Test
+    public void activityLifecycleCallbacks_shouldRegisterAndUnregisterOnRawApplication() throws Exception {
+        BootstrapApplication bootstrapApplication = new BootstrapApplication();
+        Application rawApplication = mock(Application.class);
+        setRawApplication(bootstrapApplication, rawApplication);
+        Application.ActivityLifecycleCallbacks callbacks = mock(Application.ActivityLifecycleCallbacks.class);
+
+        bootstrapApplication.registerActivityLifecycleCallbacks(callbacks);
+        bootstrapApplication.unregisterActivityLifecycleCallbacks(callbacks);
+
+        verify(rawApplication).registerActivityLifecycleCallbacks(callbacks);
+        verify(rawApplication).unregisterActivityLifecycleCallbacks(callbacks);
     }
 
     @Test

@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.compiler.databinding
 
+import android.databinding.tool.DataBindingBuilder
 import com.intellij.openapi.Disposable
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.source.JavaCompilerInvoker
@@ -486,6 +487,7 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
         }
         TimeLogger.end("runAnnotationProcessor_findAllIncludePath", logger)
 
+        prepareBindingClassLog()
         val apOptions = prepareAnnotationProcessorOptions(module)
         logger.debug("runAnnotationProcessor apOptions: $apOptions")
 
@@ -558,6 +560,17 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
         }
         logger.debug("runAnnotationProcessor apt output: ${aptResult.outputs.joinToString(", ") { it.file.name }}")
         return generatedStore
+    }
+
+    private fun prepareBindingClassLog() {
+        argsManager.dataBindingArtifactFolder.clearDir()
+        argsManager.artifactFolder.listFilesRecursively()
+            .filter { it.name.endsWith(DataBindingBuilder.BINDING_CLASS_LIST_SUFFIX) }
+            .forEach {
+                val targetFile = it.changeBaseDir(argsManager.artifactFolder, argsManager.dataBindingArtifactFolder)
+                targetFile.parentFile.mkdirs()
+                it.copyTo(targetFile, overwrite = true)
+            }
     }
 
     private fun runKotlinAdapterKapt(task: CompileTask, module: ModuleInfo): File {

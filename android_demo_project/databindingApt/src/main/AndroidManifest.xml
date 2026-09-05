@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+          package="com.example.databindingapt">
+
+    <application>
+        <activity
+            android:name="com.sickworm.jugg.demo.testcase.databinding.javaapt.DataBindingJavaAptActivity"
+            android:exported="true"
+        />
+    </application>
+
+</manifest>

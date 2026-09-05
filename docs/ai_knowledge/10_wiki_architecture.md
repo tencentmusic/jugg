@@ -23,6 +23,7 @@
 | `.github/workflows/wiki-pages.yml` | `main` 分支 Wiki 变更触发 GitHub Pages 构建与发布。 |
 | `.github/workflows/release.yml` | 版本 tag 触发正式 GitHub Release；仅 tag commit 已包含在 `main` 时构建，避免 develop tag 发布正式包。 |
 | `.github/workflows/nightly.yml` | 每日或手工检查 `develop`；仅在其 HEAD 与 `canary-nightly` tag 不同时构建，并更新 Canary prerelease、插件包和 SHA-256。 |
+| `.github/workflows/dev.yml` | 仅手工触发的构建验证；按 `<versionName>-dev.<日期>.<run number>` 构建被触发 ref，并更新 `dev-latest` 滚动 prerelease、`jugg-dev.zip` 与 SHA-256。 |
 | `~/Documents/shell/publish_jugg_wiki.sh` | Wiki 后台发布脚本：打包 production 产物并同步到 `ali` / `yun` 后台 Wiki 根目录。 |
 | `docs/wiki/dev/elements-demo.md` | 英文 dev-only 元素样板页，只用于开发环境视觉验收。 |
 | `docs/wiki/zh/dev/elements-demo.md` | 中文 dev-only 元素样板页，只用于开发环境视觉验收。 |
@@ -171,7 +172,7 @@ npm run preview -- --host 127.0.0.1 --port 4173
 GitHub Pages 使用项目站点路径：
 
 ```text
-https://sickworm.github.io/jugg/
+https://tencentmusic.github.io/jugg/
 ```
 
 `.github/workflows/wiki-pages.yml` 在 `main` 分支的 `docs/wiki/**` 或 workflow 自身发生变化时执行，也支持手工触发。构建步骤在 `docs/wiki` 下运行 `npm ci` 和 `npm run check:homepage`，完成 production build 与首页渲染检查后，再将 `.vitepress/dist` 作为 Pages artifact 发布。
@@ -183,7 +184,7 @@ GitHub Pages build -> JUGG_WIKI_BASE=/jugg/
 默认本地或后台 build -> /
 ```
 
-不要将 `base` 直接写死为 `/jugg/`，否则同步到后台根目录的产物会错误引用 `/jugg/assets/**`。首次发布前需要在 GitHub 仓库 `Settings -> Pages` 中将 Source 设为 `GitHub Actions`。
+不要将 `base` 直接写死为 `/jugg/`，否则同步到后台根目录的产物会错误引用 `/jugg/assets/**`。首次发布前需要在 `tencentmusic/jugg` 的 `Settings -> Pages` 中将 Source 设为 `GitHub Actions`，再手工运行 `Deploy wiki to GitHub Pages` 或向 `main` 推送 Wiki 变更。GitHub 不会将仓库转移前的 Pages 地址自动重定向到新地址。
 
 GitHub Pages 发布验证：
 

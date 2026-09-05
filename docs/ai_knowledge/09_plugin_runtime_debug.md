@@ -196,9 +196,13 @@ idea/.../runtime/HostTaskExecutor.kt          # ApplicationManager.isDispatchThr
 | 升级后 `not gradle compile yet` | 查 `complete_flag`、`module_builds.json` 版本及恢复日志；缺失 flag 不应手工伪造 | `CompileContextDb`、`BuildPathInfoSerializer`；`04_engineering_project.md` |
 | `Git check after compile is still running` | 该 debug 只表示本轮不等待异步补检，不代表编译失败；持续出现才检查 Git 查询规模与历史 | `GitChangesCompileChecker`；`02_compile_core.md` |
 | APK DB 初始化慢 | 对齐 APK 大小、隔离解析信号、数据库体积和实际耗时 | APK parser / database；`05_utilities.md` |
+| 兼容资源部署先 OOM、后续持续 `FileSystemAlreadyExistsException` | 对齐 `ResourceApkModifier` 的条目/字节/heap 日志、`Open ZipFS` 临时文件路径和 deploy payload heap；后续 Run 应使用新的临时 URI，OOM 后正式缓存应被清理 | `ResourceApkModifier`、`ApkFileModifier`、`JuggDeployerHelper`；`03_deploy_core.md`、`05_utilities.md` |
 | `source_files.db` 每次启动都重建 | 检查 rebuild stamp、删除失败与 `SQLITE_BUSY`；不要使用 DB creation/modified time 判断最近重建 | `SourceFileManager`、`SourceFileDatabaseSqLiteHelper`；本节 4.3 |
 | release 增量后 runtime crash | 先确认 mapping 加载与 `Obfuscated:`，再对比 staging DEX 和 APK DEX；异常名不能单独决定映射缺口 | `DexObfuscator`、`DexMinifyCompiler`；`02_compile_obfuscation.md` |
 | Kotlin `INTERNAL_ERROR` 且栈含 shaded `JavaVersion` | recreate compiler 同样失败只能增强“宿主环境”推断；继续核对宿主 JDK、项目 Kotlin 版本和兼容日志 | `KotlinCompilerHostCompat`；`02_compile_source.md` |
+| Kotlin `INTERNAL_ERROR` 且栈含 `DelegatingFileSystem.close`、`DescriptorLoadingContext.close` | 确认同一异常块还包含 `UnsupportedOperationException`；命中后预热只缓存当前 compiler classpath 状态，真实源码应出现独立 JVM 重试日志。子进程只接收一个 Kotlin argfile 参数；不同 toolchain 不应同步降级 | `KotlinCompilerOutputParser`、`KotlinCompilerInvoker`、`KotlinCompilerProcessRunner`；`02_compile_source.md` |
+| Kotlin `required plugin option not present` | 对比 `gradle_project_infos.json` 的 `kotlinPluginOptions` 与 `kotlin compile: kotlinc` 中的 `-P plugin:`；参数已存在仍失败时检查 plugin/Kotlin 版本，参数缺失时检查 `KotlinCompilerPluginData` 读取。兜底禁用必须按 `CommandLineProcessor` 声明的 plugin id 精确命中，不能禁用全部插件 | `GradleProjectInfoReader`、`KotlinCompilerInvoker`；`02_compile_source.md` |
+| Kotlin `unsupported plugin option` | 先确认错误参数是否来自 `kotlinPluginOptions`；Jugg 只会为 Gradle-resolved 参数移除同 plugin id 的整组参数并重试一次，用户 `kotlinFreeCompilerArgs` 不会自动修改。重复出现时检查 compiler toolchain、插件 JAR 与 Gradle task 是否属于同一 compilation | `KotlinCompiler`、`KotlinCompilerInvoker`；`02_compile_source.md` |
 | Windows 命令中文乱码 | 保留原始字节链路；出现 `�` 表示可能已发生不可逆解码损失 | `ProcessOutputReader`；`04_engineering_compat.md` |
 
 ### 4.1 IDE freeze 的最小证据集
@@ -320,7 +324,7 @@ cp -r {projectDir}/build/jugg/database/ "$BACKUP/database/"
 | 部署历史 | `build/jugg/database/deploy_history.db/` | 增量状态和恢复问题 |
 | crash / logcat / 设备 overlay | 设备现场 | runtime crash、资源和部署问题 |
 
-可使用 `tools/collect_jugg_scene.command <projectDir>` 一键保存 APK、R.jar、设备 crash/logcat、实际安装 APK 和 overlay 产物；ADB 定位过程写入 `meta/adb_resolution.txt`。资源运行时问题必须在再次 Run、重装或清数据前采集，避免 staging 和设备 overlay 被覆盖。
+可使用 `tools/collect_jugg_scene.command <projectDir>` 一键保存 APK、R.jar、设备 crash/logcat、实际安装 APK 和 overlay 产物；ADB 定位过程写入 `meta/adb_resolution.txt`。用户侧没有本仓库时，把 `tools/collect_jugg_scene_prompt.md` 全文发给用户，让其在出问题的 Android 工程里用 Agent 执行；Agent 从 GitHub 下载官方脚本，采集完成后文件管理器会打开桌面上的 `jugg_scene_*.zip`。资源运行时问题必须在再次 Run、重装或清数据前采集，避免 staging 和设备 overlay 被覆盖。
 
 included build 资源 ID 与 Application / Dynamic Feature 归属问题分别按 `02_compile_source.md`、`04_engineering_project.md` 的排查入口继续，不在本文重复项目模型和 classpath 规则。
 

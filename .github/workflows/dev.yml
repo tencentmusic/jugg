@@ -1,0 +1,124 @@
+name: Build Dev
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dev-build
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build Dev
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out dispatched ref
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Install Android build tools
+        run: sdkmanager "platforms;android-33" "ndk;27.0.12077973" "cmake;3.22.1"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Generate dev version
+        id: version
+        shell: bash
+        run: |
+          base_version="$(sed -n "s/^def versionName = '\([^']*\)'$/\1/p" build.gradle)"
+          if [[ -z "$base_version" ]]; then
+            echo "Cannot read versionName from build.gradle." >&2
+            exit 1
+          fi
+          dev_version="${base_version}-dev.$(TZ=Asia/Shanghai date +%Y%m%d).${GITHUB_RUN_NUMBER}"
+          echo "value=$dev_version" >> "$GITHUB_OUTPUT"
+
+      - name: Build plugin
+        run: |
+          ./gradlew :idea:buildPlugin \
+            -PpluginVersion="${{ steps.version.outputs.value }}" \
+            --no-daemon
+
+      - name: Prepare dev assets
+        env:
+          ASSET_NAME: jugg-dev.zip
+        shell: bash
+        run: |
+          shopt -s nullglob
+          plugin_zips=(idea/build/distributions/*.zip)
+          if [[ ${#plugin_zips[@]} -ne 1 ]]; then
+            echo "Expected one plugin zip, found ${#plugin_zips[@]}." >&2
+            exit 1
+          fi
+          cp "${plugin_zips[0]}" "$ASSET_NAME"
+          sha256sum "$ASSET_NAME" > "$ASSET_NAME.sha256"
+
+      - name: Upload dev artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: jugg-${{ steps.version.outputs.value }}
+          path: |
+            jugg-dev.zip
+            jugg-dev.zip.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Publish rolling dev release
+        env:
+          ASSET_NAME: jugg-dev.zip
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: dev-latest
+          RELEASE_TITLE: Jugg Dev
+        shell: bash
+        run: |
+          commit_sha="$(git rev-parse HEAD)"
+          short_sha="${commit_sha:0:7}"
+          release_notes="$(printf 'Manually published from a Build Dev run for build verification. Dev builds are not verified at all and may be broken; they only exist to try out the ref below.\n\n- Version: `%s`\n- Ref: `%s`\n- Commit: [`%s`](%s/%s/commit/%s)\n- Workflow: [run %s](%s/%s/actions/runs/%s)\n' \
+            '${{ steps.version.outputs.value }}' \
+            "$GITHUB_REF_NAME" \
+            "$short_sha" \
+            "$GITHUB_SERVER_URL" \
+            "$GITHUB_REPOSITORY" \
+            "$commit_sha" \
+            "$GITHUB_RUN_NUMBER" \
+            "$GITHUB_SERVER_URL" \
+            "$GITHUB_REPOSITORY" \
+            "$GITHUB_RUN_ID")"
+
+          # GITHUB_TOKEN tag updates do not trigger the tagged release workflow.
+          git tag --force "$RELEASE_TAG" "$commit_sha"
+          git push --force origin "refs/tags/$RELEASE_TAG"
+
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release edit "$RELEASE_TAG" \
+              --title "$RELEASE_TITLE" \
+              --notes "$release_notes" \
+              --prerelease
+          else
+            gh release create "$RELEASE_TAG" \
+              --verify-tag \
+              --title "$RELEASE_TITLE" \
+              --notes "$release_notes" \
+              --prerelease
+          fi
+
+          gh release upload "$RELEASE_TAG" \
+            "$ASSET_NAME" \
+            "$ASSET_NAME.sha256" \
+            --clobber

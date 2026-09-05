@@ -260,6 +260,21 @@ class KotlinCompileTest {
     }
 
     @Test
+    fun testKotlinCompilerIdeFileSystemCloseConflict() {
+        val parser = KotlinCompilerOutputParser(resultTask.files, logger)
+        parser.printStream.println("exception: java.lang.UnsupportedOperationException")
+        parser.printStream.println("\tat java.base/sun.nio.fs.WindowsFileSystem.close(WindowsFileSystem.java:120)")
+        parser.printStream.println(
+            "\tat com.intellij.platform.core.nio.fs.DelegatingFileSystem.close(DelegatingFileSystem.java:68)")
+        parser.printStream.println(
+            "\tat org.jetbrains.kotlin.com.intellij.ide.plugins.DescriptorLoadingContext.close" +
+                    "(DescriptorLoadingContext.kt:45)")
+        parser.flush()
+
+        assertTrue(parser.isGotIdeFileSystemCloseException)
+    }
+
+    @Test
     fun testKspCompile() {
         val task = createTask("com/sickworm/jugg/demo/testcase/ksp/User.kt")
         val result = kotlinCompiler.compile(task)

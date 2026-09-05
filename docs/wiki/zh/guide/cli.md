@@ -118,6 +118,7 @@ jugg --if-compiling interrupt compile
 | 连接端口失败 | 确认 Jugg 插件已初始化；多个 IDE 会使用端口范围自动递增 |
 | 命令一直等待 | 用 `jugg status` 看 `isCompiling`，必要时使用 `--if-compiling interrupt` |
 | `instrument` 提示 AndroidTest 未开启 | 先开启 Jugg Run Configuration 的 Android Test 并建立 full-build baseline |
+| Windows 提示找不到 Python 3.7+ | 依次检查 `python3 --version`、`python --version`、`py -3 --version`；`jugg.cmd` 会选择第一个可用的 Python 3.7+ |
 | 输出很乱 | Agent 场景改用 `--console=plain` 或 `--console=json` |
 
 ## 相关页面

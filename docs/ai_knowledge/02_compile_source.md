@@ -51,6 +51,7 @@
 | `agpR8Classpath` | `GradleProjectInfoReaderManager` | `DexCompiler` / `DexMinifyCompiler` | 引用项目 AGP 的 R8 分发包；Gradle code source 已 instrumentation 时解析原始 buildscript artifact；不复制 jar，不进入 `FullBuildInfo` 或 compile context 磁盘格式 |
 | 普通 KMP complementary closure | Kotlin Gradle incremental cache | `KotlinCompiler` | 仅 Android owner 存在 Gradle authoritative `kotlinCommonSourceDirs` 且源码出现 expect/actual token 时查询；requested 与 complementary files 按 canonical path 去重后在 Android owner invocation 中联合编译；成功后用 tracker 原地刷新双向 edge |
 | Kotlin module identity | `ModuleInfo` + Kotlin baseline output | `KotlinCompilerInvoker` | `module-name`、friend path、输出目录和 `.kotlin_module` 必须保持同一 Gradle module/variant 语义 |
+| Kotlin compiler plugin options | 选中 Kotlin Gradle task 的 `KotlinCompilerPluginData` | `KotlinCompilerInvoker` | 按模块保存 Gradle 已解析的 `plugin:<id>:<key>=<value>`，调用 CLI 时逐项配对 `-P`；当前 compilation 优先，参数为空时才回退最近父模块 |
 | `DesugarInfo` | APK/deploy DB + changed class parser | `DexCompiler` / D8 | default interface、`j$.*` rewrite 与 `desugar.json` 都以已安装 APK 的脱糖事实为基线 |
 | included build module roots | 主 Gradle project info + `include_build_*` project info | `BaseCompileContext` | 只按快照来源识别；主快照中的同目录模块优先，不根据模块是否位于工程根目录外推断 |
 
@@ -100,9 +101,8 @@ included build 的 Library/JavaLibrary 源码可能同时看到 included build �
 
 ```text
 DexCompiler
-  -> 从 APK database 判断基线是否已脱糖
-  -> 选择 D8 minApi：优先使用应用 minSdk；基线已脱糖且 minSdk >= 26 时回落到 21；缺少有效 minSdk 时按基线状态选择 21 或 31
   -> 解析 changed class 的 interface / static invocation
+  -> 选择 D8 minApi：使用当前 module 归属 APK 的 owner variant minSdk（base APK 用 application，split 用 dynamic feature）；minSdk 不可读时回落 21
   -> 从 APK/deploy DB 查找 `$-CC` / `$DefaultImpls` 对应的 default interface
   -> 把这些 baseline class 复制到临时 D8 classpath
   -> APK 中存在 `j$.*` 时查找工程 coreLibraryDesugaring 的 `desugar.json`
@@ -133,16 +133,21 @@ Kotlin 1.9 的 baseline Kotlin output 可能同时包含 dirty expect/actual clo
 - JuggApt 降级只重试一次，且只在直接源码诊断指向本轮 JuggApt 产物时触发；普通 Kotlin/Java 编译失败不会进入该分支。
 - Kotlin 编译失败时，非 Kotlin 输入会被标记为 skipped，避免 Java 阶段在缺少 Kotlin class 的情况下继续产生误导性错误。
 - 删除整个 Java/Kotlin 源文件不会形成新的编译输入，也不会生成 class 移除数据。已安装 APK 或既有增量部署中的旧 class 会继续存在，直接引用、反射和类加载仍可能访问它。重命名文件时新路径可以参与编译，但旧路径对应的 class 同样不会因删除事件被移除；只有需要验证旧 class 已不存在时，才通过完整 Gradle build 刷新 APK 基线。
-- `ModuleBuildPathInfo.kotlinClassPath` 会在 AGP 9 Built-in Kotlin 的 `intermediates/built_in_kotlinc/<variant>/compile<Variant>Kotlin/classes` 与 legacy `tmp/kotlin-classes/<variant>` 中选择更新时间最新的现存目录；时间相同时选择 Built-in Kotlin，均不存在时回退 legacy 路径。classpath 同步会同时覆盖两种目录，避免远程全量构建后本地仍缺少 Kotlin class。`android_demo_project` 的 AGP 9 profile 直接使用完整 `src/main` Demo，不再维护隔离 source set；app 保留 KSP，ARouter 统一走 Java `annotationProcessor`，避免 Built-in KAPT 与 KSP/DataBinding 的任务依赖冲突，KMP 则迁移到 `com.android.kotlin.multiplatform.library`。AABResGuard 0.1.10 依赖已移除的 `AppExtension`，因此 AGP 9 profile 不加载该插件，release APK 仍使用标准 R8 构建；其他 profile 继续保留 AABResGuard 集成覆盖。
+- `ModuleBuildPathInfo.kotlinClassPath` 会在 AGP 9 Built-in Kotlin 的 `intermediates/built_in_kotlinc/<variant>/compile<Variant>Kotlin/classes`、KMP Android target 的 `classes/kotlin/android/main` 与 legacy `tmp/kotlin-classes/<variant>` 中选择更新时间最新的现存目录；时间相同时按 Built-in Kotlin、KMP Android、legacy 顺序选择，均不存在时回退 legacy 路径。classpath 同步会同时覆盖三种目录，避免本地或远程全量构建后仍缺少 Kotlin class。`android_demo_project` 的 AGP 9 profile 直接使用完整 `src/main` Demo，不再维护隔离 source set；app 保留 KSP，ARouter 统一走 Java `annotationProcessor`，避免 Built-in KAPT 与 KSP/DataBinding 的任务依赖冲突，KMP 则迁移到 `com.android.kotlin.multiplatform.library`。AABResGuard 0.1.10 依赖已移除的 `AppExtension`，因此 AGP 9 profile 不加载该插件，release APK 仍使用标准 R8 构建；其他 profile 继续保留 AABResGuard 集成覆盖。
 - include build 身份只在 IDE 的多快照 project-info 合并链保存为运行时集合，不进入 `ModuleInfo` 序列化协议。主 Gradle 快照缺失、included 快照不可读或命令行只加载单份 Gradle project info 时集合为空，按既有顺序 best-effort 编译。
 - `compileDexOutputs()` 会把语言阶段非 class 输出保留下来；这些通常是 generated source 或其他不直接进入 dex 的附属产物。
 - minified 场景下 dex 先写到 `context.tempCompileDir/un_minify`，再由 `DexMinifyCompiler` 输出到最终 task outputDir；排查路径时不要只看最终目录。
 - `DexCompiler` 输出仍保留旧 `apkPath` 锚点，同时写入 module 的所有 `targetApkPaths`；部署层用 target 集合做多 APK 分流。
 - D8 版本选择以项目 AGP 实际加载的 R8 为准；Gradle instrumentation cache 必须先恢复为原始 buildscript artifact。project info 无安全路径、隔离 runtime 无法建立或外部 D8 执行失败时使用 Jugg 内置 R8。
-- 不要把 D8 为兼容已脱糖基线而回落到 21，或在缺少有效 `minSdk` 且无需脱糖时使用 31，当作应用真实 minSdk。这里利用 minApi 控制本轮 D8 的脱糖行为，目标是与 APK 基线保持一致。
+- D8 `minApi` 使用归属 APK owner variant 的真实 `minSdk`，与 Gradle dex 行为对齐；`minSdk` 不可读时回落 21，`DexMinifyCompiler` 的 `_jugg_fix` dex 走同一解析口径。default interface 兼容通过临时 classpath 补齐，core-library rewrite 由 `desugar.json` 与真实 `minApi` 共同决定。
+- 回落值 21 对语言级脱糖是更激进的一侧，不是更保守：基线未脱糖时它会让 D8 生成指向基线不存在的 `$-CC` 的调用。因此只在 `minSdk` 完全读不到时使用，不要用它替代真实 `minSdk`。
+- `isEnableDesugared`（基线 APK 是否存在 `$-CC` / `$DefaultImpls`）只是诊断信号，与 minApi 一起打进 debug 日志。它表达不了 variant `minSdk`，一旦参与 minApi 决策就会让增量 DEX 与 Gradle 基线分叉（`java.time` 被改写成 `j$.time`）。
 - default interface class 进入临时 classpath 是脱糖上下文，不是普通业务依赖补全；删除这一步可能让改动类生成与基线不同的 default method 调用形态。
 - core library rewrite 只在 APK database 已发现 `j$.*` 时查找 `desugar.json`；不能因为工程声明了依赖就无条件为所有模块启用。
 - KAPT 场景下 Kotlin 编译器 warning/error 文本会按 debug 记录，避免用户可见输出被 APT/KAPT 噪音淹没；失败判定仍由 parser 处理。
+- Kotlin compiler plugin 参数优先复用 Gradle task 已解析的 `KotlinCompilerPluginData.options.arguments`，兼容 Kotlin Gradle Plugin 的 `kotlin_gradle_plugin_common` 与旧 `kotlin_gradle_plugin` getter；读取不到时保持空列表，不伪造插件参数。编译当前 module 时使用第一个非空的 current-to-parent compilation 参数集，不合并多个模块，也不按 option 名去重，保留 `allowMultipleOccurrences` 语义。
+- Gradle-resolved plugin 参数只在本轮加载项目 compiler plugin 时转换为 `-P`。已加载插件报 `unsupported plugin option` 时，仅移除该 plugin id 的 Gradle-resolved 参数并共享全局单次重试预算；降级成功后按 compiler toolchain 与原参数集缓存，toolchain 或参数变化后重新尝试。用户显式写入 `kotlinFreeCompilerArgs` 的参数不参与该降级。
+- compiler plugin 报 `required plugin option not present` 时只重试一次。Jugg 优先从 JAR 的 `CommandLineProcessor` service 与 class 常量识别 plugin id，再回退旧的文件名匹配；命中的插件仅在本次 invoker 后续编译中禁用，无法识别时保留原始失败，不扩大为禁用全部插件。
 - `commonSourceFiles` 是 Kotlin invoker 的类型化参数，不靠调用方拼自由字符串；为空时不添加 multiplatform 参数，Compose generated expect/actual 场景则同时添加 `-Xmulti-platform` 和 `-Xcommon-sources`。
 - `ModuleInfo.sourceDirs` 是模块全部有效源码根的扁平集合；Gradle common roots 和 fragment roots 会同时加入其中，供文件变更识别、模块归属、源码数据库和影响分析复用。`ModuleInfo.kotlinCommonSourceDirs` 是其中由 Gradle authoritative 数据标记的 common 子集，IDE 扁平 `sourceDirs` 不得覆盖，也不得根据 `commonMain`、`sharedMain` 等目录名反推。普通 KMP 调用只用该子集标记最终输入的 common 文件。
 - complementary 查询以非空 `kotlinCommonSourceDirs` 作为 KMP module/source-set 门禁。仅把普通 Android 模块的源码目录配置为 `commonMain`（例如 local-shell 聚合源码）不会启用 KMP complementary 逻辑，即使源码文本出现 expect/actual token。
@@ -153,6 +158,7 @@ Kotlin 1.9 的 baseline Kotlin output 可能同时包含 dirty expect/actual clo
 - generated Kotlin 编译失败时，`KotlinCompilerInvoker` 的原始行号和 diagnostic 文本会聚合回原 Compose resource 输入，不能替换成通用失败文案。
 - Compose resource 编译按 generator task/API 结构识别能力，不使用 Kotlin/Compose 精确版本白名单；Kotlin 1.9、2.1、2.3 profile 均有定向回归。
 - IDE JVM 也是进程内 Kotlin compiler 的宿主环境。旧 Kotlin compiler 的 shaded `JavaVersion.current()` 在新宿主 JDK 上可能解析失败；`KotlinCompilerHostCompat` 只在探测失败时预置宿主 feature，宿主 JDK >= 25 且 classpath 含 android.jar 时，`KotlinCompilerInvoker` 同时添加 `-no-jdk`。recreate compiler 不会改变宿主环境，因此相同 `INTERNAL_ERROR` 重试失败时应检查 `preset shaded JavaVersion.current to`、`add -no-jdk` 和实际项目 Kotlin 版本。
+- 旧项目 Kotlin compiler 在 IDE 进程内关闭 `DescriptorLoadingContext` 时，可能误关 IDE 的 `DelegatingFileSystem` 并抛出 `UnsupportedOperationException`。只有完整异常块同时命中这三个信号时，invoker 才按规范化 compiler classpath 记录宿主冲突：warm-up 不启动无源码子进程，同一 toolchain 的后续编译改用独立 JVM；真实源码首次命中时立即以独立 JVM 重试一次。不同 compiler classpath、显式隔离模式、内置 compiler 和其他异常保持原路径，跨进程 invocation 不写 expect/actual tracker cache。one-shot 进程将 Kotlin compiler 参数写入 UTF-8 argfile，模块 classpath、插件参数和源码列表不再直接占用系统进程命令行；Java launcher 的 compiler classpath 保持原传参方式。
 
 ---
 
@@ -172,6 +178,7 @@ Kotlin 1.9 的 baseline Kotlin output 可能同时包含 dirty expect/actual clo
 | default method / `j$.*` 增量后运行异常 | `DexCompiler` 的 minApi、`CompileEffectAnalyzer.getDesugarInfo()`、`BaseCompileContext.findDesugaredLibraryConfiguration()` |
 | AGP/Kotlin 升级后 D8 assertion 或字节码不兼容 | `JuggProjectInfo.agpR8Classpath`、`DexFileMaker` 的隔离加载与版本日志 |
 | Kotlin `INTERNAL_ERROR` 栈含 shaded `JavaVersion.parse` | `KotlinCompilerHostCompat`、`K2JVMCompilerIsolate` 与 `KotlinCompilerInvoker` 的宿主 JDK 兼容日志 |
+| Kotlin `INTERNAL_ERROR` 栈含 `DelegatingFileSystem.close` 与 `DescriptorLoadingContext.close` | `KotlinCompilerOutputParser` 的宿主冲突标记、`KotlinCompilerInvoker` 的独立 JVM 降级日志；不要通过 recreate compiler 重试同一宿主环境 |
 | release dex 路径或类名不对 | `DexMinifyCompiler.preObfuscateForMinifyInfo()`、`obfuscateDexFile()` |
 | 多 APK 下 class/dex 部署归属丢失 | `DexCompiler` 输出的 `targetApkPaths` 与 `IncrementalCompilerHelper.mergeDex()` |
 

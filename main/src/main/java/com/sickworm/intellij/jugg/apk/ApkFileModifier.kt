@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.apk
 
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.compiler.isWindows
 import com.sickworm.intellij.jugg.gradle.compile.CmdExecutor
 import com.sickworm.intellij.jugg.gradle.compile.SimpleSshCommand
 import com.sickworm.intellij.jugg.logger.TimeLogger
@@ -10,9 +11,11 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.net.URI
+import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.FileSystems
 import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.StandardCopyOption
 import java.util.zip.CRC32
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
@@ -20,9 +23,9 @@ import java.util.zip.ZipOutputStream
 import kotlin.io.path.exists
 
 /**
- * ApkFileModifier applies in-place APK file updates and optional align/sign/replace steps.
+ * ApkFileModifier applies APK file updates and optional align/sign/replace steps.
  * Collaboration: Used by [ResourceApkModifier.incrementalUpdateResourceApk] and incremental deploy flows, delegating shell execution to [CmdExecutor.invoke].
- * Data Contract: [addFile] appends path-content pairs, and [insertAndResign] performs update -> align -> sign -> replace on the target APK.
+ * Data Contract: [addFile] appends path-content pairs, and [insertAndResign] publishes changes only after the temporary APK is signed and verified.
  */
 class ApkFileModifier(
     private val apkFile: File,
@@ -59,11 +62,20 @@ class ApkFileModifier(
 
     fun insertAndResign() {
         TimeLogger.start("insertAndResign")
-        var tmpApkFile = updateFiles(apkFile)
-        tmpApkFile = alignApk(tmpApkFile)
-        tmpApkFile = resignApk(tmpApkFile)
-        replaceOldApk(tmpApkFile, apkFile)
-        TimeLogger.end("insertAndResign", logger)
+        val tmpApkFiles = mutableSetOf<File>()
+        val workingApkFile = Files.createTempFile(apkFile.parentFile.toPath(), ".${apkFile.name}.", ".tmp_working").toFile()
+        tmpApkFiles.add(workingApkFile)
+        try {
+            apkFile.copyTo(workingApkFile, overwrite = true)
+            var tmpApkFile = updateFiles(workingApkFile).also(tmpApkFiles::add)
+            tmpApkFile = alignApk(tmpApkFile).also(tmpApkFiles::add)
+            val signEnv = resignApk(tmpApkFile)
+            verifyApk(tmpApkFile, signEnv)
+            replaceOldApk(tmpApkFile, apkFile)
+            TimeLogger.end("insertAndResign", logger)
+        } finally {
+            tmpApkFiles.forEach { it.delete() }
+        }
     }
 
     fun updateDirectly() {
@@ -103,6 +115,7 @@ class ApkFileModifier(
         val zipProperties = mapOf("create" to "false", "compressionMethod" to "STORED")
 
         val zipDisk: URI = URI.create("jar:" + apkFileToUpdate.toURI().toString())
+        logger.debug("Open ZipFS, apkFile=$apkFileToUpdate, insertFileCount=${insertFiles.size}")
         FileSystems.newFileSystem(zipDisk, zipProperties).use { zipFileSystem ->
             insertFiles.forEach { (path, content) ->
                 val pathInZipFile: Path = zipFileSystem.getPath(path)
@@ -179,14 +192,20 @@ class ApkFileModifier(
 
     private fun alignApk(tmpUpdateApkFile: File): File {
         TimeLogger.start("alignApk")
-        val tmpAlignedApkFile = File(apkFile.parentFile, ".${apkFile.name}.tmp_aligned")
+        val tmpAlignedApkFile = File(tmpUpdateApkFile.parentFile, ".${tmpUpdateApkFile.name}.tmp_aligned")
         if (tmpAlignedApkFile.exists() && !tmpAlignedApkFile.delete()) {
             throw IllegalStateException("delete $tmpAlignedApkFile failed")
         }
 
         // see: https://developer.android.com/tools/zipalign
         val zipalign = File(buildToolsFolder, "zipalign").absolutePath
-        val cmdString = "$zipalign -f 4 ${tmpUpdateApkFile.absolutePath} ${tmpAlignedApkFile.absolutePath}"
+        val cmdString = shellCommand(listOf(
+            zipalign,
+            "-f",
+            "4",
+            tmpUpdateApkFile.absolutePath,
+            tmpAlignedApkFile.absolutePath,
+        ))
         val cmd = SimpleSshCommand(cmdString, outputFilter = { line, _ -> !line.endsWith("header mismatch") })
         val exitCode = CmdExecutor(logger).invoke(cmd)
         if (exitCode != 0) {
@@ -197,7 +216,7 @@ class ApkFileModifier(
         return tmpAlignedApkFile
     }
 
-    private fun resignApk(tmpApkFile: File): File {
+    private fun resignApk(tmpApkFile: File): List<String>? {
         TimeLogger.start("signApk")
         // see: https://developer.android.com/tools/apksigner
         val apksigner = File(buildToolsFolder, "apksigner").absolutePath
@@ -218,21 +237,21 @@ class ApkFileModifier(
         }
         args.add(tmpApkFile.absolutePath)
 
-        val cmdString = "$apksigner ${args.joinToString(" ")}"
+        val cmdString = shellCommand(listOf(apksigner) + args)
         val cmdStringSafeForPrint = cmdString
             .replace(signConfig.storePassword ?: "null", "***")
             .replace(signConfig.keyAlias ?: "null", "***")
             .replace(signConfig.keyPassword ?: "null", "***")
         logger.debug("signConfig storeType: ${signConfig.storeType}, cmdString: $cmdStringSafeForPrint")
 
-        doResign(cmdString)
+        val signEnv = doResign(cmdString)
         val costTime = TimeLogger.end("signApk", logger)
         logger.info(" * Sign APK finished, cost $costTime ms.")
 
-        return tmpApkFile
+        return signEnv
     }
 
-    private fun doResign(cmdString: String) {
+    private fun doResign(cmdString: String): List<String>? {
         val availableJdksForSign = PlatformApi.allAvailableJavaHomes().filter { javaHome ->
             if (envArray == null) {
                 return@filter true
@@ -253,7 +272,7 @@ class ApkFileModifier(
         val exitCode = CmdExecutor(logger).invoke(cmd, envArray)
         if (exitCode == 0) {
             logger.debug("doResign success")
-            return
+            return envArray
         }
 
         // Oops, apksigner failed maybe JDK is incorrect. try all available JDKs
@@ -272,7 +291,7 @@ class ApkFileModifier(
                 val newExitCode = CmdExecutor(logger).invoke(cmd, newEnvArray)
                 if (newExitCode == 0) {
                     logger.debug("doResign try success with JAVA_HOME: $javaHome")
-                    return
+                    return newEnvArray
                 }
             }
         }
@@ -282,28 +301,23 @@ class ApkFileModifier(
     }
 
     private fun replaceJavaHome(envArray: List<String>?, jdkPath: String): List<String> {
-        if (envArray == null) {
-            return listOf("JAVA_HOME=$jdkPath")
-        }
-        return envArray.map {
-            if (it.startsWith("JAVA_HOME=")) {
-                "JAVA_HOME=$jdkPath"
-            } else {
-                it
-            }
-        }
+        return envArray.orEmpty()
+            .filterNot { it.startsWith("JAVA_HOME=", ignoreCase = true) }
+            .plus("JAVA_HOME=$jdkPath")
     }
 
     private fun replaceOldApk(tmpApkFile: File, outputFile: File) {
         TimeLogger.start("replaceApk")
         if (tmpApkFile != outputFile) {
-            if (outputFile.exists()) {
-                if (!outputFile.delete()) {
-                    throw IllegalStateException("Delete $outputFile failed")
-                }
-            }
-            if (!tmpApkFile.renameTo(outputFile)) {
-                throw IllegalStateException("Rename $tmpApkFile to $outputFile failed")
+            try {
+                Files.move(
+                    tmpApkFile.toPath(),
+                    outputFile.toPath(),
+                    StandardCopyOption.ATOMIC_MOVE,
+                    StandardCopyOption.REPLACE_EXISTING,
+                )
+            } catch (_: AtomicMoveNotSupportedException) {
+                Files.move(tmpApkFile.toPath(), outputFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
             }
         } else {
             logger.debug("replaceOldApk skipped, apk file not changed")
@@ -312,15 +326,29 @@ class ApkFileModifier(
     }
 
     fun verify() {
+        verifyApk(apkFile, envArray)
+    }
+
+    private fun verifyApk(apkFileToVerify: File, verifyEnv: List<String>?) {
         TimeLogger.start("verifyApk")
         // see: https://developer.android.com/tools/apksigner
         val apksigner = File(buildToolsFolder, "apksigner").absolutePath
-        val cmdString = "$apksigner verify ${apkFile.absolutePath}"
+        val cmdString = shellCommand(listOf(apksigner, "verify", apkFileToVerify.absolutePath))
         val cmd = SimpleSshCommand(cmdString, logger)
-        val exitCode = CmdExecutor(logger).invoke(cmd)
+        val exitCode = CmdExecutor(logger).invoke(cmd, verifyEnv)
         if (exitCode != 0) {
             throw IllegalStateException("verify APK failed, exit code: $exitCode")
         }
         TimeLogger.end("verifyApk", logger)
+    }
+
+    private fun shellCommand(arguments: List<String>): String {
+        return arguments.joinToString(" ") { argument ->
+            if (isWindows) {
+                "\"${argument.replace("\"", "\"\"")}\""
+            } else {
+                "'${argument.replace("'", "'\"'\"'")}'"
+            }
+        }
     }
 }

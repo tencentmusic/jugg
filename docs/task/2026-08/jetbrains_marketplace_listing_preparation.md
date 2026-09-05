@@ -7,8 +7,8 @@
 本次已完成的仓库内准备：
 
 - 将 `plugin.xml` 的产品说明改为英文优先、HTML 格式，并明确核心价值与 Gradle 边界。
-- 确认插件 ID 为 `com.sickworm.intellij.jugg`，当前版本为 `3.3.1`。
-- 确认稳定版构建产物为 `idea/build/distributions/jugg-3.3.1-release.zip`，压缩包大小约 129 MB，低于 Marketplace 400 MB 上限。
+- 确认插件 ID 为 `com.sickworm.jugg`，当前版本为 `3.3.9`。
+- 确认稳定版构建产物为 `idea/build/distributions/jugg-3.3.9-release.zip`，压缩包大小约 130 MB，低于 Marketplace 400 MB 上限。
 - 确认 `:idea:buildPlugin` 已内置第三方许可证、NOTICE、修改声明、来源校验和和 SPDX SBOM，并会执行 `verifyThirdPartyCompliance`。
 - 配置 `runPluginVerifier` 校验 Android Studio Bumblebee `2021.1.1.20`（211）和 Giraffe `2022.3.1.18`（223）；`until-build` 改为省略属性，避免空值被 Verifier 判为无效。
 - 整理首次人工上传、审核和后续自动发布的操作步骤。
@@ -21,7 +21,7 @@
 2. 远程 JAR 热更新和远程自定义编译器仍只在用户主动配置 Custom Server 后可用。配置前必须展示服务器 URL、能力和风险并要求确认；当前下载链路仍使用 MD5 校验，因此属于受信任服务器模型而非签名供应链。
 3. 建立 public 发行包门禁：压缩包内网域名/凭据扫描、安装 smoke test、签名或来源证明。现有检查将此列为 P0-08。
 4. 补充品牌图标和功能截图。仓库目前没有 `META-INF/pluginIcon.svg` 或 `pluginIcon_dark.svg`，插件包中也没有该图标。缺图标不会阻断技术上传，但不符合 Marketplace 的展示建议。
-5. 修复 Plugin Verifier 发现的插件 ID 规则和旧版二进制兼容性。当前 ID `com.sickworm.intellij.jugg` 含有模板词 `intellij`，未静默时被 Verifier 直接判为无效；静默该规则后，Bumblebee `2021.1.1.20` 仍有 9 个兼容问题。将最低版本提高到 Chipmunk `2021.2.1.14` 后仍有 7 个兼容问题，包括 `PluginInstaller.installAfterRestart`、`GradleSyncListenerWithRoot`、`NotificationGroup`、`ContentFactory`、`DiffUserDataKeysEx` 等旧版中不可用的 API，以及缺失 Java 模块依赖。插件 ID 改动需要先确定既有安装的迁移策略。
+5. 修复 Plugin Verifier 发现的旧版二进制兼容性。插件 ID 规则已通过改用 `com.sickworm.jugg` 解决；新插件声明与旧 ID `com.sickworm.intellij.jugg` 不兼容，既有侧载用户需先卸载旧插件并重启 IDE，再安装新插件。Bumblebee `2021.1.1.20` 仍有 9 个兼容问题。将最低版本提高到 Chipmunk `2021.2.1.14` 后仍有 7 个兼容问题，包括 `PluginInstaller.installAfterRestart`、`GradleSyncListenerWithRoot`、`NotificationGroup`、`ContentFactory`、`DiffUserDataKeysEx` 等旧版中不可用的 API，以及缺失 Java 模块依赖。
 6. 完成 Giraffe 及后续目标版本的 Verifier/真实安装矩阵。当前环境解析 Giraffe `2022.3.1.18` 下载地址时受到 Google CDN TLS 重定向阻断，尚未得到 223 结果；不能将此失败视为兼容通过。Java 11 字节码在 223 的 Java 17 运行时可执行，保持 Java 11 是支持 211 的必要条件，而非本项的修复目标。
 
 这些阻塞项的事实、风险和完成标准以 `docs/task/2026-07/open_source_readiness_checklist.md` 的 P0-01、P0-07、P0-08 为准。
@@ -32,13 +32,13 @@
 
 | 字段 | 已知值 / 建议 |
 | --- | --- |
-| Plugin XML ID | `com.sickworm.intellij.jugg` |
+| Plugin XML ID | `com.sickworm.jugg` |
 | 名称 | `Jugg` |
 | 发行模式 | Free，Stable channel |
-| 许可证 | MIT，链接到 `https://github.com/sickworm/jugg/blob/main/LICENSE` |
-| 源码 | `https://github.com/sickworm/jugg` |
+| 许可证 | MIT，链接到 `https://github.com/tencentmusic/jugg/blob/main/LICENSE` |
+| 源码 | `https://github.com/tencentmusic/jugg` |
 | 文档 | 发布前填写公开可访问的 Wiki 地址；仓库内 Wiki 不能直接作为用户链接 |
-| Issue tracker | `https://github.com/sickworm/jugg/issues` |
+| Issue tracker | `https://github.com/tencentmusic/jugg/issues` |
 | Vendor | `sickworm`；当前 `plugin.xml` 已声明 `https://sickworm.com` 与 `ch.operation@gmail.com` |
 | Ads | No；若页面或插件后续出现推广第三方服务的商业内容，需要重新声明 |
 

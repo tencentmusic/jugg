@@ -7,6 +7,7 @@ on:
       - "!nightly"
       - "!nightly-*"
       - "!canary-*"
+      - "!dev-latest"
 
 permissions:
   contents: write
@@ -61,6 +62,12 @@ jobs:
             exit 1
           fi
 
+      - name: Generate bilingual release notes
+        shell: bash
+        run: |
+          ruby tools/generate_release_notes.rb "$GITHUB_REF_NAME" > "$RUNNER_TEMP/release-notes.md"
+          cat "$RUNNER_TEMP/release-notes.md" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Prepare release version
         run: git checkout -B main "$GITHUB_SHA"
 
@@ -94,6 +101,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || \
-            gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes --title "$GITHUB_REF_NAME"
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release edit "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" \
+              --notes-file "$RUNNER_TEMP/release-notes.md"
+          else
+            gh release create "$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME" \
+              --notes-file "$RUNNER_TEMP/release-notes.md"
+          fi
           gh release upload "$GITHUB_REF_NAME" idea/build/distributions/*.zip --clobber

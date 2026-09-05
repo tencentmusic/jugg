@@ -49,6 +49,70 @@ import java.io.File
 class JuggDeployerHelperDeployTest {
 
     @Test
+    fun `deploy should stop retry and clear resource apk cache on direct out of memory failure`() {
+        val device = device(apiLevel = 29)
+        val apkInfo = apkInfo("/tmp/jugg-deploy-test/app.apk")
+        val deployTargetManager = readyTargetManager(apkInfo)
+        val deployStateManager = readyStateManager(device)
+        val deployFileManager = Mockito.mock(DeployFileManager::class.java)
+        Mockito.`when`(deployFileManager.getDeployData(Mockito.anyBoolean(), Mockito.anyBoolean()))
+            .thenThrow(OutOfMemoryError("Java heap space"))
+        val deployRetryHandler = Mockito.mock(DeployRetryHandler::class.java)
+
+        val result = createHelper(
+            deployTargetManager = deployTargetManager,
+            deployStateManager = deployStateManager,
+            deployFileManager = deployFileManager,
+            deployRetryHandler = deployRetryHandler,
+        ).deploy(DeployOptions(device = device, isLastDevice = true))
+
+        assertFalse(result.isSuccess)
+        assertFalse(result.isCanFallback)
+        assertTrue(result.failedReason!!.contains("Restart Android Studio"))
+        Mockito.verify(deployFileManager).clearResourceApkCache()
+        Mockito.verifyNoInteractions(deployRetryHandler)
+    }
+
+    @Test
+    fun `deploy should stop retry when deployer wraps out of memory failure`() {
+        val device = device(apiLevel = 30)
+        val apkInfo = apkInfo("/tmp/jugg-deploy-test/app.apk")
+        val deployData = hotReloadDeployData(apkInfo, "WrappedOomTarget")
+        val deployTargetManager = readyTargetManager(apkInfo)
+        val deployStateManager = readyStateManager(device)
+        val deployFileManager = Mockito.mock(DeployFileManager::class.java)
+        val dependencyChangeManager = Mockito.mock(IDependencyChangeManager::class.java)
+        Mockito.`when`(dependencyChangeManager.getRemovedLibraryFiles()).thenReturn(emptyList())
+        val deployRetryHandler = Mockito.mock(DeployRetryHandler::class.java)
+        val deployRunTaskExecutor = object : IJuggDeployRunTaskExecutor {
+            override fun execute(request: JuggDeployRunTaskRequest): LaunchResult {
+                throw RuntimeException("deployer failed", OutOfMemoryError("Java heap space"))
+            }
+        }
+
+        val result = createHelper(
+            deployTargetManager = deployTargetManager,
+            deployStateManager = deployStateManager,
+            deployFileManager = deployFileManager,
+            dependencyChangeManager = dependencyChangeManager,
+            deployRetryHandler = deployRetryHandler,
+            deployRunTaskExecutor = deployRunTaskExecutor,
+        ).deploy(
+            DeployOptions(
+                device = device,
+                isLastDevice = true,
+                retryDeployData = deployData,
+            ),
+        )
+
+        assertFalse(result.isSuccess)
+        assertFalse(result.isCanFallback)
+        assertTrue(result.failedReason!!.contains("increase the IDE heap"))
+        Mockito.verify(deployFileManager).clearResourceApkCache()
+        Mockito.verifyNoInteractions(deployRetryHandler)
+    }
+
+    @Test
     fun `deploy should fail immediately when process handler is canceled`() {
         val device = Mockito.mock(IDevice::class.java)
         val processHandler = Mockito.mock(IProcessHandler::class.java)
@@ -411,6 +475,28 @@ class JuggDeployerHelperDeployTest {
             files = listOf(ApkFileUnit("com.example.app", "", true, File(apkPath))),
             applicationId = "com.example.app",
         )
+    }
+
+    private fun device(apiLevel: Int): IDevice {
+        val device = Mockito.mock(IDevice::class.java)
+        val version = Mockito.mock(AndroidVersion::class.java)
+        Mockito.`when`(version.apiLevel).thenReturn(apiLevel)
+        Mockito.`when`(device.version).thenReturn(version)
+        return device
+    }
+
+    private fun readyTargetManager(apkInfo: ApkInfo): IDeployTargetManager {
+        return Mockito.mock(IDeployTargetManager::class.java).also {
+            Mockito.`when`(it.hasDevice).thenReturn(true)
+            Mockito.`when`(it.getApks()).thenReturn(listOf(apkInfo))
+        }
+    }
+
+    private fun readyStateManager(device: IDevice): DeployStateManager {
+        return Mockito.mock(DeployStateManager::class.java).also {
+            Mockito.`when`(it.updateDeployState()).thenReturn(JuggDeployState.READY)
+            Mockito.`when`(it.getDeployState(device)).thenReturn(JuggDeployState.READY)
+        }
     }
 
     private fun hotReloadDeployData(apkInfo: ApkInfo, className: String): JuggDeployData {

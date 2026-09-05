@@ -17,6 +17,15 @@ apply plugin: 'com.android.library'
 
 apply from: "./buildAgentBundle.gradle"
 
+// AGP 7.2.2 NodeUtils.adoptNode() NPEs when the Gradle daemon has mixed DOM
+// implementations. Pin the JDK parser before packageReleaseResources.
+System.setProperty(
+        "javax.xml.parsers.DocumentBuilderFactory",
+        "com.sun.org.apache.xerces.internal.jaxp.DocumentBuilderFactoryImpl")
+System.setProperty(
+        "javax.xml.parsers.SAXParserFactory",
+        "com.sun.org.apache.xerces.internal.jaxp.SAXParserFactoryImpl")
+
 android {
     compileSdk 33
     ndkVersion "27.0.12077973"

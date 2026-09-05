@@ -85,6 +85,10 @@ class JavaCompilerInvoker {
             cmdOptions.add("-A$key=$value")
         }
 
+        if (options.aptSourcePaths.isNotEmpty()) {
+            cmdOptions.addAll(listOf("-sourcepath", options.aptSourcePaths.joinToString(File.pathSeparator)))
+        }
+
         if (options.isEnableApt) {
             val annotationProcessorPath = options.aptPaths
                 .filter {
@@ -99,10 +103,6 @@ class JavaCompilerInvoker {
 
             if (annotationProcessorPath.isNotEmpty()) {
                 cmdOptions.addAll(listOf("-processorpath", annotationProcessorPath.joinToString(File.pathSeparator)))
-            }
-
-            if (options.aptSourcePaths.isNotEmpty()) {
-                cmdOptions.addAll(listOf("-sourcepath", options.aptSourcePaths.joinToString(File.pathSeparator)))
             }
 
             if (options.isAptOnly) {

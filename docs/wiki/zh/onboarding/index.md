@@ -10,6 +10,8 @@ tags:
 
 Jugg 是 Android Studio 上的 Android 增量构建插件，主要用于减少日常调试里的完整 Gradle 构建次数。它不要求修改工程代码或 Gradle 配置；你仍然在 Android Studio 里选择运行配置、点击 Run，Jugg 会判断本轮走增量编译、热部署，还是回退到 Gradle。
 
+Jugg Run Configuration 与原生 App Run Configuration 作为两个独立入口同时保留。需要暂停使用 Jugg 时无需卸载插件或恢复工程配置；选择原生 App 配置后，本轮编译、安装和启动仍由 Android Studio 原有流程负责，Jugg 不会接管。再次选择 Jugg 配置即可继续增量开发。
+
 ## 先跑通一次
 
 第一次使用按这两步走：

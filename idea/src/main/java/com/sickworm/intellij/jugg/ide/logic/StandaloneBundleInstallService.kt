@@ -12,7 +12,6 @@ import java.util.zip.ZipInputStream
 
 /** Installs the embedded standalone Bundle without adding its JARs to the IDEA classpath. */
 object StandaloneBundleInstallService {
-    private const val PLUGIN_ID = "com.sickworm.intellij.jugg"
     private const val BUNDLE_MANIFEST = "standalone_bundle_manifest.json"
 
     fun install() {
@@ -48,7 +47,8 @@ object StandaloneBundleInstallService {
     }
 
     private fun resolveBundle(): EmbeddedBundleLocation {
-        val plugin = PluginManagerCore.getPlugin(PluginId.getId(PLUGIN_ID)) ?: error("Jugg plugin is not installed")
+        val plugin = PluginManagerCore.getPlugin(PluginId.getId(JuggPluginIdentity.ID))
+            ?: error("Jugg plugin is not installed")
         val standaloneDir = plugin.pluginPath.resolve("standalone").toFile()
         val bundle = standaloneDir.listFiles().orEmpty().singleOrNull {
             it.isFile && it.name.startsWith("jugg-standalone-") && it.extension == "zip"

@@ -77,6 +77,23 @@ class GradleProjectInfoReaderKotlinOptionsTest {
         assertEquals(listOf("-Xlegacy"), module.kotlinFreeCompilerArgs)
     }
 
+    @Test
+    fun `compiler plugin options populate project info`() {
+        val pluginOptions = listOf(
+            "plugin:dev.zacsweers.moshix.compiler:enabled=true",
+            "plugin:dev.zacsweers.moshix.compiler:enableSealed=true",
+        )
+
+        val module = createReader(
+            kotlinTask = kotlinTask(pluginOptions = pluginOptions),
+            kotlinTaskName = "compileDebugKotlin",
+            hasLegacyKotlinPlugin = true,
+        )
+            .getProjectInfo(false).modules.getValue("app")
+
+        assertEquals(pluginOptions, module.kotlinPluginOptions)
+    }
+
     private fun createReader(
         kotlinTask: Task,
         kotlinTaskName: String,
@@ -148,6 +165,7 @@ class GradleProjectInfoReaderKotlinOptionsTest {
     private fun kotlinTask(
         compilerOptions: CompilerOptions? = null,
         legacyOptions: LegacyKotlinOptions? = null,
+        pluginOptions: List<String> = emptyList(),
     ): Task {
         val task = Mockito.mock(
             Task::class.java,
@@ -156,12 +174,24 @@ class GradleProjectInfoReaderKotlinOptionsTest {
         val model = task as KotlinTaskModel
         whenever(model.compilerOptions).thenReturn(compilerOptions)
         whenever(model.kotlinOptions).thenReturn(legacyOptions)
+        val pluginData = mock<Provider<KotlinPluginData>>()
+        whenever(pluginData.orNull).thenReturn(KotlinPluginData(KotlinPluginOptions(pluginOptions)))
+        whenever(model.`getKotlinPluginData$kotlin_gradle_plugin_common`()).thenReturn(pluginData)
         return task
     }
 
     interface KotlinTaskModel {
         val compilerOptions: CompilerOptions?
         val kotlinOptions: LegacyKotlinOptions?
+        fun `getKotlinPluginData$kotlin_gradle_plugin_common`(): Provider<KotlinPluginData>?
+    }
+
+    class KotlinPluginData(private val options: KotlinPluginOptions) {
+        fun getOptions(): KotlinPluginOptions = options
+    }
+
+    class KotlinPluginOptions(private val arguments: List<String>) {
+        fun getArguments(): List<String> = arguments
     }
 
     class CompilerOptions(

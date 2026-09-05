@@ -9,7 +9,7 @@ tags:
 
 # Jugg backend self-hosting checklist
 
-Self-hosting usually serves two goals: centrally distributing Jugg configuration and plugin versions within a team, or collecting diagnostics and providing hot updates and remote-machine applications. Implement the minimum interfaces first, then add enhanced features gradually.
+Self-hosting usually serves two goals: centrally distributing Jugg configuration and plugin versions within a team, or collecting usage events and providing hot updates and remote-machine applications. Implement the minimum interfaces first, then add enhanced features gradually.
 
 ## Minimum viable interfaces
 
@@ -17,10 +17,11 @@ Self-hosting usually serves two goals: centrally distributing Jugg configuration
 |---|---|---|
 | `/check_update` | `GET` | Return the current latest version, whether an upgrade is required, a download entry point, notifications, and project configuration |
 | `/report_event` | `POST` | Accept event JSON and return 2xx on success |
-| `/report_issue` | `POST multipart` | Accept a log ZIP and return 200 on success |
 | `/check_hot_update` | `GET` | Return an empty update result when hot updates are unused |
 
 If only project configuration distribution is required, `/check_update` can return `isNeedUpgrade=false` and place project configuration in `customConfigJson`. Other interfaces can return success or an empty result.
+
+User-submitted issue logs do not request a self-hosted backend. The plugin uploads the diagnostic bundle to a fixed issue-reporting service. See [Report an issue](../report-issue.md).
 
 ## `/check_update` response
 
@@ -50,13 +51,12 @@ If only project configuration distribution is required, `/check_update` can retu
 - The backend domain must be reachable from development machines with Jugg installed.
 - Download links for plugin packages, hot-update JARs, and custom compiler JARs must support direct downloads.
 - When `md5` is returned, it must match the file content.
-- `/report_issue` should accept large ZIP files so users can submit logs successfully.
 - When using a database, store at least the event time, user identity, project, version, action, and result.
 - For unused features, return empty configuration or an empty update instead of 500.
 
 ## Relationship to local features
 
-The backend manages configuration, distribution, and diagnostics; it does not take over local compilation or deployment. Jugg Run, Debug, Android Test, CLI, and MCP still execute in the local Android Studio or command-line environment.
+The backend manages configuration, distribution, and usage events; it does not take over local compilation or deployment, and it does not receive user issue logs. Jugg Run, Debug, Android Test, CLI, and MCP still execute in the local Android Studio or command-line environment.
 
 ## Related pages
 
@@ -64,3 +64,4 @@ The backend manages configuration, distribution, and diagnostics; it does not ta
 - [Project configuration distribution](./project-config.md)
 - [Plugin distribution and hot updates](./plugin-delivery.md)
 - [Diagnostics reporting](./diagnostics.md)
+- [Report an issue](../report-issue.md)

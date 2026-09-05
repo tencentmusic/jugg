@@ -238,6 +238,11 @@ class DeployFileManager(
     }
 
     @Synchronized
+    fun clearResourceApkCache() {
+        resourceApkGenerator.deleteResourceApk()
+    }
+
+    @Synchronized
     fun getDeployedFiles(): List<CompileOutput> {
         return stateTracker.getDeployedFiles()
     }

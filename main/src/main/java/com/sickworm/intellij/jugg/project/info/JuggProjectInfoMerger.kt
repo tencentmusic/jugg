@@ -48,6 +48,12 @@ class JuggProjectInfoMerger(
 
     private val logger = loggerArg.getInstance("JuggProjectInfoMerger")
 
+    private data class GradleModuleOrigin(
+        val source: String,
+        val modulePath: String,
+        val updateTime: Long,
+    )
+
     private var ide: ProjectInfoSerializer? = null
     private var localFetch: List<ProjectInfoSerializer> = emptyList()
 
@@ -98,10 +104,13 @@ class JuggProjectInfoMerger(
                 "ideUpdateTime ${ideUpdateTime.timeStampToTime()}")
 
         val gradleProjectInfoModules = mutableMapOf<String, ModuleInfo>()
+        val gradleModuleOrigins = mutableMapOf<String, MutableList<GradleModuleOrigin>>()
         val gradleProjectInfos = mutableListOf<JuggProjectInfo>()
         var primaryGradleModulePaths = emptySet<String>()
         localFetch.forEachIndexed { index, projectInfoSerializer ->
             val gradleProjectInfo = projectInfoSerializer.load()
+            val source = if (index == 0) "primary" else "include[$index]"
+            val updateTime = projectInfoSerializer.dataFile.lastModified()
             logger.debug("localFetch file: ${projectInfoSerializer.dataFile.path }, " +
                     "modules: ${gradleProjectInfo?.modules?.map { it.key }}")
             if (index == 0) {
@@ -113,6 +122,9 @@ class JuggProjectInfoMerger(
                 gradleProjectInfos.add(gradleProjectInfo)
             }
             gradleProjectInfo?.modules?.forEach { moduleInfo ->
+                gradleModuleOrigins.getOrPut(moduleInfo.key) { mutableListOf() }.add(
+                    GradleModuleOrigin(source, moduleInfo.value.moduleStdPath, updateTime)
+                )
                 if (!gradleProjectInfoModules.containsKey(moduleInfo.key)) {
                     gradleProjectInfoModules[moduleInfo.key] = moduleInfo.value
                 }
@@ -139,7 +151,7 @@ class JuggProjectInfoMerger(
         }
 
         val result = doMerge(ideProjectInfo, gradleProjectInfo, primaryGradleModulePaths,
-            isNeedUpdateLibraryDependency, buildTarget)
+            gradleModuleOrigins, ideUpdateTime, isNeedUpdateLibraryDependency, buildTarget)
         val mergedInfo = result.mergedInfo
         val finalResult = if (mergedInfo == null) {
             result
@@ -180,6 +192,8 @@ class JuggProjectInfoMerger(
         ideProjectInfo: JuggProjectInfo,
         gradleProjectInfo: JuggProjectInfo,
         primaryGradleModulePaths: Set<String>,
+        gradleModuleOrigins: Map<String, List<GradleModuleOrigin>>,
+        ideUpdateTime: Long,
         isNeedUpdateDependency: Boolean,
         buildTarget: BuildTarget,
     ): JuggProjectInfoMergeResult {
@@ -206,6 +220,11 @@ class JuggProjectInfoMerger(
         nameUpdateMap.forEach { (oldName, newName) ->
             updateModules[newName] = updateModules[oldName]!!
             updateModules.remove(oldName)
+        }
+        val finalGradleModuleOrigins = mutableMapOf<String, MutableList<GradleModuleOrigin>>()
+        gradleModuleOrigins.forEach { (name, origins) ->
+            val finalName = nameUpdateMap[name] ?: name
+            finalGradleModuleOrigins.getOrPut(finalName) { mutableListOf() }.addAll(origins)
         }
         val finalUpdateModules = updateModules.mapValues { (_, moduleInfo) ->
             moduleInfo.copy(moduleDependencies = moduleInfo.moduleDependencies.map {
@@ -322,7 +341,9 @@ class JuggProjectInfoMerger(
                 signingConfigs = gradleModuleInfo.signingConfigs,
                 kotlinExtensions = gradleModuleInfo.kotlinExtensions,
                 kotlinPlugins = gradleModuleInfo.kotlinPlugins,
+                kotlinPluginOptions = gradleModuleInfo.kotlinPluginOptions,
                 coreLibraryDesugaring = gradleModuleInfo.coreLibraryDesugaring,
+                isUseDataBinding = gradleModuleInfo.isUseDataBinding ?: moduleInfo.isUseDataBinding,
                 kspDependencies = gradleModuleInfo.kspDependencies,
                 instrumentationTargetPackage = gradleModuleInfo.instrumentationTargetPackage ?: moduleInfo.instrumentationTargetPackage,
                 composeResourceInfo = gradleModuleInfo.composeResourceInfo ?: moduleInfo.composeResourceInfo,
@@ -348,10 +369,12 @@ class JuggProjectInfoMerger(
         }
 
         logger.debug("modules not found in gradleModuleInfo, won't merge: $noMergeModules")
-        mergeGradleOnlyModuleDependencies(
+        mergeMissingGradleModuleDependencies(
             mergedModules,
             finalGradleProjectInfo.modules,
             ideProjectInfo.modules.keys,
+            finalGradleModuleOrigins,
+            ideUpdateTime,
             mergeResult,
         )
 
@@ -361,30 +384,48 @@ class JuggProjectInfoMerger(
         ))
     }
 
-    /** Adds missing dependencies to Gradle-only modules without introducing a new dependency cycle. */
-    private fun mergeGradleOnlyModuleDependencies(
+    /** Adds Gradle-confirmed dependencies missing from the IDE snapshot without introducing a cycle. */
+    private fun mergeMissingGradleModuleDependencies(
         mergedModules: MutableMap<String, ModuleInfo>,
         gradleModules: Map<String, ModuleInfo>,
         ideModuleNames: Set<String>,
+        gradleModuleOrigins: Map<String, List<GradleModuleOrigin>>,
+        ideUpdateTime: Long,
         mergeResult: JuggProjectInfoMergeResult,
     ) {
-        val gradleOnlyModuleNames = gradleModules.keys - ideModuleNames
         gradleModules.toSortedMap().forEach { (ownerName, gradleModule) ->
             val ownerModule = mergedModules[ownerName] ?: return@forEach
             val dependencies = ownerModule.moduleDependencies.mapTo(mutableSetOf()) { it.moduleName }
             gradleModule.moduleDependencies.forEach dependencyLoop@{ dependency ->
                 val dependencyName = dependency.moduleName
-                if (dependencyName !in gradleOnlyModuleNames || dependencyName !in mergedModules ||
+                if (dependencyName !in mergedModules ||
                     dependencyName == ownerName || !dependencies.add(dependencyName)
                 ) {
                     return@dependencyLoop
                 }
                 if (canReach(mergedModules, dependencyName, ownerName)) {
                     dependencies.remove(dependencyName)
-                    logger.warn("Skip Gradle-only module dependency $ownerName -> $dependencyName " +
+                    logger.warn("Skip Gradle module dependency $ownerName -> $dependencyName " +
                             "because it forms a cycle")
                     return@dependencyLoop
                 }
+                val targetModule = mergedModules.getValue(dependencyName)
+                val ownerOrigins = gradleModuleOrigins[ownerName].orEmpty()
+                    .filter { it.modulePath == gradleModule.moduleStdPath }
+                val targetOrigins = gradleModuleOrigins[dependencyName].orEmpty()
+                val targetOriginPaths = targetOrigins.map { it.modulePath }.distinct()
+                val ownerOriginText = ownerOrigins.joinToString { it.forLog() }
+                val targetOriginText = targetOrigins.joinToString { it.forLog() }
+                if (targetOriginPaths.size > 1) {
+                    logger.warn("Ambiguous Gradle module dependency $ownerName -> $dependencyName, " +
+                            "selectedTargetPath=${targetModule.moduleStdPath}, " +
+                            "targetOrigins=[$targetOriginText]")
+                }
+                logger.debug("Add Gradle module dependency $ownerName -> $dependencyName, " +
+                        "ideKnownTarget=${dependencyName in ideModuleNames}, " +
+                        "ideUpdateTime=${ideUpdateTime.timeStampToTime()}, " +
+                        "ownerPath=${ownerModule.moduleStdPath}, targetPath=${targetModule.moduleStdPath}, " +
+                        "ownerOrigins=[$ownerOriginText], targetOrigins=[$targetOriginText]")
                 val currentModule = mergedModules.getValue(ownerName)
                 mergedModules[ownerName] = currentModule.copy(
                     moduleDependencies = currentModule.moduleDependencies + ModuleDependency(dependencyName)
@@ -407,6 +448,10 @@ class JuggProjectInfoMerger(
             }
         }
         return false
+    }
+
+    private fun GradleModuleOrigin.forLog(): String {
+        return "$source(path=$modulePath, updateTime=${updateTime.timeStampToTime()})"
     }
 
     /**

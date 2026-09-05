@@ -108,4 +108,4 @@
 
 ### 4) 文档更新（按需）
 
-如果本次任务涉及功能或架构改动，同步更新 [ai_knowledge](docs/ai_knowledge) 文档
+如果本次任务涉及功能或架构改动，同步更新 [ai_knowledge](docs/ai_knowledge) 文档；同时检查 [docs/wiki](docs/wiki) 中是否存在受影响的用户文档页面，若有则一并同步更新

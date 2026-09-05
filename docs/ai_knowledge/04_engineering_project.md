@@ -1,6 +1,6 @@
 # 工程化：项目模型与 Gradle 集成
 
-> 最后核对：2026-08-18
+> 最后核对：2026-09-04
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -76,9 +76,10 @@ IDEA Jugg Run Configuration 是共享 profile 的同步源。项目启动时会�
 | `buildVariant` / `buildPathInfo` | 当前变体及 AGP 输出路径推断 |
 | `moduleDependencies` / `runtimeModuleDependencies` / `libraryDependencies` / `runtimeLibraryDependencies` | 编译、APK 运行时归属和库依赖；`runtimeModuleDependencies=null` 表示旧快照，继续使用旧的模块依赖遍历 |
 | `applicationId` / `namespace` | APK 归属、manifest、androidTest target 解析基础 |
+| `isUseDataBinding` | Gradle 读取的 DataBinding build feature；合并后必须保留，供增量 layout 编译选择 DataBinding 模式 |
 | `instrumentationTargetPackage` | 非空表示 synthetic androidTest module |
 | `kaptDependencies` / `kspDependencies` / `kotlinPlugins` | 注解处理和 Kotlin 编译输入 |
-| `kotlinJvmTarget` / `kotlinFreeCompilerArgs` | Kotlin 编译任务的有效 JVM target 与附加编译参数 |
+| `kotlinJvmTarget` / `kotlinFreeCompilerArgs` / `kotlinPluginOptions` | Kotlin 编译任务的有效 JVM target、附加编译参数与 Gradle subplugin 参数 |
 | `kotlinCommonSourceDirs` | 选中 Android Kotlin compilation 视为 common 的 Kotlin source roots；非 KMP 或读取失败时为空列表 |
 | `kotlinFragmentSourceDirs` | 选中 Android Kotlin task 暴露的 fragment 到 source roots 映射；旧快照或不支持时为空 map |
 | `kotlinFragmentRefines` | fragment refinement edge，key 为 refining fragment，value 为其直接 refined fragments |
@@ -87,7 +88,7 @@ IDEA Jugg Run Configuration 是共享 profile 的同步源。项目启动时会�
 
 `JuggProjectInfo.agpR8Classpath` 是根项目级字段。Gradle init script 从实际 Android plugin classloader 加载 `com.android.tools.r8.D8` 并读取 code source；若该路径属于 Gradle `jars-*` / `transforms-*` instrumentation cache，则从 Android module 或 root project 的 buildscript classpath 恢复同名原始 artifact。原始 artifact 不可用时字段保持 `null`，由 dex 阶段使用 Jugg 内置 R8，避免把依赖 Gradle 私有类的 instrumentation 产物带出 Gradle classloader。Jugg 不复制 R8 分发包；IDE/CLI 只把路径注入内存中的 compile context，不写入 `FullBuildInfo` 或 `compile_context.db`。合并 composite build 快照时优先选择最终 Application module 所属 Gradle 快照的路径，避免 included build 的 AGP R8 覆盖主应用。
 
-`kotlinJvmTarget` 与 `kotlinFreeCompilerArgs` 优先从当前变体 Kotlin 编译任务的 `compilerOptions` 读取，以兼容 Kotlin 2.x typed compiler options；旧版 Kotlin Gradle Plugin 才回退到 task 或 Android extension 的 `kotlinOptions`。Kotlin task 发现不依赖旧 Kotlin Android plugin ID，兼容 AGP 9 Built-in Kotlin，并在传统 variant task 之后尝试 KMP Android task `compileAndroidMain`。不得直接对 Android extension 调用 `getByName("kotlinOptions")`，否则属性不存在时会产生反射异常，并让增量编译错误回退到默认 JVM target 1.8。
+`kotlinJvmTarget` 与 `kotlinFreeCompilerArgs` 优先从当前变体 Kotlin 编译任务的 `compilerOptions` 读取，以兼容 Kotlin 2.x typed compiler options；旧版 Kotlin Gradle Plugin 才回退到 task 或 Android extension 的 `kotlinOptions`。`kotlinPluginOptions` 从 task 的 `KotlinCompilerPluginData.options.arguments` 读取，保留 Gradle subplugin 已解析的必填参数和原始顺序，读取失败时为空并由 Kotlin 编译失败兜底处理。Kotlin 编译消费该字段时优先使用当前 compilation，只有 synthetic module 参数为空才回退最近父模块，禁止合并多个 compilation 的 option 集合。Kotlin task 发现不依赖旧 Kotlin Android plugin ID，兼容 AGP 9 Built-in Kotlin，并在传统 variant task 之后尝试 KMP Android task `compileAndroidMain`。不得直接对 Android extension 调用 `getByName("kotlinOptions")`，否则属性不存在时会产生反射异常，并让增量编译错误回退到默认 JVM target 1.8。
 
 `kotlinCommonSourceDirs` 从 `compile<Variant>Kotlin` / `compile<Variant>KotlinAndroid` task 的 `commonSourceSet` 结构读取，保留 direct common root、中间 `sharedMain` root 和 task 配置的 generated common roots。K2 task 另从 `multiplatformStructure` 读取 fragment sources、refines edge 和 default fragment。两者都不依据 source-set 名称或 `src/<name>` 路径猜测。Gradle reader 会把这些 roots 同时加入 `sourceDirs`；merge 出口保证 common roots 是 `sourceDirs` 子集，并完整保留 Gradle authoritative fragment graph，IDE 的扁平 `sourceDirs` 不覆盖这些身份。
 
@@ -96,6 +97,8 @@ IDEA Jugg Run Configuration 是共享 profile 的同步源。项目启动时会�
 Compose generated source 路径由 `ModuleBuildPathInfo.composeResourceGeneratedSourcePath` 从 `generatedSourcePath` 派生，不读取或持久化 Gradle task 的 `codeDir`。增量生成完成后，`ComposeResourceCompiler` 直接将 accessor 写回该目录，供 Android Studio 索引新增资源引用。`allBuildPaths` 已包含父目录 `generatedSourcePath`，无需重复加入这个子目录。
 
 `ModuleBuildPathInfo.buildDirRelativePath` 记录模块实际 Gradle build directory 相对 IDE 项目根的路径。Gradle init script 从 `project.layout.buildDirectory` 读取该值；IDE 侧从 Android model 的 build folder 读取，并在 Gradle/IDE project info merge 时以 Gradle 值为准。构造 `ModuleBuildPathInfo` 时必须显式提供该字段；明确传入空字符串表示兼容旧快照并继续使用 `${moduleRootDir}/build`。所有 classpath、manifest、mapping、APK/androidTest 回填与远端同步路径都从该 build directory 派生，不再假设输出位于模块目录下。
+
+Kotlin class 输出会在 AGP 9 Built-in Kotlin、KMP Android target 和 legacy Android Kotlin 三种目录中选择最新的现存结果。KMP Android target 的标准输出 `classes/kotlin/android/main` 同时纳入本地 classpath 与远程构建产物同步，避免 IDE 虚拟 `androidMain` module 已建立依赖关系、但实际 commonMain/Android class 仍无法解析。
 
 project info 的 `sourceDirs` 可以保留 build directory 下的 generated source，因为 Kotlin/KMP 编译上下文可能需要这些 root；不要在 project info merge 阶段删除。远程构建后的 compile context 会把 `buildPathInfo.projectRootDir/moduleRootDir` 映射到本地 classpath 备份目录，因此文件变更入口不能直接把 `buildPathInfo.buildDir` 当作本地输出目录。`FileChangesHandler` 使用 `ModuleInfo.projectRootDir/moduleRootDir + buildDirRelativePath` 还原本地实际 build directory，并同时登记传统 `${moduleRootDir}/build`，对 changed file 与目录递归统一剪枝；集中式 build directory 不要求位于 module root 内。
 
@@ -267,6 +270,7 @@ APK 拉取全部成功后，`LocalGradleCompileClient` / `RemoteGradleCompileCli
 ## 6. 隐形约束
 
 - `ModuleInfo` 新增字段时必须同步 `JuggProjectInfoSerialize`、`JuggProjectInfoMerger`、`ProjectInfoSerializerInGradle`、`CmdLineContextManager`、`LibrariesBackupHelper`；否则 Gradle/IDE/CLI 任一侧会丢字段。
+- Gradle 侧 Groovy `JsonGenerator` 会把 Kotlin Boolean `is*` 字段写成 JavaBean 名（`isUseDataBinding` → `useDataBinding`）。IDE `ProjectInfoSerializer` 用 Gson 按字段名读取，加载时按 `ModuleInfo` 声明的 `is*` 布尔字段自动把 bean 名拷到字段名，不要为单个开关加白名单。新增同类字段时，`gson load of groovy snapshot preserves DataBinding setting` 会要求 fixture 赋值为 true 并完成 Groovy→Gson 回读。只修 merger 保留逻辑挡不住 JSON 回读丢开关。
 - `runtimeModuleDependencies` 只对 Application / Dynamic Feature 根模块读取；非空或空列表都是 Gradle resolved runtime 的权威结果，`null` 才触发旧逻辑。`ProjectComponentIdentifier.projectPath` 必须用独立规则去除开头的 `:` 后再把层级分隔符转换为 `.`，composite build 根项目则使用 `projectName`；不能复用面向 display name 的通用转换，也不能继续依赖 `ResolvedDependency.moduleVersion == unspecified` 的启发式判断。
 - `JuggProjectInfo.agpR8Classpath` 只保存可脱离 Gradle classloader 使用的直接引用路径，不把 R8 文件复制到 classpath backup，也不进入 `FullBuildInfo` 或 compile context 磁盘格式；Gradle instrumentation code source 找不到原始 buildscript artifact 或旧 project info 缺失该字段时按 `null` 兼容，并由 dex 阶段回退到 Jugg 内置 R8。
 - `JuggProjectInfo.agpR8Classpath` 类型允许为 `null`，但构造参数没有默认值；所有构造点必须明确传递现有路径或显式传入 `null`。仅转换 modules 的流程必须使用 `projectInfo.copy(modules = ...)`，禁止重新构造根快照导致项目级字段丢失。
@@ -285,7 +289,7 @@ APK 拉取全部成功后，`LocalGradleCompileClient` / `RemoteGradleCompileCli
 - include build project info task 仅在 composite build 根构建中注入；无 included build 的项目不注册额外 task，也不改变原有读取时机。
 - include build 本轮快照缺失时保留同索引的上一次有效副本；只有旧副本也不存在时才从列表跳过，避免一次读取失败清空可用元数据。
 - IDE 可能把不同 Gradle build 中的同名模块都简化为相同 simple name。若同名模块分别指向不同相对路径，只有 Gradle 侧模块明确为 `Application`、来自主 Gradle 快照且存在真实 R.jar 时，才完整保留该 Gradle Application；多个 R.jar 候选继续由 `ModuleBuildPathInfo.rFilePath` 按修改时间选择最新产物。条件不满足时仍走原有字段合并，普通 Library 不受影响。冲突日志会记录 IDE/Gradle 模块路径、是否属于主快照、候选 R.jar 和最终选择。
-- IDE project info 完全缺失某个 Gradle module 时，merge 会在该 Gradle-only module 已进入最终模块集合后补回指向它的 Gradle 依赖。补入前从目标模块检查是否能够沿当前依赖图到达 owner；若会形成环则打印 warning 并放弃该依赖。IDE 已识别模块之间的依赖仍保持原有选择策略，不执行无条件并集。
+- merge 会补回 Gradle 已确认、目标仍在最终模块集合中但 IDE snapshot 遗漏的 module 依赖，包括 IDE 已识别目标模块和 Gradle-only 模块。该过程只增加缺失边，不删除或替换 IDE 依赖；补入前从目标模块检查是否能够沿当前依赖图到达 owner，若会形成环则打印 warning 并放弃该依赖。成功补边的 debug 日志会记录 IDE snapshot 时间、owner/target 路径及 Gradle snapshot 来源；同名 target 来自多个不同 module path 时额外打印 warning，便于识别旧快照和 composite build 身份歧义。
 - diff mode 只输出依赖差异并清理临时 project info；非 diff mode 才写正式 `gradle_project_infos.json`。
 - 依赖 diff 的用户确认是正确性边界，不要为了“自动化”直接把 `CHANGED_NOT_SYNCED` 改成 `INCREMENTAL_COMPILE`。diff 失败或用户拒绝时应保持 Gradle rebuild 语义；diff 无依赖变化时也只有用户明确选择忽略 build file 变化后才能继续增量。
 - androidTest task 注入发生在 Gradle task graph finalization 之前；如果请求任务名和真实 task path 对不上，注入会静默打印 “no requested task found” 并跳过。
@@ -301,6 +305,7 @@ APK 拉取全部成功后，`LocalGradleCompileClient` / `RemoteGradleCompileCli
 | 模块 source/res/manifest 路径异常 | `GradleProjectInfoReader.getModuleInfo()` 与 `ModuleBuildPathInfo` |
 | AGP 升级后找不到 R.jar / manifest / data binding 输出 | `ModuleBuildPathInfo` 对应属性 |
 | project info JSON 缺字段 | `ModuleInfo` 字段同步清单、`ProjectInfoSerializerInGradle`、`JuggProjectInfoMerger` |
+| 已启用 DataBinding 但增量仍报 `data binding is not enabled` | `ProjectInfoSerializer` 对 Groovy `useDataBinding` 的读取别名；再查 merger 是否保留 `isUseDataBinding` |
 | AGP 升级后增量 D8 断言/不兼容 | `JuggProjectInfo.agpR8Classpath`、`GradleProjectInfoReaderManager.findAgpR8Classpath()`、`DexFileMaker` |
 | include build 模块缺失 | `gradle_include_builds.txt` 与 `JuggProjectInfoMerger` |
 | 同名 app 合并后 R.jar 指向外部工程 | `JuggProjectInfoMerger` 的主 Gradle Application + R.jar 存在性保护日志 |

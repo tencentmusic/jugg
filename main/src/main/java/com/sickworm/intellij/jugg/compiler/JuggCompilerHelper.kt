@@ -93,6 +93,7 @@ class JuggCompilerHelper(
      * can proceed.
      */
     override fun checkFallback(): String? {
+        getInitialFullCompileReason()?.let { return it }
         if (!gradleProjectInfoLocalFetchManager.isIncrementalCompileAvailable) {
             return GRADLE_PROJECT_INFO_UNAVAILABLE
         }
@@ -108,6 +109,9 @@ class JuggCompilerHelper(
     }
 
     override fun checkFallback(deployState: JuggDeployState): String? {
+        if (!deployHistoryManager.hasBeenFullCompiled) {
+            return deployState.msg
+        }
         if (!gradleProjectInfoLocalFetchManager.isIncrementalCompileAvailable) {
             return GRADLE_PROJECT_INFO_UNAVAILABLE
         }
@@ -117,6 +121,13 @@ class JuggCompilerHelper(
         }
         checkFilesFallback(deployFileManager.getUncompiledFiles(), deployState)?.let { return it.failedReason }
         return null
+    }
+
+    private fun getInitialFullCompileReason(): String? {
+        if (deployHistoryManager.hasBeenFullCompiled) {
+            return null
+        }
+        return deployStateManager.updateDeployState().msg
     }
 
     @Synchronized
@@ -416,6 +427,10 @@ class JuggCompilerHelper(
             return CompileTaskResult.incrementalFailed(true, "Compile command changed")
         }
 
+        getInitialFullCompileReason()?.let {
+            return CompileTaskResult.incrementalFailed(true, it)
+        }
+
         if (gradleProjectInfoLocalFetchManager.isRebuildingMissingProjectInfo &&
             deployHistoryManager.getFullBuildInfo()?.compileCommand != null
         ) {
@@ -634,6 +649,7 @@ class JuggCompilerHelper(
             val uncompiledFiles = deployFileManager.getUncompiledFiles()
             if (uncompiledFiles.isEmpty() && buildTarget == BuildTarget.ANDROID_TEST && isAndroidTestRun) {
                 logger.info("No file changes for androidTest, but current run should deploy directly.")
+                notifyEmptyCompile(uiHandler)
                 return CompileTaskResult.incrementalSuccess(
                     CompileResult.empty(uiHandler.createCompileStatusHolder()),
                 ).copy(hasFileChanges = false)
@@ -643,6 +659,7 @@ class JuggCompilerHelper(
             if (juggRunningTaskStatusManager.isFirstTimeRun(deviceSerials)) {
                 if (uncompiledFiles.isEmpty()) {
                     logger.info("No file changes, but it's first time run, deploy directly.")
+                    notifyEmptyCompile(uiHandler)
                     return CompileTaskResult.incrementalSuccess(CompileResult.empty(uiHandler.createCompileStatusHolder()))
                 } else {
                     logger.info("No file changes, but last compilation not finished" +
@@ -651,6 +668,7 @@ class JuggCompilerHelper(
             } else if (juggRunningTaskStatusManager.isProjectSwitchedThisRun) {
                 if (uncompiledFiles.isEmpty()) {
                     logger.info("No file changes, but project switched since last run, deploy directly.")
+                    notifyEmptyCompile(uiHandler)
                     return CompileTaskResult.incrementalSuccess(CompileResult.empty(uiHandler.createCompileStatusHolder()))
                 } else {
                     logger.info("No file changes, but project switched since last run" +
@@ -658,6 +676,7 @@ class JuggCompilerHelper(
                 }
             } else if (uiHandler.isDebugRun && uncompiledFiles.isEmpty()) {
                 logger.info("No file changes for debug run, deploy directly.")
+                notifyEmptyCompile(uiHandler)
                 return CompileTaskResult.incrementalSuccess(
                     CompileResult.empty(uiHandler.createCompileStatusHolder()),
                 ).copy(hasFileChanges = false)
@@ -733,6 +752,10 @@ class JuggCompilerHelper(
 
     private fun resolveTargetDevice(targetDeviceSerial: String?): IDevice? {
         return targetDeviceSerial?.let { deployTargetManager.getTargetDevices(it).firstOrNull() }
+    }
+
+    private fun notifyEmptyCompile(uiHandler: CompileUiHandler) {
+        uiHandler.notifyByBalloon("Compiling 0 files...")
     }
 
     fun warmUp() {

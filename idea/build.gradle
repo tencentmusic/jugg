@@ -114,7 +114,7 @@ def thirdPartySourcesDir = rootProject.file('third_party/sources')
 def thirdPartySourceChecksumsFile = new File(thirdPartySourcesDir, 'SHA256SUMS')
 def generatedThirdPartyDir = new File(buildDir, 'generated/third-party-compliance')
 def thirdPartySourceInfoFile = new File(generatedThirdPartyDir, 'SOURCE.md')
-def thirdPartyRepositoryUrl = 'https://github.com/sickworm/jugg'
+def thirdPartyRepositoryUrl = 'https://github.com/tencentmusic/jugg'
 
 def gitHead = {
     def process = ['git', 'rev-parse', 'HEAD'].execute(null, rootDir)

@@ -7,6 +7,7 @@ import com.intellij.ide.plugins.PluginManagerCore
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.extensions.PluginId
 import com.intellij.openapi.project.Project
+import com.sickworm.intellij.jugg.ide.logic.JuggPluginIdentity
 import com.sickworm.intellij.jugg.ide.logic.PluginVersionComparator
 import com.sickworm.intellij.jugg.ide.logic.StandaloneEmbeddedBundle
 import com.sickworm.intellij.jugg.ide.ui.JuggCommonNotification
@@ -37,7 +38,7 @@ class IdeaHotUpdateCoordinator(
         logger,
     )
     private val ideaPluginDescriptor: IdeaPluginDescriptor?
-        get() = PluginManagerCore.getPlugin(PluginId.getId("com.sickworm.intellij.jugg"))
+        get() = PluginManagerCore.getPlugin(PluginId.getId(JuggPluginIdentity.ID))
 
     fun init(project: Project) {
         start()

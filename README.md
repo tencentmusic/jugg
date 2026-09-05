@@ -1,4 +1,4 @@
-<p align="right">
+<p align="left">
   <strong>English</strong> | <a href="./README.zh-CN.md">简体中文</a>
 </p>
 
@@ -10,11 +10,19 @@
 
 Jugg is an open-source incremental build and deployment tool from the Tencent Music engineering team, designed to bring changes in large Android codebases on screen within seconds. Delivered as an Android Studio / IntelliJ IDEA plugin, it reuses trusted outputs from the latest Gradle build, compiles only the current changes and the code affected by them, and quickly deploys code and resources to a device. Small day-to-day changes can typically become visible within 3 seconds.
 
-Jugg only requires an IDE plugin. It does not modify Gradle scripts or require an SDK integration. Developers keep using the familiar Run action; when a project change falls outside the incremental path, Jugg falls back to Gradle and establishes a new baseline.
+Jugg only requires an IDE plugin. It does not modify Gradle scripts or require an SDK integration. A Jugg Run Configuration coexists with the native App Run Configuration: select Jugg for incremental compilation and deployment, or switch back to the native App configuration at any time to use the original Android Studio / Gradle build, installation, and launch flow. Jugg does not take over that native Run. Select the Jugg configuration again to resume the incremental flow; when a project change falls outside the incremental path, Jugg itself can also fall back to Gradle and establish a new baseline.
 
-- [Download the latest stable release](https://github.com/sickworm/jugg/releases/latest)
-- [Jugg Wiki](https://sickworm.github.io/jugg/)
+- [Download the latest stable release](https://github.com/tencentmusic/jugg/releases/latest)
+- [Jugg Wiki](https://tencentmusic.github.io/jugg/)
 - [Watch the demo](https://www.bilibili.com/video/BV1W3411C7PU/)
+
+## Community
+
+Join the Jugg WeChat group to discuss usage and troubleshooting.
+
+<p align="center">
+  <img src="./docs/images/wechat-group.jpg" alt="Jugg WeChat group QR code" width="360">
+</p>
 
 ## How Jugg works
 
@@ -53,7 +61,7 @@ Jugg is fast because it processes only the necessary inputs. Impact propagation,
 | Android Test | Application / Library Android Test, Test Results UI, and Logcat attribution |
 | Automation | Jugg CLI, MCP, Agent Skills, build and deployment, device and runtime queries, UI automation, and remote diagnostics |
 
-See the [compatibility reference](https://sickworm.github.io/jugg/reference/compatibility) for detailed requirements and behavior boundaries.
+See the [compatibility reference](https://tencentmusic.github.io/jugg/reference/compatibility) for detailed requirements and behavior boundaries.
 
 ## Verified compatibility
 
@@ -66,15 +74,37 @@ See the [compatibility reference](https://sickworm.github.io/jugg/reference/comp
 | Kotlin | 1.3 to 2.2 |
 | Android | 8 to 16 |
 
-Versions outside these ranges may still work, but they can contain compatibility differences that have not yet been covered. Please open an [Issue](https://github.com/sickworm/jugg/issues) when you encounter a reproducible problem.
+Versions outside these ranges may still work, but they can contain compatibility differences that have not yet been covered. Please open an [Issue](https://github.com/tencentmusic/jugg/issues) when you encounter a reproducible problem.
 
 ## Quick start
 
-1. Download and install the plugin from [Releases](https://github.com/sickworm/jugg/releases/latest).
+1. Download and install the plugin from [Releases](https://github.com/tencentmusic/jugg/releases/latest).
 2. Open an existing Android project and create or select a Jugg Run Configuration.
 3. The first Run uses Gradle to establish a trusted baseline. After that, modify source code or resources and click Run again to see the incremental result.
 
-See [Getting started](https://sickworm.github.io/jugg/onboarding/) for the complete setup guide.
+See [Getting started](https://tencentmusic.github.io/jugg/onboarding/) for the complete setup guide.
+
+## AI Agent Skill and CLI
+
+Jugg provides the `jugg-android-dev-loop` Agent Skill and the `jugg` CLI so AI coding assistants, terminal users, and scripts can use the same build, deployment, testing, runtime inspection, and UI automation capabilities as the IDE plugin. The Skill guides an agent through the complete **edit -> incremental compile -> deploy -> verify -> iterate** workflow, while the CLI wraps the local Jugg MCP service with project discovery, asynchronous task polling, and stable terminal output.
+
+The installer currently supports Codex, Claude Code, Gemini, CodeBuddy, and Cursor:
+
+1. Open the Android project in Android Studio and initialize Jugg.
+2. Open Search Everywhere and run `Install Jugg Skills`, or select **Jugg panel -> More Options -> Tools -> Install Jugg Skills**.
+3. Select the Agent Skills, CLI, and optional hooks to install.
+
+Common commands:
+
+```shell
+jugg status
+jugg compile
+jugg deploy
+jugg instrument --source-path app/src/androidTest/java/com/example/FooTest.kt
+jugg layout-dump
+```
+
+The target project must remain open and initialized in the IDE because the CLI calls the local Jugg plugin runtime. See the [CLI guide](https://tencentmusic.github.io/jugg/guide/cli) and [Agent Skills](https://tencentmusic.github.io/jugg/capabilities/tools/agent-skills) for installation details, command modes, and workflow boundaries.
 
 ## Network and diagnostic privacy
 

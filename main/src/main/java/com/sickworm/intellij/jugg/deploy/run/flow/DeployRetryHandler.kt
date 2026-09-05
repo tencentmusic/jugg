@@ -34,6 +34,11 @@ class DeployRetryHandler(
         deployData: JuggDeployData,
         reason: String,
     ): DeployTaskResult? {
+        if (isOutOfMemoryReason(reason)) {
+            logger.warn("Deploy stopped after an out of memory failure. Restart Android Studio, " +
+                    "increase the IDE heap, or run a Gradle install before retrying Jugg.")
+            return null
+        }
         if (AdbTransientOffline.isOfflineMessage(reason)) {
             return tryRetryAfterDeviceOffline(deployOptions, deployData, reason)
         }
@@ -236,5 +241,11 @@ class DeployRetryHandler(
         // retry convergence is controlled by timeOutRetryTimes instead.
         const val JVMTI_STUCK_RETRY_REASON = "__jugg_jvmti_stuck_retry__"
         const val REDEPLOY_WITH_COMPAT_MESSAGE = "Detect JVMTI compatibility issue, need to fallback to compat deploy."
+
+        internal fun isOutOfMemoryReason(reason: String): Boolean {
+            return reason.contains("OutOfMemoryError") ||
+                reason.contains("Java heap space") ||
+                reason.contains("GC overhead limit exceeded")
+        }
     }
 }

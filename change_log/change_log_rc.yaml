@@ -4,6 +4,63 @@
   updates:
     - run Jugg compile and deploy workflows from a standalone cross-platform CLI without Android Studio
 
+- version: 3.4.0
+  date: 2026.09.05
+  isNeedReinstall: true
+  updates:
+    - "[feature] Change the plugin ID to support Marketplace listing"
+    - "[bugfix] Show the non-debuggable package cause on deploy failure"
+    - "[bugfix] Prevent incremental Kotlin compile failure when plugins require options"
+    - "[bugfix] Prevent APK updates from failing on paths with shell characters"
+    - "[bugfix] Prevent release R8 builds from failing on Dragonfly missing classes"
+    - "[bugfix] Prevent compiler plugin options from breaking incremental builds"
+
+- version: 3.3.9
+  date: 2026.09.04
+  updates:
+    - route ASUS devices to compatibility deployment to avoid standard deployment failures
+    - prevent KMP typealias and cross-module reference failures when IDE project edges or Android build outputs are incomplete
+    - expose Gradle dependency merge diagnostics for missing or ambiguous module edges
+    - keep embedded APKs intact and avoid false failures when signing or verification needs a fallback JDK
+    - publish a directly downloadable dev package for any manually selected branch with ref-specific release notes
+    - preserve application lifecycle callbacks registered after the bootstrap application hands off to the real application
+    - use the owning APK variant minSdk for incremental and minified dex desugaring
+    - support the Windows Python launcher when starting the Jugg CLI
+    - keep DataBinding enabled after Gradle project information is reloaded
+    - prevent DataBinding include type errors when incremental layout information is unavailable
+    - support Java APT DataBinding projects when KAPT mapper baselines are absent
+    - prevent stale generated DataBinding sources from breaking later incremental builds
+    - prevent jvmti_agent resource packaging failures on reused Gradle daemons
+
+- version: 3.3.8
+  date: 2026.09.03
+  updates:
+    - report the missing Gradle baseline clearly on first run
+    - prevent APK installation failure on Android Studio Quail 4
+    - keep Kotlin compilation working after IDE file system conflicts
+    - prevent isolated Kotlin compilation failures on large projects
+
+- version: 3.3.7
+  date: 2026.09.02
+  updates:
+    - prevent compatibility deployment from repeatedly failing after heap exhaustion
+
+- version: 3.3.6
+  date: 2026.09.01
+  updates:
+    - show all diagnostics in the default report dialog
+    - compile androidTest sources with project dependencies
+    - preserve app APKs when running library androidTest
+    - show compile status when no-change runs deploy directly
+    - prevent unresolved resource IDs from same-named files in multiple roots
+
+- version: 3.3.5
+  date: 2026.09.01
+  updates:
+    - fall back directly after a failed Gradle build without repeating the large-change confirmation
+    - preserve custom Jugg run configurations during Gradle sync
+    - stop rebuilding the source database repeatedly after restart
+
 - version: 3.3.4
   date: 2026.08.29
   updates:

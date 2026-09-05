@@ -1,6 +1,6 @@
 # 编译系统：核心架构
 
-> 最后核对：2026-08-31
+> 最后核对：2026-09-03
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -60,11 +60,12 @@ JuggCompilerHelper.compile(options, uiHandler)
         1. Force Gradle Compile
         2. BuildTarget 切换（APP <-> ANDROID_TEST）
         3. compile command 与 full-build 基线不一致
-        4. 等待已存在 full-build 基线的 project-info 重建，再检查 project info 是否可用
-        5. INVALID_DEVICE
-        6. 回滚内容未变的文件，再检查 build file / dependency 变化
-        7. DeployState 要求 full compile（未建立基线、上次 Gradle 失败、build file 要求 rebuild）
-        8. 变更文件过多的确认；仅此前各项仍允许增量时才弹出
+        4. 未建立 full-build 基线（`not gradle compile yet`）
+        5. 等待已存在 full-build 基线的 project-info 重建，再检查 project info 是否可用
+        6. INVALID_DEVICE
+        7. 回滚内容未变的文件，再检查 build file / dependency 变化
+        8. DeployState 要求 full compile（上次 Gradle 失败、build file 要求 rebuild）
+        9. 变更文件过多的确认；仅此前各项仍允许增量时才弹出
      -> 用户在“变更过多”确认中选择 Continue 仅影响本轮；选择 Gradle 或任一强制条件都返回可回退结果
      -> 返回 null 才进入 incrementalCompile()
   -> 增量成功：直接返回
@@ -72,7 +73,7 @@ JuggCompilerHelper.compile(options, uiHandler)
   -> 需要回退：通知 fallback，执行 gradleCompile()
 ```
 
-`checkFallback()` 是 MCP/status 使用的无副作用预检，不能读取 Run options 或弹窗，因此顺序不同：`project info 不可用 -> INVALID_DEVICE -> DeployState 必须 full compile -> 变更文件过多`。它不会报告 Force Gradle、BuildTarget/command 切换、依赖差异确认或无文件变化确认；status 的 reason 不能替代实际 Run 的最终决策。
+`checkFallback()` 是 MCP/status 使用的无副作用预检，不能读取 Run options 或弹窗，因此顺序不同：`未建立 full-build 基线 -> project info 不可用 -> INVALID_DEVICE -> 其他 DeployState 必须 full compile -> 变更文件过多`。首次运行同时缺少基线和 project info 时，优先报告 `not gradle compile yet`。它不会报告 Force Gradle、BuildTarget/command 切换、依赖差异确认或无文件变化确认；status 的 reason 不能替代实际 Run 的最终决策。
 
 ### 4.2 单轮增量编译与影响传播
 
@@ -162,6 +163,8 @@ Run 前判断的完整优先级见 §4.1。可回退条件分为三类：
 进入增量编译后的回退语义独立于 Run 前预检：编译器未初始化、无文件变化确认、未预期异常、递归跟编文件过多或运行中设备失效可在本轮转 Gradle；普通源码编译失败则本轮直接失败，不自动执行 Gradle。失败文件仍保留为已编译过的待处理变更，下一次 Run 才按无文件变化策略决定是否 Gradle。compile command 变化时日志会同时打印 `last=` 与 `current=`，便于确认是 task 切换还是选中了另一条 Jugg Configuration。
 
 无文件变化的 fallback 确认框和手动 `Force Gradle Compile` 确认框均允许用户选择忽略 Gradle build cache。选中后，本轮 Gradle command 追加 `--no-build-cache --rerun-tasks`；该选项只影响本轮回退，不写回 Run Configuration，并在任务启动后清除。
+
+无文件变化但继续 Jugg 流程时统一显示 `Compiling 0 files...`。这包括首次运行、项目切换、Debug、androidTest 的直接部署分支，以及用户选择 `Don't fallback` 的 dry deploy 分支；转入 Gradle fallback 或取消时不显示该提示。
 
 ### 7.2 增量内重试
 

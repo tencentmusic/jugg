@@ -3,18 +3,29 @@
 <ol>
     <li>[feature] Run Jugg compile and deploy workflows from a standalone cross-platform CLI without Android Studio</li>
 </ol>
-<h2>3.3.4 (2026.08.29)</h2>
+<h2>3.4.0 (2026.09.05)</h2>
+<ol>
+    <li>[feature] Change the plugin ID to support Marketplace listing</li>
+    <li>[bugfix] Show the non-debuggable package cause on deploy failure</li>
+    <li>[bugfix] Prevent incremental Kotlin compile failure when plugins require options</li>
+    <li>[bugfix] Prevent APK updates from failing on paths with shell characters</li>
+    <li>[bugfix] Prevent release R8 builds from failing on Dragonfly missing classes</li>
+    <li>[bugfix] Prevent compiler plugin options from breaking incremental builds</li>
+</ol>
+<h2>3.3.9 (2026.09.04)</h2>
 <ol>
     <li>[feature] Run custom commands on the selected remote server</li>
     <li>[feature] Require explicit confirmation before trusting a custom server that can deliver updates and compiler JARs</li>
     <li>[feature] Locate live UI elements with exact combined selectors and return bounded matches with source locations</li>
     <li>[feature] Manage legacy Jugg options from the running panel</li>
     <li>[feature] Ask before falling back to Gradle when too many files change</li>
+    <li>[feature] Build and directly download a dev package from any manually selected branch</li>
     <li>[optimize] Simplify the remote command entry and disable Run for blank commands</li>
     <li>[optimize] Keep incremental compilation when Gradle project info is unavailable</li>
     <li>[optimize] List currently opened Jugg projects when the requested projectDir is not initialized</li>
     <li>[optimize] Let view-inspect read public fields and Kotlin properties</li>
     <li>[optimize] Make Jugg control panel logs reflect actual compile, deploy, user, and MCP actions with sanitized details</li>
+    <li>[optimize] Expose Gradle dependency merge diagnostics for missing or ambiguous module edges</li>
     <li>[bugfix] Resolve nested CLI project paths to their initialized parent project</li>
     <li>[bugfix] Prevent feature resource IDs from failing incremental compilation</li>
     <li>[bugfix] Initialize incremental compile when home directory is not writable</li>
@@ -25,6 +36,26 @@
     <li>[bugfix] Recompile implementation classes after interface parent changes</li>
     <li>[bugfix] Prevent runtime type crashes after generic member changes</li>
     <li>[bugfix] Find AndroidTest APKs when apps use custom deploy paths</li>
+    <li>[bugfix] Fall back directly after a failed Gradle build without repeating the large-change confirmation</li>
+    <li>[bugfix] Preserve custom Jugg run configurations during Gradle sync</li>
+    <li>[bugfix] Stop rebuilding the source database repeatedly after restart</li>
+    <li>[bugfix] Show all diagnostics in the default report dialog</li>
+    <li>[bugfix] Compile androidTest sources with project dependencies</li>
+    <li>[bugfix] Preserve app APKs when running library androidTest</li>
+    <li>[bugfix] Show compile status when no-change runs deploy directly</li>
+    <li>[bugfix] Prevent unresolved resource IDs from same-named files in multiple roots</li>
+    <li>[bugfix] Prevent compatibility deployment from repeatedly failing after heap exhaustion</li>
+    <li>[bugfix] Report the missing Gradle baseline clearly on first run</li>
+    <li>[bugfix] Prevent APK installation failure on Android Studio Quail 4</li>
+    <li>[bugfix] Keep Kotlin compilation working after IDE file system conflicts, including on large projects</li>
+    <li>[bugfix] Route ASUS devices to compatibility deployment to avoid standard deployment failures</li>
+    <li>[bugfix] Keep KMP compilation working when IDE module edges or Android build outputs are incomplete</li>
+    <li>[bugfix] Protect embedded APK updates when signing or verification needs a fallback JDK</li>
+    <li>[bugfix] Preserve application lifecycle callbacks registered after bootstrap handoff</li>
+    <li>[bugfix] Use the owning APK variant minSdk for incremental and minified dex desugaring</li>
+    <li>[bugfix] Support the Windows Python launcher when starting the Jugg CLI</li>
+    <li>[bugfix] Keep DataBinding incremental compilation working across project-info reloads, missing baselines, and stale generated sources</li>
+    <li>[bugfix] Prevent jvmti_agent resource packaging failures on reused Gradle daemons</li>
 </ol>
 <h2>3.2.6 (2026.08.17)</h2>
 <ol>

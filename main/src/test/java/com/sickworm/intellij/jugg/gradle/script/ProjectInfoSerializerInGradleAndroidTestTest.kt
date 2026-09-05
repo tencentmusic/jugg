@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.gradle.script
 
+import com.sickworm.intellij.jugg.mock.StdLogger
 import com.sickworm.intellij.jugg.project.info.ComposeResourceDirectory
 import com.sickworm.intellij.jugg.project.info.ComposeResourceInfo
 import com.sickworm.intellij.jugg.project.info.ComposeResourceSupportStatus
@@ -7,6 +8,7 @@ import com.sickworm.intellij.jugg.project.info.JuggProjectInfo
 import com.sickworm.intellij.jugg.project.info.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.project.info.ModuleDependency
 import com.sickworm.intellij.jugg.project.info.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ProjectInfoSerializer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -161,6 +163,45 @@ class ProjectInfoSerializerInGradleAndroidTestTest {
             val loaded = serializer.load()
 
             assertEquals(r8Classpath, loaded?.juggProjectInfoExceptModules?.agpR8Classpath)
+        } finally {
+            tmpFile.delete()
+        }
+    }
+
+    @Test
+    fun `gson load of groovy snapshot preserves DataBinding setting`() {
+        val tmpFile = Files.createTempFile("jugg_test_", ".json").toFile()
+        try {
+            val app = ModuleInfo.virtualModule.copy(
+                name = "app",
+                moduleType = ModuleInfo.Type.Application,
+                moduleRootDir = File("/project/app"),
+                projectRootDir = File("/project"),
+                buildPathInfo = ModuleBuildPathInfo(
+                    File("/project"),
+                    File("/project/app"),
+                    "debug",
+                    buildDirRelativePath = "app/build",
+                ),
+                // New ModuleInfo Boolean is* fields must be true here so Groovy writes them.
+                isUseCompose = true,
+                isUseViewBinding = true,
+                isUseDataBinding = true,
+            )
+            ProjectInfoSerializerInGradle(tmpFile).save(projectInfoWithoutAgpR8(mapOf("app" to app)))
+
+            val loaded = ProjectInfoSerializer(tmpFile, StdLogger("ProjectInfoSerializer")).load()
+            val module = loaded?.modules?.get("app")
+            val isProperties = ProjectInfoSerializer.booleanIsPropertyFields()
+            org.junit.Assert.assertFalse(isProperties.isEmpty())
+            for (field in isProperties) {
+                field.isAccessible = true
+                assertEquals(
+                    "${field.name} dropped after Groovy JSON load",
+                    true,
+                    field.get(module),
+                )
+            }
         } finally {
             tmpFile.delete()
         }

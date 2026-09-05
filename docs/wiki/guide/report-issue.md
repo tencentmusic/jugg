@@ -1,6 +1,6 @@
 ---
 title: Report an issue
-description: Upload issue logs through Jugg and understand what the Issue ID represents.
+description: Upload issue logs through Jugg and understand what the Report ID represents.
 status: active
 tags:
   - guide
@@ -10,7 +10,7 @@ tags:
 
 # Report an issue
 
-Report an issue uploads local Jugg logs and device error logs to the team's backend. Use it when incremental compilation or deployment fails, or when runtime results are unexpected.
+Report an issue packages the current Jugg logs and device error logs, then uploads them to a fixed issue-reporting service. Use it when incremental compilation or deployment fails, or when runtime results are unexpected. The upload destination does not change whether or not a Jugg backend or Custom Server is configured.
 
 ## Where to open it
 
@@ -27,11 +27,13 @@ You can also open it from a Jugg Run Configuration:
 
 After the report window opens:
 
-1. Review and select the diagnostic files.
+1. Review and select the diagnostic files. Jugg logs are selected by default and cannot be cleared.
 2. Select `Upload logs`, or select `Save locally without uploading` to create a local diagnostic bundle.
-3. After the upload finishes, copy the Report ID. If the upload fails, give the retained ZIP file to the maintainer.
+3. After the upload finishes, copy the Report ID. If the upload fails, click `Retry Upload`, or give the retained ZIP file to the maintainer.
 
-The plugin first generates redacted candidate files, then displays their paths and sizes. Uploads always target the Jugg issue-reporting service and do not switch servers after failure. When saving locally, the system file manager selects the newly generated ZIP file.
+The confirmation window shows the fixed upload address `https://jugg.sickworm.com/report_issue`. The plugin sends the diagnostic bundle only to that HTTPS address. It does not read the Custom Server setting and does not switch servers after failure. When saving locally, the system file manager selects the newly generated ZIP file.
+
+After a successful upload, the result window shows an 8-character lowercase hexadecimal Report ID. Send it to the maintainer together with the reproduction steps.
 
 ## What is uploaded
 

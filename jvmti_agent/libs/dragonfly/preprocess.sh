@@ -40,23 +40,36 @@ preprocess() {
   local output_jar="$2"
   local expected_class="$3"
   local source_jar="$task_temp_dir/$(basename "$source_dex_jar" .jar)-classes.jar"
-  local relocated_jar="$task_temp_dir/$(basename "$output_jar")"
-  local relocated_entries="$relocated_jar.entries"
+  local relocated_jar="$task_temp_dir/$(basename "$output_jar").raw"
+  local relocated_jar_dir="$relocated_jar.dir"
+  local normalized_jar="$task_temp_dir/$(basename "$output_jar")"
+  local normalized_entries="$normalized_jar.entries"
 
   "$dex2jar_command" -f -o "$source_jar" "$source_dex_jar"
   java -jar "$jarjar_file" process "$script_dir/jarjar-rules.txt" "$source_jar" "$relocated_jar"
-  jar tf "$relocated_jar" > "$relocated_entries"
 
-  if grep -Eq '^(top/kokomi/dragonfly|kotlin|kotlinx/coroutines|com/google/common|org/jf|_COROUTINE)/' "$relocated_entries"; then
-    echo "Unrelocated Dragonfly runtime classes remain in $relocated_jar" >&2
+  mkdir "$relocated_jar_dir"
+  unzip -q "$relocated_jar" -d "$relocated_jar_dir"
+  # dex2jar emits Java 8 class files without StackMapTable. Java 6 class version keeps D8 verification warning-free.
+  find "$relocated_jar_dir" -type f -name '*.class' -exec perl -0777 -pi -e '
+    die "Invalid class file: $ARGV\n" unless substr($_, 0, 4) eq "\xca\xfe\xba\xbe";
+    my $major = unpack("n", substr($_, 6, 2));
+    die "Unexpected dex2jar class version $major: $ARGV\n" unless $major == 52;
+    substr($_, 6, 2) = pack("n", 50);
+  ' {} +
+  (cd "$relocated_jar_dir" && jar cMf "$normalized_jar" .)
+  jar tf "$normalized_jar" > "$normalized_entries"
+
+  if grep -Eq '^(top/kokomi/dragonfly|kotlin|kotlinx/coroutines|com/google/common|org/jf|_COROUTINE)/' "$normalized_entries"; then
+    echo "Unrelocated Dragonfly runtime classes remain in $normalized_jar" >&2
     exit 1
   fi
-  if ! grep -q "$expected_class" "$relocated_entries"; then
-    echo "Expected class $expected_class is missing from $relocated_jar" >&2
+  if ! grep -q "$expected_class" "$normalized_entries"; then
+    echo "Expected class $expected_class is missing from $normalized_jar" >&2
     exit 1
   fi
 
-  mv "$relocated_jar" "$output_jar"
+  mv "$normalized_jar" "$output_jar"
 }
 
 preprocess \

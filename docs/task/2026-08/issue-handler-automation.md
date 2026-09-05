@@ -2,7 +2,7 @@
 
 ## 目标
 
-让 `github-webhook-receiver` 作为 GitHub App 后端，在收到 `sickworm/jugg` 的 `issues.opened` 后调用仓库级 `$issue-handler` 完成分诊和代码定位，再由 receiver 校验并通过 GitHub App API 写入标签和评论。当前实验只隔离结构化输出时机，不通过 skill 强制额外调查流程。
+让 `github-webhook-receiver` 作为 GitHub App 后端，在收到 `tencentmusic/jugg` 的 `issues.opened` 后调用仓库级 `$issue-handler` 完成分诊和代码定位，再由 receiver 校验并通过 GitHub App API 写入标签和评论。当前实验只隔离结构化输出时机，不通过 skill 强制额外调查流程。
 
 ## 边界
 

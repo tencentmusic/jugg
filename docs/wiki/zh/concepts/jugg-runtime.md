@@ -59,7 +59,7 @@ App 进程启动
   -> 初始化 App 内 ViewHierarchy 服务
 ```
 
-恢复过程不只是重新调用一次 `Application.onCreate()`。Jugg 还会把 Framework 中指向临时启动对象的引用换回原始 Application，并迁移已经注册的 ActivityLifecycleCallbacks，使业务代码继续面对自己的 Application 实例。
+恢复过程不只是重新调用一次 `Application.onCreate()`。Jugg 还会把 Framework 中指向临时启动对象的引用换回原始 Application，并把 ActivityLifecycleCallbacks 的注册统一收敛到原始 Application，使业务代码继续面对自己的 Application 实例。
 
 ## 修正运行环境差异和运行时崩溃
 

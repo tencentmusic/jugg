@@ -72,6 +72,9 @@ class KotlinCompilerOutputParser(
     var isGotParcelizeClassCastException: Boolean = false
         private set
 
+    var isGotIdeFileSystemCloseException: Boolean = false
+        private set
+
     private val innerErrors = mutableMapOf<CompileFile, MutableList<Pair<Long, String>>>()
     private val directErrorFiles = mutableSetOf<CompileFile>()
     /** Map<SourceFile, List<OutputClassFile>> */
@@ -182,6 +185,10 @@ class KotlinCompilerOutputParser(
     }
 
     private fun parseExceptionMessage(message: String) {
+        if (KotlinCompilerHostCompat.isIdeFileSystemCloseConflict(message)) {
+            isGotIdeFileSystemCloseException = true
+        }
+
         // handles exception: java.lang.ClassCastException: Cannot cast org.jetbrains.kotlin.parcelize.ParcelizeComponentRegistrar
         // to org.jetbrains.kotlin.compiler.plugin.CompilerPluginRegistrar
         if (message.contains("java.lang.ClassCastException") && message.contains("parcelize")) {

@@ -32,24 +32,9 @@ class DexCompiler(
             return CompileResult(task, emptyList(), emptyList())
         }
 
-        val minApi = run {
-            // use min(applicationModule.minSdkVersion) as DEX min API
-            val applicationMinApi = context.applicationModule?.minSdkVersion?.toIntOrNull()
-            val isEnableDesugared = context.isEnableDesugared
-            val finalMinApi = when {
-                // context shows that project is enabled desugar,
-                // but other module's minSdkVersion >= 26 (disable desugar).
-                // use 21 to enable desugar
-                (isEnableDesugared && applicationMinApi != null && applicationMinApi >= 26) -> 21
-                // use other module's minSdkVersion as DEX min API
-                (applicationMinApi != null && applicationMinApi > 0) -> applicationMinApi
-                isEnableDesugared -> 21 // use 21 to enable desugar
-                else -> 31 // use 31 to disable desugar
-            }
-            logger.debug("get minSdkVersion applicationModule=${context.applicationModule?.name}), isEnableDesugared = $isEnableDesugared" +
-                    ", use $finalMinApi as DEX min API.")
-            finalMinApi
-        }
+        val minApi = context.getDexMinApi(module)
+        logger.debug("get minSdkVersion module=${module.name}, ownerModule=${context.resolveApkOwnerModule(module).name}, " +
+                "baseline isEnableDesugared=${context.isEnableDesugared}, use $minApi as DEX min API.")
 
         return try {
             val classFiles = task.files.filter { it.file.extension == "class" }

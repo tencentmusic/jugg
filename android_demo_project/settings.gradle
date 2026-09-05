@@ -1,5 +1,6 @@
 include ':app'
 include ':library1'
+include ':databindingApt'
 if (providers.gradleProperty('juggSplitClassLoaderFixture').orNull == 'true') {
     include ':split_classloader_api'
     include ':split_classloader_feature'

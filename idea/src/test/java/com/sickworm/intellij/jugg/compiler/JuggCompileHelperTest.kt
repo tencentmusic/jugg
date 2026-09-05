@@ -63,6 +63,7 @@ class JuggCompileHelperTest {
 
     companion object {
         private const val DIRECT_RUN_FALLBACK_HINT = "Run again directly will fall back to gradle compile."
+        private const val EMPTY_COMPILE_NOTIFICATION = "Compiling 0 files..."
         private const val NO_FILE_CHANGES_FALLBACK = "No file changes. will fallback to gradle compile."
         private const val NO_FILE_CHANGES_DRY_DEPLOY = "No file changes, dry deploy once."
         private const val TOO_MANY_FILES_FALLBACK = "Compile files too much"
@@ -121,6 +122,21 @@ class JuggCompileHelperTest {
     }
 
     @Test
+    fun checkingFallbackAgainstSnapshotPrefersMissingGradleBaseline() {
+        val fixture = createFixture()
+        whenever(fixture.deployHistoryManager.hasBeenFullCompiled).thenReturn(false)
+        whenever(fixture.gradleProjectInfoLocalFetchManager.isIncrementalCompileAvailable).thenReturn(false)
+        val deployState = JuggDeployState.READY.copy(
+            state = JuggDeployState.State.READY_FULL_COMPILE,
+            msg = "not gradle compile yet",
+        )
+
+        assertEquals("not gradle compile yet", fixture.helper.checkFallback(deployState))
+
+        verify(fixture.deployStateManager, never()).updateDeployState()
+    }
+
+    @Test
     fun preprocessIncrementalCompile_noFileChanges_onlyRunAsyncGitCheck() {
         val fixture = createFixture()
         whenever(fixture.deployFileManager.isNoFileChanges()).thenReturn(true)
@@ -147,9 +163,8 @@ class JuggCompileHelperTest {
     }
 
     @Test
-    fun incrementalCompile_noFileChanges_projectSwitched_deployDirectlyWithoutConfirm() {
+    fun incrementalCompile_noFileChanges_firstRun_notifiesEmptyCompileAndDeploysDirectly() {
         val fixture = createFixture()
-        fixture.juggRunningTaskStatusManager.isProjectSwitchedThisRun = true
         whenever(fixture.deployFileManager.isNoFileChanges()).thenReturn(true)
         whenever(fixture.dependencyChangeManager.isNeedCompilation).thenReturn(false)
         whenever(fixture.deployTargetManager.getDeviceNameList()).thenReturn("device-1")
@@ -160,6 +175,27 @@ class JuggCompileHelperTest {
         val result = fixture.helper.incrementalCompile(fixture.uiHandler)
 
         assertTrue(result.isSuccess)
+        verify(fixture.uiHandler).notifyByBalloon(EMPTY_COMPILE_NOTIFICATION)
+        verify(fixture.uiHandler, never()).confirmFallbackWhenNoFileChanges()
+        verify(fixture.helper.juggCompiler!!, never()).compile(any())
+    }
+
+    @Test
+    fun incrementalCompile_noFileChanges_projectSwitched_deployDirectlyWithoutConfirm() {
+        val fixture = createFixture()
+        fixture.juggRunningTaskStatusManager.isProjectSwitchedThisRun = true
+        whenever(fixture.deployFileManager.isNoFileChanges()).thenReturn(true)
+        whenever(fixture.dependencyChangeManager.isNeedCompilation).thenReturn(false)
+        whenever(fixture.deployTargetManager.getDeviceNameList()).thenReturn("device-1")
+        whenever(fixture.deployFileManager.getUncompiledFiles()).thenReturn(emptyList())
+        whenever(fixture.uiHandler.createCompileStatusHolder()).thenReturn(CompileStatusHolder.DEFAULT)
+        fixture.juggRunningTaskStatusManager.setHasRun("device-1")
+        fixture.helper.juggCompiler = mock<JuggCompiler>()
+
+        val result = fixture.helper.incrementalCompile(fixture.uiHandler)
+
+        assertTrue(result.isSuccess)
+        verify(fixture.uiHandler).notifyByBalloon(EMPTY_COMPILE_NOTIFICATION)
         verify(fixture.uiHandler, never()).confirmFallbackWhenNoFileChanges()
     }
 
@@ -192,6 +228,7 @@ class JuggCompileHelperTest {
         assertFalse(result.hasFileChanges)
         assertTrue(logger.messages.contains(NO_FILE_CHANGES_FALLBACK))
         assertFalse(logger.messages.contains(NO_FILE_CHANGES_DRY_DEPLOY))
+        verify(fixture.uiHandler, never()).notifyByBalloon(any())
         verify(fixture.uiHandler).confirmFallbackWhenNoFileChanges()
         verify(fixture.helper.juggCompiler!!, never()).compile(any())
     }
@@ -227,6 +264,7 @@ class JuggCompileHelperTest {
         assertFalse(result.isCanFallback)
         assertTrue(logger.messages.contains(NO_FILE_CHANGES_DRY_DEPLOY))
         assertFalse(logger.messages.contains(NO_FILE_CHANGES_FALLBACK))
+        verify(fixture.uiHandler).notifyByBalloon(EMPTY_COMPILE_NOTIFICATION)
     }
 
     @Test
@@ -248,6 +286,7 @@ class JuggCompileHelperTest {
         assertTrue(result.isSuccess)
         assertFalse(result.isGradleCompile)
         assertFalse(result.hasFileChanges)
+        verify(fixture.uiHandler).notifyByBalloon(EMPTY_COMPILE_NOTIFICATION)
         verify(fixture.uiHandler, never()).confirmFallbackWhenNoFileChanges()
         verify(fixture.helper.juggCompiler!!, never()).compile(any())
     }
@@ -292,6 +331,7 @@ class JuggCompileHelperTest {
         assertTrue(result.isSuccess)
         assertFalse(result.isGradleCompile)
         assertFalse(result.hasFileChanges)
+        verify(fixture.uiHandler).notifyByBalloon(EMPTY_COMPILE_NOTIFICATION)
         verify(fixture.uiHandler, never()).confirmFallbackWhenNoFileChanges()
         verify(fixture.helper.juggCompiler!!, never()).compile(any())
     }
@@ -380,6 +420,24 @@ class JuggCompileHelperTest {
 
         assertTrue(result!!.isCanFallback)
         assertEquals("Gradle project info unavailable", result.failedReason)
+    }
+
+    @Test
+    fun preprocessIncrementalCompile_firstRun_prefersMissingGradleBaselineOverProjectInfo() {
+        val fixture = createFixture()
+        whenever(fixture.deployHistoryManager.hasBeenFullCompiled).thenReturn(false)
+        whenever(fixture.gradleProjectInfoLocalFetchManager.isIncrementalCompileAvailable).thenReturn(false)
+        whenever(fixture.deployStateManager.updateDeployState()).thenReturn(
+            JuggDeployState.READY.copy(
+                state = JuggDeployState.State.READY_FULL_COMPILE,
+                msg = "not gradle compile yet",
+            ),
+        )
+
+        val result = invokePreprocessIncrementalCompile(fixture.helper, fixture.options, fixture.uiHandler)
+
+        assertTrue(result!!.isCanFallback)
+        assertEquals("not gradle compile yet", result.failedReason)
     }
 
     @Test
@@ -587,6 +645,21 @@ class JuggCompileHelperTest {
     }
 
     @Test
+    fun checkFallback_firstRun_prefersMissingGradleBaselineOverProjectInfo() {
+        val fixture = createFixture()
+        whenever(fixture.deployHistoryManager.hasBeenFullCompiled).thenReturn(false)
+        whenever(fixture.gradleProjectInfoLocalFetchManager.isIncrementalCompileAvailable).thenReturn(false)
+        whenever(fixture.deployStateManager.updateDeployState()).thenReturn(
+            JuggDeployState.READY.copy(
+                state = JuggDeployState.State.READY_FULL_COMPILE,
+                msg = "not gradle compile yet",
+            ),
+        )
+
+        assertEquals("not gradle compile yet", fixture.helper.checkFallback())
+    }
+
+    @Test
     fun preprocessIncrementalCompile_tooManySourceFiles_fallbackAfterConfirm() {
         val logger = CapturingLogger()
         val fixture = createFixture(logger)
@@ -790,6 +863,7 @@ class JuggCompileHelperTest {
         val options = mock<JuggGradleCompileOptions>()
 
         whenever(uiHandler.isForceGradleCompile).thenReturn(false)
+        whenever(deployHistoryManager.hasBeenFullCompiled).thenReturn(true)
         whenever(deployHistoryManager.isLastFullCompileFailed).thenReturn(false)
         whenever(deployHistoryManager.isBuildTargetChanged(options)).thenReturn(false)
         whenever(deployFileManager.getUndeployedFiles()).thenReturn(emptyList())

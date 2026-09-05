@@ -36,6 +36,7 @@ class AdbLogWrapper(val logger: Logger) : ILogger {
         val installFailureReason = parseInstallFailureReason(message)
         realErrorMessage = when {
             installFailureReason != null -> installFailureReason
+            message.contains("run-as: package not debuggable:") -> message
             message.contains("MessagePipeWrapper read() timeout") -> message
             message.contains("device") && message.contains("not found") -> message
             message.contains("overlay has no readable id file") -> message

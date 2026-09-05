@@ -104,6 +104,10 @@ class DataBindingArgsManager(val context: ICompileContext, val moduleInfo: Modul
     /** gradle intermediates dir start */
     // need to reuse this dir to compat with <include> in data binding
     private val gradleKaptOutputDir = File(moduleInfo.buildPathInfo.buildDir, "generated/source/kapt/${moduleInfo.buildVariant}")
+    private val gradleJavaAptOutputDir = File(
+        moduleInfo.buildPathInfo.buildDir,
+        "generated/ap_generated_sources/${moduleInfo.buildVariant}/out",
+    )
     val gradleDataBindingLayoutXmlDir: File = CompilerUtils.matchGradleDir(listOf(
         // AGP 7.2.2 application module
         File(moduleInfo.buildPathInfo.applicationDataBindingIntoTypeDir, "out"),
@@ -116,9 +120,19 @@ class DataBindingArgsManager(val context: ICompileContext, val moduleInfo: Modul
     ),
         default = tempDataBindingLayoutXmlDir,
     )
-    val gradleMapperFile = File(gradleKaptOutputDir, dataBindingMapperRelativePath)
-    val gradleLibraryBrFile = File(gradleKaptOutputDir, libraryBrRelativePath)
-    val gradleAppBrFile = File(gradleKaptOutputDir, appBrRelativePath)
+    val gradleMapperFile get() = gradleGeneratedSourceFile(dataBindingMapperRelativePath)
+    val gradleLibraryBrFile get() = gradleGeneratedSourceFile(libraryBrRelativePath)
+    val gradleAppBrFile get() = gradleGeneratedSourceFile(appBrRelativePath)
+
+    private fun gradleGeneratedSourceFile(relativePath: String): File {
+        return CompilerUtils.matchGradleDir(
+            listOf(
+                File(gradleKaptOutputDir, relativePath),
+                File(gradleJavaAptOutputDir, relativePath),
+            ),
+            default = File(gradleKaptOutputDir, relativePath),
+        )
+    }
     // backup dir to avoid gradle compilation failed if file create and delete
     val backupDataBindingLayoutXmlDir = context.backupGradleDir(gradleDataBindingLayoutXmlDir, dryRun = true)
     /** gradle intermediates dir end */

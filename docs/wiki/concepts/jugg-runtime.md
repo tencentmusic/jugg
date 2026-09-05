@@ -59,7 +59,7 @@ app process starts
   -> initialize the in-app ViewHierarchy service
 ```
 
-Restoration does more than call `Application.onCreate()` again. Jugg also replaces Framework references to the temporary startup object with the original Application and transfers already registered ActivityLifecycleCallbacks so that application code continues to interact with its own Application instance.
+Restoration does more than call `Application.onCreate()` again. Jugg also replaces Framework references to the temporary startup object with the original Application and routes ActivityLifecycleCallbacks registration to the original Application so that application code continues to interact with its own Application instance.
 
 ## Correcting runtime environment differences and crashes
 

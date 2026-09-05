@@ -11,7 +11,7 @@ Jugg 当前在 Android Studio 进程内通过隔离 ClassLoader 调用项目 Kot
 
 - 不全面迁移普通 Kotlin 编译。
 - Kotlin DataBinding Adapter 的 KAPT 保持一次性独立进程。
-- 普通 Kotlin、KSP、Compose 等路径继续使用进程内 `K2JVMCompilerIsolate`。
+- 普通 Kotlin、KSP、Compose 等路径默认继续使用进程内 `K2JVMCompilerIsolate`；只有项目 compiler 命中 IDE 文件系统关闭冲突时，同一 compiler classpath 降级为 one-shot 独立进程。
 - 先记录目标架构、启动条件、TODO 和 benchmark 口径，后续由真实故障率驱动是否启动。
 
 ## 2. 当前实现
@@ -32,6 +32,7 @@ Android Studio JBR
 - `KotlinCompilerHostCompat` 处理旧 Kotlin compiler 无法识别 JDK 25+ 的问题。
 - Android classpath 场景通过 `-no-jdk` 避免错误挂载宿主 JDK。
 - Parcelize 等 compiler plugin ClassCastException 的识别与 fallback。
+- `DelegatingFileSystem.close` 与 `DescriptorLoadingContext.close` 冲突按 compiler classpath 记录，避免污染其他 Kotlin toolchain。
 
 ### 2.2 DataBinding Kotlin Adapter KAPT
 
@@ -43,7 +44,7 @@ SourceDataBindingProcessor
   -> KAPT / DataBinding processor
 ```
 
-当前实现是 one-shot 子进程，不包含 IPC、常驻 Worker 或 compiler 热复用。
+当前实现是 one-shot 子进程，不包含 IPC、常驻 Worker 或 compiler 热复用。Kotlin compiler 参数通过 UTF-8 argfile 传递，Java launcher classpath 仍直接传参。
 
 ## 3. 可预见的兼容风险
 
@@ -166,7 +167,7 @@ Shutdown
 
 ### P1：完善 one-shot 独立进程
 
-- [ ] 使用 argfile 解决 Windows 命令行长度限制。
+- [x] 使用 Kotlin argfile 承载 compiler 参数，避免模块 classpath、插件参数和源码列表占用 Windows 进程命令行；Java launcher classpath 保持原方式。
 - [ ] 校验 Gradle Java Home 和 `bin/java`。
 - [ ] 区分用户取消、超时、进程崩溃和编译失败。
 - [ ] 让 heap、timeout 和 JVM arguments 可配置。

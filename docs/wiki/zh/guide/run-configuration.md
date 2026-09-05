@@ -41,6 +41,12 @@ jugg:app:paidRelease
 
 切换后第一次运行通常需要 Gradle 构建，因为 APK、classpath、mapping 和工程信息都属于新的基线。
 
+## 在 Jugg 与原生 Run 之间切换
+
+Jugg 配置不会替换或改写原生 App Run Configuration。需要停止使用 Jugg 运行链路时，直接在 Android Studio 中选择原生 App 配置；本轮编译、安装和启动由原生配置负责，Jugg 不会接管。需要恢复增量编译时，再选择对应的 Jugg 配置即可。
+
+原生 Run 可能更新本地构建产物或覆盖设备上已安装的 APK。切回 Jugg 后，Jugg 会重新检查 Gradle 基线和设备部署状态；两者不再匹配时，下一次 Jugg Run 会按检查结果执行 Gradle 构建、安装或状态恢复。这只用于重新对齐 Jugg 的增量起点，不会修改原生 Run Configuration 或工程配置。
+
 ## CLI 与 MCP 使用哪个配置
 
 CLI/MCP 没有单独保存一套构建参数。调用时按以下顺序选择：

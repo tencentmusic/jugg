@@ -1,4 +1,4 @@
-<p align="right">
+<p align="left">
   <a href="./README.md">English</a> | <strong>简体中文</strong>
 </p>
 
@@ -10,11 +10,19 @@
 
 Jugg 是腾讯音乐技术团队开源的 Android 秒级增量编译与部署工具，以 Android Studio / IntelliJ IDEA 插件形式提供。它复用最近一次 Gradle 构建留下的可信产物，只编译本轮变化及其影响范围，再将代码和资源快速部署到设备。少量日常修改通常可以在 3 秒内看到效果。
 
-Jugg 仅需安装 IDE 插件，不修改 Gradle 脚本，也不要求工程接入 SDK。日常开发仍然使用熟悉的 Run 入口；当工程变化超出增量路径的处理范围时，Jugg 会回退 Gradle 构建并重新建立基线。
+Jugg 仅需安装 IDE 插件，不修改 Gradle 脚本，也不要求工程接入 SDK。Jugg Run Configuration 与原生 App Run Configuration 同时保留：选择 Jugg 配置时使用增量编译与部署；需要原来的 Android Studio / Gradle 构建、安装和启动流程时，随时切回原生 App 配置即可，Jugg 不会接管该次 Run。重新选择 Jugg 配置即可恢复增量流程；当工程变化超出增量路径的处理范围时，Jugg 自身也会回退 Gradle 构建并重新建立基线。
 
-- [下载最新稳定版](https://github.com/sickworm/jugg/releases/latest)
-- [Jugg Wiki](https://sickworm.github.io/jugg/zh/)
+- [下载最新稳定版](https://github.com/tencentmusic/jugg/releases/latest)
+- [Jugg Wiki](https://tencentmusic.github.io/jugg/zh/)
 - [观看演示视频](https://www.bilibili.com/video/BV1W3411C7PU/)
+
+## 社区交流
+
+加入 Jugg 微信交流群，交流使用经验和问题排查。
+
+<p align="center">
+  <img src="./docs/images/wechat-group.jpg" alt="Jugg 微信交流群二维码" width="360">
+</p>
 
 ## Jugg 方案介绍
 
@@ -53,7 +61,7 @@ Jugg 的速度来自只处理必要输入；结果的可信度来自影响扩散
 | Android Test | Application / Library Android Test、Test Results UI、Logcat 归因 |
 | 自动化 | Jugg CLI、MCP、Agent Skills、构建部署、设备与运行时查询、UI 自动化、远端诊断 |
 
-更完整的支持条件和行为边界请查看 [兼容范围](https://sickworm.github.io/jugg/zh/reference/compatibility)。
+更完整的支持条件和行为边界请查看 [兼容范围](https://tencentmusic.github.io/jugg/zh/reference/compatibility)。
 
 ## 已验证兼容范围
 
@@ -66,15 +74,37 @@ Jugg 的速度来自只处理必要输入；结果的可信度来自影响扩散
 | Kotlin | 1.3 至 2.2 |
 | Android | 8 至 16 |
 
-未列出的版本不代表一定不可用，但可能存在尚未覆盖的兼容差异。遇到明确问题请提交 [Issue](https://github.com/sickworm/jugg/issues)。
+未列出的版本不代表一定不可用，但可能存在尚未覆盖的兼容差异。遇到明确问题请提交 [Issue](https://github.com/tencentmusic/jugg/issues)。
 
 ## 快速开始
 
-1. 从 [Releases](https://github.com/sickworm/jugg/releases/latest) 下载并安装插件。
+1. 从 [Releases](https://github.com/tencentmusic/jugg/releases/latest) 下载并安装插件。
 2. 打开现有 Android 工程，创建或选择 Jugg Run Configuration。
 3. 首次 Run 通过 Gradle 建立可信基线；之后修改源码或资源，再次点击 Run 查看增量结果。
 
-详细步骤见 [开始接入](https://sickworm.github.io/jugg/zh/onboarding/)。
+详细步骤见 [开始接入](https://tencentmusic.github.io/jugg/zh/onboarding/)。
+
+## AI Agent Skill 与 CLI
+
+Jugg 提供 `jugg-android-dev-loop` Agent Skill 和 `jugg` CLI，让 AI 编码助手、终端用户及脚本使用与 IDE 插件相同的构建、部署、测试、运行时检查和 UI 自动化能力。Skill 引导 Agent 完成完整的 **修改 -> 增量编译 -> 部署 -> 验证 -> 继续迭代** 工作流；CLI 则封装本地 Jugg MCP 服务，负责工程发现、异步任务轮询和稳定的终端输出。
+
+安装器目前支持 Codex、Claude Code、Gemini、CodeBuddy 和 Cursor：
+
+1. 在 Android Studio 中打开 Android 工程并完成 Jugg 初始化。
+2. 打开 Search Everywhere，执行 `Install Jugg Skills`；也可以选择 **Jugg 面板 -> More Options -> Tools -> Install Jugg Skills**。
+3. 选择需要安装的 Agent Skills、CLI 和可选 hooks。
+
+常用命令：
+
+```shell
+jugg status
+jugg compile
+jugg deploy
+jugg instrument --source-path app/src/androidTest/java/com/example/FooTest.kt
+jugg layout-dump
+```
+
+CLI 调用的是 IDE 内的本地 Jugg 插件运行时，因此目标工程必须保持打开并完成初始化。安装细节、输出模式和工作流边界见 [CLI 使用指南](https://tencentmusic.github.io/jugg/zh/guide/cli) 与 [Agent Skills](https://tencentmusic.github.io/jugg/zh/capabilities/tools/agent-skills)。
 
 ## 网络与诊断隐私
 

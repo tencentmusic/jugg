@@ -4,19 +4,28 @@ REM Place this in PATH or call directly: jugg.cmd compile --console=json
 
 setlocal
 set "SCRIPT_DIR=%~dp0"
-set "PYTHON="
-for %%P in (python3 python) do (
-  if not defined PYTHON (
-    where %%P >nul 2>nul
-    if not errorlevel 1 (
-      %%P -c "import sys; raise SystemExit(sys.version_info ^< (3, 7))" >nul 2>nul
-      if not errorlevel 1 set "PYTHON=%%P"
-    )
-  )
+set "PYTHON_ARGS="
+python3 -c "import sys; sys.exit(0 if sys.version_info >= (3, 7) else 1)" >nul 2>nul
+if not errorlevel 1 (
+  set "PYTHON=python3"
+  goto run
 )
-if not defined PYTHON (
-  echo jugg: Python 3.7+ was not found. Install Python or add python3/python to PATH. 1>&2
-  exit /b 127
+python -c "import sys; sys.exit(0 if sys.version_info >= (3, 7) else 1)" >nul 2>nul
+if not errorlevel 1 (
+  set "PYTHON=python"
+  goto run
 )
-"%PYTHON%" "%SCRIPT_DIR%jugg.py" --console=rich %*
-exit /b %ERRORLEVEL%
+py -3 -c "import sys; sys.exit(0 if sys.version_info >= (3, 7) else 1)" >nul 2>nul
+if not errorlevel 1 (
+  set "PYTHON=py"
+  set "PYTHON_ARGS=-3"
+  goto run
+)
+echo jugg: Python 3.7+ was not found. Install Python or add python3/python/py to PATH. 1>&2
+exit /b 127
+
+:run
+"%PYTHON%" %PYTHON_ARGS% "%SCRIPT_DIR%jugg.py" --console=rich %*
+set "EXIT_CODE=%ERRORLEVEL%"
+endlocal
+exit /b %EXIT_CODE%

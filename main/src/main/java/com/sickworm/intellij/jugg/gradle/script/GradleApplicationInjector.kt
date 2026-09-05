@@ -234,6 +234,9 @@ class GradleApplicationInjector(
         rules.add("# Keep all Application subclasses (generic rule as fallback)")
         rules.add("-keep class * extends android.app.Application { *; }")
         rules.add("-keep class * extends android.app.AppComponentFactory { *; }")
+        rules.add("-dontwarn com.sickworm.intellij.jugg.internal.dragonfly.runtime.kotlin.Metadata")
+        rules.add("-dontwarn com.sickworm.intellij.jugg.internal.dragonfly.runtime.kotlin.jvm.JvmStatic")
+        rules.add("-dontwarn com.sickworm.intellij.jugg.internal.dragonfly.runtime.kotlin.jvm.internal.markers.KMappedMarker")
 
         outputFile.writeText(rules.joinToString("\n"))
     }

@@ -114,6 +114,7 @@ class KotlinCompiler(
             kspDependencies = options.kspDependencies,
             kotlinPlugins = options.kotlinPlugins,
             kotlinExtensions = options.kotlinExtensions,
+            kotlinPluginOptions = options.kotlinPluginOptions,
             javaSourceDirs = options.javaSourceDirs,
         )
         TimeLogger.start("kspCompile")
@@ -249,6 +250,7 @@ class KotlinCompiler(
             .flatMap { it.kotlinPlugins ?: emptyList() }
         val kotlinExtensions = allRelativeModules
             .flatMap { it.kotlinExtensions ?: emptyList() }
+        val kotlinPluginOptions = selectKotlinPluginOptions(allRelativeModules)
         val kspDependencies = allRelativeModules
            .flatMap { it.kspDependencies ?: emptyList() }
            .map { it.file }
@@ -284,6 +286,7 @@ class KotlinCompiler(
             kaptDependencies = module.kaptDependencies.map { it.file },
             kotlinPlugins = kotlinPlugins,
             kotlinExtensions = kotlinExtensions,
+            kotlinPluginOptions = kotlinPluginOptions,
             kspDependencies = kspDependencies,
             isNeedComplementaryFiles = isNeedComplementaryFiles,
         )
@@ -291,6 +294,13 @@ class KotlinCompiler(
 
     companion object {
         private val expectActualToken = Regex("\\b(?:expect|actual)\\b")
+
+        /** Uses the current compilation options and falls back to the nearest parent for synthetic modules. */
+        internal fun selectKotlinPluginOptions(modules: List<ModuleInfo>): List<String> {
+            return modules.firstOrNull { it.kotlinPluginOptions.isNotEmpty() }
+                ?.kotlinPluginOptions
+                ?: emptyList()
+        }
     }
 
 }

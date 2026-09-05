@@ -336,6 +336,24 @@ class JuggSkillInstallerTest {
     }
 
     @Test
+    fun installCli_shouldInstallWindowsPythonLauncherFallback() {
+        val userHome = Files.createTempDirectory("jugg-home-cli-windows-py").toFile()
+        val logger = mock(Logger::class.java)
+        val originalOsName = System.getProperty("os.name")
+
+        try {
+            System.setProperty("os.name", "Windows 11")
+            val result = JuggSkillInstaller.installCli(logger, userHome)
+
+            assertTrue("CLI install should succeed", result.isSuccess)
+            val content = File(userHome, ".jugg/bin/jugg.cmd").readText(Charsets.UTF_8)
+            assertTrue("jugg.cmd should fall back to the Windows Python launcher", content.contains("py -3"))
+        } finally {
+            System.setProperty("os.name", originalOsName)
+        }
+    }
+
+    @Test
     fun installHooks_shouldUseBundledHookScriptsUnderJuggSkillsDir() {
         val userHome = Files.createTempDirectory("jugg-home-hooks-copy").toFile()
         val logger = mock(Logger::class.java)

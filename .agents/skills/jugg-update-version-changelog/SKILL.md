@@ -64,6 +64,9 @@ Never treat a changelog-only request as a version bump. Never create a second `[
    - Set `isNeedReinstall: true` exactly when the detection result is true; otherwise omit the field.
    - Include `date: YYYY.MM.DD`.
    - Keep English and Chinese content aligned by meaning, not by literal wording.
+   - Prefix each `updates` item with `[feature]`, `[optimize]`, or `[bugfix]`, using the same category as the matching HTML entry.
+   - Sort `updates` by category: `[feature]`, then `[optimize]`, then `[bugfix]`. Preserve reasonable order inside each category.
+   - Quote YAML strings that start with `[` so they remain scalars, for example `- "[bugfix] Prevent APK updates from failing on paths with shell characters"`.
    - If tracked resource copies exist under `idea/src/main/resources/change_log/`, update those copies too. Do not create or stage untracked resource copies unless the repository already tracks them.
 
 6. Update HTML changelog pages:
@@ -76,7 +79,7 @@ Never treat a changelog-only request as a version bump. Never create a second `[
    - If the exact target version section already exists, amend that section instead of creating a duplicate.
    - Keep one aggregated HTML section per minor series.
    - Before adding an entry, compare its user-facing behavior with the existing entries in the active minor-series section. If the commit only fixes, optimizes, or refines a feature point already described there, do not add another HTML entry. Apply this rule equally to the English and Chinese HTML pages.
-   - HTML aggregation and deduplication do not apply to RC YAML. RC uses one top-level declaration per patch version and amends the matching declaration when the target version already exists.
+   - HTML aggregation and deduplication do not apply to RC YAML. RC uses one top-level declaration per patch version and amends the matching declaration when the target version already exists. RC `updates` still use the same `[feature]` / `[optimize]` / `[bugfix]` prefixes and category sort as HTML.
    - Sort entries by category within the section: `[feature]`, then `[optimize]`, then `[bugfix]`. Preserve reasonable order inside each category.
    - If an entry has another recognized prefix from the repository's commit convention, place it after the three main product categories unless the user says otherwise.
 
@@ -108,7 +111,7 @@ Use this workflow when the plugin version stays `X.Y.Z`. The version-update comm
 2. Record `ORIG_HEAD` and the version-update commit hash. List `<version-commit>..HEAD`. Those commits are what the move newly includes under this version.
 3. Move the version-update commit to `HEAD` without squashing later commits. Replay `<version-commit>..HEAD` onto the version commit's parent, then cherry-pick the original version-update commit onto the new tip. Keep each later commit separate and in its original order.
 4. After the move, update changelog files from the newly included commits:
-   - Draft user-visible `[feature]` / `[optimize]` / `[bugfix]` entries.
+   - Draft user-visible `[feature]` / `[optimize]` / `[bugfix]` entries, and write those prefixes into both HTML and RC YAML.
    - Skip `[docs]`, `[test]`, `[refactor]`, and `[other]` unless they have user-visible product impact.
    - Compare each draft with the current `X.Y.Z` RC entry and the active HTML minor-series section. Add only entries that are not already described.
    - Update `date` to the local date. Amend the matching RC declaration and follow the HTML aggregation and category-sort rules from the version workflow. Never create a second RC declaration or HTML section for the same patch version.

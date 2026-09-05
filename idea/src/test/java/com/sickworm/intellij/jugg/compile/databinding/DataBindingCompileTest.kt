@@ -50,6 +50,8 @@ open class DataBindingCompileTest {
     private val booleanVisibilityLayoutFile get() =
         File(resBaseDir, "layout/activity_data_binding_boolean_visibility_demo.xml")
     private val library1JavaLayoutFile get() = File(library1ResBaseDir, "layout/activity_data_binding_java_demo_library1.xml")
+    private val javaAptResBaseDir get() = File(assetsAndroidDir, "databindingApt/src/main/res")
+    private val javaAptLayoutFile get() = File(javaAptResBaseDir, "layout/activity_data_binding_java_apt.xml")
     private val library1KotlinActivityFile get() = File(
         library1JavaBaseDir,
         "com/sickworm/jugg/demo/testcase/databinding/library1/DataBindingKotlinDemoActivityLibrary1.kt")
@@ -121,6 +123,44 @@ open class DataBindingCompileTest {
         val result2 = mapperCompiler.compile(bindingTask)
         assertTrue(result2.isAllSuccess)
         checkDataBindingOutputs(compileTask, result2, 1)
+        assertFallback()
+    }
+
+    @Test
+    fun javaAptModuleWithoutKaptShouldCompileDataBindingLayout() {
+        clearBuild()
+        CompileHelper.outputDir.clearDir()
+
+        val gradleModule = context.modules["databindingApt"]
+            ?: throw IllegalStateException("module not found: databindingApt, all: ${context.modules.keys}")
+        assertTrue(
+            gradleModule.kaptDependencies.isEmpty(),
+            "java APT fixture must not use KAPT, actual: ${gradleModule.kaptDependencies}",
+        )
+        val kaptGuessDir = File(
+            gradleModule.buildPathInfo.buildDir,
+            "generated/source/kapt/${gradleModule.buildVariant}/androidx/databinding",
+        )
+        assertTrue(!kaptGuessDir.exists(), "java APT fixture must not generate KAPT DataBinding output: $kaptGuessDir")
+        assertTrue(
+            gradleModule.isUseDataBinding == true,
+            "Groovy gradle_project_infos.json must load DataBinding enabled, actual: ${gradleModule.isUseDataBinding}",
+        )
+
+        val compileTask = makeTask("databindingApt", javaAptResBaseDir, javaAptLayoutFile)
+
+        val baseClassCompiler = DataBindingGenBaseClassesCompiler(context, mockParentDisposable)
+        val result = baseClassCompiler.compile(compileTask)
+        assertTrue(result.isAllSuccess)
+        checkOutputFiles(result, listOf(
+            "com/example/databindingapt/DataBindingInfo.java",
+            "layout/activity_data_binding_java_apt.xml",
+        ))
+
+        val mapperCompiler = DataBindingGenMapperCompiler(context, mockParentDisposable)
+        val mapperResult = mapperCompiler.compile(createBindingTask(compileTask, result))
+        assertTrue(mapperResult.isAllSuccess)
+        checkDataBindingOutputs(compileTask, mapperResult, 1)
         assertFallback()
     }
 
