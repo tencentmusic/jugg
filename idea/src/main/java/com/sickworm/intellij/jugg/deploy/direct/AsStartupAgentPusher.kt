@@ -2,12 +2,13 @@ package com.sickworm.intellij.jugg.deploy.direct
 
 import com.android.tools.deploy.proto.Deploy
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.deploy.AppSandboxExecutor
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.deploy.JuggJvmtiAgentManager
 import java.io.File
 
 /**
- * Pushes Android Studio Apply Changes startup agent via host matryoshka + run-as cp.
+ * Pushes Android Studio Apply Changes startup agent via host matryoshka and the app sandbox executor.
  *
  * Unlike [com.sickworm.intellij.jugg.deploy.JuggJvmtiAgentManager.setupAgent], this path does not
  * require the app process to be online: app bitness comes from the caller (pids or APK fallback),
@@ -82,9 +83,9 @@ class AsStartupAgentPusher(
     ) {
         val destPath = "$STARTUP_AGENTS_DIR/$destFileName"
         val script = buildSetUpAgentScript(remoteAgentPath, destPath)
-        val result = adb.execAdbShellScript("run-as $packageName sh -c '$script'")
+        val result = AppSandboxExecutor(adb, packageName, logger).exec(script, repairCodeCache = true)
         if (!result.contains("$AGENT_MARKER OK")) {
-            fail("run-as cp failed for $destPath, output: ${result.trim()}")
+            fail("app sandbox cp failed for $destPath, output: ${result.trim()}")
         }
     }
 

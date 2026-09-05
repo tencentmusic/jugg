@@ -22,6 +22,7 @@
 | 部署文件管理 | `JuggDeployer`, `DeployFileManager`, `DeployFileStateTracker`, `DeployDataPlanner`, `CompileEffectAnalyzer`, `DeployHistoryManager`, `ClassFileLookupHelper` | `deploy/core` | 部署调度、文件准备；`DeployFileManager` 作为 facade，状态跟踪/部署数据计算/编译影响分析已解耦 | 稳定 | 2026-02-27 |
 | 影响分析 | `DeployDataGenerator`, `DeployDataDatabase`, `IncrementalDeployDataDatabase`, `ClassNodeComparator`, `InlineMethodDetector` | `deploy/data` | 类结构变更传播和部署数据生成；双层数据库与引用索引；内联方法影响检测 | 稳定 | 2026-02-01 |
 | 部署数据模型 | `JuggDeployData`, `DeployItem`, `LaunchResult` | `deploy/run` | 下发设备的部署数据结构；`targetApkPaths` 和 `filterForApks()` 支持多 APK 归属分流 | 稳定 | 2026-05-08 |
+| App sandbox 部署 | `AppSandboxExecutor`, `DirectAppSandboxDeployTransport`, `DirectHotReloadWriter`, `DirectOverlayWriter`, `DirectOverlayStateChecker` | `deploy`, `deploy/hotreload`, `deploy/direct` | 以 `run-as`、UID 与 SELinux context 能力选择 AS 或 Direct transport；Direct 模式固定普通 shell、root adbd 或非交互 `su`，复用同一 executor 完成 overlay、agent、JVMTI redefine、Android 11+ 资源刷新与 Activity 重建 | 稳定 | 2026-09-10 |
 | AndroidTest 运行模型 | `AndroidTestRunSpec`, `TestFilter`, `InstrumentCommandBuilder`, `AndroidTestTargetResolver`, `LibraryTestApkBackfillPlanner`, `LibraryTestApkBuildHistory`, `InstrumentationOutputParser`, `InstrumentationConsoleRenderer`, `InstrumentationSmRunnerBridge`, `AndroidTestResultModel` | `deploy/instrument` | androidTest instrumentation 参数、sourcePath target 解析、library Test APK 懒加载 plan 与跨仓库 build history、`am instrument` 命令构造、输出解析、文本 console 渲染、SM Test Runner service message 映射与按 method 归档 logcat | 开发中 | 2026-05-17 |
 | 项目模型 | `JuggProjectInfo`, `ModuleInfo`, `ExternalBuildInfo`, `ComposeResourceInfo`, `ComposeResourceSupportStatus`, `ComposeResourceDirectory`, `ModuleBuildPathInfo`, `JuggPathManager`, `JuggGlobalPathManager`, `ModuleApkBelongs` | `project/data`, `project` | 根快照引用项目 AGP R8 分发包；模块快照保存路径、依赖、Kotlin common roots/fragment graph、Compose support 状态、资源根及 Flutter/C++ task、输出与 Flutter native archive；项目信息读取/序列化；项目级路径与全局路径统一管理；模块到 APK 归属封装 | 稳定 | 2026-09-06 |
 | 依赖变更 | `DependencyChangeManagerByGradle`, `DependencyChangeManagerBySync` | `project/dependency` | 依赖变更检测策略 | 稳定 | 2025-01-20 |
@@ -65,7 +66,7 @@
 | Stub API 工具 | `tools/stub_api_generator/`, `deploy_compat/*.sh`, `deploy_compat/stub_api/` | 从已编译 compat JAR 的字节码引用闭包生成版本化 compile-only Stub；脚本负责创建模块、显式切换真实 JAR/Stub、生成 Stub，并通过 `verify_stub_api.sh` clean 构建两边产物后验证 AS API 调用一致性 |
 | cmd_line | `cmd_line/src/main/java/com/sickworm/intellij/jugg/cmdline/` | `CmdLine`, `BuildGradleBaseCommand`, `BuildIncrementalApkCommand` |
 | custom_compilers | `custom_compilers/src/main/java/com/sickworm/intellij/jugg/compiler/demo/` | SPI 自定义编译器示例 |
-| jvmti_agent | `jvmti_agent/src/main/cpp/` + `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/` | JVMTI native 能力（`native-lib.cpp`、`instrumenter.cc`）+ runtime instrument 修复（`ApplyChangesOverlayPolicy` 等）+ App 内 ViewHierarchy LocalSocket Server；`DragonflyHierarchySource` 是 dump、selector、tap、inspect、layout verify 的唯一节点数据源，Dragonfly DEX JAR 及内置 Kotlin/协程等依赖经离线预处理为 Jugg 私有包并同时进入 instruments/runtime JAR，窗口枚举失败时 Best-effort 复用旧 ActivityThread/WindowManagerGlobal 根列表；由 `BootstrapApplication` 初始化 |
+| jvmti_agent | `jvmti_agent/src/main/cpp/` + `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/` | JVMTI native 能力（`native-lib.cpp`、`instrumenter.cc`）+ runtime instrument 修复（`ApplyChangesOverlayPolicy`、`ResourceOverlays` 等）+ App 内 ViewHierarchy LocalSocket Server；`DragonflyHierarchySource` 是 dump、selector、tap、inspect、layout verify 的唯一节点数据源，Dragonfly DEX JAR 及内置 Kotlin/协程等依赖经离线预处理为 Jugg 私有包并同时进入 instruments/runtime JAR，窗口枚举失败时 Best-effort 复用旧 ActivityThread/WindowManagerGlobal 根列表；由 `BootstrapApplication` 初始化 |
 
 ---
 
@@ -83,7 +84,8 @@
 
 - 查“某能力是否已存在”：先 `98_code_map.md`，再对应目录搜索类名。  
 - 查“编译为何回退”：从 `JuggCompilerHelper` -> `preprocessIncrementalCompile`。
-- 查“部署失败恢复”：从 `JuggDeployerHelper.deploy` -> `DeployStateRecover.recoverDeployState`。  
+- 查“部署失败恢复”：从 `JuggDeployerHelper.deploy` -> `DeployStateRecover.recoverDeployState`。
+- 查“系统应用能否用 Jugg / adb install 安装”：`03_deploy_system_app.md`。当前没有专用系统应用 installer。
 - 查“MCP 参数规则”：从 tool action 的 `inputSchema` 和 `execute` 实现确认。
 
 ---

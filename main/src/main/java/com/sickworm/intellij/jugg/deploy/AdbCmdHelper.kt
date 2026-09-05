@@ -83,7 +83,10 @@ class AdbCmdHelper(
 
     fun deleteDeployedDexFile(packageName: String, filePath: String) {
         logger.debug("deleteDeployedDexFile: $packageName, $filePath")
-        execAdbShellCmd("run-as $packageName rm -rf /data/data/$packageName/code_cache/.overlay/$filePath")
+        AppSandboxExecutor(adb, packageName, logger).exec(
+            "rm -rf code_cache/.overlay/${AppSandboxExecutor.shellQuote(filePath)}",
+            repairCodeCache = true,
+        )
     }
 
     /**

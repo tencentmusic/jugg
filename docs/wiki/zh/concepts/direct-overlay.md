@@ -31,7 +31,7 @@ Direct Overlay 在状态可校验时直接写入 App sandbox 中的 overlay 目�
 
 ## Direct Overlay 如何写入
 
-Direct Overlay 需要已有 deployment cache，用它还原目标 APK、现有 overlay 和预期 overlay ID。设备端检查通过后，Jugg 将本轮文件打包，通过 ADB 推送到临时目录，再以目标 App 身份更新 sandbox。
+Direct Overlay 需要已有 deployment cache，用它还原目标 APK、现有 overlay 和预期 overlay ID。设备端检查通过后，Jugg 将本轮文件打包，通过 ADB 推送到临时目录，再以本轮已解析并固定的 sandbox 权限模式更新目录。
 
 ```text
 设备未 ready，且调用方允许 Direct Overlay
@@ -45,17 +45,21 @@ Direct Overlay 需要已有 deployment cache，用它还原目标 APK、现有 o
   -> 由外层流程启动或重启 App
 ```
 
-写入使用 Android 8.0 及以上设备提供的 App sandbox 和 `run-as` 能力。startup agent 的准备不依赖 App 进程已经在线，因此 Direct Overlay 可以在普通 Apply Changes 尚未 ready 时完成文件下发。
+常规 Direct Overlay 使用 Android 8.0 及以上设备提供的 App sandbox 和 `run-as` 能力。若 `run-as` 没有唯一成功标记、返回 UID 不在 Android Studio Deployer 接受的 `10000..19999` 范围，或新建文件的 SELinux label 与既有缓存目录不一致，增量部署会在真实 data 目录探测普通 shell、一次 root adbd 和非交互 `su`，并固定第一个完整可用的模式。startup agent 的准备不依赖 App 进程已经在线，因此 Direct Overlay 可以在普通 Apply Changes 尚未 ready 时完成文件下发。
+
+这些 Direct 权限模式创建的文件可能没有 App 的动态 SELinux categories。Jugg 会让 overlay 和请求文件继承既有 `code_cache` 的完整 label；JVMTI Agent `.so` 则使用 Android appdomain 允许执行的 `apk_data_file` 类型。SELinux 工具输出只用于修复诊断，不会混入写入脚本的成功结果。
 
 ## 它与 Apply Changes 的关系
 
 Direct Overlay 和普通 Apply Changes 使用相同的部署数据、目标 APK 归属与 overlay 状态，只在传输环节不同。
 
+普通 Direct Overlay 和系统应用使用的 Direct sandbox 都整批下发本轮增量文件；官方 Apply Changes 保留原有切片。Jugg 在切片前复用本轮 sandbox 能力判断，因此不会先拆分资源、再交给 Direct 通道逐片写入。Direct 写入虽有 heartbeat，仍使用带超时的 ADB 调用，传输超时仍可能使部署失败。
+
 | 环节 | 普通 Apply Changes | Direct Overlay |
 |---|---|---|
 | 设备前提 | App 已进入在线部署状态 | App 可以未 ready，但 sandbox 和 checkpoint 必须可访问 |
 | class 与资源输入 | 同一份 overlay update | 同一份 overlay update |
-| 文件写入 | Android Studio 在线部署通道 | ADB push + App 身份写入 sandbox |
+| 文件写入 | Android Studio 在线部署通道 | ADB push + 已探测权限模式写入 sandbox |
 | 生命周期动作 | 外层部署流程决定 | 仍由外层部署流程决定 |
 | 状态提交 | 成功后更新 cache 与 overlay ID | 成功后更新同一组状态 |
 
@@ -65,7 +69,7 @@ Direct Overlay 不是另一套热修复格式，也不会改变 class 原本属�
 
 Direct Overlay 把失败分成两类：
 
-- **写入前失败**：设备状态检查、agent 准备或 payload 构造失败，但 overlay 目录未被修改，可以继续尝试普通 Apply Changes。
+- **写入前失败**：设备状态检查、agent 准备或 payload 构造失败，但 overlay 目录未被修改。Apply Changes 前提仍成立的普通 Direct Overlay 可以继续尝试在线通道；已确认 `run-as`、UID 或 SELinux label 不兼容的 Direct transport 会直接报告失败。
 - **写入后失败**：脚本已经开始删除或覆盖文件，目录可能处于半提交状态，不能再假设旧 checkpoint 有效。
 
 第二类失败不会立即转回普通 Apply Changes。后续 Recover 会禁用 Direct Overlay，改用启动 App 后的常规状态校验；必要时重新安装 APK 并清理 overlay，重新建立可信基线。
@@ -79,7 +83,9 @@ Direct Overlay 只有在以下条件同时满足时才会参与：
 - 本轮不是 install，且部署数据非空；
 - deployment cache 存在；
 - 设备端 overlay ID 与 cache 记录一致；
-- App 可通过 `run-as` 访问 sandbox。
+- App sandbox 可通过本轮选定的 `run-as`、普通 shell、root adbd 或非交互 `su` 模式访问。
+
+`run-as`、UID 或 SELinux label 不兼容时，Jugg 可以直接下发 class、资源和 assets。纯方法体变化可在线替换；Android 11+ 的资源、assets 或与代码混合的变化会刷新当前进程资源并重建 Activity，进程保持运行。运行时刷新失败时会重启 App，使已提交的 overlay 在新进程生效。Android 8～10 和兼容部署仍使用需要重启进程的资源路径。Manifest 和 native library 继续走 APK 更新与安装流程。权限探测失败或缺少 deployment cache 时会直接报告失败。
 
 状态无法读取时，Jugg 会回到常规校验；状态明确不匹配时进入 Recover。Direct Overlay 不会为了减少等待而绕过 checkpoint。
 

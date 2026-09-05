@@ -190,6 +190,8 @@ class VirtualDeployDevice(
     private fun executeRunAsInnerScript(inner: String): String {
         val scriptIndex = shellScripts.size - 1
         return when {
+            inner.contains(RUN_AS_MARKER) ->
+                "$RUN_AS_MARKER:10001\n$RUN_AS_CONTEXT_MARKER:ctx|ctx"
             inner.contains(OVERLAY_STATE_MARKER) -> handleOverlayStateScript(scriptIndex)
             inner.contains(DIRECT_OVERLAY_MARKER) -> handleDirectOverlayScript(inner)
             else -> executeGenericRunAsScript(inner)
@@ -335,5 +337,7 @@ class VirtualDeployDevice(
         private const val OVERLAY_STATE_MARKER = "__JUGG_OVERLAY_STATE__"
         private const val DIRECT_OVERLAY_MARKER = "__JUGG_DIRECT_OVERLAY__"
         private const val AS_AGENT_MARKER = "__JUGG_AS_AGENT__"
+        private const val RUN_AS_MARKER = "__JUGG_RUN_AS_OK__"
+        private const val RUN_AS_CONTEXT_MARKER = "__JUGG_RUN_AS_CONTEXT__"
     }
 }

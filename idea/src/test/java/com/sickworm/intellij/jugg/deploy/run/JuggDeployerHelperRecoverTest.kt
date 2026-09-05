@@ -22,6 +22,7 @@ import org.junit.Assert.assertEquals
 import org.junit.BeforeClass
 import org.junit.Test
 import org.mockito.Mockito
+import java.io.IOException
 
 class JuggDeployerHelperRecoverTest {
 
@@ -108,6 +109,50 @@ class JuggDeployerHelperRecoverTest {
     }
 
     @Test
+    fun `tryDryDeploy should use legacy path when app sandbox is unavailable`() {
+        val device = Mockito.mock(IDevice::class.java)
+        Mockito.`when`(device.serialNumber).thenReturn("device-1")
+        val deployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
+        Mockito.`when`(deployTargetManager.isAppInstalled(device)).thenReturn(true)
+        Mockito.`when`(deployTargetManager.getPackageName()).thenReturn("com.example.app")
+        Mockito.`when`(deployTargetManager.restartApp(device)).thenReturn(true)
+        Mockito.`when`(deployTargetManager.getApks()).thenReturn(emptyList())
+
+        val deployHistoryManager = Mockito.mock(IDeployHistoryManager::class.java)
+        Mockito.`when`(deployHistoryManager.lastDeployOverlayIds)
+            .thenReturn(mapOf("com.example.app" to "overlay-id"))
+
+        val deploymentService = Mockito.mock(IJuggDeploymentService::class.java)
+        Mockito.`when`(deploymentService.loadCachedOverlayId("device-1", "com.example.app", TestGlobal.getLogger()))
+            .thenReturn(CachedOverlayId(sha = "overlay-id", isBaseInstall = false))
+
+        val deployStateManager = Mockito.mock(DeployStateManager::class.java)
+        Mockito.`when`(deployStateManager.updateDeployState()).thenReturn(JuggDeployState.READY)
+        Mockito.`when`(deployStateManager.getDeployState(device)).thenReturn(JuggDeployState.READY)
+
+        val adb = Mockito.mock(IDeviceAdb::class.java)
+        Mockito.`when`(adb.execAdbShellScript(Mockito.anyString()))
+            .thenAnswer { throw IOException("app sandbox unavailable") }
+
+        val recoverHost = RecordingRecoverHost()
+        val recover = createDeployStateRecover(
+            deployTargetManager = deployTargetManager,
+            deployHistoryManager = deployHistoryManager,
+            deploymentService = deploymentService,
+            deployStateManager = deployStateManager,
+            deviceAdbFactory = { _, _ -> adb },
+            deployRunHost = recoverHost,
+            logger = TestGlobal.getLogger(),
+        )
+
+        val result = recover.tryDryDeploy(device, false, CompileUiHandler.DEFAULT)
+
+        assertEquals(DryDeployResult.SUCCESS, result)
+        assertEquals(1, recoverHost.recoverInvokeCount)
+        Mockito.verify(deployTargetManager).restartApp(device)
+    }
+
+    @Test
     fun `recoverDeployState should not defer install launch when direct overlay recover is disallowed`() {
         val device = Mockito.mock(IDevice::class.java)
         Mockito.`when`(device.serialNumber).thenReturn("device-1")
@@ -169,8 +214,7 @@ class JuggDeployerHelperRecoverTest {
             .thenReturn(CachedOverlayId(sha = "base-overlay", isBaseInstall = true))
 
         val adb = Mockito.mock(IDeviceAdb::class.java)
-        Mockito.`when`(adb.execAdbShellScript(Mockito.anyString()))
-            .thenReturn("__JUGG_OVERLAY_STATE__ NO_DIR")
+        stubCompatibleRunAs(adb, "__JUGG_OVERLAY_STATE__ NO_DIR")
 
         val recover = createDeployStateRecover(
             deployTargetManager = deployTargetManager,
@@ -203,8 +247,7 @@ class JuggDeployerHelperRecoverTest {
             .thenReturn(CachedOverlayId(sha = "overlay-id", isBaseInstall = false))
 
         val adb = Mockito.mock(IDeviceAdb::class.java)
-        Mockito.`when`(adb.execAdbShellScript(Mockito.anyString()))
-            .thenReturn("__JUGG_OVERLAY_STATE__ ID overlay-id")
+        stubCompatibleRunAs(adb, "__JUGG_OVERLAY_STATE__ ID overlay-id")
 
         val recover = createDeployStateRecover(
             deployTargetManager = deployTargetManager,
@@ -268,8 +311,7 @@ class JuggDeployerHelperRecoverTest {
             .thenReturn(CachedOverlayId(sha = "overlay-id", isBaseInstall = false))
 
         val adb = Mockito.mock(IDeviceAdb::class.java)
-        Mockito.`when`(adb.execAdbShellScript(Mockito.anyString()))
-            .thenReturn("__JUGG_OVERLAY_STATE__ ID overlay-id")
+        stubCompatibleRunAs(adb, "__JUGG_OVERLAY_STATE__ ID overlay-id")
 
         val recoverHost = RecordingRecoverHost()
         val recover = createDeployStateRecover(
@@ -492,8 +534,7 @@ class JuggDeployerHelperRecoverTest {
             .thenReturn(CachedOverlayId(sha = "fresh-cache-id", isBaseInstall = true))
 
         val adb = Mockito.mock(IDeviceAdb::class.java)
-        Mockito.`when`(adb.execAdbShellScript(Mockito.anyString()))
-            .thenReturn("__JUGG_OVERLAY_STATE__ NO_DIR")
+        stubCompatibleRunAs(adb, "__JUGG_OVERLAY_STATE__ NO_DIR")
 
         val recover = createDeployStateRecover(
             deployTargetManager = deployTargetManager,
@@ -605,6 +646,16 @@ class JuggDeployerHelperRecoverTest {
             deviceAdbFactory = deviceAdbFactory,
             logger = logger,
         )
+    }
+
+    private fun stubCompatibleRunAs(adb: IDeviceAdb, overlayState: String) {
+        Mockito.`when`(adb.execAdbShellScript(Mockito.anyString())).thenAnswer {
+            if (it.getArgument<String>(0).contains("__JUGG_RUN_AS_OK__")) {
+                "__JUGG_RUN_AS_OK__:10001\n__JUGG_RUN_AS_CONTEXT__:ctx|ctx"
+            } else {
+                overlayState
+            }
+        }
     }
 
     private class RecordingRecoverHost(

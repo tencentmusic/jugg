@@ -12,6 +12,7 @@ import com.sickworm.intellij.jugg.compiler.IncrementalDeployHelper
 import com.sickworm.intellij.jugg.compiler.jarDexFileName
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlaySwapTransport
+import com.sickworm.intellij.jugg.deploy.hotreload.DirectAppSandboxDeployTransport
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestApkSelector
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestResultModel
 import com.sickworm.intellij.jugg.deploy.run.applychanges.AndroidDeployType
@@ -185,11 +186,6 @@ class JuggDeployerHelper(
             deployTargetManager.stopApp(device)
         }
 
-        val detectJob = taskRunnerManager.runAsyncSafe("isNeedPushAgentAfterDeploy") {
-            val adb = deviceAdbFactory(device, logger)
-            JuggJvmtiAgentManagerHelper(logger).isNeedPushAgentAfterDeploy(adb, data)
-        }
-
         if (!data.isInstall && dependencyChangeManager.changeStatus == IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE) {
             removeLibraryDexFiles(data, device)
         }
@@ -210,8 +206,19 @@ class JuggDeployerHelper(
             isAllowDirectOverlayDeploy = request.isAllowDirectOverlayDeploy,
             forceDirectOverlayDeploy = request.forceDirectOverlayDeploy,
         )
-        val isDirectOverlayCandidate = DirectOverlaySwapTransport(baseLaunchContext, logger).canTry(data)
-        val dataList = if (isDirectOverlayCandidate) {
+        val detectJob = taskRunnerManager.runAsyncSafe("isNeedPushAgentAfterDeploy") {
+            JuggJvmtiAgentManagerHelper(logger).isNeedPushAgentAfterDeploy(
+                adb = baseLaunchContext.deviceAdb,
+                data = data,
+                sandboxProvider = { packageName ->
+                    baseLaunchContext.getAppSandboxExecutor(packageName, logger)
+                },
+            )
+        }
+        val sandboxTransport = DirectAppSandboxDeployTransport(baseLaunchContext, logger)
+        val isDirectDeployCandidate = DirectOverlaySwapTransport(baseLaunchContext, logger).canTry(data) ||
+            (!data.isInstall && !data.isEmpty && data.apks.any { sandboxTransport.canTry(it.applicationId) })
+        val dataList = if (isDirectDeployCandidate) {
             listOf(data)
         } else {
             val (firstSliceSize, sliceSize) = SliceDeployHelper(logger).get(baseLaunchContext.deviceAdb)
@@ -264,7 +271,7 @@ class JuggDeployerHelper(
         }
         launchResult.pushingAgentCostTime = TimeLogger.end("push_agent", logger)
 
-        var isNeedRestartApp = data.isNeedRestartApp
+        var isNeedRestartApp = data.isNeedRestartApp || launchResult.needsRestartApp
 
         if (compileUiHandler.isDebugRun && !isNeedRestartApp) {
             logger.info("Debug run requires app restart before attaching debugger.")
@@ -385,7 +392,10 @@ class JuggDeployerHelper(
         applicationIds.forEach { applicationId ->
             logger.warn("Split deploy failed after partial success; clearing partial overlay for $applicationId.")
             runCatching {
-                adb.execAdbShellCmd("run-as $applicationId rm -rf code_cache/.overlay")
+                AppSandboxExecutor(adb, applicationId, logger).exec(
+                    "rm -rf code_cache/.overlay",
+                    repairCodeCache = true,
+                )
             }.onFailure {
                 logger.warn("Failed to clear partial overlay for $applicationId.", it)
             }
@@ -871,7 +881,18 @@ class JuggDeployerHelper(
     private fun isNeedPushResourceApk(device: IDevice, data: JuggDeployData): Boolean {
         logger.trace("[PERF] CompatDeployHelper.isEnableCompatDeploy start, thread=${Thread.currentThread().name}")
         val compatStart = System.currentTimeMillis()
-        val isEnableCompatDeploy = CompatDeployHelper(logger).isEnableCompatDeploy(deviceAdbFactory(device, logger), data)
+        val adb = deviceAdbFactory(device, logger)
+        val isDirectAppSandboxClassDeploy = !data.isInstall && data.hasClassChanges &&
+            data.overlays.isEmpty() && data.updateApkFiles.isEmpty() &&
+            data.apks.filter { !it.isOtherTargetingTestApk }.any {
+                AppSandboxExecutor.probeApplyChangesCapability(adb, it.applicationId) ==
+                    AppSandboxExecutor.ApplyChangesCapability.INCOMPATIBLE
+            }
+        if (isDirectAppSandboxClassDeploy) {
+            logger.debug("Skip compat payload conversion for Direct app sandbox class deploy.")
+            return false
+        }
+        val isEnableCompatDeploy = CompatDeployHelper(logger).isEnableCompatDeploy(adb, data)
         logger.trace("[PERF] CompatDeployHelper.isEnableCompatDeploy end, cost=${System.currentTimeMillis() - compatStart}ms, thread=${Thread.currentThread().name}")
         logger.debug("isNeedPushResourceApk: " +
                 "isEnableCompatDeploy: $isEnableCompatDeploy, " +

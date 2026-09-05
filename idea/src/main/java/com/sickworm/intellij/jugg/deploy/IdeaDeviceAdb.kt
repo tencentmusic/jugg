@@ -68,6 +68,15 @@ class IdeaDeviceAdb(
         return AdbTransientOffline.isAdbCliTransportReady(serial) || (device.isOnline && isRawShellReady())
     }
 
+    override fun requestRootAdbd(): Boolean {
+        synchronized(IdeaDeviceAdb::class.java) {
+            val adbBin = AdbCmdHelper.findAdbExecutablePath()
+            val output = AdbCliRootExecutor.request(adbBin, serial)
+            logger.debug("adb root out: ${output.ifBlank { "(empty)" }}")
+            return AdbCliRootExecutor.waitForDevice(adbBin, serial)
+        }
+    }
+
     /**
      * Runs [cmd] and delivers each output line to [lineConsumer] as it arrives.
      * Respects [cancelSignal]: when it returns true the receiver is closed promptly.
@@ -420,5 +429,50 @@ internal object AdbCliShellExecutor {
                 append(errorOutput)
             }
         }.trim()
+    }
+}
+
+/**
+ * Runs the host-side adb root command and waits for the selected device to reconnect.
+ */
+internal object AdbCliRootExecutor {
+    private const val REQUEST_TIMEOUT_MILLIS = 10_000L
+    private const val RECONNECT_TIMEOUT_MILLIS = 20_000L
+    private const val RECONNECT_INTERVAL_MILLIS = 250L
+
+    fun request(adbBin: String, serial: String): String {
+        val process = ProcessBuilder(adbBin, "-s", serial, "root")
+            .redirectErrorStream(true)
+            .start()
+        val completed = try {
+            process.waitFor(REQUEST_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)
+        } catch (e: InterruptedException) {
+            process.destroyForcibly()
+            Thread.currentThread().interrupt()
+            throw IOException("adb root interrupted for $serial", e)
+        }
+        if (!completed) {
+            process.destroyForcibly()
+            process.waitFor(1, TimeUnit.SECONDS)
+            throw IOException("adb root timed out after ${REQUEST_TIMEOUT_MILLIS}ms for $serial")
+        }
+        return process.inputStream.bufferedReader().readText().trim()
+    }
+
+    fun waitForDevice(adbBin: String, serial: String): Boolean {
+        val deadline = System.currentTimeMillis() + RECONNECT_TIMEOUT_MILLIS
+        while (System.currentTimeMillis() < deadline) {
+            val state = runCatching { AdbCliShellExecutor.getState(adbBin, serial) }.getOrDefault("")
+            if (state == "device") {
+                return true
+            }
+            try {
+                Thread.sleep(RECONNECT_INTERVAL_MILLIS)
+            } catch (e: InterruptedException) {
+                Thread.currentThread().interrupt()
+                throw IOException("Waiting for adb root reconnect interrupted for $serial", e)
+            }
+        }
+        return false
     }
 }

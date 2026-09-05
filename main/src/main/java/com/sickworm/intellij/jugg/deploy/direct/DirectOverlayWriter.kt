@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.deploy.direct
 
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.deploy.AppSandboxExecutor
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import java.io.File
 import java.util.zip.ZipEntry
@@ -16,6 +17,7 @@ import java.util.zip.ZipOutputStream
 open class DirectOverlayWriter(
     private val adb: IDeviceAdb,
     private val logger: Logger,
+    private val sandboxExecutor: AppSandboxExecutor? = null,
 ) {
 
     open fun write(request: DirectOverlayWriteRequest): DirectOverlayWriteResult = synchronized(writeLock) {
@@ -32,7 +34,11 @@ open class DirectOverlayWriter(
                 return DirectOverlayWriteResult.SKIPPED
             }
             scriptStarted = true
-            val output = adb.execAdbShellScriptNoFallback(buildApplyScript(request, remoteZipPath))
+            val sandbox = sandboxExecutor ?: AppSandboxExecutor(adb, request.packageName, logger)
+            val output = sandbox.execNoFallback(
+                buildApplyScript(request, remoteZipPath),
+                repairCodeCache = true,
+            )
             val result = when {
                 output.contains("$MARKER OK") -> DirectOverlayWriteResult.SUCCESS
                 output.contains("$MARKER APPLYING") -> DirectOverlayWriteResult.FAILED_DIRTY
@@ -76,8 +82,7 @@ open class DirectOverlayWriter(
     private fun buildApplyScript(request: DirectOverlayWriteRequest, remoteZipPath: String): String {
         val expectedOverlayId = shellDoubleQuote(request.expectedOverlayId)
         val overlayId = shellDoubleQuote(request.overlayId)
-        return "run-as ${request.packageName} sh -c '" +
-                "set -e; " +
+        return "set -e; " +
                 "overlay_dir=code_cache/.overlay; " +
                 "actual=\"\"; " +
                 "had_overlay_dir=0; " +
@@ -95,8 +100,7 @@ open class DirectOverlayWriter(
                 "unzip -oq $remoteZipPath -d \"\$overlay_dir\"; " +
                 "find \"\$overlay_dir\" -type f -name '*.dex' -exec chmod 0444 {} +; " +
                 "printf %s $overlayId > \"\$overlay_dir/id\"; " +
-                "echo \"$MARKER OK\"" +
-                "'"
+                "echo \"$MARKER OK\""
     }
 
     private fun buildHeartbeatScript(): String {

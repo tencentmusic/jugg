@@ -21,6 +21,7 @@ JVMTI Runtime supports Jugg after deployment. It prepares the Jugg agent on the 
 | Detect JVMTI availability | Supported | Reports whether JVMTI is available after the app restarts |
 | 32-bit and 64-bit apps | Supported | Automatically selects the agent matching the target process architecture |
 | Runtime correction hooks | Supported | Handles matched ClassLoader, resource, and system compatibility differences during app startup |
+| Direct Activity relaunch | Supported | Recreates the Activity after class replacement only in Restart Activity mode; HOT_RELOAD remains unchanged |
 | Record an incompatible app/device pair | Supported | Later deployments enter the compatible path directly instead of repeatedly attempting unavailable online replacement |
 
 > [!NOTE]
@@ -38,6 +39,8 @@ Incremental deployment completes
 ```
 
 The agent must be prepared after deployment and checked after the app restarts. For the exact timing and division of responsibility with the Apply Changes Agent, see [Jugg JVMTI Agent](../../concepts/jugg-jvmti-agent.md).
+
+The Direct app sandbox copies the instrumentation JAR into the app's `code_cache` so that a system or privileged app process is not blocked by SELinux while mapping a file from `/data/local/tmp`. This compatibility logic does not affect the normal `run-as` path or the Android Studio deploy transport.
 
 ## How compatible deployment is triggered
 

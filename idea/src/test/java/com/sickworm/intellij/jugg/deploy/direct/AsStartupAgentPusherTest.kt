@@ -104,7 +104,7 @@ class AsStartupAgentPusherTest {
 
         pusher.pushApplyChangesStartupAgent("com.example.app", "arm64-v8a", Deploy.Arch.ARCH_64_BIT)
 
-        val script = adb.shellScripts.single()
+        val script = adb.shellScripts.last { it.contains("__JUGG_AS_AGENT__") }
         assertFalse("backslash breaks sh -c single-quoted scripts on device", script.contains("&& \\"))
         assertTrue(script.contains("if [ -d code_cache/startup_agents ]"))
     }
@@ -193,6 +193,13 @@ class AsStartupAgentPusherTest {
 
         override fun execAdbShellScript(cmd: String): String {
             shellScripts += cmd
+            if (cmd.contains("ls -1 code_cache/startup_agents")) {
+                return if (startupAgents.isEmpty()) {
+                    "No such file or directory"
+                } else {
+                    startupAgents.joinToString("\n")
+                }
+            }
             return if (failRunAsCopy) {
                 "__JUGG_AS_AGENT__ FAILED"
             } else {

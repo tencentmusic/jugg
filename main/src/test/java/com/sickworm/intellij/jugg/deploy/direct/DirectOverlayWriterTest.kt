@@ -49,7 +49,7 @@ class DirectOverlayWriterTest {
         assertTrue(adb.lastScript.contains("heartbeat_pid=\$!"))
         assertTrue(adb.lastScript.contains("trap \"kill \$heartbeat_pid 2>/dev/null || true\" EXIT"))
         assertTrue(adb.lastScript.contains("unzip -oq"))
-        assertTrue(adb.lastScript.contains("find \"\$overlay_dir\" -type f -name '*.dex' -exec chmod 0444 {} +"))
+        assertTrue(adb.lastScript.contains("-exec chmod 0444 {} +"))
         assertTrue(adb.commands.contains("mkdir -p /data/local/tmp/jugg"))
         assertTrue(adb.commands.contains("rm -f /data/local/tmp/jugg/direct-overlay-*.zip"))
     }
@@ -267,7 +267,11 @@ class DirectOverlayWriterTest {
             trackActive {
                 Thread.sleep(50)
             }
-            return "__JUGG_DIRECT_OVERLAY__ OK"
+            return if (cmd.contains("__JUGG_RUN_AS_OK__")) {
+                "__JUGG_RUN_AS_OK__:10001\n__JUGG_RUN_AS_CONTEXT__:ctx|ctx"
+            } else {
+                "__JUGG_DIRECT_OVERLAY__ OK"
+            }
         }
 
         override fun push(from: File, to: String): Boolean {
@@ -311,7 +315,11 @@ class DirectOverlayWriterTest {
 
         override fun execAdbShellScript(cmd: String): String {
             lastScript = cmd
-            return scriptOutput
+            return if (cmd.contains("__JUGG_RUN_AS_OK__")) {
+                "__JUGG_RUN_AS_OK__:10001\n__JUGG_RUN_AS_CONTEXT__:ctx|ctx"
+            } else {
+                scriptOutput
+            }
         }
 
         override fun execAdbShellScriptNoFallback(cmd: String): String {

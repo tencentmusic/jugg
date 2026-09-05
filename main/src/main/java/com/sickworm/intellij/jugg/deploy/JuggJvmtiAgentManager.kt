@@ -38,11 +38,12 @@ class JuggJvmtiAgentManager(private val adb: IDeviceAdb, loggerArg: Logger) : IJ
     private val agentDirPathOnDevice: String get() = "$juggTempDirPath/${BuildConfig.AGENT_VERSION}"
     private val agentInAppPath = "code_cache/startup_agents"
     private val agentSoDestPathStartsWith = "$agentInAppPath/$AGENT_SO_NAME_PREFIX"
+    private val instrumentationJarInAppPath =
+        "$agentInAppPath/${BuildConfig.AGENT_VERSION}-jugg-instruments.jar"
 
     override fun getCurrentAgentsInApp(packageName: String): List<String> {
         val subCmd = "ls -1 $agentInAppPath" // -1 for file per line
-        val cmd = "run-as $packageName \"$subCmd\""
-        val result = adb.execAdbShellCmd(cmd).trim()
+        val result = AppSandboxExecutor(adb, packageName, logger).exec(subCmd).trim()
         if (result.contains("No such file or directory")) {
             return emptyList()
         }
@@ -51,6 +52,15 @@ class JuggJvmtiAgentManager(private val adb: IDeviceAdb, loggerArg: Logger) : IJ
 
     @Synchronized
     override fun pushAgentToApp(packageName: String): Boolean {
+        return pushAgentToAppInternal(packageName, null)
+    }
+
+    @Synchronized
+    fun pushAgentToApp(packageName: String, sandboxExecutor: AppSandboxExecutor): Boolean {
+        return pushAgentToAppInternal(packageName, sandboxExecutor)
+    }
+
+    private fun pushAgentToAppInternal(packageName: String, sandboxExecutor: AppSandboxExecutor?): Boolean {
         val isAgentBundlePushed = isAgentBundlePushed()
         logger.debug("pushAgentBundle isAgentBundlePushed: $isAgentBundlePushed")
         if (!isAgentBundlePushed) {
@@ -61,16 +71,30 @@ class JuggJvmtiAgentManager(private val adb: IDeviceAdb, loggerArg: Logger) : IJ
             }
         }
 
-        val isAgentPushed = isAgentPushed(packageName)
+        val isAgentPushed = isAgentPushed(packageName, sandboxExecutor)
         if (!isAgentPushed) {
             logger.debug("going to setup agent")
-            if (!setupAgent(packageName)) {
+            if (!setupAgent(packageName, sandboxExecutor)) {
                 logger.warn("[WARN ONLY] Push JVMTI agent to App failed, $WARN_REASON. Failed reason: $lastError")
                 return false
             }
         }
+        if (sandboxExecutor != null && !pushInstrumentationJarToApp(sandboxExecutor)) {
+            logger.warn("[WARN ONLY] Push instrumentation JAR to App failed, $WARN_REASON. Failed reason: $lastError")
+            return false
+        }
         logger.debug("Push JVMTI agent to App success")
         return true
+    }
+
+    private fun pushInstrumentationJarToApp(sandbox: AppSandboxExecutor): Boolean {
+        val output = sandbox.exec(
+            "mkdir -p $agentInAppPath && " +
+                "cp -f $agentDirPathOnDevice/jugg-instruments.jar $instrumentationJarInAppPath && " +
+                "chmod 0600 $instrumentationJarInAppPath && echo success || echo failed",
+            repairCodeCache = true,
+        )
+        return parseSuccess(output)
     }
 
     override fun removeAllAgents(): Boolean {
@@ -80,10 +104,44 @@ class JuggJvmtiAgentManager(private val adb: IDeviceAdb, loggerArg: Logger) : IJ
     }
 
     override fun attachAgentToApp(packageName: String): Boolean {
+        val sandbox = AppSandboxExecutor(adb, packageName, logger)
         val agentSuffix = if (is32AgentPushed(packageName)) "_alt.so" else ".so"
-        val appDir = "/data/data/$packageName"
-        val cmd = "am attach-agent $packageName $appDir/${agentSoDestPathStartsWith}${agentSuffix}=$appDir"
+        val appDir = sandbox.absolutePath("")?.removeSuffix("/") ?: return false
+        val agentPath = sandbox.absolutePath("${agentSoDestPathStartsWith}${agentSuffix}") ?: return false
+        val cmd = "am attach-agent $packageName $agentPath=$appDir"
         return execAdbShellCmd(cmd)
+    }
+
+    /**
+     * Copies the installed Jugg agent to a request-specific path for dynamic attach.
+     */
+    fun prepareHotReloadAgent(
+        packageName: String,
+        requestDir: String,
+        sandboxExecutor: AppSandboxExecutor? = null,
+    ): String? {
+        if (!pushAgentToAppInternal(packageName, sandboxExecutor)) {
+            return null
+        }
+        val sandbox = sandboxExecutor ?: AppSandboxExecutor(adb, packageName, logger)
+        val agentSuffix = if (is32AgentPushed(packageName, sandbox)) "_alt.so" else ".so"
+        val source = "${agentSoDestPathStartsWith}${agentSuffix}"
+        val destination = "$requestDir/jugg_jvmti_agent.so"
+        val output = sandbox.exec(
+            "cp -f $source $destination && chmod 0700 $destination && echo success || echo failed",
+            repairCodeCache = true,
+        )
+        if (!output.trim().endsWith("success")) {
+            lastError = output
+            return null
+        }
+        return sandbox.absolutePath(destination)
+    }
+
+    fun attachHotReloadAgent(pid: Int, agentPath: String, requestDir: String): Boolean {
+        return execAdbShellCmd(
+            "am attach-agent $pid $agentPath=jugg_hot_reload:$requestDir && echo success || echo failed",
+        )
     }
 
     private fun isAgentBundlePushed(): Boolean {
@@ -91,14 +149,20 @@ class JuggJvmtiAgentManager(private val adb: IDeviceAdb, loggerArg: Logger) : IJ
         return execAdbShellCmd(cmd)
     }
 
-    private fun isAgentPushed(packageName: String): Boolean {
-        val cmd = "run-as $packageName ls $agentSoDestPathStartsWith && echo success || echo failed"
-        return execAdbShellCmd(cmd)
+    private fun isAgentPushed(packageName: String, sandboxExecutor: AppSandboxExecutor? = null): Boolean {
+        val sandbox = sandboxExecutor ?: AppSandboxExecutor(adb, packageName, logger)
+        val result = sandbox.exec(
+            "ls ${agentSoDestPathStartsWith}*.so >/dev/null 2>&1 && echo success || echo failed",
+        )
+        return parseSuccess(result)
     }
 
-    private fun is32AgentPushed(packageName: String): Boolean {
-        val cmd = "run-as $packageName ls ${agentSoDestPathStartsWith}_alt.so && echo success || echo failed"
-        return execAdbShellCmd(cmd)
+    private fun is32AgentPushed(packageName: String, sandboxExecutor: AppSandboxExecutor? = null): Boolean {
+        val sandbox = sandboxExecutor ?: AppSandboxExecutor(adb, packageName, logger)
+        val result = sandbox.exec(
+            "ls ${agentSoDestPathStartsWith}_alt.so >/dev/null 2>&1 && echo success || echo failed",
+        )
+        return parseSuccess(result)
     }
 
     private fun pushAgentBundle(): Boolean {
@@ -116,26 +180,38 @@ class JuggJvmtiAgentManager(private val adb: IDeviceAdb, loggerArg: Logger) : IJ
         return execAdbShellCmd(cmd)
     }
 
-    private fun setupAgent(packageName: String): Boolean {
+    private fun setupAgent(packageName: String, sandboxExecutor: AppSandboxExecutor? = null): Boolean {
+        val sandbox = sandboxExecutor ?: AppSandboxExecutor(adb, packageName, logger)
         val scriptPath = "code_cache/jugg_agent_setup.sh"
-        // caution: run-as will back to normal user after execute first cmd, so don't execute multiple commands
-        // that needs package permission
-        val pushScriptCmd = "run-as $packageName cp $agentDirPathOnDevice/jugg_agent_setup.sh $scriptPath"
-            .and("echo success")
-            .or("echo failed")
-        val isPushScriptSuccess = execAdbShellCmd(pushScriptCmd)
+        val pushScriptOutput = sandbox.exec(
+            "mkdir -p code_cache && cp $agentDirPathOnDevice/jugg_agent_setup.sh $scriptPath && " +
+                "chmod 0700 $scriptPath && echo success || echo failed",
+            repairCodeCache = true,
+        )
+        val isPushScriptSuccess = parseSuccess(pushScriptOutput)
         if (!isPushScriptSuccess) {
             return false
         }
 
         val arch = adb.getArch(packageName)
-        val runScriptCmd = "run-as $packageName $scriptPath ${BuildConfig.AGENT_VERSION} $arch"
-        return execAdbShellCmd(runScriptCmd)
+        val runScriptOutput = sandbox.exec(
+            "$scriptPath ${BuildConfig.AGENT_VERSION} $arch && echo success || echo failed",
+            repairCodeCache = true,
+        )
+        return parseSuccess(runScriptOutput)
     }
 
     private fun execAdbShellCmd(cmd: String): Boolean {
         val result = adb.execAdbShellCmd(cmd).trim()
-        val isSuccess = result.endsWith("success")
+        val isSuccess = parseSuccess(result)
+        if (!isSuccess) {
+            lastError = result
+        }
+        return isSuccess
+    }
+
+    private fun parseSuccess(result: String): Boolean {
+        val isSuccess = result.trim().endsWith("success")
         if (!isSuccess) {
             lastError = result
         }

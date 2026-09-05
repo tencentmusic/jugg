@@ -69,6 +69,7 @@ class JuggDeployTask(
         )
         val idsSkippedInstall: MutableList<String> = ArrayList()
         val overlayIds = mutableMapOf<String, String>()
+        var needsRestartApp = false
 
         // Only the deployer transport receives APK-scoped data. Lifecycle state is still committed
         // by JuggDeployerHelper with the original full JuggDeployData after the whole deploy succeeds.
@@ -93,6 +94,7 @@ class JuggDeployTask(
                 if (result.needsRestart) {
                     launchContext.killBeforeLaunch = true
                     launchContext.launchApp = true
+                    needsRestartApp = true
                 }
                 overlayIds[applicationId] = result.overlayId ?: ""
             } catch (e: JuggDeployerException) {
@@ -115,7 +117,9 @@ class JuggDeployTask(
             )
             logger.info("%s. %s", title, content)
         }
-        return LaunchResult(true, 0, null, overlayIds)
+        return LaunchResult(true, 0, null, overlayIds).also {
+            it.needsRestartApp = needsRestartApp
+        }
     }
 
     private fun shouldTaskLaunchApp() = when(type) {

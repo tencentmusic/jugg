@@ -21,6 +21,7 @@ JVMTI Runtime 是 Jugg 部署后的运行时支撑能力。它负责把 Jugg age
 | JVMTI 可用性检测 | 支持 | App 重启后得到可用或不可用结果 |
 | 32 位与 64 位 App | 支持 | 自动选择与目标进程架构匹配的 Agent |
 | 运行时修正 hook | 支持 | 在 App 启动阶段处理命中的 ClassLoader、资源和系统兼容差异 |
+| Direct Activity relaunch | 支持 | 仅在 Restart Activity 模式下于 class 替换后重建 Activity，HOT_RELOAD 不变 |
 | 不兼容 app/device 记录 | 支持 | 后续部署直接进入兼容路径，避免重复尝试不可用的在线替换 |
 
 > [!NOTE]
@@ -38,6 +39,8 @@ JVMTI Runtime 是 Jugg 部署后的运行时支撑能力。它负责把 Jugg age
 ```
 
 Agent 必须在部署后准备，并在 App 重启后检测。具体时序和 Apply Changes Agent 的分工见 [Jugg JVMTI Agent](../../concepts/jugg-jvmti-agent.md)。
+
+Direct app sandbox 会额外把 instrumentation JAR 复制到 App 的 `code_cache`，避免系统/特权 App 进程映射 `/data/local/tmp` 文件时被 SELinux 拒绝。该兼容逻辑不影响普通 `run-as` 或 Android Studio deploy transport。
 
 ## 兼容部署如何触发
 

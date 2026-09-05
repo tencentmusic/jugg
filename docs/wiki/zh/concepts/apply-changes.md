@@ -31,7 +31,7 @@ deployment cache 记录了设备上一次成功安装或 Apply Changes 后的 AP
 
 ## class 分为在线修改和新增内容
 
-Apply Changes 对已加载 class 的在线修改依赖 JVMTI。Apply Changes Agent 取得 JVMTI 后，对 modified class 执行 class redefinition，因此方法体修改可以在不重启 App 进程的情况下生效；字段、方法签名或继承关系等结构变化不能沿用这条在线替换路径，需要转为 Hot Fix 并在 App 重启后加载。Jugg 目前直接复用这条热重载通道，JVMTI 兼容检测和运行时修正见 [Jugg JVMTI Agent](./jugg-jvmti-agent.md)。
+Apply Changes 对已加载 class 的在线修改依赖 JVMTI。Apply Changes Agent 取得 JVMTI 后，对 modified class 执行 class redefinition，因此方法体修改可以在不重启 App 进程的情况下生效；字段、方法签名或继承关系等结构变化不能沿用这条在线替换路径，需要转为 Hot Fix 并在 App 重启后加载。`run-as` 可完整执行、UID 位于 `10000..19999`，且新建文件与 App 既有缓存目录使用相同 SELinux label 的 App 直接复用这条通道；前提不成立、但普通 shell、root adbd 或非交互 `su` 能完整访问 sandbox 时，会改用 Jugg 自有 Agent，并先持久化同一份 overlay。详情见 [Jugg JVMTI Agent](./jugg-jvmti-agent.md)。
 
 Jugg 在部署前比较新旧 class 结构，并把 class 变化交给 Apply Changes 的两个输入集合。
 

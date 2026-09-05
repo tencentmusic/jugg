@@ -38,7 +38,6 @@ namespace deploy {
 const std::string agentVersion = AGENT_VERSION; // declared in build.gradle cppFlags
 const std::string kInstrumentationJarName = "/data/local/tmp/jugg/" + agentVersion + "/jugg-instruments.jar";
 const char* kBreadcrumbClass = "com/sickworm/intellij/jugg/instrument/Breadcrumb";
-const char* instrumentation_jar_hash = kInstrumentationJarName.c_str();
 
 const std::string MethodHooks::kNoHook = "";
 const std::string kNoCache = "";
@@ -64,7 +63,12 @@ void LogEvent(const std::string& message) {
   __android_log_write(ANDROID_LOG_INFO, LOG_TAG, message.c_str());
 }
 
-std::string GetInstrumentJarPath(const std::string& package_name) {
+std::string GetInstrumentJarPath(const std::string& app_data_dir) {
+    const std::string app_jar_path = app_data_dir + "/code_cache/startup_agents/" +
+        agentVersion + "-jugg-instruments.jar";
+    if (access(app_jar_path.c_str(), R_OK) == 0) {
+        return app_jar_path;
+    }
     return kInstrumentationJarName;
 }
 
@@ -86,7 +90,7 @@ bool LoadInstrumentationJar(jvmtiEnv* jvmti, JNIEnv* jni,
     jclass unused = jni->FindClass(kBreadcrumbClass);
     if (unused == nullptr) {
         ALOGI("No existing instrumentation found. Loading instrumentation from %s",
-               kInstrumentationJarName.c_str());
+               jar_path.c_str());
         jni->ExceptionClear();
         ALOGI("Load instrument jar: %s", jar_path.c_str());
         if (jvmti->AddToBootstrapClassLoaderSearch(jar_path.c_str()) !=
@@ -154,7 +158,7 @@ bool Instrument(jvmtiEnv* jvmti, JNIEnv* jni, const std::string& jar,
     // Ensure that the jar hasn't changed since we last instrumented. If it has,
     // fail out for now. This is an important scenario to guard against, since it
     // would likely cause silent failures.
-    jstring jar_hash = jni->NewStringUTF(instrumentation_jar_hash);
+    jstring jar_hash = jni->NewStringUTF(jar.c_str());
     jboolean matches = breadcrumb.CallStaticBooleanMethod(
         "checkHash", "(Ljava/lang/String;)Z", jar_hash);
     jni->DeleteLocalRef(jar_hash);
@@ -163,7 +167,7 @@ bool Instrument(jvmtiEnv* jvmti, JNIEnv* jni, const std::string& jar,
         ALOGE(
             "The instrumentation jar at %s does not match the jar previously used "
             "to instrument. The application must be restarted.",
-            kInstrumentationJarName.c_str());
+            jar.c_str());
         return false;
     }
 
@@ -215,6 +219,12 @@ bool Instrument(jvmtiEnv* jvmti, JNIEnv* jni, const std::string& jar,
         "(Landroid/content/res/ResourcesKey;Landroid/app/ResourcesManager$ApkAssetsSupplier;)Landroid/content/res/AssetManager;", // used in Android 14 at least
         "createAssetManagerNewEnter", "createAssetManagerNewExit");
 
+    const HookTransform loadedApk(
+        "android/app/LoadedApk",
+        "getResources",
+        "()Landroid/content/res/Resources;",
+        "prepareResourceOverlays", "addResourceOverlays");
+
     const MethodHooks sendMessage(
         "sendMessage",
         "(ILjava/lang/Object;IIZ)V",
@@ -251,7 +261,7 @@ bool Instrument(jvmtiEnv* jvmti, JNIEnv* jni, const std::string& jar,
         kNoCache,
         { &application, &appComponentFactory, &resManager, &activityThread,
           &classLoader });
-    ApplyTransforms(jvmti, jni, kNoCache, { &resManagerNew });
+    ApplyTransforms(jvmti, jni, kNoCache, { &resManagerNew, &loadedApk });
   }
 
   // Failing to disable this event does not actually have any bearing on
@@ -311,7 +321,7 @@ extern "C" void JNICALL Agent_ClassFileLoadHook(
 }
 
 bool InstrumentApplication(jvmtiEnv* jvmti, JNIEnv* jni,
-                           const std::string& package_name, bool overlay_swap) {
+                           const std::string& app_data_dir, bool overlay_swap) {
     jvmtiEventCallbacks callbacks;
     callbacks.ClassFileLoadHook = Agent_ClassFileLoadHook;
 
@@ -321,7 +331,7 @@ bool InstrumentApplication(jvmtiEnv* jvmti, JNIEnv* jni,
         return false;
     }
 
-    std::string instrument_jar_path = GetInstrumentJarPath(package_name);
+    std::string instrument_jar_path = GetInstrumentJarPath(app_data_dir);
 
     if (!LoadInstrumentationJar(jvmti, jni, instrument_jar_path)) {
         ALOGE("Error loading instrumentation dex.");
@@ -334,6 +344,21 @@ bool InstrumentApplication(jvmtiEnv* jvmti, JNIEnv* jni,
     }
 
     return true;
+}
+
+bool LoadInstrumentationJarForApp(jvmtiEnv* jvmti, JNIEnv* jni,
+                                  const std::string& app_data_dir) {
+    jclass relauncher = jni->FindClass(
+        "com/sickworm/intellij/jugg/instrument/DirectActivityRelauncher");
+    if (relauncher != nullptr && !jni->ExceptionCheck()) {
+        jni->DeleteLocalRef(relauncher);
+        return true;
+    }
+    jni->ExceptionClear();
+    const std::string jar_path = GetInstrumentJarPath(app_data_dir);
+    ALOGI("Loading Direct runtime from %s", jar_path.c_str());
+    return jvmti->AddToBootstrapClassLoaderSearch(jar_path.c_str()) ==
+        JVMTI_ERROR_NONE;
 }
 
 

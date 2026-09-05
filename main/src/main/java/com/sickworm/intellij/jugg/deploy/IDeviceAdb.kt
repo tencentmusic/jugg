@@ -18,6 +18,11 @@ interface IDeviceAdb {
     fun execAdbShellCmd(cmd: String): String
 
     /**
+     * Requests root adbd once and waits for the same serial to reconnect as a usable device.
+     */
+    fun requestRootAdbd(): Boolean = false
+
+    /**
      * Returns true when the adb transport can accept a lightweight shell command.
      */
     fun isAdbTransportReady(): Boolean {
