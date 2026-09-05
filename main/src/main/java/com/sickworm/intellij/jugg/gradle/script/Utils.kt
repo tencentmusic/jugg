@@ -79,6 +79,15 @@ fun guessBuildVariant(
         return@filter manifestTaskName in taskNames || taskNames.any { taskName -> taskName.contains(capitalizedName) }
     }
 
+    val requestedVariant = variants.filter { variant ->
+        startTaskNames.orEmpty().any { taskName ->
+            taskName.substringAfterLast(':').endsWith(variant.name, ignoreCase = true)
+        }
+    }.maxByOrNullForKt14 { it.name.length }
+    if (requestedVariant != null && (executedVariants.isEmpty() || requestedVariant in executedVariants)) {
+        return requestedVariant.name
+    }
+
     val isRelease = startTaskNames?.any { it.contains("release", ignoreCase = true) } ?: false
     val priorityVariant = if (isRelease) "release" else "debug"
 
