@@ -75,6 +75,7 @@ CLI 和 MCP 的调用参数只影响本次调用，不等同于永久修改 IDE 
 
 | 路径 | 用途 |
 |---|---|
+| `~/.jugg/resources/` | Jugg 内置工具和运行资源。Standalone Deployer 在该目录只保留一份并自动刷新；AAPT2 使用自身带版本的工具文件。 |
 | `~/.jugg/const_ref/` | 跨项目常量引用缓存。 |
 | `~/.jugg/library_test_build_records/` | library androidTest 构建历史。 |
 | `~/.cache/jugg/port` | CLI MCP 端口缓存。 |

@@ -310,7 +310,7 @@ internal class StandaloneProjectServices(
 
     internal fun deployEnvironment(): StandaloneDeployEnvironment {
         deployEnvironmentInside?.let { return it }
-        return StandaloneDeployEnvironment(getDeviceManager(), juggServer.version, logger).also {
+        return StandaloneDeployEnvironment(getDeviceManager(), logger).also {
             deployEnvironmentInside = it
         }
     }

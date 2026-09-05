@@ -108,7 +108,7 @@ Hot update
 - `JuggServer` 的 runtime identity 必须由 Host 注入 `RuntimeInfo`；IDEA、CI、standalone 不得在共享 Server 内推断 plugin/IDE metadata。事件保留后端兼容的 `version/ide_version` 字段，实际值分别来自 `runtimeVersion/hostVersion`；`runtimeType` 仅用于 Runtime 锁 owner identity，不进入事件上报。
 - `JuggServer` 使用挂在 Runtime Scope 下的 `SupervisorJob` 执行更新检查、上报和自定义编译器下载等辅助任务；Runtime dispose 仍会取消这些任务，但任一辅助任务的未捕获异常不得反向取消编译、部署和 TaskRunner 共用的 Runtime Scope。
 - hot update jar 和 metadata 写入必须经过 `JuggHotUpdateManager` 的全局锁与原子替换；IDEA 与 standalone 共享 immutable JAR 内容池但使用独立 manifest。`isNeedReinstall=true` 不得更新任一 active manifest，只有新插件 `releaseBuildId` 与 candidate 精确一致才能激活 standalone snapshot；旧 Gson JSON 的 nullable standalone 字段统一以 `orEmpty()` 消费。
-- 未引用 hot update jar 保留 90 天；MCP fetch artifact 独立按 30 天清理。runtime/deployer 内容版本资源策略推迟到 standalone deployer 落地时确定。
+- 未引用 hot update jar 保留 90 天；MCP fetch artifact 独立按 30 天清理。Standalone Deployer 固定使用 `~/.jugg/resources/deployer/quail` 单份资源，每次准备时在全局写锁内原子覆盖；tooling 完整安装停止旧 daemon 后删除历史 `~/.jugg/runtime`。AAPT2 仍使用 `resources/tools/<os>/aapt2-inclink-<version>`，不复用 deployer 的覆盖策略。
 - APK 修改链路依赖 `PlatformApi.allAvailableJavaHomes()` 寻找可用签名 JDK；每次重试会移除已有的 `JAVA_HOME` 并写入当前候选，即使原环境未设置该变量也能真正切换 JDK。签名失败不要只看 apksigner 输出，也要检查 host Java home 列表。
 - `ApkFileModifier.insertAndResign()` 在同目录临时副本上完成插入、对齐、签名和校验，校验复用实际签名成功时的 JDK 环境，全部成功后才替换原 APK；任一阶段失败时保留原 APK，并 best-effort 清理临时文件。
 - `ApkFileModifier` 调用 zipalign 和 apksigner 时按宿主 shell 逐项转义参数；SDK、APK、keystore 路径包含空格、括号或 Unicode 字符时仍作为单个参数传递。

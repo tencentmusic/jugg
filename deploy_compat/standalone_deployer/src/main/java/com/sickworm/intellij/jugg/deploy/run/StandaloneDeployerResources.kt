@@ -7,13 +7,10 @@ import com.sickworm.intellij.jugg.project.runtime.PreparedRuntimeResource
 /** Prepares the fixed Quail installer bundle and rejects installer protocol mismatches. */
 object StandaloneDeployerResources {
 
-    fun prepare(juggVersion: String): PreparedRuntimeResource {
+    fun prepare(): PreparedRuntimeResource {
         val prepared = JuggResourceManager(
             classLoader = StandaloneDeployerResources::class.java.classLoader,
-        ).prepare(
-            resourceRoot = "deployer/quail",
-            targetRelativePath = "runtime/$juggVersion/deployer/quail",
-        )
+        ).prepare(resourceRoot = "deployer/quail")
         check(prepared.metadata.protocolVersion == Version.hash()) {
             "Standalone deployer protocol mismatch: Java=${Version.hash()}, installer=${prepared.metadata.protocolVersion}"
         }

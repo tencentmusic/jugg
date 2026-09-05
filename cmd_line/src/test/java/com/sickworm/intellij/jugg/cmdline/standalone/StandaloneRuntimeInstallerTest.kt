@@ -39,6 +39,26 @@ class StandaloneRuntimeInstallerTest {
     }
 
     @Test
+    fun `install removes legacy runtime resources and preserves shared resources`() {
+        val root = Files.createTempDirectory("jugg-standalone-resource-migration").toFile()
+        val juggRoot = root.resolve("home")
+        juggRoot.resolve("runtime/old-version/deployer/quail/installer").apply {
+            parentFile.mkdirs()
+            writeText("legacy")
+        }
+        val sharedResource = juggRoot.resolve("resources/tools/aapt2").apply {
+            parentFile.mkdirs()
+            writeText("shared")
+        }
+
+        StandaloneRuntimeInstaller(juggRoot, root.resolve("bin"))
+            .installValidated(bundle(root.resolve("bundle"), "build-1", "runtime"))
+
+        assertFalse(juggRoot.resolve("runtime").exists())
+        assertEquals("shared", sharedResource.readText())
+    }
+
+    @Test
     fun `standalone launcher raises file descriptor limit for java`() {
         assumeFalse(System.getProperty("os.name").startsWith("Windows", ignoreCase = true))
         val root = Files.createTempDirectory("jugg-standalone-nofile").toFile()

@@ -25,7 +25,7 @@
 | deploy API converters | `deploy_compat/v_chipmunk/.../LegacyDeployApiConverter.kt`、`deploy_compat/v_quail/.../QuailDeployApiConverter.kt`、`deploy_compat/standalone_deployer/.../StandaloneDeployApiConverter.java` | 在版本 API 边界转换自有类型与真实 ddmlib/deployer/protobuf 类型；Device 通过公共 runtime handle 解包，APK 直接携带当前进程的 transient runtime object，converter 不保存 APK origin map |
 | `JuggDeployCompatTypes` | `deploy_compat/interface/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployCompatTypes.kt` | 运行时中立 wrapper；`JuggInstallSession` 同时记录成功创建它的 executor，使 installer、overlay、cache 和 redefiner 留在同一 Apply Changes runtime |
 | `StandaloneApplyChangesExecutor` / `StandaloneDeployerResources` | `deploy_compat/standalone_deployer/src/main/java/com/sickworm/intellij/jugg/deploy/run/` | Java 11 standalone install/session/cache/optimistic swap 实现，以及固定 Quail installer/protocol 资源预检 |
-| `JuggResourceManager` | `main/src/main/java/com/sickworm/intellij/jugg/project/runtime/JuggResourceManager.kt` | 在全局写锁内按 metadata 原子释放资源，校验 SHA-256 并修复损坏文件 |
+| `JuggResourceManager` | `main/src/main/java/com/sickworm/intellij/jugg/project/runtime/JuggResourceManager.kt` | 将 classpath 资源固定映射到全局 `resources` 目录，并在全局写锁内通过临时文件原子刷新 |
 | `JuggDeploymentCacheStore` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/cache/JuggDeploymentCacheStore.kt` | 项目级 deployment 磁盘 checkpoint；在项目锁内持久化 APK path 与 overlay snapshot，使用临时文件原子替换，不依赖 AS deployer runtime 类型；IDEA Service 另保留 Runtime 本地 memoryCache |
 | `*AsDeployerCompat` | `deploy_compat/v_*/src/main/java/com/sickworm/intellij/jugg/deploy/run/` | 各 Android Studio 版本的具体 API 适配实现 |
 | `StubApiGenerator` | `tools/stub_api_generator/` | 从 compat 编译产物引用闭包和显式 Android Studio JAR 目录生成版本化编译 Stub API |
@@ -92,7 +92,9 @@ Meerkat～Panda 与 Quail 的设备选择通过 `DeployTargetContext` 获取当�
 
 `deploy_compat/standalone_deployer` 固定 Android Studio Quail 1 build `AI-261.23567.138.2611.15503007`，只保留 install、APK model/cache、diff、D8 split 和 `OptimisticApkSwapper` 的实际传递闭包，并以 Java 11 重新编译。运行时禁止依赖完整 `sdk-tools.jar` 或任何 class major version 65 的 Quail class；协议仅由仓库内 Java 8 `deploy_java_proto.jar`、`studio-proto.jar` 与四 ABI installer binary 组成。
 
-资源 metadata 的 protocol version 必须与 `Version.hash()` 一致。`JuggResourceManager` 将 installer、Apache 2.0 license、NOTICE 和 `SOURCE_CLASSES.sha256` 释放到 `~/.jugg/runtime/<runtimeVersion>/deployer/quail`；缺失文件在全局写锁内通过临时文件原子释放，已有文件直接复用并恢复可执行权限。运行时不校验嵌入资源或 Java protocol dependency 的 SHA-256；Java/installer 协议不一致时 daemon 启动立即失败。后续确实需要同版本替换资源时，再设计独立的资源更新机制。
+资源 metadata 的 protocol version 必须与 `Version.hash()` 一致。`JuggResourceManager` 将 installer、Apache 2.0 license、NOTICE 和 `SOURCE_CLASSES.sha256` 固定释放到 `~/.jugg/resources/deployer/quail`；每次准备都在全局写锁内复制到同目录临时文件，设置可执行权限后原子替换正式文件。运行时不校验嵌入资源或 Java protocol dependency 的 SHA-256；Java/installer 协议不一致时 daemon 启动立即失败。AAPT2 继续使用 `~/.jugg/resources/tools/<os>/aapt2-inclink-<version>`，只共享资源根目录，不合并文件命名和替换策略。
+
+单份覆盖要求 Standalone Deployer 保持严格向后兼容：metadata `schemaVersion` 固定为 `1`，当前 `Version.hash()` / protocol version 固定为 `c52d6b25`，`arm64-v8a`、`armeabi-v7a`、`x86`、`x86_64` 四个 installer 路径保持稳定。后续只能增加旧 Runtime 可忽略的可选内容；不兼容的协议或目录调整必须建立新的迁移边界，不能继续覆盖该目录。tooling 完整安装在提交新 active manifest 并停止旧 daemon 后，重新取得全局锁删除历史 `~/.jugg/runtime`，但保留 `~/.jugg/resources`。
 
 Standalone 使用真实 ddmlib `AdbClient`，不依赖 Quail IDE runtime 的 adblib application session。D8 split 生成的字段重初始化状态会经自有 `DexClass` 往返并交给 `OptimisticApkSwapper`，禁止在边界转换中丢弃。类 Apply Changes 调用 `OptimisticApkSwapper(restartActivity=false)`；资源 full swap 与现有 IDEA `JuggDeployer.fullSwap` 一致，使用 `restartActivity=true` 刷新 `AssetManager/Resources`，进程保持不变且 Activity 只发生一次预期重启。Step 9 只落地 executor 和资源，不迁移 IDEA deploy lifecycle，也不注册 standalone MCP deploy 能力。
 

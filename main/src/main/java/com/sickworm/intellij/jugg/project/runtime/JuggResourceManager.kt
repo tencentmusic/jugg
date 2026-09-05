@@ -4,10 +4,11 @@ import com.google.gson.Gson
 import java.io.File
 import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
+import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 import java.util.UUID
 
-/** Describes one file embedded in a versioned runtime resource bundle. */
+/** Describes one file embedded in a runtime resource bundle. */
 data class RuntimeResourceFile(
     val path: String,
     val executable: Boolean = false,
@@ -26,18 +27,24 @@ data class PreparedRuntimeResource(
     val metadata: RuntimeResourceMetadata,
 )
 
-/** Extracts missing classpath runtime resources under the shared global write lock. */
+/** Refreshes classpath runtime resources under the shared global write lock. */
 class JuggResourceManager(
     private val classLoader: ClassLoader = JuggResourceManager::class.java.classLoader,
     private val globalRootDir: File = JuggGlobalPathManager.rootDir,
 ) {
 
-    fun prepare(resourceRoot: String, targetRelativePath: String): PreparedRuntimeResource {
+    fun prepare(resourceRoot: String): PreparedRuntimeResource {
+        check(!Path.of(resourceRoot).isAbsolute) { "Runtime resource root is absolute: $resourceRoot" }
         val normalizedRoot = resourceRoot.trim('/')
+        check(normalizedRoot.isNotBlank()) { "Runtime resource root is empty" }
+        val resourcePath = Path.of(normalizedRoot)
+        check(resourcePath.none { it.toString() == "." || it.toString() == ".." }) {
+            "Runtime resource root contains traversal: $resourceRoot"
+        }
         val metadata = readMetadata(normalizedRoot)
         validateMetadata(metadata)
         return withGlobalResourceLock("Prepare runtime resource", globalRootDir) {
-            val targetDir = resolveTarget(targetRelativePath)
+            val targetDir = resolveTarget(normalizedRoot)
             metadata.files.forEach { prepareFile(normalizedRoot, targetDir, it) }
             PreparedRuntimeResource(targetDir, metadata)
         }
@@ -62,38 +69,49 @@ class JuggResourceManager(
         }
     }
 
-    private fun resolveTarget(targetRelativePath: String): File {
-        val targetDir = File(globalRootDir, targetRelativePath).canonicalFile
-        val root = globalRootDir.canonicalFile
-        check(targetDir.toPath().startsWith(root.toPath())) { "Runtime resource target escapes Jugg home" }
-        targetDir.mkdirs()
-        return targetDir
+    private fun resolveTarget(resourceRoot: String): File {
+        val configuredResourcesPath = JuggGlobalPathManager.resourceFile("", globalRootDir).absoluteFile.toPath().normalize()
+        check(!Files.isSymbolicLink(configuredResourcesPath)) { "Shared runtime resource directory is a symbolic link" }
+        Files.createDirectories(configuredResourcesPath)
+        val resourcesPath = configuredResourcesPath.toRealPath()
+        val targetPath = resourcesPath.resolve(resourceRoot).normalize()
+        check(targetPath != resourcesPath && targetPath.startsWith(resourcesPath)) {
+            "Runtime resource target escapes the shared resource directory"
+        }
+        createDirectoriesWithoutSymbolicLinks(resourcesPath, targetPath)
+        return targetPath.toFile()
     }
 
     private fun prepareFile(resourceRoot: String, targetDir: File, entry: RuntimeResourceFile) {
-        val target = File(targetDir, entry.path).canonicalFile
-        check(target.toPath().startsWith(targetDir.canonicalFile.toPath())) {
+        val targetRoot = targetDir.toPath()
+        val targetPath = targetRoot.resolve(entry.path).normalize()
+        check(targetPath != targetRoot && targetPath.startsWith(targetRoot)) {
             "Runtime resource path escapes target directory: ${entry.path}"
         }
-        if (target.isFile) {
-            if (entry.executable) check(target.setExecutable(true, true)) {
-                "Cannot make runtime resource executable: ${entry.path}"
-            }
-            return
-        }
+        createDirectoriesWithoutSymbolicLinks(targetRoot, checkNotNull(targetPath.parent))
+        val target = targetPath.toFile()
         val resourcePath = "$resourceRoot/${entry.path}"
         val input = classLoader.getResourceAsStream(resourcePath)
             ?: throw IllegalStateException("Runtime resource not found: $resourcePath")
-        target.parentFile.mkdirs()
         val tempFile = File(target.parentFile, "${target.name}.${UUID.randomUUID()}.tmp")
         try {
             input.use { source -> tempFile.outputStream().use { output -> source.copyTo(output) } }
-            moveAtomically(tempFile, target)
-            if (entry.executable) check(target.setExecutable(true, true)) {
+            if (entry.executable) check(tempFile.setExecutable(true, true)) {
                 "Cannot make runtime resource executable: ${entry.path}"
             }
+            moveAtomically(tempFile, target)
         } finally {
             tempFile.delete()
+        }
+    }
+
+    private fun createDirectoriesWithoutSymbolicLinks(root: Path, target: Path) {
+        check(target.startsWith(root)) { "Runtime resource directory escapes the shared resource directory" }
+        var current = root
+        root.relativize(target).forEach { name ->
+            current = current.resolve(name)
+            check(!Files.isSymbolicLink(current)) { "Runtime resource directory is a symbolic link: $current" }
+            Files.createDirectories(current)
         }
     }
 

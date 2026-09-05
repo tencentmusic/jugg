@@ -75,6 +75,7 @@ All paths are relative to the project root by default.
 
 | Path | Purpose |
 |---|---|
+| `~/.jugg/resources/` | Built-in Jugg tools and runtime resources. Standalone Deployer keeps one automatically refreshed copy here, while AAPT2 uses its own versioned tool file. |
 | `~/.jugg/const_ref/` | Cross-project constant-reference cache. |
 | `~/.jugg/library_test_build_records/` | Library androidTest build history. |
 | `~/.cache/jugg/port` | CLI MCP port cache. |

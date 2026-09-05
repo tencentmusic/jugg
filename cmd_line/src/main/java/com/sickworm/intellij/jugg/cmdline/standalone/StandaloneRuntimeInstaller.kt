@@ -3,11 +3,17 @@ package com.sickworm.intellij.jugg.cmdline.standalone
 import com.google.gson.Gson
 import com.sickworm.intellij.jugg.ai.skills.PythonRuntimeResolver
 import java.io.File
+import java.io.IOException
 import java.nio.channels.FileChannel
 import java.nio.file.AtomicMoveNotSupportedException
+import java.nio.file.FileVisitResult
 import java.nio.file.Files
+import java.nio.file.LinkOption
+import java.nio.file.Path
+import java.nio.file.SimpleFileVisitor
 import java.nio.file.StandardCopyOption
 import java.nio.file.StandardOpenOption
+import java.nio.file.attribute.BasicFileAttributes
 import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
 import javax.tools.ToolProvider
@@ -72,6 +78,7 @@ class StandaloneRuntimeInstaller(private val juggRootDir: File, private val binD
             writeAtomically(activeManifestFile, bundle.manifest)
         }
         stopRunningDaemons()
+        withGlobalLock { deleteLegacyRuntimeResources() }
     }
 
     fun readActiveManifest(): StandaloneRuntimeManifest? = readManifest(activeManifestFile)
@@ -220,6 +227,24 @@ class StandaloneRuntimeInstaller(private val juggRootDir: File, private val binD
         check(daemons.none(ProcessHandle::isAlive)) {
             "Failed to stop standalone daemon processes: ${daemons.filter(ProcessHandle::isAlive).map(ProcessHandle::pid)}"
         }
+    }
+
+    /** Deletes the obsolete versioned deployer directory without following symbolic links. */
+    private fun deleteLegacyRuntimeResources() {
+        val runtimeDir = juggRootDir.resolve("runtime").toPath()
+        if (!Files.exists(runtimeDir, LinkOption.NOFOLLOW_LINKS)) return
+        Files.walkFileTree(runtimeDir, object : SimpleFileVisitor<Path>() {
+            override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
+                Files.delete(file)
+                return FileVisitResult.CONTINUE
+            }
+
+            override fun postVisitDirectory(dir: Path, exception: IOException?): FileVisitResult {
+                if (exception != null) throw exception
+                Files.delete(dir)
+                return FileVisitResult.CONTINUE
+            }
+        })
     }
 
     private fun isStandaloneDaemon(process: ProcessHandle, rootPath: String): Boolean {

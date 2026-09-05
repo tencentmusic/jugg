@@ -21,11 +21,11 @@ import java.io.File
 
 /** Connects shared deployment to standalone logging and ddmlib devices. */
 class StandaloneDeployEnvironment(
-    private val deviceManager: StandaloneDeviceManager, runtimeVersion: String, private val logger: Logger,
+    private val deviceManager: StandaloneDeviceManager, private val logger: Logger,
 ) : IDeployHost {
     override val applyChangesExecutor: IApplyChangesExecutor = StandaloneApplyChangesExecutor()
     override val isDirectOverlayEnabled: Boolean = false
-    private val installersRoot = StandaloneDeployerResources.prepare(runtimeVersion).directory.resolve("installer").path
+    private val installersRoot = StandaloneDeployerResources.prepare().directory.resolve("installer").path
 
     override fun installersRoot(): String = installersRoot
     override fun createDeployDebugger(applyChangesExecutor: IApplyChangesExecutor): IDeployDebugger = NoDeployDebugger

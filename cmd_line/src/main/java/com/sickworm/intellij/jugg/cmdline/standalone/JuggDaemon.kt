@@ -25,7 +25,7 @@ class JuggDaemon(
 
     fun start(projectDirs: List<File>): Int {
         require(projectDirs.isNotEmpty()) { "At least one project directory is required" }
-        StandaloneDeployerResources.prepare(runtimeInfo.runtimeVersion)
+        StandaloneDeployerResources.prepare()
         projectDirs.forEach(registry::initialize)
         McpLocalServer.start(idleTimer::recordExternalActivity)
         check(McpLocalServer.isRunning()) { "Failed to start standalone MCP server" }

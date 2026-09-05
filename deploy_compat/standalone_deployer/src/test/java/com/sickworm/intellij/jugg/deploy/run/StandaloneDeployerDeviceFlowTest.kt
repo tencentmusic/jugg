@@ -44,7 +44,7 @@ class StandaloneDeployerDeviceFlowTest {
         val executor = StandaloneApplyChangesExecutor()
         val converter = StandaloneDeployApiConverter()
         val juggDevice = converter.toJuggDevice(device)
-        val prepared = StandaloneDeployerResources.prepare("device-flow")
+        val prepared = StandaloneDeployerResources.prepare()
         val logger = StdLogger(StdLogger.Level.VERBOSE)
         val baseline = executor.parseApks(listOf(baselineApk!!.path))
         val packageName = executor.getPackageName(baseline)

@@ -25,8 +25,11 @@ class StandaloneDeployerResourceTest {
     fun `prepare validates protocol and extracts all installer binaries`() {
         JuggGlobalPathManager.rootDir = temporaryFolder.newFolder("jugg-home")
 
-        val prepared = StandaloneDeployerResources.prepare("test-version")
+        val prepared = StandaloneDeployerResources.prepare()
 
+        assertEquals(JuggGlobalPathManager.resourceFile("deployer/quail").canonicalFile, prepared.directory)
+        assertEquals(1, prepared.metadata.schemaVersion)
+        assertEquals("c52d6b25", Version.hash())
         assertEquals(Version.hash(), prepared.metadata.protocolVersion)
         listOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64").forEach { abi ->
             assertTrue(prepared.directory.resolve("installer/$abi/installer").isFile)
