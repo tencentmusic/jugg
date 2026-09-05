@@ -1,6 +1,6 @@
 # 部署系统：核心部署机制
 
-> 最后核对：2026-07-30
+> 最后核对：2026-09-05
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -13,7 +13,7 @@
 - **主链路怎么走**：把跨类调用链和状态机写清楚，减少逐层 Go to Definition。
 - **代码不显眼的约束是什么**：overlay id、Direct Overlay、multi APK、retry/recover 的设计边界。
 
-不展开编译产物如何生成；影响分析看 `03_deploy_data_generator.md`，端到端 Run 链路看 `03_deploy_complete.md`，JVMTI 细节看 `03_runtime_jvmti.md`。
+不展开编译产物如何生成；影响分析看 `03_deploy_data_generator.md`，端到端 Run 链路看 `03_deploy_complete.md`，JVMTI 细节看 `03_runtime_jvmti.md`，系统应用首次落入 `/system` 的约束看 `03_deploy_system_app.md`。
 
 ---
 
