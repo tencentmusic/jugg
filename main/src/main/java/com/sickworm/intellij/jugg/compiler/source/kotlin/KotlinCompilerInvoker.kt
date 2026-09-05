@@ -29,6 +29,8 @@ class KotlinCompilerInvoker {
 
     private var hasRetryCompile = false
     private val ideFileSystemConflictCompilerKeys = mutableSetOf<String>()
+    // Source files that only compile when the SDK android.jar is moved behind the project classpath.
+    private val postponedAndroidJarFiles = mutableSetOf<String>()
     private var tryDisablePlugins: List<File> = emptyList()
     private var disablePlugins: List<File> = emptyList()
     private var tryDisableProjectPluginOptionId: String? = null
@@ -120,6 +122,7 @@ class KotlinCompilerInvoker {
         val commonSourceFiles: List<File> = emptyList(),
         val isNeedComplementaryFiles: Boolean = false,
         val expectActualSourceFiles: List<File> = emptyList(),
+        val isPostponeSdkAndroidJar: Boolean = false,
     )
 
     fun readComplementaryFiles(
@@ -367,12 +370,21 @@ class KotlinCompilerInvoker {
         }
 
         var classPathArgs = listOf<String>()
-        val dependencies = context.getModuleDependencies(module, task).map {
+        val resolvedDependencies = context.getModuleDependencies(module, task).map {
             if (isolatedBaseline != null && File(it).absoluteFile.normalize() == kotlinClassPath.absoluteFile.normalize()) {
                 isolatedBaseline.path
             } else {
                 it
             }
+        }
+        val isKnownPostponeAndroidJarTask = task.files.any { it.file.absolutePath in postponedAndroidJarFiles }
+        val dependencies = if (options.isPostponeSdkAndroidJar || isKnownPostponeAndroidJarTask) {
+            if (isKnownPostponeAndroidJarTask) {
+                logger.debug("Task contains a file known to need android.jar last, skip the failing attempt")
+            }
+            AndroidJarClasspathRetry.postponeSdkAndroidJar(resolvedDependencies)
+        } else {
+            resolvedDependencies
         }
         if (dependencies.isNotEmpty()) {
             classPathArgs = listOf(
@@ -494,6 +506,32 @@ class KotlinCompilerInvoker {
             )
             return compile(context, module, task, logger, options)
         }
+
+        // handles a public SDK android.jar shadowing a more complete framework jar behind it
+        val shadowedSupertypeFiles = compileResults.mapNotNull { result ->
+            val error = result.getFailureOrNull() ?: return@mapNotNull null
+            // a broadcast diagnostic does not tell which file needs the postponed classpath
+            if (!error.hasDirectSourceDiagnostic) return@mapNotNull null
+            val messages = error.errors.map { it.second }
+            if (!AndroidJarClasspathRetry.isShadowedSupertypeDiagnostic(messages)) return@mapNotNull null
+            error.file.file.absolutePath
+        }
+        if (shadowedSupertypeFiles.isNotEmpty() && options.isCanAutoRetry && !hasRetryCompile &&
+            AndroidJarClasspathRetry.postponeSdkAndroidJar(dependencies) != dependencies) {
+            hasRetryCompile = true
+            logger.warn("Kotlin compile failed because SDK android.jar shadows a later classpath type, " +
+                    "retry once with android.jar last.")
+            val firstResult = CompileResult(task, compileResults, emptyList())
+            val retryResult = compile(context, module, task, logger,
+                options.copy(isCanAutoRetry = false, isPostponeSdkAndroidJar = true))
+            if (retryResult.isAllSuccess) {
+                postponedAndroidJarFiles.addAll(shadowedSupertypeFiles)
+                return retryResult
+            }
+            logger.debug("Retry with android.jar last still failed, report the first diagnostics")
+            return firstResult
+        }
+
         var shouldRecreate = false
         var retryReason = ""
         if (exitCode != ExitCode.OK && errorResults > JuggSettings.minErrorToRecreateCompiler) {

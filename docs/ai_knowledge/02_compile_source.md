@@ -24,6 +24,7 @@
 | `DataBindingGenMapperCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/databinding/DataBindingGenMapperCompiler.kt` | DataBinding mapper 生成实现 |
 | `KotlinCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/source/kotlin/KotlinCompiler.kt` | Kotlin 源码编译入口 |
 | `KotlinCompilerInvoker` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/source/kotlin/KotlinCompilerInvoker.kt` | Kotlin CLI 参数、插件参数、错误解析与重试 |
+| `AndroidJarClasspathRetry` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/source/kotlin/AndroidJarClasspathRetry.kt` | 识别 supertype 无法访问诊断，并把首个 SDK `android.jar` 后置到 classpath 末尾 |
 | `IKmModuleMergerForCompilation` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/source/kotlin/IKmModuleMergerForCompilation.kt` | 读取并合并模块 classpath 中的 `.kotlin_module`，保留顶层声明与 file facade 元数据 |
 | `KotlinComplementaryFilesCache` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/source/kotlin/KotlinComplementaryFilesCache.kt` | 按需定位并读取项目 Kotlin Gradle incremental cache 的 complementary files |
 | `ComposeResourceCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/compose/ComposeResourceCompiler.kt` | 在常规 source 阶段前，以一次 Kotlin invocation 编译 Compose generated expect/actual sources |
@@ -158,6 +159,7 @@ Kotlin 1.9 的 baseline Kotlin output 可能同时包含 dirty expect/actual clo
 - generated Kotlin 编译失败时，`KotlinCompilerInvoker` 的原始行号和 diagnostic 文本会聚合回原 Compose resource 输入，不能替换成通用失败文案。
 - Compose resource 编译按 generator task/API 结构识别能力，不使用 Kotlin/Compose 精确版本白名单；Kotlin 1.9、2.1、2.3 profile 均有定向回归。
 - IDE JVM 也是进程内 Kotlin compiler 的宿主环境。旧 Kotlin compiler 的 shaded `JavaVersion.current()` 在新宿主 JDK 上可能解析失败；`KotlinCompilerHostCompat` 只在探测失败时预置宿主 feature，宿主 JDK >= 25 且 classpath 含 android.jar 时，`KotlinCompilerInvoker` 同时添加 `-no-jdk`。recreate compiler 不会改变宿主环境，因此相同 `INTERNAL_ERROR` 重试失败时应检查 `preset shaded JavaVersion.current to`、`add -no-jdk` 和实际项目 Kotlin 版本。
+- ROM/车机系统应用的 framework、HideAPI jar 以普通依赖排在 SDK `android.jar` 之后时，Kotlin 解析嵌套类型会先命中前置的公开 stub，报 `cannot access ... which is a supertype of ...` 或 `unresolved supertypes:`。命中该诊断且 classpath 中的首个 `android.jar` 不在末尾时，`KotlinCompilerInvoker` 把它移到末尾重试一次，共享既有 `isCanAutoRetry` / `hasRetryCompile` 单次预算；重试成功后按源文件记住该降级，同批文件跟随使用后置顺序，重试失败则保留第一次诊断且不写入记忆。判定不要求 `android.` 包名：Kotlin 2.2+ 只渲染类型简名。默认 `getModuleDependencies()` 顺序不变，记忆随 compile context 重建清空。该失败是 Kotlin 按 classifier 路径解析嵌套类型特有的，javac 走 binary name 直查同名嵌套 class，不受前置 stub 影响，因此 Java 编译路径不做此降级。
 - 旧项目 Kotlin compiler 在 IDE 进程内关闭 `DescriptorLoadingContext` 时，可能误关 IDE 的 `DelegatingFileSystem` 并抛出 `UnsupportedOperationException`。只有完整异常块同时命中这三个信号时，invoker 才按规范化 compiler classpath 记录宿主冲突：warm-up 不启动无源码子进程，同一 toolchain 的后续编译改用独立 JVM；真实源码首次命中时立即以独立 JVM 重试一次。不同 compiler classpath、显式隔离模式、内置 compiler 和其他异常保持原路径，跨进程 invocation 不写 expect/actual tracker cache。one-shot 进程将 Kotlin compiler 参数写入 UTF-8 argfile，模块 classpath、插件参数和源码列表不再直接占用系统进程命令行；Java launcher 的 compiler classpath 保持原传参方式。
 
 ---
