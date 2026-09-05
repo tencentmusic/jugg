@@ -23,7 +23,8 @@
 |--------|------|------|
 | `JuggCompilerHelper` | `idea/src/main/java/com/sickworm/intellij/jugg/compiler/JuggCompileHelper.kt` | IDE compile 入口，等待初始化/文件处理，决定增量或 Gradle，处理 Git 补检和回退提示 |
 | `IncrementalCompilerHelper` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/IncrementalCompilerHelper.kt` | 单轮增量循环，更新 undeployed/staging 状态，驱动影响传播重编译和一次性失败重试 |
-| `JuggCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/JuggCompiler.kt` | 组合 Compose resource/asset/resource/R.dex/source/dex/minify 等子阶段，按阶段失败快速收口 |
+| `JuggCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/JuggCompiler.kt` | 组合 Flutter/C++ 外部构建、Compose resource、asset/resource/R.dex/source/dex/minify 等子阶段，按阶段失败快速收口 |
+| `ExternalBuildCompiler` / `ExternalBuildTaskRunner` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/external/` | 对 Dart/C/C++ 变化执行当前 variant 的 Flutter/native Gradle task，并把新 assets/`.so` 转为既有增量产物 |
 | `ComposeResourceCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/compose/ComposeResourceCompiler.kt` | 为受支持的 Compose Multiplatform 资源准备 CVR/asset、生成 accessor Kotlin 并编译 generated expect/actual |
 | `BaseCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/BaseCompiler.kt` | 所有编译器的模板方法：类型检查、模块/AndroidTest 分组、APK 分流、自定义编译器 hook |
 | `CompileOrder` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/CompileOrder.kt` | 自定义编译器插入点的顺序范围，不直接代表所有内置阶段的调度代码 |
@@ -36,7 +37,7 @@
 
 | 对象 | 生命周期 | 关键语义 |
 |------|----------|----------|
-| `CompileTask` | 每次子编译阶段新建 | `parentTask` 传递取消状态与已编译通知；`outputDir` 按阶段切到 staging/classes/overlays/tmp 目录 |
+| `CompileTask` | 每次子编译阶段新建 | `parentTask` 传递取消状态、已编译通知与当前 Gradle command；`outputDir` 按阶段切到 staging/classes/overlays/tmp 目录 |
 | `CompileResult.details` | 子阶段返回后向上合并 | 记录输入文件成功/失败；失败时 `quickFailedOthers()` 会把未执行文件标为跳过失败 |
 | `CompileResult.outputs` | 子阶段产物集合 | 后续写入 `DeployFileManager.addStagingFiles()`，部署只消费 staging 中的有效产物 |
 | `CompileOutput.apkPath` | 产物归属锚点 | 兼容旧单 APK 语义；真实 APK 产物会至少包含自身 |
@@ -58,14 +59,15 @@ JuggCompilerHelper.compile(options, uiHandler)
      -> 异步启动 Git 漏文件检查；它不决定本轮 Gradle 回退
      -> 按固定优先级判断：
         1. Force Gradle Compile
-        2. BuildTarget 切换（APP <-> ANDROID_TEST）
-        3. compile command 与 full-build 基线不一致
-        4. 未建立 full-build 基线（`not gradle compile yet`）
-        5. 等待已存在 full-build 基线的 project-info 重建，再检查 project info 是否可用
-        6. INVALID_DEVICE
-        7. 回滚内容未变的文件，再检查 build file / dependency 变化
-        8. DeployState 要求 full compile（上次 Gradle 失败、build file 要求 rebuild）
-        9. 变更文件过多的确认；仅此前各项仍允许增量时才弹出
+        2. 外部源码变化但当前使用远程编译或非标准 Gradle command
+        3. BuildTarget 切换（APP <-> ANDROID_TEST）
+        4. compile command 与 full-build 基线不一致
+        5. 未建立 full-build 基线（`not gradle compile yet`）
+        6. 等待已存在 full-build 基线的 project-info 重建，再检查 project info 是否可用
+        7. INVALID_DEVICE
+        8. 回滚内容未变的文件，再检查 build file / dependency 变化
+        9. DeployState 要求 full compile（上次 Gradle 失败、build file 要求 rebuild）
+        10. 变更文件过多的确认；仅此前各项仍允许增量时才弹出
      -> 用户在“变更过多”确认中选择 Continue 仅影响本轮；选择 Gradle 或任一强制条件都返回可回退结果
      -> 返回 null 才进入 incrementalCompile()
   -> 增量成功：直接返回
@@ -99,7 +101,9 @@ JuggCompiler.doCompile(task)
   -> ComposeResourceCompiler：先准备 Compose resource、生成并编译 accessor Kotlin
      -> changed Compose asset 交给 AssetOverlayCompiler
      -> generated class 交给后续 SourceCompiler/DexCompiler
-  -> AssetOverlayCompiler：asset/native lib（含 Compose asset）进入 overlays
+  -> ExternalBuildCompiler：Dart/C/C++ 变化执行 Flutter/native Gradle task
+     -> Flutter assets 与 Flutter/C++ .so 转为 Asset/NativeLib
+  -> AssetOverlayCompiler：asset/native lib（含 Compose 与外部构建产物）进入 overlays
   -> ResourceOverlayCompiler：resource/manifest 先编译到 tmp_resource
      -> overlay res 移到 overlays
      -> R.java 交给 SourceCompiler 编译
@@ -142,7 +146,9 @@ JuggCompiler.doCompile(task)
 - `splitApkAndCompile()` 是 APK scoped 的产物分流；子类在 `doApkCompile()` 输出时必须保留当前 APK 归属，否则多 APK 场景部署会丢失目标。
 - `RDexForSubmoduleCompiler` 生成的模块 `R.dex` 必须携带 `ModuleApkBelongs` 给出的 `apkPath` / `targetApkPaths`。Dynamic Feature 场景若遗漏该归属，产物会退化为通用 class dex 并扩散到所有 APK，使同包名但资源集合不同的 R 类相互覆盖。
 - `JuggCompiler` 中资源阶段产生的 DataBinding/ViewBinding 源不会立即作为最终产物结束，而是转成下一步 `SourceCompiler` 输入。
+- Dart/C/C++ 源码命中模块的 `externalBuildInfos` 后进入 `ExternalBuildSource`。每次变化都会执行对应 Gradle task；产物 CRC 只用于跳过重复部署，不用于跳过 Flutter/C++ 编译。Flutter Debug 的 `flutter_assets` 进入 asset overlay，Flutter native 输出和 C++ `.so` 进入 native lib APK 更新。项目快照保留已识别但缺少 task/output 的不支持状态，Run 预检命中后回退完整 Gradle；外部 task 执行失败或没有发现有效产物时本轮明确失败，禁止读取旧中间产物继续成功。
 - `FileChangesHandler` 统一排除所有模块的实际 Gradle build directory 与传统 `${moduleRootDir}/build`。文件监听、Git 补检、恢复事件和源码影响传播经过该入口时，Gradle generated source、resource、asset、manifest、native lib 或 build file 都不会进入变更列表；目录事件会在递归前剪枝。该规则不影响编译器在本轮内直接登记和交接的 JuggApt/Resource/Compose generated source。
+- 外部源码根可位于 Android 模块目录之外，因此会额外加入文件扫描根；`.dart_tool`、`.cxx`、`.externalNativeBuild` 和模块 build directory 始终排除，避免把生成文件重新识别为源码变化。
 - 删除事件只按路径移除此前登记的待编译项；已不存在的文件不会转成 `ChangedFile`，也不会生成 class、resource、asset 或 Manifest 的移除数据。删除本身因此不会让增量编译失败或自动回退，设备继续保留已安装 APK 和既有 overlay 中的旧内容。重命名会被拆成旧路径删除和新路径新增/修改，只有新路径能够进入编译。需要让旧内容真正消失时，才通过完整 Gradle build 刷新 APK 基线。
 - Compose resource 按项目 Gradle task 暴露的 generator API 结构识别支持能力，不使用 Compose 或 Kotlin 精确版本白名单。项目快照会保留“已检测但不支持”的状态、已配置资源根和用户可见原因；资源变化仍进入编译并失败，随后复用现有下一次运行 Gradle fallback 语义，不会因 `composeResourceInfo=null` 静默过滤。
 - Compose resource 文件删除同样不会形成编译输入；当前没有 deletion 图、generated source/cache 复用或完整 source-set 依赖图，旧 generated class 和已部署资源会继续保留到完整 Gradle build 刷新基线。
@@ -156,7 +162,7 @@ JuggCompiler.doCompile(task)
 
 Run 前判断的完整优先级见 §4.1。可回退条件分为三类：
 
-- 用户或基线强制：Force Gradle、BuildTarget 切换、compile command 变化、project info 不可用。
+- 用户或基线强制：Force Gradle、BuildTarget 切换、compile command 变化、project info 不可用；外部源码变化遇到远程编译或无法安全派生 task 的非标准 Gradle command。
 - 状态强制：`DeployState` 为未建立基线、上次 Gradle 失败或 build file 要求 rebuild；该类条件优先于“变更过多”，避免用户在必然 full compile 的场景看到无效确认框。
 - 性能策略：Java/Kotlin 文件点数或模块数超过阈值时，IDE 默认 Gradle，允许用户只在本轮选择 Continue；MCP/CLI 与 `checkFallback()` 不弹窗，直接报告回退。
 

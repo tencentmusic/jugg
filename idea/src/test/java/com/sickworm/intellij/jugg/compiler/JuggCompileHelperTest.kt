@@ -25,6 +25,8 @@ import com.sickworm.intellij.jugg.project.GitFileChangesDetector
 import com.sickworm.intellij.jugg.project.IFileChangesHandler
 import com.sickworm.intellij.jugg.project.JuggPathManager
 import com.sickworm.intellij.jugg.project.TaskRunnerManager
+import com.sickworm.intellij.jugg.project.data.ExternalBuildInfo
+import com.sickworm.intellij.jugg.project.data.ExternalBuildType
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import com.sickworm.intellij.jugg.project.dependency.GradleProjectInfoLocalFetchManager
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
@@ -330,6 +332,33 @@ class JuggCompileHelperTest {
 
         assertTrue(result!!.isCanFallback)
         assertEquals("Compile command changed", result.failedReason)
+    }
+
+    @Test
+    fun preprocessIncrementalCompile_unsupportedExternalBuild_forcesGradleFallback() {
+        val fixture = createFixture()
+        val flutterRoot = temporaryFolder.newFolder("flutter")
+        val dartFile = File(flutterRoot, "lib/main.dart").apply {
+            parentFile.mkdirs()
+            writeText("void main() {}")
+        }
+        val module = ModuleInfo.virtualModule.copy(externalBuildInfos = listOf(
+            ExternalBuildInfo(
+                type = ExternalBuildType.Flutter,
+                sourceDirs = listOf(flutterRoot),
+                taskPath = null,
+                outputDir = null,
+                unsupportedReason = "Flutter task not found",
+            ),
+        ))
+        whenever(fixture.deployFileManager.getUncompiledFiles()).thenReturn(listOf(
+            ChangedFile(CompileFile.Type.ExternalBuildSource, dartFile, flutterRoot, module),
+        ))
+
+        val result = invokePreprocessIncrementalCompile(fixture.helper, fixture.options, fixture.uiHandler)
+
+        assertTrue(result!!.isCanFallback)
+        assertEquals("Flutter task not found", result.failedReason)
     }
 
     @Test

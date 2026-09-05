@@ -45,7 +45,9 @@ If preliminary checks find higher risk, Jugg skips incremental compilation and s
 | Layout / drawable / values change | Incremental resource compilation | Changes involving resource symbols or binding logic generate `R.java` or ViewBinding/DataBinding source |
 | Simple `AndroidManifest.xml` change | Incremental Manifest processing | Takes effect by updating and resigning the APK |
 | Asset change | Overlay deployment | Does not require a full Gradle build |
-| Native library / `.so` artifact change | `.so` update | Writes the artifact into the APK and signs it again; C/C++ source must first be built into a `.so` by Gradle/NDK |
+| Native library / `.so` artifact change | `.so` update | Writes the artifact into the APK and signs it again |
+| Dart source change | Scoped Flutter build | Runs the Flutter task for the current variant every time, then passes assets/`.so` into existing incremental deployment |
+| C/C++ source change managed by Gradle | Scoped native build | Runs the native task for the current variant, then writes generated `.so` files into the APK and re-signs it |
 | Gradle script or dependency change | Fallback or dependency-diff decision | Depends on the dependency-change analysis and the user's choice |
 | Only a library version changed | Optional incremental library compilation | Requires confirmation of the diff and avoids building unrelated modules |
 | Large cross-module change | Gradle fallback | Jugg prioritizes stability |

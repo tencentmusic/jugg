@@ -25,6 +25,7 @@ import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.project.*
 import com.sickworm.intellij.jugg.project.GitFileChangesDetector
+import com.sickworm.intellij.jugg.project.data.ExternalBuildType
 import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResultSet
 import com.sickworm.intellij.jugg.project.dependency.GradleProjectInfoLocalFetchManager
@@ -61,6 +62,7 @@ class JuggCompilerHelper(
     companion object {
         private const val FILE_PROCESSING_WAIT_TIMEOUT_MS = 1_000L
         private const val GRADLE_PROJECT_INFO_UNAVAILABLE = "Gradle project info unavailable"
+        private val cppSourceExtensions = setOf("c", "cc", "cpp", "cxx", "h", "hh", "hpp", "hxx")
     }
 
     var juggCompiler: JuggCompiler? = null
@@ -175,13 +177,23 @@ class JuggCompilerHelper(
             uiHandler.onCompileStarted(false, null)
             deployHistoryManager.beforeIncrementalCompile(deployFileManager.getUndeployedFiles())
 
-            incrementalResult = incrementalCompile(uiHandler, options.buildTarget, isAndroidTestRun)
+            incrementalResult = incrementalCompile(
+                uiHandler,
+                options.buildTarget,
+                isAndroidTestRun,
+                options.compileCommand,
+            )
 
             // Consume the async Git check only when it finished during compilation.
             val foundResult = gitChangeChecker.getAsyncResultIfCompleted()
             if (foundResult?.isFoundNewChangedFiles == true) {
                 logger.info("Git check after compile, found ${foundResult.foundFilesSize} new file(s) after compile success, compile again.")
-                incrementalResult = incrementalCompile(uiHandler, options.buildTarget, isAndroidTestRun)
+                incrementalResult = incrementalCompile(
+                    uiHandler,
+                    options.buildTarget,
+                    isAndroidTestRun,
+                    options.compileCommand,
+                )
             } else if (foundResult != null) {
                 logger.debug("Git check after compile found no new changed files.")
             } else {
@@ -398,6 +410,23 @@ class JuggCompilerHelper(
             return CompileTaskResult.incrementalFailed(true, "Force fallback")
         }
 
+        val externalBuildSources = deployFileManager.getUncompiledFiles().filter {
+            it.type == CompileFile.Type.ExternalBuildSource
+        }
+        val hasExternalBuildSources = externalBuildSources.isNotEmpty()
+        findUnsupportedExternalBuildReason(externalBuildSources)?.let { reason ->
+            logger.info("$reason, forcing Gradle full compile.")
+            return CompileTaskResult.incrementalFailed(true, reason)
+        }
+        if (hasExternalBuildSources && options.isRemoteCompile) {
+            logger.info("External source changes require local build outputs, forcing remote Gradle full compile.")
+            return CompileTaskResult.incrementalFailed(true, "External build output is unavailable locally")
+        }
+        if (hasExternalBuildSources && !CompileProjectCommand.isNormalGradleCommand(options.compileCommand)) {
+            logger.info("External source changes require a standard Gradle command, forcing Gradle full compile.")
+            return CompileTaskResult.incrementalFailed(true, "External build command cannot be derived")
+        }
+
         // Build target switch (APP <-> ANDROID_TEST) requires a full Gradle compile to produce correct APKs.
         if (deployHistoryManager.isBuildTargetChanged(options)) {
             logger.info("Build target changed to ${options.buildTarget}, forcing Gradle full compile.")
@@ -454,6 +483,26 @@ class JuggCompilerHelper(
             val isStillNeedEmbedded = uiHandler.confirmEmbeddedToApk()
             if (isStillNeedEmbedded != ConfirmResult.POSITIVE) {
                 JuggSettings.isEmbeddedToApk = false
+            }
+        }
+        return null
+    }
+
+    private fun findUnsupportedExternalBuildReason(files: List<ChangedFile>): String? {
+        files.forEach { file ->
+            val extension = file.file.extension.lowercase()
+            file.module.externalBuildInfos.forEach { buildInfo ->
+                val matchesType = when (buildInfo.type) {
+                    ExternalBuildType.Flutter -> extension == "dart"
+                    ExternalBuildType.Cpp -> extension in cppSourceExtensions
+                }
+                val matchesSource = buildInfo.sourceDirs.any { sourceDir ->
+                    file.file.toPath().toAbsolutePath().normalize()
+                        .startsWith(sourceDir.toPath().toAbsolutePath().normalize())
+                }
+                if (matchesType && matchesSource && !buildInfo.isSupported) {
+                    return buildInfo.unsupportedReason ?: "External build is not supported"
+                }
             }
         }
         return null
@@ -592,6 +641,7 @@ class JuggCompilerHelper(
         uiHandler: CompileUiHandler,
         buildTarget: BuildTarget = BuildTarget.APP,
         isAndroidTestRun: Boolean = false,
+        gradleCommand: String? = null,
     ): CompileTaskResult {
 
         val compiler = juggCompiler ?: run {
@@ -694,7 +744,12 @@ class JuggCompilerHelper(
             compiler, pathManager, deployStateManager, deployFileManager, fileChangesHandler, dependencyMissingResolver, logger,
             skipTooManyChangesCheck = allowLargeIncrementalThisCompile,
         )
-        return incrementalCompilerHelper.compile(undeployedFiles, uiHandler, uiHandler.createCompileStatusHolder())
+        return incrementalCompilerHelper.compile(
+            undeployedFiles,
+            uiHandler,
+            uiHandler.createCompileStatusHolder(),
+            gradleCommand = gradleCommand,
+        )
     }
 
     private fun notifyEmptyCompile(uiHandler: CompileUiHandler) {

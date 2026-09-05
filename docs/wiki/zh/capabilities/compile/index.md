@@ -21,7 +21,7 @@ Jugg 编译能力建立在最近一次可用的 Gradle 构建结果之上。它�
 | [重编译/扩散编译](./recompile-propagation.md) | 支持受影响源码继续编译 | 找到调用方、子类、常量引用方等并追加下一轮 |
 | [资源编译](./resource-compile.md) | 支持 `res/`、`assets/`、`resources.arsc`、`R.java` 相关链路 | 生成资源 overlay 或触发源码编译 |
 | [AndroidManifest 编译](./manifest.md) | 支持基于 merged manifest 的增量 patch | 写入 APK 后重签名生效 |
-| [so 更新](./so-update.md) | 支持更新已产出的 `.so` | 写入目标 APK 后重签名生效 |
+| [so 更新](./so-update.md) | 支持已有 `.so`，以及 Gradle 管理的 C/C++ 与 Flutter native 输出 | 必要时先执行局部构建 task，再写入目标 APK 并重签名 |
 
 ### 生成源码与语言扩展
 
@@ -50,6 +50,7 @@ Jugg 编译能力建立在最近一次可用的 Gradle 构建结果之上。它�
 ```text
 发现文件变化
   -> 判断是否适合增量
+  -> Flutter/C++ 外部源码执行当前变体 task
   -> assets / native lib / AndroidManifest
   -> res / R.java / DataBinding/ViewBinding 资源阶段
   -> 注解器 / KSP / KAPT / Compose 等源码扩展

@@ -74,6 +74,7 @@ class ProjectInfoSerializerInGradle(private val dataFile: File) {
                             },
                         instrumentationTargetPackage = module["instrumentationTargetPackage"] as? String,
                         composeResourceInfo = parseComposeResourceInfo(module["composeResourceInfo"]),
+                        externalBuildInfos = parseExternalBuildInfos(module["externalBuildInfos"]),
                     )
                     ModuleInfoSerialize(
                         moduleInfo,
@@ -112,6 +113,24 @@ class ProjectInfoSerializerInGradle(private val dataFile: File) {
             println("Jugg: Failed to load project info from ${dataFile.absolutePath}, $e")
             printException(e)
             return null
+        }
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun parseExternalBuildInfos(value: Any?): List<ExternalBuildInfo> {
+        return (value as? List<Map<String, Any>>).orEmpty().mapNotNull { info ->
+            val type = (info["type"] as? String)?.let {
+                runCatching { ExternalBuildType.valueOf(it) }.getOrNull()
+            } ?: return@mapNotNull null
+            val sourceDirs = (info["sourceDirs"] as? List<String>).orEmpty().map(::File)
+            if (sourceDirs.isEmpty()) return@mapNotNull null
+            ExternalBuildInfo(
+                type = type,
+                sourceDirs = sourceDirs,
+                taskPath = info["taskPath"] as? String,
+                outputDir = (info["outputDir"] as? String)?.let(::File),
+                unsupportedReason = info["unsupportedReason"] as? String,
+            )
         }
     }
 

@@ -7,6 +7,8 @@ import com.sickworm.intellij.jugg.mock.projectInfo
 import com.sickworm.intellij.jugg.project.data.ComposeResourceDirectory
 import com.sickworm.intellij.jugg.project.data.ComposeResourceInfo
 import com.sickworm.intellij.jugg.project.data.ComposeResourceSupportStatus
+import com.sickworm.intellij.jugg.project.data.ExternalBuildInfo
+import com.sickworm.intellij.jugg.project.data.ExternalBuildType
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import org.junit.Before
 import org.junit.Test
@@ -164,6 +166,103 @@ class FileChangesHandlerTest {
             path = "app/src/main/customComposeResources/drawable/android_icon.png",
             expectedType = CompileFile.Type.ComposeResource,
             expectedBaseDir = "app/src/main/customComposeResources",
+        )
+    }
+
+    @Test
+    fun `detects Flutter and C++ sources configured by external builds`() {
+        val app = context.applicationModule
+        val flutterRoot = File(app.moduleRootDir, "flutter")
+        val cppRoot = File(app.moduleRootDir, "src/main/cpp")
+        val module = app.copy(externalBuildInfos = listOf(
+            ExternalBuildInfo(
+                type = ExternalBuildType.Flutter,
+                sourceDirs = listOf(flutterRoot),
+                taskPath = ":app:compileFlutterBuildDebug",
+                outputDir = File(app.moduleRootDir, "build/intermediates/flutter/debug"),
+            ),
+            ExternalBuildInfo(
+                type = ExternalBuildType.Cpp,
+                sourceDirs = listOf(cppRoot),
+                taskPath = ":app:mergeDebugNativeLibs",
+                outputDir = File(app.moduleRootDir, "build/intermediates/merged_native_libs/debug/out/lib"),
+            ),
+        ))
+        handler.init(context.copy(modules = context.modules + (module.name to module)))
+
+        assertChangedFile(
+            path = "app/flutter/lib/main.dart",
+            expectedType = CompileFile.Type.ExternalBuildSource,
+            expectedBaseDir = "app/flutter",
+        )
+        assertChangedFile(
+            path = "app/src/main/cpp/native.cpp",
+            expectedType = CompileFile.Type.ExternalBuildSource,
+            expectedBaseDir = "app/src/main/cpp",
+        )
+        assertChangedFile(
+            path = "app/src/main/cpp/include/native.hpp",
+            expectedType = CompileFile.Type.ExternalBuildSource,
+            expectedBaseDir = "app/src/main/cpp",
+        )
+    }
+
+    @Test
+    fun `ignores generated external build directories`() {
+        val app = context.applicationModule
+        val module = app.copy(externalBuildInfos = listOf(
+            ExternalBuildInfo(
+                type = ExternalBuildType.Flutter,
+                sourceDirs = listOf(app.moduleRootDir),
+                taskPath = ":app:compileFlutterBuildDebug",
+                outputDir = File(app.moduleRootDir, "build/intermediates/flutter/debug"),
+            ),
+            ExternalBuildInfo(
+                type = ExternalBuildType.Cpp,
+                sourceDirs = listOf(app.moduleRootDir),
+                taskPath = ":app:mergeDebugNativeLibs",
+                outputDir = File(app.moduleRootDir, "build/intermediates/merged_native_libs/debug/out/lib"),
+            ),
+        ))
+        handler.init(context.copy(modules = context.modules + (module.name to module)))
+
+        listOf(
+            "app/.dart_tool/generated.dart",
+            "app/.cxx/generated.cpp",
+            "app/.externalNativeBuild/generated.cpp",
+            "app/build/generated/generated.cpp",
+        ).forEach { path ->
+            withTemporaryFile(path) {
+                assertTrue(handler.filter(listOf(pathManager.projectDir.resolve(path))).isEmpty(), path)
+            }
+        }
+
+        listOf("app/.dart_tool", "app/.cxx", "app/.externalNativeBuild").forEach { path ->
+            assertTrue(handler.filter(listOf(
+                UnexpectedTraversalDirectory(pathManager.projectDir.resolve(path).path)
+            )).isEmpty(), path)
+        }
+    }
+
+    @Test
+    fun `detects external source when its Gradle task is unsupported`() {
+        val app = context.applicationModule
+        val flutterRoot = File(app.moduleRootDir, "flutter")
+        val module = app.copy(externalBuildInfos = listOf(
+            ExternalBuildInfo(
+                type = ExternalBuildType.Flutter,
+                sourceDirs = listOf(flutterRoot),
+                taskPath = null,
+                outputDir = null,
+                unsupportedReason = "Flutter task not found",
+            )
+        ))
+        handler.init(context.copy(modules = context.modules + (module.name to module)))
+
+        assertChangedFile(
+            path = "app/flutter/lib/main.dart",
+            expectedType = CompileFile.Type.ExternalBuildSource,
+            expectedBaseDir = "app/flutter",
         )
     }
 

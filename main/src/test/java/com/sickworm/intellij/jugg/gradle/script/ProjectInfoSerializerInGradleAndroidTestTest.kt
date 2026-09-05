@@ -2,6 +2,8 @@ package com.sickworm.intellij.jugg.gradle.script
 
 import com.sickworm.intellij.jugg.mock.StdLogger
 import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
+import com.sickworm.intellij.jugg.project.data.ExternalBuildInfo
+import com.sickworm.intellij.jugg.project.data.ExternalBuildType
 import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
@@ -163,6 +165,41 @@ class ProjectInfoSerializerInGradleAndroidTestTest {
             val loaded = serializer.load()
 
             assertEquals(r8Classpath, loaded?.juggProjectInfoExceptModules?.agpR8Classpath)
+        } finally {
+            tmpFile.delete()
+        }
+    }
+
+    @Test
+    fun `save and load round-trip preserves external build metadata`() {
+        val tmpFile = Files.createTempFile("jugg_test_", ".json").toFile()
+        val buildInfos = listOf(
+            ExternalBuildInfo(
+                type = ExternalBuildType.Cpp,
+                sourceDirs = listOf(File("/project/native")),
+                taskPath = ":native:mergeDebugNativeLibs",
+                outputDir = File("/project/native/build/intermediates/merged_native_libs/debug/out"),
+            ),
+            ExternalBuildInfo(
+                type = ExternalBuildType.Flutter,
+                sourceDirs = listOf(File("/project/flutter")),
+                taskPath = null,
+                outputDir = null,
+                unsupportedReason = "Flutter task not found",
+            ),
+        )
+        try {
+            val serializer = ProjectInfoSerializerInGradle(tmpFile)
+            serializer.save(projectInfoWithoutAgpR8(mapOf(
+                "native" to ModuleInfo.virtualModule.copy(
+                    name = "native",
+                    externalBuildInfos = buildInfos,
+                )
+            )))
+
+            val loaded = serializer.load()
+
+            assertEquals(buildInfos, loaded?.modules?.single()?.moduleInfoExceptLibraries?.externalBuildInfos)
         } finally {
             tmpFile.delete()
         }

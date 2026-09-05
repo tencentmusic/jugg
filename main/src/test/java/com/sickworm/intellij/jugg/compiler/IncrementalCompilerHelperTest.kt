@@ -312,13 +312,16 @@ class IncrementalCompilerHelperTest {
             undeployedFiles = listOf(changedFile),
             uiHandler = CompileUiHandler.DEFAULT,
             compileStatusHolder = CompileStatusHolder.DEFAULT,
+            gradleCommand = "./gradlew :app:assembleDebug",
         )
 
         assertTrue(result.isSuccess)
         // retryResolver.resolve() called once for the first failure; not called on retry round
         verify(retryResolver, Mockito.times(1)).resolve(any())
         // compiler.compile() called twice: first round + retry round
-        verify(compiler, Mockito.times(2)).compile(any())
+        val tasks = argumentCaptor<CompileTask>()
+        verify(compiler, Mockito.times(2)).compile(tasks.capture())
+        assertTrue(tasks.allValues.all { it.gradleCommand == "./gradlew :app:assembleDebug" })
     }
 
     @Test

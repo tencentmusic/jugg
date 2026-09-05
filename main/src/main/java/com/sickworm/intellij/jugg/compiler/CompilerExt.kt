@@ -163,6 +163,7 @@ fun List<CompileFile>.desc(): String {
                     CompileFile.Type.ClasspathResource -> "classpath-resource"
                     CompileFile.Type.Resource -> "resource"
                     CompileFile.Type.ComposeResource -> "compose-resource"
+                    CompileFile.Type.ExternalBuildSource -> "external-source"
                     CompileFile.Type.Flat -> "flat"
                     CompileFile.Type.BuildFile -> "gradle"
                     CompileFile.Type.AndroidManifest -> "manifest"

@@ -23,13 +23,18 @@ class CompileTask(
     val outputDir: File,
     private val parentTask: CompileTask?,
     private val compileStatusHolder: CompileStatusHolder,
+    val gradleCommand: String?,
 ) {
 
-    constructor(files: List<CompileFile>, outputDir: File, compileStatusHolder: CompileStatusHolder):
-            this(files, outputDir, null, compileStatusHolder)
+    constructor(
+        files: List<CompileFile>,
+        outputDir: File,
+        compileStatusHolder: CompileStatusHolder,
+        gradleCommand: String? = null,
+    ): this(files, outputDir, null, compileStatusHolder, gradleCommand)
 
     constructor(files: List<CompileFile>, outputDir: File, parentTask: CompileTask):
-            this(files, outputDir, parentTask, parentTask.compileStatusHolder)
+            this(files, outputDir, parentTask, parentTask.compileStatusHolder, parentTask.gradleCommand)
 
     val isShouldCancel: Boolean get() = compileStatusHolder.isShouldCancel
 
@@ -45,13 +50,15 @@ class CompileTask(
                     && outputDir == other.outputDir
                     && parentTask == other.parentTask
                     && compileStatusHolder == other.compileStatusHolder
+                    && gradleCommand == other.gradleCommand
         } else {
             false
         }
     }
 
     override fun hashCode(): Int {
-        return files.hashCode() + outputDir.absolutePath.hashCode() + parentTask.hashCode() + compileStatusHolder.hashCode()
+        return files.hashCode() + outputDir.absolutePath.hashCode() + parentTask.hashCode() +
+                compileStatusHolder.hashCode() + gradleCommand.hashCode()
     }
 
     operator fun plus(task: CompileTask): CompileTask {
@@ -69,7 +76,13 @@ class CompileTask(
                 throw JuggInternalException.combineTaskFailed(reason)
             }
         }
-        return CompileTask(files + task.files.filter { !files.contains(it)}, outputDir, parentTask, compileStatusHolder)
+        return CompileTask(
+            files + task.files.filter { !files.contains(it)},
+            outputDir,
+            parentTask,
+            compileStatusHolder,
+            gradleCommand,
+        )
     }
 
     fun allFailed(error: String): CompileResult {
@@ -118,6 +131,7 @@ data class CompileFile(
         NativeLib,
         Resource,
         ComposeResource,
+        ExternalBuildSource,
         Flat,
         BuildFile,
         AndroidManifest,

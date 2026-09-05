@@ -352,7 +352,10 @@ class GradleProjectInfoReader(
         }
         TraceLogger.end("getDep")
 
-        moduleInfo = moduleInfo.copy(composeResourceInfo = getComposeResourceInfo(project, moduleInfo))
+        moduleInfo = moduleInfo.copy(
+            composeResourceInfo = getComposeResourceInfo(project, moduleInfo),
+            externalBuildInfos = getExternalBuildInfos(project, moduleInfo),
+        )
 
         TraceLogger.end("getModule:${project.standardModuleName}")
         return moduleInfo
@@ -725,6 +728,80 @@ class GradleProjectInfoReader(
         val kotlinTaskNameKmm = "compile${buildVariantCapital}KotlinAndroid"
         return findTaskByNameWithRetry(project, kotlinTaskName)
             ?: findTaskByNameWithRetry(project, kotlinTaskNameKmm)
+    }
+
+    private fun getExternalBuildInfos(project: Project, moduleInfo: ModuleInfo): List<ExternalBuildInfo> {
+        val variantCapital = moduleInfo.buildVariant.camelCompat
+        val result = mutableListOf<ExternalBuildInfo>()
+        val flutterTask = findTaskByNameWithRetry(project, "compileFlutterBuild$variantCapital") as? Task
+        val flutterSourceDir = readConfiguredSourceRoots(readProperty(flutterTask, "sourceDir")).firstOrNull()
+            ?: readProjectFile(project, readProperty(project.extensions.findByName("flutter"), "source"))
+        if (flutterSourceDir != null) {
+            val outputDir = readConfiguredSourceRoots(readProperty(flutterTask, "outputDirectory")).firstOrNull()
+                ?: readConfiguredSourceRoots(readProperty(flutterTask, "intermediateDir")).firstOrNull()
+            val reason = when {
+                flutterTask == null -> "Flutter compile task for $variantCapital was not found"
+                outputDir == null -> "Flutter task ${flutterTask.path} output directory was not found"
+                else -> null
+            }
+            result.add(ExternalBuildInfo(
+                type = ExternalBuildType.Flutter,
+                sourceDirs = listOf(flutterSourceDir.absoluteFile.normalize()),
+                taskPath = flutterTask?.path,
+                outputDir = outputDir?.absoluteFile?.normalize(),
+                unsupportedReason = reason,
+            ))
+        }
+
+        val nativeTask = findTaskByNameWithRetry(project, "merge${variantCapital}NativeLibs") as? Task
+        val nativeSourceDirs = getCppSourceDirs(project)
+        if (nativeSourceDirs.isNotEmpty()) {
+            val outputDir = readConfiguredSourceRoots(readProperty(nativeTask, "outputDir")).firstOrNull()
+                ?: readConfiguredSourceRoots(readProperty(nativeTask, "outputDirectory")).firstOrNull()
+            val reason = when {
+                nativeTask == null -> "Native merge task for $variantCapital was not found"
+                outputDir == null -> "Native task ${nativeTask.path} output directory was not found"
+                else -> null
+            }
+            result.add(ExternalBuildInfo(
+                type = ExternalBuildType.Cpp,
+                sourceDirs = nativeSourceDirs,
+                taskPath = nativeTask?.path,
+                outputDir = outputDir?.absoluteFile?.normalize(),
+                unsupportedReason = reason,
+            ))
+        }
+        return result
+    }
+
+    private fun getCppSourceDirs(project: Project): List<File> {
+        val androidExt = try {
+            reflector(project.extensions.getByName("android"))
+        } catch (_: Throwable) {
+            return emptyList()
+        }
+        val externalNativeBuild = androidExt["externalNativeBuild"] ?: return emptyList()
+        return listOf("cmake", "ndkBuild").mapNotNull { builder ->
+            readProjectFile(project, externalNativeBuild[builder]["path"]?.value)
+        }.mapNotNull { buildFile ->
+            buildFile.parentFile
+        }.distinctBy {
+            it.absoluteFile.normalize().path
+        }
+    }
+
+    private fun readProjectFile(project: Project, value: Any?): File? {
+        return if (value is String) project.file(value) else readFileValue(value)
+    }
+
+    private fun readFileValue(value: Any?, depth: Int = 0): File? {
+        if (value == null || depth >= 5) return null
+        if (value is File) return value
+        if (value is org.gradle.api.file.FileSystemLocation) return value.asFile
+        if (value is org.gradle.api.provider.Provider<*>) return readFileValue(value.orNull, depth + 1)
+        val asFile = readProperty(value, "asFile") as? File
+        if (asFile != null) return asFile
+        return readFileValue(invokeNoArg(value, "getOrNull") ?: invokeNoArg(value, "get"), depth + 1)
     }
 
     /** Reads configured common roots without relying on source-set directory names. */

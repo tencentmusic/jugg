@@ -11,7 +11,7 @@ tags:
 
 # Assets and native libraries
 
-An Android APK contains more than resources compiled by aapt2. Files under `assets/` enter the APK with their original directory structure, while native libraries enter as `.so` files grouped by ABI. Jugg reuses the latest Gradle APK and organizes only the files changed in the current Run instead of rerunning the complete packaging flow.
+An Android APK contains more than resources compiled by aapt2. Files under `assets/` enter the APK with their original directory structure, while native libraries enter as `.so` files grouped by ABI. Jugg reuses the latest Gradle APK. It directly organizes ordinary assets and existing `.so` files as incremental artifacts. For Dart or C/C++ changes, it first runs a narrowly scoped Gradle task and then reuses the same deployment behavior.
 
 ## How Gradle places files into an APK
 
@@ -22,6 +22,7 @@ A complete Android build produces different APK content according to input type:
 | `res/` | aapt2 compiles and links resources | Compiled resources and `resources.arsc` |
 | `assets/` | AGP merges asset directories and includes them in APK packaging | `assets/**` |
 | C/C++ source or prebuilt `.so` | Gradle/NDK generates or collects shared libraries for each ABI and includes them in APK packaging | `lib/<abi>/*.so` |
+| Flutter Dart source | The Flutter Gradle plugin produces `flutter_assets`; Profile/Release may also produce `app.so` or native assets | `assets/flutter_assets/**` and `lib/<abi>/*.so` |
 
 Files under `assets/` do not generate resource IDs like `res/` or enter `resources.arsc`. A native library is an already compiled binary and likewise is not part of the Android resource table. A complete build still collects these files and places them at their defined APK paths.
 
@@ -37,9 +38,19 @@ changed asset file
 changed, already generated .so
   -> preserve its relative path under the ABI and lib directory
   -> generate a native library incremental artifact owned by the target APK
+
+Dart change
+  -> run the Flutter compile task for the current variant every time
+  -> convert flutter_assets into assets and native output into native libraries
+
+C/C++ change
+  -> run the native build/merge task for the current variant
+  -> convert new .so files into native library incremental artifacts
 ```
 
-This process only copies and organizes changed files. It does not run aapt2 or generate `resources.arsc`. For a native library, Jugg consumes an already generated `.so`; Gradle, CMake, and NDK still compile C/C++ source into `.so` files.
+This process does not run aapt2 or generate `resources.arsc`. A Dart change always runs Flutter compilation without adding a Jugg-side Flutter cache. Gradle, CMake, and NDK still convert C/C++ source into `.so` files. Jugg selects only the external task required for the current variant and collects its new output, so Android Java/Kotlin and resource changes continue through the existing incremental compilation flow.
+
+Artifact CRC checks only determine whether new output needs another deployment. They do not skip Flutter or C/C++ compilation, which prevents changed source from being judged against stale intermediate output.
 
 In a multi-APK project, each artifact must also preserve target APK ownership. Jugg does not copy the same asset or native library into every APK by default.
 
@@ -62,7 +73,9 @@ An asset overlay preserves its `assets/**` path for the new resource loading pat
 ## When Jugg must return to Gradle
 
 - When an asset is deleted, Jugg does not generate an overlay that removes the device file. The old asset remains readable through `AssetManager`. Run a full Gradle build only when the deletion must take effect.
-- After changing C/C++ source, CMake, NDK, ABI, native source sets, or packaging rules, Gradle/NDK must first generate the new `.so`.
+- If Jugg recognizes a Flutter/C++ source root but cannot find its task or output metadata, it falls back to a full Gradle build. If the external task fails or produces no valid artifact, the current compilation fails instead of reusing old intermediate output.
+- Remote compilation and custom commands from which Jugg cannot safely derive external tasks fall back to a complete Gradle build.
+- After changing `pubspec.yaml`, CMake, ndk-build, NDK, ABI, native source sets, or packaging rules, use Sync and a full Gradle build to refresh the project model and APK baseline.
 - After changing asset source sets, variant, or build configuration that affects APK paths or ownership, refresh the Gradle baseline.
 - A native library update requires usable APK signing configuration. If Jugg cannot re-sign the APK, this incremental update path cannot continue.
 

@@ -9,9 +9,9 @@ tags:
 
 # Incremental compilation
 
-Jugg incremental compilation is built on a trusted Gradle build. Gradle first generates the APK, classes, resource table, Manifest, DataBinding intermediate artifacts, and dependency information. Jugg then processes only the files changed in the current Run and outputs the local artifacts needed by deployment.
+Jugg incremental compilation is built on a trusted Gradle build. Gradle first generates the APK, classes, resource table, Manifest, DataBinding intermediate artifacts, and dependency information. Jugg then processes the files changed in the current Run and outputs the local artifacts needed by deployment. Source that requires a dedicated toolchain, such as Dart or C/C++, runs the corresponding scoped Gradle task for the current variant, while Android source and resources continue through Jugg incremental stages.
 
-It does not take over Gradle tasks or generate a complete APK. If build scripts, dependencies, annotation processors, or other context cannot be trusted, Jugg returns to Gradle and refreshes the baseline for the next incremental compilation.
+It does not generate a complete APK. Except for recognized Flutter/native external source tasks, if build scripts, dependencies, annotation processors, or other context cannot be trusted, Jugg returns to a complete Gradle build and refreshes the baseline for the next incremental compilation.
 
 ## Incremental compilation topics
 
@@ -42,7 +42,8 @@ first Run or baseline refresh required
 
 later incremental Runs
   -> detect changed files from IDE and Git records
-  -> route files to assets, resources, source, Manifest, and other compilation paths by type
+  -> run Flutter/native tasks for Dart or C/C++ changes
+  -> route files to assets, native libraries, resources, source, Manifest, and other compilation paths by type
   -> output DEX, resources.arsc, resource overlays, assets, Manifest, or files that must be written back to the APK
   -> analyze affected source files and classes requiring DEX conversion, then continue to another compilation round when needed
   -> pass staging artifacts to deployment
@@ -60,7 +61,7 @@ After compilation succeeds, Jugg records a snapshot of file modification times a
 
 ## Compilation context
 
-Incremental compilation must reuse Gradle results, including module paths, source directories, Manifest paths, variant, module dependencies, library dependencies, Java/Kotlin compilation parameters, APK paths, and DataBinding intermediate artifacts.
+Incremental compilation must reuse Gradle results, including module paths, source directories, Manifest paths, variant, module dependencies, library dependencies, Java/Kotlin compilation parameters, APK paths, DataBinding intermediate artifacts, and Flutter/C++ source roots, tasks, and output directories.
 
 Jugg combines this information into a project snapshot and maintains local indexes needed by incremental compilation and deployment under `build/jugg`. One key index comes from parsing the baseline APK / DEX. Later recompilation, default method handling, and deployment data generation read it to reconstruct references.
 
@@ -69,7 +70,8 @@ Jugg combines this information into a project snapshot and maintains local index
 An incremental compilation proceeds through fixed stages, and an earlier stage can produce input for a later one:
 
 ```text
-assets / native libraries
+Flutter/C++ external build
+  -> assets / native libraries
   -> resources (including Manifest and resources.arsc)
   -> source (annotation processing and DataBinding generated source -> Kotlin -> Java -> DEX -> minify)
 ```

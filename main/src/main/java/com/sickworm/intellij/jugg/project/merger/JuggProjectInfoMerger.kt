@@ -352,6 +352,7 @@ class JuggProjectInfoMerger(
                 kspDependencies = gradleModuleInfo.kspDependencies,
                 instrumentationTargetPackage = gradleModuleInfo.instrumentationTargetPackage ?: moduleInfo.instrumentationTargetPackage,
                 composeResourceInfo = gradleModuleInfo.composeResourceInfo ?: moduleInfo.composeResourceInfo,
+                externalBuildInfos = gradleModuleInfo.externalBuildInfos,
                 gradleModuleName = gradleModuleInfo.gradleModuleName,
             )
             mergedModules[name] = mergedModuleInfo

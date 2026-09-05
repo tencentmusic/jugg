@@ -4,6 +4,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.ICompileContext
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.data.ExternalBuildType
 import com.sickworm.intellij.jugg.compiler.relativePathForPrintSafe
 import com.sickworm.intellij.jugg.git.FileMatcher
 import com.sickworm.intellij.jugg.git.IFileMatcher
@@ -187,13 +188,16 @@ class FileChangesHandler(
     }
 
     private fun updateScanRoots() {
-        scanRoots = (listOf(projectDir) + compiledModules.map { it.moduleRootDir })
+        val externalSourceDirs = compiledModules.flatMap { module ->
+            module.externalBuildInfos.flatMap { it.sourceDirs }
+        }
+        scanRoots = (listOf(projectDir) + compiledModules.map { it.moduleRootDir } + externalSourceDirs)
             .map { it.normalizedPath }
             .distinct()
     }
 
     private fun shouldExpandDirectory(directory: File): Boolean {
-        if (directory.isInBuildDir) {
+        if (directory.isInBuildDir || directory.hasExcludedExternalBuildDirectory()) {
             return false
         }
         val directoryPath = directory.normalizedPath
@@ -224,6 +228,9 @@ class FileChangesHandler(
         checkComposeResource(file)?.let {
             return it
         }
+        checkExternalBuildSource(file)?.let {
+            return it
+        }
         checkSource(file)?.let {
             return it
         }
@@ -232,6 +239,29 @@ class FileChangesHandler(
             return it
         }
 
+        return null
+    }
+
+    private fun checkExternalBuildSource(file: File): ChangedFile? {
+        if (file.hasExcludedExternalBuildDirectory()) {
+            return null
+        }
+        val extension = file.extension.lowercase()
+        getModules().forEach { module ->
+            module.externalBuildInfos.forEach buildLoop@{ buildInfo ->
+                val isSupported = when (buildInfo.type) {
+                    ExternalBuildType.Flutter -> extension == "dart"
+                    ExternalBuildType.Cpp -> extension in cppSourceExtensions
+                }
+                if (!isSupported) {
+                    return@buildLoop
+                }
+                val sourceDir = buildInfo.sourceDirs.firstOrNull { sourceDir ->
+                    file.pathEquals(sourceDir) || file.isChild(sourceDir)
+                } ?: return@buildLoop
+                return ChangedFile(CompileFile.Type.ExternalBuildSource, file, sourceDir, module)
+            }
+        }
         return null
     }
 
@@ -363,6 +393,13 @@ class FileChangesHandler(
 
     private val abiFolders = listOf("armeabi", "armeabi-v7a", "arm64-v8a", "x86", "x86_64")
 
+    private val cppSourceExtensions = setOf("c", "cc", "cpp", "cxx", "h", "hh", "hpp", "hxx")
+
+    private fun File.hasExcludedExternalBuildDirectory(): Boolean {
+        val normalizedParts = absoluteFile.normalize().toPath().map { it.toString() }
+        return normalizedParts.any { it in externalBuildExcludedDirectories }
+    }
+
     private fun checkNativeLib(file: File): ChangedFile? {
         // simply check the extension and parent file
         val isNativeLib = file.extension == "so"
@@ -408,4 +445,6 @@ class FileChangesHandler(
 
     private val File.normalizedPath: Path
         get() = toPath().toAbsolutePath().normalize()
+
+    private val externalBuildExcludedDirectories = setOf(".dart_tool", ".cxx", ".externalNativeBuild")
 }

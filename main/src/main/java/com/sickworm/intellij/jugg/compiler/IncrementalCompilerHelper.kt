@@ -38,6 +38,7 @@ class IncrementalCompilerHelper(
         uiHandler: CompileUiHandler,
         compileStatusHolder: CompileStatusHolder,
         compileLoopStatus: CompileLoopStatus = CompileLoopStatus(),
+        gradleCommand: String? = null,
     ): CompileTaskResult {
         val isFirstRoundCompile = compileLoopStatus.isFirstRoundCompile
 
@@ -63,7 +64,7 @@ class IncrementalCompilerHelper(
         compileStatusHolder.setCompileFiles(compileFiles)
         val compileResult = try {
             asyncCheckBeforeCompile(isFirstRoundCompile, undeployedFiles)
-            compiler.compile(CompileTask(compileFiles, pathManager.stagingDir, compileStatusHolder))
+            compiler.compile(CompileTask(compileFiles, pathManager.stagingDir, compileStatusHolder, gradleCommand))
         } catch (e: Exception) {
             logger.error("Compile unexpected error: ${e.message}", e)
             return CompileTaskResult.incrementalFailed(true, "Exception: $e")
@@ -152,7 +153,13 @@ class IncrementalCompilerHelper(
                     juggDeployData,
                     compileLoopStatus.pendingEffectTriggerKeys,
                 )
-                val result = compile(nextCompileFiles.distinct(), uiHandler, compileStatusHolder, compileLoopStatus)
+                val result = compile(
+                    nextCompileFiles.distinct(),
+                    uiHandler,
+                    compileStatusHolder,
+                    compileLoopStatus,
+                    gradleCommand,
+                )
                 if (compileStatusHolder.isShouldCancel) {
                     // revert file compile status, compile again next round
                     if (isFirstRoundCompile) {
@@ -173,7 +180,13 @@ class IncrementalCompilerHelper(
                 val status = CompileLoopStatus().also {
                     it.isRetry = true
                 }
-                return compile(undeployedFiles, uiHandler, compileStatusHolder, status)
+                return compile(
+                    undeployedFiles,
+                    uiHandler,
+                    compileStatusHolder,
+                    status,
+                    gradleCommand,
+                )
             }
         }
 
