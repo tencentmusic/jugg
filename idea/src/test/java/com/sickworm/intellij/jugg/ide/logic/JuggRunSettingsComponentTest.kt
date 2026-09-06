@@ -52,6 +52,7 @@ import javax.swing.JRootPane
 import javax.swing.JTabbedPane
 import javax.swing.JTextField
 import javax.swing.SwingUtilities
+import javax.swing.border.TitledBorder
 
 private typealias JuggPanelContext = JuggControlPanelModel.Context
 private typealias JuggEventCategory = JuggEvent.Category
@@ -205,6 +206,34 @@ class JuggRunSettingsComponentTest {
         assertTrue(defaultActionInvoked)
         assertEquals("More options", link.text)
         assertEquals(2, tabs.selectedIndex)
+    }
+
+    @Test
+    fun `custom APK install script panel should only show when enabled`() {
+        TestGlobal.init()
+        val component = JuggRunSettingsComponent()
+        val checkbox = descendants(component).filterIsInstance<JCheckBox>()
+            .single { it.text == "Enable custom APK install script" }
+        val scriptPanel = descendants(component).filterIsInstance<JPanel>()
+            .single { (it.border as? TitledBorder)?.title == "Custom APK Install Script" }
+        val compileCommandTextField = readPrivateField<JTextField>(component, "compileCommandTextField")
+        val scriptTextField = descendants(scriptPanel).filterIsInstance<JBTextField>().single()
+
+        assertFalse(checkbox.isSelected)
+        assertFalse(scriptPanel.isVisible)
+        assertEquals(compileCommandTextField.preferredSize.height, scriptTextField.preferredSize.height)
+        assertEquals(compileCommandTextField.insets, scriptTextField.insets)
+        assertEquals("e.g. ./scripts/install-system-app.sh", scriptTextField.emptyText.text)
+        assertTrue(descendants(scriptPanel).filterIsInstance<JLabel>().none())
+
+        checkbox.doClick()
+        scriptTextField.text = "./scripts/install-system-app.sh"
+        val options = JuggRunConfigurationOptions()
+        component.updateJuggRunConfigurationOptions(options)
+
+        assertTrue(scriptPanel.isVisible)
+        assertTrue(options.enableCustomApkInstallScript)
+        assertEquals(scriptTextField.text, options.customApkInstallScript)
     }
 
     @Test

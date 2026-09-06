@@ -673,6 +673,7 @@ class JuggDeployerHelperRecoverTest {
             compileUiHandler: CompileUiHandler,
             deferPostDeployLaunch: Boolean,
             isAllowDirectOverlayDeploy: Boolean,
+            customApkInstallScript: String,
         ) {
             recoverInvokeCount++
             if (data.isInstall) {

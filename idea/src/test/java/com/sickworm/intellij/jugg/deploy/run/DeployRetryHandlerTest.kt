@@ -579,6 +579,7 @@ class DeployRetryHandlerTest {
             compileUiHandler: CompileUiHandler,
             deferPostDeployLaunch: Boolean,
             isAllowDirectOverlayDeploy: Boolean,
+            customApkInstallScript: String,
         ) = Unit
 
         override fun redeploy(deployOptions: DeployOptions): DeployTaskResult {

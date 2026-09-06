@@ -57,6 +57,19 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
     private val outputApkNameLabel = JLabel("Output APK name/path:")
     private val outputApkNameTextField = JTextField()
     private val enableRemoteCompileCheckBox = JCheckBox("Enable remote compile")
+    private val enableCustomApkInstallScriptCheckBox = JCheckBox("Enable custom APK install script")
+    private val customApkInstallScriptTextField = JBTextField().also {
+        it.emptyText.text = "e.g. ./scripts/install-system-app.sh"
+        val size = Dimension(400, outputApkNameTextField.preferredSize.height)
+        it.maximumSize = Dimension(Int.MAX_VALUE, size.height)
+        it.preferredSize = size
+    }
+    private val customApkInstallScriptPanel = JPanel().also {
+        it.alignmentX = LEFT_ALIGNMENT
+        it.border = IdeBorderFactory.createTitledBorder("Custom APK Install Script")
+        it.layout = BoxLayout(it, BoxLayout.Y_AXIS)
+        it.add(customApkInstallScriptTextField)
+    }
     private val enableSyncAllProjectsCheckBox = JCheckBox("Enable multiple projects mode (sync and fetch all projects in [Local to remote sync path])")
     private val enableAndroidTestCheckBox = JCheckBox("Enable incremental Android Test (builds app + test APKs via Gradle)")
 
@@ -162,6 +175,10 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
         addPair(enableRemoteCompileCheckBox, reportIssueActionLink, leftWidth = 260, isAlignEnd = true)
         add(Box.createVerticalStrut(5))
 
+        addPair(enableCustomApkInstallScriptCheckBox, null, leftWidth = 0)
+        add(customApkInstallScriptPanel)
+        add(Box.createVerticalStrut(5))
+
         addPair(enableAndroidTestCheckBox, null, leftWidth = 0)
         add(Box.createVerticalStrut(5))
 
@@ -175,7 +192,11 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
             val isSelected = enableRemoteCompileCheckBox.isSelected
             updateRemoteUi(isSelected, syncModeComboBox.selectedItem?.toString())
         }
+        enableCustomApkInstallScriptCheckBox.addActionListener {
+            updateCustomApkInstallScriptUi(enableCustomApkInstallScriptCheckBox.isSelected)
+        }
         updateRemoteUi(enableRemoteCompileCheckBox.isSelected, syncModeComboBox.selectedItem?.toString())
+        updateCustomApkInstallScriptUi(enableCustomApkInstallScriptCheckBox.isSelected)
     }
 
     private fun updateTopButtons() {
@@ -188,6 +209,9 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
     override fun updateUi(settings: JuggRunConfigurationOptions, configName: String) {
         updateUi(settings.toRunConfigurationTemplate(), configName)
         enableAndroidTestCheckBox.isSelected = settings.enableAndroidTest
+        enableCustomApkInstallScriptCheckBox.isSelected = settings.enableCustomApkInstallScript
+        customApkInstallScriptTextField.text = settings.customApkInstallScript
+        updateCustomApkInstallScriptUi(settings.enableCustomApkInstallScript)
     }
 
     private fun updateUi(settings: RunConfigurationTemplate, configName: String) {
@@ -292,6 +316,8 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
             it.outputApkName = component.outputApkNameTextField.text
             it.isRemoteCompile = component.enableRemoteCompileCheckBox.isSelected
             it.enableAndroidTest = component.enableAndroidTestCheckBox.isSelected
+            it.enableCustomApkInstallScript = component.enableCustomApkInstallScriptCheckBox.isSelected
+            it.customApkInstallScript = component.customApkInstallScriptTextField.text
             it.syncMode = component.syncModeComboBox.selectedItem?.toString()
             it.isSyncAllProjects = component.enableSyncAllProjectsCheckBox.isSelected
             it.remoteSshUser = component.userTextField.text
@@ -326,6 +352,12 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
         SwingUtilities.invokeLater {
             if (!rootPane.isShowing) JuggControlPanel.openSettings(project)
         }
+    }
+
+    private fun updateCustomApkInstallScriptUi(enabled: Boolean) {
+        customApkInstallScriptPanel.isVisible = enabled
+        revalidate()
+        repaint()
     }
 
     private fun formatRemoteSyncExcludePatternsForField(patterns: String?): String {

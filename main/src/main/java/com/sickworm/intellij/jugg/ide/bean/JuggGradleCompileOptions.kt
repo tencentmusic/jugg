@@ -265,6 +265,10 @@ data class JuggGradleCompileOptions(
     val isRemoteSyncExcludePatternsCustomized: Boolean = false,
     /** Whether APK files absent from the current Gradle result should be removed from the local cache. */
     val isCleanupFetchedApks: Boolean = true,
+    /** Whether app APK install operations should use [customApkInstallScript]. */
+    val enableCustomApkInstallScript: Boolean = false,
+    /** Project-local shell script used for app APK install and reinstall operations. */
+    val customApkInstallScript: String = "",
 ) {
 
     /** Rsync exclude patterns after applying the default or customized state. */
@@ -390,6 +394,9 @@ data class JuggGradleCompileOptions(
         if (outputApkName.isEmpty()) {
             errorDetails += "Run configuration argument [Output apk name] is empty\n"
         }
+        if (enableCustomApkInstallScript && customApkInstallScript.isBlank()) {
+            errorDetails += "Run configuration argument [Custom APK install script] is empty\n"
+        }
         if (isRemoteCompile) {
             if (remoteSshUser.isEmpty()) {
                 errorDetails += "Run configuration argument [SSH user] is empty\n"
@@ -431,8 +438,11 @@ data class JuggGradleCompileOptions(
     }
 
     fun toSafeString(): String {
-        val string = toString()
         val replacePasswordDesc = if (remoteSshPassword.isNotEmpty()) "(has_password)" else "(no_password)"
-        return string.replace("remoteSshPassword=$remoteSshPassword", "remoteSshPassword=$replacePasswordDesc")
+        val replaceScriptDesc = if (customApkInstallScript.isNotEmpty()) "(configured)" else "(not_configured)"
+        return copy(
+            remoteSshPassword = replacePasswordDesc,
+            customApkInstallScript = replaceScriptDesc,
+        ).toString()
     }
 }

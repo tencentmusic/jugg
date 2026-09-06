@@ -56,19 +56,34 @@ class JuggDeployer(
      */
     @Throws(JuggDeployerException::class)
     fun install(
-        packageName: String, apks: List<String>, argInstallMode: JuggInstallSession.Mode
+        packageName: String,
+        apks: List<String>,
+        argInstallMode: JuggInstallSession.Mode,
+        customInstallScriptRunner: CustomApkInstallScriptRunner? = null,
     ): Result {
         val result = Result()
+        val scriptRunner = customInstallScriptRunner
         try {
-            var installMode = argInstallMode
-            if (installMode == JuggInstallSession.Mode.DELTA) {
-                installMode = JuggInstallSession.Mode.DELTA_NO_SKIP
+            if (scriptRunner != null) {
+                logger.info("going to install apks with custom script: $apks")
+                scriptRunner.run(packageName)
+            } else {
+                var installMode = argInstallMode
+                if (installMode == JuggInstallSession.Mode.DELTA) {
+                    installMode = JuggInstallSession.Mode.DELTA_NO_SKIP
+                }
+                logger.info("going to install apks: $apks")
+                result.skippedInstall = !invokeInstallWithTransientRetry(
+                    packageName, apks, installMode,
+                )
             }
-            logger.info("going to install apks: $apks")
-            result.skippedInstall = !invokeInstallWithTransientRetry(
-                packageName, apks, installMode,
-            )
             val apkList = asDeployerCompat.parseApks(apks)
+            if (scriptRunner != null) {
+                val actualApks = runWithOfflineRetry("verify custom APK install", deviceAdb, logger) {
+                    asDeployerCompat.dumpApks(installSession, apkList)
+                }
+                verifyApksMatch(apkList, actualApks, asDeployerCompat, logger)
+            }
             // Update the database
             val appId = asDeployerCompat.getPackageName(apkList)
             val oid = asDeployerCompat.createBaseOverlayId(apkList)
@@ -78,6 +93,15 @@ class JuggDeployer(
             result.overlayId = oid.sha
             return result
         } catch (e: Exception) {
+            if (scriptRunner != null) {
+                val detail = e.message ?: e.toString()
+                val message = if (detail.startsWith("Custom APK install script")) {
+                    detail
+                } else {
+                    "Custom APK install script flow failed: $detail"
+                }
+                throw CustomApkInstallScriptException(message, e)
+            }
             val realErrorMessage = logger.realErrorMessage
             logger.info("Install failed, error: \"${realErrorMessage}\".", e)
             if (realErrorMessage != null) {
@@ -323,6 +347,17 @@ class JuggDeployer(
             val actualResults = runWithOfflineRetry("verify cache", adb, logger) {
                 asDeployerCompat.dumpApks(installSession, entry.apks)
             }
+            verifyApksMatch(cachedResults, actualResults, asDeployerCompat, logger)
+            logger.info("verifyCache success")
+            return entry
+        }
+
+        private fun verifyApksMatch(
+            cachedResults: List<Apk>,
+            actualResults: List<Apk>,
+            asDeployerCompat: IAsDeployerCompat,
+            logger: AdbLogWrapper,
+        ) {
             if (cachedResults.size != actualResults.size) {
                 logger.info("throw overlayIdMismatch: cached size: ${cachedResults.size}, actual size: ${actualResults.size}")
                 throw asDeployerCompat.overlayIdMismatch()
@@ -344,8 +379,6 @@ class JuggDeployer(
                 }
                 i++
             }
-            logger.info("verifyCache success")
-            return entry
         }
 
         private fun <T> runWithOfflineRetry(

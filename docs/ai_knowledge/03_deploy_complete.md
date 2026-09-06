@@ -1,6 +1,6 @@
 # 部署系统：端到端流程（Run 到设备）
 
-> 最后核对：2026-07-23
+> 最后核对：2026-09-06
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -20,6 +20,7 @@
 | `JuggRunningTask` | `idea/src/main/java/com/sickworm/intellij/jugg/ide/logic/JuggRunningTask.kt` | Run 总编排。准备 UI/日志，调用编译，按设备调用部署，汇总结果并决定是否 Gradle fallback。 |
 | `JuggCompileHelper` | `idea/src/main/java/com/sickworm/intellij/jugg/compiler/JuggCompileHelper.kt` | 产出 `CompileTaskResult`，决定本轮是增量编译还是 Gradle 编译。 |
 | `JuggDeployerHelper` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployerHelper.kt` | 单设备部署入口。根据 `isInstall` 进入 install、embedded 或 incremental deploy。 |
+| `LaunchContext.customApkInstallScript` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/LaunchContext.kt` | 当前 Run Configuration 的可选安装脚本；经 `DeployOptions`、deploy/recover 请求与 `LaunchContextFactory` 注入，UI handler 只负责交互。 |
 | `DeployOptions` / `DeployTaskResult` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployHelperBean.kt` | Run 编排与 deploy helper 之间的请求/结果契约。 |
 | `JuggDeployData` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployData.kt` | 部署 payload 与最终 deploy type 来源。 |
 | `DeployStateManager` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/DeployStateManager.kt` | 单设备当前是否可增量部署、是否需要 recover 的状态来源。 |
@@ -67,6 +68,7 @@ Run 层只决定“是否进入部署、是否整体 fallback、如何汇总 UI 
 deployDevice()
   -> 根据 CompileTaskResult.isGradleCompile 设置 DeployOptions.isInstall
   -> JuggDeployerHelper.deploy()
+  -> install/reinstall 时按 applicationId 分组；普通 App 可执行自定义 APK 安装脚本，androidTest 使用默认 installer
   -> 写入 deploy_failed_reason / deploy_type / device 信息到上报 detail
   -> 成功时按 deploy type 弹出用户可见提示
 ```
@@ -100,6 +102,7 @@ selected and running devices snapshot
 - Run 主链路只读取一次设备快照，避免 `hasDevice` 与实际部署之间选择状态变化。
 - 多设备只在最后一台成功部署后推进部分全局状态；部署核心细节见 `03_deploy_core.md`。
 - Run 层拿到的是 `DeployTaskResult.isCanFallback`，具体哪些失败可 fallback 由 `DeployRetryHandler` / deploy core 决定。
+- 自定义 APK 安装脚本属于 Run Configuration，经部署请求传入 `LaunchContext`，覆盖当前 Run 的普通 App install/reinstall；远程编译只改变产物来源，脚本仍在连接设备的本地 IDE 主机执行。
 - `juggServer.report(action="compile"/"deploy")` 是观测侧上报；不要把上报成功当作编译或部署成功。
 
 ---

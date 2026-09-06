@@ -41,6 +41,7 @@ open class DeployStateRecover(
         isInstallUpdateApk: Boolean = false,
         compileUiHandler: CompileUiHandler,
         allowDirectOverlayRecover: Boolean = true,
+        customApkInstallScript: String = "",
     ): Pair<Boolean, Boolean> {
         val isCleanAndReinstall = deployHistoryManager.isCleanAndReinstall
         val reinstallTips = if (isCleanAndReinstall) {
@@ -99,6 +100,7 @@ open class DeployStateRecover(
                 compileUiHandler = compileUiHandler,
                 deferPostDeployLaunch = deferPostDeployLaunch,
                 isAllowDirectOverlayDeploy = allowDirectOverlayRecover,
+                customApkInstallScript = customApkInstallScript,
             )
         }
         logger.info("Reinstalling app finished, cost ${costTime}ms.")

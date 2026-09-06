@@ -25,6 +25,7 @@ internal class JuggDeployHelperRunHostBridge : IJuggDeployHelperRunHost {
         compileUiHandler: CompileUiHandler,
         deferPostDeployLaunch: Boolean,
         isAllowDirectOverlayDeploy: Boolean,
+        customApkInstallScript: String,
     ) {
         host.runRecoverDeployTask(
             device,
@@ -33,6 +34,7 @@ internal class JuggDeployHelperRunHostBridge : IJuggDeployHelperRunHost {
             compileUiHandler,
             deferPostDeployLaunch,
             isAllowDirectOverlayDeploy,
+            customApkInstallScript,
         )
     }
 

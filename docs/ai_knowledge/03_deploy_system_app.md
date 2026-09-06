@@ -90,12 +90,12 @@ Jugg 默认 install 走同一条 AS installer，签名对齐后**预期**可以�
 
 ### 4.1 自定义 APK 安装脚本契约
 
-- UI 开关未启用时仅显示 switch，默认安装行为不变；启用后显示单行高度的输入面板，不显示额外提示。
+- UI 开关未启用时仅显示 switch，默认安装行为不变；启用后显示单行高度的输入面板和项目脚本示例占位提示。
 - 脚本在本地工程根目录执行。macOS/Linux 使用 Bash shell，Windows 使用 `cmd.exe`；远程编译产物拉取完成后仍在本地主机执行。
 - Jugg 不注入设备、applicationId 或 APK 路径变量。脚本继承 IDE/Gradle 环境，Android SDK 的 `platform-tools` 会加入 `PATH`；Bash 不加载用户 shell 启动文件。
-- 普通 App APK 的 install/reinstall 使用脚本；androidTest APK 继续使用默认 installer。
+- 普通 App APK 的 install/reinstall 按每台设备、每个 applicationId 执行脚本；androidTest APK 继续使用默认 installer。
 - 脚本触发 reboot 时应自行等待设备启动和 PackageManager 扫描完成后再退出；Jugg 只复用现有短暂 ADB offline 恢复窗口。
-- 退出码非零、用户取消、ADB 未恢复、包不存在或实际 APK checksum 不匹配时失败。脚本失败不可 deploy retry 或 Gradle fallback；脚本开始执行后整轮 install 也不执行 `INSTALL_FAILED_INVALID_APK` 卸载重试，保证脚本不会被自动重跑。
+- 退出码非零、用户取消、ADB 未恢复、包不存在或实际 APK checksum 不匹配时失败。脚本自身失败不可 deploy retry 或 Gradle fallback；脚本成功后的其它部署失败沿用原有 retry/fallback 策略，可能重新执行脚本，重复执行的处理由业务方负责。
 
 ### 4.2 run-as 不兼容应用增量链路
 

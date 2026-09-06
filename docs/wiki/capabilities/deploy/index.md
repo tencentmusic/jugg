@@ -18,6 +18,7 @@ Jugg deployment capabilities apply APKs, DEX, resource overlays, Manifest change
 | Capability | Current support | Typical result |
 |---|---|---|
 | [Clean Reinstall](./clean-reinstall.md) | Supports reinstallation and optional app-data cleanup | Re-establishes the APK, deployment history, and overlay baseline |
+| [Custom APK install script](./custom-apk-install-script.md) | Supports project scripts for ordinary app install/reinstall operations | Adapts system apps, vendor tasks, and other non-standard installation flows |
 | [Code Swap](./code-swap.md) | Supports method-body-level class updates that can be replaced online | Keeps the app process running; regular non-empty deployments usually recreate the Activity |
 | [Full Swap](./full-swap.md) | Supports Apply Changes that must restart the Activity | Restarts the current Activity after updating code or overlays |
 | [Hot Reload](./hot-reload.md) | Supports online incremental overlay and class updates | Keeps the app running and restarts only the Activity when needed |

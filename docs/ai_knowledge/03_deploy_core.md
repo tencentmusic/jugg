@@ -1,6 +1,6 @@
 # 部署系统：核心部署机制
 
-> 最后核对：2026-09-05
+> 最后核对：2026-09-06
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -26,6 +26,7 @@
 | `DeployRetryHandler` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/flow/DeployRetryHandler.kt` | 根据失败原因选择 retry、fallback HOT_FIX、compat deploy、recover 后 redeploy 或停止。 |
 | `JuggDeployTask` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/applychanges/JuggDeployTask.kt` | 单设备单轮 deploy task。按 `applicationId` 分组，把全量 `JuggDeployData` 裁成 APK-scoped data 后调用 `JuggDeployer`。 |
 | `JuggDeployer` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/applychanges/JuggDeployer.kt` | 封装 Android Studio deployer：install、code swap、full swap、deployment cache、overlay id、Direct Overlay transport。 |
+| `CustomApkInstallScriptRunner` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/applychanges/CustomApkInstallScriptRunner.kt` | 在本地工程根目录执行当前 Run Configuration 的自定义普通 App APK 安装脚本，转发输出、响应取消并校验包与 APK checksum。 |
 | `DeployFileManager` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/DeployFileManager.kt` | 部署文件 facade。维护 changed/compiled/staging/deployed 状态，生成 `JuggDeployData`，reinstall 后 reset。 |
 | `DeployDataPlanner` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/DeployDataPlanner.kt` | 从 staging + history 规划部署数据，处理 dex merge 与 compat deploy 组装。 |
 | `JuggDeployData` / `DeployItem` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployData.kt` | 最终下发设备的部署数据模型，包含 deploy type、APK 归属、restart 判断、split/filter。 |
@@ -96,12 +97,17 @@ JuggDeployerHelper.deploy(isInstall=true)
   -> JuggDeployTask.run()
   -> groupByApplicationId()
   -> JuggDeployer.install()
-  -> AsDeployerCompat.install()
+  -> 普通 App 且启用自定义脚本: CustomApkInstallScriptRunner.run()
+      -> 继承 IDE/Gradle 环境，并把 Android SDK platform-tools 加入 PATH
+      -> 脚本成功后等待 ADB、确认包存在、dump APK 校验 checksum
+  -> 其他情况: AsDeployerCompat.install()
   -> JuggDeploymentService.storeEntry()
   -> deployHistoryManager.lastDeployOverlayIds = launchResult.overlayIds
 ```
 
-install 前会先 stop app，避免用户看到“安装后又被停止”的错觉。安装与增量部署失败时优先透出 `AdbLogWrapper.realErrorMessage`，不要先改高层错误文案；`run-as: package not debuggable` 等设备侧明确原因必须覆盖 deployer 的通用失败信息。
+脚本配置从 Run Configuration 经 `DeployOptions`、deploy/recover 请求和 `LaunchContextFactory` 写入 `LaunchContext`。`JuggDeployTask` 仅在 INSTALL 分支为普通 App 创建 `CustomApkInstallScriptRunner`，作为当前 `JuggDeployer.install()` 的可空参数；test APK 传空，使用默认 installer。脚本沿用每台设备、每个 applicationId 的安装粒度，校验和 cache 更新仍由 `JuggDeployer` 统一负责。
+
+install 前会先 stop app，避免用户看到“安装后又被停止”的错觉。自定义脚本对 Gradle install、embedded install、APK 更新 recover 和 reinstall recover 使用同一入口；androidTest APK 不执行脚本。脚本非零退出、取消、ADB 未恢复、包未安装或设备 APK 与输入 APK checksum 不一致都会明确失败，且不会触发默认 installer 的 transient retry、deploy retry 或 Gradle fallback。脚本成功后发生其它部署失败时，沿用原有 retry/fallback 策略，包括 test APK 安装失败后的 `INSTALL_FAILED_INVALID_APK` 卸载重试；由业务脚本负责重复执行的语义和副作用处理。安装与增量部署失败时优先透出 `AdbLogWrapper.realErrorMessage`，不要先改高层错误文案；`run-as: package not debuggable` 等设备侧明确原因必须覆盖 deployer 的通用失败信息。
 
 ### 4.2 incremental deploy 链路
 
@@ -194,7 +200,7 @@ reinstall recover 不恢复历史资源类型：重装已经停止或替换了�
 | agent no response | 先检测 JVMTI compat；必要时 compat deploy；JVMTI 可用且调用方允许 direct overlay 时，强制重试一次 direct overlay，避免依赖 agent responses。 |
 | deploy timeout | 先检测 JVMTI compat；必要时 compat deploy；timeout 规则继续按下方计数策略处理。 |
 | overlay id mismatch / class not found / direct deploy failed | recover deploy state 后 redeploy。direct deploy failed 时 recover 禁用 direct overlay（legacy + `isAllowDirectOverlayDeploy=false`）。 |
-| install `INSTALL_FAILED_INVALID_APK` | uninstall 当前 applicationId 集合后重新 install。 |
+| 默认 installer 的 `INSTALL_FAILED_INVALID_APK` | uninstall 当前 applicationId 集合后重新 install；普通 App 已成功执行的自定义脚本也会再次执行。 |
 | 用户限制、设备丢失、APK install 失败、embedded APK 冲突 | 停止 fallback，向上暴露失败。 |
 
 timeout 规则：overlay 数超过首片阈值时先降低 slice size；否则前两次等待后重试，第三次尝试 reinstall，超过次数停止。
@@ -299,7 +305,7 @@ Manifest、native library 等 `updateApkFiles` 继续由 APK 改写、重签和�
 - `CompatDeployHelper` 对 API < 30、设备兼容记录以及所有 HarmonyOS 设备返回 true；HarmonyOS 通过非空的 `hw_sc.build.platform.version` 属性识别，不持久化为手动 Force 记录。
 - dex merge 阈值是 `DeployDataPlanner.MAX_DEPLOYED_DEX_COUNT = 1000`；超过阈值时把 staging dex + 未 staging 的历史 dex merge，失败则保留原数据继续部署。
 - transient offline 的设计目标是在失败点附近恢复：shell/deployer 层原地等待并重试一次，编排层只处理已经冒泡的 offline 失败。
-- install 路径遇到 transient failure 可能从 DELTA 升级为 FULL install；不是所有 install 失败都应该进入 incremental fallback。
+- 默认 install 路径遇到 transient failure 可能从 DELTA 升级为 FULL install；自定义脚本自身失败不自动重试，脚本成功后的其它失败仍按原策略处理。不是所有 install 失败都应该进入 incremental fallback。
 
 ---
 

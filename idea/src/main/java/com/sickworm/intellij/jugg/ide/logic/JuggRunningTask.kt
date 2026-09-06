@@ -399,6 +399,9 @@ class JuggRunningTask(
                 indicator = indicator,
                 isInstall = compileTaskResult.isGradleCompile,
                 compileUiHandler = compileUiHandler,
+                customApkInstallScript = options.customApkInstallScript.takeIf {
+                    options.enableCustomApkInstallScript
+                }.orEmpty(),
                 androidTestRunSpec = androidTestRunSpec,
                 androidTestResultModel = if (androidTestRunSpec != null) androidTestResultModel else null,
             )

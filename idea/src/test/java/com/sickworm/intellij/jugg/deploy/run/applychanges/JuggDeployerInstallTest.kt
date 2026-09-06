@@ -16,6 +16,8 @@ import com.intellij.execution.configurations.RunConfigurationBase
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.Project
+import com.sickworm.intellij.jugg.apk.ApkFileUnit
+import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
@@ -23,6 +25,7 @@ import com.sickworm.intellij.jugg.deploy.run.IJuggDeployerDeploymentService
 import com.sickworm.intellij.jugg.deploy.run.IdeDeployState
 import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentCacheEntry
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerException
+import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.deploy.run.JuggInstallSession
 import com.sickworm.intellij.jugg.deploy.run.LaunchContext
 import com.sickworm.intellij.jugg.deploy.run.JuggOverlayFile
@@ -41,6 +44,38 @@ import java.io.File
 import java.io.IOException
 
 class JuggDeployerInstallTest {
+
+    @Test
+    fun `configured script installs app while test APK uses default installer`() {
+        val fixture = newFixture(customApkInstallScript = "./install-app.sh")
+        val testPackage = "$PACKAGE_NAME.test"
+        val apks = listOf(
+            ApkInfo(
+                files = listOf(ApkFileUnit(PACKAGE_NAME, "", true, File("/tmp/demo.apk"))),
+                applicationId = PACKAGE_NAME,
+            ),
+            ApkInfo(
+                files = listOf(ApkFileUnit(testPackage, "", true, File("/tmp/test.apk"))),
+                applicationId = testPackage,
+                instrumentationTargetPackage = PACKAGE_NAME,
+            ),
+        )
+        Mockito.mockConstruction(CustomApkInstallScriptRunner::class.java).use { scripts ->
+            val result = JuggDeployTask(
+                project = Mockito.mock(Project::class.java),
+                type = AndroidDeployType.INSTALL,
+                data = JuggDeployData.forInstall(apks),
+                deploymentService = fixture.deploymentService,
+                asDeployerCompat = fixture.compat,
+                logger = fixture.ideaLogger,
+            ).run(fixture.launchContext)
+
+            assertTrue(result.success)
+            assertEquals(setOf(PACKAGE_NAME, testPackage), result.overlayIds.keys)
+            assertEquals(listOf(testPackage), fixture.compat.installedPackageNames)
+            Mockito.verify(scripts.constructed().single()).run(PACKAGE_NAME)
+        }
+    }
 
     @Test
     fun `install retries once after offline exception and succeeds`() {
@@ -133,7 +168,71 @@ class JuggDeployerInstallTest {
         )
     }
 
-    private fun newFixture(shellReady: Boolean = true): Fixture {
+    @Test
+    fun `custom install script bypasses default installer and stores verified cache`() {
+        val scriptRunner = Mockito.mock(CustomApkInstallScriptRunner::class.java)
+        val fixture = newFixture()
+
+        val result = fixture.deployer.install(
+            packageName = PACKAGE_NAME,
+            apks = listOf("/tmp/demo.apk"),
+            argInstallMode = JuggInstallSession.Mode.FULL,
+            customInstallScriptRunner = scriptRunner,
+        )
+
+        assertFalse(result.skippedInstall)
+        assertEquals(0, fixture.compat.installCalls)
+        Mockito.verify(scriptRunner).run(PACKAGE_NAME)
+        Mockito.verify(fixture.deploymentService).storeEntry(
+            "emulator-5554",
+            PACKAGE_NAME,
+            fixture.compat.parsedApks,
+            fixture.compat.baseOverlayId,
+            fixture.logger,
+        )
+    }
+
+    @Test
+    fun `custom install script failure does not store deployment cache`() {
+        val scriptRunner = Mockito.mock(CustomApkInstallScriptRunner::class.java)
+        Mockito.doThrow(IllegalStateException("script failed")).`when`(scriptRunner)
+            .run(PACKAGE_NAME)
+        val fixture = newFixture()
+
+        assertThrows(CustomApkInstallScriptException::class.java) {
+            fixture.deployer.install(
+                packageName = PACKAGE_NAME,
+                apks = listOf("/tmp/demo.apk"),
+                argInstallMode = JuggInstallSession.Mode.FULL,
+                customInstallScriptRunner = scriptRunner,
+            )
+        }
+
+        Mockito.verifyNoInteractions(fixture.deploymentService)
+    }
+
+    @Test
+    fun `custom install script rejects APK checksum mismatch`() {
+        val scriptRunner = Mockito.mock(CustomApkInstallScriptRunner::class.java)
+        val fixture = newFixture()
+        fixture.compat.dumpedApks = listOf(testApk(checksum = "different-checksum"))
+
+        assertThrows(CustomApkInstallScriptException::class.java) {
+            fixture.deployer.install(
+                packageName = PACKAGE_NAME,
+                apks = listOf("/tmp/demo.apk"),
+                argInstallMode = JuggInstallSession.Mode.FULL,
+                customInstallScriptRunner = scriptRunner,
+            )
+        }
+
+        Mockito.verifyNoInteractions(fixture.deploymentService)
+    }
+
+    private fun newFixture(
+        shellReady: Boolean = true,
+        customApkInstallScript: String = "",
+    ): Fixture {
         val device = Mockito.mock(IDevice::class.java)
         Mockito.`when`(device.serialNumber).thenReturn("emulator-5554")
         val deviceAdb = FakeDeviceAdb(shellReady)
@@ -154,6 +253,7 @@ class JuggDeployerInstallTest {
             isDirectOverlaySettingsEnabled = false,
             isDeviceReadyDeploy = true,
             isAllowDirectOverlayDeploy = false,
+            customApkInstallScript = customApkInstallScript,
         )
 
         val deployer = JuggDeployer(
@@ -162,10 +262,10 @@ class JuggDeployerInstallTest {
             logger = logger,
             asDeployerCompat = compat,
         )
-        return Fixture(deviceAdb, compat, deploymentService, ideaLogger, logger, deployer)
+        return Fixture(deviceAdb, compat, deploymentService, ideaLogger, logger, deployer, launchContext)
     }
 
-    private fun testApk(): Apk {
+    private fun testApk(checksum: String = "checksum"): Apk {
         val constructor = Apk::class.java.declaredConstructors.first { it.parameterCount == 10 }
         constructor.isAccessible = true
         val args = constructor.parameterTypes.map { type ->
@@ -177,17 +277,20 @@ class JuggDeployerInstallTest {
             }
         }.toMutableList()
         args[0] = "demo.apk"
-        args[1] = "checksum"
+        args[1] = checksum
         args[2] = "/tmp/demo.apk"
         args[3] = PACKAGE_NAME
         return constructor.newInstance(*args.toTypedArray()) as Apk
     }
 
     private class RecordingInstallCompat(
-        private val parsedApks: List<Apk>,
+        val parsedApks: List<Apk>,
     ) : IAsDeployerCompat {
         var installCalls = 0
+        val installedPackageNames = mutableListOf<String>()
         val installModes = mutableListOf<JuggInstallSession.Mode>()
+        val baseOverlayId = JuggOverlayId(raw = Any(), sha = "base-overlay", isBaseInstall = true)
+        var dumpedApks = parsedApks
         var onInstall: (callIndex: Int, installMode: JuggInstallSession.Mode) -> Unit = { _, _ -> }
 
         override fun install(
@@ -199,6 +302,7 @@ class JuggDeployerInstallTest {
             installMode: JuggInstallSession.Mode,
         ): Boolean {
             installCalls++
+            installedPackageNames.add(packageName)
             installModes.add(installMode)
             onInstall(installCalls, installMode)
             return true
@@ -210,9 +314,7 @@ class JuggDeployerInstallTest {
 
         override fun getPackageName(apks: List<Apk>): String = PACKAGE_NAME
 
-        override fun createBaseOverlayId(apks: List<Apk>): JuggOverlayId {
-            return JuggOverlayId(raw = Any(), sha = "base-overlay", isBaseInstall = true)
-        }
+        override fun createBaseOverlayId(apks: List<Apk>): JuggOverlayId = baseOverlayId
 
         override fun buildOverlayId(base: JuggOverlayId, addedFiles: List<JuggOverlayFile>): JuggOverlayId =
             unsupported()
@@ -223,11 +325,12 @@ class JuggDeployerInstallTest {
             fileOverlays: Map<ApkEntry, ByteString>,
         ): JuggOverlayUpdate = unsupported()
 
-        override fun dumpApks(session: JuggInstallSession, apks: List<Apk>): List<Apk> = unsupported()
+        override fun dumpApks(session: JuggInstallSession, apks: List<Apk>): List<Apk> = dumpedApks
 
         override fun remoteApkNotFound(): JuggDeployerException = unsupported()
 
-        override fun overlayIdMismatch(): JuggDeployerException = unsupported()
+        override fun overlayIdMismatch(): JuggDeployerException =
+            JuggDeployerException(0, "overlay id mismatch", null)
 
         override fun apiNotSupported(): JuggDeployerException = unsupported()
 
@@ -302,6 +405,7 @@ class JuggDeployerInstallTest {
         val ideaLogger: Logger,
         val logger: AdbLogWrapper,
         val deployer: JuggDeployer,
+        val launchContext: LaunchContext,
     )
 
     private companion object {
