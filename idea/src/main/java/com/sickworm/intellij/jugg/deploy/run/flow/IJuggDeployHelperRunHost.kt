@@ -17,6 +17,7 @@ interface IJuggDeployHelperRunHost {
         compileUiHandler: CompileUiHandler,
         deferPostDeployLaunch: Boolean = false,
         isAllowDirectOverlayDeploy: Boolean = true,
+        customApkInstallScript: String = "",
     )
 
     fun redeploy(deployOptions: DeployOptions): DeployTaskResult

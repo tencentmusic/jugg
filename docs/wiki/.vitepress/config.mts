@@ -149,6 +149,7 @@ const englishSidebar = {
           items: [
             { text: 'Overview', link: '/capabilities/deploy/' },
             { text: 'Clean Reinstall', link: '/capabilities/deploy/clean-reinstall' },
+            { text: 'Custom APK install script', link: '/capabilities/deploy/custom-apk-install-script' },
             { text: 'Code Swap', link: '/capabilities/deploy/code-swap' },
             { text: 'Full Swap', link: '/capabilities/deploy/full-swap' },
             { text: 'Hot Reload', link: '/capabilities/deploy/hot-reload' },
@@ -413,6 +414,7 @@ const chineseSidebar = {
           items: [
             { text: '概览', link: '/zh/capabilities/deploy/' },
             { text: 'Clean Reinstall', link: '/zh/capabilities/deploy/clean-reinstall' },
+            { text: '自定义 APK 安装脚本', link: '/zh/capabilities/deploy/custom-apk-install-script' },
             { text: 'Code Swap', link: '/zh/capabilities/deploy/code-swap' },
             { text: 'Full Swap', link: '/zh/capabilities/deploy/full-swap' },
             { text: 'Hot Reload', link: '/zh/capabilities/deploy/hot-reload' },

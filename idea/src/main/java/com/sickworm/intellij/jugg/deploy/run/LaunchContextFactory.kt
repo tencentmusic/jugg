@@ -30,6 +30,7 @@ class LaunchContextFactory(
         isDeviceReadyDeploy: Boolean,
         isAllowDirectOverlayDeploy: Boolean,
         forceDirectOverlayDeploy: Boolean = false,
+        customApkInstallScript: String = "",
     ): LaunchContext {
         val deviceAdb = deviceAdbFactory(device, logger)
         val installersRoot = installPathProvider.compute()
@@ -65,6 +66,7 @@ class LaunchContextFactory(
             isDeviceReadyDeploy = isDeviceReadyDeploy,
             isAllowDirectOverlayDeploy = isAllowDirectOverlayDeploy,
             forceDirectOverlayDeploy = forceDirectOverlayDeploy,
+            customApkInstallScript = customApkInstallScript,
         )
     }
 }

@@ -40,6 +40,12 @@ class JuggRunConfigurationOptions: RunConfigurationOptions() {
     /** Whether remoteSyncExcludePatterns replaces Jugg defaults. */
     var isRemoteSyncExcludePatternsCustomized by property(false)
 
+    /** Whether Jugg should replace the default app APK installer with a project script. */
+    var enableCustomApkInstallScript by property(false)
+
+    /** Project-local shell script used for app APK install and reinstall operations. */
+    var customApkInstallScript by string()
+
     // new options must add to the end because property persist is in order
 
 }

@@ -8,6 +8,7 @@ import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentService
+import com.sickworm.intellij.jugg.deploy.run.applychanges.CustomApkInstallScriptRunner
 import com.sickworm.intellij.jugg.deploy.run.deployflow.DeployFlowCaseId
 import com.sickworm.intellij.jugg.deploy.run.deployflow.DeployFlowFixture
 import com.sickworm.intellij.jugg.deploy.run.deployflow.DeployFlowMockBackend
@@ -31,6 +32,26 @@ import org.mockito.kotlin.whenever
  * Spec: docs/task/2026-05/jugg_deploy_flow_virtual_device.md, jugg_deployer_helper_deploy_flow_test_plan.md §5.1
  */
 class JuggDeployerHelperDeployFlowTest {
+
+    @Test
+    fun `recover reinstall executes configured script and stops on script failure`() {
+        val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_002)
+        Mockito.mockConstruction(CustomApkInstallScriptRunner::class.java) { runner, _ ->
+            Mockito.doThrow(IllegalStateException("Custom APK install script failed with exit code 7."))
+                .`when`(runner).run(org.mockito.kotlin.any())
+        }.use {
+            val result = fixture.helper.deploy(fixture.deployOptions.copy(
+                customApkInstallScript = "./install-app.sh",
+            ))
+
+            assertFalse(result.isSuccess)
+            assertFalse(result.isCanFallback)
+            assertTrue(result.failedReason.orEmpty().contains("exit code 7"))
+            assertEquals(0, fixture.virtualDevice.installInvokeCount)
+            assertFalse(fixture.virtualDevice.hasDirectOverlayApply())
+            Mockito.verify(fixture.deployFileManager, Mockito.never()).resetAfterReinstall()
+        }
+    }
 
     @Test
     fun `DF-L2-001 direct write incremental deploy when app not deployable`() {

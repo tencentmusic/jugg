@@ -60,7 +60,7 @@
 - Jugg 旁路编译不等价于完整 Gradle pipeline。
 - 涉及注解处理、字节码插桩、复杂构建脚本改动时，通常需要 Gradle 回退验证。
 - MCP 工具能力以 `tools/list` 返回的 schema 与 `ai/mcp/actions` 实现为准。
-- Jugg 部署不会把应用首次安装进 `/system/app` 或 `/system/priv-app`；系统应用约束见 `03_deploy_system_app.md`。
+- Jugg 默认 installer 不会把应用首次安装进 `/system/app` 或 `/system/priv-app`；Run Configuration 可启用自定义 APK 安装脚本接管 install/reinstall，但 remount、push、白名单和重启仍由项目脚本负责。系统应用约束见 `03_deploy_system_app.md`。
 
 ---
 

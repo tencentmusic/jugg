@@ -47,6 +47,8 @@ Android 不接受内容被修改但签名未更新的 APK。Jugg 写入目标文
 
 安装替换了旧进程和旧 overlay 基线。Jugg 会清理已经不能继续复用的部署文件状态，再根据本轮编译结果重新组织剩余数据。这样 Manifest 或 native lib 与普通 class、资源可以在一次 Run 中共同生效。
 
+如果当前 Run Configuration 启用了自定义 APK 安装脚本，普通 App 的“安装更新后的 APK”步骤会由项目脚本完成。Jugg 仍要求脚本安装本轮提供的 APK，并在 checksum 校验通过后重建 deployment cache；androidTest APK 不使用该脚本。
+
 ## APK 更新和 Gradle 回退的区别
 
 两条路径都会安装 APK，但重新生成 APK 的范围不同。
@@ -67,3 +69,4 @@ Recover 触发的重新安装也不等于 Gradle 回退。它通常安装当前�
 - [部署状态与恢复](./deploy-state-recover.md)
 - [Gradle 回退与基线重建](./gradle-fallback-baseline.md)
 - [Clean Reinstall 能力](../capabilities/deploy/clean-reinstall.md)
+- [自定义 APK 安装脚本](../capabilities/deploy/custom-apk-install-script.md)

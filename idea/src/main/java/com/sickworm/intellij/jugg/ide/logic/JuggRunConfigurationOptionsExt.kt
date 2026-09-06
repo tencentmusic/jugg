@@ -40,6 +40,8 @@ fun JuggRunConfigurationOptions.toCompileOptions(
             emptyList()
         },
         isRemoteSyncExcludePatternsCustomized = options.isRemoteSyncExcludePatternsCustomized,
+        enableCustomApkInstallScript = options.enableCustomApkInstallScript,
+        customApkInstallScript = options.customApkInstallScript ?: "",
     )
 }
 

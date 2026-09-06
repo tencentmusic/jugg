@@ -87,7 +87,15 @@ class JuggDeployTask(
                 }
                 val effectiveType = decision.effectiveType
                 logPackageScope(applicationId, apkInfos, scopedData, effectiveType, logger)
-                val result = perform(device, deployer, applicationId, apkFiles, scopedData, effectiveType)
+                val result = perform(
+                    device,
+                    deployer,
+                    applicationId,
+                    apkFiles,
+                    scopedData,
+                    launchContext,
+                    effectiveType,
+                )
                 if (result.skippedInstall) {
                     idsSkippedInstall.add(applicationId)
                 }
@@ -132,13 +140,23 @@ class JuggDeployTask(
     private fun perform(
         device: IDevice, deployer: JuggDeployer, applicationId: String, files: List<File>,
         scopedData: JuggDeployData,
+        launchContext: LaunchContext,
         effectiveType: AndroidDeployType = type,
     ): JuggDeployer.Result {
         when (effectiveType) {
             AndroidDeployType.INSTALL -> {
                 logger.debug("Installing application $applicationId...")
                 val installMode = asDeployerCompat.getInstallMode()
-                return deployer.install(applicationId, getPathsToInstall(files), installMode)
+                val isApp = scopedData.apks.isNotEmpty() && scopedData.apks.none { it.isTestApk }
+                val scriptRunner = launchContext.customApkInstallScript
+                    .takeIf { isApp && it.isNotBlank() }
+                    ?.let { CustomApkInstallScriptRunner(project, it, launchContext, logger) }
+                return deployer.install(
+                    applicationId,
+                    getPathsToInstall(files),
+                    installMode,
+                    customInstallScriptRunner = scriptRunner,
+                )
             }
             AndroidDeployType.APPLY_CHANGES_AND_RESTART_ACTIVITY -> {
                 logger.debug("Applying changes to application $applicationId...")

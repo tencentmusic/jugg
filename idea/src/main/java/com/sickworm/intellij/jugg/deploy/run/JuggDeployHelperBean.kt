@@ -16,6 +16,7 @@ data class DeployOptions(
     val isInstall: Boolean = false,
     val isWarmUp: Boolean = false,
     val compileUiHandler: CompileUiHandler = CompileUiHandler.DEFAULT,
+    val customApkInstallScript: String = "",
     val retryReason: String? = null,
     val isSkipExceptOverlayCheck: Boolean = false,
     val retryDeployData: JuggDeployData? = null,
@@ -32,6 +33,10 @@ data class DeployOptions(
     fun costTime(): Long {
         return System.currentTimeMillis() - startTime
     }
+
+    fun toSafeString(): String = copy(
+        customApkInstallScript = if (customApkInstallScript.isNotEmpty()) "(configured)" else "",
+    ).toString()
 }
 
 data class DeployTaskResult(
@@ -52,6 +57,7 @@ data class JuggDeployRunTaskRequest(
     val device: IDevice,
     val data: JuggDeployData,
     val compileUiHandler: CompileUiHandler,
+    val customApkInstallScript: String = "",
     val isSkipExceptOverlayCheck: Boolean = false,
     val isMultipleDevices: Boolean = false,
     val isLastDevice: Boolean = false,
@@ -74,6 +80,7 @@ data class JuggDeployRunTaskRequest(
                 device = deployOptions.device,
                 data = data,
                 compileUiHandler = deployOptions.compileUiHandler,
+                customApkInstallScript = deployOptions.customApkInstallScript,
                 isSkipExceptOverlayCheck = isSkipExceptOverlayCheck,
                 isMultipleDevices = deployOptions.isMultipleDevices,
                 isLastDevice = deployOptions.isLastDevice,

@@ -4,8 +4,10 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.isWindows
 import com.sickworm.intellij.jugg.project.JuggException
 import kotlinx.coroutines.*
+import java.io.File
 import java.io.IOException
 import java.io.PrintStream
+import java.util.stream.Collectors
 
 
 /**
@@ -29,11 +31,29 @@ class CmdExecutor(
 
     @Volatile
     private var currentRunningProcess: Process? = null
+    private val processLock = Any()
+    private var isInvokePending = false
+    private var isPendingReleaseRequested = false
+
+    /** Opens a cancellation window before the process is created. The next [invoke] consumes it. */
+    fun prepareForInvoke() {
+        synchronized(processLock) {
+            isInvokePending = true
+            isPendingReleaseRequested = false
+        }
+    }
 
     fun invoke(
         command: ISshCommand,
         envArray: List<String>? = null,
         outputCollector: MutableList<String>? = null,
+    ): Int = invoke(command, envArray, outputCollector, null)
+
+    fun invoke(
+        command: ISshCommand,
+        envArray: List<String>?,
+        outputCollector: MutableList<String>?,
+        workingDir: File?,
     ): Int {
         val printSafeCommand = command.getPrintSafeCommand(isNeedSetChineseLanguage = false, isWindows = isWindows)
         logger.debug("CmdExecutor invoke command: $printSafeCommand")
@@ -58,11 +78,23 @@ class CmdExecutor(
             arrayOf("/bin/bash", "-c", commandString)
         }
 
-        val process = Runtime.getRuntime().exec(
-            commands,
-            envArray?.toTypedArray(),
-        )
-        currentRunningProcess = process
+        val process = synchronized(processLock) {
+            if (isInvokePending && isPendingReleaseRequested) {
+                isInvokePending = false
+                isPendingReleaseRequested = false
+                return@synchronized null
+            }
+            try {
+                Runtime.getRuntime().exec(
+                    commands,
+                    envArray?.toTypedArray(),
+                    workingDir,
+                ).also { currentRunningProcess = it }
+            } finally {
+                isInvokePending = false
+                isPendingReleaseRequested = false
+            }
+        } ?: return IGradleCompileClient.Error.ERROR_CANCELED
 
         val commander = PrintStream(process.outputStream, false)
         val errorPrintThread = object : Thread() {
@@ -145,14 +177,32 @@ class CmdExecutor(
         timeOutJob?.cancel()
         process.waitFor()
         errorPrintThread.interrupt()
-        currentRunningProcess = null
+        synchronized(processLock) {
+            if (currentRunningProcess === process) {
+                currentRunningProcess = null
+            }
+        }
 
         return result
     }
 
     fun release() {
-        currentRunningProcess?.destroy()
-        currentRunningProcess = null
+        val process = synchronized(processLock) {
+            if (isInvokePending) {
+                isPendingReleaseRequested = true
+            }
+            currentRunningProcess
+        }
+        process?.let(::destroyProcessTree)
+    }
+
+    private fun destroyProcessTree(process: Process) {
+        val processHandle = process.toHandle()
+        val descendants = processHandle.descendants().collect(Collectors.toList())
+        process.destroy()
+        descendants.asReversed().forEach { if (it.isAlive) it.destroy() }
+        descendants.asReversed().forEach { if (it.isAlive) it.destroyForcibly() }
+        if (process.isAlive) process.destroyForcibly()
     }
 
     private fun printToStream(line: String) {

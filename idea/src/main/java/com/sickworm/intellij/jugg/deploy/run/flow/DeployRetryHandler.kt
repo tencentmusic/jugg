@@ -157,6 +157,7 @@ class DeployRetryHandler(
                     deployOptions.isSkipExceptOverlayCheck,
                     compileUiHandler = deployOptions.compileUiHandler,
                     allowDirectOverlayRecover = allowDirectOverlayRecover,
+                    customApkInstallScript = deployOptions.customApkInstallScript,
                 )
                 if (!isSuccess) {
                     logger.warn("Try recover deploy state failed on retry.")

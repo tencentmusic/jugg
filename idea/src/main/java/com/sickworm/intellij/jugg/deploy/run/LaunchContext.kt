@@ -22,6 +22,8 @@ class LaunchContext(
     val isDeviceReadyDeploy: Boolean,
     val isAllowDirectOverlayDeploy: Boolean,
     val forceDirectOverlayDeploy: Boolean = false,
+    /** Non-blank when ordinary app APK installation uses a project script. */
+    val customApkInstallScript: String = "",
     private val appSandboxExecutors: MutableMap<String, AppSandboxExecutor> = mutableMapOf(),
 ) {
     val isDirectOverlayEnabled: Boolean
@@ -64,6 +66,7 @@ class LaunchContext(
             isDeviceReadyDeploy = isDeviceReadyDeploy,
             isAllowDirectOverlayDeploy = isAllowDirectOverlayDeploy,
             forceDirectOverlayDeploy = forceDirectOverlayDeploy,
+            customApkInstallScript = customApkInstallScript,
             appSandboxExecutors = appSandboxExecutors,
         )
     }
