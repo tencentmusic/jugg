@@ -43,6 +43,26 @@ data class ComposeResourceDirectory(
     val directory: File,
 )
 
+/** External Gradle build discovered for sources that Jugg cannot compile directly. */
+data class ExternalBuildInfo(
+    val type: ExternalBuildType,
+    val sourceDirs: List<File>,
+    val taskPath: String?,
+    val outputDir: File?,
+    val nativeLibsArchive: File?,
+    val unsupportedReason: String? = null,
+) {
+    val isSupported: Boolean
+        get() = taskPath != null && outputDir != null &&
+                (type != ExternalBuildType.Flutter || nativeLibsArchive != null) && unsupportedReason == null
+}
+
+/** Supported external source toolchains. */
+enum class ExternalBuildType {
+    Flutter,
+    Cpp,
+}
+
 /**
  * Gradle module snapshot used to resolve sources, manifests, classpaths, and dependencies.
  */
@@ -96,7 +116,8 @@ data class ModuleInfo(
     val instrumentationTargetPackage: String? = null,
     val composeResourceInfo: ComposeResourceInfo? = null,
     /** Effective options declared by Kotlin compiler subplugins for this module. */
-    val kotlinPluginOptions: List<String> = emptyList(),
+    val kotlinPluginOptions: List<String>,
+    val externalBuildInfos: List<ExternalBuildInfo>,
 ) {
     // do not add unnecessary content before ") {", for kotlin 1.3 compat: buildReadProjectInfoScript.gradle
     // if adds new fields, also updates:
@@ -157,6 +178,8 @@ data class ModuleInfo(
             runtimeLibraryDependencies = emptyList(),
             annotationProcessorDependencies = emptyList(),
             kaptDependencies = emptyList(),
+            kotlinPluginOptions = emptyList(),
+            externalBuildInfos = emptyList(),
         )
     }
 }

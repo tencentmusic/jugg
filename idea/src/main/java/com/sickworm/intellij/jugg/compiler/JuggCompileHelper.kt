@@ -10,6 +10,7 @@ import com.sickworm.intellij.jugg.apk.ApkInfoReader
 import com.sickworm.intellij.jugg.ai.mcp.util.LastCompileTimestampRegistry
 import com.sickworm.intellij.jugg.compiler.ui.BuildChangesConfirmResult
 import com.sickworm.intellij.jugg.compiler.ui.TooManyChangesConfirmResult
+import com.sickworm.intellij.jugg.compiler.external.deriveExternalBuildCommand
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.instrument.LibraryTestApkBuildHistory
 import com.sickworm.intellij.jugg.deploy.run.IdeDeployState
@@ -25,6 +26,8 @@ import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.project.*
 import com.sickworm.intellij.jugg.project.GitFileChangesDetector
+import com.sickworm.intellij.jugg.project.data.ExternalBuildInfo
+import com.sickworm.intellij.jugg.project.data.ExternalBuildType
 import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResultSet
 import com.sickworm.intellij.jugg.project.dependency.GradleProjectInfoLocalFetchManager
@@ -61,6 +64,7 @@ class JuggCompilerHelper(
     companion object {
         private const val FILE_PROCESSING_WAIT_TIMEOUT_MS = 1_000L
         private const val GRADLE_PROJECT_INFO_UNAVAILABLE = "Gradle project info unavailable"
+        private val cppSourceExtensions = setOf("c", "cc", "cpp", "cxx", "h", "hh", "hpp", "hxx")
     }
 
     var juggCompiler: JuggCompiler? = null
@@ -398,6 +402,15 @@ class JuggCompilerHelper(
             return CompileTaskResult.incrementalFailed(true, "Force fallback")
         }
 
+        val externalBuildSources = deployFileManager.getUncompiledFiles().filter {
+            it.type == CompileFile.Type.ExternalBuildSource
+        }
+        val hasExternalBuildSources = externalBuildSources.isNotEmpty()
+        if (hasExternalBuildSources && options.isRemoteCompile) {
+            logger.info("External source changes require local build outputs, forcing remote Gradle full compile.")
+            return CompileTaskResult.incrementalFailed(true, "External build output is unavailable locally")
+        }
+
         // Build target switch (APP <-> ANDROID_TEST) requires a full Gradle compile to produce correct APKs.
         if (deployHistoryManager.isBuildTargetChanged(options)) {
             logger.info("Build target changed to ${options.buildTarget}, forcing Gradle full compile.")
@@ -409,6 +422,28 @@ class JuggCompilerHelper(
             logger.info("Compile command changed, forcing Gradle full compile. " +
                     "last=$lastCompileCommand current=${options.compileCommand}")
             return CompileTaskResult.incrementalFailed(true, "Compile command changed")
+        }
+
+        if (hasExternalBuildSources && hasLegacyFlutterBuildInfo(externalBuildSources)) {
+            gradleProjectInfoLocalFetchManager.runUpdateIfNeeded(
+                isForce = true,
+                specificCompileCommand = lastCompileCommand,
+                buildTarget = options.buildTarget,
+            )
+            gradleProjectInfoLocalFetchManager.waitForCurrentUpdate()
+        }
+        findUnsupportedExternalBuildReason(externalBuildSources)?.let { reason ->
+            logger.info("$reason, forcing Gradle full compile.")
+            return CompileTaskResult.incrementalFailed(true, reason)
+        }
+        if (hasExternalBuildSources) {
+            val taskPaths = externalBuildSources.mapNotNull(::resolveExternalBuildInfo)
+                .mapNotNull { it.taskPath }
+                .distinct()
+            if (lastCompileCommand == null || deriveExternalBuildCommand(lastCompileCommand, taskPaths) == null) {
+                logger.info("External source changes require a derivable Gradle command, forcing Gradle full compile.")
+                return CompileTaskResult.incrementalFailed(true, "External build command cannot be derived")
+            }
         }
 
         getInitialFullCompileReason()?.let {
@@ -463,6 +498,41 @@ class JuggCompilerHelper(
             }
         }
         return null
+    }
+
+    private fun findUnsupportedExternalBuildReason(files: List<ChangedFile>): String? {
+        files.forEach { file ->
+            val buildInfo = resolveExternalBuildInfo(file)
+                ?: return "External build metadata not found"
+            if (!buildInfo.isSupported) {
+                return buildInfo.unsupportedReason ?: "External build is not supported"
+            }
+        }
+        return null
+    }
+
+    private fun hasLegacyFlutterBuildInfo(files: List<ChangedFile>): Boolean {
+        return files.mapNotNull(::resolveExternalBuildInfo).any { buildInfo ->
+            buildInfo.type == ExternalBuildType.Flutter && buildInfo.taskPath != null &&
+                    buildInfo.outputDir != null && buildInfo.nativeLibsArchive == null &&
+                    buildInfo.unsupportedReason == null
+        }
+    }
+
+    private fun resolveExternalBuildInfo(file: ChangedFile): ExternalBuildInfo? {
+        val module = runCatching { compileContextManager.compileContext.modules[file.module.name] }
+            .getOrNull() ?: file.module
+        val extension = file.file.extension.lowercase()
+        return module.externalBuildInfos.firstOrNull { buildInfo ->
+            val matchesType = when (buildInfo.type) {
+                ExternalBuildType.Flutter -> extension == "dart"
+                ExternalBuildType.Cpp -> extension in cppSourceExtensions
+            }
+            matchesType && buildInfo.sourceDirs.any { sourceDir ->
+                file.file.toPath().toAbsolutePath().normalize()
+                    .startsWith(sourceDir.toPath().toAbsolutePath().normalize())
+            }
+        }
     }
 
     private fun isCompileCommandChanged(options: JuggGradleCompileOptions): Boolean {

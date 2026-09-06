@@ -9,9 +9,9 @@ tags:
 
 # 增量编译
 
-Jugg 的增量编译建立在一次可信的 Gradle 构建之上。Gradle 先生成 APK、class、资源表、Manifest、DataBinding 中间产物和依赖信息；Jugg 后续只处理本轮变化文件，并输出部署阶段需要的局部产物。
+Jugg 的增量编译建立在一次可信的 Gradle 构建之上。Gradle 先生成 APK、class、资源表、Manifest、DataBinding 中间产物和依赖信息；Jugg 后续处理本轮变化文件，并输出部署阶段需要的局部产物。Dart/C/C++ 这类需要专用工具链的源码会执行当前变体对应的局部 Gradle task，Android 原生源码和资源仍走 Jugg 增量阶段。
 
-它不接管 Gradle task，也不生成完整 APK。构建脚本、依赖、注解处理器或其他上下文不可信时，Jugg 会回到 Gradle，刷新下一轮增量编译的基线。
+它不生成完整 APK。除已识别的 Flutter/native 外部源码 task 外，构建脚本、依赖、注解处理器或其他上下文不可信时，Jugg 会回到完整 Gradle 构建，刷新下一轮增量编译的基线。
 
 ## 增量编译类型
 
@@ -42,7 +42,8 @@ Jugg 的增量编译建立在一次可信的 Gradle 构建之上。Gradle 先生
 
 后续增量运行
   -> 检测 IDE 与 Git 记录中的变化文件
-  -> 按文件类型进入 assets、资源、源码、Manifest 等编译链路
+  -> Dart/C/C++ 先执行当前变体的 Flutter/native task
+  -> 按文件类型进入 assets、native lib、资源、源码、Manifest 等编译链路
   -> 输出 DEX、resources.arsc、资源 overlay、assets、Manifest 或需写回 APK 的文件
   -> 分析受影响源码和需重转 DEX 的 class，必要时继续下一轮编译
   -> 将 staging 产物交给部署阶段
@@ -60,7 +61,7 @@ Jugg 同时使用三种变化来源，彼此补齐覆盖面：
 
 ## 编译上下文
 
-增量编译需要复用 Gradle 结果，包括模块路径、源码目录、Manifest 路径、variant、模块依赖、库依赖、Java/Kotlin 编译参数、APK 路径和 DataBinding 中间产物。
+增量编译需要复用 Gradle 结果，包括模块路径、源码目录、Manifest 路径、variant、模块依赖、库依赖、Java/Kotlin 编译参数、APK 路径、DataBinding 中间产物，以及 Flutter/C++ 源码根、task 和输出目录。
 
 Jugg 把这些信息合并成一份项目快照，并在 `build/jugg` 下维护增量编译和部署所需的本地索引。其中一份关键索引来自对基线 APK / DEX 的解析结果，后续的扩散补编译、default method 处理和部署数据生成都会读取它来还原引用关系。
 
@@ -69,7 +70,8 @@ Jugg 把这些信息合并成一份项目快照，并在 `build/jugg` 下维护�
 一轮增量编译按固定阶段推进，前一阶段的产物可能成为后一阶段的输入：
 
 ```text
-assets / native lib
+Flutter/C++ 外部构建
+  -> assets / native lib
   -> 资源（含 Manifest、resources.arsc）
   -> 源码（注解处理与 DataBinding 生成源 -> Kotlin -> Java -> DEX -> minify）
 ```

@@ -118,6 +118,7 @@ data class CompileFile(
         NativeLib,
         Resource,
         ComposeResource,
+        ExternalBuildSource,
         Flat,
         BuildFile,
         AndroidManifest,
@@ -349,6 +350,8 @@ interface ICompileContext {
     val projectDir: File
     /** Classpath entry containing the R8 distribution loaded by the selected Android Gradle Plugin. */
     val agpR8Classpath: File? get() = null
+    /** Gradle command recorded by the full build that produced the deployed baseline APK. */
+    val fullBuildGradleCommand: String? get() = null
     /** all deployed files */
     val deployedFiles: List<CompileOutput>
     /** APK singing config */

@@ -63,6 +63,9 @@ class BaseCompileContext(
 
     override val deployedFiles: List<CompileOutput> get() = deployFileManager.getDeployedFiles()
 
+    override val fullBuildGradleCommand: String?
+        get() = deployHistoryManager.getFullBuildInfo()?.compileCommand
+
     override val customCompilers: List<ICompiler> get() = customCompilerManager.getCustomCompilers()
 
     private val listeners = mutableListOf<OnContextUpdate>()

@@ -92,6 +92,8 @@ object TestGlobal {
         runtimeLibraryDependencies = emptyList(),
         annotationProcessorDependencies = emptyList(),
         kaptDependencies = emptyList(),
+        kotlinPluginOptions = emptyList(),
+        externalBuildInfos = emptyList(),
     )
 
     init {
