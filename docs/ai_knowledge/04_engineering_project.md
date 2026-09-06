@@ -17,7 +17,7 @@
 
 | 类/接口 | 文件 | 作用 |
 |---|---|---|
-| `JuggProjectInfo` / `ModuleInfo` | `main/src/main/java/com/sickworm/intellij/jugg/project/data/JuggProjectInfo.kt` | Gradle 项目/模块快照，记录 AGP R8 classpath、source/res/manifest/classpath/dependency/applicationId/androidTest 等信息 |
+| `JuggProjectInfo` / `ModuleInfo` | `main/src/main/java/com/sickworm/intellij/jugg/project/data/JuggProjectInfo.kt` | Gradle 项目/模块快照，记录 AGP R8 classpath、source/res/manifest/classpath/dependency/applicationId/androidTest 与外部构建信息 |
 | `ModuleBuildPathInfo` | `main/src/main/java/com/sickworm/intellij/jugg/project/data/JuggProjectInfo.kt` | 多 AGP 版本及自定义 Gradle build directory 的输出路径兼容推断 |
 | `JuggPathManager` | `main/src/main/java/com/sickworm/intellij/jugg/project/JuggPathManager.kt` | 项目级 Jugg 文件布局：project info、compile context、deploy history、classpath、日志、MCP fetch cache |
 | `JuggGlobalPathManager` | `main/src/main/java/com/sickworm/intellij/jugg/project/JuggGlobalPathManager.kt` | 用户级全局文件布局：优先 `~/.jugg`，不可写时回退 `${java.io.tmpdir}/jugg-<user>`；覆盖 hot update、deploy cache、resource、CLI/skills/hooks、test flag |
@@ -68,6 +68,7 @@
 | `kotlinCommonSourceDirs` | 选中 Android Kotlin compilation 视为 common 的 Kotlin source roots；非 KMP 或读取失败时为空列表 |
 | `kotlinFragmentSourceDirs` | 选中 Android Kotlin task 暴露的 fragment 到 source roots 映射；旧快照或不支持时为空 map |
 | `kotlinFragmentRefines` | fragment refinement edge，key 为 refining fragment，value 为其直接 refined fragments |
+| `externalBuildInfos` | 当前 variant 的 Flutter/C++ 外部构建类型、源码根、Gradle task path、产物目录与 Flutter native archive；旧快照缺失时为空列表 |
 | `kotlinDefaultFragmentName` | 无 source root 精确命中时使用的 task default fragment；旧快照或不支持时为 `null` |
 | `composeResourceInfo` | 已检测的 Compose resource task metadata；同时保存 supported/unsupported 状态与原因，由增量链按 task 和 generator API 结构消费，不按 Kotlin/Compose 精确版本过滤 |
 
@@ -109,6 +110,7 @@ IDE / Gradle compile 触发 project info 更新
      从选中 Android Kotlin task 的 commonSourceSet 读取 Kotlin common roots
      从 K2 multiplatformStructure 读取 fragment roots、refines edge 和 default fragment
      校验 Compose resource 任务并读取 generator/resource directory metadata
+     读取当前 variant 的 Flutter compile/pack Jar task、mergeNativeLibs task、外部源码根、输出目录和 native archive
   -> 写入 gradle_project_infos.json
      include build 额外写入 gradle_include_builds.txt
 ```
@@ -133,6 +135,8 @@ Application runtime 注入在 Android application plugin 加载后立即注册 `
 
 Compose metadata 读取是严格结构门禁：未应用 `org.jetbrains.compose` 时 `composeResourceInfo=null`；legacy 管线要求单一 `GenerateResClassTask` 及其必要属性，现代管线要求 converter/accessor/collector task 集合及属性彼此一致。一旦检测到插件，即使 task metadata 或 generator API 结构不支持，也会保存 `Unsupported`、用户可见原因和能够读取的 configured roots，资源变更因此不会静默消失。读取只保存任务配置，不执行 Compose task，也不按 Kotlin/Compose 精确版本推断能力。
 
+外部构建信息以当前 variant 的真实 Gradle task 为准。Flutter 先定位 `compileFlutterBuild<Variant>`，再接受唯一的、依赖该 compile task 的 `Jar` 类型 `packJniLibsflutterBuild<Variant>` 或 `packLibsflutterBuild<Variant>`，记录 Flutter 工程根、assets 中间产物目录、pack task path 和 `archiveFile` / `archivePath`；C++ 记录 `merge<Variant>NativeLibs`、CMake/ndk-build 文件所在源码根和 merged native lib 输出目录。Gradle 快照负责提供这些配置事实，真正的 task 只在对应 Dart/C/C++ 文件进入增量编译后执行。字段通过 Gradle JSON 序列化并在合并时覆盖 IDE 空值。
+
 ### 4.2 Sync 后合并为编译上下文
 
 ```text
@@ -151,6 +155,8 @@ JuggManager.onSyncEvent()
 项目快照更新不是单纯替换 JSON。它会影响 classpath、module-to-APK 归属、文件变更过滤、自定义编译器、依赖变化确认和部署历史恢复。
 
 `JuggProjectInfoMerger` 合并得到的最终 `JuggProjectInfo` / `ModuleInfo` 只保存在编译上下文内存中，不会回写 `project_infos.json`。磁盘上的 `project_infos.json`、`gradle_project_infos.json` 和 include build 快照分别代表各自输入源，时间戳和单个文件字段都不能直接代表最终合并状态；排查最终行为时应结合全部输入快照与编译日志判断。
+
+`ModuleInfo.externalBuildInfos` 保存 Flutter/C++ 源码根、当前变体 task、输出目录和 Flutter native archive。能够识别源码根但无法读取 task、输出目录或 archive 时仍保留该记录，并通过 `unsupportedReason` 标记不支持；这样文件变化不会被静默过滤，Run 预检会转为完整 Gradle 构建。旧快照缺少 `externalBuildInfos` 时按空列表读取；旧 Flutter 记录已有 task/output 但没有 archive 字段时，本轮首次命中 Dart 变化会强制刷新一次 Gradle project info，等待排队中的最新刷新结束，并按 compile context 中同名 module 的新 metadata 决策。
 
 全量构建完成后，如果 IDE 没有可靠返回 Sync Success，Jugg 会补偿读取一次 IDE project info。该分支仅使用 IDE 数据补充 module/source 结构，library dependency 始终以同一次全量构建生成的 Gradle project info 为准，不受 IDE JSON mtime 更新影响；正常 IDE Sync 仍沿用现有的 mtime 新旧判断。
 
@@ -257,6 +263,7 @@ APK 拉取全部成功后，`LocalGradleCompileClient` / `RemoteGradleCompileCli
 | Compose 默认/自定义资源目录未识别 | `GradleProjectInfoReader.getComposeResourceInfo()`、`readComposeResourceDirectories()` 与序列化后的 `composeResourceInfo` |
 | Compose resource API 不受支持 | task 类型集合与必要属性、task class 的 code source、generator class/method/constructor 结构及 `unsupportedReason` |
 | `-I readProjectInfo.gradle.kts` 报 trailing commas / Expecting an argument | `buildReadProjectInfoScript.gradle` 尾逗号清理；用 `ReadProjectInfoScriptContentTest` 与 Gradle 5/6 compat 回归，见 `06_testing.md` §7.4 |
+| Dart/C/C++ 修改没有触发外部构建 | `externalBuildInfos`、当前 variant 的 Flutter/native task、`FileChangesHandler` 扫描根与外部目录排除规则 |
 
 ---
 

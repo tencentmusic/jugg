@@ -21,7 +21,7 @@ Jugg compilation capabilities build on the latest available Gradle build result.
 | [Recompilation](./recompile-propagation.md) | Supports continued compilation of affected sources | Finds callers, subclasses, constant consumers, and other affected sources, then adds another round |
 | [Resource compilation](./resource-compile.md) | Supports the `res/`, `assets/`, `resources.arsc`, and `R.java` flows | Produces resource overlays or triggers source compilation |
 | [AndroidManifest compilation](./manifest.md) | Supports incremental patches based on the merged manifest | Takes effect after writing to the APK and re-signing it |
-| [Updating .so files](./so-update.md) | Supports updates to already generated `.so` files | Takes effect after writing to the target APK and re-signing it |
+| [Updating .so files](./so-update.md) | Supports existing `.so` files plus C/C++ and Flutter native output managed by Gradle | Runs a scoped build task when needed, then writes to the target APK and re-signs it |
 
 ### Generated sources and language extensions
 
@@ -50,6 +50,7 @@ Jugg compilation capabilities build on the latest available Gradle build result.
 ```text
 Detect file changes
   -> Determine whether incremental handling is appropriate
+  -> Run the current variant task for Flutter/C++ external source
   -> assets / native lib / AndroidManifest
   -> res / R.java / DataBinding/ViewBinding resource stage
   -> Annotation processors / KSP / KAPT / Compose and other source extensions

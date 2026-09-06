@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.compiler
 
 import com.intellij.openapi.Disposable
 import com.sickworm.intellij.jugg.compiler.compose.ComposeResourceCompiler
+import com.sickworm.intellij.jugg.compiler.external.ExternalBuildCompiler
 import com.sickworm.intellij.jugg.compiler.overlay.AssetOverlayCompiler
 import com.sickworm.intellij.jugg.compiler.overlay.ResourceOverlayCompiler
 import com.sickworm.intellij.jugg.compiler.source.DexCompiler
@@ -30,6 +31,7 @@ class JuggCompiler(
         CompileFile.Type.NativeLib,
         CompileFile.Type.Resource,
         CompileFile.Type.ComposeResource,
+        CompileFile.Type.ExternalBuildSource,
         CompileFile.Type.Class,
         CompileFile.Type.AndroidManifest
     )
@@ -38,6 +40,11 @@ class JuggCompiler(
 
     private val composeResourceCompiler = ComposeResourceCompiler(
         context.subContext("compose_resources"),
+        this,
+    )
+
+    private val externalBuildCompiler = ExternalBuildCompiler(
+        context.subContext("external_build"),
         this,
     )
 
@@ -72,7 +79,10 @@ class JuggCompiler(
 
         // custom compilers
         val composeFiles = task.files.filter { it.type == CompileFile.Type.ComposeResource }
-        val compileFiles = task.files.filter { it.type != CompileFile.Type.ComposeResource }
+        val externalBuildFiles = task.files.filter { it.type == CompileFile.Type.ExternalBuildSource }
+        val compileFiles = task.files.filter {
+            it.type != CompileFile.Type.ComposeResource && it.type != CompileFile.Type.ExternalBuildSource
+        }
         val customCompilers = context.customCompilers
         logger.debug("custom compilers: ${customCompilers.joinToString { this::class.java.name }}")
 
@@ -106,9 +116,18 @@ class JuggCompiler(
             it.toCompileFile(it.relativeModule ?: context.tempModule)
         }
 
+        val externalBuildResult = compileExternalBuilds(task, externalBuildFiles)
+        if (!externalBuildResult.isAllSuccess) {
+            return externalBuildResult.quickFailedOthers(task)
+        }
+        checkQuickStop()?.let { return it }
+        val externalOutputs = externalBuildResult.outputs.mapNotNull {
+            it.toCompileFile(it.relativeModule ?: context.tempModule)
+        }
+
         // compile asset
         val assetCompileTask = CompileTask(
-            files = composeAssets + compileFiles.filter {
+            files = composeAssets + externalOutputs + compileFiles.filter {
                 it.type == CompileFile.Type.Asset ||
                     it.type == CompileFile.Type.ClasspathResource ||
                     it.type == CompileFile.Type.NativeLib
@@ -124,7 +143,10 @@ class JuggCompiler(
                 details = assetResult.details.filter { it.file !in composeAssets },
             )
             if (!assetResult.isAllSuccess) {
-                return compileResult.quickFailedOthers(task, otherFailedFiles = composeFiles)
+                return compileResult.quickFailedOthers(
+                    task,
+                    otherFailedFiles = composeFiles + externalBuildFiles,
+                )
             }
         }
         checkQuickStop()?.let { return it }
@@ -295,6 +317,7 @@ class JuggCompiler(
         checkQuickStop()?.let { return it }
 
         compileResult += composeResult.copy(task = task, outputs = emptyList())
+        compileResult += externalBuildResult.copy(task = task, outputs = emptyList())
 
         if (!compileResult.isAllSuccess) {
             return compileResult.quickFailedOthers(task)
@@ -308,6 +331,12 @@ class JuggCompiler(
         if (files.isEmpty()) return CompileResult.empty(task)
         val outputDir = File(context.tempCompileDir, "compose_resources")
         return composeResourceCompiler.compile(CompileTask(files, outputDir, task))
+    }
+
+    private fun compileExternalBuilds(task: CompileTask, files: List<CompileFile>): CompileResult {
+        if (files.isEmpty()) return CompileResult.empty(task)
+        val outputDir = File(context.tempCompileDir, "external_build")
+        return externalBuildCompiler.compile(CompileTask(files, outputDir, task))
     }
 
     @Synchronized

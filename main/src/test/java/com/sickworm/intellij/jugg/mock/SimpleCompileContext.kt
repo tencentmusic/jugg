@@ -26,9 +26,9 @@ data class SimpleCompileContext(
     override val deployedFiles: MutableList<CompileOutput>,
     override val incrementalDataDir: File,
     private val customModuleBelongsApkMap: ModuleApkBelongs? = null,
+    override val fullBuildGradleCommand: String? = null,
+    override val scene: ICompileContext.Scene = ICompileContext.Scene.IDE,
 ) : ICompileContext {
-
-    override val scene: ICompileContext.Scene = ICompileContext.Scene.IDE
 
     val apkFile: File get() = apkInfos.firstOrNull()?.files?.first()?.apkFile!!
 

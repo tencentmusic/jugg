@@ -45,7 +45,9 @@ Jugg 编译发生在你点击 Jugg Run、Jugg Debug、androidTest gutter，或�
 | layout / drawable / values 修改 | 资源增量编译 | 涉及资源符号或绑定逻辑时会生成 `R.java` 或 ViewBinding/DataBinding 源码 |
 | `AndroidManifest.xml` 简单修改 | Manifest 增量处理 | 通过更新 APK 并重签名生效 |
 | assets 修改 | overlay 下发 | 不需要完整 Gradle |
-| native lib / `.so` 产物修改 | so 更新 | 写入 APK 并重签名；C/C++ 源码仍需先由 Gradle/NDK 产出 `.so` |
+| native lib / `.so` 产物修改 | so 更新 | 写入 APK 并重签名 |
+| Dart 源码修改 | Flutter 局部构建 | 每次执行当前变体的 Flutter task，assets/`.so` 进入既有增量部署 |
+| Gradle 管理的 C/C++ 源码修改 | native 局部构建 | 执行当前变体的 native task，生成的 `.so` 写入 APK 并重签名 |
 | Gradle 脚本或依赖修改 | 进入回退或依赖 diff 判断 | 取决于依赖变化判断和用户选择 |
 | 仅依赖库版本变化 | 可选择依赖库增量 | 需要用户确认 diff，比完整 Gradle 少跑无关模块 |
 | 大批量跨模块修改 | 回退 Gradle | Jugg 会优先保证稳定性 |

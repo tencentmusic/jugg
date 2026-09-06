@@ -605,6 +605,8 @@ class CompileContextManager(
                 } else {
                     null
                 },
+                kotlinPluginOptions = emptyList(),
+                externalBuildInfos = emptyList(),
             )
 
             if (moduleInfo.sourceDirs.isEmpty() && resourceDirs.isEmpty() && assetDirs.isEmpty() && moduleDependencies.isEmpty()) {

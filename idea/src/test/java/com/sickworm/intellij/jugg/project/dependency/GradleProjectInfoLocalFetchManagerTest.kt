@@ -132,6 +132,51 @@ class GradleProjectInfoLocalFetchManagerTest {
     }
 
     @Test
+    fun `waitForCurrentUpdate waits for regular refresh`() {
+        val taskRunnerManager = mock<TaskRunnerManager>()
+        val pathManager = JuggPathManager(temporaryFolder.root)
+        pathManager.gradleProjectInfoFile.parentFile.mkdirs()
+        pathManager.gradleProjectInfoFile.writeText("{}")
+        val deployHistoryManager = mock<IDeployHistoryManager>()
+        whenever(deployHistoryManager.getFullBuildInfo()).thenReturn(
+            FullBuildInfo("./gradlew assembleDebug", BuildTarget.APP, 1L),
+        )
+        var updateAction: Runnable? = null
+        doAnswer {
+            updateAction = it.getArgument(1)
+            null
+        }.whenever(taskRunnerManager).runTaskSafe(any(), any(), any(), any())
+        val manager = GradleProjectInfoLocalFetchManager(
+            mock<Project>(),
+            pathManager,
+            mock<CompileContextManager>(),
+            taskRunnerManager,
+            mock<IDependencyChangeManager>(),
+            deployHistoryManager,
+            mock<Logger>(),
+        )
+
+        val waitFinished = CountDownLatch(1)
+        try {
+            manager.runUpdateIfNeeded(isForce = true, specificCompileCommand = "invalid-command")
+            val waiter = thread(isDaemon = true) {
+                manager.waitForCurrentUpdate()
+                waitFinished.countDown()
+            }
+            assertFalse(waitFinished.await(100, TimeUnit.MILLISECONDS))
+
+            updateAction!!.run()
+            updateAction = null
+
+            assertTrue(waitFinished.await(1, TimeUnit.SECONDS))
+            waiter.join(1_000)
+        } finally {
+            updateAction?.run()
+            manager.dispose()
+        }
+    }
+
+    @Test
     fun `missing project info remains unavailable for incremental compile until refresh finishes`() {
         val taskRunnerManager = mock<TaskRunnerManager>()
         val pathManager = JuggPathManager(temporaryFolder.root)
