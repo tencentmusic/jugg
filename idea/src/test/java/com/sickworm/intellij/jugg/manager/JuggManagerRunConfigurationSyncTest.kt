@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.manager
 import com.intellij.execution.RunManager
 import com.intellij.execution.RunnerAndConfigurationSettings
 import com.intellij.execution.configurations.ConfigurationFactory
+import com.intellij.execution.configurations.RunConfiguration
 import com.intellij.mock.MockProject
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.module.Module
@@ -160,6 +161,32 @@ class JuggManagerRunConfigurationSyncTest {
             error.get()?.let { throw AssertionError("Run configuration sync failed", it) }
         }
         assertEquals(1, fixture.settings.size)
+    }
+
+    @Test
+    fun sync_multipleModules_keepGeneratedTargetsIndependent() {
+        val fixture = createFixture()
+        val modules = listOf("skin", "app", "feature")
+        whenever(fixture.asDeployerCompat.getSuggestRunConfigurations(any(), any(), any(), any())).thenReturn(
+            modules.map { module ->
+                SuggestRunConfiguration(
+                    moduleName = module,
+                    compileCommand = "./gradlew :$module:assembleDebug",
+                    outputApkPath = "$module/build/outputs/apk/debug/*.apk",
+                    variantName = "debug",
+                )
+            },
+        )
+
+        fixture.invokeSync()
+        fixture.invokeSync()
+
+        assertEquals(modules.map { "jugg:$it" }, fixture.settings.map { it.name })
+        modules.forEach { module ->
+            val setting = fixture.settings.single { it.name == "jugg:$module" }
+            assertEquals("./gradlew :$module:assembleDebug", setting.compileCommand())
+            assertEquals("$module/build/outputs/apk/debug/*.apk", setting.outputApkName())
+        }
     }
 
     @Test
@@ -858,15 +885,16 @@ class JuggManagerRunConfigurationSyncTest {
             override fun getBasePath(): String = "/tmp/jugg-run-configuration-sync-test"
         }
         val settings = mutableListOf<RunnerAndConfigurationSettings>()
+        val templates = mutableMapOf<ConfigurationFactory, RunConfiguration>()
         var selectedConfiguration: RunnerAndConfigurationSettings? = null
         whenever(runManager.getConfigurationSettingsList(JuggConfigurationType::class.java))
             .thenAnswer { settings.toList() }
         whenever(runManager.createConfiguration(any<String>(), any<ConfigurationFactory>())).thenAnswer { invocation ->
-            createSettings(
-                project = project,
-                name = invocation.getArgument(0),
-                factory = invocation.getArgument(1),
-            )
+            val name = invocation.getArgument<String>(0)
+            val factory = invocation.getArgument<ConfigurationFactory>(1)
+            val template = templates.getOrPut(factory) { factory.createTemplateConfiguration(project) }
+            val configuration = factory.createConfiguration(name, template) as JuggRunConfiguration
+            wrapSettings(configuration)
         }
         doAnswer { invocation ->
             settings.add(invocation.getArgument(0))
@@ -925,8 +953,12 @@ class JuggManagerRunConfigurationSyncTest {
         factory: ConfigurationFactory = JuggConfigurationType.getInstance().configurationFactories[0],
     ): RunnerAndConfigurationSettings {
         val configuration = JuggRunConfiguration(project, factory, name)
+        return wrapSettings(configuration)
+    }
+
+    private fun wrapSettings(configuration: JuggRunConfiguration): RunnerAndConfigurationSettings {
         return mock {
-            whenever(it.name).thenReturn(name)
+            whenever(it.name).thenReturn(configuration.name)
             whenever(it.configuration).thenReturn(configuration)
             whenever(it.type).thenReturn(JuggConfigurationType.getInstance())
         }
