@@ -18,6 +18,7 @@ After build files or dependency declarations change, Jugg can read a Gradle depe
 |---|---|---|
 | Build-file changes affect only dependency declarations | Supported for inspection | Jugg displays the build-file diff and asks whether to read dependency changes |
 | A library dependency is added or updated | Supported through content diffing | Changed classes, resources, Manifest, assets, and native libraries enter the corresponding incremental stages |
+| `implementation` brings in a runtime-scoped transitive library, or the project uses `runtimeOnly` | Supported for Application and Dynamic Feature modules | AARs and JARs found only in the runtime dependency graph are also detected and sent through differential handling |
 | A dependency version returns to the full Gradle baseline | Bytecode rollback only | Removes the previously incrementally deployed library DEX and restores use of baseline bytecode from the APK |
 | The user chooses not to handle dependencies incrementally | Fallback supported | The current run switches to a Gradle build and re-establishes the baseline |
 
@@ -43,6 +44,7 @@ If the dependency diff fails or the user chooses fallback, the current run switc
 - When build-file changes are ignored, Jugg does not verify that the old and new scripts are equivalent. Use a Gradle build if classpath, generated code, or packaging output later becomes inconsistent.
 - Library DEX can be rolled back. If reverting a dependency version must also restore resources, Manifest, assets, or native libraries, rebuild with Gradle.
 - Changes to Gradle plugins, source sets, variants, annotation processors, or Kotlin compiler plugin configuration require Gradle directly.
+- After upgrading from a version that did not record runtime dependencies, the first Run falls back to a full Gradle build to establish a dependency baseline aligned with the APK.
 - If source resolution fails after a dependency change, Jugg attempts to update the compilation context and retries once. If it still fails, use a Gradle build.
 
 ## Related pages

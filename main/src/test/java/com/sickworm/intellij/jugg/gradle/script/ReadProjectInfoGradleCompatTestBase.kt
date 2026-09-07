@@ -85,6 +85,7 @@ abstract class ReadProjectInfoGradleCompatTestBase {
         assetDir: String,
         task: String = "help",
         extraArgs: List<String> = emptyList(),
+        beforeRun: (File) -> Unit = {},
         afterRun: (File, ProcessResult) -> Unit = { _, _ -> },
     ): ProcessResult {
         val assetSource = File(System.getProperty("user.dir"), "src/test/assets/$assetDir")
@@ -94,6 +95,7 @@ abstract class ReadProjectInfoGradleCompatTestBase {
             createMinimalJar(File(fixtureDir, ".gradle/jugg/jugg-runtime.jar"))
             writeSdkLocalProperties(fixtureDir)
             writeWrapper(fixtureDir, gradleVersion)
+            beforeRun(fixtureDir)
             val initScript = copyGeneratedInitScript(fixtureDir)
 
             val result = runGradle(

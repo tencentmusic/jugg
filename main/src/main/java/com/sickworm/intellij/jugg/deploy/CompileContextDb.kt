@@ -26,7 +26,18 @@ class CompileContextDb(
     private val deployedDir = File(dbDir, "deployed")
     private val dexDeployedDir = File(deployedDir, "classes")
 
-    val hasBeenFullCompiled: Boolean get() = completeFlagFile.exists()
+    val hasBeenFullCompiled: Boolean
+        get() {
+            if (!completeFlagFile.exists()) {
+                return false
+            }
+            if (getFullBuildInfoFromDb() != null) {
+                return true
+            }
+            logger.debug("Full build info is missing or incompatible, require full compile")
+            completeFlagFile.delete()
+            return false
+        }
 
     var isLastFullCompileFailed: Boolean
         get() = lastFullCompileFailedFlag.exists()

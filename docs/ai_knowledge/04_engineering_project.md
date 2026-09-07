@@ -119,6 +119,8 @@ IDE / Gradle compile 触发 project info 更新
 
 Application 与 Dynamic Feature 的 APK 模块归属使用 Gradle 已解析的 variant runtime classpath。`GradleProjectInfoReader` 从 `ProjectComponentIdentifier` 收集本构建和 composite build 的 project component，Gradle DSL 的 `exclude`、依赖替换和变体选择已经在该边界生效；`ModuleApkBelongsUtils` 直接使用这份扁平 resolved module 集合，不再沿 IDE/compile dependency 图递归推导。读取失败、目标 runtime configuration 不存在或旧 JSON 没有 `runtimeModuleDependencies` 时字段保持 `null`，整体回退既有 `moduleDependencies` 遍历，不能把“不知道”序列化成权威空集合。
 
+Application 与 Dynamic Feature 同时从选中 variant 的 `RuntimeClasspath` 读取最终 APK 可见的外部库，写入 `runtimeLibraryDependencies`；其他模块仍只读取既有 compile dependency，避免为每个 Library 重复解析运行时图。`libraryDependencies` 与 `runtimeLibraryDependencies` 在依赖 diff 边界合并，并按 artifact 绝对路径去重，因此 compile/runtime 同时可见的同一文件只比较一次，而仅通过 Maven runtime scope、`runtimeOnly` 或其他运行时传递路径进入 APK 的 AAR/JAR 也能参与增删改检测。APK 根模块的 runtime configuration 缺失或解析失败属于依赖快照不完整，必须让本次 Gradle 读取失败并回退完整构建，不能保存权威空列表继续部署。
+
 `readProjectInfo.gradle.kts` 在 `gradle.taskGraph.whenReady` 后分流执行：dry-run 仍立即调用 `readAndSave()`，避免没有真实 task execution 时丢失 project info；非 dry-run 会把读取挂到 task graph 最后一个 task 的 `doLast`，让依赖快照尽量在 execution phase 读取，减少 Gradle 9/AGP 高版本的 configuration-time resolve warning。
 
 Android variant 读取保留 `applicationVariants`、`libraryVariants` 和 `featureVariants` 作为旧 AGP 的首选入口；仅当 legacy API 未返回 variant 时，才使用配置阶段从 `androidComponents.onVariants` 收集的名称。收集结果按 Gradle project path 存在 root project extra properties 中，不保留 AGP variant 实例；project info 的 `buildVariant` 推导和 AndroidTest assemble task 注入复用同一份回退数据。该注册同时覆盖 application、library 和 dynamic-feature plugin，反射注册失败时保持旧路径继续执行，不中断 Gradle 配置。
@@ -185,6 +187,8 @@ Library androidTest 的 `instrumentationTargetPackage` 当前取 synthetic test 
 
 Gradle diff 同时保留两个比较基线：`diffResult` 对比上一次构建依赖，用于展示本轮新增、删除和升级；`diffResultWithFull` 对比最近一次完整 Gradle 基线，用于确定真正需要编译、替换或回滚的 library 文件。library dex 可能在 APK 中合并为单个产物，不能只按上一轮增量结果推断旧 jar。用户选择“忽略”只表示接受当前 build file 对开发链路无影响，不代表 Jugg 已验证脚本等价；出现异常时仍应完整 Gradle 刷新基线。
 
+`full_build_info.json` 的序列化版本把依赖快照语义绑定到最近一次成功安装的完整构建，而不是绑定到可被后台 dry-run 刷新的 `gradle_project_infos.json`。引入 runtime library 快照后必须提升该版本；旧版本或缺失的 FullBuildInfo 会使 compile context 失效，下一次编译回退完整 Gradle 构建。只有完整构建成功并写入当前版本 FullBuildInfo 后，空的 `runtimeLibraryDependencies` 才表示确实没有 runtime-only 外部库，避免新快照与旧 APK 基线混用后漏掉依赖删除。
+
 APK 查找规则以 Run Configuration 的 output pattern 为入口；自动生成的 pattern 使用 IDE Android model 暴露的实际 build folder。androidTest pattern 从 `/outputs/apk/` 片段派生，因此同时支持 `app/build/...` 与项目根集中式 `build/app/...`。远端 classpath 同步使用相对项目根的 build output 路径，保证自定义 build directory 能回写到本地相同位置。
 
 远端 classpath 的 rsync 过滤规则会按 build directory 类型生成：使用 `${moduleRoot}/build` 的普通模块按 variant 复用 `build/...` 规则，避免大型多模块工程为每个模块重复展开相同参数；自定义 build directory、`customClasspath` 与 `customSyncFilePath` 继续使用项目根相对的精确路径，保证集中式输出和项目配置不会被通配规则覆盖。
@@ -208,6 +212,7 @@ APK 拉取全部成功后，`LocalGradleCompileClient` / `RemoteGradleCompileCli
 - `ModuleInfo` 新增字段时必须同步 `JuggProjectInfoSerialize`、`JuggProjectInfoMerger`、`ProjectInfoSerializerInGradle`、`CmdLineContextManager`、`LibrariesBackupHelper`；否则 Gradle/IDE/CLI 任一侧会丢字段。
 - Gradle 侧 Groovy `JsonGenerator` 会把 Kotlin Boolean `is*` 字段写成 JavaBean 名（`isUseDataBinding` → `useDataBinding`）。IDE `ProjectInfoSerializer` 用 Gson 按字段名读取，加载时按 `ModuleInfo` 声明的 `is*` 布尔字段自动把 bean 名拷到字段名，不要为单个开关加白名单。新增同类字段时，`gson load of groovy snapshot preserves DataBinding setting` 会要求 fixture 赋值为 true 并完成 Groovy→Gson 回读。只修 merger 保留逻辑挡不住 JSON 回读丢开关。
 - `runtimeModuleDependencies` 只对 Application / Dynamic Feature 根模块读取；非空或空列表都是 Gradle resolved runtime 的权威结果，`null` 才触发旧逻辑。`ProjectComponentIdentifier.projectPath` 必须用独立规则去除开头的 `:` 后再把层级分隔符转换为 `.`，composite build 根项目则使用 `projectName`；不能复用面向 display name 的通用转换，也不能继续依赖 `ResolvedDependency.moduleVersion == unspecified` 的启发式判断。
+- `runtimeLibraryDependencies` 只对 Application / Dynamic Feature 根模块读取，依赖 diff 必须与 `libraryDependencies` 合并后按 artifact 绝对路径去重。该语义升级必须同时提升 `FullBuildInfoSerializer` 版本；旧完整构建基线必须先回退 Gradle，不能仅刷新 project info JSON 后继续增量。
 - `JuggProjectInfo.agpR8Classpath` 只保存可脱离 Gradle classloader 使用的直接引用路径，不把 R8 文件复制到 classpath backup，也不进入 `FullBuildInfo` 或 compile context 磁盘格式；Gradle instrumentation code source 找不到原始 buildscript artifact 或旧 project info 缺失该字段时按 `null` 兼容，并由 dex 阶段回退到 Jugg 内置 R8。
 - `JuggProjectInfo.agpR8Classpath` 类型允许为 `null`，但构造参数没有默认值；所有构造点必须明确传递现有路径或显式传入 `null`。仅转换 modules 的流程必须使用 `projectInfo.copy(modules = ...)`，禁止重新构造根快照导致项目级字段丢失。
 - `composeResourceInfo` 已按上述链路同步并在 merge 时优先保留 Gradle 值；`main/src/main/resources/gradle/readProjectInfo.gradle.kts` 也必须与 `gradle/script` 生成源一致。

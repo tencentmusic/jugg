@@ -1,7 +1,10 @@
 package com.sickworm.intellij.jugg.ai.mcp.actions
 
 import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
+import com.sickworm.intellij.jugg.compiler.BuildTarget
 import com.sickworm.intellij.jugg.deploy.DeployHistoryData
+import com.sickworm.intellij.jugg.deploy.FullBuildInfo
+import com.sickworm.intellij.jugg.deploy.FullBuildInfoSerializer
 import com.sickworm.intellij.jugg.platform.IPlatformApi
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.JuggPathManager
@@ -89,6 +92,29 @@ class ListProjectsMcpToolActionTest {
         Assert.assertEquals(false, readBooleanProperty(projects.first(), "hasBeenFullCompiled"))
     }
 
+    @Test
+    fun listProjectsDoesNotTreatLegacyFullBuildInfoAsFullCompiled() {
+        val legacyProject = tempFolder.newFolder("legacy")
+        writeFullCompileState(legacyProject)
+        val fullBuildInfoFile = File(JuggPathManager(legacyProject).compileContextDbDir, "full_build_info.json")
+        fullBuildInfoFile.writeText(
+            fullBuildInfoFile.readText().replace("\"version\":2", "\"version\":1"),
+            Charsets.UTF_8,
+        )
+
+        PlatformApi.impl = FakePlatformApi(
+            initializedProjectDirs = listOf(legacyProject),
+        )
+
+        val result = ListProjectsMcpToolAction().executeGlobal()
+
+        @Suppress("UNCHECKED_CAST")
+        val data = result.data as Map<String, Any>
+        @Suppress("UNCHECKED_CAST")
+        val projects = data["projects"] as List<Any>
+        Assert.assertEquals(false, readBooleanProperty(projects.first(), "hasBeenFullCompiled"))
+    }
+
     private fun writeFullCompileState(projectDir: File) {
         val pathManager = JuggPathManager(projectDir)
         writeOnlyFullBuildInfo(projectDir)
@@ -105,7 +131,9 @@ class ListProjectsMcpToolActionTest {
         val fullBuildInfoFile = File(JuggPathManager(projectDir).compileContextDbDir, "full_build_info.json")
         fullBuildInfoFile.parentFile?.mkdirs()
         fullBuildInfoFile.writeText(
-            """{"version":1,"compileCommand":"./gradlew :app:assembleDebug","buildTarget":"APP","createdAt":123}""",
+            FullBuildInfoSerializer().serialize(
+                FullBuildInfo("./gradlew :app:assembleDebug", BuildTarget.APP, 123L),
+            ),
             Charsets.UTF_8,
         )
     }

@@ -28,6 +28,8 @@ A full build first resolves the dependency graph for the current variant from re
 
 A dependency version change can also alter transitive dependencies, version selection, and the compilation classpath. A build file can change tasks, source sets, variants, code generation, and compiler plugin configuration as well, so the default after detecting a build file change remains a full Gradle baseline rebuild.
 
+Libraries that enter the final APK do not always appear on the compilation classpath. For example, a library declared with `implementation` can bring in another transitive library through Maven runtime scope. Application source code does not compile against that transitive library directly, but D8/R8 still processes it into the APK. Jugg therefore reads both compile and runtime dependencies for the current Application and Dynamic Feature variant, then deduplicates them by the actual library file. AARs and JARs that appear only in the runtime dependency graph also participate in dependency comparison, preventing a successful incremental deployment from leaving old library DEX in the APK active on the device.
+
 ## User confirmation restricts the change to dependencies
 
 A dependency change is a controlled exception among build file modifications. Jugg uses two confirmations to distinguish “the build script changed” from “only dependencies require incremental processing”:
@@ -87,6 +89,7 @@ Dependency incremental compilation handles only changes that the user can confir
 - The build file changes APK-affecting configuration in addition to dependency declarations.
 - Gradle plugins, source sets, variants, annotation processors, or Kotlin compiler plugin configuration changed.
 - A complete Gradle baseline is missing, or Gradle cannot produce a reliable dependency diff.
+- The full-build baseline predates runtime dependency tracking. The first Run after upgrading performs a full Gradle build before dependency incremental compilation resumes.
 - Rolling back a dependency also requires restoring Manifest, resources, assets, or native libraries. The current rollback supports only removal of incrementally deployed library DEX.
 - Symbol resolution fails after a dependency change and one compilation context refresh does not recover it.
 - The user cannot confirm that the build file diff or dependency changes are expected.

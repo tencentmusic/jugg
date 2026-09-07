@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.deploy
 import com.sickworm.intellij.jugg.compiler.BuildTarget
 import org.junit.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
 class FullBuildInfoSerializerTest {
@@ -16,13 +17,30 @@ class FullBuildInfoSerializerTest {
         )
 
         val json = FullBuildInfoSerializer().serialize(original)
-        val parsed = FullBuildInfoSerializer().deserialize(json)
+        val parsed = assertNotNull(FullBuildInfoSerializer().deserialize(json))
 
         assertEquals(original, parsed)
     }
 
     @Test
     fun `deserialize accepts null compile command`() {
+        val json = """
+            {
+              "version": 2,
+              "buildTarget": "APP",
+              "createdAt": 1234
+            }
+        """.trimIndent()
+
+        val parsed = assertNotNull(FullBuildInfoSerializer().deserialize(json))
+
+        assertNull(parsed.compileCommand)
+        assertEquals(BuildTarget.APP, parsed.buildTarget)
+        assertEquals(1234L, parsed.createdAt)
+    }
+
+    @Test
+    fun `deserialize rejects legacy full build info`() {
         val json = """
             {
               "version": 1,
@@ -33,23 +51,21 @@ class FullBuildInfoSerializerTest {
 
         val parsed = FullBuildInfoSerializer().deserialize(json)
 
-        assertNull(parsed.compileCommand)
-        assertEquals(BuildTarget.APP, parsed.buildTarget)
-        assertEquals(1234L, parsed.createdAt)
+        assertNull(parsed)
     }
 
     @Test
     fun `deserialize falls back to app target when build target is invalid`() {
         val json = """
             {
-              "version": 1,
+              "version": 2,
               "compileCommand": "./gradlew :app:assembleDebug",
               "buildTarget": "UNKNOWN",
               "createdAt": 1234
             }
         """.trimIndent()
 
-        val parsed = FullBuildInfoSerializer().deserialize(json)
+        val parsed = assertNotNull(FullBuildInfoSerializer().deserialize(json))
 
         assertEquals(BuildTarget.APP, parsed.buildTarget)
     }

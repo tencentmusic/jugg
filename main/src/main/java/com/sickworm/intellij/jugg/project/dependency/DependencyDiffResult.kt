@@ -103,14 +103,14 @@ data class DependencyDiffResult(
         ): DependencyDiffResult {
             val lastBuildDependenciesSet: Map<String, LibraryDependencySet> = lastBuildDependencies.modules
                 .filter { it.value.moduleRootDir.path !in ignoreModulePaths }
-                .flatMap { it.value.libraryDependencies }
+                .flatMap { it.value.libraryDependencies + it.value.runtimeLibraryDependencies }
                 .distinctBy { it.file.absolutePath }
                 .groupBy { it.name }
                 .mapValues { LibraryDependencySet(it.key, it.value) }
 
             val currentBuildDependenciesSet: Map<String, LibraryDependencySet> = currentBuildDependencies.modules
                 .filter { it.value.moduleRootDir.path !in ignoreModulePaths }
-                .flatMap { it.value.libraryDependencies }
+                .flatMap { it.value.libraryDependencies + it.value.runtimeLibraryDependencies }
                 .distinctBy { it.file.absolutePath }
                 .groupBy { it.name }
                 .mapValues { LibraryDependencySet(it.key, it.value) }

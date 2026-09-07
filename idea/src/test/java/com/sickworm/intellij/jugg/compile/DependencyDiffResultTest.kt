@@ -12,11 +12,12 @@ import kotlin.test.assertEquals
 
 class DependencyDiffResultTest {
 
+    private val module = context.modules.first().value.copy(runtimeLibraryDependencies = emptyList())
     private val fullBuildDependencies = JuggProjectInfo(
-        modules = mapOf(context.modules.first().key to context.modules.first().value),
+        modules = mapOf(module.name to module),
         agpR8Classpath = null,
     )
-    private val libraryDependencies = context.modules.first().value.libraryDependencies
+    private val libraryDependencies = module.libraryDependencies
 
     @Test
     fun testAddDependency() {
@@ -50,6 +51,44 @@ class DependencyDiffResultTest {
         assertEquals(1, diffResult.addedLibraries.size)
         assertEquals(0, diffResult.removedLibraries.size)
         assertEquals(0, diffResult.updatedLibraries.size)
+    }
+
+    @Test
+    fun testAddRuntimeOnlyDependency() {
+        val runtimeLibrary = LibraryDependency(
+            "com.sickworm.intellij.jugg:runtime-lib:1.0",
+            File("runtime_lib.jar"),
+            0L,
+            1,
+        )
+        val currentModule = module.copy(
+            runtimeLibraryDependencies = listOf(runtimeLibrary),
+        )
+        val currentBuildDependencies = JuggProjectInfo(
+            modules = mapOf(currentModule.name to currentModule),
+            agpR8Classpath = null,
+        )
+
+        val diffResult = DependencyDiffResult.create(currentBuildDependencies, fullBuildDependencies)
+
+        assertEquals(1, diffResult.addedLibraries.size)
+        assertEquals(runtimeLibrary.name, diffResult.addedLibraries.single().dependency!!.declaration)
+    }
+
+    @Test
+    fun testCompileAndRuntimeDependencyUsesSingleArtifact() {
+        val duplicatedLibrary = libraryDependencies.first()
+        val currentModule = module.copy(
+            runtimeLibraryDependencies = listOf(duplicatedLibrary),
+        )
+        val currentBuildDependencies = JuggProjectInfo(
+            modules = mapOf(currentModule.name to currentModule),
+            agpR8Classpath = null,
+        )
+
+        val diffResult = DependencyDiffResult.create(currentBuildDependencies, fullBuildDependencies)
+
+        assertEquals(0, diffResult.changedLibraries.size)
     }
 
     @Test
@@ -224,7 +263,7 @@ class DependencyDiffResultTest {
         }.toMutableList()
         newLibraryDependencies.addAll(updateLibraries)
 
-        val newModules = listOf(context.modules.first().value.copy(libraryDependencies = newLibraryDependencies))
+        val newModules = listOf(module.copy(libraryDependencies = newLibraryDependencies))
         return JuggProjectInfo(
             modules = newModules.associateBy { it.name },
             agpR8Classpath = null,

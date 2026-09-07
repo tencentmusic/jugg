@@ -8,6 +8,7 @@ import com.sickworm.intellij.jugg.ai.mcp.McpToolDefinition
 import com.sickworm.intellij.jugg.ai.mcp.McpToolResult
 import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
 import com.sickworm.intellij.jugg.deploy.DeployHistoryData
+import com.sickworm.intellij.jugg.deploy.FullBuildInfoSerializer
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.JuggPathManager
 import com.sickworm.intellij.jugg.project.ProjectDirNormalizer
@@ -85,6 +86,13 @@ internal fun hasBeenFullCompiled(projectDir: File): Boolean {
     val pathManager = JuggPathManager(projectDir)
     val completeFlagFile = File(pathManager.compileContextDbDir, "complete_flag")
     if (!completeFlagFile.exists()) {
+        return false
+    }
+    val fullBuildInfoFile = File(pathManager.compileContextDbDir, "full_build_info.json")
+    val fullBuildInfo = runCatching {
+        FullBuildInfoSerializer().deserialize(fullBuildInfoFile.readText(Charsets.UTF_8))
+    }.getOrNull()
+    if (fullBuildInfo == null) {
         return false
     }
     val deployHistoryFile = File(pathManager.deployHistoryDbDir, "deploy_history.json")

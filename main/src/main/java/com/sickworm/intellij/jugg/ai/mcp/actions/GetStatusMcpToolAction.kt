@@ -216,7 +216,7 @@ class GetStatusMcpToolAction(
             return false
         }
         return runCatching {
-            FullBuildInfoSerializer().deserialize(fullBuildInfoFile.readText(Charsets.UTF_8)).buildTarget == BuildTarget.ANDROID_TEST
+            FullBuildInfoSerializer().deserialize(fullBuildInfoFile.readText(Charsets.UTF_8))?.buildTarget == BuildTarget.ANDROID_TEST
         }.getOrDefault(false)
     }
 

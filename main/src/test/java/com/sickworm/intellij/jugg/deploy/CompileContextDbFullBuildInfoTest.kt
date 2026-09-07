@@ -52,7 +52,7 @@ class CompileContextDbFullBuildInfoTest {
     }
 
     @Test
-    fun `missing full build info does not break compile context recovery`() {
+    fun `missing full build info invalidates compile context recovery`() {
         val db = CompileContextDb(juggRootDir, dbDir, logger)
         val fullBuildInfo = FullBuildInfo(
             compileCommand = "./gradlew :app:assembleDebug",
@@ -65,9 +65,20 @@ class CompileContextDbFullBuildInfoTest {
         val compileContextInfo = db.getCompileBuildPathInfoFromDb()
 
         assertNull(db.getFullBuildInfoFromDb())
-        assertNotNull(compileContextInfo)
-        assertEquals(apkInfos.size, compileContextInfo.apkInfos.size)
-        assertEquals(1, compileContextInfo.moduleBuildPathInfos.size)
+        assertNull(compileContextInfo)
+        assertFalse(File(dbDir, "complete_flag").exists())
+    }
+
+    @Test
+    fun `legacy full build info invalidates compile context recovery`() {
+        val db = saveCompileContext()
+        val fullBuildInfoFile = File(dbDir, "full_build_info.json")
+        val root = JsonParser.parseString(fullBuildInfoFile.readText()).asJsonObject
+        root.addProperty("version", 1)
+        fullBuildInfoFile.writeText(root.toString())
+
+        assertNull(db.getCompileBuildPathInfoFromDb())
+        assertFalse(File(dbDir, "complete_flag").exists())
     }
 
     @Test

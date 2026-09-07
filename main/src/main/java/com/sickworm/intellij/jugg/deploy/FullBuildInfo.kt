@@ -18,11 +18,19 @@ data class FullBuildInfo(
 class FullBuildInfoSerializer {
 
     fun serialize(info: FullBuildInfo): String {
-        return Gson().toJson(JsonData(VERSION, info.compileCommand, info.buildTarget.name, info.createdAt))
+        return Gson().toJson(JsonData(
+            VERSION,
+            info.compileCommand,
+            info.buildTarget.name,
+            info.createdAt,
+        ))
     }
 
-    fun deserialize(json: String): FullBuildInfo {
+    fun deserialize(json: String): FullBuildInfo? {
         val data = Gson().fromJson(json, JsonData::class.java)
+        if (data.version != VERSION) {
+            return null
+        }
         val buildTarget = runCatching { BuildTarget.valueOf(data.buildTarget ?: "") }
             .getOrDefault(BuildTarget.APP)
         return FullBuildInfo(
@@ -40,6 +48,6 @@ class FullBuildInfoSerializer {
     )
 
     companion object {
-        private const val VERSION = 1
+        private const val VERSION = 2
     }
 }

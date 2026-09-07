@@ -28,6 +28,8 @@ tags:
 
 依赖版本变化还可能改变传递依赖、版本选择和编译 classpath。构建文件同时能够修改 task、source set、variant、代码生成和编译器插件配置，所以检测到构建文件变化时，默认做法仍是回到 Gradle 重建完整基线。
 
+最终进入 APK 的库不一定都出现在编译 classpath。例如，`implementation` 引入的库可以通过 Maven runtime scope 继续带入另一个传递库；应用源码不直接编译引用这个传递库，但它仍会被 D8/R8 处理并进入 APK。Jugg 因此同时读取 Application 与 Dynamic Feature 当前 variant 的编译依赖和运行时依赖，再按实际 library 文件去重。只在运行时依赖图中出现的 AAR/JAR 也会进入依赖变化对比，避免增量部署成功后设备仍运行 APK 中的旧 library DEX。
+
 ## 用户确认把变化限定在依赖库范围内
 
 依赖库变化是构建文件修改中的一个受控例外。Jugg 用两次确认区分“构建脚本发生变化”和“只有依赖库需要增量处理”：
@@ -87,6 +89,7 @@ JAR 会按 class 条目的内容校验结果筛出新增和修改项，资源与
 - build 文件里除了依赖声明，还修改了会影响 APK 的配置。
 - 修改了 Gradle 插件、source set、variant、注解处理器或 Kotlin 编译器插件配置。
 - 缺少完整 Gradle 基线，或 Gradle 无法生成可靠的依赖 diff。
+- 升级前的完整构建基线没有记录运行时依赖范围；升级后的第一次运行会先执行完整 Gradle 构建，再恢复依赖增量。
 - 依赖版本回退还需要恢复 Manifest、资源、assets 或 native lib；当前回退只支持移除增量部署的 library DEX。
 - 依赖变化后出现符号解析失败；Jugg 刷新一次编译上下文后仍无法恢复。
 - 用户无法确认构建文件 diff 或依赖变化符合预期。
