@@ -69,6 +69,7 @@ dependencies {
     testImplementation "junit:junit:4.12"
     testImplementation "org.jetbrains.kotlin:kotlin-test:1.9.23"
     testImplementation "com.google.code.gson:gson:2.10.1"
+    testImplementation "org.mockito:mockito-core:5.4.0"
 
     // override databinding library to Java 11 class, or will get:
     // android/databinding/parser/XMLParser$ElementContext has been compiled by a more recent version

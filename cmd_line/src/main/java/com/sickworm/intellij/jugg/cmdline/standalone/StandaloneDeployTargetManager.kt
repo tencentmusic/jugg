@@ -8,7 +8,7 @@ import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.sickworm.intellij.jugg.deploy.run.IDeployHost
 import com.sickworm.intellij.jugg.deploy.run.StandaloneDeviceManager
 
-/** Selects one deterministic online adb device and performs app lifecycle operations for standalone runs. */
+/** Resolves online adb devices and performs app lifecycle operations for standalone runs. */
 class StandaloneDeployTargetManager(
     private val deviceManagerProvider: () -> StandaloneDeviceManager,
     private val environmentProvider: () -> IDeployHost,
@@ -31,9 +31,6 @@ class StandaloneDeployTargetManager(
             val selected = connectedDevices.firstOrNull { it.serialNumber == selectedSerial }
                 ?: throw IllegalStateException("Selected device $selectedSerial is not online.")
             return listOf(selected)
-        }
-        check(connectedDevices.size <= 1) {
-            "Multiple devices are online. Pass CLI --serial or set ANDROID_SERIAL to select one device."
         }
         return connectedDevices
     }
@@ -63,8 +60,19 @@ class StandaloneDeployTargetManager(
 
     override fun dumpErrorLogs(): String = dumpErrorLogs(null)
 
-    override fun dumpErrorLogs(serial: String?): String =
-        getTargetDevices(serial).firstOrNull()?.let { adb(it).dumpErrorLog() }.orEmpty()
+    override fun dumpErrorLogs(serial: String?): String {
+        return buildString {
+            appendLine("[Dump error logs start]")
+            val devices = getTargetDevices(serial)
+            appendLine("Devices: ${devices.map { it.name }}")
+            devices.forEach { device ->
+                appendLine("[Dump Device: ${device.name} start]")
+                appendLine(runCatching { adb(device).dumpErrorLog() }.getOrElse { "Dump error logs failed: ${it.message}" })
+                appendLine("[Dump Device: ${device.name} end]")
+            }
+            appendLine("[Dump error logs end]")
+        }
+    }
 
     private fun runLifecycle(device: IDevice, action: (AdbCmdHelper) -> Unit): Boolean {
         return runCatching { action(adb(device)); true }

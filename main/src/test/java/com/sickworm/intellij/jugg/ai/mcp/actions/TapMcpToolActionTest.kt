@@ -731,6 +731,26 @@ class TapMcpToolActionTest {
     }
 
     @Test
+    fun testTapMultipleDevicesRequiresExplicitSerial() {
+        val first = Mockito.mock(IDevice::class.java)
+        val second = Mockito.mock(IDevice::class.java)
+        PlatformApi.impl = FakePlatformApi(
+            mapOf(first to FakeDeviceAdb(), second to FakeDeviceAdb()),
+        )
+        val deployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
+        Mockito.`when`(deployTargetManager.getSelectedDevices()).thenReturn(listOf(first, second))
+        Mockito.`when`(deployTargetManager.getConnectedDevices()).thenReturn(listOf(first, second))
+
+        val result = TapMcpToolAction().execute(
+            mapOf("projectDir" to "/tmp/test", "x" to 100, "y" to 200),
+            runtime(deployTargetManager),
+        )
+
+        Assert.assertEquals(McpToolStatus.ERROR, result.status)
+        Assert.assertEquals("MULTIPLE_DEVICE", result.errorCode)
+    }
+
+    @Test
     fun testTapNoParametersReturnsError() {
         val (action, _) = setup()
         val result = action.execute(

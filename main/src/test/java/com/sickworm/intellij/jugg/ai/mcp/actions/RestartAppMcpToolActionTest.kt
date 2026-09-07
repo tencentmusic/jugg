@@ -74,6 +74,28 @@ class RestartAppMcpToolActionTest {
     }
 
     @Test
+    fun testRestartAllSelectedDevicesByDefault() {
+        val first = Mockito.mock(IDevice::class.java)
+        val second = Mockito.mock(IDevice::class.java)
+        PlatformApi.impl = FakePlatformApi(
+            mapOf(first to FakeDeviceAdb("device-1"), second to FakeDeviceAdb("device-2")),
+        )
+        val deployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
+        Mockito.`when`(deployTargetManager.getTargetDevices(null)).thenReturn(listOf(first, second))
+        Mockito.`when`(deployTargetManager.restartApp(first)).thenReturn(true)
+        Mockito.`when`(deployTargetManager.restartApp(second)).thenReturn(true)
+
+        val result = RestartAppMcpToolAction().execute(
+            mapOf("projectDir" to "/tmp/test"),
+            runtimeWithManager(deployTargetManager),
+        )
+
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        Mockito.verify(deployTargetManager).restartApp(first)
+        Mockito.verify(deployTargetManager).restartApp(second)
+    }
+
+    @Test
     fun testRestartFailsWhenExplicitAppReadyWaitTimesOut() {
         McpAppReadyGuard.postTimeoutOverrideForTest = 5L
         McpAppReadyGuard.postPollIntervalOverrideForTest = 1L
@@ -98,6 +120,7 @@ class RestartAppMcpToolActionTest {
         val deployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
         Mockito.`when`(deployTargetManager.getSelectedDevices()).thenReturn(listOf(device))
         Mockito.`when`(deployTargetManager.getConnectedDevices()).thenReturn(listOf(device))
+        Mockito.`when`(deployTargetManager.getTargetDevices(null)).thenReturn(listOf(device))
         Mockito.`when`(deployTargetManager.getPackageName()).thenReturn("com.example.app")
         Mockito.`when`(deployTargetManager.restartApp(device)).thenReturn(true)
 
@@ -134,11 +157,31 @@ class RestartAppMcpToolActionTest {
         return runtime to deployTargetManager
     }
 
-    private class FakeDeviceAdb : IDeviceAdb {
+    private fun runtimeWithManager(deployTargetManager: IDeployTargetManager): IMcpRuntime {
+        return object : com.sickworm.intellij.jugg.ai.mcp.TestMcpRuntime() {
+            override val logger: Logger = Logger.getInstance("RestartAppMcpToolActionTest")
+            override val projectDir: String = "/tmp/test"
+            override val deployTargetManager: IDeployTargetManager = deployTargetManager
+            override val forceGradleCompileHelper: ForceGradleCompileHelper = object : ForceGradleCompileHelper() {
+                override fun executeGradleCompile(autoConfirm: Boolean, useCleanAndReinstall: Boolean) = Unit
+                override fun executeGradleCompileBlocking(
+                    autoConfirm: Boolean,
+                    useCleanAndReinstall: Boolean,
+                ): GradleCompileExecutionResult = throw UnsupportedOperationException("not used")
+                override fun resolveExecutionType(): String = "local"
+                override fun requestRemoteSshInfo(requestedBy: String, reason: String): RemoteSshInfoResult =
+                    throw UnsupportedOperationException("not used")
+            }
+            override val juggConfigurationRunner: IJuggConfigurationRunner = FakeJuggConfigurationRunner()
+        }
+    }
+
+    private class FakeDeviceAdb(
+        override val serial: String = "emulator-5554",
+    ) : IDeviceAdb {
         val executedCommands = mutableListOf<String>()
         override val displayName: String? = "fake_device"
         override val api: Int = 34
-        override val serial: String = "emulator-5554"
         override val isOnline: Boolean = true
 
         override fun execAdbShellCmd(cmd: String): String {

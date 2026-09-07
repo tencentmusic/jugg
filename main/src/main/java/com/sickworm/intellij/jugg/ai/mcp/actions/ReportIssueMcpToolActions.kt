@@ -72,8 +72,7 @@ class PrepareIssueReportMcpToolAction : McpToolAction {
                 ),
                 standaloneLogDir = pathManager.standaloneCliLogDir,
                 logcat = runCatching {
-                    arguments.deviceSerial()?.let(runtime.deployTargetManager::dumpErrorLogs)
-                        ?: runtime.deployTargetManager.dumpErrorLogs()
+                    runtime.deployTargetManager.dumpErrorLogs()
                 }
                     .onFailure { runtime.logger.debug("Collect issue report device logs failed, continue without logcat", it) }
                     .getOrDefault(""),

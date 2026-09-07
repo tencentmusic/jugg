@@ -4,17 +4,12 @@ import com.google.gson.JsonArray
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
-import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.logger.getInstance
-import com.sickworm.intellij.jugg.ai.mcp.DeviceSelectionResolver
-import com.sickworm.intellij.jugg.ai.mcp.DeviceSelectionResult
 import com.sickworm.intellij.jugg.ai.mcp.IMcpRuntime
 import com.sickworm.intellij.jugg.ai.mcp.McpArtifact
-import com.sickworm.intellij.jugg.ai.mcp.McpErrorCode
 import com.sickworm.intellij.jugg.ai.mcp.McpToolResult
 import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
 import com.sickworm.intellij.jugg.ai.mcp.viewhierarchy.ViewHierarchyClient
-import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import java.io.File
 import java.nio.charset.StandardCharsets
@@ -62,11 +57,13 @@ internal object LayoutDumpHelper {
     ): DumpInternalResult {
         val logger = runtime.logger.getInstance("LayoutDumpHelper")
 
-        val selected = resolveOnlineDevice(runtime, targetDeviceSerial)
-            ?: run {
-                logger.warn("$callerToolName: no online device")
-                return DumpInternalResult.Failure(noDeviceResult(callerToolName))
+        val selected = when (val result = resolveMcpSingleDevice(runtime, callerToolName, targetDeviceSerial)) {
+            is McpSingleDeviceResult.Selected -> result
+            is McpSingleDeviceResult.Failure -> {
+                logger.warn("$callerToolName: device selection failed")
+                return DumpInternalResult.Failure(result.result)
             }
+        }
 
         val preWaitResult = McpAppReadyGuard.waitBeforeRuntimeObserve(runtime, callerToolName, targetDeviceSerial)
         if (!preWaitResult.isReady) {
@@ -191,15 +188,6 @@ internal object LayoutDumpHelper {
 
     // --- Internal utilities ---
 
-    private data class SelectedAdb(val adb: IDeviceAdb)
-
-    private fun resolveOnlineDevice(runtime: IMcpRuntime, targetDeviceSerial: String?): SelectedAdb? {
-        val selectionResult = DeviceSelectionResolver().resolve(runtime.deployTargetManager, targetDeviceSerial)
-        if (selectionResult !is DeviceSelectionResult.Selected) return null
-        val adb = PlatformApi.toDeviceAdb(selectionResult.device) ?: return null
-        return if (adb.isOnline) SelectedAdb(adb) else null
-    }
-
     private fun ensureToolDir(runtime: IMcpRuntime, toolName: String): File? {
         val projectDir = runtime.projectDir.takeIf { it.isNotBlank() } ?: return null
         val dir = File(JuggPathManager(File(projectDir)).mcpFetchDir, toolName)
@@ -209,14 +197,6 @@ internal object LayoutDumpHelper {
 
     private fun resolvePackageName(runtime: IMcpRuntime): String? =
         runCatching { runtime.deployTargetManager.getPackageName().takeIf { it.isNotBlank() } }.getOrNull()
-
-    private fun noDeviceResult(toolName: String) = McpToolResult(
-        status = McpToolStatus.ERROR,
-        message = "$toolName failed. Reason: No connected device is available.",
-        data = emptyMap<String, Any>(),
-        artifacts = emptyList(),
-        errorCode = McpErrorCode.NO_DEVICE,
-    )
 
     private fun buildSummaryMessage(element: JsonElement): String {
         val root = element.asJsonObjectOrNull() ?: return "0 windows (top: unknown), 0 nodes, not truncated"

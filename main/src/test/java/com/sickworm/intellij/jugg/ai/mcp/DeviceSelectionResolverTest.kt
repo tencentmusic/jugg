@@ -63,6 +63,20 @@ class DeviceSelectionResolverTest {
         assertTrue(result is DeviceSelectionResult.NoDevice)
     }
 
+    @Test
+    fun testMultipleSelectedDevicesRequireExplicitSerial() {
+        val first = device("device-1")
+        val second = device("device-2")
+        installPlatformApi(mapOf(first to adb("device-1", true), second to adb("device-2", true)))
+        val manager = FakeDeployTargetManager(listOf(first, second), listOf(first, second))
+
+        val result = DeviceSelectionResolver().resolve(manager)
+
+        assertTrue(result is DeviceSelectionResult.MultipleDevices)
+        result as DeviceSelectionResult.MultipleDevices
+        assertTrue(result.messageDetail.contains("--serial"))
+    }
+
     private fun device(serial: String): IDevice {
         return Mockito.mock(IDevice::class.java).also {
             Mockito.`when`(it.serialNumber).thenReturn(serial)

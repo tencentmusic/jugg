@@ -41,12 +41,12 @@ The uploaded content is intended to diagnose the current Jugg behavior:
 
 - Jugg compilation and deployment logs.
 - A structured environment and project summary without the raw project model.
-- Cancelable error logcat for the target device.
+- Cancelable error logcat for all online target devices.
 - Optional hook debug logs.
 - A `manifest.json` describing the actual ZIP entries.
 
 > [!NOTE]
-> If no device is connected, device selection is ambiguous, or logcat cannot be read, Jugg omits the device error logs and continues generating the diagnostic bundle.
+> If no device is connected, the bundle contains no device error logs. If logcat cannot be read from one device, Jugg omits only that device's logs, continues collecting logs from the other devices, and still generates the bundle. A serial supplied through CLI or MCP does not filter report contents.
 
 Raw `project_infos`, signing passwords, Manifest placeholders, APT/KAPT arguments, source code, and binary dependencies are not included in the diagnostic bundle. Hook debug logs are stored as `diagnostics/cli/hook-debug.log` in the bundle.
 

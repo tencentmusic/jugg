@@ -40,7 +40,7 @@ Compilation tools may return `isFinal=false` and a `jobId`. In that case, contin
 
 ## Public tools
 
-There are currently 18 registered public MCP tools.
+There are currently 20 registered public MCP tools.
 
 | Tool | Main parameters | Purpose |
 |---|---|---|
@@ -54,6 +54,8 @@ There are currently 18 registered public MCP tools.
 | `instrument` | `projectDir`, `sourcePath`, `class`, `method`, `runner`, `extras` | Runs tests from an androidTest source file anchor. |
 | `get-compile-status` | `projectDir`, `jobId`, `waitTimeoutMs` | Queries the status of an asynchronous compilation task. |
 | `ssh-info` | `projectDir`, `reason`, `requestedBy` | Requests remote SSH troubleshooting information. |
+| `report-prepare` | `projectDir`, compatibility parameter `serial` | Prepares a diagnostic bundle, ignores the serial, and collects logs from all target devices. |
+| `report-upload` | `projectDir`, `reportId`, `sha256` | Uploads a confirmed diagnostic bundle after verifying it has not changed. |
 | `devices` | `projectDir` | Lists devices and marks the selected device. |
 | `layout-dump` | `projectDir`, `rootLayout`, `includeGone`, `allWindows` | Exports the UI hierarchy as HTML. |
 | `view-locate` | `projectDir`, `target` | Finds the location of a UI element. |
@@ -64,6 +66,14 @@ There are currently 18 registered public MCP tools.
 | `wait-logs` | `projectDir`, `marker`, `tags`, `timeoutMs` | Waits for an app log marker, crash, or timeout. |
 
 `version` and `list-projects` do not require `projectDir`. All other tools require an absolute project path.
+
+## Multiple-device behavior
+
+- `compile`, `status`, and `devices` do not require a unique device.
+- `deploy`, `clean-reinstall`, and `instrument` target all selected devices when no serial is provided.
+- `restart` restarts all selected devices when no serial is provided.
+- Single-device UI, Activity stack, and log-wait tools return `MULTIPLE_DEVICE` when several target devices are available instead of producing HTTP 500.
+- `report-prepare` accepts the serial for compatibility but ignores it and collects error logs from all target devices on a best-effort basis.
 
 ## Asynchronous behavior of compilation tools
 
@@ -114,6 +124,7 @@ ViewHierarchy tools wait for the app to be online before running. A screen that 
 | `PROJECT_NOT_INITIALIZED` | The project has not completed Jugg initialization. The error message includes the requested path and the currently initialized projects. |
 | `NO_DEPLOY_BASELINE` | No deployment or full build baseline. |
 | `NO_DEVICE` | No available device. |
+| `MULTIPLE_DEVICE` | A single-device operation found several target devices and requires an explicit serial. |
 | `DEVICE_NOT_INTERACTIVE` | The device screen is off or the device is not interactive. |
 | `APP_NOT_FOREGROUND` | The target app is not in the foreground. |
 | `INTERNAL_ERROR` | Internal error. |

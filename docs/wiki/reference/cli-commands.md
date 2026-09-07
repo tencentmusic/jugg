@@ -14,7 +14,7 @@ This page is a quick reference for `jugg` CLI commands and options. It does not 
 ## Command syntax
 
 ```bash
-jugg [--console=plain|rich|json] [--project-dir <path>] [--if-compiling wait|interrupt] <subcommand> [options]
+jugg [--console=plain|rich|json] [--project-dir <path>] [--serial <adbSerial>] [--if-compiling wait|interrupt] <subcommand> [options]
 jugg help <subcommand>
 ```
 
@@ -26,6 +26,7 @@ jugg help <subcommand>
 | `--console=rich` | Spinner output for interactive terminals. This is the default for the shell wrapper. |
 | `--console=json` | Outputs MCP `structuredContent` JSON for scripts and Agents. |
 | `--project-dir <path>` | Specifies the MCP `projectDir` directly and skips automatic matching against the current directory. |
+| `--serial <adbSerial>` | Selects an online device for commands that support targeting. Reports accept this option for compatibility but ignore its value. |
 | `--if-compiling wait` | Waits for an existing compilation to finish before triggering a compile-related command. This is the default. |
 | `--if-compiling interrupt` | Triggers a new task without waiting for the old task and uses the server-side interruption semantics. |
 
@@ -50,7 +51,16 @@ Camel-case global options such as `--projectDir` and `--ifCompiling` are normali
 | `devices` | Lists connected devices. |
 | `activity-stack` | Shows the Activity stack. |
 | `ssh-info` | Requests remote SSH troubleshooting information. |
+| `report` | Prepares a diagnostic bundle, uploads it after confirmation, and returns a Report ID. |
 | `wait-logs` | Waits for an app log marker, crash, or timeout. |
+
+## Multiple-device behavior
+
+- `compile`, `status`, and `devices` do not require a unique device.
+- `deploy`, `clean-reinstall`, and `instrument` target all selected devices when `--serial` is omitted.
+- `restart` restarts all selected devices when `--serial` is omitted.
+- Single-device UI, Activity stack, and log-wait operations return `MULTIPLE_DEVICE` when several target devices are available. Use `--serial` to select one.
+- `report` accepts but ignores `--serial`; the diagnostic bundle collects error logs from all target devices on a best-effort basis.
 
 ## Compilation and deployment
 
@@ -68,7 +78,7 @@ jugg restart
 | `deploy` | `--always-restart-app <true|false>` | `false` allows HOT RELOAD when the requirements are met. |
 | `gradle-build` | None | Forces a Gradle build and outputs a log summary if it fails. |
 | `clean-reinstall` | None | Recovers from inconsistencies between local history and the installed state on the device. |
-| `restart` | None | Restarts the app only. |
+| `restart` | None | Restarts the app on all target devices when no serial is specified. |
 
 > [!IMPORTANT]
 > To determine the final state of `deploy` or `gradle-build`, check both `isCompileSuccess` and `isDeploySuccess`. A successful compilation does not mean that deployment succeeded.
@@ -130,12 +140,14 @@ The `tap` mode priority is coordinate > percent > element. `swipe` supports only
 ```bash
 jugg wait-logs --marker "LoginSuccess" --tags Activity,Repository --timeout-ms 30000
 jugg ssh-info --reason "Need to inspect remote Gradle build output"
+jugg report
 ```
 
 | Command | Options | Description |
 |---|---|---|
 | `wait-logs` | `--marker`, `--tags`, `--timeout-ms` | Waits for a log marker, crash, or timeout. |
 | `ssh-info` | `--reason` | Remote troubleshooting entry point that requires explicit user consent. |
+| `report` | None | Shows the diagnostic bundle and uploads it after confirmation. A device serial does not filter report logs. |
 
 ## Related pages
 

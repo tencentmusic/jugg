@@ -41,12 +41,12 @@ tags:
 
 - Jugg 编译和部署日志。
 - 结构化的环境和工程摘要，不包含原始工程模型。
-- 可取消的目标设备错误 logcat。
+- 可取消的全部在线目标设备错误 logcat。
 - 可选的 hook 调试日志。
 - 描述实际 zip entry 的 `manifest.json`。
 
 > [!NOTE]
-> 设备未连接、选择不明确或 logcat 读取失败时，Jugg 会省略设备错误日志并继续生成诊断包。
+> 没有设备连接时，诊断包不包含设备错误日志。某台设备的 logcat 读取失败时，Jugg 只省略该设备日志，继续收集其他设备日志并生成诊断包。CLI/MCP 传入的 serial 不会过滤报告内容。
 
 原始 `project_infos`、签名密码、Manifest placeholders、APT/KAPT 参数、源码和二进制依赖不会进入诊断包。hook 调试日志在诊断包中保存为 `diagnostics/cli/hook-debug.log`。
 

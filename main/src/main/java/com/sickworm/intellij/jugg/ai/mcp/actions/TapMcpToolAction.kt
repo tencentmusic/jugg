@@ -1,8 +1,6 @@
 package com.sickworm.intellij.jugg.ai.mcp.actions
 
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
-import com.sickworm.intellij.jugg.ai.mcp.DeviceSelectionResolver
-import com.sickworm.intellij.jugg.ai.mcp.DeviceSelectionResult
 import com.sickworm.intellij.jugg.ai.mcp.IMcpRuntime
 import com.sickworm.intellij.jugg.ai.mcp.McpErrorCode
 import com.sickworm.intellij.jugg.ai.mcp.McpJsonSchemaObject
@@ -12,7 +10,6 @@ import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
 import com.sickworm.intellij.jugg.ai.mcp.viewhierarchy.FindAndTapResult
 import com.sickworm.intellij.jugg.ai.mcp.viewhierarchy.MatchedElementData
 import com.sickworm.intellij.jugg.ai.mcp.viewhierarchy.ViewHierarchyClient
-import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.logger.getInstance
 import kotlin.math.roundToInt
 
@@ -46,11 +43,13 @@ class TapMcpToolAction : McpToolAction {
             return validationError
         }
         val targetDeviceSerial = arguments.deviceSerial()
-        val selected = resolveOnlineDevice(runtime, targetDeviceSerial)
-            ?: run {
-                logger.warn("tap failed: no online device")
-                return noDeviceResult("tap")
+        val selected = when (val result = resolveMcpSingleDevice(runtime, toolName, targetDeviceSerial)) {
+            is McpSingleDeviceResult.Selected -> result
+            is McpSingleDeviceResult.Failure -> {
+                logger.warn("tap failed: device selection failed")
+                return result.result
             }
+        }
         val preWaitResult = McpAppReadyGuard.waitBeforeRuntimeObserve(runtime, toolName, targetDeviceSerial)
         if (!preWaitResult.isReady) {
             logger.warn("tap failed: app not ready after pre-check timeout")
@@ -740,28 +739,6 @@ class TapMcpToolAction : McpToolAction {
                 )
             }
         }
-    }
-
-    private fun resolveOnlineDevice(runtime: IMcpRuntime, targetDeviceSerial: String?): SelectedAdb? {
-        val selectionResult = DeviceSelectionResolver().resolve(runtime.deployTargetManager, targetDeviceSerial)
-        if (selectionResult !is DeviceSelectionResult.Selected) {
-            return null
-        }
-        val adb = PlatformApi.toDeviceAdb(selectionResult.device) ?: return null
-        if (!adb.isOnline) {
-            return null
-        }
-        return SelectedAdb(adb = adb)
-    }
-
-    private fun noDeviceResult(toolName: String): McpToolResult {
-        return McpToolResult(
-            status = McpToolStatus.ERROR,
-            message = "$toolName failed. Reason: No connected device is available.",
-            data = emptyMap<String, Any>(),
-            artifacts = emptyList(),
-            errorCode = McpErrorCode.NO_DEVICE,
-        )
     }
 
     private fun waitTopActivityOnResumeStable(adb: IDeviceAdb): TopActivityStabilityResult {

@@ -1,7 +1,5 @@
 package com.sickworm.intellij.jugg.ai.mcp.actions
 
-import com.sickworm.intellij.jugg.ai.mcp.DeviceSelectionResolver
-import com.sickworm.intellij.jugg.ai.mcp.DeviceSelectionResult
 import com.sickworm.intellij.jugg.ai.mcp.IMcpRuntime
 import com.sickworm.intellij.jugg.ai.mcp.McpErrorCode
 import com.sickworm.intellij.jugg.ai.mcp.McpJsonSchemaObject
@@ -18,7 +16,7 @@ class RestartAppMcpToolAction : McpToolAction {
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
-        description = "Restart app process on the resolved target device.",
+        description = "Restart app process on the resolved target devices.",
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,
@@ -41,16 +39,21 @@ class RestartAppMcpToolAction : McpToolAction {
         waitAppReadyAfterSuccess: Boolean,
         targetDeviceSerial: String?,
     ): McpToolResult {
-        val selectionResult = DeviceSelectionResolver().resolve(runtime.deployTargetManager, targetDeviceSerial)
-        if (selectionResult !is DeviceSelectionResult.Selected) {
-            return noDeviceResult((selectionResult as DeviceSelectionResult.NoDevice).messageDetail)
+        val targetDevices = runtime.deployTargetManager.getTargetDevices(targetDeviceSerial)
+        if (targetDevices.isEmpty()) {
+            val reason = targetDeviceSerial?.let { "Device $it is not online." }
+                ?: "No connected device is available."
+            return noDeviceResult(reason)
         }
-        val targetDevice = selectionResult.device
-        val isSuccess = runtime.deployTargetManager.restartApp(targetDevice)
-        if (!isSuccess) {
+        val failedDevices = targetDevices.filterNot { device ->
+            runCatching { runtime.deployTargetManager.restartApp(device) }.getOrDefault(false)
+        }
+        if (failedDevices.isNotEmpty()) {
             return McpToolResult(
                 status = McpToolStatus.ERROR,
-                message = "restart failed. Reason: Failed to restart app. Please check log in \\\$PROJECT_DIR/build/jugg/log/compile_latest.log\"",
+                message = "restart failed. Reason: Failed to restart app on " +
+                    failedDevices.joinToString { it.serialNumber } +
+                    ". Please check log in \\\$PROJECT_DIR/build/jugg/log/compile_latest.log",
                 data = emptyMap<String, Any>(),
                 artifacts = emptyList(),
                 errorCode = McpErrorCode.INTERNAL_ERROR,
@@ -77,7 +80,14 @@ class RestartAppMcpToolAction : McpToolAction {
         ).also {
             // Record restart completion as deploy timestamp baseline for wait-logs.
             runtime.projectDir.takeIf { it.isNotBlank() }
-                ?.let { dir -> LastDeployTimestampRegistry.INSTANCE.recordNow(dir, targetDeviceSerial) }
+                ?.let { dir ->
+                    LastDeployTimestampRegistry.INSTANCE.recordNow(dir, targetDeviceSerial)
+                    if (targetDeviceSerial == null) {
+                        targetDevices.forEach { device ->
+                            LastDeployTimestampRegistry.INSTANCE.recordNow(dir, device.serialNumber)
+                        }
+                    }
+                }
         }
     }
 

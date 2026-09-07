@@ -21,8 +21,14 @@ class DeviceSelectionResolver {
         val selectedDevices = deployTargetManager.getSelectedDevices().filter { isDeviceOnline(it) }
         val connectedDevices = deployTargetManager.getConnectedDevices().filter { isDeviceOnline(it) }
 
+        if (selectedDevices.size > 1) {
+            return DeviceSelectionResult.MultipleDevices(multipleDevicesMessage(selectedDevices))
+        }
         if (connectedDevices.isEmpty()) {
             return DeviceSelectionResult.NoDevice("No connected device is available.")
+        }
+        if (selectedDevices.isEmpty() && connectedDevices.size > 1) {
+            return DeviceSelectionResult.MultipleDevices(multipleDevicesMessage(connectedDevices))
         }
 
         val selectedDevice = selectedDevices.firstOrNull()
@@ -30,6 +36,10 @@ class DeviceSelectionResolver {
             ?: return DeviceSelectionResult.NoDevice("No connected device is available.")
 
         return DeviceSelectionResult.Selected(device = selectedDevice)
+    }
+
+    private fun multipleDevicesMessage(devices: List<IDevice>): String {
+        return "Multiple devices are online (${devices.joinToString { it.serialNumber }}). Pass --serial to select one device."
     }
 
     private fun isDeviceOnline(device: IDevice): Boolean {
@@ -53,6 +63,11 @@ sealed class DeviceSelectionResult {
      * NoDevice carries messageDetail.
      */
     data class NoDevice(
+        val messageDetail: String,
+    ) : DeviceSelectionResult()
+
+    /** MultipleDevices requires the caller to provide an explicit target. */
+    data class MultipleDevices(
         val messageDetail: String,
     ) : DeviceSelectionResult()
 }

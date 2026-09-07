@@ -1,9 +1,6 @@
 package com.sickworm.intellij.jugg.ai.mcp.actions
 
-import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.logger.getInstance
-import com.sickworm.intellij.jugg.ai.mcp.DeviceSelectionResolver
-import com.sickworm.intellij.jugg.ai.mcp.DeviceSelectionResult
 import com.sickworm.intellij.jugg.ai.mcp.IMcpRuntime
 import com.sickworm.intellij.jugg.ai.mcp.McpErrorCode
 import com.sickworm.intellij.jugg.ai.mcp.McpJsonSchemaObject
@@ -12,7 +9,6 @@ import com.sickworm.intellij.jugg.ai.mcp.McpToolDefinition
 import com.sickworm.intellij.jugg.ai.mcp.McpToolResult
 import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
 import com.sickworm.intellij.jugg.ai.mcp.viewhierarchy.ViewHierarchyClient
-import com.sickworm.intellij.jugg.platform.PlatformApi
 
 /**
  * EvalViewMcpToolAction implements MCP tool `view-inspect` that evaluates read-only
@@ -133,15 +129,13 @@ class EvalViewMcpToolAction : McpToolAction {
 
         // Resolve device
         val targetDeviceSerial = arguments.deviceSerial()
-        val selected = resolveOnlineDevice(runtime, targetDeviceSerial)
-            ?: run {
-                logger.warn("view-inspect failed: no online device")
-                return McpToolResult(
-                    status = McpToolStatus.ERROR,
-                    message = "view-inspect failed. Reason: No connected device is available.",
-                    errorCode = McpErrorCode.NO_DEVICE,
-                )
+        val selected = when (val result = resolveMcpSingleDevice(runtime, toolName, targetDeviceSerial)) {
+            is McpSingleDeviceResult.Selected -> result
+            is McpSingleDeviceResult.Failure -> {
+                logger.warn("view-inspect failed: device selection failed")
+                return result.result
             }
+        }
 
         // Wait for app ready
         val preWaitResult = McpAppReadyGuard.waitBeforeRuntimeObserve(runtime, toolName, targetDeviceSerial)
@@ -229,20 +223,6 @@ class EvalViewMcpToolAction : McpToolAction {
                 McpToolResult.internalErrorResult("view-inspect", e.message ?: "unknown error")
             }
         }
-    }
-
-    private data class SelectedAdb(val adb: IDeviceAdb)
-
-    private fun resolveOnlineDevice(runtime: IMcpRuntime, targetDeviceSerial: String?): SelectedAdb? {
-        val selectionResult = DeviceSelectionResolver().resolve(runtime.deployTargetManager, targetDeviceSerial)
-        if (selectionResult !is DeviceSelectionResult.Selected) {
-            return null
-        }
-        val adb = PlatformApi.toDeviceAdb(selectionResult.device) ?: return null
-        if (!adb.isOnline) {
-            return null
-        }
-        return SelectedAdb(adb = adb)
     }
 
     private fun resolvePackageName(runtime: IMcpRuntime): String? {

@@ -14,7 +14,7 @@ tags:
 ## 命令格式
 
 ```bash
-jugg [--console=plain|rich|json] [--project-dir <path>] [--if-compiling wait|interrupt] <subcommand> [options]
+jugg [--console=plain|rich|json] [--project-dir <path>] [--serial <adbSerial>] [--if-compiling wait|interrupt] <subcommand> [options]
 jugg help <subcommand>
 ```
 
@@ -26,6 +26,7 @@ jugg help <subcommand>
 | `--console=rich` | 面向人工终端的 spinner 输出。shell wrapper 默认使用。 |
 | `--console=json` | 输出 MCP `structuredContent` JSON，适合脚本和 Agent。 |
 | `--project-dir <path>` | 直接指定 MCP `projectDir`，跳过当前目录自动匹配。 |
+| `--serial <adbSerial>` | 为支持定向的设备命令指定在线设备。问题报告兼容该参数但忽略其值。 |
 | `--if-compiling wait` | compile 类命令触发前等待已有编译结束，默认值。 |
 | `--if-compiling interrupt` | 不等待旧任务，直接触发新任务并沿用服务端中断语义。 |
 
@@ -50,7 +51,16 @@ jugg help <subcommand>
 | `devices` | 列出已连接设备。 |
 | `activity-stack` | 查看 Activity 栈。 |
 | `ssh-info` | 申请远端 SSH 排障信息。 |
+| `report` | 生成诊断包，确认后上传并返回 Report ID。 |
 | `wait-logs` | 等待 App 日志 marker、crash 或 timeout。 |
+
+## 多设备行为
+
+- `compile`、`status`、`devices` 不要求唯一设备。
+- `deploy`、`clean-reinstall`、`instrument` 未传 `--serial` 时处理全部目标设备。
+- `restart` 未传 `--serial` 时重启全部目标设备。
+- UI、Activity 栈和日志等待等单设备操作发现多个目标设备时返回 `MULTIPLE_DEVICE`，需要通过 `--serial` 指定设备。
+- `report` 兼容但忽略 `--serial`，诊断包会尽力收集全部目标设备的错误日志。
 
 ## 编译和部署
 
@@ -68,7 +78,7 @@ jugg restart
 | `deploy` | `--always-restart-app <true|false>` | `false` 允许满足条件时走 HOT RELOAD。 |
 | `gradle-build` | 无 | 强制 Gradle 构建，失败时会输出日志摘要。 |
 | `clean-reinstall` | 无 | 用于本地历史、设备安装状态不一致时恢复。 |
-| `restart` | 无 | 只重启 App。 |
+| `restart` | 无 | 重启 App；未指定 serial 时处理全部目标设备。 |
 
 > [!IMPORTANT]
 > `deploy`、`gradle-build` 的终态需要同时看 `isCompileSuccess` 和 `isDeploySuccess`。编译成功不等于部署成功。
@@ -130,12 +140,14 @@ jugg tap --action swipe --x 500 --y 1600 --end-x 500 --end-y 300 --duration 300
 ```bash
 jugg wait-logs --marker "LoginSuccess" --tags Activity,Repository --timeout-ms 30000
 jugg ssh-info --reason "Need to inspect remote Gradle build output"
+jugg report
 ```
 
 | 命令 | 参数 | 说明 |
 |---|---|---|
 | `wait-logs` | `--marker`、`--tags`、`--timeout-ms` | 等待日志 marker、crash 或 timeout。 |
 | `ssh-info` | `--reason` | 需要用户显式同意的远端排障入口。 |
+| `report` | 无 | 展示诊断包内容，确认后上传；设备 serial 不会过滤报告日志。 |
 
 ## 相关页面
 

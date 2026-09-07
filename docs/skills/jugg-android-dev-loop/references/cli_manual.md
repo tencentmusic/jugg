@@ -4,7 +4,7 @@ CLI entry: `python3 {SKILL_DIR}/scripts/jugg.py [global options] <subcommand> [o
 
 The CLI scans IDEA and standalone MCP runtimes and prefers an IDEA Runtime that owns the target project. It selects an owning standalone Runtime only when no matching IDEA Runtime exists. Use `--runtime idea|standalone` to override automatic selection. A command keeps the selected Runtime for its full lifetime, including compile status polling, and does not migrate when ownership changes or another Runtime appears. If no Runtime owns the project, the CLI reuses any running standalone Runtime and automatically registers the project on its first valid request. Only when no standalone exists does it acquire the global `~/.jugg/locks/standalone.launch.lock` and start `~/.jugg/standalone/bin/jugg-standalone` or `JUGG_STANDALONE_LAUNCHER`; `JUGG_STANDALONE_LAUNCH_LOCK` can override the lock path. Standalone startup and first-project registration each have a 60-second hard timeout. After 10 seconds, the CLI prints the latest structured entry from the target project's `build/jugg/log/standlone_cli/compile_latest.log` every 10 seconds so slow database recovery and file-monitor initialization remain observable. Missing runtime logs do not interrupt startup, and displayed entries are truncated to 500 characters. Hook subprocesses set `JUGG_CALLER=hook` and only start or register standalone when `build/jugg/database/compile_context.db/complete_flag` exists. The standalone Runtime supports `version`, `list-projects`, `init`, `compile`, `deploy`, `gradle-build`, `get-compile-status`, `status`, `report-prepare`, and `report-upload`. The standalone-only `stop` command is local to the CLI and launcher; it does not use MCP or start a Runtime and stops all standalone projects together.
 
-Use global `--serial <adbSerial>` or `--serial=<adbSerial>` with device-related commands to override IDEA selection or standalone `ANDROID_SERIAL` for that request. The value is injected into `deploy`, `gradle-build`, `clean-reinstall`, `restart`, `instrument`, `status`, `devices`, `layout-dump`, `view-locate`, `view-inspect`, `tap`, `activity-stack`, `wait-logs`, and the `report-prepare` phase of `report`; it is not sent to non-device tools. Explicit serial matching is exact and online-only, with no fallback to another device.
+Use global `--serial <adbSerial>` or `--serial=<adbSerial>` with device-related commands to override IDEA selection or standalone `ANDROID_SERIAL` for that request. The value is injected into `deploy`, `gradle-build`, `clean-reinstall`, `restart`, `instrument`, `status`, `devices`, `layout-dump`, `view-locate`, `view-inspect`, `tap`, `activity-stack`, `wait-logs`, and the `report-prepare` phase of `report`; it is not sent to non-device tools. Explicit serial matching is exact and online-only, with no fallback to another device. Reports retain the parameter for compatibility but ignore it and collect logs from all target devices.
 
 ### CLI Output Format
 
@@ -82,7 +82,7 @@ python3 {SKILL_DIR}/scripts/jugg.py --serial emulator-5554 report
 
 `report` works with IDEA and standalone Runtime. It first generates the final redacted ZIP and prints its local path, size, fixed upload destination, and every archive entry path and size. Jugg logs are listed first, matching IDEA ordering; sensitivity and redaction metadata are not displayed. The `[Y/n]` prompt uploads on Enter, `y`, or `yes`. Declining, EOF, or interruption keeps the ZIP locally without uploading. Before upload, the Runtime reloads the same `reportId` and rejects any manifest, ZIP-entry, or SHA-256 change. `report` currently uses the same interactive flow under `--console=json`.
 
-When multiple devices are online, pass global `--serial` to select the device whose error logcat is included in the prepared bundle. The selection is request-scoped and also works with an already-running standalone Runtime.
+When multiple devices are online, the prepared bundle includes error logcat from every target device on a best-effort basis. Global `--serial` is accepted for compatibility but does not filter report contents.
 
 ---
 
@@ -131,7 +131,7 @@ python3 {SKILL_DIR}/scripts/jugg.py gradle-build
 python3 {SKILL_DIR}/scripts/jugg.py clean-reinstall
 ```
 
-In standalone mode, `gradle-build` performs the full compile and refreshes the incremental baseline. With a remote profile, only the Gradle full build/fallback runs remotely; project-info dry-runs, incremental compilation, and device operations stay on the standalone host. Remote authentication is non-interactive, so configure SSH credentials in the profile or authenticate the external iFT client before running the command. It does not install or launch the app; use `deploy` next when device deployment is required. Standalone preserves an explicit `JAVA_HOME`. For deployment, prefer request-level `--serial`; otherwise standalone uses `ANDROID_SERIAL`, then only proceeds without either setting when exactly one device is online. `clean-reinstall`, `instrument`, device listing, runtime UI inspection, touch, activity-stack, restart, and wait-logs remain IDEA-only capabilities.
+In standalone mode, `gradle-build` performs the full compile and refreshes the incremental baseline without requiring a device. With a remote profile, only the Gradle full build/fallback runs remotely; project-info dry-runs, incremental compilation, and device operations stay on the standalone host. Remote authentication is non-interactive, so configure SSH credentials in the profile or authenticate the external iFT client before running the command. It does not install or launch the app; use `deploy` next when device deployment is required. Standalone preserves an explicit `JAVA_HOME`. For deployment, request-level `--serial` takes priority, then standalone `ANDROID_SERIAL`; without either value, deployment targets all online devices. `clean-reinstall`, `instrument`, device listing, runtime UI inspection, touch, activity-stack, restart, and wait-logs remain IDEA-only capabilities.
 
 ### `instrument`
 
@@ -176,6 +176,8 @@ When the project has no AndroidTest full-build baseline, `instrument` returns `E
 ```
 python3 {SKILL_DIR}/scripts/jugg.py restart
 ```
+
+Without global `--serial`, restart targets every selected device. With `--serial`, it targets only that online device.
 
 ### `wait-logs`
 

@@ -40,7 +40,7 @@ tags:
 
 ## 公开工具
 
-当前注册的公开 MCP tool 共 18 个。
+当前注册的公开 MCP tool 共 20 个。
 
 | Tool | 主要参数 | 用途 |
 |---|---|---|
@@ -54,6 +54,8 @@ tags:
 | `instrument` | `projectDir`、`sourcePath`、`class`、`method`、`runner`、`extras` | 从 androidTest 源文件锚点运行测试。 |
 | `get-compile-status` | `projectDir`、`jobId`、`waitTimeoutMs` | 查询异步编译任务状态。 |
 | `ssh-info` | `projectDir`、`reason`、`requestedBy` | 申请远端 SSH 排障信息。 |
+| `report-prepare` | `projectDir`、兼容参数 `serial` | 生成诊断包；忽略 serial 并收集全部目标设备日志。 |
+| `report-upload` | `projectDir`、`reportId`、`sha256` | 上传已确认且校验未变化的诊断包。 |
 | `devices` | `projectDir` | 列出设备并标记 selected。 |
 | `layout-dump` | `projectDir`、`rootLayout`、`includeGone`、`allWindows` | 导出 UI 层级 HTML。 |
 | `view-locate` | `projectDir`、`target` | 查找 UI 元素位置。 |
@@ -64,6 +66,14 @@ tags:
 | `wait-logs` | `projectDir`、`marker`、`tags`、`timeoutMs` | 等待 App 日志 marker、crash 或 timeout。 |
 
 `version` 和 `list-projects` 不需要 `projectDir`。其他工具都需要项目绝对路径。
+
+## 多设备行为
+
+- `compile`、`status`、`devices` 不要求唯一设备。
+- `deploy`、`clean-reinstall`、`instrument` 未传 serial 时处理全部目标设备。
+- `restart` 未传 serial 时重启全部目标设备。
+- UI、Activity 栈和日志等待等单设备工具发现多个目标设备时返回 `MULTIPLE_DEVICE`，不会转成 HTTP 500。
+- `report-prepare` 兼容但忽略 serial，尽力收集全部目标设备的错误日志。
 
 ## 编译类异步行为
 
@@ -114,6 +124,7 @@ ViewHierarchy 相关工具执行前会等待 App 在线。设备息屏或未解�
 | `PROJECT_NOT_INITIALIZED` | 项目未完成 Jugg 初始化。错误信息会给出请求路径和当前已初始化项目。 |
 | `NO_DEPLOY_BASELINE` | 缺少部署或 full build 基线。 |
 | `NO_DEVICE` | 无可用设备。 |
+| `MULTIPLE_DEVICE` | 单设备操作发现多个目标设备，需要显式指定 serial。 |
 | `DEVICE_NOT_INTERACTIVE` | 设备息屏或非交互态。 |
 | `APP_NOT_FOREGROUND` | 目标 App 不在前台。 |
 | `INTERNAL_ERROR` | 内部错误。 |

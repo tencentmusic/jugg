@@ -163,6 +163,20 @@ class JuggCompileHelperTest {
     }
 
     @Test
+    fun preprocessIncrementalCompile_compileOnlyDoesNotReadDeviceState() {
+        val fixture = createFixture()
+        whenever(fixture.uiHandler.isSkipDeploy).thenReturn(true)
+        whenever(fixture.deployStateManager.updateDeployState()).thenThrow(
+            IllegalStateException("Device state must not be read for compile-only"),
+        )
+
+        val result = invokePreprocessIncrementalCompile(fixture.helper, fixture.options, fixture.uiHandler)
+
+        assertEquals(null, result)
+        verify(fixture.deployStateManager, never()).updateDeployState()
+    }
+
+    @Test
     fun incrementalCompile_noFileChanges_firstRun_notifiesEmptyCompileAndDeploysDirectly() {
         val fixture = createFixture()
         whenever(fixture.deployFileManager.isNoFileChanges()).thenReturn(true)

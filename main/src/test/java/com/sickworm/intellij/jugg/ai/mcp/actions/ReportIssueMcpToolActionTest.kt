@@ -98,12 +98,12 @@ class ReportIssueMcpToolActionTest {
     }
 
     @Test
-    fun `prepare uses explicit serial when multiple devices are online`() {
+    fun `prepare ignores explicit serial and collects all device logs`() {
         val projectDir = temporaryFolder.newFolder("serial-project")
         val deployTargetManager = mock<IDeployTargetManager>()
-        doThrow(IllegalStateException("Multiple devices are online"))
-            .whenever(deployTargetManager).dumpErrorLogs()
-        whenever(deployTargetManager.dumpErrorLogs("device-2")).thenReturn("device-2 logcat")
+        whenever(deployTargetManager.dumpErrorLogs()).thenReturn("all device logcat")
+        doThrow(AssertionError("serial-specific log collection must not be used"))
+            .whenever(deployTargetManager).dumpErrorLogs("device-2")
         val runtime = mock<IMcpRuntime>()
         whenever(runtime.projectDir).thenReturn(projectDir.absolutePath)
         whenever(runtime.logger).thenReturn(mock())

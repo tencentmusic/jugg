@@ -34,7 +34,9 @@
 
 共 **20 个**注册工具，按注册顺序排列。
 
-以下设备相关工具公开可选 `serial: string`：`restart`、`deploy`、`clean-reinstall`、`gradle-build`、`instrument`、`devices`、`layout-dump`、`view-locate`、`view-inspect`、`activity-stack`、`tap`、`status`、`wait-logs`、`report-prepare`。显式 serial 按大小写敏感的在线设备精确匹配，覆盖 IDEA 选中设备与 standalone `ANDROID_SERIAL`，只影响当前请求；未命中时不得回退其他设备。`devices` 传 serial 时只返回该在线设备，未命中返回 `NO_DEVICE`。
+以下设备相关工具公开可选 `serial: string`：`restart`、`deploy`、`clean-reinstall`、`gradle-build`、`instrument`、`devices`、`layout-dump`、`view-locate`、`view-inspect`、`activity-stack`、`tap`、`status`、`wait-logs`、`report-prepare`。除 `report-prepare` 外，显式 serial 按大小写敏感的在线设备精确匹配，覆盖 IDEA 选中设备与 standalone `ANDROID_SERIAL`，只影响当前请求；未命中时不得回退其他设备。`devices` 传 serial 时只返回该在线设备，未命中返回 `NO_DEVICE`。`report-prepare` 为兼容已有调用接收但忽略 serial。
+
+未传 serial 时，`compile`、`status`、`devices` 不要求唯一设备；`deploy`、`clean-reinstall`、`instrument` 处理全部目标设备；`restart` 重启全部目标设备。`layout-dump`、`view-locate`、`view-inspect`、`activity-stack`、`tap`、`wait-logs` 等单设备工具在多个目标设备下返回 `MULTIPLE_DEVICE`，不得抛出 HTTP 500。`report-prepare` 始终 Best-effort 收集全部目标设备错误 logcat。
 
 ### `version`
 
@@ -76,6 +78,7 @@
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `projectDir` | string | **是** | 项目绝对路径 |
+| `serial` | string | 否 | 兼容参数；当前忽略其值，仍收集全部目标设备日志 |
 
 **返回 data**：`configurationId`、`configurationName`、`compileCommand`。
 
@@ -91,7 +94,7 @@
 | `serial` | string | 否 | 本次请求的 adb serial |
 | `waitAppReadyAfterSuccess` | boolean | 否 | `true` 时重启成功后等待 App ready；默认 `false`，不做后置 ready 等待 |
 
-**行为补充**：成功路径默认只确认 restart 命令执行完成；需要把 App ready 作为工具成功条件时显式传 `waitAppReadyAfterSuccess=true`。
+**行为补充**：未传 serial 时重启全部目标设备，显式传入时只重启指定在线设备。成功路径默认只确认 restart 命令执行完成；需要把 App ready 作为工具成功条件时显式传 `waitAppReadyAfterSuccess=true`。
 
 ---
 
@@ -104,6 +107,8 @@
 | `projectDir` | string | **是** | 项目绝对路径 |
 
 **无待编译文件**：编译成功且当前没有文件需要编译时，成功消息会明确显示 `No pending file changes`。该结果表示本轮没有生成新的编译产物，不会触发部署，也不会附带部署历史。首次调用内完成和通过 `get-compile-status` 轮询完成时使用相同的最终消息。
+
+**设备边界**：仅编译不读取设备部署状态，不要求设备在线，也不因多设备而失败。
 
 ---
 
@@ -119,6 +124,8 @@
 | `waitAppReadyAfterSuccess` | boolean | 否 | `true` 时部署成功后等待 App ready；默认 `false`，不做后置 ready 等待 |
 
 **异步返回**：`isFinal=false` 时返回 `jobId`，需用 `get-compile-status` 轮询。
+
+**设备边界**：未传 serial 时处理全部目标设备；显式传入时只处理指定在线设备。
 
 **无待部署文件**：成功消息会明确说明当前 Jugg 检测到的修改均已部署，并附带本次 IDE 会话中最后一次“包含文件变更且部署成功”的绝对时间、相对时间和项目相对路径。文件最多展示 20 条，超出部分显示剩余数量；IDE 重启后没有会话内记录时会明确说明详情不可用。首次调用内完成和通过 `get-compile-status` 轮询完成时使用相同的最终消息。
 
@@ -206,12 +213,11 @@
 
 生成最终待上传的脱敏诊断 ZIP，不发起网络请求。IDEA 与 standalone 均注册该工具。
 
-设备错误日志按 Best-effort 采集；设备选择不明确或 logcat 读取失败时省略该条目，其他诊断信息仍正常生成。
+设备错误日志按 Best-effort 采集。工具忽略调用方可能携带的 serial，并收集全部目标设备日志；某台设备 logcat 读取失败时只省略该设备条目，其他诊断信息和其他设备日志仍正常生成。
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `projectDir` | string | **是** | 项目绝对路径 |
-| `serial` | string | 否 | 指定收集错误 logcat 的在线设备；覆盖 IDEA 选择或 standalone `ANDROID_SERIAL` |
 
 **返回 data**：`reportId`、`filePath`、`size`、`sha256`、固定 `uploadUrl`，以及 `entries`。每个 entry 包含 `path`、`size`、`sensitivity` 和 `redaction`，与最终 ZIP manifest 完全一致。
 
@@ -401,7 +407,7 @@
 - `allLogsPath`：全量原始日志落盘路径
 - `truncated`：`logs` 是否被截断
 
-**错误码**：`INVALID_PARAMS`、`INVALID_REGEX`、`NO_DEPLOY_BASELINE`、`NO_DEVICE`、`INTERNAL_ERROR`
+**错误码**：`INVALID_PARAMS`、`INVALID_REGEX`、`NO_DEPLOY_BASELINE`、`NO_DEVICE`、`MULTIPLE_DEVICE`、`INTERNAL_ERROR`
 
 ---
 
@@ -455,6 +461,7 @@ MCP 拉取类工具产物落在 `build/jugg/mcp_fetch/<toolName>/`。IDE 启动�
 | `INVALID_PARAMS` | 参数错误 |
 | `PROJECT_NOT_INITIALIZED` | IDEA 项目未初始化，或 standalone 项目自动初始化失败 |
 | `NO_DEVICE` | 无可用设备 |
+| `MULTIPLE_DEVICE` | 单设备操作发现多个目标设备，需要显式指定 serial |
 | `DEVICE_NOT_INTERACTIVE` | 设备息屏或非交互态，需唤醒/解锁后重试 |
 | `APP_NOT_FOREGROUND` | 目标 App 不在前台，需切回目标 App 后重试 |
 | `FEATURE_NOT_SUPPORTED` | 当前工程或运行环境不支持该能力 |
