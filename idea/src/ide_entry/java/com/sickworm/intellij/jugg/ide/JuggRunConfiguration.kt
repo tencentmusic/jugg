@@ -41,15 +41,13 @@ class JuggRunConfiguration(
         return super.getUserData(key)
     }
 
-    private var lastSetObj: Any? = null
+    private val allowSelectDeviceInitializedKey = Key.create<Boolean>("jugg.allowSelectDeviceInitialized")
 
     private fun ensureSetAllowSelectDevice() {
         try {
-            if (lastSetObj !== userMap) {
-                // map will recreate
-                AsDeployerCompat.setAllowSelectDevice(this)
-                lastSetObj = userMap
-            }
+            if (super.getUserData(allowSelectDeviceInitializedKey) == true) return
+            AsDeployerCompat.setAllowSelectDevice(this)
+            super.putUserData(allowSelectDeviceInitializedKey, true)
         } catch (e: Throwable) {
             // error in panda for get()
             // java.lang.NoSuchMethodError: 'java.lang.Object com.sickworm.intellij.jugg.ide.JuggRunConfiguration.get()'

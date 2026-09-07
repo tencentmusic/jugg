@@ -298,7 +298,7 @@ intellij {
     pluginName = 'jugg'
     updateSinceUntilBuild = false
     version = ide_version
-    plugins = ['android']
+    plugins = ['java', 'android']
 }
 
 sourceSets {

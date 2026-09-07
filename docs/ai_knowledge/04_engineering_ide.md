@@ -76,7 +76,7 @@ IDE project opened
 
 插件热更新依赖一条刻意收窄的 ClassLoader 边界。`JuggLoader` 根据 load list 选择 embedded 或 hot-update jars，并用代理把 `IJuggManagerCreator` / `IJuggManagerCaller` 调用跨回稳定 ClassLoader；创建热更新实例失败时直接回退 embedded jars，保证项目仍能打开。`loader`、`ide`、IntelliJ API 以及少量跨边界 DTO 固定由原 ClassLoader 加载，避免 IDE 已注册 extension/action 的 class identity 改变；`JuggManagerCreator` 例外由热更新 ClassLoader 加载，使主要业务实现能够替换。
 
-更新下载采用“热加载 + 标准安装”双通道：只下载缺失 jar，逐个校验 md5，文件齐全后通过临时文件替换 metadata；兼容热更新时再切换 load list，使之后新打开或重新打开的工程使用新 ClassLoader。无论能否热更新，都会把 jars 打成插件 zip 并调用 `PluginInstaller.installAfterRestart()`，确保下次 IDE 启动落到标准安装版本；若服务端标记必须 reinstall，则不更新 load list，只走冷安装。热更新因此不是在当前 manager 上替换 class，也不能让稳定边界中新增加的方法或类型自动生效。
+更新下载采用“热加载 + 标准安装”双通道：只下载缺失 jar，逐个校验 md5，文件齐全后通过临时文件替换 metadata；兼容热更新时再切换 load list，使之后新打开或重新打开的工程使用新 ClassLoader。无论能否热更新，都会把 jars 打成插件 zip，并通过反射探测 `PluginInstaller.installAfterRestart()` 的两个已知签名，确保下次 IDE 启动落到标准安装版本，同时避免发布字节码静态链接内部 API；若服务端标记必须 reinstall，则不更新 load list，只走冷安装。热更新因此不是在当前 manager 上替换 class，也不能让稳定边界中新增加的方法或类型自动生效。
 
 `DeployFileManager` 可在构造期直接创建 `ConstRefEngine` 对象，但 `ConstRefEngine` 构造期不能初始化 SQLite database、repo fingerprint store 或 impact resolver，避免全局 SQLite 缓存损坏阻断 manager 创建。这些 ConstRef runtime 资源由 `ConstRefEngine` 在 `updateModuleInfos()`、源码变更事件、编译前 readiness、on-demand 分析、影响查询或 commit ack 首次需要时懒初始化；失败后降级为 no-op，主初始化、编译和部署继续。
 
