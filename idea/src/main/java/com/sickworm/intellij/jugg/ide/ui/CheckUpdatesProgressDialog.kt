@@ -70,7 +70,13 @@ class CheckUpdatesProgressDialog : DialogWrapper(true) {
     fun setHotUpdateData(hotUpdateData: HotUpdateData?, onConfirmUpdate: () -> Unit) {
         progressBar.isVisible = false
         SwingUtilities.invokeLater {
-            if (hotUpdateData == null || !hotUpdateData.isNeedUpdate) {
+            if (hotUpdateData == null) {
+                onOkAction = null
+                textLabel.text = "Jugg backend server is unavailable. Configure a Custom Server in Jugg Settings."
+                getButton(okAction)?.isVisible = false
+                getButton(cancelAction)?.isVisible = true
+                setCancelButtonText("Close")
+            } else if (!hotUpdateData.isNeedUpdate) {
                 onOkAction = null
                 textLabel.text = "Jugg is already the latest version."
                 getButton(okAction)?.isVisible = false

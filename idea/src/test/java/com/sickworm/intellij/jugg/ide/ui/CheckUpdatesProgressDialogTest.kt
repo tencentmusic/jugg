@@ -1,12 +1,56 @@
 package com.sickworm.intellij.jugg.ide.ui
 
+import com.intellij.openapi.util.Disposer
+import com.sickworm.intellij.jugg.mock.TestGlobal
+import com.sickworm.intellij.jugg.server.protocols.HotUpdateData
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import javax.swing.JButton
+import javax.swing.JLabel
+import javax.swing.JPanel
 import javax.swing.JRootPane
 import javax.swing.SwingUtilities
 
 class CheckUpdatesProgressDialogTest {
+
+    @Test
+    fun `missing backend should not be reported as latest version`() {
+        TestGlobal.init()
+        lateinit var dialog: CheckUpdatesProgressDialog
+        SwingUtilities.invokeAndWait {
+            dialog = CheckUpdatesProgressDialog()
+            dialog.setHotUpdateData(null) {}
+        }
+        SwingUtilities.invokeAndWait {
+            try {
+                assertEquals(
+                    "Jugg backend server is unavailable. Configure a Custom Server in Jugg Settings.",
+                    dialog.statusText(),
+                )
+            } finally {
+                Disposer.dispose(dialog.disposable)
+            }
+        }
+    }
+
+    @Test
+    fun `backend response without update should report latest version`() {
+        TestGlobal.init()
+        lateinit var dialog: CheckUpdatesProgressDialog
+        SwingUtilities.invokeAndWait {
+            dialog = CheckUpdatesProgressDialog()
+            dialog.setHotUpdateData(
+                HotUpdateData(false, "3.4.1", null, emptyList(), false),
+            ) {}
+        }
+        SwingUtilities.invokeAndWait {
+            try {
+                assertEquals("Jugg is already the latest version.", dialog.statusText())
+            } finally {
+                Disposer.dispose(dialog.disposable)
+            }
+        }
+    }
 
     @Test
     fun `reopen action should run after owner dialog closes`() {
@@ -64,6 +108,12 @@ class CheckUpdatesProgressDialogTest {
         )
         method.isAccessible = true
         method.invoke(null, ownerRootPane, action)
+    }
+
+    private fun CheckUpdatesProgressDialog.statusText(): String {
+        val method = CheckUpdatesProgressDialog::class.java.getDeclaredMethod("createCenterPanel")
+        method.isAccessible = true
+        return (method.invoke(this) as JPanel).components.filterIsInstance<JLabel>().single().text
     }
 
     private class ShowingRootPane : JRootPane() {
