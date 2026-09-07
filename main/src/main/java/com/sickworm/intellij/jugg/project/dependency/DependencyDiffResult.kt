@@ -19,6 +19,34 @@ data class DependencyDiffResultSet(
     val hasChanges get() = diffResult.hasChanges
 
     companion object {
+        /**
+         * Creates both dependency diffs with one comparison mode derived from the full-build baseline.
+         */
+        fun create(
+            currentBuildDependencies: JuggProjectInfo,
+            lastBuildDependencies: JuggProjectInfo,
+            fullBuildDependencies: JuggProjectInfo,
+            ignoreModulePaths: Set<String> = emptySet(),
+        ): DependencyDiffResultSet {
+            val includeRuntimeDependencies = fullBuildDependencies.modules.values.any {
+                it.runtimeLibraryDependencies.isNotEmpty()
+            }
+            return DependencyDiffResultSet(
+                diffResult = DependencyDiffResult.create(
+                    currentBuildDependencies,
+                    lastBuildDependencies,
+                    ignoreModulePaths = ignoreModulePaths,
+                    includeRuntimeDependencies = includeRuntimeDependencies,
+                ),
+                diffResultWithFull = DependencyDiffResult.create(
+                    currentBuildDependencies,
+                    fullBuildDependencies,
+                    ignoreModulePaths = ignoreModulePaths,
+                    includeRuntimeDependencies = includeRuntimeDependencies,
+                ),
+            )
+        }
+
         fun createEmpty() = DependencyDiffResultSet(
             diffResult = DependencyDiffResult.createEmpty(),
             diffResultWithFull = DependencyDiffResult.createEmpty(),
@@ -100,17 +128,30 @@ data class DependencyDiffResult(
             currentBuildDependencies: JuggProjectInfo,
             lastBuildDependencies: JuggProjectInfo,
             ignoreModulePaths: Set<String> = emptySet(),
+            includeRuntimeDependencies: Boolean = false,
         ): DependencyDiffResult {
             val lastBuildDependenciesSet: Map<String, LibraryDependencySet> = lastBuildDependencies.modules
                 .filter { it.value.moduleRootDir.path !in ignoreModulePaths }
-                .flatMap { it.value.libraryDependencies }
+                .flatMap {
+                    it.value.libraryDependencies + if (includeRuntimeDependencies) {
+                        it.value.runtimeLibraryDependencies
+                    } else {
+                        emptyList()
+                    }
+                }
                 .distinctBy { it.file.absolutePath }
                 .groupBy { it.name }
                 .mapValues { LibraryDependencySet(it.key, it.value) }
 
             val currentBuildDependenciesSet: Map<String, LibraryDependencySet> = currentBuildDependencies.modules
                 .filter { it.value.moduleRootDir.path !in ignoreModulePaths }
-                .flatMap { it.value.libraryDependencies }
+                .flatMap {
+                    it.value.libraryDependencies + if (includeRuntimeDependencies) {
+                        it.value.runtimeLibraryDependencies
+                    } else {
+                        emptyList()
+                    }
+                }
                 .distinctBy { it.file.absolutePath }
                 .groupBy { it.name }
                 .mapValues { LibraryDependencySet(it.key, it.value) }

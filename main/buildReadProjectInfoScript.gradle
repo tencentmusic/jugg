@@ -311,6 +311,7 @@ gradle.taskGraph.whenReady {
         // Must run before factory function injection to handle all call sites.
         String processedContent = rawContent
             .replace("DependencyDiffResultSet.createEmpty(", "dependencyDiffResultSetCreateEmpty(")
+            .replace("DependencyDiffResultSet.create(",      "create(")
             .replace("DependencyDiffResult.createEmpty(",    "dependencyDiffResultCreateEmpty(")
             .replace("DependencyDiffResult.create(",         "create(")
             .replace("ProjectInfoSerializerInGradle.getJsonGenerator(", "getJsonGenerator(")

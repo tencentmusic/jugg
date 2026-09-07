@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.gradle.script
 import com.sickworm.intellij.jugg.project.JuggPathManager
 import com.sickworm.intellij.jugg.project.data.*
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
+import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResultSet
 import com.sickworm.intellij.jugg.project.dependency.LibraryDependencySet
 import com.sickworm.intellij.jugg.project.dependency.UpdatedLibraryDependency
 import groovy.json.JsonBuilder
@@ -53,8 +54,15 @@ class GradleDependencyDiffer(
             it.value.moduleRootDir.path
         }.toSet()
 
+        val diffResultSet = DependencyDiffResultSet.create(
+            projectInfo,
+            lastProjectInfo,
+            fullProjectInfo,
+            ignoreModulesPath,
+        )
+
         // diff with last project info to show difference
-        val diffResult = DependencyDiffResult.create(projectInfo, lastProjectInfo, ignoreModulesPath).copy(
+        val diffResult = diffResultSet.diffResult.copy(
             currentBuildDependencies = JuggProjectInfo(emptyMap(), agpR8Classpath = null), // set to empty to reduce size
             lastBuildDependencies = JuggProjectInfo(emptyMap(), agpR8Classpath = null), // set to empty to reduce size
         )
@@ -69,7 +77,7 @@ class GradleDependencyDiffer(
         }
 
         // diff with full project info to incremental compile, because we will override the last build files (multi-dex)
-        val fullDiffResult = DependencyDiffResult.create(projectInfo, fullProjectInfo, ignoreModulesPath)
+        val fullDiffResult = diffResultSet.diffResultWithFull
         val copiedFillDiffResult = copyAllChangedFilesToDir(fullDiffResult, diffLibraryDir)
         val fullBuilder = JsonBuilder(copiedFillDiffResult, generator)
         fullDiffResultFile.writeText(fullBuilder.toString())

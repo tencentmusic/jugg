@@ -119,6 +119,12 @@ dependencies {
     implementation 'com.alibaba:fastjson:2.0.2.android'
     implementation 'io.reactivex.rxjava3:rxjava:3.1.8'
 
+    // test runtimeOnly incremental compile
+//    runtimeOnly 'com.github.Dimezis:BlurView:version-3.1.0'
+//    runtimeOnly 'com.github.Dimezis:BlurView:version-3.2.0'
+//    runtimeOnly 'com.squareup.retrofit2:retrofit:2.6.0'
+//    runtimeOnly 'com.squareup.retrofit2:retrofit:2.7.0'
+
     implementation 'com.alibaba:arouter-api:1.5.2'
 //    annotationProcessor 'com.alibaba:arouter-compiler:1.5.2'
     kapt 'com.alibaba:arouter-compiler:1.5.2'

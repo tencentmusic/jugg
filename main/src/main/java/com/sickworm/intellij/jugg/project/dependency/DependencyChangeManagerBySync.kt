@@ -399,8 +399,13 @@ class DependencyChangeManagerBySync(private val logger: Logger) : IDependencyCha
             return
         }
 
-        diffResult = DependencyDiffResult.create(currentBuildDependencies, lastBuildDependencies)
-        diffResultWithFull = DependencyDiffResult.create(currentBuildDependencies, fullBuildDependencies)
+        val diffResultSet = DependencyDiffResultSet.create(
+            currentBuildDependencies,
+            lastBuildDependencies,
+            fullBuildDependencies,
+        )
+        diffResult = diffResultSet.diffResult
+        diffResultWithFull = diffResultSet.diffResultWithFull
         logger.debug("diffDependency result $diffResult")
         logger.debug("diffDependency result with full $diffResultWithFull")
     }

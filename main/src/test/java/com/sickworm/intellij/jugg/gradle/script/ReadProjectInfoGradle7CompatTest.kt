@@ -1,6 +1,10 @@
 package com.sickworm.intellij.jugg.gradle.script
 
+import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
 import org.junit.Test
+import org.mockito.Mockito.mock
 import java.io.File
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -36,6 +40,32 @@ class ReadProjectInfoGradle7CompatTest : ReadProjectInfoGradleCompatTestBase() {
             extraArgs = listOf("-P${PARAM_INJECT_ENABLE}=true"),
         )
         assertEquals(0, result.exitCode, "Gradle $gradleVersion android fixture failed.\n${result.output}")
+    }
+
+    @Test
+    fun generatedScript_shouldCollectRuntimeOnlyTransitiveLibrary() {
+        assertInitScriptRunsOnAndroidFixture(
+            assetDir = "android-app-agp7",
+            beforeRun = { fixtureDir ->
+                writeRuntimeOnlyMavenFixture(fixtureDir)
+            },
+            afterRun = { fixtureDir, result ->
+                assertEquals(0, result.exitCode, "Gradle $gradleVersion android fixture failed.\n${result.output}")
+                val projectInfo = ProjectInfoSerializer(
+                    JuggPathManager(fixtureDir).gradleProjectInfoFile,
+                    mock(Logger::class.java),
+                ).load(isSkipVersionCheck = true)
+                val appModule = projectInfo!!.modules.getValue("app")
+                assertFalse(
+                    appModule.libraryDependencies.any { it.name == RUNTIME_LIBRARY },
+                    "Runtime-scoped transitive library must not be in compile dependencies.",
+                )
+                assertTrue(
+                    appModule.runtimeLibraryDependencies.any { it.name == RUNTIME_LIBRARY },
+                    "Runtime-scoped transitive library is missing. output=\n${result.output}",
+                )
+            },
+        )
     }
 
     /**
@@ -138,7 +168,52 @@ class ReadProjectInfoGradle7CompatTest : ReadProjectInfoGradleCompatTestBase() {
         )
         createMinimalJar(File(projectDir, "app/libs/local.jar"))
     }
+
+    private fun writeRuntimeOnlyMavenFixture(projectDir: File) {
+        val repositoryDir = File(projectDir, "repo/com/example")
+        val directDir = File(repositoryDir, "direct-lib/1.0")
+        val runtimeDir = File(repositoryDir, "runtime-lib/1.0")
+        createMinimalJar(File(directDir, "direct-lib-1.0.jar"))
+        createMinimalJar(File(runtimeDir, "runtime-lib-1.0.jar"))
+        writeFile(
+            File(directDir, "direct-lib-1.0.pom"),
+            """
+            <project xmlns="http://maven.apache.org/POM/4.0.0">
+                <modelVersion>4.0.0</modelVersion>
+                <groupId>com.example</groupId>
+                <artifactId>direct-lib</artifactId>
+                <version>1.0</version>
+                <dependencies>
+                    <dependency>
+                        <groupId>com.example</groupId>
+                        <artifactId>runtime-lib</artifactId>
+                        <version>1.0</version>
+                        <scope>runtime</scope>
+                    </dependency>
+                </dependencies>
+            </project>
+            """.trimIndent(),
+        )
+        writeFile(
+            File(runtimeDir, "runtime-lib-1.0.pom"),
+            """
+            <project xmlns="http://maven.apache.org/POM/4.0.0">
+                <modelVersion>4.0.0</modelVersion>
+                <groupId>com.example</groupId>
+                <artifactId>runtime-lib</artifactId>
+                <version>1.0</version>
+            </project>
+            """.trimIndent(),
+        )
+        File(projectDir, "build.gradle").appendText(
+            "\nallprojects { repositories { maven { url uri(rootProject.file('repo')) } } }\n",
+        )
+        File(projectDir, "app/build.gradle").appendText(
+            "\ndependencies { implementation 'com.example:direct-lib:1.0' }\n",
+        )
+    }
 }
 
 /** Mirrors GradleApplicationInjector.PARAM_ENABLE without pulling in the production class. */
 private const val PARAM_INJECT_ENABLE = "jugg.inject.application.enable"
+private const val RUNTIME_LIBRARY = "com.example:runtime-lib:1.0"

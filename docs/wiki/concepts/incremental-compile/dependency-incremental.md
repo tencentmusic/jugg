@@ -28,6 +28,8 @@ A full build first resolves the dependency graph for the current variant from re
 
 A dependency version change can also alter transitive dependencies, version selection, and the compilation classpath. A build file can change tasks, source sets, variants, code generation, and compiler plugin configuration as well, so the default after detecting a build file change remains a full Gradle baseline rebuild.
 
+Libraries that enter the final APK do not always appear on the compilation classpath. For example, a library declared with `implementation` can bring in another transitive library through Maven runtime scope. Application source code does not compile against that transitive library directly, but D8/R8 still processes it into the APK. Jugg therefore reads both compile and runtime dependencies for the current Application and Dynamic Feature variant, then deduplicates them by the actual library file. After the full-build baseline records runtime dependencies, AARs and JARs that appear only in the runtime dependency graph also participate in dependency comparison, preventing a successful incremental deployment from leaving old library DEX in the APK active on the device.
+
 ## User confirmation restricts the change to dependencies
 
 A dependency change is a controlled exception among build file modifications. Jugg uses two confirmations to distinguish “the build script changed” from “only dependencies require incremental processing”:
@@ -55,6 +57,10 @@ Dependency diff uses two comparison baselines:
 | Latest full Gradle build | Determines which library files actually require compilation or replacement and which incremental DEX files must be removed from the device |
 
 The second baseline handles consecutive incremental updates and version rollback. For example, suppose the full Gradle baseline uses `1.0`, an incremental deployment updates it to `1.1`, and the declaration is then changed back to `1.0`. Comparing only adjacent results shows an ordinary version change. Comparing with the full baseline confirms that additionally deployed `1.1` artifacts must be removed from the device instead of accumulating another copy of `1.0`.
+
+The full-build baseline also determines whether runtime dependencies participate in comparison. When it contains runtime dependency data, both the diff against the previous build and the diff against the full baseline compare compile and runtime dependencies. When its runtime dependency list is empty, both diffs keep the original compile dependency scope. Even if an incremental read has already collected runtime dependencies, the displayed diff and the compilation diff therefore cannot split into different modes.
+
+A full baseline created by an older Jugg version has no runtime dependency data. Upgrading does not invalidate that baseline or classify every current runtime library as newly added. Jugg keeps using the compile dependency scope until any subsequent successful full Gradle build records a runtime dependency baseline. Runtime-only changes therefore do not take effect immediately after an upgrade from a legacy baseline, but ordinary users are not forced through a full build.
 
 ## How changed libraries enter incremental compilation
 
