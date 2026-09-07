@@ -90,7 +90,7 @@ DataBinding incremental processing maintains several kinds of state across Runs:
 - **Layout info connects the two stages.** The source stage continues from layout info produced by the resource stage and must not clear it before mapper runs.
 - **`<include>` impact is supplied recursively from layout info.** When an included layout changes, Jugg recovers related inputs from layout info in the current and dependency modules rather than scanning only current XML text.
 - **BR fields preserve existing order.** New fields append to the end of BR from the Gradle baseline so that BR IDs in deployed code do not shift after reordering.
-- **Setter stores use Gradle results as the baseline.** Current module results merge with the Gradle module store and previous valid incremental results, while mapper also loads stores from dependency AARs. Old incremental cache is not reused after the Gradle baseline changes.
+- **Setter stores use Gradle results as the baseline.** Current module results merge with that module's Gradle store and previous valid incremental results. Mapper also loads a valid incremental or Gradle store from each direct project dependency, together with stores from dependency AARs. Old incremental cache is not reused after the Gradle baseline changes.
 - **Layout info retains a stable backup.** If a newly added layout is later deleted, a subsequent full Gradle build still needs consistent layout information, so Jugg preserves a recoverable baseline.
 
 ## Failure retry and boundaries
