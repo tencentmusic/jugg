@@ -87,6 +87,7 @@ class GradleWrapperRepairerTest {
                 "distributionUrl=https\\://services.gradle.org/distributions/gradle-7.3.3-bin.zip\n"
             )
             val gradlew = projectDir.resolve("gradlew").apply { writeText("custom gradlew") }
+            assertTrue(gradlew.setExecutable(true))
             val gradlewBat = projectDir.resolve("gradlew.bat").apply { writeText("custom gradlew.bat") }
             val wrapperJar = projectDir.resolve("gradle/wrapper/gradle-wrapper.jar").apply { writeBytes(byteArrayOf(1, 2, 3)) }
 
@@ -100,6 +101,34 @@ class GradleWrapperRepairerTest {
             assertEquals("custom gradlew", gradlew.readText())
             assertEquals("custom gradlew.bat", gradlewBat.readText())
             assertEquals(listOf<Byte>(1, 2, 3), wrapperJar.readBytes().toList())
+        } finally {
+            projectDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun repairIfNeededRestoresExistingGradlewExecutablePermission() {
+        val projectDir = Files.createTempDirectory("jugg-wrapper-permission").toFile()
+        try {
+            projectDir.resolve("gradle/wrapper").mkdirs()
+            projectDir.resolve("gradle/wrapper/gradle-wrapper.properties").writeText(
+                "distributionUrl=https\\://services.gradle.org/distributions/gradle-7.3.3-bin.zip\n"
+            )
+            projectDir.resolve("gradle/wrapper/gradle-wrapper.jar").writeBytes(byteArrayOf(1, 2, 3))
+            val gradlew = projectDir.resolve("gradlew").apply { writeText("custom gradlew") }
+            projectDir.resolve("gradlew.bat").writeText("custom gradlew.bat")
+            assertTrue(gradlew.setExecutable(false))
+            assertFalse(gradlew.canExecute())
+
+            val result = GradleWrapperRepairer(TEST_LOGGER).repairIfNeeded(
+                projectDir,
+                "./gradlew :app:assembleDebug",
+                normalizeGradlewLineEndings = false,
+            )
+
+            assertEquals(GradleWrapperRepairResult.Repaired, result)
+            assertTrue(gradlew.canExecute())
+            assertEquals("custom gradlew", gradlew.readText())
         } finally {
             projectDir.deleteRecursively()
         }
@@ -232,7 +261,10 @@ class GradleWrapperRepairerTest {
             "distributionUrl=https\\://services.gradle.org/distributions/gradle-7.3.3-bin.zip\n"
         )
         projectDir.resolve("gradle/wrapper/gradle-wrapper.jar").writeBytes(byteArrayOf(1, 2, 3))
-        projectDir.resolve("gradlew").writeText(gradlewContent)
+        projectDir.resolve("gradlew").apply {
+            writeText(gradlewContent)
+            assertTrue(setExecutable(true))
+        }
         projectDir.resolve("gradlew.bat").writeText("@echo off\r\n")
         return projectDir
     }
