@@ -398,7 +398,7 @@ class JuggManager @TestOnly constructor(
         val selectedCompileCommand = selectedState.compileCommand ?: return
         val activeSuggestion = suggestions.firstOrNull { it.moduleName == selectedModuleName } ?: return
         val selectedVariantName = generatedVariant(selectedCompileCommand, selectedModuleName) ?: return
-        val activeVariantName = activeSuggestion.variantName ?: return
+        val activeVariantName = activeSuggestion.variantName?.let(::normalizeVariantName) ?: return
         if (selectedVariantName == activeVariantName) {
             return
         }
@@ -418,7 +418,11 @@ class JuggManager @TestOnly constructor(
         val modulePath = Regex.escape(moduleName.replace('.', ':'))
         val match = Regex("^\\./gradlew\\s+:$modulePath:assemble([A-Z][A-Za-z0-9]*)$").matchEntire(compileCommand.trim())
             ?: return null
-        return match.groupValues[1].replaceFirstChar {
+        return normalizeVariantName(match.groupValues[1])
+    }
+
+    private fun normalizeVariantName(variantName: String): String {
+        return variantName.replaceFirstChar {
             if (it.isUpperCase()) it.lowercase() else it.toString()
         }
     }
