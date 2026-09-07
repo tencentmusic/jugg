@@ -267,6 +267,33 @@ class JuggManagerRunConfigurationSyncTest {
     }
 
     @Test
+    fun sync_uppercaseActiveBuildVariant_createsAndSelectsVariantConfiguration() {
+        val fixture = createFixture()
+        val bux = fixture.addConfiguration(
+            name = "jugg:app",
+            compileCommand = "./gradlew :app:assembleBux1V71Debug",
+            outputApkName = "app/build/outputs/apk/bux1V71/debug/*.apk",
+        )
+        fixture.selectedConfiguration = bux
+        whenever(fixture.asDeployerCompat.getSuggestRunConfigurations(any(), any(), any(), any())).thenReturn(
+            listOf(
+                SuggestRunConfiguration(
+                    moduleName = "app",
+                    compileCommand = "./gradlew :app:assembleCuxCommonDebug",
+                    outputApkPath = "app/build/outputs/apk/cuxCommon/debug/*.apk",
+                    variantName = "CuxCommonDebug",
+                ),
+            ),
+        )
+
+        fixture.invokeSync()
+
+        assertEquals(2, fixture.settings.size)
+        assertEquals("jugg:app:CuxCommonDebug", fixture.settings.last().name)
+        assertEquals("./gradlew :app:assembleCuxCommonDebug", fixture.selectedConfiguration?.compileCommand())
+    }
+
+    @Test
     fun sync_activeBuildVariantUnchanged_keepsSelectedConfiguration() {
         val fixture = createFixture()
         val debug = fixture.addConfiguration(
