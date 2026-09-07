@@ -1,5 +1,5 @@
 <h1>更新日志</h1>
-<h2>3.4.1 (2026.09.05)</h2>
+<h2>3.4.2 (2026.09.07)</h2>
 <ol>
     <li>[feature] 修改插件 ID，适配市场上架</li>
     <li>[bugfix] 部署失败时展示包不可调试的原因</li>
@@ -7,6 +7,13 @@
     <li>[bugfix] 路径含 shell 特殊字符时避免 APK 更新失败</li>
     <li>[bugfix] 避免 Dragonfly 缺失类导致 release R8 构建失败</li>
     <li>[bugfix] 避免编译器插件参数破坏增量构建</li>
+    <li>[bugfix] 避免 Marketplace 校验在受支持 IDE 上拒绝插件</li>
+    <li>[bugfix] 大写 flavor 变体时正确切换 Jugg profile</li>
+    <li>[bugfix] 避免仅 runtime 依赖的更新仍使用旧代码</li>
+    <li>[bugfix] 更新检查无服务器时提示后端不可用</li>
+    <li>[bugfix] gradlew 缺少执行权限时避免 Gradle 回退失败</li>
+    <li>[bugfix] 工程路径含空格时避免构建失败</li>
+    <li>[bugfix] 避免依赖模块 BindingAdapter 导致 mapper 失败</li>
 </ol>
 <h2>3.3.9 (2026.09.04)</h2>
 <ol>

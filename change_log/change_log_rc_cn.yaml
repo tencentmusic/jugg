@@ -1,3 +1,15 @@
+- version: 3.4.2
+  date: 2026.09.07
+  updates:
+    - "[bugfix] 避免 Marketplace 校验在受支持 IDE 上拒绝插件"
+    - "[bugfix] 大写 flavor 变体时正确切换 Jugg profile"
+    - "[bugfix] 避免仅 runtime 依赖的更新仍使用旧代码"
+    - "[bugfix] 更新检查无服务器时提示后端不可用"
+    - "[bugfix] gradlew 缺少执行权限时避免 Gradle 回退失败"
+    - "[bugfix] 工程路径含空格时避免构建失败"
+    - "[bugfix] 避免依赖模块 BindingAdapter 导致 mapper 失败"
+    - "[bugfix] Windows 路径含空格时避免 Gradle 回退失败"
+
 - version: 3.4.1
   date: 2026.09.05
   isNeedReinstall: true
