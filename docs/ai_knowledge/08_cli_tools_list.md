@@ -428,6 +428,8 @@ jugg report
 
 CLI 先调用 `report-prepare` 生成最终 ZIP，再展示本地路径、总大小、固定上传地址，以及 manifest 中每个条目的路径和大小。清单与 IDEA 一样优先展示 Jugg logs，其余条目保持生成顺序；CLI 不额外显示敏感等级和脱敏状态。确认提示为 `[Y/n]`，用户直接回车、输入 `y` 或 `yes` 时调用 `report-upload`；输入其他内容、EOF 或中断均保留本地 ZIP 且不上传。上传请求携带 prepare 返回的 `reportId` 与 SHA-256，服务端在发起 HTTPS 请求前重新校验同一个 ZIP，内容变化时明确失败。
 
+`report` 不要求选择设备。设备选择不明确或 logcat 读取失败时，CLI 省略设备错误日志并继续生成诊断包。
+
 `report` 暂不区分 `--console=json`，始终执行相同的文件清单展示和确认交互。该命令不提供 `--yes`、自定义上传地址或逐项选择参数。
 
 上传成功后 message 与 IDE 保持一致：`Report uploaded. Jugg Report ID: <reportId>`。最终响应只保留 `reportId`，不再输出 entries、临时 `filePath` 或 artifact 的 `type/path`；这些内容只在上传前的确认清单中展示。

@@ -68,7 +68,9 @@ class PrepareIssueReportMcpToolAction : McpToolAction {
                     pathManager.standaloneCliLogDir,
                 ),
                 standaloneLogDir = pathManager.standaloneCliLogDir,
-                logcat = runtime.deployTargetManager.dumpErrorLogs(),
+                logcat = runCatching { runtime.deployTargetManager.dumpErrorLogs() }
+                    .onFailure { runtime.logger.debug("Collect issue report device logs failed, continue without logcat", it) }
+                    .getOrDefault(""),
                 hookDebugLog = File(JuggGlobalPathManager.rootDir, "skills/hooks/jugg-hook-debug.log"),
                 knownSecrets = knownSecrets,
             )

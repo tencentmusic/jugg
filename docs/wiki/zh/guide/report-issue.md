@@ -45,6 +45,9 @@ tags:
 - 可选的 hook 调试日志。
 - 描述实际 zip entry 的 `manifest.json`。
 
+> [!NOTE]
+> 设备未连接、选择不明确或 logcat 读取失败时，Jugg 会省略设备错误日志并继续生成诊断包。
+
 原始 `project_infos`、签名密码、Manifest placeholders、APT/KAPT 参数、源码和二进制依赖不会进入诊断包。hook 调试日志在诊断包中保存为 `diagnostics/cli/hook-debug.log`。
 
 > [!NOTE]

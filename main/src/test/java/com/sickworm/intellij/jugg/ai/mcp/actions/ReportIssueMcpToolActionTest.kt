@@ -3,13 +3,50 @@ package com.sickworm.intellij.jugg.ai.mcp.actions
 import com.sickworm.intellij.jugg.ai.mcp.IMcpRuntime
 import com.sickworm.intellij.jugg.ai.mcp.McpErrorCode
 import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
+import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
+import com.sickworm.intellij.jugg.ide.bean.JuggSettings
+import com.sickworm.intellij.jugg.platform.IPlatformApi
+import com.sickworm.intellij.jugg.platform.PlatformApi
+import com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager
+import com.sickworm.intellij.jugg.project.runtime.RuntimeInfo
+import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
+import org.mockito.kotlin.doThrow
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.whenever
+import java.io.File
 
 class ReportIssueMcpToolActionTest {
+
+    @get:Rule
+    val temporaryFolder = TemporaryFolder()
+
+    private lateinit var originalPlatformApi: IPlatformApi
+    private lateinit var originalGlobalRoot: File
+
+    @Before
+    fun setUp() {
+        originalPlatformApi = runCatching { PlatformApi.impl }.getOrElse { mock() }
+        originalGlobalRoot = JuggGlobalPathManager.rootDir
+        JuggGlobalPathManager.rootDir = temporaryFolder.newFolder("global")
+        JuggSettings.reload()
+        val platformApi = mock<IPlatformApi>()
+        whenever(platformApi.getRuntimeInfo()).thenReturn(RuntimeInfo("standalone", "test", "test", ""))
+        PlatformApi.impl = platformApi
+    }
+
+    @After
+    fun tearDown() {
+        PlatformApi.impl = originalPlatformApi
+        JuggGlobalPathManager.rootDir = originalGlobalRoot
+        JuggSettings.reload()
+    }
 
     @Test
     fun `default registry exposes both report phases`() {
@@ -34,6 +71,30 @@ class ReportIssueMcpToolActionTest {
 
         assertEquals(McpToolStatus.ERROR, result.status)
         assertEquals(McpErrorCode.INVALID_PARAMS, result.errorCode)
+    }
+
+    @Test
+    fun `prepare succeeds when device log collection fails`() {
+        val projectDir = temporaryFolder.newFolder("project")
+        val deployTargetManager = mock<IDeployTargetManager>()
+        doThrow(IllegalStateException("Multiple devices are online"))
+            .whenever(deployTargetManager).dumpErrorLogs()
+        val runtime = mock<IMcpRuntime>()
+        whenever(runtime.projectDir).thenReturn(projectDir.absolutePath)
+        whenever(runtime.logger).thenReturn(mock())
+        whenever(runtime.deployTargetManager).thenReturn(deployTargetManager)
+
+        val result = PrepareIssueReportMcpToolAction().execute(
+            mapOf("projectDir" to projectDir.absolutePath),
+            runtime,
+        )
+
+        assertEquals(McpToolStatus.OK, result.status)
+        @Suppress("UNCHECKED_CAST")
+        val data = result.data as Map<String, Any>
+        assertTrue(File(data.getValue("filePath") as String).isFile)
+        val entries = data.getValue("entries") as List<*>
+        assertFalse(entries.any { (it as Map<*, *>)["path"] == "diagnostics/device/logcat.log" })
     }
 
     @Test
