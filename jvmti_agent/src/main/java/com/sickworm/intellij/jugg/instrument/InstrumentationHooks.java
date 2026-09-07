@@ -7,6 +7,7 @@ import android.content.ContextWrapper;
 import android.content.res.ApkAssets;
 import android.content.res.AssetManager;
 import android.content.res.ResourcesKey;
+import android.util.SparseArray;
 import com.sickworm.intellij.jugg.hotfix.HotfixLoader;
 import com.sickworm.intellij.jugg.hotfix.LogUtils;
 import com.sickworm.intellij.jugg.hotfix.ReflectUtil;
@@ -16,7 +17,9 @@ import java.io.File;
 import java.lang.reflect.Method;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.zip.ZipFile;
 
@@ -28,6 +31,8 @@ public class InstrumentationHooks {
     private static final AtomicBoolean classpathResourceHookEntered = new AtomicBoolean();
     private static volatile ClassLoader classpathResourceHostClassLoader;
     private static volatile File classpathResourceOverlayRoot;
+    private static final ThreadLocal<ResourcesKey> createAssetManagerResourcesKey = new ThreadLocal<>();
+    private static final ThreadLocal<ResourcesKey> createAssetManagerNewResourcesKey = new ThreadLocal<>();
 
     public static void handleAttachBaseContextEntry(ContextWrapper contextWrapper, Context base)
         throws Exception {
@@ -149,6 +154,7 @@ public class InstrumentationHooks {
     private static boolean isNeedFixThisAssetManager = false;
 
     public static void createAssetManagerEnter(ResourcesManager assetManager, ResourcesKey resourcesKey) {
+        createAssetManagerResourcesKey.set(resourcesKey);
         if (isEnableHotfix()) {
             return;
         }
@@ -158,18 +164,22 @@ public class InstrumentationHooks {
     }
 
     public static AssetManager createAssetManagerExit(AssetManager assetManager) {
+        ResourcesKey resourcesKey = takeResourcesKey(createAssetManagerResourcesKey);
         if (isEnableHotfix()) {
+            repairMissingWebViewPackageId(assetManager, resourcesKey, "createAssetManager");
             return assetManager;
         }
         if (isNeedFixThisAssetManager) {
-            tryFixOutSideApk(assetManager);
+            tryFixOutSideApk(assetManager, resourcesKey, "createAssetManager");
         }
+        repairMissingWebViewPackageId(assetManager, resourcesKey, "createAssetManager");
         return assetManager;
     }
 
     private static boolean isNeedFixThisAssetManagerNew = false;
 
     public static void createAssetManagerNewEnter(ResourcesManager assetManager, ResourcesKey resourcesKey, ResourcesManager.ApkAssetsSupplier apkAssetsSupplier) {
+        createAssetManagerNewResourcesKey.set(resourcesKey);
         if (isEnableHotfix()) {
             return;
         }
@@ -179,14 +189,15 @@ public class InstrumentationHooks {
     }
 
     public static AssetManager createAssetManagerNewExit(AssetManager assetManager) {
+        ResourcesKey resourcesKey = takeResourcesKey(createAssetManagerNewResourcesKey);
         if (isEnableHotfix()) {
+            repairMissingWebViewPackageId(assetManager, resourcesKey, "createAssetManagerNew");
             return assetManager;
         }
-        if (!isNeedFixThisAssetManagerNew) {
-            return assetManager;
+        if (isNeedFixThisAssetManagerNew) {
+            tryFixOutSideApk(assetManager, resourcesKey, "createAssetManagerNew");
         }
-
-        tryFixOutSideApk(assetManager);
+        repairMissingWebViewPackageId(assetManager, resourcesKey, "createAssetManagerNew");
         return assetManager;
     }
 
@@ -230,8 +241,9 @@ public class InstrumentationHooks {
         return resDir;
     }
 
-    private static void tryFixOutSideApk(AssetManager assetManager) {
+    private static void tryFixOutSideApk(AssetManager assetManager, ResourcesKey resourcesKey, String hookName) {
         try {
+            logWebViewAssetState(assetManager, resourcesKey, hookName, "before-overlay-fix");
             Method getApkAssetsMethod = ReflectUtil.findMethod(assetManager, "getApkAssets");
             ApkAssets[] apkAssets = (ApkAssets[]) getApkAssetsMethod.invoke(assetManager);
 
@@ -247,9 +259,142 @@ public class InstrumentationHooks {
             }
 
             setApkAssetsMethod.invoke(assetManager, newApkAssets.toArray(new ApkAssets[0]), false);
+            logWebViewAssetState(assetManager, resourcesKey, hookName, "after-overlay-fix");
         } catch (Throwable e) {
             LogUtils.e(TAG, "tryFixOutSideApk failed", e);
         }
+    }
+
+    private static ResourcesKey takeResourcesKey(ThreadLocal<ResourcesKey> holder) {
+        ResourcesKey resourcesKey = holder.get();
+        holder.remove();
+        return resourcesKey;
+    }
+
+    /**
+     * Restores the WebView package id only when Android already supplied its APK as a shared library.
+     */
+    private static void repairMissingWebViewPackageId(AssetManager assetManager, ResourcesKey resourcesKey, String hookName) {
+        String[] webViewAssetPaths = getWebViewAssetPaths(resourcesKey);
+        if (webViewAssetPaths.length == 0) {
+            return;
+        }
+        try {
+            String webViewPackageName = getWebViewPackageName(webViewAssetPaths[0]);
+            SparseArray<String> assignedPackages = getAssignedPackageIdentifiers(assetManager);
+            logWebViewAssetState(assetManager, resourcesKey, hookName, "before-package-id-repair");
+            if (webViewPackageName == null || containsPackage(assignedPackages, webViewPackageName)) {
+                return;
+            }
+
+            Method addSharedLibrary = ReflectUtil.findMethod(
+                    assetManager, "addAssetPathAsSharedLibrary", String.class);
+            for (String webViewAssetPath : webViewAssetPaths) {
+                int cookie = (Integer) addSharedLibrary.invoke(assetManager, webViewAssetPath);
+                LogUtils.i(TAG, "WebView package id repair path=" + webViewAssetPath +
+                        ", package=" + webViewPackageName + ", cookie=" + cookie + ", hook=" + hookName);
+                assignedPackages = getAssignedPackageIdentifiers(assetManager);
+                if (containsPackage(assignedPackages, webViewPackageName)) {
+                    break;
+                }
+            }
+            logWebViewAssetState(assetManager, resourcesKey, hookName, "after-package-id-repair");
+        } catch (Throwable e) {
+            LogUtils.w(TAG, "WebView package id repair failed, hook=" + hookName + ", cause=" + e);
+        }
+    }
+
+    private static void logWebViewAssetState(AssetManager assetManager, ResourcesKey resourcesKey,
+            String hookName, String phase) {
+        String[] webViewAssetPaths = getWebViewAssetPaths(resourcesKey);
+        if (webViewAssetPaths.length == 0) {
+            return;
+        }
+        try {
+            LogUtils.i(TAG, "WebView asset state phase=" + phase + ", hook=" + hookName +
+                    ", resDir=" + (resourcesKey == null ? null : resourcesKey.mResDir) +
+                    ", libDirs=" + Arrays.toString(readStringArray(resourcesKey, "mLibDirs")) +
+                    ", overlayPaths=" + Arrays.toString(readStringArray(resourcesKey, "mOverlayPaths")) +
+                    ", assignedPackages=" + getAssignedPackageIdentifiers(assetManager) +
+                    ", apkAssets=" + Arrays.toString(getAssetPaths(assetManager)));
+        } catch (Throwable e) {
+            LogUtils.w(TAG, "WebView asset state failed, phase=" + phase + ", hook=" + hookName +
+                    ", cause=" + e);
+        }
+    }
+
+    private static String[] getWebViewAssetPaths(ResourcesKey resourcesKey) {
+        String[] libDirs = readStringArray(resourcesKey, "mLibDirs");
+        if (libDirs == null) {
+            return new String[0];
+        }
+        ArrayList<String> paths = new ArrayList<>();
+        for (String libDir : libDirs) {
+            if (libDir != null && libDir.endsWith(".apk") &&
+                    libDir.toLowerCase(Locale.ROOT).contains("webview")) {
+                paths.add(libDir);
+            }
+        }
+        return paths.toArray(new String[0]);
+    }
+
+    private static String[] readStringArray(Object target, String fieldName) {
+        if (target == null) {
+            return null;
+        }
+        try {
+            return (String[]) ReflectUtil.findField(target, fieldName).get(target);
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static SparseArray<String> getAssignedPackageIdentifiers(AssetManager assetManager) throws Exception {
+        Method method = ReflectUtil.findMethod(assetManager, "getAssignedPackageIdentifiers");
+        return (SparseArray<String>) method.invoke(assetManager);
+    }
+
+    private static String[] getAssetPaths(AssetManager assetManager) throws Exception {
+        Method method = ReflectUtil.findMethod(assetManager, "getApkAssets");
+        ApkAssets[] apkAssets = (ApkAssets[]) method.invoke(assetManager);
+        String[] paths = new String[apkAssets.length];
+        for (int index = 0; index < apkAssets.length; index++) {
+            paths[index] = apkAssets[index].getAssetPath();
+        }
+        return paths;
+    }
+
+    private static String getWebViewPackageName(String webViewAssetPath) {
+        try {
+            Class<?> webViewFactory = Class.forName("android.webkit.WebViewFactory");
+            Method method = ReflectUtil.findMethod(webViewFactory, "getWebViewPackageName");
+            return (String) method.invoke(null);
+        } catch (Throwable ignored) {
+            return parseInstalledPackageName(webViewAssetPath);
+        }
+    }
+
+    private static String parseInstalledPackageName(String assetPath) {
+        if (assetPath == null) {
+            return null;
+        }
+        for (String part : assetPath.split("/")) {
+            int suffixIndex = part.lastIndexOf('-');
+            if (suffixIndex > 0 && part.indexOf('.') > 0) {
+                return part.substring(0, suffixIndex);
+            }
+        }
+        return null;
+    }
+
+    private static boolean containsPackage(SparseArray<String> packageIdentifiers, String packageName) {
+        for (int index = 0; index < packageIdentifiers.size(); index++) {
+            if (packageName.equals(packageIdentifiers.valueAt(index))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static void sendMessageEnter(ActivityThread activityThread, int what, Object obj, int arg1, int arg2, boolean async) {

@@ -254,6 +254,7 @@ class ResourcesPatchLoader {
         if (((Integer) addAssetPathMethod.invoke(newAssetManager, internalResFile.getAbsolutePath())) == 0) {
             throw new IllegalStateException("Could not create new AssetManager");
         }
+        addSharedLibraryAssetPaths(applicationInfo);
 
         try {
             LogUtils.d(TAG, "monkeyPatchExistingResources: try to call AssetManager.ensureStringBlocks()...");
@@ -320,6 +321,33 @@ class ResourcesPatchLoader {
             } catch (Throwable ignore) {
                 // Ignored.
             }
+        }
+    }
+
+    /**
+     * Preserves shared library resources when replacing the application's AssetManager.
+     */
+    private void addSharedLibraryAssetPaths(ApplicationInfo applicationInfo) {
+        String[] sharedLibraryFiles = applicationInfo.sharedLibraryFiles;
+        if (sharedLibraryFiles == null || sharedLibraryFiles.length == 0) {
+            return;
+        }
+        try {
+            Method addSharedLibraryMethod = ReflectUtil.findMethod(
+                    newAssetManager, "addAssetPathAsSharedLibrary", String.class);
+            for (String sharedLibraryFile : sharedLibraryFiles) {
+                try {
+                    int cookie = (Integer) addSharedLibraryMethod.invoke(newAssetManager, sharedLibraryFile);
+                    LogUtils.i(TAG, "add shared library asset path=" + sharedLibraryFile +
+                            ", cookie=" + cookie);
+                } catch (Throwable ex) {
+                    LogUtils.w(TAG, "add shared library asset failed, path=" + sharedLibraryFile +
+                            ", cause=" + ex);
+                }
+            }
+        } catch (Throwable ex) {
+            LogUtils.w(TAG, "add shared library assets unavailable, paths=" +
+                    Arrays.toString(sharedLibraryFiles) + ", cause=" + ex);
         }
     }
 
