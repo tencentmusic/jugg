@@ -34,7 +34,7 @@
 
 共 **20 个**注册工具，按注册顺序排列。
 
-以下设备相关工具公开可选 `serial: string`：`restart`、`deploy`、`clean-reinstall`、`gradle-build`、`instrument`、`devices`、`layout-dump`、`view-locate`、`view-inspect`、`activity-stack`、`tap`、`status`、`wait-logs`。显式 serial 按大小写敏感的在线设备精确匹配，覆盖 IDEA 选中设备与 standalone `ANDROID_SERIAL`，只影响当前请求；未命中时不得回退其他设备。`devices` 传 serial 时只返回该在线设备，未命中返回 `NO_DEVICE`。
+以下设备相关工具公开可选 `serial: string`：`restart`、`deploy`、`clean-reinstall`、`gradle-build`、`instrument`、`devices`、`layout-dump`、`view-locate`、`view-inspect`、`activity-stack`、`tap`、`status`、`wait-logs`、`report-prepare`。显式 serial 按大小写敏感的在线设备精确匹配，覆盖 IDEA 选中设备与 standalone `ANDROID_SERIAL`，只影响当前请求；未命中时不得回退其他设备。`devices` 传 serial 时只返回该在线设备，未命中返回 `NO_DEVICE`。
 
 ### `version`
 
@@ -211,6 +211,7 @@
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `projectDir` | string | **是** | 项目绝对路径 |
+| `serial` | string | 否 | 指定收集错误 logcat 的在线设备；覆盖 IDEA 选择或 standalone `ANDROID_SERIAL` |
 
 **返回 data**：`reportId`、`filePath`、`size`、`sha256`、固定 `uploadUrl`，以及 `entries`。每个 entry 包含 `path`、`size`、`sensitivity` 和 `redaction`，与最终 ZIP manifest 完全一致。
 

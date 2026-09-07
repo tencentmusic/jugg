@@ -98,6 +98,29 @@ class ReportIssueMcpToolActionTest {
     }
 
     @Test
+    fun `prepare uses explicit serial when multiple devices are online`() {
+        val projectDir = temporaryFolder.newFolder("serial-project")
+        val deployTargetManager = mock<IDeployTargetManager>()
+        doThrow(IllegalStateException("Multiple devices are online"))
+            .whenever(deployTargetManager).dumpErrorLogs()
+        whenever(deployTargetManager.dumpErrorLogs("device-2")).thenReturn("device-2 logcat")
+        val runtime = mock<IMcpRuntime>()
+        whenever(runtime.projectDir).thenReturn(projectDir.absolutePath)
+        whenever(runtime.logger).thenReturn(mock())
+        whenever(runtime.deployTargetManager).thenReturn(deployTargetManager)
+
+        val result = PrepareIssueReportMcpToolAction().execute(
+            mapOf("projectDir" to projectDir.absolutePath, "serial" to "device-2"),
+            runtime,
+        )
+
+        assertEquals(McpToolStatus.OK, result.status)
+        @Suppress("UNCHECKED_CAST")
+        val entries = (result.data as Map<String, Any>).getValue("entries") as List<*>
+        assertTrue(entries.any { (it as Map<*, *>)["path"] == "diagnostics/device/logcat.log" })
+    }
+
+    @Test
     fun `upload success matches IDEA message without temporary file details`() {
         val result = reportUploadSuccessResult("a1b2c3d4")
 

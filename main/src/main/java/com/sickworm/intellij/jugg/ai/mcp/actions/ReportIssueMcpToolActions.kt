@@ -27,7 +27,10 @@ class PrepareIssueReportMcpToolAction : McpToolAction {
         name = toolName,
         description = "Prepare a redacted Jugg diagnostics archive for user review before upload.",
         inputSchema = McpJsonSchemaObject(
-            properties = mapOf("projectDir" to McpToolSchemas.projectDirProperty),
+            properties = mapOf(
+                "projectDir" to McpToolSchemas.projectDirProperty,
+                "serial" to McpToolSchemas.serialProperty,
+            ),
             required = listOf("projectDir"),
             additionalProperties = false,
         ),
@@ -68,7 +71,10 @@ class PrepareIssueReportMcpToolAction : McpToolAction {
                     pathManager.standaloneCliLogDir,
                 ),
                 standaloneLogDir = pathManager.standaloneCliLogDir,
-                logcat = runCatching { runtime.deployTargetManager.dumpErrorLogs() }
+                logcat = runCatching {
+                    arguments.deviceSerial()?.let(runtime.deployTargetManager::dumpErrorLogs)
+                        ?: runtime.deployTargetManager.dumpErrorLogs()
+                }
                     .onFailure { runtime.logger.debug("Collect issue report device logs failed, continue without logcat", it) }
                     .getOrDefault(""),
                 hookDebugLog = File(JuggGlobalPathManager.rootDir, "skills/hooks/jugg-hook-debug.log"),

@@ -136,9 +136,13 @@ class DeployTargetManager(
     }
 
     override fun dumpErrorLogs(): String {
+        return dumpErrorLogs(null)
+    }
+
+    override fun dumpErrorLogs(serial: String?): String {
         val stringBuilder = StringBuilder()
         stringBuilder.append("[Dump error logs start]\n")
-        val devices = getSelectedDevices()
+        val devices = getTargetDevices(serial)
         stringBuilder.append("Devices: ${devices.map { it.name }}\n")
         devices.forEach { device ->
             stringBuilder.append("[Dump Device: ${device.name} start]\n")

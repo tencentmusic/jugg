@@ -135,6 +135,7 @@ DEVICE_TARGET_TOOLS = {
     "tap",
     "status",
     "wait-logs",
+    "report-prepare",
 }
 PROJECT_REGISTRATION_REJECTED_ERRORS = {
     "INVALID_JSON_RPC",

@@ -61,7 +61,10 @@ class StandaloneDeployTargetManager(
     override fun getPackageName(): String = getApks().firstOrNull()?.applicationId
         ?: throw IllegalStateException("APK applicationId is unavailable")
 
-    override fun dumpErrorLogs(): String = getSelectedDevices().firstOrNull()?.let { adb(it).dumpErrorLog() }.orEmpty()
+    override fun dumpErrorLogs(): String = dumpErrorLogs(null)
+
+    override fun dumpErrorLogs(serial: String?): String =
+        getTargetDevices(serial).firstOrNull()?.let { adb(it).dumpErrorLog() }.orEmpty()
 
     private fun runLifecycle(device: IDevice, action: (AdbCmdHelper) -> Unit): Boolean {
         return runCatching { action(adb(device)); true }

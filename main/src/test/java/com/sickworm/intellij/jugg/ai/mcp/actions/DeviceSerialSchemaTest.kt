@@ -22,6 +22,7 @@ class DeviceSerialSchemaTest {
             TapMcpToolAction(),
             ActivityStackMcpToolAction(),
             WaitLogsMcpToolAction(),
+            PrepareIssueReportMcpToolAction(),
         )
 
         actions.forEach { action ->

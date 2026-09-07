@@ -52,6 +52,9 @@ interface IDeployTargetManager {
 
     fun dumpErrorLogs(): String = ""
 
+    /** Dumps error logs for one request-scoped device without changing the Host selection. */
+    fun dumpErrorLogs(serial: String?): String = dumpErrorLogs()
+
     val hasDevice: Boolean
         get() = getSelectedDevices().isNotEmpty()
 
