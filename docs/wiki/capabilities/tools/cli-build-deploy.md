@@ -32,7 +32,7 @@ jugg clean-reinstall
 jugg restart
 ```
 
-`compile` compiles without deploying. `deploy` compiles and deploys; `--always-restart-app=false` preserves runtime state for Hot Reload when conditions permit. `gradle-build` explicitly falls back to a complete Gradle build and continues into the installation / startup flow.
+`compile` compiles without deploying. It reads the current state to choose incremental compilation or Gradle fallback, but it does not fail merely because multiple devices are online. It falls back to Gradle when a build-file change requires a rebuild, the previous Gradle build failed, or another state requires a full build. `deploy` compiles and deploys; `--always-restart-app=false` preserves runtime state for Hot Reload when conditions permit. `gradle-build` explicitly falls back to a complete Gradle build and continues into the installation / startup flow.
 
 > [!NOTE]
 > The CLI does not currently expose the MCP `waitAppReadyAfterSuccess` argument. Command completion means that the compilation/deployment task reached a terminal state, not that it waited additionally for the app to become ready.

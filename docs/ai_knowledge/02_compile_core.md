@@ -75,6 +75,8 @@ JuggCompilerHelper.compile(options, uiHandler)
 
 `checkFallback()` 是 MCP/status 使用的无副作用预检，不能读取 Run options 或弹窗，因此顺序不同：`未建立 full-build 基线 -> project info 不可用 -> INVALID_DEVICE -> 其他 DeployState 必须 full compile -> 变更文件过多`。首次运行同时缺少基线和 project info 时，优先报告 `not gradle compile yet`。它不会报告 Force Gradle、BuildTarget/command 切换、依赖差异确认或无文件变化确认；status 的 reason 不能替代实际 Run 的最终决策。
 
+MCP/CLI `compile` 的 `isSkipDeploy` 只跳过实际部署，不跳过 `updateDeployState()`。compile-only 与 Run 复用统一状态判断：设备选择层负责安全处理多设备，编译层继续消费 build file、上次 Gradle 失败、基线和设备状态形成的 fallback 结果。
+
 ### 4.2 单轮增量编译与影响传播
 
 ```text

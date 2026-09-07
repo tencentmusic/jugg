@@ -52,9 +52,21 @@ class DeviceSelectionResolverTest {
     }
 
     @Test
+    fun testExplicitSerialSupportsRuntimeWithoutPlatformAdbAdapter() {
+        val selected = device("device-1")
+        installPlatformApi(emptyMap())
+        val manager = FakeDeployTargetManager(listOf(selected), listOf(selected))
+
+        val result = DeviceSelectionResolver().resolve(manager, "device-1")
+
+        assertTrue(result is DeviceSelectionResult.Selected)
+        assertEquals(selected, (result as DeviceSelectionResult.Selected).device)
+    }
+
+    @Test
     fun testExplicitSerialRejectsOfflineDevice() {
         val selected = device("device-1")
-        val offline = device("device-2")
+        val offline = device("device-2", isOnline = false)
         installPlatformApi(mapOf(selected to adb("device-1", true), offline to adb("device-2", false)))
         val manager = FakeDeployTargetManager(listOf(selected), listOf(selected, offline))
 
@@ -77,10 +89,10 @@ class DeviceSelectionResolverTest {
         assertTrue(result.messageDetail.contains("--serial"))
     }
 
-    private fun device(serial: String): IDevice {
+    private fun device(serial: String, isOnline: Boolean = true): IDevice {
         return Mockito.mock(IDevice::class.java).also {
             Mockito.`when`(it.serialNumber).thenReturn(serial)
-            Mockito.`when`(it.isOnline).thenReturn(true)
+            Mockito.`when`(it.isOnline).thenReturn(isOnline)
         }
     }
 

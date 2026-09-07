@@ -83,7 +83,7 @@ Action 内只保留业务组合校验，例如 `instrument` 的 sourcePath/basel
 
 IDEA 与 standalone 可以监听同一端口范围内的不同端口。`version` 返回当前进程的 `runtimeType`、`runtimeVersion` 与 `capabilities`；`list-projects` 只列出当前进程已经初始化的项目。standalone 的 `version`、`list-projects` 不触发项目注册；未知项目的合法项目级请求由 `StandaloneProjectRegistry` 自动初始化后继续执行，非法工具、非法 schema、非法路径和初始化失败不会污染注册表。初始化按 canonical projectDir 共享 completion，不同项目间不持有 registry 全局构造锁；失败路径关闭已创建的项目资源并允许重试，因此慢项目或失败项目不影响其他已初始化项目。capability 由进程级 `McpToolRegistry` 统一提供，并同时约束 `tools/list` 和 action 分发，不属于 `RuntimeInfo` 或平台接口。standalone Step 11 注册 `version`、`list-projects`、`init`、`compile`、`deploy`、`gradle-build`、`get-compile-status`、`status`、`restart`、`report-prepare`、`report-upload`；`init` action 仅加入 standalone action registry，不改变 IDEA 的公开工具集合。
 
-设备选择采用请求级上下文，不维护 MCP server 全局“当前设备”。支持定向设备的 schema 公开可选 `serial`，显式值按在线设备精确匹配且禁止回退。未传 serial 时，编译不读取设备部署状态；部署、重装和 instrument 沿用多设备流程处理全部目标设备；restart 重启全部目标设备；必须只操作一台设备的 UI、Activity 和日志工具在多个目标设备下返回结构化 `MULTIPLE_DEVICE`。`report-prepare` 为兼容已有调用保留 serial 参数但忽略其值，始终 Best-effort 收集全部目标设备错误 logcat。standalone 在已注册的 `deploy`、`gradle-build`、`status`、`restart` 能力中使用 serial 选择设备；`report-prepare` 使用全部在线设备，其他 UI、日志与运行控制工具仍不扩展 capability。
+设备选择采用请求级上下文，不维护 MCP server 全局“当前设备”。支持定向设备的 schema 公开可选 `serial`，显式值按在线设备精确匹配且禁止回退。编译会刷新统一部署状态来判断增量或 Gradle fallback，但不执行设备部署；未传 serial 时设备选择层可返回全部在线设备，不能因多设备直接抛错。部署、重装和 instrument 沿用多设备流程处理全部目标设备；restart 重启全部目标设备；必须只操作一台设备的 UI、Activity 和日志工具在多个目标设备下返回结构化 `MULTIPLE_DEVICE`。`report-prepare` 为兼容已有调用保留 serial 参数但忽略其值，始终 Best-effort 收集全部目标设备错误 logcat。standalone 在已注册的 `deploy`、`gradle-build`、`status`、`restart` 能力中使用 serial 选择设备；`report-prepare` 使用全部在线设备，其他 UI、日志与运行控制工具仍不扩展 capability。
 
 `McpLocalServer` 会在任意 HTTP 请求到达时触发外部活动回调；IDEA 使用默认空回调，standalone 用它刷新 4 小时 idle deadline。请求解析失败不影响该活动语义。
 

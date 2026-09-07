@@ -163,17 +163,64 @@ class JuggCompileHelperTest {
     }
 
     @Test
-    fun preprocessIncrementalCompile_compileOnlyDoesNotReadDeviceState() {
+    fun preprocessIncrementalCompile_compileOnlyUpdatesDeployState() {
         val fixture = createFixture()
         whenever(fixture.uiHandler.isSkipDeploy).thenReturn(true)
-        whenever(fixture.deployStateManager.updateDeployState()).thenThrow(
-            IllegalStateException("Device state must not be read for compile-only"),
-        )
 
         val result = invokePreprocessIncrementalCompile(fixture.helper, fixture.options, fixture.uiHandler)
 
         assertEquals(null, result)
-        verify(fixture.deployStateManager, never()).updateDeployState()
+        verify(fixture.deployStateManager, org.mockito.Mockito.times(2)).updateDeployState()
+    }
+
+    @Test
+    fun preprocessIncrementalCompile_compileOnlyBuildFileChanged_forcesGradleFallback() {
+        val fixture = createFixture()
+        val buildFile = temporaryFolder.newFile("build.gradle")
+        val changedFile = ChangedFile(
+            CompileFile.Type.BuildFile,
+            buildFile,
+            buildFile.parentFile,
+            ModuleInfo.virtualModule,
+        )
+        whenever(fixture.uiHandler.isSkipDeploy).thenReturn(true)
+        whenever(fixture.deployFileManager.isNoFileChanges()).thenReturn(false)
+        whenever(fixture.deployFileManager.getUncompiledFiles()).thenReturn(listOf(changedFile))
+        whenever(fixture.dependencyChangeManager.changeStatus).thenReturn(
+            IDependencyChangeManager.ChangeStatus.REBUILD,
+        )
+        whenever(fixture.deployStateManager.updateDeployState()).thenReturn(
+            JuggDeployState.READY,
+            JuggDeployState.READY.copy(
+                state = JuggDeployState.State.READY_FULL_COMPILE,
+                msg = "build.gradle changed",
+            ),
+        )
+
+        val result = invokePreprocessIncrementalCompile(fixture.helper, fixture.options, fixture.uiHandler)
+
+        assertTrue(result!!.isCanFallback)
+        assertEquals("build.gradle changed", result.failedReason)
+        verify(fixture.deployStateManager, org.mockito.Mockito.times(2)).updateDeployState()
+    }
+
+    @Test
+    fun preprocessIncrementalCompile_compileOnlyLastGradleFailure_forcesGradleFallback() {
+        val fixture = createFixture()
+        whenever(fixture.uiHandler.isSkipDeploy).thenReturn(true)
+        whenever(fixture.deployHistoryManager.isLastFullCompileFailed).thenReturn(true)
+        whenever(fixture.deployStateManager.updateDeployState()).thenReturn(
+            JuggDeployState.READY.copy(
+                state = JuggDeployState.State.READY_FULL_COMPILE,
+                msg = "last gradle compile not success",
+            ),
+        )
+
+        val result = invokePreprocessIncrementalCompile(fixture.helper, fixture.options, fixture.uiHandler)
+
+        assertTrue(result!!.isCanFallback)
+        assertEquals("last gradle compile not success", result.failedReason)
+        verify(fixture.deployStateManager, org.mockito.Mockito.times(2)).updateDeployState()
     }
 
     @Test

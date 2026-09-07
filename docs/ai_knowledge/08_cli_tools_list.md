@@ -226,7 +226,7 @@ jugg compile
 
 无子命令参数。终态输出 `status`、`message`、`full log`、`detail` 等字段。
 
-`compile` 仅生成编译产物，不读取设备部署状态，也不要求设备在线。
+`compile` 仅生成编译产物，不执行部署。它会刷新统一部署状态来判断增量或 Gradle fallback；设备选择层会安全处理多设备，因此 compile 不会仅因多台设备在线而失败。构建文件变化需要 rebuild、上一次 Gradle 构建失败或其他状态要求完整构建时，仍会自动回退到 Gradle 编译。
 
 没有待编译文件时，终态 message 会显示 `compile executed successfully. No pending file changes.`。该状态表示本轮没有生成新的编译产物，命令仍然成功且不会执行部署；直接完成和异步轮询完成时输出一致。
 

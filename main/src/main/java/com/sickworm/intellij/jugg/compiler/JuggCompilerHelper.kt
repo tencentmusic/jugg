@@ -445,11 +445,9 @@ class JuggCompilerHelper(
             return CompileTaskResult.incrementalFailed(true, GRADLE_PROJECT_INFO_UNAVAILABLE)
         }
 
-        if (!uiHandler.isSkipDeploy) {
-            val targetDeployState = updateDeployState(uiHandler.targetDeviceSerial)
-            checkDeviceFallback(targetDeployState)?.let {
-                return it
-            }
+        val targetDeployState = updateDeployState(uiHandler.targetDeviceSerial)
+        checkDeviceFallback(targetDeployState)?.let {
+            return it
         }
         if (!isNoFileChangesSinceLastCompile && !isLastGradleCompileFailed) {
             checkFilesRollback()
@@ -459,13 +457,11 @@ class JuggCompilerHelper(
             checkLibraryIncrementalCompile(options, uiHandler) // user may cancel in this step
         }
 
-        if (!uiHandler.isSkipDeploy) {
-            val deployState = updateDeployState(uiHandler.targetDeviceSerial)
-            logger.debug("Try incremental compile. Current state: $deployState")
-            if (!deployState.isReadyIncCompile) {
-                logger.info("Deploy state $deployState not ready for incremental compile. Return.")
-                return CompileTaskResult.incrementalFailed(true, deployState.msg)
-            }
+        val deployState = updateDeployState(uiHandler.targetDeviceSerial)
+        logger.debug("Try incremental compile. Current state: $deployState")
+        if (!deployState.isReadyIncCompile) {
+            logger.info("Deploy state $deployState not ready for incremental compile. Return.")
+            return CompileTaskResult.incrementalFailed(true, deployState.msg)
         }
         checkFilesFallback(deployFileManager.getUncompiledFiles(), uiHandler = uiHandler)?.let {
             return it

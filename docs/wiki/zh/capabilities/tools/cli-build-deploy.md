@@ -32,7 +32,7 @@ jugg clean-reinstall
 jugg restart
 ```
 
-`compile` 只做编译，不部署。`deploy` 会编译并部署；`--always-restart-app=false` 允许在满足条件时保留运行态进行 hot reload。`gradle-build` 用于显式回退完整 Gradle 构建，并继续进入安装 / 启动链路。
+`compile` 只做编译，不部署。它会读取当前状态来判断应该增量编译还是回退 Gradle，但不会仅因多台设备在线而失败。构建文件变化需要 rebuild、上一次 Gradle 构建失败或其他状态要求完整构建时，`compile` 会自动回退到 Gradle 编译。`deploy` 会编译并部署；`--always-restart-app=false` 允许在满足条件时保留运行态进行 hot reload。`gradle-build` 用于显式回退完整 Gradle 构建，并继续进入安装 / 启动链路。
 
 > [!NOTE]
 > CLI 当前不暴露 MCP 的 `waitAppReadyAfterSuccess` 参数。命令完成表示编译/部署任务到达终态，不代表额外等待了 App ready。

@@ -12,8 +12,9 @@ class DeviceSelectionResolver {
     fun resolve(deployTargetManager: IDeployTargetManager, serial: String? = null): DeviceSelectionResult {
         val targetSerial = serial?.trim()?.takeIf { it.isNotEmpty() }
         if (targetSerial != null) {
+            // The target manager owns exact online filtering, including hosts without an IDeviceAdb adapter.
             val selectedDevice = deployTargetManager.getTargetDevices(targetSerial)
-                .firstOrNull { isDeviceOnline(it) }
+                .firstOrNull()
                 ?: return DeviceSelectionResult.NoDevice("Device $targetSerial is not online.")
             return DeviceSelectionResult.Selected(selectedDevice)
         }
