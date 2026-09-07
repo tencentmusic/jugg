@@ -171,6 +171,7 @@ class StandaloneProjectRegistry(
             McpToolActionRegistry.ToolNames.GRADLE_BUILD,
             McpToolActionRegistry.ToolNames.GET_COMPILE_STATUS,
             McpToolActionRegistry.ToolNames.GET_STATUS,
+            McpToolActionRegistry.ToolNames.RESTART,
             McpToolActionRegistry.ToolNames.REPORT_PREPARE,
             McpToolActionRegistry.ToolNames.REPORT_UPLOAD,
         )
