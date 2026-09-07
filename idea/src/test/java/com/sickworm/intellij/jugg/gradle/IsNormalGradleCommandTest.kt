@@ -81,6 +81,21 @@ class IsNormalGradleCommandTest {
     }
 
     @Test
+    fun windowsProjectPathWithSpaces_shouldQuoteInitScriptPath() {
+        val command = CompileProjectCommand(
+            "./gradlew :app:customDebugTask",
+            "D:/android work studio/InkBirdApp_Android",
+            "D:/android work studio/InkBirdApp_Android/.gradle/jugg/readProjectInfo.gradle.kts",
+        ).getCommand(isNeedSetChineseLanguage = false, isWindows = true)
+
+        assertEquals(
+            true,
+            command.contains("-I \"D:/android work studio/InkBirdApp_Android/.gradle/jugg/readProjectInfo.gradle.kts\""),
+            command,
+        )
+    }
+
+    @Test
     fun appBuildTarget_shouldIgnoreLibraryTestTasksProperty() {
         val command = CompileProjectCommand(
             "./gradlew :app:customDebugTask",

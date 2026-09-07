@@ -141,6 +141,7 @@ CI 命令行把构建拆成两个可审计阶段：
 - `platform_compat/base_api` 只解决编译期 API 缺口，不表示运行时一定有对应 IDE 行为；运行时能力仍以当前 AS API 和 compat 实现为准。
 - 自定义编译器示例在 `custom_compilers`，生产装载由 `CustomCompilerManager` 读取 `build/jugg/config/custom_compilers`；示例代码不是默认编译阶段。
 - `buildIncrementalApk` 的 `changedFiles` 是外部契约，不是提示信息。过滤后数量与输入不一致、路径越界或含 build file 都必须明确失败，不能静默跳过后继续产出 APK。
+- `CompileProjectCommand` 注入 Gradle init script 和项目目录时必须把路径作为带引号的独立参数传递，避免 Windows 工程路径中的空格把 `-I` 参数截断。
 - Windows 同一命令管道可能混合 UTF-8 与 GBK。`ProcessOutputReader` 必须先按行保留原始字节，再严格校验 UTF-8，失败时回退 GBK；不能先用固定编码构造字符串，也不能锁定整个进程编码。日志已出现 `�` 时原始字节可能已丢失，切换查看器编码无法恢复。
 
 ---
