@@ -166,7 +166,7 @@ open class CompileProjectCommand(
         return@run "$compileCommand$suffix"
     }
 
-    override val baseCommand: String = "cd $projectPath && $finalCompileCommand"
+    override val baseCommand: String = "cd \"$projectPath\" && $finalCompileCommand"
 
     override fun getCommand(isNeedSetChineseLanguage: Boolean, isWindows: Boolean): String {
         val command = super.getCommand(isNeedSetChineseLanguage, isWindows)
@@ -337,7 +337,7 @@ class SyncLocalClasspathCommand(
 
     private var includeClasspathFilter = ""
 
-    override val baseCommand: String get() = """${RsyncCompatibleHelper.rsyncPath} ${sourcePath.absolutePath} ${destPath.absolutePath} -av --delete --delete-excluded --prune-empty-dirs --include='*/' --exclude='build/jugg/**' $includeClasspathFilter --exclude='*'"""
+    override val baseCommand: String get() = """"${RsyncCompatibleHelper.rsyncPath}" "${sourcePath.absolutePath}" "${destPath.absolutePath}" -av --delete --delete-excluded --prune-empty-dirs --include='*/' --exclude='build/jugg/**' $includeClasspathFilter --exclude='*'"""
 
     override fun getCommand(isNeedSetChineseLanguage: Boolean, isWindows: Boolean): String {
         includeClasspathFilter = modules
