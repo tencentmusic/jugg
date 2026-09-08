@@ -1,6 +1,6 @@
 # 工程化：IDE 插件层
 
-> 最后核对：2026-08-31
+> 最后核对：2026-09-08
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -18,6 +18,7 @@
 | 类/接口 | 文件 | 作用 |
 |---|---|---|
 | `JuggInitializer` | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/loader/JuggInitializer.kt` | 项目级插件实例注册、释放、Sync 事件转发、MCP local server 生命周期 |
+| `JuggProjectManagerListener` / `JuggGradleSyncListener` | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/` | 项目打开后通过 `GradleSyncState` 一次性订阅旧 `GradleSyncListener` 语义，并绑定 project disposable |
 | `JuggLoader` | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/loader/JuggLoader.kt` | 隔离加载 Jugg manager，支持热更新/embedded jars fallback |
 | `JuggManagerCreator` | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/loader/JuggManagerCreator.kt` | 设置 `PlatformApi.impl`、注册项目日志、创建/释放 `JuggManager` |
 | `JuggHotUpdateDownloader` | `idea/src/main/java/com/sickworm/intellij/jugg/server/JuggHotUpdateDownloader.kt` | 定时检查更新、按缺失 jar 下载并校验 md5、更新 load list，并准备重启后的标准插件安装 |
@@ -58,8 +59,11 @@
 
 ```text
 IDE project opened
-  -> JuggInitializer.init(project)
-     创建 JuggLoader，注册到 instanceSet，并启动 McpLocalServer
+  -> JuggProjectManagerListener.projectOpened(project)
+     -> JuggInitializer.init(project)
+        创建 JuggLoader，注册到 instanceSet，并启动 McpLocalServer
+     -> 反射调用 GradleSyncState.subscribe(project, JuggGradleSyncListener, project)
+        每个 project lifecycle 只订阅一次，project dispose 时自动断开
   -> JuggManagerCreator.create()
      设置 IdeaPlatformApi，创建 JuggPathManager，注册 JuggLogger
   -> JuggManager.init()
@@ -83,6 +87,8 @@ IDE project opened
 `FileChangesHandler` 在 `CompileContext` 初始化后，以 IDE 工程目录和所有参与编译模块的根目录作为目录扫描范围。目录事件在调用 `listFiles()` 前先判断是否与该范围存在祖先或子孙关系；无关的全局目录不会递归展开，工程目录外的编译模块仍可沿其父目录分支被发现。每个模块都会用本地 `ModuleInfo.projectRootDir/moduleRootDir` 与 `buildDirRelativePath` 还原实际 build directory，并把它和传统 `${moduleRootDir}/build` 作为统一排除边界；不能直接使用远程 compile context 中可能已映射到 classpath 备份目录的 `buildPathInfo.buildDir`。目录事件在递归前剪枝，普通 changed file 在类型识别前过滤。删除事件只负责移除此前已登记的路径，不重复执行该过滤。该边界不依赖 build directory 是否位于 module root 内，也不会回溯清理当前内存中已有的变化。
 
 ### 4.2 Gradle Sync 到上下文重建
+
+`JuggProjectManagerListener` 在项目打开后调用三参数 `GradleSyncState.subscribe`，只注册一个 `JuggGradleSyncListener`，并将订阅绑定到 project disposable。该静态入口在 211 已存在；221 及后续版本会由 Android Studio 内部 adapter 转发到 root-aware topic，因此不再同时注册两个 topic，也不会重复上报同一事件。由于 `GradleSyncState` 在支持范围内存在 class/interface 形态变化，入口通过反射调用，发布字节码不直接链接该类型。
 
 ```text
 JuggGradleSyncListener
