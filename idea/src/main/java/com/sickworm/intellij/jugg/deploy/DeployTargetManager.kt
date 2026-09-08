@@ -64,9 +64,11 @@ class DeployTargetManager(
         }
     }
 
+    override fun createDeviceAdb(device: IDevice): IDeviceAdb = IdeaDeviceAdb(device, logger)
+
     override fun startApp(device: IDevice): Boolean {
         return try {
-            AdbCmdHelper(device, logger).startDefaultApp(getPackageName(), apks, isRestart = false)
+            AdbCmdHelper(createDeviceAdb(device), logger).startDefaultApp(getPackageName(), apks, isRestart = false)
             true
         } catch (e: Exception) {
             logger.error("startApp failed", e)
@@ -76,7 +78,7 @@ class DeployTargetManager(
 
     override fun restartApp(device: IDevice): Boolean {
         return try {
-            AdbCmdHelper(device, logger).startDefaultApp(getPackageName(), apks, isRestart = true)
+            AdbCmdHelper(createDeviceAdb(device), logger).startDefaultApp(getPackageName(), apks, isRestart = true)
             true
         } catch (e: Exception) {
             logger.error("RestartApp failed, got exception: ", e)
@@ -86,7 +88,7 @@ class DeployTargetManager(
 
     override fun restartAppForDebug(device: IDevice): Boolean {
         return try {
-            AdbCmdHelper(device, logger).startDefaultApp(getPackageName(), apks, isRestart = true, isDebug = true)
+            AdbCmdHelper(createDeviceAdb(device), logger).startDefaultApp(getPackageName(), apks, isRestart = true, isDebug = true)
             true
         } catch (e: Exception) {
             logger.error("RestartAppForDebug failed, got exception: ", e)
@@ -96,7 +98,7 @@ class DeployTargetManager(
 
     override fun stopApp(device: IDevice): Boolean {
         return try {
-            AdbCmdHelper(device, logger).stopApp(getPackageName())
+            AdbCmdHelper(createDeviceAdb(device), logger).stopApp(getPackageName())
             true
         } catch (e: Exception) {
             logger.error("StopApp failed, got exception:", e)
@@ -106,7 +108,7 @@ class DeployTargetManager(
 
     override fun isAppForeground(device: IDevice): Boolean {
         return try {
-            AdbCmdHelper(device, logger).isAppForeground(getPackageName())
+            AdbCmdHelper(createDeviceAdb(device), logger).isAppForeground(getPackageName())
         } catch (e: Exception) {
             logger.debug("isAppForeground failed, got exception:", e)
             false
@@ -116,7 +118,7 @@ class DeployTargetManager(
     override fun isAppInstalled(device: IDevice): Boolean? {
         val startTime = System.currentTimeMillis()
         val result = try {
-            AdbCmdHelper(device, logger).isAppInstalled(getPackageName())
+            AdbCmdHelper(createDeviceAdb(device), logger).isAppInstalled(getPackageName())
         } catch (e: Exception) {
             logger.warn("Check app installed failed", e)
             null
@@ -147,7 +149,7 @@ class DeployTargetManager(
         devices.forEach { device ->
             stringBuilder.append("[Dump Device: ${device.name} start]\n")
             val content = try {
-                AdbCmdHelper(device, logger).dumpErrorLog()
+                AdbCmdHelper(createDeviceAdb(device), logger).dumpErrorLog()
             } catch (e: Exception) {
                 "Dump error logs failed: ${e.message}"
             }

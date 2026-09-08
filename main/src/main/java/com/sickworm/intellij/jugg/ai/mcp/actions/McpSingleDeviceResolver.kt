@@ -7,7 +7,6 @@ import com.sickworm.intellij.jugg.ai.mcp.McpErrorCode
 import com.sickworm.intellij.jugg.ai.mcp.McpToolResult
 import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
-import com.sickworm.intellij.jugg.platform.PlatformApi
 
 /** Carries either the single online adb target or a structured device-selection failure. */
 internal sealed class McpSingleDeviceResult {
@@ -31,7 +30,7 @@ internal fun resolveMcpSingleDevice(
         return McpSingleDeviceResult.Failure(deviceSelectionError(toolName, failure.first, failure.second))
     }
     val device = (selection as DeviceSelectionResult.Selected).device
-    val adb = PlatformApi.toDeviceAdb(device)?.takeIf { it.isOnline }
+    val adb = runtime.deployTargetManager.createDeviceAdb(device).takeIf { it.isOnline }
         ?: return McpSingleDeviceResult.Failure(
             deviceSelectionError(toolName, "No connected device is available.", McpErrorCode.NO_DEVICE),
         )

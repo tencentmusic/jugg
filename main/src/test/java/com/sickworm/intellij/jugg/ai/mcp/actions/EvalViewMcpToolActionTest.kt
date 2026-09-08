@@ -203,7 +203,7 @@ class EvalViewMcpToolActionTest {
         val deployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
         Mockito.`when`(deployTargetManager.getSelectedDevices()).thenReturn(emptyList())
         Mockito.`when`(deployTargetManager.getConnectedDevices()).thenReturn(emptyList())
-        PlatformApi.impl = FakePlatformApi(emptyMap())
+        PlatformApi.impl = FakePlatformApi()
 
         val runtime = buildRuntime(projectDir, deployTargetManager) { true }
 
@@ -263,11 +263,12 @@ class EvalViewMcpToolActionTest {
         val device = Mockito.mock(IDevice::class.java)
         Mockito.`when`(device.serialNumber).thenReturn("emulator-5554")
         val adb = FakeDeviceAdb(serial = "emulator-5554")
-        PlatformApi.impl = FakePlatformApi(mapOf(device to adb))
+        PlatformApi.impl = FakePlatformApi()
 
         val deployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
         Mockito.`when`(deployTargetManager.getSelectedDevices()).thenReturn(listOf(device))
         Mockito.`when`(deployTargetManager.getConnectedDevices()).thenReturn(listOf(device))
+        Mockito.`when`(deployTargetManager.createDeviceAdb(device)).thenReturn(adb)
         Mockito.`when`(deployTargetManager.getPackageName()).thenReturn("com.example.app")
         return SetupResult(
             runtime = buildRuntime(projectDir, deployTargetManager, isAppReadyProvider),
@@ -331,9 +332,7 @@ class EvalViewMcpToolActionTest {
         override fun getProperty(name: String): String? = null
     }
 
-    private class FakePlatformApi(
-        private val adbByDevice: Map<IDevice, IDeviceAdb>,
-    ) : IPlatformApi {
+    private class FakePlatformApi : IPlatformApi {
         override fun showDialog(
             title: String,
             content: String,
@@ -355,7 +354,6 @@ class EvalViewMcpToolActionTest {
         override fun getAndroidHomePath(logger: Logger): String? = null
         override fun getIdeVersion(): String = "test"
         override fun getRuntimeInfo() = com.sickworm.intellij.jugg.project.runtime.RuntimeInfo("test", "test", "test", "")
-        override fun toDeviceAdb(device: IDevice): IDeviceAdb? = adbByDevice[device]
         override fun isHasRelaunchActivityIssues(device: IDeviceAdb, logger: Logger): Boolean = false
         override fun invokeMcp(request: com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcRequest): com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcResponse {
             throw UnsupportedOperationException("not used")

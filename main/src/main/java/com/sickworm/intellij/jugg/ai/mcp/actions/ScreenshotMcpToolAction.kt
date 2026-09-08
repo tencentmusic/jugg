@@ -11,7 +11,6 @@ import com.sickworm.intellij.jugg.ai.mcp.McpJsonSchemaProperty
 import com.sickworm.intellij.jugg.ai.mcp.McpToolDefinition
 import com.sickworm.intellij.jugg.ai.mcp.McpToolResult
 import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
-import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import java.awt.RenderingHints
 import java.awt.image.BufferedImage
@@ -202,7 +201,7 @@ class ScreenshotMcpToolAction : McpToolAction {
         if (selectionResult !is DeviceSelectionResult.Selected) {
             return null
         }
-        val adb = PlatformApi.toDeviceAdb(selectionResult.device) ?: return null
+        val adb = runtime.deployTargetManager.createDeviceAdb(selectionResult.device)
         if (!adb.isOnline) {
             return null
         }

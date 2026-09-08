@@ -11,6 +11,7 @@ import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.compiler.ui.BuildChangesConfirmResult
 import com.sickworm.intellij.jugg.compiler.ui.RunResult
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
+import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.deploy.instrument.InstrumentationEvent
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
@@ -116,6 +117,7 @@ class JuggDebugSessionManagerTest {
         override fun getApks(): List<ApkInfo> = listOf(ApkInfo(File("app-debug.apk"), "com.example.app"))
         override fun getSelectedDevices(): List<IDevice> = devices
         override fun getConnectedDevices(): List<IDevice> = devices
+        override fun createDeviceAdb(device: IDevice): IDeviceAdb = throw UnsupportedOperationException()
         override fun startApp(device: IDevice): Boolean = true
         override fun restartApp(device: IDevice): Boolean = true
         override fun stopApp(device: IDevice): Boolean = true

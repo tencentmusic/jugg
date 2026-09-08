@@ -223,10 +223,12 @@ class ViewLocateMcpToolActionTest {
         val targetDevice = Mockito.mock(IDevice::class.java)
         val selectedAdb = FakeDeviceAdb("device-1")
         val targetAdb = FakeDeviceAdb("device-2")
-        PlatformApi.impl = FakePlatformApi(mapOf(selectedDevice to selectedAdb, targetDevice to targetAdb))
+        PlatformApi.impl = FakePlatformApi()
         val deployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
         Mockito.`when`(deployTargetManager.getSelectedDevices()).thenReturn(listOf(selectedDevice))
         Mockito.`when`(deployTargetManager.getTargetDevices("device-2")).thenReturn(listOf(targetDevice))
+        Mockito.`when`(deployTargetManager.createDeviceAdb(selectedDevice)).thenReturn(selectedAdb)
+        Mockito.`when`(deployTargetManager.createDeviceAdb(targetDevice)).thenReturn(targetAdb)
         Mockito.`when`(deployTargetManager.getPackageName()).thenReturn("com.example.app")
         val deployStateManager = Mockito.mock(com.sickworm.intellij.jugg.deploy.IDeployStateManager::class.java)
         Mockito.`when`(deployStateManager.updateDeployState(targetDevice))
@@ -297,11 +299,12 @@ class ViewLocateMcpToolActionTest {
     private fun buildRuntime(projectDir: File): IMcpRuntime {
         val device = Mockito.mock(IDevice::class.java)
         val adb = FakeDeviceAdb()
-        PlatformApi.impl = FakePlatformApi(mapOf(device to adb))
+        PlatformApi.impl = FakePlatformApi()
 
         val deployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
         Mockito.`when`(deployTargetManager.getSelectedDevices()).thenReturn(listOf(device))
         Mockito.`when`(deployTargetManager.getConnectedDevices()).thenReturn(listOf(device))
+        Mockito.`when`(deployTargetManager.createDeviceAdb(device)).thenReturn(adb)
         Mockito.`when`(deployTargetManager.getPackageName()).thenReturn("com.example.app")
 
         return object : com.sickworm.intellij.jugg.ai.mcp.TestMcpRuntime() {
@@ -329,9 +332,7 @@ class ViewLocateMcpToolActionTest {
         override fun getProperty(name: String): String? = null
     }
 
-    private class FakePlatformApi(
-        private val adbByDevice: Map<IDevice, IDeviceAdb>,
-    ) : IPlatformApi {
+    private class FakePlatformApi : IPlatformApi {
         override fun showDialog(
             title: String,
             content: String,
@@ -353,7 +354,6 @@ class ViewLocateMcpToolActionTest {
         override fun getAndroidHomePath(logger: Logger): String? = null
         override fun getIdeVersion(): String = "test"
         override fun getRuntimeInfo() = com.sickworm.intellij.jugg.project.runtime.RuntimeInfo("test", "test", "test", "")
-        override fun toDeviceAdb(device: IDevice): IDeviceAdb? = adbByDevice[device]
         override fun isHasRelaunchActivityIssues(device: IDeviceAdb, logger: Logger): Boolean = false
         override fun invokeMcp(request: com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcRequest) =
             throw UnsupportedOperationException("not used")

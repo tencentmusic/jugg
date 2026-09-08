@@ -2,7 +2,6 @@ package com.sickworm.intellij.jugg.ai.mcp
 
 import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
-import com.sickworm.intellij.jugg.platform.PlatformApi
 
 /**
  * DeviceSelectionResolver resolves device selection decisions.
@@ -19,8 +18,8 @@ class DeviceSelectionResolver {
             return DeviceSelectionResult.Selected(selectedDevice)
         }
 
-        val selectedDevices = deployTargetManager.getSelectedDevices().filter { isDeviceOnline(it) }
-        val connectedDevices = deployTargetManager.getConnectedDevices().filter { isDeviceOnline(it) }
+        val selectedDevices = deployTargetManager.getSelectedDevices()
+        val connectedDevices = deployTargetManager.getConnectedDevices()
 
         if (selectedDevices.size > 1) {
             return DeviceSelectionResult.MultipleDevices(multipleDevicesMessage(selectedDevices))
@@ -41,11 +40,6 @@ class DeviceSelectionResolver {
 
     private fun multipleDevicesMessage(devices: List<IDevice>): String {
         return "Multiple devices are online (${devices.joinToString { it.serialNumber }}). Pass --serial to select one device."
-    }
-
-    private fun isDeviceOnline(device: IDevice): Boolean {
-        val adb = PlatformApi.toDeviceAdb(device)
-        return adb?.isOnline ?: false
     }
 }
 

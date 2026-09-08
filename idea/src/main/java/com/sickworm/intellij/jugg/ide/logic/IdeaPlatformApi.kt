@@ -1,6 +1,5 @@
 package com.sickworm.intellij.jugg.ide.logic
 
-import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.externalSystem.service.execution.ExternalSystemJdkUtil
 import com.intellij.openapi.project.Project
@@ -9,7 +8,6 @@ import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.roots.ModuleRootManager
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
-import com.sickworm.intellij.jugg.deploy.IdeaDeviceAdb
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.IdeVersion
 import com.sickworm.intellij.jugg.ide.ui.UserAndPasswordInputDialog
@@ -143,10 +141,6 @@ class IdeaPlatformApi : IPlatformApi {
 
     override fun getRuntimeInfo(): RuntimeInfo {
         return runtimeInfoValue
-    }
-
-    override fun toDeviceAdb(device: IDevice): IDeviceAdb? {
-        return IdeaDeviceAdb(device, Logger.getInstance("IdeaDeviceAdb"))
     }
 
     override fun isHasRelaunchActivityIssues(device: IDeviceAdb, logger: Logger): Boolean {

@@ -1,6 +1,5 @@
 package com.sickworm.intellij.jugg.platform
 
-import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.sickworm.intellij.jugg.deploy.api.Apk
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
@@ -14,7 +13,7 @@ import com.sickworm.intellij.jugg.project.runtime.RuntimeInfo
 import java.io.File
 
 /**
- * IPlatformApi abstraction boundary for UI, device, environment, and gradle integration calls.
+ * IPlatformApi abstraction boundary for process-level UI, environment, and gradle integration calls.
  * Collaboration: Implemented by host-layer adapters and consumed through [PlatformApi] delegation in core modules.
  */
 interface IPlatformApi {
@@ -44,8 +43,6 @@ interface IPlatformApi {
     fun getIdeVersion(): String
 
     fun getRuntimeInfo(): RuntimeInfo
-
-    fun toDeviceAdb(device: IDevice): IDeviceAdb?
 
     fun isHasRelaunchActivityIssues(device: IDeviceAdb, logger: Logger): Boolean
 

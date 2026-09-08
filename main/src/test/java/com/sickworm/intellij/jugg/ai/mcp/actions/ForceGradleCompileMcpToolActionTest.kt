@@ -10,6 +10,7 @@ import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
 import com.sickworm.intellij.jugg.ai.mcp.util.LastCompileTimestampRegistry
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
+import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
 import com.sickworm.intellij.jugg.compiler.ForceGradleCompileHelper
 import com.sickworm.intellij.jugg.compiler.GradleCompileExecutionResult
@@ -274,6 +275,9 @@ class ForceGradleCompileMcpToolActionTest {
                 override fun getSelectedDevices(): List<IDevice> = emptyList()
 
                 override fun getConnectedDevices(): List<IDevice> =
+                    throw UnsupportedOperationException("not used in this test")
+
+                override fun createDeviceAdb(device: IDevice): IDeviceAdb =
                     throw UnsupportedOperationException("not used in this test")
 
                 override fun startApp(device: IDevice): Boolean =

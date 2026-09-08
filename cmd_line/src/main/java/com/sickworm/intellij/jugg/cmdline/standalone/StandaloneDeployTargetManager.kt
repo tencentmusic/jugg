@@ -41,6 +41,8 @@ class StandaloneDeployTargetManager(
             .getOrDefault(emptyList())
     }
 
+    override fun createDeviceAdb(device: IDevice) = environmentProvider().createDeviceAdb(device, logger)
+
     override fun startApp(device: IDevice): Boolean = runLifecycle(device) { helper ->
         helper.startDefaultApp(getPackageName(), getApks(), isRestart = false)
     }
@@ -81,6 +83,6 @@ class StandaloneDeployTargetManager(
     }
 
     private fun adb(device: IDevice): AdbCmdHelper {
-        return AdbCmdHelper(environmentProvider().createDeviceAdb(device, logger), logger)
+        return AdbCmdHelper(createDeviceAdb(device), logger)
     }
 }

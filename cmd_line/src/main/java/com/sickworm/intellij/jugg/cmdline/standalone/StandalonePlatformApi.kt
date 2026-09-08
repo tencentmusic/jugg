@@ -1,7 +1,6 @@
 package com.sickworm.intellij.jugg.cmdline.standalone
 
 import com.sickworm.intellij.jugg.JuggException
-import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcRequest
@@ -43,8 +42,6 @@ class StandalonePlatformApi(
     override fun getIdeVersion(): String = runtimeInfo.hostVersion
 
     override fun getRuntimeInfo(): RuntimeInfo = runtimeInfo
-
-    override fun toDeviceAdb(device: IDevice): IDeviceAdb? = null
 
     override fun isHasRelaunchActivityIssues(device: IDeviceAdb, logger: Logger): Boolean = false
 

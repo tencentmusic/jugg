@@ -1,6 +1,6 @@
 # 公共工具模块（Utilities）
 
-> 最后核对：2026-09-04
+> 最后核对：2026-09-08
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -19,7 +19,7 @@
 | 路径与临时产物 | `main/src/main/java/com/sickworm/intellij/jugg/project/runtime/JuggPathManager.kt`、`JuggGlobalPathManager.kt`、`main/src/main/java/com/sickworm/intellij/jugg/project/ExpiredArtifactCleaner.kt` | 项目级 `build/jugg`、稳定 `.gradle/jugg`、用户级全局 root（优先 `~/.jugg`，不可写时 `${java.io.tmpdir}/jugg-<user>`），以及项目级过期产物清理 |
 | APK 修改 | `main/src/main/java/com/sickworm/intellij/jugg/apk/ApkFileModifier.kt`、`ResourceApkModifier.kt` | APK 插入、替换、zipalign、签名与资源 APK 增量更新 |
 | Git worktree | `main/src/main/java/com/sickworm/intellij/jugg/git/GitManager.kt`、`WorktreeFileRepository.kt` | Git 变更识别；worktree 下把 HEAD 操作定向到 worktree-local HEAD |
-| 平台桥接 | `main/src/main/java/com/sickworm/intellij/jugg/platform/IPlatformApi.kt`、`PlatformApi.kt`、`idea/.../ide/logic/IdeaPlatformApi.kt` | core 层调用 UI、设备、Gradle、MCP host 能力的抽象边界；hot update 时实现类及接口 JVM 描述符中的直接 Jugg 类型固定由宿主加载 |
+| 平台桥接 | `main/src/main/java/com/sickworm/intellij/jugg/platform/IPlatformApi.kt`、`PlatformApi.kt`、`idea/.../ide/logic/IdeaPlatformApi.kt` | core 层调用进程级 UI、Gradle、MCP host 能力的抽象边界；项目设备选择和 ADB 适配由 `IDeployTargetManager` 负责；hot update 时实现类及接口 JVM 描述符中的直接 Jugg 类型固定由宿主加载 |
 | 远端服务 | `main/src/main/java/com/sickworm/intellij/jugg/server/JuggServer.kt`、`JuggServerChooser.kt`、`JuggEventLocalStore.kt`、`JuggRemoteCompileApplier.kt` | 上报、版本检测、server failover、全局本地事件记录与远端编译 apply；缺少内置配置时仅明确设置的自定义服务器可启用后台 |
 | 问题诊断 | `main/src/main/java/com/sickworm/intellij/jugg/diagnostics/IssueReportBundleBuilder.kt`、`IssueReportUploader.kt` | 白名单诊断包、脱敏、manifest 校验与单一 HTTPS endpoint 上传 |
 | Runtime 信息 | `project/runtime/RuntimeInfo.kt` | Host 显式提供 runtime type/version、host version 与 build time，供 Server、锁和 hot update 使用 |
@@ -39,10 +39,17 @@ JuggManager 初始化
 ```
 
 ```text
-需要 IDE / 设备 / 用户交互能力的 core 逻辑
+需要 IDE / 用户交互能力的 core 逻辑
   -> 调用 PlatformApi
   -> PlatformApi 只转发到已注入的 IPlatformApi host 实现
   -> main 模块避免直接依赖 IDE 实现，测试可使用 platform_compat 桩
+```
+
+```text
+需要项目设备能力的 core 逻辑
+  -> IDeployTargetManager 返回当前项目的选中设备和在线设备
+  -> 设备选择完成后通过 createDeviceAdb() 创建同一项目域的 ADB 适配器
+  -> 禁止把项目设备或 ADB 适配重新挂回进程级 PlatformApi
 ```
 
 ```text
@@ -105,6 +112,7 @@ Hot update
 - `JuggPathManager` 同时暴露 project-local 与 global root：编译产物、deployment cache、DB、日志优先 project-local；跨项目复用的 hot update、history、hook / resource 文件优先 `JuggGlobalPathManager`，写事务进入 active global root 下的固定锁。`~/.jugg` 探测失败时，全局 root 改为 `${java.io.tmpdir}/jugg-<user>`，后续编译不应再因家目录权限失败。
 - `settings.json` 写入使用固定全局锁、临时文件和原子替换；同进程更新由 `JuggSettings` 串行，字段修改会在锁内基于最新磁盘快照更新，避免双 Runtime 的不同字段互相覆盖；IDEA legacy migration 只补缺失字段，不能覆盖已存在 JSON 值。Runtime owner 切换后必须丢弃进程内 settings snapshot，避免 IDEA/standalone 接管项目时继续使用另一进程更新前的兼容记录和用户开关。CLI 强制 backup classpath 使用进程级 override，不修改共享用户设置。`JuggGlobalPathManager.rootDir` 切换后 `JuggSettings` 会自动丢弃旧 root 缓存，测试通过独立 root 隔离真实用户设置。
 - `PlatformApi.impl` 是 host 注入边界；core 代码不要绕过它直接调用 IDE / Android Studio API，否则 `main` 模块测试和 CLI 场景会失效。hot update 时 `PlatformApi`、`IPlatformApi`、`IdeaPlatformApi` 及 `IPlatformApi` JVM 方法描述符中的直接 Jugg 类型必须由同一宿主 ClassLoader 加载，`JuggLoader` 自动从接口签名生成这组类型，避免跨加载器的静态副本和 loader constraint violation。
+- `IDeployTargetManager` 是项目设备边界；设备枚举、请求级选择和 `IDevice` 到 `IDeviceAdb` 的转换必须使用同一项目 Runtime 的 manager，避免 standalone 多项目进程误用全局状态。
 - `JuggSettings` 的远程命令历史按 `user + host + port + remoteProjectPath` 保存，每个目标只保留最近 10 条并按完整命令去重。读取损坏数据或写入失败时返回空历史，不影响远程命令执行；命令正文不得写入 Jugg 持久日志。`RemoteUserCommand` 将正文编码后交给子 shell，并用每次执行唯一的完成标记解析退出码，避免用户命令中的注释、`exit` 或输出内容干扰协议。
 - `JuggServer` 的 runtime identity 必须由 Host 注入 `RuntimeInfo`；IDEA、CI、standalone 不得在共享 Server 内推断 plugin/IDE metadata。事件保留后端兼容的 `version/ide_version` 字段，实际值分别来自 `runtimeVersion/hostVersion`；`runtimeType` 仅用于 Runtime 锁 owner identity，不进入事件上报。
 - `JuggServer` 使用挂在 Runtime Scope 下的 `SupervisorJob` 执行更新检查、上报和自定义编译器下载等辅助任务；Runtime dispose 仍会取消这些任务，但任一辅助任务的未捕获异常不得反向取消编译、部署和 TaskRunner 共用的 Runtime Scope。

@@ -19,6 +19,7 @@ import com.sickworm.intellij.jugg.deploy.DeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.DeployStateManager
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
+import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.deploy.IHostDeployStateResolver
 import com.sickworm.intellij.jugg.deploy.JuggDeployState
 import com.sickworm.intellij.jugg.deploy.JuggRunningTaskStatusManager
@@ -364,6 +365,8 @@ class MockJugg(
             override fun getConnectedDevices(): List<IDevice> {
                 return adbDeviceHelper.getDeviceList().map(::LegacyDeviceAdapter)
             }
+
+            override fun createDeviceAdb(device: IDevice): IDeviceAdb = throw UnsupportedOperationException()
 
             override fun startApp(device: IDevice): Boolean {
                 AdbCmdHelper(device, logger).startDefaultApp(projectInfo.packageName, currentApkInfos)

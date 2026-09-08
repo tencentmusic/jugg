@@ -1,6 +1,5 @@
 package com.sickworm.intellij.jugg.mock
 
-import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
@@ -52,10 +51,6 @@ class TestPlatformApi : IPlatformApi {
 
     override fun getRuntimeInfo(): RuntimeInfo {
         return RuntimeInfo("test", "test", "test", "")
-    }
-
-    override fun toDeviceAdb(device: IDevice): IDeviceAdb? {
-        return null
     }
 
     override fun isHasRelaunchActivityIssues(

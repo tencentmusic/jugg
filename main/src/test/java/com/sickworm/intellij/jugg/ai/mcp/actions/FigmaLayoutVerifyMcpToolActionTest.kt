@@ -77,7 +77,7 @@ class FigmaLayoutVerifyMcpToolActionTest {
     fun testVerifyPassthroughNoDeviceError() {
         // When internal layout_dump fails with NO_DEVICE, the same errorCode must be returned
         val projectDir = createTempDir(prefix = "jugg_figma_verify_no_dev_")
-        PlatformApi.impl = FakePlatformApi(emptyMap())
+        PlatformApi.impl = FakePlatformApi()
         val deployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
         Mockito.`when`(deployTargetManager.getSelectedDevices()).thenReturn(emptyList())
         Mockito.`when`(deployTargetManager.getConnectedDevices()).thenReturn(emptyList())
@@ -175,11 +175,12 @@ class FigmaLayoutVerifyMcpToolActionTest {
     ): SetupResult {
         val device = Mockito.mock(IDevice::class.java)
         val adb = FakeDeviceAdb()
-        PlatformApi.impl = FakePlatformApi(mapOf(device to adb))
+        PlatformApi.impl = FakePlatformApi()
 
         val deployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
         Mockito.`when`(deployTargetManager.getSelectedDevices()).thenReturn(listOf(device))
         Mockito.`when`(deployTargetManager.getConnectedDevices()).thenReturn(listOf(device))
+        Mockito.`when`(deployTargetManager.createDeviceAdb(device)).thenReturn(adb)
         if (packageName != null) {
             Mockito.`when`(deployTargetManager.getPackageName()).thenReturn(packageName)
         }
@@ -243,9 +244,7 @@ class FigmaLayoutVerifyMcpToolActionTest {
         override fun getProperty(name: String): String? = null
     }
 
-    private class FakePlatformApi(
-        private val adbByDevice: Map<IDevice, IDeviceAdb>,
-    ) : IPlatformApi {
+    private class FakePlatformApi : IPlatformApi {
         override fun showDialog(
             title: String,
             content: String,
@@ -267,7 +266,6 @@ class FigmaLayoutVerifyMcpToolActionTest {
         override fun getAndroidHomePath(logger: Logger): String? = null
         override fun getIdeVersion(): String = "test"
         override fun getRuntimeInfo() = com.sickworm.intellij.jugg.project.runtime.RuntimeInfo("test", "test", "test", "")
-        override fun toDeviceAdb(device: IDevice): IDeviceAdb? = adbByDevice[device]
         override fun isHasRelaunchActivityIssues(device: IDeviceAdb, logger: Logger): Boolean = false
 
         override fun invokeMcp(request: com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcRequest): com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcResponse =

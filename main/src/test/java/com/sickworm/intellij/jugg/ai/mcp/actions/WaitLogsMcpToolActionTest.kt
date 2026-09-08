@@ -539,7 +539,6 @@ class WaitLogsMcpToolActionTest {
             override fun getAndroidHomePath(logger: com.intellij.openapi.diagnostic.Logger) = null
             override fun getIdeVersion() = "test"
             override fun getRuntimeInfo() = com.sickworm.intellij.jugg.project.runtime.RuntimeInfo("test", "test", "test", "")
-            override fun toDeviceAdb(device: IDevice): IDeviceAdb = fakeAdb
             override fun isHasRelaunchActivityIssues(device: IDeviceAdb, logger: com.intellij.openapi.diagnostic.Logger) = false
             override fun invokeMcp(request: com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcRequest) =
                 throw UnsupportedOperationException()
@@ -553,6 +552,7 @@ class WaitLogsMcpToolActionTest {
         Mockito.`when`(deployTargetManager.getSelectedDevices()).thenReturn(listOf(device))
         Mockito.`when`(deployTargetManager.getConnectedDevices()).thenReturn(listOf(device))
         Mockito.`when`(deployTargetManager.getTargetDevices(fakeAdb.serial)).thenReturn(listOf(device))
+        Mockito.`when`(deployTargetManager.createDeviceAdb(device)).thenReturn(fakeAdb)
         Mockito.`when`(deployTargetManager.getPackageName()).thenAnswer { resolvePackageName(fakeAdb) }
         Mockito.`when`(deployTargetManager.getPackageNameOrNull()).thenAnswer { resolvePackageName(fakeAdb) }
 

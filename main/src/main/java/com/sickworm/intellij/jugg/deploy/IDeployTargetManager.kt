@@ -25,6 +25,9 @@ interface IDeployTargetManager {
      */
     fun getConnectedDevices(): List<IDevice>
 
+    /** Creates a project-scoped ADB adapter for a device returned by this manager. */
+    fun createDeviceAdb(device: IDevice): IDeviceAdb
+
     /**
      * Resolves the devices for one request without mutating the Host's persisted selection.
      */

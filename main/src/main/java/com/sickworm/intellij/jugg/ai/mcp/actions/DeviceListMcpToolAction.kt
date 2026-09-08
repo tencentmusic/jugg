@@ -7,7 +7,6 @@ import com.sickworm.intellij.jugg.ai.mcp.McpJsonSchemaProperty
 import com.sickworm.intellij.jugg.ai.mcp.McpToolDefinition
 import com.sickworm.intellij.jugg.ai.mcp.McpToolResult
 import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
-import com.sickworm.intellij.jugg.platform.PlatformApi
 
 /**
  * DeviceListMcpToolAction implements MCP tool `devices` and converts request arguments into tool execution and MCP result payloads.
@@ -61,12 +60,10 @@ class DeviceListMcpToolAction : McpToolAction {
     private fun deviceListAction(runtime: IMcpRuntime, targetDeviceSerial: String?): McpToolResult {
         val selectedSerials = targetDeviceSerial?.let(::setOf)
             ?: runtime.deployTargetManager.getSelectedDevices()
-                .mapNotNull { PlatformApi.toDeviceAdb(it)?.serial }
+                .map { it.serialNumber }
                 .toSet()
         val connectedDevices = runtime.deployTargetManager.getConnectedDevices()
-            .mapNotNull { PlatformApi.toDeviceAdb(it) }
-            .filter { it.isOnline }
-            .filter { targetDeviceSerial == null || it.serial == targetDeviceSerial }
+            .filter { targetDeviceSerial == null || it.serialNumber == targetDeviceSerial }
 
         if (targetDeviceSerial != null && connectedDevices.isEmpty()) {
             return McpToolResult(
@@ -78,13 +75,13 @@ class DeviceListMcpToolAction : McpToolAction {
             )
         }
 
-        val devices = connectedDevices.map { adb ->
+        val devices = connectedDevices.map { device ->
             mapOf(
-                "serial" to adb.serial,
-                "name" to adb.displayName,
-                "isOnline" to adb.isOnline,
-                "api" to adb.api,
-                "isSelected" to selectedSerials.contains(adb.serial),
+                "serial" to device.serialNumber,
+                "name" to device.name,
+                "isOnline" to device.isOnline,
+                "api" to device.version.apiLevel,
+                "isSelected" to selectedSerials.contains(device.serialNumber),
             )
         }
 

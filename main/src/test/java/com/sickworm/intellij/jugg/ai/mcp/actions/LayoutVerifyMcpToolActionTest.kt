@@ -1868,7 +1868,7 @@ class LayoutVerifyMcpToolActionTest {
     @Test
     fun testLiveQueryModeReturnsNoDeviceErrorWhenNoDevice() {
         val projectDir = createTempDir(prefix = "jugg_verify_no_device_")
-        PlatformApi.impl = FakePlatformApi(emptyMap())
+        PlatformApi.impl = FakePlatformApi()
         val deployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
         Mockito.`when`(deployTargetManager.getSelectedDevices()).thenReturn(emptyList())
         Mockito.`when`(deployTargetManager.getConnectedDevices()).thenReturn(emptyList())
@@ -2473,10 +2473,11 @@ class LayoutVerifyMcpToolActionTest {
         val projectDir = createTempDir(prefix = "jugg_verify_rt_")
         val device = Mockito.mock(IDevice::class.java)
         val adb = FakeDeviceAdb()
-        PlatformApi.impl = FakePlatformApi(mapOf(device to adb))
+        PlatformApi.impl = FakePlatformApi()
         val deployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
         Mockito.`when`(deployTargetManager.getSelectedDevices()).thenReturn(listOf(device))
         Mockito.`when`(deployTargetManager.getConnectedDevices()).thenReturn(listOf(device))
+        Mockito.`when`(deployTargetManager.createDeviceAdb(device)).thenReturn(adb)
         if (packageName != null) {
             Mockito.`when`(deployTargetManager.getPackageName()).thenReturn(packageName)
         }
@@ -2486,10 +2487,11 @@ class LayoutVerifyMcpToolActionTest {
     private fun setupDevice(projectDir: File, packageName: String): SetupResult {
         val device = Mockito.mock(IDevice::class.java)
         val adb = FakeDeviceAdb()
-        PlatformApi.impl = FakePlatformApi(mapOf(device to adb))
+        PlatformApi.impl = FakePlatformApi()
         val deployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
         Mockito.`when`(deployTargetManager.getSelectedDevices()).thenReturn(listOf(device))
         Mockito.`when`(deployTargetManager.getConnectedDevices()).thenReturn(listOf(device))
+        Mockito.`when`(deployTargetManager.createDeviceAdb(device)).thenReturn(adb)
         Mockito.`when`(deployTargetManager.getPackageName()).thenReturn(packageName)
         return SetupResult(runtime = buildRuntimeWithDeployManager(projectDir, deployTargetManager))
     }
@@ -2524,9 +2526,7 @@ class LayoutVerifyMcpToolActionTest {
         override fun getProperty(name: String): String? = null
     }
 
-    private class FakePlatformApi(
-        private val adbByDevice: Map<IDevice, IDeviceAdb>,
-    ) : com.sickworm.intellij.jugg.platform.IPlatformApi {
+    private class FakePlatformApi : com.sickworm.intellij.jugg.platform.IPlatformApi {
         override fun showDialog(title: String, content: String, okButtonText: String?, cancelButtonText: String?, isShowCancelButton: Boolean): Boolean = false
         override fun showUserAndPasswordInputDialog(content: String, subTitle: String?, isPassword: Boolean, defaultInputText: String?, title: String?): String? = null
         override fun allAvailableJavaHomes(): List<String> = emptyList()
@@ -2534,7 +2534,6 @@ class LayoutVerifyMcpToolActionTest {
         override fun getAndroidHomePath(logger: com.intellij.openapi.diagnostic.Logger): String? = null
         override fun getIdeVersion(): String = "test"
         override fun getRuntimeInfo() = com.sickworm.intellij.jugg.project.runtime.RuntimeInfo("test", "test", "test", "")
-        override fun toDeviceAdb(device: IDevice): IDeviceAdb? = adbByDevice[device]
         override fun isHasRelaunchActivityIssues(device: IDeviceAdb, logger: com.intellij.openapi.diagnostic.Logger): Boolean = false
         override fun invokeMcp(request: com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcRequest): com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcResponse = throw UnsupportedOperationException()
         override fun getInitializedProjectDirs(): List<File> = emptyList()

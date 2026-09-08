@@ -4,38 +4,19 @@ import com.sickworm.intellij.jugg.ai.mcp.McpErrorCode
 import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
 import com.sickworm.intellij.jugg.deploy.IDeployStateManager
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
-import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.deploy.JuggDeployState
 import com.sickworm.intellij.jugg.deploy.api.IDevice
+import com.sickworm.intellij.jugg.deploy.api.AndroidVersion
 import com.sickworm.intellij.jugg.deploy.run.IdeDeployState
-import com.sickworm.intellij.jugg.platform.IPlatformApi
-import com.sickworm.intellij.jugg.platform.PlatformApi
-import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Before
 import org.junit.Test
 import org.mockito.Mockito
 
 class DeviceSerialActionTest {
-    private var originalPlatformApi: IPlatformApi? = null
-
-    @Before
-    fun setUp() {
-        originalPlatformApi = runCatching { PlatformApi.impl }.getOrNull()
-    }
-
-    @After
-    fun tearDown() {
-        originalPlatformApi?.let { PlatformApi.impl = it }
-    }
-
     @Test
     fun testDevicesReturnsOnlyExplicitOnlineSerial() {
-        val first = device()
-        val second = device()
-        installPlatformApi(
-            mapOf(first to adb("device-1", true), second to adb("device-2", true)),
-        )
+        val first = device("device-1")
+        val second = device("device-2")
         val manager = Mockito.mock(IDeployTargetManager::class.java)
         Mockito.`when`(manager.getConnectedDevices()).thenReturn(listOf(first, second))
 
@@ -52,8 +33,7 @@ class DeviceSerialActionTest {
 
     @Test
     fun testDevicesReturnsNoDeviceForMissingExplicitSerial() {
-        val device = device()
-        installPlatformApi(mapOf(device to adb("device-1", true)))
+        val device = device("device-1")
         val manager = Mockito.mock(IDeployTargetManager::class.java)
         Mockito.`when`(manager.getConnectedDevices()).thenReturn(listOf(device))
 
@@ -67,8 +47,7 @@ class DeviceSerialActionTest {
 
     @Test
     fun testStatusUsesExplicitDeviceState() {
-        val target = device()
-        installPlatformApi(mapOf(target to adb("device-2", true)))
+        val target = device("device-2")
         val manager = Mockito.mock(IDeployTargetManager::class.java)
         Mockito.`when`(manager.getTargetDevices("device-2")).thenReturn(listOf(target))
         val stateManager = Mockito.mock(IDeployStateManager::class.java)
@@ -106,26 +85,12 @@ class DeviceSerialActionTest {
         }
     }
 
-    private fun device(): IDevice {
+    private fun device(serial: String): IDevice {
         return Mockito.mock(IDevice::class.java).also {
+            Mockito.`when`(it.serialNumber).thenReturn(serial)
+            Mockito.`when`(it.name).thenReturn(serial)
             Mockito.`when`(it.isOnline).thenReturn(true)
+            Mockito.`when`(it.version).thenReturn(AndroidVersion(34))
         }
-    }
-
-    private fun adb(serial: String, isOnline: Boolean): IDeviceAdb {
-        return Mockito.mock(IDeviceAdb::class.java).also {
-            Mockito.`when`(it.serial).thenReturn(serial)
-            Mockito.`when`(it.displayName).thenReturn(serial)
-            Mockito.`when`(it.api).thenReturn(34)
-            Mockito.`when`(it.isOnline).thenReturn(isOnline)
-        }
-    }
-
-    private fun installPlatformApi(adbByDevice: Map<IDevice, IDeviceAdb>) {
-        val platformApi = Mockito.mock(IPlatformApi::class.java)
-        adbByDevice.forEach { (device, adb) ->
-            Mockito.`when`(platformApi.toDeviceAdb(device)).thenReturn(adb)
-        }
-        PlatformApi.impl = platformApi
     }
 }
