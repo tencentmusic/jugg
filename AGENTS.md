@@ -58,6 +58,14 @@
 3. 标题优先描述用户场景和可观察结果，不描述内部实现；没有直接用户时，从调用方、维护者、Agent 或运维人员视角描述。`[bugfix]` 默认使用 `[bugfix] fix <problem manifestation> when/after/for <scenario>`，不得默认套用 `prevent ... from ...`；`[optimize]` 推荐使用 `[optimize] <improvement outcome> when/for <scenario>`，不得仅通过措辞把实际 bugfix 归类为 optimize。
 4. 标题无法充分说明原因和实现时，在空行后的正文中使用自然语言补充；仅在正文较长时使用 `Problem:`、`Cause:`、`Solution:` 等小标题。
 
+## GitHub Issue URL 读取
+
+- 用户提供 `https://github.com/{owner}/{repo}/issues/{number}` URL 时，优先执行：
+  `python3 tools/fetch_github_issue.py <issue-url>`。
+- 脚本只读取 Issue、评论、标签、状态和 Jugg Report ID，不执行 GitHub 写操作。
+- Token 只允许通过环境变量 `GITHUB_TOKEN` 提供，禁止写入仓库、命令参数、Issue 或对话。
+- 脚本读取失败时，再使用内置 Browser 作为回退；不得因为脚本失败伪造 Issue 内容。
+
 ## 问题排查流程
 
 **收到插件运行时问题排查任务时如，增量编译失败，Android runtime crash，部署失败，流程不符合预期等，按照以下流程指引排查：**
