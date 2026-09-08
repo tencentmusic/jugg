@@ -1,6 +1,6 @@
 # 代码路径速查表（Code Map）
 
-> 最后核对：2026-09-04
+> 最后核对：2026-09-08
 > 口径：生产代码目录（不含 `build/` 与 `src/test/`）  
 > 一致性规则：文档与代码冲突时，以代码为准。
 
@@ -51,7 +51,7 @@
 | androidTest 运行入口 | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/JuggAndroidTestRunConfiguration.kt`, `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/JuggAndroidTestLineMarkerContributor.kt`, `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/JuggAndroidTestConsoleProperties.kt`, `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/JuggAndroidTestRerunFailedTestsAction.kt` | app `src/androidTest` gutter 与临时 RunConfig，生成 `AndroidTestRunSpec` 后进入 Jugg run pipeline；androidTest run 使用 SM Test Runner console，支持 Test Results 树、source navigation 与 rerun failed |
 | Jugg Control Panel | `idea/src/main/java/com/sickworm/intellij/jugg/ide/ui/JuggToolWindowFactory.kt`, `JuggControlPanel.kt`, `JuggControlPanelController.kt`, `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/ui/OpenJuggControlPanelAction.kt` | 项目级右侧 `Jugg Running Pannel`；Overview / Logs / Settings 消费真实 snapshot，Settings 承载条件开关、按设备 compat、custom server 与测试操作；Run Configuration 的 `More options` 直接打开 Settings |
 | 远程自定义命令 | `idea/src/main/java/com/sickworm/intellij/jugg/ide/logic/RemoteCommandRunner.kt`, `idea/src/main/java/com/sickworm/intellij/jugg/ide/ui/RemoteCommandDialog.kt`, `main/src/main/java/com/sickworm/intellij/jugg/gradle/compile/RemoteUserCommand.kt`, `main/src/main/java/com/sickworm/intellij/jugg/ide/bean/JuggSettings.kt` | 使用当前选中的远程 Jugg Configuration，在固定远程项目目录执行非交互命令；独立 Run Content 支持 Stop，唯一完成标记隔离用户输出，`JuggSettings` 按远程目标保存最近 10 条命令 |
-| Gradle Sync 监听 | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/JuggGradleSyncListener.kt` | Sync 事件上报 Jugg |
+| Gradle Sync 监听 | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/JuggProjectManagerListener.kt`, `JuggGradleSyncListener.kt` | 项目打开时反射调用 `GradleSyncState.subscribe(Project, GradleSyncListener, Disposable)` 完成一次性订阅，Sync 事件上报 Jugg |
 
 ---
 
