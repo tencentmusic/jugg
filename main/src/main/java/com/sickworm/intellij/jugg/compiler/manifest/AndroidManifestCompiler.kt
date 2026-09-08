@@ -51,8 +51,16 @@ class AndroidManifestCompiler(
                 val module = it.module
 
                 val manifestPlaceHolders = module.manifestPlaceHolders.orEmpty().toMutableMap()
-                // Gradle resolves applicationId placeholders against the current target APK.
-                manifestPlaceHolders["applicationId"] = apkFileUnit.applicationId
+                val isApplicationManifest = module.moduleRootDir == context.applicationModule?.moduleRootDir ||
+                        module.moduleType == ModuleInfo.Type.Application ||
+                        module.moduleType == ModuleInfo.Type.DynamicFeature ||
+                        module.isAndroidTestModule
+                if (isApplicationManifest) {
+                    manifestPlaceHolders["applicationId"] = apkFileUnit.applicationId
+                } else {
+                    // Library merges preserve an explicitly configured applicationId placeholder.
+                    manifestPlaceHolders.putIfAbsent("applicationId", apkFileUnit.applicationId)
+                }
 
                 if (module.namespace != null) {
                     manifestPlaceHolders[ManifestDiffer.JUGG_NAMESPACE_IN_GRADLE] = module.namespace

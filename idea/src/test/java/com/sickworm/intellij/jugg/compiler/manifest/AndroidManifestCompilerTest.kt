@@ -198,4 +198,48 @@ class AndroidManifestCompilerTest {
             provider.getAttribute("android:authorities"),
         )
     }
+
+    @Test
+    fun `library explicit applicationId placeholder is preserved`() {
+        val libraryApplicationId = "com.example.library.fixed"
+        val changedManifestFile = File(tempCompileDir, "library_explicit_placeholder/AndroidManifest.xml")
+        changedManifestFile.parentFile.mkdirs()
+        changedManifestFile.writeText(
+            """
+                <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+                    package="com.example.library">
+                    <application>
+                        <provider
+                            android:name="com.example.ExplicitFileProvider"
+                            android:authorities="${'$'}{applicationId}.explicit-fileprovider" />
+                    </application>
+                </manifest>
+            """.trimIndent()
+        )
+        val libraryModule = context.tempModule.copy(
+            manifestPlaceHolders = mapOf("applicationId" to libraryApplicationId),
+        )
+        val compileFile = CompileFile(
+            CompileFile.Type.AndroidManifest,
+            changedManifestFile,
+            changedManifestFile.parentFile,
+            libraryModule,
+        )
+        val compileTask = CompileTask(listOf(compileFile), File(stagingDir, "library_explicit_placeholder"))
+        val apkFileUnit = context.apkInfos.first().files.first()
+
+        val compileResult = AndroidManifestCompiler(context, mockParentDisposable)
+            .doApkCompile(compileTask, apkFileUnit)
+
+        assertTrue(compileResult.isAllSuccess)
+        val outputManifest = compileResult.outputs.single().file
+        val providers = XmlParser().parse(outputManifest).node.getElementsByTagName("provider")
+        val provider = (0 until providers.length)
+            .map { providers.item(it) as Element }
+            .single { it.getAttribute("android:name") == "com.example.ExplicitFileProvider" }
+        assertEquals(
+            "$libraryApplicationId.explicit-fileprovider",
+            provider.getAttribute("android:authorities"),
+        )
+    }
 }

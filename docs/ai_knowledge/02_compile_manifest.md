@@ -29,7 +29,7 @@
 | 数据 | 生产者 | 消费者 | 关键约束 |
 |---|---|---|---|
 | 基准 merged manifest | Gradle 上次构建产物，或 Jugg 上轮写入 `tempModule/res/AndroidManifest.xml` | `AndroidManifestCompiler` | Jugg 在最终 merged manifest 上 patch，避免 raw manifest 丢失 variant merge 结果 |
-| `ChangedManifestFile` | `AndroidManifestCompiler` | `ManifestDiffer` | 所有变更 manifest 都使用当前目标 APK 的 `applicationId` 解析内置 placeholder；存在 namespace 时补 `JUGG_NAMESPACE_IN_GRADLE` |
+| `ChangedManifestFile` | `AndroidManifestCompiler` | `ManifestDiffer` | application 类 manifest 使用当前目标 APK 的 `applicationId`；library 显式配置同名 placeholder 时保留原值，否则补目标 APK 值；存在 namespace 时补 `JUGG_NAMESPACE_IN_GRADLE` |
 | Manifest diff element | `ManifestDiffer` | `AndroidManifestMerger` | 只携带新增节点和新增/更新属性；删除节点、删除属性和 `tools:node="remove"` 不进入 patch |
 
 ---
