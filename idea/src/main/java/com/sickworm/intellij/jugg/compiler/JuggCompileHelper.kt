@@ -455,9 +455,6 @@ class JuggCompilerHelper(
             logger.info("Deploy state ${deployStateManager.deployState} not ready for incremental compile. Return.")
             return CompileTaskResult.incrementalFailed(true, deployState.msg)
         }
-        checkDeviceFallback()?.let {
-            return it
-        }
 
         if (JuggSettings.isEmbeddedToApk) {
             val isStillNeedEmbedded = uiHandler.confirmEmbeddedToApk()
