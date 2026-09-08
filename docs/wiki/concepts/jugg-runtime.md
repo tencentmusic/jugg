@@ -75,7 +75,7 @@ An Apply Changes overlay belongs to the host app resources, but an independent p
 
 Jugg Runtime identifies the APK associated with the current Resources. Host resources retain the overlay, while non-host resource environments remove it so that one local resource update does not expand into an initialization failure in another component.
 
-When a resource patch replaces the AssetManager, Jugg Runtime also preserves the shared resource paths that the system recorded in ApplicationInfo. After the system adds the WebView APK to host resources, some vendor implementations may still leave its resource package ID unassigned. Jugg Runtime remounts the WebView APK only when the system has already declared that shared resource path and the package ID is actually missing; otherwise it leaves the AssetManager unchanged.
+When a resource patch replaces the AssetManager, Jugg Runtime also preserves the shared resource paths recorded by the system. Some vendor WebView implementations may use a different host Resources object for package ID lookup. Jugg Runtime adds the system-loaded WebView APK paths directly to that object only when its AssetManager actually lacks the target package; otherwise it leaves the AssetManager unchanged.
 
 ### Android version and Apply Changes behavior do not match
 

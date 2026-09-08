@@ -4,8 +4,11 @@ import android.annotation.SuppressLint;
 import android.app.*;
 import android.content.Context;
 import android.content.ContextWrapper;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageInfo;
 import android.content.res.ApkAssets;
 import android.content.res.AssetManager;
+import android.content.res.Resources;
 import android.content.res.ResourcesKey;
 import android.util.SparseArray;
 import com.sickworm.intellij.jugg.hotfix.HotfixLoader;
@@ -19,6 +22,7 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.zip.ZipFile;
@@ -395,6 +399,127 @@ public class InstrumentationHooks {
             }
         }
         return false;
+    }
+
+    /**
+     * Repairs the exact AssetManager used by WebView package id lookup and records object identity.
+     */
+    public static void webViewGetPackageIdEnter(Object webViewDelegate, Resources resources,
+            String packageName) {
+        if (resources == null || packageName == null) {
+            return;
+        }
+        AssetManager assetManager = resources.getAssets();
+        try {
+            SparseArray<String> assignedPackages = getAssignedPackageIdentifiers(assetManager);
+            String[] webViewAssetPaths = getLoadedWebViewAssetPaths(packageName);
+            logWebViewPackageIdState("before", webViewDelegate, resources, assetManager, packageName,
+                    assignedPackages, webViewAssetPaths);
+            if (containsPackage(assignedPackages, packageName)) {
+                return;
+            }
+
+            Method addSharedLibrary = ReflectUtil.findMethod(
+                    assetManager, "addAssetPathAsSharedLibrary", String.class);
+            for (String webViewAssetPath : webViewAssetPaths) {
+                try {
+                    int cookie = (Integer) addSharedLibrary.invoke(assetManager, webViewAssetPath);
+                    LogUtils.i(TAG, "WebView getPackageId repair path=" + webViewAssetPath +
+                            ", package=" + packageName + ", cookie=" + cookie +
+                            ", resources=" + identity(resources) +
+                            ", assets=" + identity(assetManager));
+                    assignedPackages = getAssignedPackageIdentifiers(assetManager);
+                    if (containsPackage(assignedPackages, packageName)) {
+                        break;
+                    }
+                } catch (Throwable e) {
+                    LogUtils.w(TAG, "WebView getPackageId repair path failed, path=" + webViewAssetPath +
+                            ", package=" + packageName + ", cause=" + e);
+                }
+            }
+            logWebViewPackageIdState("after", webViewDelegate, resources, assetManager, packageName,
+                    assignedPackages, webViewAssetPaths);
+        } catch (Throwable e) {
+            LogUtils.w(TAG, "WebView getPackageId repair failed, package=" + packageName +
+                    ", resources=" + identity(resources) +
+                    ", assets=" + identity(assetManager) + ", cause=" + e);
+        }
+    }
+
+    private static String[] getLoadedWebViewAssetPaths(String packageName) throws Exception {
+        Class<?> webViewFactory = Class.forName("android.webkit.WebViewFactory");
+        Method getLoadedPackageInfo = ReflectUtil.findMethod(webViewFactory, "getLoadedPackageInfo");
+        PackageInfo packageInfo = (PackageInfo) getLoadedPackageInfo.invoke(null);
+        if (packageInfo == null || !packageName.equals(packageInfo.packageName) ||
+                packageInfo.applicationInfo == null) {
+            return new String[0];
+        }
+
+        ApplicationInfo applicationInfo = packageInfo.applicationInfo;
+        try {
+            Method getAllApkPaths = ReflectUtil.findMethod(applicationInfo, "getAllApkPaths");
+            String[] paths = (String[]) getAllApkPaths.invoke(applicationInfo);
+            return paths == null ? new String[0] : paths;
+        } catch (Throwable ignored) {
+            LinkedHashSet<String> paths = new LinkedHashSet<>();
+            addPath(paths, applicationInfo.sourceDir);
+            addPaths(paths, applicationInfo.splitSourceDirs);
+            addPaths(paths, applicationInfo.sharedLibraryFiles);
+            return paths.toArray(new String[0]);
+        }
+    }
+
+    private static void addPaths(LinkedHashSet<String> paths, String[] values) {
+        if (values == null) {
+            return;
+        }
+        for (String value : values) {
+            addPath(paths, value);
+        }
+    }
+
+    private static void addPath(LinkedHashSet<String> paths, String value) {
+        if (value != null && !value.isEmpty()) {
+            paths.add(value);
+        }
+    }
+
+    private static void logWebViewPackageIdState(String phase, Object webViewDelegate,
+            Resources resources, AssetManager assetManager, String packageName,
+            SparseArray<String> assignedPackages, String[] webViewAssetPaths) {
+        try {
+            Application application = getCurrentApplication();
+            Resources applicationResources = application == null ? null : application.getResources();
+            AssetManager applicationAssets = applicationResources == null ? null :
+                    applicationResources.getAssets();
+            LogUtils.i(TAG, "WebView getPackageId state phase=" + phase +
+                    ", delegate=" + identity(webViewDelegate) +
+                    ", package=" + packageName +
+                    ", resources=" + identity(resources) +
+                    ", assets=" + identity(assetManager) +
+                    ", application=" + identity(application) +
+                    ", applicationResources=" + identity(applicationResources) +
+                    ", applicationAssets=" + identity(applicationAssets) +
+                    ", assignedPackages=" + assignedPackages +
+                    ", repairPaths=" + Arrays.toString(webViewAssetPaths) +
+                    ", apkAssets=" + Arrays.toString(getAssetPaths(assetManager)));
+        } catch (Throwable e) {
+            LogUtils.w(TAG, "WebView getPackageId state failed, phase=" + phase +
+                    ", package=" + packageName + ", cause=" + e);
+        }
+    }
+
+    private static Application getCurrentApplication() throws Exception {
+        Class<?> activityThread = Class.forName("android.app.ActivityThread");
+        Method currentApplication = ReflectUtil.findMethod(activityThread, "currentApplication");
+        return (Application) currentApplication.invoke(null);
+    }
+
+    private static String identity(Object value) {
+        if (value == null) {
+            return "null";
+        }
+        return value.getClass().getName() + "@" + Integer.toHexString(System.identityHashCode(value));
     }
 
     public static void sendMessageEnter(ActivityThread activityThread, int what, Object obj, int arg1, int arg2, boolean async) {

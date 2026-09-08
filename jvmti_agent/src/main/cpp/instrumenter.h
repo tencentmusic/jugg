@@ -109,14 +109,18 @@ class HookTransform : public Transform {
  public:
   HookTransform(const std::string& class_name, const std::string& method_name,
                 const std::string& method_signature,
-                const std::string& entry_hook, const std::string& exit_hook)
-      : Transform(class_name) {
+                const std::string& entry_hook, const std::string& exit_hook,
+                bool use_object_type_for_this_argument = false)
+      : Transform(class_name),
+        use_object_type_for_this_argument_(use_object_type_for_this_argument) {
     hooks_.emplace_back(method_name, method_signature, entry_hook, exit_hook);
   }
 
   HookTransform(const std::string& class_name,
                 const std::vector<MethodHooks>& hooks)
-      : Transform(class_name), hooks_(hooks) {}
+      : Transform(class_name),
+        hooks_(hooks),
+        use_object_type_for_this_argument_(false) {}
 
   void Apply(std::shared_ptr<ir::DexFile> dex_ir) const override {
     for (const MethodHooks& hook : hooks_) {
@@ -124,9 +128,7 @@ class HookTransform : public Transform {
       if (hook.entry_hook != MethodHooks::kNoHook) {
         const ir::MethodId entry_hook(kHookClassName, hook.entry_hook.c_str());
         mi.AddTransformation<slicer::EntryHook>(
-        // covert this as object. slicer in AOSP has this feature, but my version doesn't.(compile fail)
-//            entry_hook, slicer::EntryHook::Tweak::ThisAsObject);
-            entry_hook);
+            entry_hook, use_object_type_for_this_argument_);
       }
       if (hook.exit_hook != MethodHooks::kNoHook) {
         const ir::MethodId exit_hook(kHookClassName, hook.exit_hook.c_str());
@@ -148,6 +150,7 @@ class HookTransform : public Transform {
   const char* kHookClassName =
       "Lcom/sickworm/intellij/jugg/instrument/InstrumentationHooks;";
   std::vector<MethodHooks> hooks_;
+  const bool use_object_type_for_this_argument_;
 };
 
 // Applies an entry hook whose non-null object result bypasses the target method.

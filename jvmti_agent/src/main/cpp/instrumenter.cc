@@ -215,6 +215,13 @@ bool Instrument(jvmtiEnv* jvmti, JNIEnv* jni, const std::string& jar,
         "(Landroid/content/res/ResourcesKey;Landroid/app/ResourcesManager$ApkAssetsSupplier;)Landroid/content/res/AssetManager;", // used in Android 14 at least
         "createAssetManagerNewEnter", "createAssetManagerNewExit");
 
+    const HookTransform webViewDelegate(
+        "android/webkit/WebViewDelegate",
+        "getPackageId",
+        "(Landroid/content/res/Resources;Ljava/lang/String;)I",
+        "webViewGetPackageIdEnter", MethodHooks::kNoHook,
+        true);
+
     const MethodHooks sendMessage(
         "sendMessage",
         "(ILjava/lang/Object;IIZ)V",
@@ -250,7 +257,7 @@ bool Instrument(jvmtiEnv* jvmti, JNIEnv* jni, const std::string& jar,
         jni,
         kNoCache,
         { &application, &appComponentFactory, &resManager, &activityThread,
-          &classLoader });
+          &classLoader, &webViewDelegate });
     ApplyTransforms(jvmti, jni, kNoCache, { &resManagerNew });
   }
 

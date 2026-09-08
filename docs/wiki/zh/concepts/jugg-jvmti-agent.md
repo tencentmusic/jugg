@@ -26,7 +26,7 @@ Android Studio Apply Changes 依赖 JVMTI Agent，把结构未变化的 class �
 
 - 部分系统提前初始化 ClassLoader，导致已下发的增量 DEX 没有进入加载路径时，App runtime 会在启动阶段补入对应 DEX。
 - Apply Changes 把宿主 App 的资源 overlay 带入 WebView provider 等非宿主资源环境时，provider 初始化可能触发 `IllegalStateException: Already registered a list of actions in this process`。Agent hook 会从这些资源环境中移除宿主 overlay，同时保留宿主 App 自己的资源更新。
-- 资源补丁替换 AssetManager 时，App runtime 会保留系统已声明的共享资源路径。部分厂商 WebView 初始化后仍缺少对应 package ID 时，Agent 只在确认系统已提供 WebView APK 且该 ID 缺失后重新挂载路径，并记录修复前后的资源状态。
+- 资源补丁替换 AssetManager 时，App runtime 会保留系统已声明的共享资源路径。部分厂商 WebView 在实际查询 package ID 的 Resources 中仍缺少对应资源时，Agent 会记录查询入口的资源对象，并仅把系统已经加载的 WebView APK 补到该 AssetManager。
 - Android 15 与较旧 Android Studio 组合没有完整刷新资源和 Activity 时，Agent hook 会补齐资源更新通知和需要的 Activity 重建。
 
 这些修正相互独立。某个系统版本不存在对应 Framework 类或单个 hook 安装失败时，其它可用修正仍会继续执行。DEX、资源和 Application 的完整处理方式见[App 进程内 Jugg runtime](./jugg-runtime.md)。

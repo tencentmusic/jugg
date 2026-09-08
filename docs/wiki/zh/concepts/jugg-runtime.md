@@ -75,7 +75,7 @@ Apply Changes overlay 应用于宿主 App 资源，但 WebView provider 等独�
 
 Jugg runtime 会识别当前 Resources 对应的 APK。宿主资源继续保留 overlay，非宿主资源环境则移除这条 overlay，避免局部资源更新扩大成其它组件的初始化异常。
 
-资源补丁需要替换 AssetManager 时，Jugg runtime 会把系统已写入 ApplicationInfo 的共享资源路径一并保留。系统为宿主资源加入 WebView APK 后，部分厂商实现仍可能没有分配对应的资源 package ID；此时仅在系统已经声明这条共享资源路径、且 package ID 确实缺失时重新挂载 WebView APK。未命中这些条件时保持原有 AssetManager 不变。
+资源补丁需要替换 AssetManager 时，Jugg runtime 会把系统已写入 ApplicationInfo 的共享资源路径一并保留。部分厂商 WebView 可能使用另一份宿主 Resources 查询 package ID；查询入口的 AssetManager 确实缺少目标包时，runtime 才会把系统已加载的 WebView APK 路径补到该对象。未命中这些条件时保持原有 AssetManager 不变。
 
 ### Android 版本与 Apply Changes 行为不匹配
 

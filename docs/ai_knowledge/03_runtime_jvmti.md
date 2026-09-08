@@ -117,7 +117,9 @@ Jugg 在 `ResourcesManager#createAssetManager` 的新旧签名中记录当前 `R
 
 宿主 APK 路径尚未记录时，策略退回到旧的 `/data/app` 路径判断。该修正只处理非宿主资源环境，不能删除宿主 Activity 正常热更新所需的 overlay；compat deploy 启用时也必须跳过这条普通 Apply Changes overlay 修正。
 
-`ResourcesPatchLoader` 新建 AssetManager 时，会把 `ApplicationInfo.sharedLibraryFiles` 中系统已声明的共享库路径重新按 shared library 加入，避免资源补丁替换丢失 WebView 等共享资源。系统后续创建 AssetManager 时，如果 `ResourcesKey.mLibDirs` 已包含 WebView APK，exit hook 还会记录 APK 路径和 package identifiers；若当前 WebView 包仍未取得 package id，Jugg 仅对该 WebView APK 再调用一次 `addAssetPathAsSharedLibrary()`，并记录修复前后状态。该兼容不主动加载 WebView，也不处理未由系统声明为 shared library 的 APK。
+`ResourcesPatchLoader` 新建 AssetManager 时，会把 `ApplicationInfo.sharedLibraryFiles` 中系统已声明的共享库路径重新按 shared library 加入，避免资源补丁替换丢失 WebView 等共享资源。系统后续创建 AssetManager 时，如果 `ResourcesKey.mLibDirs` 已包含 WebView APK，exit hook 还会记录 APK 路径和 package identifiers；若当前 WebView 包仍未取得 package id，Jugg 仅对该 WebView APK 再调用一次 `addAssetPathAsSharedLibrary()`，并记录修复前后状态。
+
+部分厂商 WebView 可能在 provider AssetManager 已包含 package id 时，仍把另一份宿主 Resources 传给 `WebViewDelegate#getPackageId()`。Agent 会记录该入口的 Resources、AssetManager 与当前 Application 资源对象 identity；只有入口 AssetManager 确实缺少目标包时，才从 `WebViewFactory` 已加载的 provider `ApplicationInfo#getAllApkPaths()` 取得系统路径，并直接补到这份 AssetManager。该兼容不主动加载 WebView，provider 未加载、包名不匹配或 package id 已存在时保持原状态。
 
 ### 4.5 ClassLoader resource overlay
 
@@ -190,7 +192,7 @@ hook 不限制资源名。部署到 `.overlay` 的内容是预期覆盖状态，
 | ASUS 未进入兼容部署 | `CompatDeployHelper.isEnableCompatDeploy()` 读取的 `ro.product.manufacturer` 是否为 `asus`（忽略大小写与首尾空白） |
 | HarmonyOS 未进入兼容部署 | `CompatDeployHelper.isEnableCompatDeploy()` 读取的 `hw_sc.build.platform.version`；`JuggSettings.finalIsEnableCompatibleDeploymentMode` 应恒为 `true` |
 | WebView 初始化报 `Already registered a list of actions in this process` | 检查 `assetManager hook action=fix`、非宿主 `resDir` 和宿主 APK 路径是否已由 `ApplyChangesOverlayPolicy` 记录 |
-| WebView 初始化报 `Package not found` | 检查 `WebView asset state` 的 `libDirs`、`assignedPackages` 和 `apkAssets`，以及是否出现 `WebView package id repair` |
+| WebView 初始化报 `Package not found` | 先检查 `WebView getPackageId state` 中入口 Resources/AssetManager 与 Application 资源 identity、`assignedPackages`、`repairPaths`，再对照 `WebView asset state` 判断是否为不同资源实例；检查是否出现 `WebView getPackageId repair` |
 | compat deploy 中 Application 资源正常、Activity 报 `Resources$NotFoundException` | 检查 `isEnableHotfix()` 是否过早缓存 false，以及 `createAssetManagerNewExit()` 是否删除了 `resource.ap_` |
 | 业务 `ActivityLifecycleCallbacks` 完全不回调 | 先看 `replaceApplication: no LoadedApk#mApplication replaced` warn 是否出现；未出现时对比 Activity `getApplication()` 与业务 Application 的 identity，确认注册与分派是否落在同一实例 |
 | legacy Compose resource 仍是旧值 | 检查 `java/lang/ClassLoader` retransformation、`Classpath resource hook in`、overlay hit 来源，以及部署后是否重启进程 |
