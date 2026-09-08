@@ -48,6 +48,8 @@ interface IPlatformApi {
 
     fun getAndroidHomePath(logger: Logger): String?
 
+    fun getEnvironmentVariables(logger: Logger): Map<String, String> = System.getenv()
+
     fun getIdeVersion(): String
 
     fun toDeviceAdb(device: IDevice): IDeviceAdb?

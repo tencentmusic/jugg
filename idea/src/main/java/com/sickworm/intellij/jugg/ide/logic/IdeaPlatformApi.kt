@@ -8,6 +8,7 @@ import com.intellij.openapi.projectRoots.JavaSdk
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.roots.ModuleRootManager
+import com.intellij.util.EnvironmentUtil
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.deploy.IdeaDeviceAdb
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
@@ -98,6 +99,15 @@ class IdeaPlatformApi : IPlatformApi {
             logger.debug("final use gradleJdkPath: $gradleJdkPath")
         }
         return gradleJdkPath
+    }
+
+    override fun getEnvironmentVariables(logger: Logger): Map<String, String> {
+        return try {
+            EnvironmentUtil.getEnvironmentMap()
+        } catch (e: Throwable) {
+            logger.warn("Failed to load shell environment, fallback to IDE process environment.", e)
+            System.getenv()
+        }
     }
 
     private fun getConfiguredGradleJdkPath(project: Project, logger: Logger): String? {

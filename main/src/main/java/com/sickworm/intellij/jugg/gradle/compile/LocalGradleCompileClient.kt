@@ -415,7 +415,7 @@ class LocalGradleCompileClient(
         fun buildCompileEnv(project: Project, logger: Logger): List<String> {
             val gradleJdkPath = PlatformApi.getGradleJdkPath(project, logger)
             val androidHomePath = PlatformApi.getAndroidHomePath(logger)
-            val envArray: MutableList<String> = System.getenv().entries
+            val envArray: MutableList<String> = PlatformApi.getEnvironmentVariables(logger).entries
                 .filter {
                     it.key != "JAVA_HOME" && it.key != "ANDROID_HOME"
                 }
