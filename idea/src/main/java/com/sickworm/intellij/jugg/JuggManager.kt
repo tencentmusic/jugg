@@ -872,6 +872,7 @@ class JuggManager @TestOnly constructor(
                     projectSummary = mapOf(
                         "moduleCount" to compileContextManager.compileContext.modules.size,
                     ),
+                    projectInfoDir = pathManager.projectInfosDir,
                     logFiles = logFiles,
                     logcat = logcatErrorLog,
                     hookDebugLog = File(JuggGlobalPathManager.rootDir, "skills/hooks/jugg-hook-debug.log"),
