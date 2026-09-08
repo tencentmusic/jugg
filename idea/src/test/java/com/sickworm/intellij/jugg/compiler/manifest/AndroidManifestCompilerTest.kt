@@ -180,7 +180,9 @@ class AndroidManifestCompilerTest {
             context.tempModule,
         )
         val compileTask = CompileTask(listOf(compileFile), File(stagingDir, "library_placeholder"))
-        val apkFileUnit = context.apkInfos.first().files.first()
+        val apkFileUnit = context.apkInfos.first().files.first().copy(
+            applicationId = "com.example.test",
+        )
 
         val compileResult = AndroidManifestCompiler(context, mockParentDisposable)
             .doApkCompile(compileTask, apkFileUnit)
@@ -192,7 +194,7 @@ class AndroidManifestCompilerTest {
             .map { providers.item(it) as Element }
             .single { it.getAttribute("android:name") == "com.example.ReportFileProvider" }
         assertEquals(
-            "${context.packageName}.report-fileprovider",
+            "${apkFileUnit.applicationId}.report-fileprovider",
             provider.getAttribute("android:authorities"),
         )
     }
