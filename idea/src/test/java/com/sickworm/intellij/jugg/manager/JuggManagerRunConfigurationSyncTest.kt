@@ -820,11 +820,19 @@ class JuggManagerRunConfigurationSyncTest {
         assertEquals("app", sameNamedRootModule)
         assertEquals(
             "./gradlew :app:assembleDevDebug",
-            SuggestRunConfiguration.createCompileCommand(rootModule, "assembleDevDebug"),
+            SuggestRunConfiguration.createCompileCommand(":app", "assembleDevDebug"),
         )
         assertEquals(
             "./gradlew :SMCommon:app:assembleDevDebug",
-            SuggestRunConfiguration.createCompileCommand(includedModule, "assembleDevDebug"),
+            SuggestRunConfiguration.createCompileCommand(":SMCommon:app", "assembleDevDebug"),
+        )
+    }
+
+    @Test
+    fun suggestRunConfiguration_dottedGradleModulePathPreservesSegmentName() {
+        assertEquals(
+            "./gradlew :zxphone5.0:assembleGooglePlayDev",
+            SuggestRunConfiguration.createCompileCommand(":zxphone5.0", "assembleGooglePlayDev"),
         )
     }
 
@@ -851,6 +859,28 @@ class JuggManagerRunConfigurationSyncTest {
     }
 
     @Test
+    fun suggestRunConfiguration_gradleTaskPathPreservesProjectPathSegments() {
+        assertEquals(
+            ":zxphone5.0",
+            SuggestRunConfiguration.resolveGradleModulePath(
+                gradleProjectPath = ":zxphone5.0",
+                gradleBuildRoot = "/repo",
+                projectDir = File("/repo"),
+                externalProjectId = "Root:zxphone5.0:main",
+            ),
+        )
+        assertEquals(
+            ":SMCommon:feature.api:app",
+            SuggestRunConfiguration.resolveGradleModulePath(
+                gradleProjectPath = ":feature.api:app",
+                gradleBuildRoot = "/repo/SMCommon",
+                projectDir = File("/repo"),
+                externalProjectId = "SMCommon:feature.api:app:main",
+            ),
+        )
+    }
+
+    @Test
     fun suggestRunConfiguration_gradleIdentityFailureFallsBackToLegacyModuleName() {
         val module = mock<Module>()
         val project = mock<Project>()
@@ -859,6 +889,7 @@ class JuggManagerRunConfigurationSyncTest {
         whenever(project.basePath).thenReturn("/repo")
 
         assertEquals("app.debug", SuggestRunConfiguration.resolveModuleName(module, project))
+        assertEquals(":app:debug", SuggestRunConfiguration.resolveGradleModulePath(module, project))
     }
 
     @Test
@@ -877,7 +908,7 @@ class JuggManagerRunConfigurationSyncTest {
             ideModuleName = "JuggDuplicateAppModules.app.main",
             rootProjectName = "JuggDuplicateAppModules",
         )
-        val compileCommand = SuggestRunConfiguration.createCompileCommand(moduleName, "assembleDevDebug")
+        val compileCommand = SuggestRunConfiguration.createCompileCommand(":app", "assembleDevDebug")
         whenever(fixture.asDeployerCompat.getSuggestRunConfigurations(any(), any(), any(), any())).thenReturn(
             listOf(
                 SuggestRunConfiguration(
@@ -894,6 +925,34 @@ class JuggManagerRunConfigurationSyncTest {
         assertEquals("app", moduleName)
         assertEquals("./gradlew :app:assembleDevDebug", compileCommand)
         assertEquals("jugg:app:devDebug", fixture.selectedConfiguration?.name)
+    }
+
+    @Test
+    fun sync_dottedGradleModulePath_selectsActiveVariantConfiguration() {
+        val fixture = createFixture()
+        val debug = fixture.addConfiguration(
+            name = "jugg:zxphone5.0:googlePlayDebug",
+            compileCommand = "./gradlew :zxphone5.0:assembleGooglePlayDebug",
+            outputApkName = "zxphone5.0/build/outputs/apk/googlePlay/debug/*.apk",
+        )
+        fixture.selectedConfiguration = debug
+        whenever(fixture.deployHistoryManager.getFullBuildInfo()).thenReturn(
+            FullBuildInfo("./gradlew :zxphone5.0:assembleGooglePlayDebug", BuildTarget.APP, 1L),
+        )
+        whenever(fixture.asDeployerCompat.getSuggestRunConfigurations(any(), any(), any(), any())).thenReturn(
+            listOf(
+                SuggestRunConfiguration(
+                    moduleName = "zxphone5.0",
+                    compileCommand = "./gradlew :zxphone5.0:assembleGooglePlayDev",
+                    outputApkPath = "zxphone5.0/build/outputs/apk/googlePlay/dev/*.apk",
+                    variantName = "googlePlayDev",
+                ),
+            ),
+        )
+
+        fixture.invokeSync()
+
+        assertEquals("./gradlew :zxphone5.0:assembleGooglePlayDev", fixture.selectedConfiguration?.compileCommand())
     }
 
     private fun createFixture(

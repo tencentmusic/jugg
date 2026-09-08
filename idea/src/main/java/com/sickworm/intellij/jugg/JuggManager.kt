@@ -397,12 +397,16 @@ class JuggManager @TestOnly constructor(
         val selectedModuleName = SuggestRunConfiguration.getModuleNameByRunConfigName(selectedSettings.name)
         val selectedCompileCommand = selectedState.compileCommand ?: return
         val activeSuggestion = suggestions.firstOrNull { it.moduleName == selectedModuleName } ?: return
-        val selectedVariantName = generatedVariant(selectedCompileCommand, selectedModuleName) ?: return
-        val activeVariantName = activeSuggestion.variantName?.let(::normalizeVariantName) ?: return
-        if (selectedVariantName == activeVariantName) {
+        val selectedTarget = generatedTarget(selectedCompileCommand) ?: return
+        val activeTarget = generatedTarget(activeSuggestion.compileCommand) ?: return
+        if (selectedTarget.first != activeTarget.first) {
             return
         }
-        if (generatedVariant(activeSuggestion.compileCommand, selectedModuleName) != activeVariantName) {
+        val activeVariantName = activeSuggestion.variantName?.let(::normalizeVariantName) ?: return
+        if (selectedTarget.second == activeVariantName) {
+            return
+        }
+        if (activeTarget.second != activeVariantName) {
             return
         }
         val activeSettings = availableSettings.filter {
@@ -414,11 +418,11 @@ class JuggManager @TestOnly constructor(
         runManager.selectedConfiguration = activeSettings
     }
 
-    private fun generatedVariant(compileCommand: String, moduleName: String): String? {
-        val modulePath = Regex.escape(moduleName.replace('.', ':'))
-        val match = Regex("^\\./gradlew\\s+:$modulePath:assemble([A-Z][A-Za-z0-9]*)$").matchEntire(compileCommand.trim())
+    private fun generatedTarget(compileCommand: String): Pair<String, String>? {
+        val match = Regex("^\\./gradlew\\s+(:[^\\s:]+(?::[^\\s:]+)*):assemble([A-Z][A-Za-z0-9]*)$")
+            .matchEntire(compileCommand.trim())
             ?: return null
-        return normalizeVariantName(match.groupValues[1])
+        return match.groupValues[1] to normalizeVariantName(match.groupValues[2])
     }
 
     private fun normalizeVariantName(variantName: String): String {

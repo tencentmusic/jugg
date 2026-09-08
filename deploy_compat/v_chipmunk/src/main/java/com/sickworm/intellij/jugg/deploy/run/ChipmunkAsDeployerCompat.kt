@@ -405,8 +405,9 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
 
             // get compile command
             val moduleName = SuggestRunConfiguration.resolveModuleName(module, project)
+            val gradleModulePath = SuggestRunConfiguration.resolveGradleModulePath(module, project)
             val taskName = gradleAndroidModel.mainArtifact.assembleTaskName
-            val compileCommand = SuggestRunConfiguration.createCompileCommand(moduleName, taskName)
+            val compileCommand = SuggestRunConfiguration.createCompileCommand(gradleModulePath, taskName)
 
             // get apk
             val projectPath = project.basePath!!

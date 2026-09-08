@@ -1,6 +1,6 @@
 # Issue #37 Gradle 模块名含点号的运行配置修复方案
 
-> 状态：方案 / 待实现
+> 状态：已实施 / 已验证
 > 关联 Issue：https://github.com/tencentmusic/jugg/issues/37
 > 关联报告：`c82381c3`
 
@@ -181,4 +181,34 @@ Output APK name 保持现有：
 
 ```text
 zxphone5.0/build/outputs/apk/googlePlay/dev/*.apk
+```
+
+## 9. 落地结果
+
+已按推荐方案完成：
+
+1. Run Configuration 使用 Android Studio 提供的原始 Gradle project path 生成 Compile Command；
+2. `:zxphone5.0`、多层模块和 included build path 分别保留点号、层级和 build identity；
+3. Active Build Variant 从实际单 task command 解析 module path 与 variant，不再从 Jugg module identity 反推；
+4. GradleProjectPath 读取失败时继续使用 legacy fallback，不阻断旧 IDE 创建配置；
+5. 中英文 Wiki 与 IDE/compat 知识库已同步。
+
+验证结果：
+
+```text
+./gradlew :idea:test --tests "com.sickworm.intellij.jugg.manager.JuggManagerRunConfigurationSyncTest"
+BUILD SUCCESSFUL
+
+./gradlew :deploy_compat:interface:compileKotlin \
+  :deploy_compat:v_chipmunk:compileKotlin \
+  :deploy_compat:v_narwhal_feature:compileKotlin \
+  :deploy_compat:v_quail:compileKotlin \
+  :idea:compileKotlin
+BUILD SUCCESSFUL
+
+python3 .agents/skills/wiki-writer/scripts/validate_wiki.py --wiki-root docs/wiki
+Wiki validation passed
+
+cd docs/wiki && npm run build
+build complete
 ```
