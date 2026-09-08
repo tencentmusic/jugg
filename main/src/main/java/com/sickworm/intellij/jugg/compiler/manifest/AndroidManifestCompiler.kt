@@ -50,20 +50,20 @@ class AndroidManifestCompiler(
             val changedManifestFileList = task.files.mapNotNull {
                 val module = it.module
 
-                val manifestPlaceHolders = module.manifestPlaceHolders?.toMutableMap()
+                val manifestPlaceHolders = module.manifestPlaceHolders.orEmpty().toMutableMap()
                 val isApplicationManifest = module.moduleRootDir == context.applicationModule?.moduleRootDir
-                if (isApplicationManifest) {
-                    val packageName = context.packageName
-                    if (packageName == null) {
-                        logger.warn("applicationId not found, failed to compile AndroidManifest.xml.")
-                        return createErrorCompileResult(task, "applicationId not found")
-                    }
-                    // applicationId is embedded placeholder for application module
-                    manifestPlaceHolders?.put("applicationId", packageName)
+                val packageName = context.packageName
+                if (packageName == null && isApplicationManifest) {
+                    logger.warn("applicationId not found, failed to compile AndroidManifest.xml.")
+                    return createErrorCompileResult(task, "applicationId not found")
+                }
+                if (packageName != null) {
+                    // Gradle resolves library applicationId placeholders with the final application package.
+                    manifestPlaceHolders["applicationId"] = packageName
                 }
 
                 if (module.namespace != null) {
-                    manifestPlaceHolders?.put(ManifestDiffer.JUGG_NAMESPACE_IN_GRADLE, module.namespace)
+                    manifestPlaceHolders[ManifestDiffer.JUGG_NAMESPACE_IN_GRADLE] = module.namespace
                 }
 
                 if (module.moduleRootDir.path == context.tempModule.moduleRootDir.path) {
