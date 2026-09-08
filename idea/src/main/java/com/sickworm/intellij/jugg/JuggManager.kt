@@ -880,12 +880,6 @@ class JuggManager @TestOnly constructor(
         })
     }
 
-    private fun prepareRun() {
-        taskRunnerManager.runProjectWriteLocked("Refresh custom config") {
-            projectCustomConfigManager.refresh()
-        }
-    }
-
     private fun runTaskSafe(jobName: String, action: Runnable, isNeedShowIndicator: Boolean = true) {
         taskRunnerManager.runTaskSafe(jobName, action, isNeedShowIndicator)
     }
@@ -969,13 +963,12 @@ class JuggManager @TestOnly constructor(
             }
             val task = JuggRunningTask(options, project, juggServer, deployTargetManager, dependencyChangeManager,
                 juggRunningTaskStatusManager, deployHistoryManager, juggCompilerHelper, juggDeployerHelper, initIncrementalCompileTask,
-                compileUiHandler, controlPanelController.model, taskRunnerManager, ::recoverAfterRuntimeOwnerChange,
+                compileUiHandler, controlPanelController.model, taskRunnerManager, projectCustomConfigManager,
+                ::recoverAfterRuntimeOwnerChange,
                 androidTestRunSpec,
                 controlPanelController = controlPanelController,
             )
 
-            // try reload custom config if changed
-            prepareRun()
             ProgressManager.getInstance().run(task)
 
             return task

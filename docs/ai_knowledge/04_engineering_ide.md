@@ -127,6 +127,7 @@ JuggRunConfiguration / JuggAndroidTestRunConfiguration
   -> JuggManager.runTask(options, executor, runProfile, androidTestRunSpec)
   -> JuggConfigurationRunner.runTask()
   -> JuggRunningTask.run()
+     在后台 Run Jugg project write transaction 内刷新 custom config；Run 入口只调度后台任务，不在 EDT 等待 Project Runtime Lock
      dependency start、Run tool window 状态、JuggLogger listener、server report、结构化 task event
   -> JuggCompilerHelper.compile()
      可能走增量，也可能 fallback 到 Gradle

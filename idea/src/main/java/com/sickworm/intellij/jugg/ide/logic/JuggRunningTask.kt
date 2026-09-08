@@ -35,6 +35,7 @@ import com.sickworm.intellij.jugg.ide.ui.JuggControlPanelController
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.project.runtime.ILastCompileProjectRegistry
 import com.sickworm.intellij.jugg.project.runtime.LastCompileProjectRegistry
+import com.sickworm.intellij.jugg.project.runtime.ProjectCustomConfigManager
 import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import com.sickworm.intellij.jugg.server.JuggServer
@@ -68,6 +69,7 @@ class JuggRunningTask(
     baseCompileUiHandler: CompileUiHandler,
     private val eventModel: JuggControlPanelModel,
     private val taskRunnerManager: TaskRunnerManager,
+    private val projectCustomConfigManager: ProjectCustomConfigManager,
     private val recoverAfterRuntimeOwnerChange: () -> Boolean,
     private val androidTestRunSpec: AndroidTestRunSpec? = null,
     private val lastCompileProjectRegistry: ILastCompileProjectRegistry = LastCompileProjectRegistry.INSTANCE,
@@ -104,6 +106,7 @@ class JuggRunningTask(
 
     override fun run(indicator: ProgressIndicator) {
         taskRunnerManager.runProjectWriteLocked("Run Jugg") {
+            projectCustomConfigManager.refresh()
             runLocked(indicator, recoverAfterRuntimeOwnerChange())
         }
     }
