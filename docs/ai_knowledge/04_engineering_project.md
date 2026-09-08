@@ -1,6 +1,6 @@
 # 工程化：项目模型与 Gradle 集成
 
-> 最后核对：2026-09-04
+> 最后核对：2026-09-08
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -218,6 +218,7 @@ APK 拉取全部成功后，`LocalGradleCompileClient` / `RemoteGradleCompileCli
 - `composeResourceInfo` 已按上述链路同步并在 merge 时优先保留 Gradle 值；`main/src/main/resources/gradle/readProjectInfo.gradle.kts` 也必须与 `gradle/script` 生成源一致。
 - `buildReadProjectInfoScript.gradle` 必须收集 init script 内嵌源码的全部非 Gradle classpath 依赖，并按声明依赖排序；`JuggPathManager` 引用 `JuggGlobalPathManager` 时，两者必须同时收集且后者排在前面，避免生成的独立 KTS 编译失败。
 - trailing-comma 清理分两步：先删除 `)` 前尾逗号并保留 `) {` 与行尾注释；再删除嵌套调用留下的 `),\n)` 外层尾逗号，且不得删除 `),\nnextArg` 这种非末参数分隔逗号。否则 Gradle 5/6（Kotlin DSL language version < 1.4）会因残留 `arg),` 脚本编译失败。
+- 改动会进入 `buildReadProjectInfoScript` 的输入时（`gradle/script/**`、被内嵌的 `project/data/**`、`DependencyDiffResult`、生成器本身），验证矩阵必须包含生成脚本**语法**回归，不能只用 Gradle 7/9 功能 compat 代替：默认跑 `ReadProjectInfoScriptContentTest`（含尾逗号等生成契约）；有 JDK 条件时再跑 `ReadProjectInfoGradle5CompatTest` / `ReadProjectInfoGradle6CompatTest`。Gradle 7+ 已接受尾逗号，测过 7/9 不等于语法兼容仍成立。细节与 owner 见 `06_testing.md` §7.4。
 - Project info 只记录选中 Android Kotlin task 为本轮增量编译暴露的 fragment graph，不构建项目全部 target 的完整 Kotlin source-set 依赖图，也不记录 deletion 图或 generated source cache。
 - `ModuleBuildPathInfo` 是 AGP 路径兼容层；不要在编译器里散落硬编码 `build/intermediates/...` 路径。
 - `ModuleBuildPathInfo.buildDirRelativePath` 必须在 Gradle JSON、IDE project info、compile context merge、classpath backup 和 deploy history 序列化中完整保留；修改字段结构时先判断旧值能否确定性迁移，不能仅通过提升 compile context 版本迫使用户重新全量构建。
@@ -255,6 +256,7 @@ APK 拉取全部成功后，`LocalGradleCompileClient` / `RemoteGradleCompileCli
 | library androidTest target package 异常 | 实际 Test APK manifest、`buildAndroidTestModuleInfo()`、`LibraryTestApkBuildHistory` |
 | Compose 默认/自定义资源目录未识别 | `GradleProjectInfoReader.getComposeResourceInfo()`、`readComposeResourceDirectories()` 与序列化后的 `composeResourceInfo` |
 | Compose resource API 不受支持 | task 类型集合与必要属性、task class 的 code source、generator class/method/constructor 结构及 `unsupportedReason` |
+| `-I readProjectInfo.gradle.kts` 报 trailing commas / Expecting an argument | `buildReadProjectInfoScript.gradle` 尾逗号清理；用 `ReadProjectInfoScriptContentTest` 与 Gradle 5/6 compat 回归，见 `06_testing.md` §7.4 |
 
 ---
 
@@ -262,6 +264,7 @@ APK 拉取全部成功后，`LocalGradleCompileClient` / `RemoteGradleCompileCli
 
 - 编译核心：`02_compile_core.md`
 - androidTest：`06_android_test.md`
+- 测试与验证：`06_testing.md`（§7.4 init script 语法回归）
 - IDE 编排：`04_engineering_ide.md`
 - 兼容层：`04_engineering_compat.md`
 - 运行时排查：`09_plugin_runtime_debug.md`
