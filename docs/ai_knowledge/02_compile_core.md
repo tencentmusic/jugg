@@ -63,9 +63,11 @@ JuggCompilerHelper.compile(options, uiHandler)
         4. 未建立 full-build 基线（`not gradle compile yet`）
         5. 等待已存在 full-build 基线的 project-info 重建，再检查 project info 是否可用
         6. INVALID_DEVICE
-        7. 回滚内容未变的文件，再检查 build file / dependency 变化
-        8. DeployState 要求 full compile（上次 Gradle 失败、build file 要求 rebuild）
-        9. 变更文件过多的确认；仅此前各项仍允许增量时才弹出
+        7. 上次 Gradle 编译失败时直接要求 full compile
+        8. 回滚内容未变的文件
+        9. 变更文件过多的确认；选择 Continue 才继续后续判断
+        10. 检查 build file / dependency 变化并完成用户确认
+        11. build file 确认结果要求 rebuild 时返回 full compile
      -> 用户在“变更过多”确认中选择 Continue 仅影响本轮；选择 Gradle 或任一强制条件都返回可回退结果
      -> 返回 null 才进入 incrementalCompile()
   -> 增量成功：直接返回
@@ -157,8 +159,8 @@ JuggCompiler.doCompile(task)
 Run 前判断的完整优先级见 §4.1。可回退条件分为三类：
 
 - 用户或基线强制：Force Gradle、BuildTarget 切换、compile command 变化、project info 不可用。
-- 状态强制：`DeployState` 为未建立基线、上次 Gradle 失败或 build file 要求 rebuild；该类条件优先于“变更过多”，避免用户在必然 full compile 的场景看到无效确认框。
-- 性能策略：Java/Kotlin 文件点数或模块数超过阈值时，IDE 默认 Gradle，允许用户只在本轮选择 Continue；MCP/CLI 与 `checkFallback()` 不弹窗，直接报告回退。
+- 状态强制：未建立基线或上次 Gradle 失败时直接要求 full compile，避免用户看到无效确认框；build file 是否要求 rebuild 则在大改动确认之后由用户选择决定。
+- 性能策略：Java/Kotlin 文件点数或模块数超过阈值时，IDE 默认 Gradle，允许用户只在本轮选择 Continue；选择 Continue 后才检查 build file / dependency 变化。MCP/CLI 与 `checkFallback()` 不弹窗，直接报告回退。
 
 进入增量编译后的回退语义独立于 Run 前预检：编译器未初始化、无文件变化确认、未预期异常、递归跟编文件过多或运行中设备失效可在本轮转 Gradle；普通源码编译失败则本轮直接失败，不自动执行 Gradle。失败文件仍保留为已编译过的待处理变更，下一次 Run 才按无文件变化策略决定是否 Gradle。compile command 变化时日志会同时打印 `last=` 与 `current=`，便于确认是 task 切换还是选中了另一条 Jugg Configuration。
 

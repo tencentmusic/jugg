@@ -432,11 +432,20 @@ class JuggCompilerHelper(
         checkDeviceFallback()?.let {
             return it
         }
-        if (!isNoFileChangesSinceLastCompile && !isLastGradleCompileFailed) {
+        if (isLastGradleCompileFailed) {
+            val deployState = deployStateManager.updateDeployState()
+            logger.info("Deploy state ${deployStateManager.deployState} not ready for incremental compile. Return.")
+            return CompileTaskResult.incrementalFailed(true, deployState.msg)
+        }
+        if (!isNoFileChangesSinceLastCompile) {
             checkFilesRollback()
         }
 
-        if (!isNoFileChangesSinceLastCompile && !isLastGradleCompileFailed) {
+        checkFilesFallback(deployFileManager.getUncompiledFiles(), uiHandler = uiHandler)?.let {
+            return it
+        }
+
+        if (!isNoFileChangesSinceLastCompile) {
             checkLibraryIncrementalCompile(options, uiHandler) // user may cancel in this step
         }
 
@@ -446,7 +455,7 @@ class JuggCompilerHelper(
             logger.info("Deploy state ${deployStateManager.deployState} not ready for incremental compile. Return.")
             return CompileTaskResult.incrementalFailed(true, deployState.msg)
         }
-        checkFilesFallback(deployFileManager.getUncompiledFiles(), uiHandler = uiHandler)?.let {
+        checkDeviceFallback()?.let {
             return it
         }
 
@@ -468,7 +477,6 @@ class JuggCompilerHelper(
      * @return need fallback when result is not null
      */
     private fun checkDeviceFallback(): CompileTaskResult? {
-        // deploy state fallback
         val deployState = deployStateManager.updateDeployState()
         if (!deployState.isReadyDeploy) {
             if (deployState.ideDeployState.state == IdeDeployState.State.INVALID_DEVICE) {
@@ -502,15 +510,6 @@ class JuggCompilerHelper(
                 onContinue = { allowLargeIncrementalThisCompile = true },
                 onCancel = { uiHandler?.cancel() },
             )?.let { return it }
-        }
-
-        // deploy state fallback
-        val deployState = deployStateManager.updateDeployState()
-        if (!deployState.isReadyDeploy) {
-            if (deployState.ideDeployState.state == IdeDeployState.State.INVALID_DEVICE) {
-                logger.info("Device not ready for incremental compile(${deployState.ideDeployState.message}). Return.")
-                return CompileTaskResult.incrementalFailed(true, deployState.ideDeployState.message)
-            }
         }
 
         return null
