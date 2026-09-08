@@ -217,6 +217,7 @@ APK 拉取全部成功后，`LocalGradleCompileClient` / `RemoteGradleCompileCli
 - `JuggProjectInfo.agpR8Classpath` 类型允许为 `null`，但构造参数没有默认值；所有构造点必须明确传递现有路径或显式传入 `null`。仅转换 modules 的流程必须使用 `projectInfo.copy(modules = ...)`，禁止重新构造根快照导致项目级字段丢失。
 - `composeResourceInfo` 已按上述链路同步并在 merge 时优先保留 Gradle 值；`main/src/main/resources/gradle/readProjectInfo.gradle.kts` 也必须与 `gradle/script` 生成源一致。
 - `buildReadProjectInfoScript.gradle` 必须收集 init script 内嵌源码的全部非 Gradle classpath 依赖，并按声明依赖排序；`JuggPathManager` 引用 `JuggGlobalPathManager` 时，两者必须同时收集且后者排在前面，避免生成的独立 KTS 编译失败。
+- trailing-comma 清理分两步：先删除 `)` 前尾逗号并保留 `) {` 与行尾注释；再删除嵌套调用留下的 `),\n)` 外层尾逗号，且不得删除 `),\nnextArg` 这种非末参数分隔逗号。否则 Gradle 5/6（Kotlin DSL language version < 1.4）会因残留 `arg),` 脚本编译失败。
 - Project info 只记录选中 Android Kotlin task 为本轮增量编译暴露的 fragment graph，不构建项目全部 target 的完整 Kotlin source-set 依赖图，也不记录 deletion 图或 generated source cache。
 - `ModuleBuildPathInfo` 是 AGP 路径兼容层；不要在编译器里散落硬编码 `build/intermediates/...` 路径。
 - `ModuleBuildPathInfo.buildDirRelativePath` 必须在 Gradle JSON、IDE project info、compile context merge、classpath backup 和 deploy history 序列化中完整保留；修改字段结构时先判断旧值能否确定性迁移，不能仅通过提升 compile context 版本迫使用户重新全量构建。
