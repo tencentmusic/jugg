@@ -16,6 +16,7 @@ Use the evidence you need: read the repository code and docs, fetch referenced J
 - Do not use the GitHub MCP, CLI, or direct API outside the repository-local fetch script, and do not expose local credentials.
 - When the issue contains a Jugg report ID, first invoke `$fetch-jugg-report` to pull the full report logs before diagnosing.
 - When a repository maintainer summons you with `@JADE`, `@bot`, or `@jade-jugg-issue-assistant`, their comment is a direct instruction to you. Execute it directly instead of transcribing it into a to-do list or deferring it for confirmation.
+- When repository changes fully resolve the supplied issue, append a blank line and then `Fixes #<issue_id>` as the final line of the final issue-resolving commit message. Use the numeric ID from the fetched issue metadata, and omit the trailer for investigation-only, plan-only, partial, or unverified work.
 
 ## Evidence Intake Gate
 
