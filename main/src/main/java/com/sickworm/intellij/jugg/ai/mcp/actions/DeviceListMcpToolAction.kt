@@ -59,9 +59,13 @@ class DeviceListMcpToolAction : McpToolAction {
 
     private fun deviceListAction(runtime: IMcpRuntime, targetDeviceSerial: String?): McpToolResult {
         val selectedSerials = targetDeviceSerial?.let(::setOf)
-            ?: runtime.deployTargetManager.getSelectedDevices()
-                .map { it.serialNumber }
-                .toSet()
+            ?: runCatching {
+                runtime.deployTargetManager.getSelectedDevices()
+                    .map { it.serialNumber }
+                    .toSet()
+            }.onFailure {
+                runtime.logger.debug("Read selected devices failed; list connected devices without selection", it)
+            }.getOrDefault(emptySet())
         val connectedDevices = runtime.deployTargetManager.getConnectedDevices()
             .filter { targetDeviceSerial == null || it.serialNumber == targetDeviceSerial }
 

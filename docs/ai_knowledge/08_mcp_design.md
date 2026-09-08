@@ -81,9 +81,25 @@ McpToolAction
 
 Action 内只保留业务组合校验，例如 `instrument` 的 sourcePath/baseline 校验、runtime observe 工具的 App ready 校验。未注册 action（如 `layout-verify`）即使保留内部校验，也不能视为公开 MCP 能力。
 
-IDEA 与 standalone 可以监听同一端口范围内的不同端口。`version` 返回当前进程的 `runtimeType`、`runtimeVersion` 与 `capabilities`；`list-projects` 只列出当前进程已经初始化的项目。standalone 的 `version`、`list-projects` 不触发项目注册；未知项目的合法项目级请求由 `StandaloneProjectRegistry` 自动初始化后继续执行，非法工具、非法 schema、非法路径和初始化失败不会污染注册表。初始化按 canonical projectDir 共享 completion，不同项目间不持有 registry 全局构造锁；失败路径关闭已创建的项目资源并允许重试，因此慢项目或失败项目不影响其他已初始化项目。capability 由进程级 `McpToolRegistry` 统一提供，并同时约束 `tools/list` 和 action 分发，不属于 `RuntimeInfo` 或平台接口。standalone Step 11 注册 `version`、`list-projects`、`init`、`compile`、`deploy`、`gradle-build`、`get-compile-status`、`status`、`restart`、`report-prepare`、`report-upload`；`init` action 仅加入 standalone action registry，不改变 IDEA 的公开工具集合。
+IDEA 与 standalone 可以监听同一端口范围内的不同端口。`version` 返回当前进程的 `runtimeType`、`runtimeVersion` 与 `capabilities`；`list-projects` 只列出当前进程已经初始化的项目。standalone 的 `version`、`list-projects` 不触发项目注册；未知项目的合法项目级请求由 `StandaloneProjectRegistry` 自动初始化后继续执行，非法工具、非法 schema、非法路径和初始化失败不会污染注册表。初始化按 canonical projectDir 共享 completion，不同项目间不持有 registry 全局构造锁；失败路径关闭已创建的项目资源并允许重试，因此慢项目或失败项目不影响其他已初始化项目。capability 由进程级 `McpToolRegistry` 统一提供，并同时约束 `tools/list` 和 action 分发，不属于 `RuntimeInfo` 或平台接口。standalone Step 11 注册 `version`、`list-projects`、`init`、`compile`、`deploy`、`gradle-build`、`get-compile-status`、`status`、`restart`、`report-prepare`、`report-upload`、`devices`；`init` action 仅加入 standalone action registry，不改变 IDEA 的公开工具集合。
 
-设备选择采用请求级上下文，不维护 MCP server 全局“当前设备”。支持定向设备的 schema 公开可选 `serial`，显式值按在线设备精确匹配且禁止回退。`IDeployTargetManager` 是项目级设备 owner，统一提供选中/在线设备，并在选定设备后通过 `createDeviceAdb()` 创建同项目域的 ADB 适配器；MCP action 不经进程级 `PlatformApi` 转换设备。编译会刷新统一部署状态来判断增量或 Gradle fallback，但不执行设备部署；未传 serial 时设备选择层可返回全部在线设备，不能因多设备直接抛错。部署、重装和 instrument 沿用多设备流程处理全部目标设备；restart 重启全部目标设备；必须只操作一台设备的 UI、Activity 和日志工具在多个目标设备下返回结构化 `MULTIPLE_DEVICE`。`report-prepare` 为兼容已有调用保留 serial 参数但忽略其值，始终 Best-effort 收集全部目标设备错误 logcat。standalone 在已注册的 `deploy`、`gradle-build`、`status`、`restart` 能力中使用 serial 选择设备；`report-prepare` 使用全部在线设备，其他 UI、日志与运行控制工具仍不扩展 capability。
+设备选择采用请求级上下文，不维护 MCP server 全局“当前设备”。支持定向设备的 schema 公开可选 `serial`，显式值按在线设备精确匹配且禁止回退。`IDeployTargetManager` 是项目级设备 owner，统一提供选中/在线设备，并在选定设备后通过 `createDeviceAdb()` 创建同项目域的 ADB 适配器；MCP action 不经进程级 `PlatformApi` 转换设备。编译会刷新统一部署状态来判断增量或 Gradle fallback，但不执行设备部署；未传 serial 时设备选择层可返回全部在线设备，不能因多设备直接抛错。部署、重装和 instrument 沿用多设备流程处理全部目标设备；restart 重启全部目标设备；必须只操作一台设备的 UI、Activity 和日志工具在多个目标设备下返回结构化 `MULTIPLE_DEVICE`。`report-prepare` 为兼容已有调用保留 serial 参数但忽略其值，始终 Best-effort 收集全部目标设备错误 logcat。standalone 在已注册的 `deploy`、`gradle-build`、`status`、`restart`、`devices` 能力中使用 serial 选择设备；`report-prepare` 使用全部在线设备，其他 UI、日志与运行控制工具仍不扩展 capability。
+
+### 5.1 IDEA 与 standalone capability 边界
+
+capability 表只表示 action 可被发现和分发，不等于 Host 已完整实现运行语义。standalone 的剩余差异按下表处理：
+
+| 能力 | 当前边界 | 对齐前提 | 预期工作量 |
+|------|----------|----------|------------|
+| `stop` | CLI 本地生命周期命令 | 直接调用 standalone launcher，不进入 MCP capability | 保持差异 |
+| `init` | standalone 独有 | IDEA 由项目生命周期完成初始化，不注册同名 action | 保持差异 |
+| `ssh-info` | IDEA 独有 | standalone 是非交互 Runtime，需先设计用户授权与凭据安全边界 | 保持差异 |
+| `activity-stack`、`wait-logs` | IDEA 独有 | action 已使用 Host-neutral ADB 边界；开放前补 standalone 定向测试与真机验证，覆盖 streaming 取消和资源释放 | 小 |
+| `layout-dump`、`view-locate`、`view-inspect`、`tap` | IDEA 独有 | 验证 standalone 部署后的 ViewHierarchy Server、`adb forward`、App ready 与多设备 `MULTIPLE_DEVICE` 语义 | 中 |
+| `clean-reinstall` | IDEA 独有 | 当前 action 写入进程级 clean-reinstall 标记，standalone runner 不消费同一状态；必须先改为项目级请求状态并验证清数据语义 | 中 |
+| `instrument` | IDEA 独有 | `StandaloneDeployEnvironment.launchAndroidTest()` 尚未执行 instrumentation；直接开放会出现只部署、不运行测试的错误成功语义 | 大 |
+
+`devices` 已由 standalone 注册，因为其 action 只依赖项目级 `IDeployTargetManager` 的在线设备与选择结果，不需要 App ready、ViewHierarchy 或测试启动能力。Host 当前选择读取失败时，action 保留在线设备列表并退化为无 selected 标记，避免失效的 standalone `ANDROID_SERIAL` 导致 HTTP 500。其 capability、`tools/list` 与 action 分发继续由同一个 `McpToolRegistry` 白名单约束。
 
 `McpLocalServer` 会在任意 HTTP 请求到达时触发外部活动回调；IDEA 使用默认空回调，standalone 用它刷新 4 小时 idle deadline。请求解析失败不影响该活动语义。
 

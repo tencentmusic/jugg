@@ -46,6 +46,24 @@ class DeviceSerialActionTest {
     }
 
     @Test
+    fun testDevicesListsConnectedDevicesWhenSelectedDeviceIsUnavailable() {
+        val device = device("device-1")
+        val manager = Mockito.mock(IDeployTargetManager::class.java)
+        Mockito.`when`(manager.getSelectedDevices()).thenThrow(IllegalStateException("Selected device is not online"))
+        Mockito.`when`(manager.getConnectedDevices()).thenReturn(listOf(device))
+
+        val result = DeviceListMcpToolAction().execute(
+            mapOf("projectDir" to "/project"), runtime(manager),
+        )
+
+        assertEquals(McpToolStatus.OK, result.status)
+        @Suppress("UNCHECKED_CAST")
+        val devices = (result.data as Map<String, Any>)["devices"] as List<Map<String, Any>>
+        assertEquals(listOf("device-1"), devices.map { it["serial"] })
+        assertEquals(false, devices.single()["isSelected"])
+    }
+
+    @Test
     fun testStatusUsesExplicitDeviceState() {
         val target = device("device-2")
         val manager = Mockito.mock(IDeployTargetManager::class.java)

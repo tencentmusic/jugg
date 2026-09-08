@@ -174,6 +174,7 @@ class StandaloneProjectRegistry(
             McpToolActionRegistry.ToolNames.RESTART,
             McpToolActionRegistry.ToolNames.REPORT_PREPARE,
             McpToolActionRegistry.ToolNames.REPORT_UPLOAD,
+            McpToolActionRegistry.ToolNames.DEVICES,
         )
     }
 }

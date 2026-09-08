@@ -1,6 +1,6 @@
 # MCP Tools 参数清单
 
-> 最后核对：2026-09-01
+> 最后核对：2026-09-08
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -51,7 +51,7 @@
 - `projects`（可选）：当各项目版本不一致时，返回 `projectDir -> version` 的 map
 - `runtimeType`：`idea` / `standalone` / `ci` / `unknown`
 - `runtimeVersion`：当前进程实际 Runtime 版本
-- `capabilities`：当前进程的 `McpToolRegistry` 已声明可用的 MCP capability 名称，并与 `tools/list`、action 分发保持一致；standalone Step 11 包含 `version`、`list-projects`、`init`、`compile`、`deploy`、`gradle-build`、`get-compile-status`、`status`、`restart`、`report-prepare`、`report-upload`
+- `capabilities`：当前进程的 `McpToolRegistry` 已声明可用的 MCP capability 名称，并与 `tools/list`、action 分发保持一致；standalone Step 11 包含 `version`、`list-projects`、`init`、`compile`、`deploy`、`gradle-build`、`get-compile-status`、`status`、`restart`、`report-prepare`、`report-upload`、`devices`
 
 ---
 
@@ -237,7 +237,7 @@
 
 ### `devices`
 
-列出已连接设备并标记 selected。
+列出已连接设备并标记 selected。IDEA 与 standalone Runtime 均注册该工具；standalone 从项目级 `IDeployTargetManager` 读取在线设备，未传 serial 时不会因多设备失败。Host 当前选择读取失败时，工具 Best-effort 返回在线设备并将其标记为未选中，避免失效的 `ANDROID_SERIAL` 扩大为列表失败。
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|

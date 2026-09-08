@@ -1,6 +1,6 @@
 # jugg CLI 参数与 MCP 映射
 
-> 最后核对：2026-09-01
+> 最后核对：2026-09-08
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -67,7 +67,7 @@ CLI 扫描 `12320..12329` 后分别调用 `version`、`list-projects`，按目�
 
 当前没有 standalone Runtime 时，普通 CLI 取得 `~/.jugg/locks/standalone.launch.lock`，在锁内重新发现 Runtime；仍未发现时才启动 standalone launcher，并持锁等待端口注册，避免不同项目并发创建多个 daemon。测试或特殊环境可用 `JUGG_STANDALONE_LAUNCH_LOCK` 覆盖锁路径。launcher 默认路径为 `~/.jugg/standalone/bin/jugg-standalone`（Windows 为 `.bat`），可用 `JUGG_STANDALONE_LAUNCHER` 覆盖。启动和首个项目自动注册的等待硬超时均为 60 秒；launch lock 最长等待 75 秒。初始化超过 10 秒后，CLI 每 10 秒从目标项目 `build/jugg/log/standlone_cli/compile_latest.log` 读取最后一条结构化日志并向 stderr 输出 heartbeat；日志缺失或读取失败只显示日志暂不可用，不中断启动。日志行最多输出 500 个字符。新进程 stdout/stderr 仍写入启动项目 `build/jugg/log/standlone_cli/standalone_startup.log`；进程在端口就绪前退出时立即展示 exit code、日志尾部和完整日志路径。Hook 调用必须设置 `JUGG_CALLER=hook`；只有目标项目 `build/jugg/database/compile_context.db/complete_flag` 已存在时才允许启动进程或在已有 standalone 中注册新项目，否则直接以成功状态跳过。
 
-standalone Step 11 支持 `init`、`compile`、`deploy`、`gradle-build`、`restart`、`report`、内部 `get-compile-status` 与 `status`。其中 `deploy --serial` 与 `restart --serial` 可在 daemon 已运行后按请求切换设备；未传 serial 时 standalone 将全部在线设备作为部署或重启目标。`status --serial` 返回指定设备状态；`report` 忽略 serial 并收集全部在线设备的错误 logcat；standalone `gradle-build` 只建立 baseline，不执行设备安装，也不要求设备在线。`devices`、`clean-reinstall`、`instrument`、`layout-dump`、`view-locate`、`view-inspect`、`tap`、`activity-stack`、`wait-logs` 仍未注册为 standalone capability，需 IDEA Runtime。当前配置启用 remote compile 时，standalone 复用 IDEA 的远程 Gradle 客户端执行 full build/fallback；增量编译和设备操作仍在 standalone 所在本机执行。远程构建前仍可能在本地执行 project info Gradle dry-run，不应把 remote 理解为“本地不运行 Gradle”。
+standalone Step 11 支持 `init`、`compile`、`deploy`、`gradle-build`、`restart`、`devices`、`report`、内部 `get-compile-status` 与 `status`。其中 `deploy --serial`、`restart --serial` 与 `devices --serial` 可在 daemon 已运行后按请求切换设备；未传 serial 时 standalone 将全部在线设备作为部署或重启目标，并由 `devices` 返回全部在线设备。`status --serial` 返回指定设备状态；`report` 忽略 serial 并收集全部在线设备的错误 logcat；standalone `gradle-build` 只建立 baseline，不执行设备安装，也不要求设备在线。`clean-reinstall`、`instrument`、`layout-dump`、`view-locate`、`view-inspect`、`tap`、`activity-stack`、`wait-logs` 仍未注册为 standalone capability，需 IDEA Runtime。当前配置启用 remote compile 时，standalone 复用 IDEA 的远程 Gradle 客户端执行 full build/fallback；增量编译和设备操作仍在 standalone 所在本机执行。远程构建前仍可能在本地执行 project info Gradle dry-run，不应把 remote 理解为“本地不运行 Gradle”。
 
 `status` 在项目空闲且可立即取得项目锁时完成 Git refresh、Runtime owner 恢复和一致性快照；同 Runtime 正在 compile/deploy，或项目锁正由其他写事务持有时，不等待写锁也不刷新文件状态，而是立即返回当前真实只读快照。实际部署状态、fallback 原因、待编译文件、baseline 和时间戳仍会返回；`isCompiling` 只反映当前 Runtime 的 compile/deploy 运行态，保证 CLI wait/heartbeat 不被长任务阻塞。
 
@@ -407,6 +407,8 @@ jugg devices
 ```
 
 无子命令参数。
+
+IDEA 与 standalone Runtime 均支持该命令。standalone 未传 `--serial` 时返回全部在线设备；传入时只返回精确匹配的在线设备，未命中返回 `NO_DEVICE`。
 
 ### `activity-stack`
 
