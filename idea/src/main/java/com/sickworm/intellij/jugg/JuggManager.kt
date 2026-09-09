@@ -341,8 +341,9 @@ class JuggManager @TestOnly constructor(
         maxRetryCount: Int = MAX_RUN_CONFIG_RETRIES,
     ) {
         val isReady = try {
+            val suggestions = getRunConfigurationSuggestions()
             taskRunnerManager.runProjectWriteLocked("Initialize CLI run configuration") {
-                ideaCliRunConfigurationManager.ensureConfiguration()
+                ideaCliRunConfigurationManager.ensureConfiguration(suggestions)
             }
         } catch (e: Throwable) {
             logger.warn("Initialize CLI run configuration failed", e)

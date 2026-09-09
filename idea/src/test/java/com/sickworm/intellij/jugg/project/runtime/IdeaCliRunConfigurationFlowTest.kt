@@ -11,6 +11,7 @@ import com.sickworm.intellij.jugg.ide.JuggRunConfiguration
 import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.bean.SyncMode
+import com.sickworm.intellij.jugg.mock.TestGlobal
 import com.sickworm.intellij.jugg.project.info.JuggProjectInfo
 import com.sickworm.intellij.jugg.project.info.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.project.info.ModuleInfo
@@ -69,6 +70,51 @@ class IdeaCliRunConfigurationFlowTest {
         val current = fixture.store.loadCurrent()!!
         assertEquals("jugg:app", current.name)
         assertTrue(current.isRemoteCompile)
+    }
+
+    @Test
+    fun `default configuration preserves exact Gradle path when project directory differs`() {
+        TestGlobal.init()
+        val projectDir = temporaryFolder.newFolder("mapped_gradle_path")
+        val moduleDir = File(projectDir, "androidApp")
+        val module = ModuleInfo.virtualModule.copy(
+            name = "zxphone5.0",
+            moduleType = ModuleInfo.Type.Application,
+            projectRootDir = projectDir,
+            moduleRootDir = moduleDir,
+            buildVariant = "debug",
+            variants = listOf(Variant("debug", null)),
+            buildPathInfo = ModuleBuildPathInfo(projectDir, moduleDir, "debug", buildDirRelativePath = ""),
+        )
+        val fixture = fixture(
+            "mapped_gradle_path_store",
+            suppliedProjectInfo = JuggProjectInfo(mapOf(module.name to module), agpR8Classpath = null),
+        )
+        val options = ideaOptions("", "")
+        val settings = juggSettings("zxphone5.0 debug", options)
+        whenever(
+            fixture.runManager.createConfiguration(
+                org.mockito.kotlin.any<String>(),
+                org.mockito.kotlin.any<ConfigurationFactory>(),
+            ),
+        )
+            .thenReturn(settings)
+
+        assertTrue(
+            fixture.manager.ensureConfiguration(
+                listOf(
+                    SuggestRunConfiguration(
+                        moduleName = "zxphone5.0",
+                        compileCommand = "./gradlew :zxphone5.0:assembleDebug",
+                        outputApkPath = "androidApp/build/outputs/apk/debug/*.apk",
+                        variantName = "debug",
+                    ),
+                ),
+            ),
+        )
+
+        assertEquals("./gradlew :zxphone5.0:assembleDebug", options.compileCommand)
+        assertEquals("androidApp/build/outputs/apk/debug/*.apk", options.outputApkName)
     }
 
     @Test
@@ -378,12 +424,19 @@ class IdeaCliRunConfigurationFlowTest {
         assertEquals(null, fixture.store.loadCurrent())
     }
 
-    private fun fixture(name: String, appVariant: String = "debug", includePaid: Boolean = true): Fixture {
+    private fun fixture(
+        name: String,
+        appVariant: String = "debug",
+        includePaid: Boolean = true,
+        suppliedProjectInfo: JuggProjectInfo? = null,
+    ): Fixture {
         val projectDir = temporaryFolder.newFolder(name)
         val pathManager = JuggPathManager(projectDir)
         val runManager = mock<RunManager>()
         val compileContextManager = mock<CompileContextManager>()
-        whenever(compileContextManager.getProjectInfo()).thenReturn(projectInfo(projectDir, appVariant, includePaid))
+        whenever(compileContextManager.getProjectInfo()).thenReturn(
+            suppliedProjectInfo ?: projectInfo(projectDir, appVariant, includePaid),
+        )
         val store = CliRunConfigurationStore(pathManager)
         return Fixture(
             pathManager,

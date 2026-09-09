@@ -24,13 +24,15 @@ class IdeaCliRunConfigurationManager(
     private val logger: Logger,
 ) {
 
-    fun ensureConfiguration(): Boolean {
+    fun ensureConfiguration(suggestions: List<SuggestRunConfiguration> = emptyList()): Boolean {
         val existingSettings = runManager.getConfigurationSettingsList(JuggConfigurationType::class.java)
         if (existingSettings.isNotEmpty()) {
             ensureImportedConfigurations(existingSettings)
             return true
         }
-        val configuration = CliRunConfigurationGenerator.generate(compileContextManager.getProjectInfo())
+        val projectInfo = compileContextManager.getProjectInfo()
+        val fallback = CliRunConfigurationGenerator.generate(projectInfo)
+        val configuration = findSuggestedConfiguration(fallback, suggestions) ?: fallback
         val factory = JuggConfigurationType.getInstance().configurationFactories[0]
         val settings = runManager.createConfiguration(configuration.name, factory)
         val ideaConfiguration = settings.configuration as? JuggRunConfiguration ?: return false
@@ -41,6 +43,28 @@ class IdeaCliRunConfigurationManager(
         store.save(configuration)
         store.select(configuration.id)
         return true
+    }
+
+    private fun findSuggestedConfiguration(
+        fallback: CliRunConfiguration,
+        suggestions: List<SuggestRunConfiguration>,
+    ): CliRunConfiguration? {
+        val match = suggestions.mapNotNull { suggestion ->
+            if (suggestion.moduleName != fallback.moduleName) return@mapNotNull null
+            val command = generatedCommand(suggestion.compileCommand) ?: return@mapNotNull null
+            val suggestedVariant = suggestion.variantName?.let(::normalizeVariantName)
+            if (command.variant != fallback.variant || suggestedVariant != null && command.variant != suggestedVariant) {
+                return@mapNotNull null
+            }
+            suggestion to command
+        }.singleOrNull() ?: return null
+        return CliRunConfigurationGenerator.generateForModuleIdentity(
+            modulePath = match.second.modulePath,
+            moduleName = match.first.moduleName,
+            variant = match.second.variant,
+            outputApkName = match.first.outputApkPath,
+            generatedAt = fallback.generatedAt,
+        )
     }
 
     fun syncExistingConfigurations(): List<CliRunConfiguration> {
