@@ -1,8 +1,9 @@
 package com.sickworm.intellij.jugg.ide.logic
 
 import com.google.gson.Gson
-import com.intellij.ide.plugins.PluginManagerCore
-import com.intellij.openapi.extensions.PluginId
+import com.intellij.ide.plugins.IdeaPluginDescriptor
+import com.intellij.ide.plugins.cl.PluginAwareClassLoader
+import com.sickworm.intellij.jugg.loader.JuggHotUpdateBootstrap
 import com.sickworm.intellij.jugg.project.runtime.StandaloneHotUpdateManifest
 import java.io.File
 import java.io.FileOutputStream
@@ -47,7 +48,8 @@ object StandaloneBundleInstallService {
     }
 
     private fun resolveBundle(): EmbeddedBundleLocation {
-        val plugin = PluginManagerCore.getPlugin(PluginId.getId(JuggPluginIdentity.ID))
+        val plugin = (JuggHotUpdateBootstrap::class.java.classLoader as? PluginAwareClassLoader)
+            ?.pluginDescriptor as? IdeaPluginDescriptor
             ?: error("Jugg plugin is not installed")
         val standaloneDir = plugin.pluginPath.resolve("standalone").toFile()
         val bundle = standaloneDir.listFiles().orEmpty().singleOrNull {

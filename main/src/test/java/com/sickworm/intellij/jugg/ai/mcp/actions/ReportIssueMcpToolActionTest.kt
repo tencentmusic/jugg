@@ -8,6 +8,7 @@ import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.platform.IPlatformApi
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import com.sickworm.intellij.jugg.project.runtime.RuntimeInfo
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -95,6 +96,30 @@ class ReportIssueMcpToolActionTest {
         assertTrue(File(data.getValue("filePath") as String).isFile)
         val entries = data.getValue("entries") as List<*>
         assertFalse(entries.any { (it as Map<*, *>)["path"] == "diagnostics/device/logcat.log" })
+    }
+
+    @Test
+    fun `prepare includes project snapshots`() {
+        val projectDir = temporaryFolder.newFolder("project-snapshots")
+        val pathManager = JuggPathManager(projectDir)
+        pathManager.projectInfosDir.mkdirs()
+        pathManager.ideProjectInfoFile.writeText("{\"modules\":[]}")
+        val deployTargetManager = mock<IDeployTargetManager>()
+        whenever(deployTargetManager.dumpErrorLogs()).thenReturn("")
+        val runtime = mock<IMcpRuntime>()
+        whenever(runtime.projectDir).thenReturn(projectDir.absolutePath)
+        whenever(runtime.logger).thenReturn(mock())
+        whenever(runtime.deployTargetManager).thenReturn(deployTargetManager)
+
+        val result = PrepareIssueReportMcpToolAction().execute(
+            mapOf("projectDir" to projectDir.absolutePath),
+            runtime,
+        )
+
+        assertEquals(McpToolStatus.OK, result.status)
+        @Suppress("UNCHECKED_CAST")
+        val entries = (result.data as Map<String, Any>).getValue("entries") as List<*>
+        assertTrue(entries.any { (it as Map<*, *>)["path"] == "diagnostics/project-info/project_infos.json" })
     }
 
     @Test

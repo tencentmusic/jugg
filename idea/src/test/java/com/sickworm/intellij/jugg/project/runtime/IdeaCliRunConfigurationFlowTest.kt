@@ -154,6 +154,27 @@ class IdeaCliRunConfigurationFlowTest {
     }
 
     @Test
+    fun `active variant reconciliation normalizes uppercase flavor names from Android model`() {
+        val fixture = fixture("uppercase_flavor", appVariant = "bux1V71Debug", includePaid = false)
+        val current = juggSettings(
+            "app bux1V71Debug",
+            ideaOptions("./gradlew :app:assembleBux1V71Debug", "app/build/outputs/apk/bux1V71/debug/*.apk"),
+        )
+        val activeOptions = ideaOptions("", "")
+        val active = juggSettings("app cuxCommonDebug", activeOptions)
+        val factory = current.configuration.factory!!
+        whenever(fixture.runManager.getConfigurationSettingsList(com.sickworm.intellij.jugg.ide.JuggConfigurationType::class.java))
+            .thenReturn(listOf(current))
+        whenever(fixture.runManager.selectedConfiguration).thenReturn(current)
+        whenever(fixture.runManager.createConfiguration("app cuxCommonDebug", factory)).thenReturn(active)
+
+        fixture.manager.reconcileActiveBuildVariants(listOf(suggestion("app", "CuxCommonDebug")))
+
+        assertEquals("./gradlew :app:assembleCuxCommonDebug", activeOptions.compileCommand)
+        verify(fixture.runManager).selectedConfiguration = active
+    }
+
+    @Test
     fun `active variant suggestion uses full path for included build app`() {
         val fixture = fixture("included_app_module", appVariant = "devDebug", includePaid = false)
         val debug = juggSettings(

@@ -158,7 +158,9 @@ class IdeaCliRunConfigurationManager(
         }
         val activeSuggestions = suggestions.filter { suggestion ->
             val command = generatedCommand(suggestion.compileCommand)
-            command?.modulePath == selectedCommand.modulePath && command.variant == suggestion.variantName
+            val activeVariant = suggestion.variantName?.let(::normalizeVariantName) ?: return@filter false
+            command?.modulePath == selectedCommand.modulePath &&
+                command.variant == activeVariant
         }
         if (activeSuggestions.size != 1) {
             logger.debug("Keep selected Jugg configuration because active variant suggestion is not unique, " +
@@ -272,10 +274,14 @@ class IdeaCliRunConfigurationManager(
             .matchEntire(compileCommand.trim()) ?: return null
         val modulePath = match.groupValues[1]
         if (modulePath.split(':').drop(1).any { it.isEmpty() }) return null
-        val variant = match.groupValues[2].replaceFirstChar {
+        val variant = normalizeVariantName(match.groupValues[2])
+        return GeneratedCommand(modulePath, variant)
+    }
+
+    private fun normalizeVariantName(variant: String): String {
+        return variant.replaceFirstChar {
             if (it.isUpperCase()) it.lowercase() else it.toString()
         }
-        return GeneratedCommand(modulePath, variant)
     }
 
     private fun ensureImportedConfigurations(settings: List<RunnerAndConfigurationSettings>) {

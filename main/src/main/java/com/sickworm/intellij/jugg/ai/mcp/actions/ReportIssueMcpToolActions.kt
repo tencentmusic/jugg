@@ -66,6 +66,7 @@ class PrepareIssueReportMcpToolAction : McpToolAction {
                     "jvm" to System.getProperty("java.version"),
                 ),
                 projectSummary = emptyMap(),
+                projectInfoDir = pathManager.projectInfosDir,
                 logFiles = IssueReportBundleBuilder.selectRecentLogFiles(
                     pathManager.logDir,
                     pathManager.standaloneCliLogDir,
