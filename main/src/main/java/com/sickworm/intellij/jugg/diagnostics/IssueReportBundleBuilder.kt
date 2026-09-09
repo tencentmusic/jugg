@@ -1,6 +1,11 @@
 package com.sickworm.intellij.jugg.diagnostics
 
 import com.google.gson.GsonBuilder
+import com.google.gson.JsonArray
+import com.google.gson.JsonElement
+import com.google.gson.JsonObject
+import com.google.gson.JsonParser
+import com.google.gson.JsonPrimitive
 import com.intellij.openapi.diagnostic.Logger
 import java.io.File
 import java.time.OffsetDateTime
@@ -26,6 +31,7 @@ class IssueReportBundleBuilder(
     fun prepare(
         environment: Map<String, Any?>,
         projectSummary: Map<String, Any?>,
+        projectInfoDir: File? = null,
         logFiles: List<File>,
         standaloneLogDir: File?,
         logcat: String,
@@ -35,6 +41,15 @@ class IssueReportBundleBuilder(
         reportId = UUID.randomUUID().toString().substringBefore('-')
         reportDir = File(outputDir, reportId).apply { mkdirs() }
         val candidates = mutableListOf<IssueReportCandidate>()
+        getProjectInfoFiles(projectInfoDir).forEach { projectInfoFile ->
+            val redactedContent = redactProjectInfo(projectInfoFile, knownSecrets) ?: return@forEach
+            candidates += writeTextCandidate(
+                "diagnostics/project-info/${projectInfoFile.name}",
+                redactedContent,
+                IssueReportSensitivity.HIGH,
+                true,
+            )
+        }
         candidates += writeJsonCandidate("diagnostics/environment.json", environment, IssueReportSensitivity.LOW)
         candidates += writeJsonCandidate("diagnostics/project-summary.json", projectSummary, IssueReportSensitivity.MEDIUM)
         logFiles.filter { it.isFile }.forEach { logFile ->
@@ -72,6 +87,61 @@ class IssueReportBundleBuilder(
         return "diagnostics/logs/$relativePath"
     }
 
+    private fun getProjectInfoFiles(projectInfoDir: File?): List<File> {
+        if (projectInfoDir?.isDirectory != true) {
+            return emptyList()
+        }
+        val includeBuildListFile = File(projectInfoDir, "gradle_include_builds.txt")
+        val includedBuildFiles = runCatching { includeBuildListFile.takeIf { it.isFile }?.readLines().orEmpty() }
+            .onFailure { logger.debug("Read included build project info list failed", it) }
+            .getOrDefault(emptyList())
+            .map { File(projectInfoDir, File(it).name) }
+            .filter { it.isFile && INCLUDED_BUILD_PROJECT_INFO_PATTERN.matches(it.name) }
+            .distinctBy { it.name }
+        return listOf(
+            File(projectInfoDir, "project_infos.json"),
+            File(projectInfoDir, "gradle_project_infos.json"),
+        ).filter { it.isFile } + includedBuildFiles
+    }
+
+    private fun redactProjectInfo(file: File, knownSecrets: Set<String>): String? {
+        return runCatching {
+            gson.toJson(sanitizeProjectInfo(JsonParser.parseString(file.readText()), knownSecrets))
+        }.onFailure {
+            logger.debug("Skip invalid project info file: $file", it)
+        }.getOrNull()
+    }
+
+    private fun sanitizeProjectInfo(element: JsonElement, knownSecrets: Set<String>): JsonElement = when {
+        element.isJsonObject -> JsonObject().apply {
+            element.asJsonObject.entrySet().forEach { (key, value) ->
+                val normalizedKey = key.lowercase().replace("_", "").replace("-", "")
+                val sanitizedValue = when {
+                    value.isJsonNull -> value
+                    normalizedKey in REDACTED_CONTAINER_KEYS -> redactJsonValues(value)
+                    normalizedKey in REDACTED_EXACT_KEYS || SENSITIVE_KEYS.any(normalizedKey::contains) ->
+                        JsonPrimitive(REDACTED)
+                    else -> sanitizeProjectInfo(value, knownSecrets)
+                }
+                add(key, sanitizedValue)
+            }
+        }
+        element.isJsonArray -> JsonArray().apply {
+            element.asJsonArray.forEach { add(sanitizeProjectInfo(it, knownSecrets)) }
+        }
+        element.isJsonPrimitive && element.asJsonPrimitive.isString ->
+            JsonPrimitive(redact(element.asString, knownSecrets))
+        else -> element
+    }
+
+    private fun redactJsonValues(element: JsonElement): JsonElement = when {
+        element.isJsonNull -> element
+        element.isJsonObject -> JsonObject().apply {
+            element.asJsonObject.entrySet().forEach { (key, value) -> add(key, redactJsonValues(value)) }
+        }
+        element.isJsonArray -> JsonArray().apply { element.asJsonArray.forEach { add(redactJsonValues(it)) } }
+        else -> JsonPrimitive(REDACTED)
+    }
     fun build(selectedPaths: Set<String>): IssueReportBundle {
         check(::reportDir.isInitialized) { "prepare must be called before build" }
         val selected = preparedCandidates.filter { it.path in selectedPaths }
@@ -137,6 +207,11 @@ class IssueReportBundleBuilder(
         knownSecrets.filter { it.isNotBlank() }.forEach { secret ->
             redacted = redacted.replace(secret, "[REDACTED]")
         }
+        redacted = redacted.replace(
+            Regex("""(?i)("(?:storePassword|keyPassword|password|token|secret|cookie)"\s*:\s*)"(?:\\.|[^"\\])*""""),
+        ) { matchResult ->
+            "${matchResult.groupValues[1]}\"[REDACTED]\""
+        }
         return redacted
             .replace(Regex("[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}"), "[EMAIL]")
             .replace(
@@ -144,9 +219,27 @@ class IssueReportBundleBuilder(
                 "\$1=[REDACTED]",
             )
     }
-
     companion object {
         private const val MAX_REPORT_LOG_FILES = 10
+        private const val REDACTED = "[REDACTED]"
+        private val INCLUDED_BUILD_PROJECT_INFO_PATTERN =
+            Regex("include_build_\\d+_gradle_project_infos\\.json")
+        private val REDACTED_CONTAINER_KEYS = setOf(
+            "manifestplaceholders",
+            "javaannotationprocessoroptions",
+            "kaptarguments",
+        )
+        private val REDACTED_EXACT_KEYS = setOf("keystore", "keyalias")
+        private val SENSITIVE_KEYS = setOf(
+            "password",
+            "token",
+            "secret",
+            "authorization",
+            "apikey",
+            "privatekey",
+            "credential",
+            "cookie",
+        )
 
         fun selectRecentLogFiles(logDir: File, standaloneLogDir: File): List<File> {
             return listOf(logDir, standaloneLogDir).flatMap { directory ->

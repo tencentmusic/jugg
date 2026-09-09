@@ -68,6 +68,7 @@ class CompileContextDbFullBuildInfoTest {
         assertNotNull(compileContextInfo)
         assertEquals(apkInfos.size, compileContextInfo.apkInfos.size)
         assertEquals(1, compileContextInfo.moduleBuildPathInfos.size)
+        assertTrue(File(dbDir, "complete_flag").exists())
     }
 
     @Test

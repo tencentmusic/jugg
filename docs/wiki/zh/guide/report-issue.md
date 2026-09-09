@@ -27,7 +27,7 @@ tags:
 
 打开报告窗口后：
 
-1. 核对并选择诊断文件。Jugg 日志默认选中，且不可取消。
+1. 核对并选择诊断文件。Jugg 日志默认选中且不可取消；工程快照默认选中，但可以取消。
 2. 选择 `Upload logs` 上传，或勾选 `Save locally without uploading` 后创建本地诊断包。
 3. 上传完成后复制 Report ID；失败时可以点击 `Retry Upload`，或把保留的 zip 交给维护人员。
 
@@ -40,7 +40,8 @@ tags:
 上传内容主要用于定位本轮 Jugg 行为：
 
 - Jugg 编译和部署日志。
-- 结构化的环境和工程摘要，不包含原始工程模型。
+- 结构化的环境和工程摘要。
+- 默认勾选、可取消的 IDE、Gradle 和 included build 工程快照。
 - 可取消的全部在线目标设备错误 logcat。
 - 可选的 hook 调试日志。
 - 描述实际 zip entry 的 `manifest.json`。
@@ -48,7 +49,7 @@ tags:
 > [!NOTE]
 > 没有设备连接时，诊断包不包含设备错误日志。某台设备的 logcat 读取失败时，Jugg 只省略该设备日志，继续收集其他设备日志并生成诊断包。CLI/MCP 传入的 serial 不会过滤报告内容。
 
-原始 `project_infos`、签名密码、Manifest placeholders、APT/KAPT 参数、源码和二进制依赖不会进入诊断包。hook 调试日志在诊断包中保存为 `diagnostics/cli/hook-debug.log`。
+工程快照包含现存的 `project_infos.json`、`gradle_project_infos.json`，以及当前 included build 对应的 `include_build_*_gradle_project_infos.json`，脱敏后保存到诊断包的 `diagnostics/project-info/`。`applicationId` 和字段是否存在等诊断信息会保留；签名凭据、keystore、keyAlias、Manifest placeholders、APT/KAPT 参数和常见敏感字段的值会被替换。无法解析的快照、过期的 included build 快照、其他 `project_infos.db` 文件、源码和二进制依赖不会进入诊断包。hook 调试日志保存在 `diagnostics/cli/hook-debug.log`。
 
 > [!NOTE]
 > 上传失败不会改变本地编译部署结果。临时 zip 保留在 `build/jugg/tmp/diagnostics`，可以重试上传；达到 7 天后会在项目启动后的清理任务中删除。

@@ -90,7 +90,7 @@ DataBinding 增量处理还需要维护几类跨轮状态：
 - **layout info 连接两个阶段。** 源码阶段继续使用资源阶段生成的 layout info，不能在 mapper 前清空。
 - **`<include>` 影响从 layout info 递归补齐。** 被 include 的 layout 发生变化时，Jugg 会从当前模块和依赖模块的 layout info 找回相关输入，而不是只扫描本轮 XML 文本。
 - **BR 字段保持已有顺序。** 新字段追加到 Gradle 基线 BR 的末尾，避免已部署代码中的 BR id 因重新排序而错位。
-- **setter store 以 Gradle 结果为基线。** 当前模块结果会与 Gradle 模块 store 和上一轮有效增量结果合并，mapper 还会加载依赖 AAR 的 store；Gradle 基线变化后，旧增量缓存不再复用。
+- **setter store 以 Gradle 结果为基线。** 当前模块结果会与本模块的 Gradle store 和上一轮有效增量结果合并；mapper 同时加载直接工程依赖模块的有效增量 store 或 Gradle store，以及依赖 AAR 的 store。Gradle 基线变化后，旧增量缓存不再复用。
 - **layout info 保留稳定备份。** 新增 layout 后再删除文件时，后续完整 Gradle 构建仍需要一致的 layout 信息，Jugg 会保留可供恢复的基线。
 
 ## 失败重试与适用边界

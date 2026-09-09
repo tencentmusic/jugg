@@ -15,6 +15,7 @@ import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.deploy.JuggDeployState
 import com.sickworm.intellij.jugg.deploy.JuggRunningTaskStatusManager
 import com.sickworm.intellij.jugg.deploy.IJuggRunningTaskStatusManager
+import com.sickworm.intellij.jugg.compiler.ui.BuildChangesConfirmResult
 import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.sickworm.intellij.jugg.compiler.ui.TooManyChangesConfirmResult
 import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
@@ -45,6 +46,7 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.anyOrNull
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.doReturn
+import org.mockito.kotlin.inOrder
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
@@ -725,7 +727,9 @@ class JuggCompileHelperTest {
         val logger = CapturingLogger()
         val fixture = createFixture(logger)
         whenever(fixture.deployFileManager.isNoFileChanges()).thenReturn(false)
-        whenever(fixture.deployFileManager.getUncompiledFiles()).thenReturn(listOf(kotlinChangedFile()))
+        whenever(fixture.deployFileManager.getUncompiledFiles()).thenReturn(
+            listOf(kotlinChangedFile(), buildChangedFile())
+        )
         whenever(fixture.uiHandler.confirmTooManyChanges(any())).thenReturn(TooManyChangesConfirmResult.FALLBACK)
 
         val result = withLoweredSourceFilePointLimit(2) {
@@ -736,6 +740,36 @@ class JuggCompileHelperTest {
         assertTrue(result!!.isCanFallback)
         assertTrue(logger.messages.any { it.contains(TOO_MANY_FILES_FALLBACK) })
         verify(fixture.uiHandler).confirmTooManyChanges(any())
+        verify(fixture.uiHandler, never()).confirmBuildChanges(any())
+    }
+
+    @Test
+    fun preprocessIncrementalCompile_tooManySourceFiles_confirmBeforeBuildChanges() {
+        val fixture = createFixture()
+        val sourceFile = kotlinChangedFile()
+        val buildFile = buildChangedFile()
+        whenever(fixture.deployFileManager.isNoFileChanges()).thenReturn(false)
+        whenever(fixture.deployFileManager.getUncompiledFiles()).thenReturn(listOf(sourceFile, buildFile))
+        whenever(fixture.deployHistoryManager.getLastBuildFiles(any())).thenReturn(listOf(buildFile to null))
+        whenever(fixture.uiHandler.confirmTooManyChanges(any())).thenReturn(TooManyChangesConfirmResult.CONTINUE)
+        whenever(fixture.uiHandler.confirmBuildChanges(any())).thenReturn(BuildChangesConfirmResult.FALLBACK)
+        whenever(fixture.deployStateManager.updateDeployState()).thenReturn(
+            JuggDeployState.READY,
+            JuggDeployState.READY.copy(
+                state = JuggDeployState.State.READY_FULL_COMPILE,
+                msg = "build.gradle changed",
+            ),
+        )
+
+        val result = withLoweredSourceFilePointLimit(2) {
+            invokePreprocessIncrementalCompile(fixture.helper, fixture.options, fixture.uiHandler)
+        }
+
+        assertEquals("build.gradle changed", result?.failedReason)
+        inOrder(fixture.uiHandler) {
+            verify(fixture.uiHandler).confirmTooManyChanges(any())
+            verify(fixture.uiHandler).confirmBuildChanges(any())
+        }
     }
 
     @Test
@@ -743,7 +777,9 @@ class JuggCompileHelperTest {
         val fixture = createFixture()
         whenever(fixture.deployFileManager.isNoFileChanges()).thenReturn(false)
         whenever(fixture.deployHistoryManager.isLastFullCompileFailed).thenReturn(true)
-        whenever(fixture.deployFileManager.getUncompiledFiles()).thenReturn(listOf(kotlinChangedFile()))
+        whenever(fixture.deployFileManager.getUncompiledFiles()).thenReturn(
+            listOf(kotlinChangedFile(), buildChangedFile())
+        )
         whenever(fixture.deployStateManager.updateDeployState()).thenReturn(
             JuggDeployState.READY.copy(
                 state = JuggDeployState.State.READY_FULL_COMPILE,
@@ -757,6 +793,7 @@ class JuggCompileHelperTest {
 
         assertEquals("last gradle compile not success", result?.failedReason)
         verify(fixture.uiHandler, never()).confirmTooManyChanges(any())
+        verify(fixture.uiHandler, never()).confirmBuildChanges(any())
     }
 
     @Test
@@ -999,6 +1036,16 @@ class JuggCompileHelperTest {
             CompileFile.Type.Kotlin,
             sourceFile,
             sourceFile.parentFile,
+            ModuleInfo.virtualModule,
+        )
+    }
+
+    private fun buildChangedFile(): ChangedFile {
+        val buildFile = temporaryFolder.newFile("build.gradle")
+        return ChangedFile(
+            CompileFile.Type.BuildFile,
+            buildFile,
+            buildFile.parentFile,
             ModuleInfo.virtualModule,
         )
     }

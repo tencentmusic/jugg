@@ -3,7 +3,6 @@ package com.sickworm.intellij.jugg.deploy.run.utils
 import android.annotation.SuppressLint
 import com.android.tools.idea.IdeInfo
 import com.intellij.openapi.application.PathManager
-import org.jetbrains.android.download.AndroidProfilerDownloader
 import java.io.File
 
 /**
@@ -34,16 +33,24 @@ class CopyEmbeddedDistributionPaths {
     @SuppressLint("PrivateApi")
     private fun getOptionalIjPath(@Suppress("SameParameterValue") path: String): File? {
         // IJ does not bundle some large resources from android plugin, and downloads them on demand.
-        try {
-            val instance = AndroidProfilerDownloader.getInstance()
-            instance.makeSureComponentIsInPlace()
-            return instance.getHostDir(path)
-        } catch (e: Throwable) { // NoClassDefFoundError | ClassNotFoundException
-            // compat with Build #IU-243.22562.218
-            val clazz = Class.forName("com.android.tools.idea.downloads.AndroidProfilerDownloader")
-            val instance = clazz.getMethod("getInstance").invoke(null)
-            clazz.getMethod("makeSureComponentIsInPlace").invoke(instance)
-            return clazz.getMethod("getHostDir", String::class.java).invoke(instance, path) as File?
+        var lastError: Throwable? = null
+        for (className in DOWNLOADER_CLASS_NAMES) {
+            try {
+                val clazz = Class.forName(className)
+                val instance = clazz.getMethod("getInstance").invoke(null)
+                clazz.getMethod("makeSureComponentIsInPlace").invoke(instance)
+                return clazz.getMethod("getHostDir", String::class.java).invoke(instance, path) as File?
+            } catch (e: Throwable) {
+                lastError = e
+            }
         }
+        throw lastError ?: ClassNotFoundException("AndroidProfilerDownloader not found")
+    }
+
+    companion object {
+        private val DOWNLOADER_CLASS_NAMES = listOf(
+            "org.jetbrains.android.download.AndroidProfilerDownloader",
+            "com.android.tools.idea.downloads.AndroidProfilerDownloader",
+        )
     }
 }

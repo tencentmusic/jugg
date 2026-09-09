@@ -14,7 +14,7 @@ internal object MatryoshkaFixtureWriter {
             payload.writeInt(name.length)
         }
         payload.writeInt(dolls.size)
-        payload.writeInt(MatryoshkaConstants.MAGIC.toInt())
+        payload.writeInt(0xd1d50655L.toInt())
         installer.appendBytes(payload.toByteArray())
     }
 

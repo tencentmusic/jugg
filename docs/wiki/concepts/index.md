@@ -10,7 +10,7 @@ tags:
 
 This section explains how Jugg shortens the edit-run-verify cycle in everyday Android development, and how compilation artifacts, device state, and source code remain aligned across consecutive incremental Runs.
 
-If you are completing a specific operation, start with the [guides](../guide/). To check which scenarios a capability supports, see [core capabilities](../capabilities/). When a failure occurs, begin with [troubleshooting](../troubleshooting/).
+If you are completing a specific operation, start with the [guides](../guide/). To check which scenarios a capability supports, see [core capabilities](../capabilities/). When a failure occurs, begin with the [FAQ](../troubleshooting/supported-packaging.md).
 
 ## Build a complete model from one Run
 

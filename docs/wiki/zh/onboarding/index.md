@@ -24,6 +24,7 @@ Jugg Run Configuration 与原生 App Run Configuration 作为两个独立入口�
 | 主题 | 入口 |
 |---|---|
 | 日常修改后怎么跑 | [运行 App](../guide/run.md) |
+| Jugg 支持哪些打包方式 | [支持哪些打包方式](../troubleshooting/supported-packaging.md) |
 | 哪些场景适合回退 Gradle | [限制说明](../reference/limits.md) |
 | 有云开发机构建资源时怎么接入 | [云开发机配置](./agent-setup.md) |
 | 远端 Gradle 如何工作 | [远端 Gradle](../guide/remote-gradle.md) |

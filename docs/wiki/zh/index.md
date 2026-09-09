@@ -170,7 +170,7 @@ layout: page
       <a href="./guide/run"><strong>运行 App</strong><span>日常 Run、取消与可见结果</span></a>
       <a href="./concepts/how-jugg-works"><strong>理解工作原理</strong><span>基线、影响分析与部署决策</span></a>
       <a href="./capabilities/"><strong>检查能力范围</strong><span>源码、资源、部署与测试支持</span></a>
-      <a href="./troubleshooting/"><strong>定位异常</strong><span>从可见现象和恢复动作开始</span></a>
+      <a href="./troubleshooting/supported-packaging"><strong>常见问题</strong><span>打包边界、失败现象和恢复动作</span></a>
       <a href="./capabilities/tools/agent-skills"><strong>CLI 与 Agent Skills</strong><span>把构建、部署与验证接入自动化流程</span></a>
     </nav>
   </section>

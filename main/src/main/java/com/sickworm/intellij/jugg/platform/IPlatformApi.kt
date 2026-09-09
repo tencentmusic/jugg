@@ -40,6 +40,8 @@ interface IPlatformApi {
 
     fun getAndroidHomePath(logger: Logger): String?
 
+    fun getEnvironmentVariables(logger: Logger): Map<String, String> = System.getenv()
+
     fun getIdeVersion(): String
 
     fun getRuntimeInfo(): RuntimeInfo

@@ -74,7 +74,7 @@ IDE 部署主路径（例如 `JuggDeployerHelper` / `JuggDeployTask` / `JuggDepl
 
 共享调用中的 `IDevice`、`Apk`、`ApkEntry`、`DexClass`、`ByteString`、`DexComparator.ChangedClasses`、`Deploy.Arch` 与 `ILogger` 均来自 `com.sickworm.intellij.jugg.deploy.api`。类名和已依赖成员保持不变，使业务迁移主要表现为 import 变化。`IRuntimeDevice` 表达设备属于当前 host runtime，而不是某个 deployer compat；Legacy、Quail 和 IDEA ADB 边界都从同一 handle 解包真实 ddmlib device。`Apk.runtimeObject` 是只在当前进程有效且不参与序列化的 raw APK attachment，避免 owned APK 依赖 converter 实例私有 origin map。共享 API 仍禁止静态暴露 ddmlib、deployer model、deploy proto、shaded protobuf 或 Android logger 类型。
 
-Run Configuration 的 Gradle module identity 通过反射调用 `GradleProjectPathKt.getGradleProjectPath(Module)` 获取 project path 与 build root，并结合 external project id 区分 composite build。该调用是可选增强，必须整体捕获 `Throwable`；类、方法或返回数据不符合预期时回退到原有 `module.name` 解析，禁止让 module identity 增强影响旧版 Android Studio 的 Configuration 创建流程。
+Run Configuration 的 Gradle module identity 与 task module path 分开解析。两者都通过反射调用 `GradleProjectPathKt.getGradleProjectPath(Module)` 获取 project path 与 build root，并结合 external project id 区分 composite build；identity 用于 Jugg Configuration 命名，task path 原样保留 Gradle project path 的 segment 和其中的点号，例如 `:zxphone5.0`，禁止再从 identity 通过 `.` → `:` 反向还原。该调用是可选增强，必须整体捕获 `Throwable`；类、方法或返回数据不符合预期时回退到原有 `module.name` 解析，禁止让 module identity 增强影响旧版 Android Studio 的 Configuration 创建流程。
 
 部署主路径也不应直接 import 或字段访问 `StudioFlags`。例如 install mode 通过 `IAsDeployerCompat.getInstallMode()` 获取；legacy compat 可读取旧 `StudioFlags.DELTA_INSTALL`，Quail compat 则提供不依赖该已移除 flag 的实现，避免新版 Android Studio 在 `JuggDeployTask` 触发 `NoSuchFieldError`。
 
@@ -171,6 +171,8 @@ CI 命令行把构建拆成两个可审计阶段：
 - `platform_compat/base_api` 不得包含 `com/android/**`；Android runtime class 必须由 ddmlib、standalone deployer 或 protocol JAR 唯一提供。
 - 自定义编译器示例在 `custom_compilers`，生产装载由 `CustomCompilerManager` 读取 `build/jugg/config/custom_compilers`；示例代码不是默认编译阶段。
 - `buildIncrementalApk` 的 `changedFiles` 是外部契约，不是提示信息。过滤后数量与输入不一致、路径越界或含 build file 都必须明确失败，不能静默跳过后继续产出 APK。
+- `CompileProjectCommand` 注入 Gradle init script、项目目录及切换本地工作目录时，必须把路径作为带引号的独立参数传递，避免 Windows 的 `-I` 参数或 macOS/Linux 的 `cd` 被空格截断。
+- `SyncLocalClasspathCommand` 调用本地 rsync 时必须分别引用可执行文件、源目录和目标目录，保证工程目录或备份目录包含空格时仍作为单个参数传递。
 - Windows 同一命令管道可能混合 UTF-8 与 GBK。`ProcessOutputReader` 必须先按行保留原始字节，再严格校验 UTF-8，失败时回退 GBK；不能先用固定编码构造字符串，也不能锁定整个进程编码。日志已出现 `�` 时原始字节可能已丢失，切换查看器编码无法恢复。
 
 ---

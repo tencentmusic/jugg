@@ -60,7 +60,10 @@ object DataBindingClasspathHelper {
             throw IllegalStateException("DataBinding apt not found, missing dependencies: $missingDependencies. " +
                     "Fallback to gradle once may fix this issue.")
         }
-        val setterStoreFiles = findModuleSetterStores(context, modules) + findLibrarySetterStores(modules)
+        val setterStoreModules = (modules + modules.flatMap { currentModule ->
+            currentModule.moduleDependencies.mapNotNull { context.modules[it.moduleName] }
+        }).distinctBy { it.name }
+        val setterStoreFiles = findModuleSetterStores(context, setterStoreModules) + findLibrarySetterStores(modules)
 
         var kaptPlugin: File? = null
         if (!isApt) {

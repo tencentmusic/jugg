@@ -29,7 +29,7 @@
 | 数据 | 生产者 | 消费者 | 关键约束 |
 |---|---|---|---|
 | 基准 merged manifest | Gradle 上次构建产物，或 Jugg 上轮写入 `tempModule/res/AndroidManifest.xml` | `AndroidManifestCompiler` | Jugg 在最终 merged manifest 上 patch，避免 raw manifest 丢失 variant merge 结果 |
-| `ChangedManifestFile` | `AndroidManifestCompiler` | `ManifestDiffer` | application module 会补内置 `applicationId` placeholder；存在 namespace 时补 `JUGG_NAMESPACE_IN_GRADLE` |
+| `ChangedManifestFile` | `AndroidManifestCompiler` | `ManifestDiffer` | application 类 manifest 使用当前目标 APK 的 `applicationId`；library 显式配置同名 placeholder 时保留原值，否则补目标 APK 值；存在 namespace 时补 `JUGG_NAMESPACE_IN_GRADLE` |
 | Manifest diff element | `ManifestDiffer` | `AndroidManifestMerger` | 只携带新增节点和新增/更新属性；删除节点、删除属性和 `tools:node="remove"` 不进入 patch |
 
 ---
@@ -40,7 +40,7 @@
 ResourceOverlayCompiler.doApkCompile()
   -> 按 APK scoped 任务调用 AndroidManifestCompiler.doApkCompile()
   -> 选择基准 manifest：优先上轮 Jugg merged manifest，否则用 application module merged manifest
-  -> 为变更 manifest 补 applicationId / namespace placeholder，并为 library manifest 找上次构建相对 manifest
+  -> 为变更 manifest 补当前目标 APK 的 applicationId / namespace placeholder，并为 library manifest 找上次构建相对 manifest
   -> ManifestDiffer.diff() 只提取真实新增/变更节点
   -> AndroidManifestMerger.merge() 将 diff patch 到基准 merged manifest
   -> 成功后写回 tempModule/res/AndroidManifest.xml，并输出 apkPath 绑定的 CompileOutput.Type.Res

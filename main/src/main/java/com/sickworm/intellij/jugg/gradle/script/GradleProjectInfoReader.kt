@@ -302,6 +302,8 @@ class GradleProjectInfoReader(
         }
         TraceLogger.end("getVar")
 
+        val runtimeLibraryDependencies = getRuntimeLibraryDependencies(project, moduleInfo)
+
         TraceLogger.start("getDep")
         try {
             TraceLogger.start("getCompile")
@@ -317,9 +319,6 @@ class GradleProjectInfoReader(
             TraceLogger.end("getCompile")
 
             val runtimeModuleDependencies = getRuntimeModuleDependencies(project, moduleInfo)
-
-            // won't actually use this for now to save time
-            val runtimeDependencies = emptyList<Dependency>()
 
             TraceLogger.start("getAnnotation")
             val annotationProcessorDependencies = getDependenciesByConfig(project, "annotationProcessor", isAndroidDepend = false)
@@ -339,7 +338,7 @@ class GradleProjectInfoReader(
                 moduleDependencies = dependencies.filterIsInstance<ModuleDependency>(),
                 runtimeModuleDependencies = runtimeModuleDependencies,
                 libraryDependencies = dependencies.filterIsInstance<LibraryDependency>(),
-                runtimeLibraryDependencies = runtimeDependencies.filterIsInstance<LibraryDependency>(),
+                runtimeLibraryDependencies = runtimeLibraryDependencies,
                 annotationProcessorDependencies = annotationProcessorDependencies.filterIsInstance<LibraryDependency>(),
                 kaptDependencies = kaptDependencies.filterIsInstance<LibraryDependency>(),
                 coreLibraryDesugaring = coreLibraryDesugaring.filterIsInstance<LibraryDependency>(),
@@ -355,6 +354,29 @@ class GradleProjectInfoReader(
 
         TraceLogger.end("getModule:${project.standardModuleName}")
         return moduleInfo
+    }
+
+    /** Reads resolved runtime library artifacts only for modules that contribute final APK contents. */
+    private fun getRuntimeLibraryDependencies(project: Project, moduleInfo: ModuleInfo): List<LibraryDependency> {
+        if (moduleInfo.moduleType !in listOf(ModuleInfo.Type.Application, ModuleInfo.Type.DynamicFeature)) {
+            return emptyList()
+        }
+
+        var filterName = "${moduleInfo.buildVariant}RuntimeClasspath"
+        if (project.configurations.names.none { filterConfigs(it, filterName) }) {
+            filterName = "RuntimeClasspath"
+        }
+        if (project.configurations.names.none { filterConfigs(it, filterName) }) {
+            throw GradleException("Jugg: runtime classpath is unavailable for ${project.standardModuleName}")
+        }
+
+        TraceLogger.start("getRuntime")
+        return try {
+            getDependenciesByConfig(project, filterName, isAndroidDepend = true)
+                .filterIsInstance<LibraryDependency>()
+        } finally {
+            TraceLogger.end("getRuntime")
+        }
     }
 
     /** Reads resolved runtime project components for APK ownership without rebuilding Gradle's dependency semantics. */

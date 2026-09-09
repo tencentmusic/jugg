@@ -757,6 +757,7 @@ class JuggManager @TestOnly constructor(
                     projectSummary = mapOf(
                         "moduleCount" to compileContextManager.compileContext.modules.size,
                     ),
+                    projectInfoDir = pathManager.projectInfosDir,
                     logFiles = logFiles,
                     standaloneLogDir = pathManager.standaloneCliLogDir,
                     logcat = logcatErrorLog,

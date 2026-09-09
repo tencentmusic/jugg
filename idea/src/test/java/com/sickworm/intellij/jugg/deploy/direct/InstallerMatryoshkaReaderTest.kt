@@ -19,15 +19,6 @@ class InstallerMatryoshkaReaderTest {
     private val logger = TestGlobal.getLogger()
 
     @Test
-    fun `resolve should use agent-alt only for 32 bit app on 64 bit installer abi`() {
-        assertEquals("agent-alt.so", InstallerAgentDollNames.resolve("arm64-v8a", Deploy.Arch.ARCH_32_BIT))
-        assertEquals("agent-alt.so", InstallerAgentDollNames.resolve("x86_64", Deploy.Arch.ARCH_32_BIT))
-        assertEquals("agent.so", InstallerAgentDollNames.resolve("arm64-v8a", Deploy.Arch.ARCH_64_BIT))
-        assertEquals("agent.so", InstallerAgentDollNames.resolve("armeabi-v7a", Deploy.Arch.ARCH_32_BIT))
-        assertEquals("agent.so", InstallerAgentDollNames.resolve("x86", Deploy.Arch.ARCH_32_BIT))
-    }
-
-    @Test
     fun `extractAgentSo should return agent doll for 64 bit arch`() {
         val root = tempFolder.newFolder("installers")
         val agentBytes = elfPayload(InstallerMatryoshkaFixture.AGENT_64_ELF_HEADER, marker = 0x01)

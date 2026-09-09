@@ -44,7 +44,7 @@ Gradle 成功后，Jugg 会重新读取 APK、classpath、mapping 和资源基�
 
 ## build 文件变化弹窗
 
-修改 `build.gradle`、`settings.gradle` 或依赖声明后，Jugg 可能先弹出依赖变化确认框。
+修改 `build.gradle`、`settings.gradle` 或依赖声明后，Jugg 可能展示依赖变化确认框。如果同时有过多源码变化，Jugg 会先询问是否继续大规模增量；只有选择 `Continue Incremental Compile` 后，才继续展示 build 文件变化。
 
 | 选择 | 什么时候选 |
 |---|---|

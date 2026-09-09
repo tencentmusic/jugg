@@ -5,8 +5,12 @@ import com.sickworm.intellij.jugg.compiler.Result
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.listFilesRecursively
 import com.sickworm.intellij.jugg.logger.TimeLogger
+import com.sickworm.intellij.jugg.org.objectweb.asm.ClassReader
+import com.sickworm.intellij.jugg.org.objectweb.asm.ClassVisitor
+import com.sickworm.intellij.jugg.org.objectweb.asm.Opcodes
 import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import java.io.File
+import java.util.ArrayDeque
 import java.util.zip.ZipFile
 import kotlin.system.measureTimeMillis
 
@@ -78,7 +82,6 @@ class DexCompiler(
         tmpClassesDir.deleteRecursively()
         tmpClassesDir.mkdirs()
 
-        val changedClasses = mutableListOf<CompileFile>()
         val jarFile = compileFile.file
         val oldJarEntryMap = mutableMapOf<String, Long>()
         ZipFile(oldJar).use { zipFile ->
@@ -87,6 +90,8 @@ class DexCompiler(
             }
         }
         var totalClasses = 0
+        val changedClassNames = linkedSetOf<String>()
+        val changedClasses = mutableListOf<CompileFile>()
         ZipFile(jarFile).use { zipFile ->
             zipFile.entries().asSequence().forEach {
                 if (it.name.startsWith("META-INF/")) {
@@ -98,21 +103,59 @@ class DexCompiler(
                 totalClasses++
                 val oldCrc = oldJarEntryMap[it.name]
                 if (oldCrc == null || oldCrc != it.crc) {
-                    val classFile = File(tmpClassesDir, it.name)
-                    classFile.parentFile.mkdirs()
-                    classFile.writeBytes(zipFile.getInputStream(it).readBytes())
-                    changedClasses.add(CompileFile(
-                        CompileFile.Type.Class,
-                        classFile,
-                        tmpClassesDir,
-                        compileFile.module,
-                    ))
+                    changedClassNames.add(it.name)
                 }
+            }
+            expandNestClasses(zipFile, changedClassNames)
+            changedClassNames.forEach { entryName ->
+                val entry = zipFile.getEntry(entryName) ?: return@forEach
+                val classFile = File(tmpClassesDir, entryName)
+                classFile.parentFile.mkdirs()
+                classFile.writeBytes(zipFile.getInputStream(entry).readBytes())
+                changedClasses.add(CompileFile(
+                    CompileFile.Type.Class,
+                    classFile,
+                    tmpClassesDir,
+                    compileFile.module,
+                ))
             }
         }
         logger.debug("jar diff result: classes size = $totalClasses, real changedClasses size=${changedClasses.size}")
 
         return changedClasses
+    }
+
+    /** D8 requires every available class in a Java nest when any nest class is compiled. */
+    private fun expandNestClasses(zipFile: ZipFile, classNames: MutableSet<String>) {
+        val pending = ArrayDeque(classNames)
+        while (pending.isNotEmpty()) {
+            findNestClasses(zipFile, pending.removeFirst()).forEach {
+                if (zipFile.getEntry(it) != null && classNames.add(it)) {
+                    pending.add(it)
+                }
+            }
+        }
+    }
+
+    private fun findNestClasses(zipFile: ZipFile, entryName: String): List<String> {
+        val entry = zipFile.getEntry(entryName) ?: return emptyList()
+        val relatedClasses = mutableListOf<String>()
+        return try {
+            val classReader = zipFile.getInputStream(entry).use { ClassReader(it) }
+            classReader.accept(object : ClassVisitor(Opcodes.ASM9) {
+                override fun visitNestHost(nestHost: String) {
+                    relatedClasses.add("$nestHost.class")
+                }
+
+                override fun visitNestMember(nestMember: String) {
+                    relatedClasses.add("$nestMember.class")
+                }
+            }, ClassReader.SKIP_CODE or ClassReader.SKIP_DEBUG or ClassReader.SKIP_FRAMES)
+            relatedClasses
+        } catch (e: Exception) {
+            logger.debug("Read nest metadata failed: $entryName", e)
+            emptyList()
+        }
     }
 
     private fun doDex(

@@ -19,6 +19,7 @@
 <p>Jugg does not replace the complete Gradle pipeline. Changes that require Gradle processing, such as build-script changes or unsupported annotation and bytecode processing, require a Gradle build.</p>
     ]]></description>
 
+    <depends>com.intellij.modules.java</depends>
     <depends>org.jetbrains.android</depends>
     <depends optional="true" config-file="androidstudio-config.xml">com.intellij.modules.androidstudio</depends>
     <incompatible-with>com.sickworm.intellij.jugg</incompatible-with>

@@ -2,12 +2,9 @@ package com.sickworm.intellij.jugg.server
 
 import com.google.gson.Gson
 import com.intellij.ide.plugins.IdeaPluginDescriptor
-import com.intellij.ide.plugins.PluginInstaller
-import com.intellij.ide.plugins.PluginManagerCore
+import com.intellij.ide.plugins.cl.PluginAwareClassLoader
 import com.intellij.openapi.diagnostic.Logger
-import com.intellij.openapi.extensions.PluginId
 import com.intellij.openapi.project.Project
-import com.sickworm.intellij.jugg.ide.logic.JuggPluginIdentity
 import com.sickworm.intellij.jugg.ide.logic.PluginVersionComparator
 import com.sickworm.intellij.jugg.ide.logic.StandaloneEmbeddedBundle
 import com.sickworm.intellij.jugg.ide.ui.JuggCommonNotification
@@ -38,7 +35,8 @@ class IdeaHotUpdateCoordinator(
         logger,
     )
     private val ideaPluginDescriptor: IdeaPluginDescriptor?
-        get() = PluginManagerCore.getPlugin(PluginId.getId(JuggPluginIdentity.ID))
+        get() = (JuggHotUpdateManager::class.java.classLoader as? PluginAwareClassLoader)
+            ?.pluginDescriptor as? IdeaPluginDescriptor
 
     fun init(project: Project) {
         start()
@@ -210,24 +208,41 @@ class IdeaHotUpdateCoordinator(
                 return false
             }
             logEvent("install from $zipFile to ${ideaPluginDescriptor.pluginPath}")
-            @Suppress("UnstableApiUsage")
-            try {
-                PluginInstaller.installAfterRestart(ideaPluginDescriptor, zipFile.toPath(),
-                    ideaPluginDescriptor.pluginPath, true)
-            } catch (e: Throwable) {
-                logEvent("downloadHotUpdate install failed, try old api. error: $e")
-                val clazz = PluginInstaller::class.java
-                val method = clazz.getMethod("installAfterRestart",
-                    Path::class.java, Boolean::class.java, Path::class.java, IdeaPluginDescriptor::class.java
-                )
-                method.invoke(null, zipFile.toPath(), true, ideaPluginDescriptor.pluginPath, ideaPluginDescriptor)
-            }
+            installAfterRestart(ideaPluginDescriptor, zipFile.toPath())
             logEvent("downloadHotUpdate install success")
             return true
         } catch (e: Throwable) {
             logEvent("downloadHotUpdate install failed: $e")
             return false
         }
+    }
+
+    /** Invokes known IDE signatures without linking the internal installer API in plugin bytecode. */
+    private fun installAfterRestart(ideaPluginDescriptor: IdeaPluginDescriptor, zipPath: Path) {
+        val clazz = Class.forName(PLUGIN_INSTALLER_CLASS, true, JuggHotUpdateManager::class.java.classLoader)
+        val pluginPath = ideaPluginDescriptor.pluginPath
+        try {
+            val method = clazz.getMethod(
+                INSTALL_AFTER_RESTART_METHOD,
+                IdeaPluginDescriptor::class.java,
+                Path::class.java,
+                Path::class.java,
+                java.lang.Boolean.TYPE,
+            )
+            method.invoke(null, ideaPluginDescriptor, zipPath, pluginPath, true)
+            return
+        } catch (e: NoSuchMethodException) {
+            logEvent("downloadHotUpdate new install api not found, use old api")
+        }
+
+        val method = clazz.getMethod(
+            INSTALL_AFTER_RESTART_METHOD,
+            Path::class.java,
+            java.lang.Boolean.TYPE,
+            Path::class.java,
+            IdeaPluginDescriptor::class.java,
+        )
+        method.invoke(null, zipPath, true, pluginPath, ideaPluginDescriptor)
     }
 
     private fun installPluginForLowerVersion(): Boolean {
@@ -250,6 +265,8 @@ class IdeaHotUpdateCoordinator(
         private const val REQUEST_DURATION_MILL = 4 * 60 * 60 * 1000L // 4 hours
         /** Jugg has multiple instances, each instance will request isolate. avoid request too frequency */
         private const val REQUEST_MIN_DURATION_MILL = 1 * 60 * 60 * 1000L // 1 hour
+        private const val PLUGIN_INSTALLER_CLASS = "com.intellij.ide.plugins.PluginInstaller"
+        private const val INSTALL_AFTER_RESTART_METHOD = "installAfterRestart"
 
         private var lastRequestTime = 0L
 

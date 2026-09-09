@@ -1,6 +1,6 @@
 # 测试与验证策略（权威细则）
 
-> 最后核对：2026-07-29
+> 最后核对：2026-09-08
 > 一致性规则：文档与代码冲突时，以代码为准。
 > **与 AGENTS.md / CLAUDE.md 关系**：顶层规则只保留不可绕过的约束；**本页是验证证据、测试价值、分层、TDD、落点和存量治理的唯一权威细则**。其他 `docs/task/YYYY-MM/*` 若与本页冲突，以本页为准。
 
@@ -144,6 +144,7 @@ Mockito、测试层级、被测类数量和覆盖率都不能单独证明测试�
 | Direct overlay 校验 | `DirectOverlayStateChecker`、`DirectOverlayWriter` | main |
 | 序列化往返 | `ApkInfoSerializer`、`JuggDeploymentCacheStore` | main / idea |
 | 生成产物 | Gradle init script、APT 输出、Manifest、R 文件 | main / idea |
+| init script 生成契约 | `ReadProjectInfoScriptContentTest`（尾逗号、companion、禁用 API 等） | main |
 
 不属于 L1：
 
@@ -281,6 +282,18 @@ deploy/run 新增分支优先追加到：
 - `LibraryTestApkBackfillHelperTest`
 
 不新增 `DeployOptions*Test`、路径常量测试或同类 L0 文件。
+
+### 7.4 Gradle init script（`readProjectInfo.gradle.kts`）
+
+改动会进入 `buildReadProjectInfoScript` 的输入时（`main/.../gradle/script/**`、被内嵌的 `project/data/**`、`DependencyDiffResult`、`buildReadProjectInfoScript.gradle`），必须单独覆盖**生成脚本语法**，不能只用高版本功能 compat 代替：
+
+| 目标 | 层级 | Owner | 说明 |
+|------|------|-------|------|
+| 生成契约（尾逗号、companion、Kotlin 1.3/1.5 禁用 API 等） | L1 / 静态守卫 | `ReadProjectInfoScriptContentTest` | 默认必跑；不依赖 Java 8，也不启动真实 Gradle |
+| 真实脚本编译（Kotlin DSL language version < 1.4） | L2 | `ReadProjectInfoGradle5CompatTest`、`ReadProjectInfoGradle6CompatTest` | 有兼容 JDK 时跑；专门挡住 Gradle 7+ 测不到的语法洞 |
+| 高版本功能 / AGP 行为 | L2 | `ReadProjectInfoGradle7CompatTest`、`ReadProjectInfoGradle9CompatTest` | 只证明功能行为；**不能**代替 5/6 或 `ScriptContentTest` 的语法回归 |
+
+漏回归模式：只挂 Gradle 7/9 compat 验证 init script 相关改动时，尾逗号等 pre-1.4 语法问题会静默通过。工程侧约束见 `04_engineering_project.md` §6。
 
 ---
 

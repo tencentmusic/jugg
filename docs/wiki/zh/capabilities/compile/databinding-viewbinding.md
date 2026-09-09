@@ -19,6 +19,7 @@ Jugg 支持 DataBinding / ViewBinding 相关 layout 修改的增量处理。它�
 |---|---|---|
 | ViewBinding layout 修改 | 支持 | binding 相关源码会被更新并继续编译 |
 | DataBinding layout 修改 | 支持 | mapper、BR 等相关源码会被更新并继续编译 |
+| DataBinding layout 使用直接工程依赖中的 BindingAdapter | 支持复用依赖模块 setter store | mapper 能解析自定义属性并生成 BindingImpl |
 | `<include>` 影响 | 支持基于 layout info 补齐 | 被 include 关系影响的 layout 会一起进入生成源码更新 |
 | Gradle layout info 维护 | 支持 | 后续 Gradle 构建仍能拿到必要 layout 基线 |
 
@@ -41,6 +42,7 @@ DataBinding / ViewBinding layout 变化
 
 - 普通 layout 不会因为开启 ViewBinding 就一定进入 DataBinding mapper。
 - DataBinding mapper 依赖上次 Gradle 产出的 layout info 和 BR 基线；缺失时需要 Gradle 重建。
+- 直接工程依赖中的 BindingAdapter 需要依赖模块已生成 setter store；首次加入该依赖或基线缺失时，需要先执行 Gradle 构建或 Sync。
 - stripped XML 既是资源产物，也是源码阶段判断 mapper 的输入之一，不能只看 Java 输出判断是否成功。
 
 ## 相关页面

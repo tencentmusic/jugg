@@ -142,6 +142,8 @@ IDE / Gradle compile 触发 project info 更新
 
 Application 与 Dynamic Feature 的 APK 模块归属使用 Gradle 已解析的 variant runtime classpath。`GradleProjectInfoReader` 从 `ProjectComponentIdentifier` 收集本构建和 composite build 的 project component，Gradle DSL 的 `exclude`、依赖替换和变体选择已经在该边界生效；`ModuleApkBelongsUtils` 直接使用这份扁平 resolved module 集合，不再沿 IDE/compile dependency 图递归推导。读取失败、目标 runtime configuration 不存在或旧 JSON 没有 `runtimeModuleDependencies` 时字段保持 `null`，整体回退既有 `moduleDependencies` 遍历，不能把“不知道”序列化成权威空集合。
 
+Application 与 Dynamic Feature 同时从选中 variant 的 `RuntimeClasspath` 读取最终 APK 可见的外部库，写入 `runtimeLibraryDependencies`；其他模块仍只读取既有 compile dependency，避免为每个 Library 重复解析运行时图。依赖 diff 先检查完整构建基线：基线存在非空 runtime library 数据时，本轮两个 diff 都比较 `libraryDependencies + runtimeLibraryDependencies`，并按 artifact 绝对路径去重；基线 runtime 为空时，本轮两个 diff 都只比较 `libraryDependencies`。因此新基线能够检测仅通过 Maven runtime scope、`runtimeOnly` 或其他运行时传递路径进入 APK 的 AAR/JAR，旧基线又不会把升级后首次采集到的全部 runtime library 误报为新增。APK 根模块的 runtime configuration 缺失或解析失败属于依赖快照不完整，必须让本次 Gradle 读取失败并回退完整构建，不能保存权威空列表继续部署。
+
 `readProjectInfo.gradle.kts` 在 `gradle.taskGraph.whenReady` 后分流执行：dry-run 仍立即调用 `readAndSave()`，避免没有真实 task execution 时丢失 project info；非 dry-run 会把读取挂到 task graph 最后一个 task 的 `doLast`，让依赖快照尽量在 execution phase 读取，减少 Gradle 9/AGP 高版本的 configuration-time resolve warning。
 
 Android variant 读取保留 `applicationVariants` 和 `libraryVariants` 作为旧 AGP 的首选入口（dynamic feature 使用 `applicationVariants`）；仅当 legacy API 未返回 variant 时，才使用配置阶段从 `androidComponents.onVariants` 收集的名称与有效 `minSdk`。收集结果按 Gradle project path 存在 root project extra properties 中，不保留 AGP variant 实例；project info 的 `buildVariant` 推导和 AndroidTest assemble task 注入复用同一份回退数据。该注册同时覆盖 application、library 和 dynamic-feature plugin，反射注册失败时保持旧路径继续执行，不中断 Gradle 配置。
@@ -247,9 +249,11 @@ Library androidTest 的 `instrumentationTargetPackage` 当前取 synthetic test 
 
 `RemoteGradleCompileClient.executeRemoteCommand()` 复用现有 SSH 认证、代理、环境变量、PTY 与取消能力，在 `remoteProjectPath` 下通过独立子 shell 和唯一完成标记执行一条非交互命令。该入口的单次 SSH connect 最长等待 30 秒，不做文件同步、APK/classpath 拉取或 deploy 编排，也不使用 Gradle 命令的 90 秒无输出超时。用户命令和终端输出只进入独立 Run Content；持久日志只记录命令类型、连接与退出结果，禁止记录命令正文。
 
-依赖变化采用显式确认契约。检测到 build file 变化后，Jugg 先展示文件 diff，由用户选择读取依赖变化、忽略本轮 build file 变化、回退 Gradle 或取消；只有用户确认后才把依赖库产物转换为 `ChangedFile` 进入增量编译。原因是 build script 可以改变任意构建行为，仅凭依赖列表无法证明 APK 其他部分没有变化，自动猜测会把无法判定的风险伪装成成功。
+依赖变化采用显式确认契约。检测到 build file 变化后，如果源码变化已经超过增量阈值，Jugg 先展示 Too many changes 确认；只有用户选择本轮继续增量，才展示 build file diff。未超过阈值时直接展示文件 diff。用户可选择读取依赖变化、忽略本轮 build file 变化、回退 Gradle 或取消；只有用户确认后才把依赖库产物转换为 `ChangedFile` 进入增量编译。原因是 build script 可以改变任意构建行为，仅凭依赖列表无法证明 APK 其他部分没有变化，自动猜测会把无法判定的风险伪装成成功。
 
 Gradle diff 同时保留两个比较基线：`diffResult` 对比上一次构建依赖，用于展示本轮新增、删除和升级；`diffResultWithFull` 对比最近一次完整 Gradle 基线，用于确定真正需要编译、替换或回滚的 library 文件。library dex 可能在 APK 中合并为单个产物，不能只按上一轮增量结果推断旧 jar。用户选择“忽略”只表示接受当前 build file 对开发链路无影响，不代表 Jugg 已验证脚本等价；出现异常时仍应完整 Gradle 刷新基线。
+
+runtime library 是否参与依赖 diff 由最近一次完整构建保存的 project info 决定，不提升 `full_build_info.json` 序列化版本。旧完整构建基线的 `runtimeLibraryDependencies` 为空时，Jugg 保留原有 compile dependency diff，不让已有 compile context 失效，也不强制升级用户立即完整构建。之后任一次成功完整 Gradle 构建记录了非空 runtime library 基线，后续两个依赖 diff 才统一加入 runtime library；如果完整基线确实没有 runtime 外部库，第一次新增纯 runtime-only 库仍需等下一次完整构建后才能进入后续 diff。
 
 APK 查找规则以 Run Configuration 的 output pattern 为入口；自动生成的 pattern 使用 IDE Android model 暴露的实际 build folder。androidTest pattern 从 `/outputs/apk/` 片段派生，因此同时支持 `app/build/...` 与项目根集中式 `build/app/...`。远端 classpath 同步使用相对项目根的 build output 路径，保证自定义 build directory 能回写到本地相同位置。
 
@@ -257,7 +261,7 @@ APK 查找规则以 Run Configuration 的 output pattern 为入口；自动生�
 
 `JuggCompilerHelper.gradleCompile()` 会在进入 Gradle 客户端前调用 `GradleWrapperRepairer`。该逻辑只处理 `compileCommand` 中使用 `gradlew` / `gradlew.bat` 的场景：若对应目录存在 `gradle/wrapper/gradle-wrapper.properties`，则从 Jugg 内置资源补齐缺失的 `gradlew`、`gradlew.bat`、`gradle/wrapper/gradle-wrapper.jar`，并为 `gradlew` 设置可执行权限；若 properties 不存在或命令不是 wrapper 入口，则不修改工程。补齐只创建缺失文件，不覆盖已有文件。Windows 本机执行远程编译时，还会在同步前将实际使用的 Unix `gradlew` 中 CRLF 转换为 LF；转换只在内容变化时写回，不处理 `gradlew.bat`、其他脚本或 Gradle 配置文件，纯本地编译与仅拉取远端结果均保持原文件不变。
 
-本地 Gradle 命令的 `JAVA_HOME` 在 IDEA 中优先使用 linked-project 配置的 Gradle JVM，并通过 IDE JDK 解析器转换为实际路径；未配置或解析失败时，依次回退模块 Java SDK 和系统 `JAVA_HOME`。standalone 优先保留 launcher/shell 显式传入的 `JAVA_HOME`，仅缺失时回退 daemon 的 `java.home`，因此 daemon 自身使用 Java 11 不会强制项目 Gradle 也使用 Java 11。远程编译前的本地 project info dry-run 也使用同一套环境，避免 Android 模块 SDK 不是 Java SDK 时丢失 IDE Gradle JDK。
+本地 Gradle 命令的基础环境由宿主平台提供：IDE 场景使用 IntelliJ 已加载的 shell environment，避免 macOS 从 GUI 启动时 `PATH` 缺少 `node` 等用户工具；读取失败时回退 IDE 进程环境，standalone 继续使用 launcher/shell 进程环境。`JAVA_HOME` 在 IDEA 中优先使用 linked-project 配置的 Gradle JVM，并通过 IDE JDK 解析器转换为实际路径；未配置或解析失败时，依次回退模块 Java SDK 和系统 `JAVA_HOME`。standalone 优先保留显式传入的 `JAVA_HOME`，仅缺失时回退 daemon 的 `java.home`，因此 daemon 自身使用 Java 11 不会强制项目 Gradle 也使用 Java 11。远程编译前的本地 project info dry-run 也使用同一套环境，避免 Android 模块 SDK 不是 Java SDK 时丢失 IDE Gradle JDK。
 
 本地 project info 读取属于后台维护任务，其 Gradle stdout/stderr 统一记录为 `debug`，不得打印用户可见的 `warn`；读取结果仍通过同步状态和返回值参与后续上下文更新。
 
@@ -274,10 +278,13 @@ APK 拉取全部成功后，`LocalGradleCompileClient` / `RemoteGradleCompileCli
 - `ModuleInfo` 新增字段时必须同步 `JuggProjectInfoSerialize`、`JuggProjectInfoMerger`、`ProjectInfoSerializerInGradle`、`CmdLineContextManager`、`LibrariesBackupHelper`；否则 Gradle/IDE/CLI 任一侧会丢字段。
 - Gradle 侧 Groovy `JsonGenerator` 会把 Kotlin Boolean `is*` 字段写成 JavaBean 名（`isUseDataBinding` → `useDataBinding`）。IDE `ProjectInfoSerializer` 用 Gson 按字段名读取，加载时按 `ModuleInfo` 声明的 `is*` 布尔字段自动把 bean 名拷到字段名，不要为单个开关加白名单。新增同类字段时，`gson load of groovy snapshot preserves DataBinding setting` 会要求 fixture 赋值为 true 并完成 Groovy→Gson 回读。只修 merger 保留逻辑挡不住 JSON 回读丢开关。
 - `runtimeModuleDependencies` 只对 Application / Dynamic Feature 根模块读取；非空或空列表都是 Gradle resolved runtime 的权威结果，`null` 才触发旧逻辑。`ProjectComponentIdentifier.projectPath` 必须用独立规则去除开头的 `:` 后再把层级分隔符转换为 `.`，composite build 根项目则使用 `projectName`；不能复用面向 display name 的通用转换，也不能继续依赖 `ResolvedDependency.moduleVersion == unspecified` 的启发式判断。
+- `runtimeLibraryDependencies` 只对 Application / Dynamic Feature 根模块读取。完整构建基线存在非空 runtime library 数据时，两个依赖 diff 统一与 `libraryDependencies` 合并并按 artifact 绝对路径去重；基线 runtime 为空时两个 diff 统一保持 compile-only。不能根据 last snapshot 单独启用 runtime，也不能通过提升 `FullBuildInfoSerializer` 版本强制所有旧基线失效。
 - `JuggProjectInfo.agpR8Classpath` 只保存可脱离 Gradle classloader 使用的直接引用路径，不把 R8 文件复制到 classpath backup，也不进入 `FullBuildInfo` 或 compile context 磁盘格式；Gradle instrumentation code source 找不到原始 buildscript artifact 或旧 project info 缺失该字段时按 `null` 兼容，并由 dex 阶段回退到 Jugg 内置 R8。
 - `JuggProjectInfo.agpR8Classpath` 类型允许为 `null`，但构造参数没有默认值；所有构造点必须明确传递现有路径或显式传入 `null`。仅转换 modules 的流程必须使用 `projectInfo.copy(modules = ...)`，禁止重新构造根快照导致项目级字段丢失。
 - `composeResourceInfo` 已按上述链路同步并在 merge 时优先保留 Gradle 值；`main/src/main/resources/gradle/readProjectInfo.gradle.kts` 也必须与 `gradle/script` 生成源一致。
 - `buildReadProjectInfoScript.gradle` 必须收集 init script 内嵌源码的全部非 Gradle classpath 依赖，并按声明依赖排序；`JuggPathManager` 引用 `JuggGlobalPathManager` 时，两者必须同时收集且后者排在前面，避免生成的独立 KTS 编译失败。
+- trailing-comma 清理分两步：先删除 `)` 前尾逗号并保留 `) {` 与行尾注释；再删除嵌套调用留下的 `),\n)` 外层尾逗号，且不得删除 `),\nnextArg` 这种非末参数分隔逗号。否则 Gradle 5/6（Kotlin DSL language version < 1.4）会因残留 `arg),` 脚本编译失败。
+- 改动会进入 `buildReadProjectInfoScript` 的输入时（`gradle/script/**`、被内嵌的 `project/data/**`、`DependencyDiffResult`、生成器本身），验证矩阵必须包含生成脚本**语法**回归，不能只用 Gradle 7/9 功能 compat 代替：默认跑 `ReadProjectInfoScriptContentTest`（含尾逗号等生成契约）；有 JDK 条件时再跑 `ReadProjectInfoGradle5CompatTest` / `ReadProjectInfoGradle6CompatTest`。Gradle 7+ 已接受尾逗号，测过 7/9 不等于语法兼容仍成立。细节与 owner 见 `06_testing.md` §7.4。
 - Project info 只记录选中 Android Kotlin task 为本轮增量编译暴露的 fragment graph，不构建项目全部 target 的完整 Kotlin source-set 依赖图，也不记录 deletion 图或 generated source cache。
 - `ModuleBuildPathInfo` 是 AGP 路径兼容层；不要在编译器里散落硬编码 `build/intermediates/...` 路径。
 - `ModuleBuildPathInfo.buildDirRelativePath` 必须在 Gradle JSON、IDE project info、compile context merge、classpath backup 和 deploy history 序列化中完整保留；修改字段结构时先判断旧值能否确定性迁移，不能仅通过提升 compile context 版本迫使用户重新全量构建。
@@ -316,6 +323,7 @@ APK 拉取全部成功后，`LocalGradleCompileClient` / `RemoteGradleCompileCli
 | library androidTest target package 异常 | 实际 Test APK manifest、`buildAndroidTestModuleInfo()`、`LibraryTestApkBuildHistory` |
 | Compose 默认/自定义资源目录未识别 | `GradleProjectInfoReader.getComposeResourceInfo()`、`readComposeResourceDirectories()` 与序列化后的 `composeResourceInfo` |
 | Compose resource API 不受支持 | task 类型集合与必要属性、task class 的 code source、generator class/method/constructor 结构及 `unsupportedReason` |
+| `-I readProjectInfo.gradle.kts` 报 trailing commas / Expecting an argument | `buildReadProjectInfoScript.gradle` 尾逗号清理；用 `ReadProjectInfoScriptContentTest` 与 Gradle 5/6 compat 回归，见 `06_testing.md` §7.4 |
 
 ---
 
@@ -323,6 +331,7 @@ APK 拉取全部成功后，`LocalGradleCompileClient` / `RemoteGradleCompileCli
 
 - 编译核心：`02_compile_core.md`
 - androidTest：`06_android_test.md`
+- 测试与验证：`06_testing.md`（§7.4 init script 语法回归）
 - IDE 编排：`04_engineering_ide.md`
 - 兼容层：`04_engineering_compat.md`
 - 运行时排查：`09_plugin_runtime_debug.md`

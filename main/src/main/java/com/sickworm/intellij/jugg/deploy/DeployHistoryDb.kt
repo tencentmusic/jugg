@@ -16,6 +16,9 @@ import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.change.ChangedFile
 import com.sickworm.intellij.jugg.project.change.IFileChangesHandler
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.attribute.BasicFileAttributes
+import java.nio.file.attribute.FileTime
 import java.security.MessageDigest
 
 /**
@@ -49,6 +52,7 @@ class DeployHistoryDb(
     private val tempBuildFilesDir = File(dbDir, ".build_files_tmp")
 
     private val gitManager: IGitManager = GitManager.createGitManagerAndTrySearchParent(projectDir)
+    private val crcCache = mutableMapOf<String, CrcCacheEntry>()
 
     val isAvailable: Boolean
         get() = gitManager.hasInitGit && (gitManager.getLastCommitHash() != null)
@@ -99,9 +103,10 @@ class DeployHistoryDb(
             dirAndCommitMap[rootDir] = commit
         }
 
-        val changedFiles = mutableSetOf<File>()
+        val changedFiles = mutableMapOf<String, File>()
         deployHistoryData.changedFiles?.keys?.forEach { path ->
-            changedFiles.add(File(projectDir, path))
+            val file = File(projectDir, path).absoluteFile.normalize()
+            changedFiles[file.path] = file
         }
         dirAndCommitMap.forEach { (rootDir, commit) ->
             val subChangedFiles = getGitChangedFiles(File(rootDir), commit, isOnInit)
@@ -110,15 +115,19 @@ class DeployHistoryDb(
                 logger.warn("getChangedFilesSinceLastFullCompiled failed")
                 return null
             }
-            changedFiles.addAll(subChangedFiles)
+            subChangedFiles.forEach { file ->
+                val normalizedFile = file.absoluteFile.normalize()
+                changedFiles[normalizedFile.path] = normalizedFile
+            }
         }
-        val undeployFiles = changedFiles.filter {
+        val candidates = changedFiles.values
+        val undeployFiles = candidates.filter {
             if (!it.exists()) {
                 return@filter false
             }
             isCrcChanged(deployHistoryData, it)
         }
-        logCrcDiagnostic(deployHistoryData, changedFiles, undeployFiles)
+        logCrcDiagnostic(deployHistoryData, candidates, undeployFiles)
         logger.debug("getChangedFilesSinceLastFullCompiled, final files: ${undeployFiles.map { it.name }}")
         return undeployFiles
     }
@@ -137,7 +146,7 @@ class DeployHistoryDb(
         val selectedSamples = selectedFiles.take(CRC_DIAGNOSTIC_SAMPLE_LIMIT).map { file ->
             val path = file.relativeTo(projectDir).path
             val storedCrc = deployHistoryData.changedFiles?.get(path)
-            if (storedCrc == null) "$path(no-record)" else "$path($storedCrc->${file.crc32})"
+            if (storedCrc == null) "$path(no-record)" else "$path($storedCrc->${file.cachedCrc32()})"
         }
         logger.debug("Git recovery CRC summary: candidates=${candidates.size}, selected=${selectedFiles.size}, " +
                     "missing=$missingCount, unrecorded=$unrecordedCount, crcChanged=$crcChangedCount, " +
@@ -186,7 +195,7 @@ class DeployHistoryDb(
             return true
         }
 
-        val newCrc = file.crc32
+        val newCrc = file.cachedCrc32()
         if (fileCrc != newCrc) {
             // file changed
             return true
@@ -426,7 +435,7 @@ class DeployHistoryDb(
 
             val isOnUncommittedFileList = fileCrc != null
             if (isOnUncommittedFileList) {
-                val newCrc = file.crc32
+                val newCrc = file.cachedCrc32()
                 if (fileCrc != newCrc) {
                     // file changed, don't put it in gitFileMap
                     return@forEach
@@ -481,7 +490,7 @@ class DeployHistoryDb(
     private fun File.toChangedFilePair(startCompileTime: Long = Long.MAX_VALUE): Pair<String, Long> {
         val relativePath = relativeTo(projectDir).path
         val crc = if (lastModified() <= startCompileTime) {
-            crc32
+            cachedCrc32()
         } else {
             // mark file as dirty by set crc32 to 0 if file is modified after startCompileTime
             logger.debug("File $relativePath is modified after startCompileTime, mark it as dirty.")
@@ -489,6 +498,31 @@ class DeployHistoryDb(
         }
         return relativePath to crc
     }
+
+    private fun File.cachedCrc32(): Long {
+        val normalizedFile = absoluteFile.normalize()
+        val attributes = Files.readAttributes(
+            normalizedFile.toPath(),
+            BasicFileAttributes::class.java,
+        )
+        val cached = crcCache[normalizedFile.path]
+        if (cached != null &&
+            cached.lastModifiedTime == attributes.lastModifiedTime() &&
+            cached.length == attributes.size()
+        ) {
+            return cached.crc32
+        }
+
+        val crc = normalizedFile.crc32
+        crcCache[normalizedFile.path] = CrcCacheEntry(attributes.lastModifiedTime(), attributes.size(), crc)
+        return crc
+    }
+
+    private data class CrcCacheEntry(
+        val lastModifiedTime: FileTime,
+        val length: Long,
+        val crc32: Long,
+    )
 
     fun getLastBuildFiles(files: List<ChangedFile>): List<Pair<ChangedFile, File?>> {
         val deployHistoryData = DeployHistoryData.load(deployHistoryFile) ?: return files.map { it to null }

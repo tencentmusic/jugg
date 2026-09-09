@@ -353,6 +353,31 @@ class JuggCompileForDataBindingTest {
     }
 
     @Test
+    fun testProjectDependencyBindingAdapterFromGradleSetterStore() {
+        val layoutFile = File(
+            assetsAndroidDir,
+            "app/src/main/res/layout/activity_data_binding_library_adapter_demo.xml",
+        )
+
+        val result = juggCompiler.compile(CompileHelper.makeTask(layoutFile))
+
+        result.printCompileErrors()
+        assertTrue(result.isAllSuccess, "Project dependency BindingAdapter compilation should succeed")
+        CompileHelper.checkOutputFiles(result, listOf(
+            "androidx/databinding/DataBinderMapperImpl.dex",
+            "androidx/databinding/DataBindingComponent.dex",
+            "com/example/myapplication/BR.dex",
+            "com/example/myapplication/DataBinderMapperImpl.dex",
+            "com/example/myapplication/DataBinderMapperImpl_Full.dex",
+            "com/example/myapplication/DataBinderMapperImpl_Inc_1.dex",
+            "com/example/myapplication/databinding/ActivityDataBindingLibraryAdapterDemoBinding.dex",
+            "com/example/myapplication/databinding/ActivityDataBindingLibraryAdapterDemoBindingImpl.dex",
+            "res/layout/activity_data_binding_library_adapter_demo.xml",
+            "resources.arsc",
+        ))
+    }
+
+    @Test
     fun testNewBindingAdapterAndLayoutCompileIncrementally() {
         val adapterFile = File(
             assetsAndroidModifySourceDir,

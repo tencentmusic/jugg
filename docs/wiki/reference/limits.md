@@ -21,6 +21,7 @@ Jugg aims to reduce the number of full Gradle builds during common development c
 | Source changes | Small Java/Kotlin changes | Large cross-module changes and complex compiler plugin behavior |
 | Resource changes | Common `res/`, `assets/`, and Manifest changes | Changes to source sets, variants, or complex resource generation logic |
 | Deployment | Common development flows such as install, code swap, and full swap | Invalid device state or major APK structure changes |
+| Official packaging | Daily debug loops and exporting an incremental debug APK | GitHub Actions, store listing, channel packages, and official release APKs |
 | release | Preserving obfuscation mapping consistency when possible | Complex R8 optimization, incomplete mapping, or runtime inconsistencies |
 | androidTest | Common app androidTest runs | Complex Test APK ownership or test target switching |
 | MCP / CLI tools | Assistance with compilation, deployment, logs, and UI verification | They do not replace human judgment or verification on a real device |
@@ -103,6 +104,7 @@ A direct Gradle build is recommended in the following situations:
 
 ## Related pages
 
+- [Supported packaging methods](../troubleshooting/supported-packaging.md)
 - [How Jugg works](../concepts/how-jugg-works.md)
 - [Incremental compilation](../concepts/incremental-compile/)
 - [Resource compilation](../capabilities/compile/resource-compile.md)

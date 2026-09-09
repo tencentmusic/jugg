@@ -30,13 +30,17 @@ class GradleWrapperRepairer(
             copyMissingResource(wrapperDir, "gradlew", RESOURCE_GRADLEW)
             copyMissingResource(wrapperDir, "gradlew.bat", RESOURCE_GRADLEW_BAT)
             copyMissingResource(wrapperDir, "gradle/wrapper/gradle-wrapper.jar", RESOURCE_GRADLE_WRAPPER_JAR)
-            File(wrapperDir, "gradlew").setExecutable(true)
             logger.info("[Jugg] Filled missing Gradle wrapper files successfully.")
             repaired = true
         }
 
+        val gradlew = File(wrapperDir, "gradlew")
+        if (!gradlew.canExecute()) {
+            repaired = gradlew.setExecutable(true) || repaired
+        }
+
         if (normalizeGradlewLineEndings && wrapperExecutable.name == "gradlew") {
-            repaired = normalizeCrlfLineEndings(File(wrapperDir, "gradlew")) || repaired
+            repaired = normalizeCrlfLineEndings(gradlew) || repaired
         }
 
         return if (repaired) GradleWrapperRepairResult.Repaired else GradleWrapperRepairResult.Skipped

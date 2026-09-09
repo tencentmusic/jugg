@@ -18,6 +18,9 @@ import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
+import com.sickworm.intellij.jugg.ide.JuggConfigurationType
+import com.sickworm.intellij.jugg.ide.JuggRunConfiguration
+import com.sickworm.intellij.jugg.ide.JuggSettingsEditor
 import com.sickworm.intellij.jugg.ide.JuggRunSettingsComponentWrapper
 import com.sickworm.intellij.jugg.ide.JuggControlPanelHost
 import com.sickworm.intellij.jugg.ide.bean.SyncMode
@@ -48,6 +51,7 @@ import javax.swing.JPanel
 import javax.swing.JRootPane
 import javax.swing.JTabbedPane
 import javax.swing.JTextField
+import javax.swing.SwingUtilities
 
 private typealias JuggPanelContext = JuggControlPanelModel.Context
 private typealias JuggEventCategory = JuggEvent.Category
@@ -57,6 +61,43 @@ private typealias JuggEventSource = JuggEvent.Source
 private typealias JuggEventStatus = JuggEvent.Status
 
 class JuggRunSettingsComponentTest {
+
+    @Test
+    fun `switching configurations in settings editor should preserve each build target`() {
+        TestGlobal.init()
+        SwingUtilities.invokeAndWait {
+            val project = Mockito.mock(Project::class.java)
+            val factory = JuggConfigurationType.getInstance().configurationFactories.first()
+            val targets = linkedMapOf(
+                "jugg:app" to "app",
+                "jugg:skin" to "skin",
+                "jugg:app:debug" to "app",
+            )
+            val configurations = targets.map { (name, module) ->
+                JuggRunConfiguration(project, factory, name).apply {
+                    state!!.compileCommand = "./gradlew :$module:assembleDebug"
+                    state!!.outputApkName = "$module/build/outputs/apk/debug/*.apk"
+                }
+            }
+            val editor = JuggSettingsEditor()
+            (editor.component as JuggRunSettingsComponentWrapper).setImpl(JuggRunSettingsComponent())
+            try {
+                (configurations + configurations.reversed()).forEach { configuration ->
+                    val editable = configuration.clone() as JuggRunConfiguration
+                    editor.resetFrom(editable)
+                    editor.applyTo(editable)
+                    configuration.loadState(editable.state!!)
+                }
+                configurations.forEach { saved ->
+                    val module = targets.getValue(saved.name)
+                    assertEquals("./gradlew :$module:assembleDebug", saved.state!!.compileCommand)
+                    assertEquals("$module/build/outputs/apk/debug/*.apk", saved.state!!.outputApkName)
+                }
+            } finally {
+                com.intellij.openapi.util.Disposer.dispose(editor)
+            }
+        }
+    }
 
     @Test
     fun `control panel preview should match approved native layout structure`() {

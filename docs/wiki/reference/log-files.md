@@ -9,7 +9,7 @@ tags:
 
 # Log files
 
-Use this page to quickly locate logs and artifacts when troubleshooting or reporting a problem. It lists only paths, formats, and keywords. See [Troubleshooting](../troubleshooting/) for steps to diagnose specific problems.
+Use this page to quickly locate logs and artifacts when troubleshooting or reporting a problem. It lists only paths, formats, and keywords. See the [FAQ](../troubleshooting/supported-packaging.md) for steps to diagnose specific problems.
 
 The main Jugg logs are stored under `build/jugg/log/` in the project directory. When investigating compilation, deployment, Debug, MCP, or runtime problems, start with `compile_latest.log` in most cases.
 

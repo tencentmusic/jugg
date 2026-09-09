@@ -103,6 +103,7 @@ Gradle project info 保存选中 variant 合并后的 `minSdk`，包含 product 
 
 ```text
 DexCompiler
+  -> 依赖 JAR 按 class 内容差分；变化 class 属于 Java nest 时补齐新 JAR 内可用的完整 nest
   -> 解析 changed class 的 interface / static invocation
   -> 选择 D8 minApi：使用当前 module 归属 APK 的 owner variant minSdk（base APK 用 application，split 用 dynamic feature）；minSdk 不可读时回落 21
   -> 从 APK/deploy DB 查找 `$-CC` / `$DefaultImpls` 对应的 default interface
@@ -112,6 +113,8 @@ DexCompiler
 ```
 
 这里不能只按当前模块 `minSdkVersion` 判断是否脱糖。Jugg 的增量 DEX 必须和已安装 APK 保持同一种字节码形态：基线存在 `$-CC` / `$DefaultImpls` 时，D8 需要看到对应接口 classpath，避免 default method 调用形态与 APK 不一致；基线存在 `j$.*` 时，还需要把项目 `coreLibraryDesugaring` 依赖中的 `desugar.json` 传给 D8。找不到配置时会 warn 并继续，最终风险是高版本 Java API 在设备端引用不一致。
+
+依赖 JAR 的 class 差分不能只保留 CRC 变化项。Java 11 nest host/member 通过 `NestHost`、`NestMembers` 形成一个 D8 输入单元；任一成员变化时，`DexCompiler` 会递归补齐新 JAR 中存在的整个 nest，避免未变化的匿名类或内部类被过滤后触发 `requires its nest mates ... unavailable`。
 
 Compose resource generated source 是这条常规 source 链之前的独立前置步骤：`ComposeResourceCompiler` 将 Res、各 source set accessor、expect collector 和 Android actual collector 放进同一次 `KotlinCompilerInvoker` 调用，并显式传入 common source 文件列表。编译出的 class 随后才进入 `SourceCompiler` 的 class/dex 路径；不会分别编译 expect 与 actual。Gradle project info 仍可把 build directory 下的 generated source 保留在 `sourceDirs` 中，供 Kotlin compilation metadata 使用；`FileChangesHandler` 会在文件变更边界统一排除这些路径，避免它们再作为用户源码进入常规 Kotlin 阶段。JuggApt 等本轮由编译器直接登记的 generated source 不经过该文件事件过滤。
 

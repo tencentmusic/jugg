@@ -119,14 +119,13 @@ class JuggAndroidTestRunConfiguration(
         JuggAndroidTestRunSpecFactory.validateOptions(state ?: return)
     }
 
-    private var lastSetObj: Any? = null
+    private val allowSelectDeviceInitializedKey = Key.create<Boolean>("jugg.androidTest.allowSelectDeviceInitialized")
 
     private fun ensureSetAllowSelectDevice() {
         try {
-            if (lastSetObj !== userMap) {
-                AsDeployerCompat.setAllowSelectDevice(this)
-                lastSetObj = userMap
-            }
+            if (super.getUserData(allowSelectDeviceInitializedKey) == true) return
+            AsDeployerCompat.setAllowSelectDevice(this)
+            super.putUserData(allowSelectDeviceInitializedKey, true)
         } catch (e: Throwable) {
             Logger.getInstance("JuggAndroidTestRunConfiguration").warn("ensureSetAllowSelectDevice", e)
         }

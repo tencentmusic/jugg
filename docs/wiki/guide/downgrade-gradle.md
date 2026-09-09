@@ -44,7 +44,7 @@ After Gradle succeeds, Jugg reloads the APK, classpath, mapping, and resource ba
 
 ## The build-file change dialog
 
-After you modify `build.gradle`, `settings.gradle`, or dependency declarations, Jugg may first display a dependency-change dialog.
+After you modify `build.gradle`, `settings.gradle`, or dependency declarations, Jugg may display a dependency-change dialog. If the same run also contains too many source changes, Jugg first asks whether to continue the large incremental compilation. The build-file changes appear only after you select `Continue Incremental Compile`.
 
 | Choice | When to choose it |
 |---|---|

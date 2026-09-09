@@ -21,7 +21,7 @@ class ReportIssueDialog(
     private val uploadUrl: String,
 ) : DialogWrapper(true) {
     private val saveLocallyCheckBox = JCheckBox("Save locally without uploading")
-    private val candidateCheckBoxes = candidates.sortedByDescending { it.isJuggLog() }.associateWith { candidate ->
+    private val candidateCheckBoxes = candidates.sortedBy { it.displayPriority() }.associateWith { candidate ->
         JCheckBox(
             "${candidate.path}  (${formatFileSize(candidate.entry.size)})",
             candidate.isJuggLog() || candidate.isSelectedByDefault,
@@ -60,6 +60,12 @@ class ReportIssueDialog(
     }
 
     private fun IssueReportCandidate.isJuggLog(): Boolean = path.startsWith("diagnostics/logs/")
+
+    private fun IssueReportCandidate.displayPriority(): Int = when {
+        isJuggLog() -> 0
+        path.startsWith("diagnostics/project-info/") -> 1
+        else -> 2
+    }
 
     private fun formatFileSize(bytes: Long): String {
         val megabyte = 1024L * 1024L

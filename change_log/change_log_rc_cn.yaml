@@ -4,7 +4,30 @@
   updates:
     - 支持 Standalone Jugg CLI，不依赖 Android Studio 执行编译和部署
 
-- version: 3.4.0
+- version: 3.4.3
+  date: 2026.09.09
+  updates:
+    - "[feature] 问题上报时附带工程快照（可选）"
+    - "[optimize] 降级弹窗优先级调整：文件过多变更 > 构建文件 diff"
+    - "[optimize] 优化大型工作区包含大量未跟踪文件时初始化耗时较长的问题"
+    - "[optimize] 优化 Gradle 编译可能缺失部分 PATH 导致编译失败"
+    - "[bugfix] 修复 3.4.2 在 Gradle 5/6 上编译失败"
+    - "[bugfix] 修复 AndroidManifest.xml library placeholder 未替换问题"
+    - "[bugfix] 修复模块名含 . 时没有正确生成 Gradle 任务"
+
+- version: 3.4.2
+  date: 2026.09.07
+  updates:
+    - "[bugfix] 避免 Marketplace 校验在受支持 IDE 上拒绝插件"
+    - "[bugfix] 大写 flavor 变体时正确切换 Jugg profile"
+    - "[bugfix] 避免仅 runtime 依赖的更新仍使用旧代码"
+    - "[bugfix] 更新检查无服务器时提示后端不可用"
+    - "[bugfix] gradlew 缺少执行权限时避免 Gradle 回退失败"
+    - "[bugfix] 工程路径含空格时避免构建失败"
+    - "[bugfix] 避免依赖模块 BindingAdapter 导致 mapper 失败"
+    - "[bugfix] Windows 路径含空格时避免 Gradle 回退失败"
+
+- version: 3.4.1
   date: 2026.09.05
   isNeedReinstall: true
   updates:

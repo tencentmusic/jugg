@@ -4,7 +4,30 @@
   updates:
     - run Jugg compile and deploy workflows from a standalone cross-platform CLI without Android Studio
 
-- version: 3.4.0
+- version: 3.4.3
+  date: 2026.09.09
+  updates:
+    - "[feature] Include optional project snapshots in issue reports"
+    - "[optimize] Prefer the too-many-files fallback prompt over build file diff"
+    - "[optimize] Reduce init time when large worktrees contain many untracked files"
+    - "[optimize] Prevent Gradle compile failures when PATH is incomplete"
+    - "[bugfix] Fix Gradle 5/6 compile failure in 3.4.2"
+    - "[bugfix] Fix unreplaced library placeholders in AndroidManifest.xml"
+    - "[bugfix] Fix Gradle task generation for module names that contain a dot"
+
+- version: 3.4.2
+  date: 2026.09.07
+  updates:
+    - "[bugfix] Prevent Marketplace verifier rejection on supported IDEs"
+    - "[bugfix] Switch Jugg profile for uppercase build variants"
+    - "[bugfix] Prevent runtime-only dependency updates from using old code"
+    - "[bugfix] Show backend unavailable when update check has no server"
+    - "[bugfix] Prevent Gradle fallback from failing when gradlew lacks execute permission"
+    - "[bugfix] Prevent builds from failing for project paths with spaces"
+    - "[bugfix] Prevent mapper failure for dependency module binding adapters"
+    - "[bugfix] Prevent Gradle fallback from failing for Windows paths with spaces"
+
+- version: 3.4.1
   date: 2026.09.05
   isNeedReinstall: true
   updates:

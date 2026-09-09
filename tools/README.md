@@ -1,5 +1,37 @@
 # Tools
 
+## fetch_github_issue.py
+
+`fetch_github_issue.py` reads a GitHub Issue through the read-only GitHub REST
+API. It does not use MCP, modify the Issue, or store credentials.
+
+Basic usage:
+
+```bash
+python3 tools/fetch_github_issue.py \
+  https://github.com/tencentmusic/jugg/issues/37
+```
+
+The default output is Markdown and includes the Issue body, all comments, labels,
+state, and detected Jugg Report IDs. Use `--json` for structured output or
+`--no-comments` when only the Issue body is needed.
+
+If an unauthenticated GitHub API request is rate-limited with HTTP 403/429, the
+script automatically reads GitHub's public Issue page and its embedded
+structured data instead.
+
+For public Issues, no token is normally required. For private repositories or
+GitHub API rate limits, set a GitHub personal access token in the environment:
+
+```bash
+export GITHUB_TOKEN="<your-token>"
+python3 tools/fetch_github_issue.py \
+  https://github.com/tencentmusic/jugg/issues/37
+```
+
+Do not put the token in the command line, repository files, Issue body, or chat
+messages. The script only reads `GITHUB_TOKEN` at runtime.
+
 ## collect_jugg_scene.command
 
 `collect_jugg_scene.command` collects a local Jugg troubleshooting scene into one

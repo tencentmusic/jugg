@@ -61,5 +61,5 @@ These capabilities share the same Jugg project baseline. Whether compilation is 
 - [Guides](../guide/)
 - [Concepts](../concepts/)
 - [How Jugg works](../concepts/how-jugg-works.md)
-- [Troubleshooting](../troubleshooting/)
+- [FAQ](../troubleshooting/supported-packaging.md)
 - [Reference](../reference/)

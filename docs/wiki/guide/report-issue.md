@@ -27,7 +27,7 @@ You can also open it from a Jugg Run Configuration:
 
 After the report window opens:
 
-1. Review and select the diagnostic files. Jugg logs are selected by default and cannot be cleared.
+1. Review and select the diagnostic files. Jugg logs are selected by default and cannot be cleared. Project snapshots are selected by default but can be cleared.
 2. Select `Upload logs`, or select `Save locally without uploading` to create a local diagnostic bundle.
 3. After the upload finishes, copy the Report ID. If the upload fails, click `Retry Upload`, or give the retained ZIP file to the maintainer.
 
@@ -40,7 +40,8 @@ After a successful upload, the result window shows an 8-character lowercase hexa
 The uploaded content is intended to diagnose the current Jugg behavior:
 
 - Jugg compilation and deployment logs.
-- A structured environment and project summary without the raw project model.
+- A structured environment and project summary.
+- Cancelable IDE, Gradle, and included-build project snapshots that are selected by default.
 - Cancelable error logcat for all online target devices.
 - Optional hook debug logs.
 - A `manifest.json` describing the actual ZIP entries.
@@ -48,7 +49,7 @@ The uploaded content is intended to diagnose the current Jugg behavior:
 > [!NOTE]
 > If no device is connected, the bundle contains no device error logs. If logcat cannot be read from one device, Jugg omits only that device's logs, continues collecting logs from the other devices, and still generates the bundle. A serial supplied through CLI or MCP does not filter report contents.
 
-Raw `project_infos`, signing passwords, Manifest placeholders, APT/KAPT arguments, source code, and binary dependencies are not included in the diagnostic bundle. Hook debug logs are stored as `diagnostics/cli/hook-debug.log` in the bundle.
+Project snapshots include the existing `project_infos.json` and `gradle_project_infos.json` files, plus the `include_build_*_gradle_project_infos.json` files for current included builds. Redacted copies are stored under `diagnostics/project-info/` in the bundle. Diagnostic information such as `applicationId` and whether a field exists is preserved. Signing credentials, keystores, key aliases, Manifest placeholders, APT/KAPT arguments, and common sensitive field values are replaced. Snapshots that cannot be parsed, stale included-build snapshots, other files from `project_infos.db`, source code, and binary dependencies are not included. Hook debug logs are stored as `diagnostics/cli/hook-debug.log`.
 
 > [!NOTE]
 > Upload failure does not change the local compilation or deployment result. The temporary ZIP remains under `build/jugg/tmp/diagnostics` and can be uploaded again. It is deleted by a cleanup task after project startup once it reaches 7 days old.

@@ -1,6 +1,6 @@
 # 编译系统：DataBinding / ViewBinding
 
-> 最后核对：2026-09-04
+> 最后核对：2026-09-07
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -29,7 +29,7 @@
 | `DataBindingGenMapperCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/databinding/DataBindingGenMapperCompiler.kt` | 源码阶段：Mapper 使用 APT；Kotlin adapter 变化时先用隔离 KAPT 生成 current-module store，adapter class 成功后提交 merged store cache |
 | `DataBindingSetterStoreCache` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/databinding/DataBindingSetterStoreCache.kt` | 将官方 processor 生成的 current-module store 合入 Gradle baseline/上一版 merged store并原子发布 |
 | `LayoutIncludeAnalyzer` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/databinding/LayoutIncludeAnalyzer.kt` | 找到当前变更 layout 通过 `<include>` 影响到的 layout info |
-| `DataBindingClasspathHelper` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/databinding/DataBindingClasspathHelper.kt` | 为 DataBinding annotation processor 准备 compiler classpath、plugin 和 Gradle/AAR setter stores |
+| `DataBindingClasspathHelper` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/databinding/DataBindingClasspathHelper.kt` | 为 DataBinding annotation processor 准备 compiler classpath、plugin，以及当前模块、直接工程依赖和 AAR 的 setter stores |
 | `DataBindingTemplates` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/databinding/DataBindingTemplates.kt` | 生成 mapper delegate、full mapper、incremental holder 模板 |
 
 ---
@@ -82,7 +82,7 @@ SourceCompiler.prepareSourceCompile()
         -> 不 reset argsManager，继续消费资源阶段写入的 layout info
         -> runAnnotationProcessor()
            -> LayoutIncludeAnalyzer.findAllIncludePath(resource)
-           -> DataBindingClasspathHelper 对 project module 优先选择有效 merged store，否则使用 Gradle baseline，并收集全部 AAR setter store
+           -> DataBindingClasspathHelper 对当前模块和直接工程依赖优先选择有效 merged store，否则使用各自 Gradle baseline，并收集全部 AAR setter store
            -> 按来源隔离复制到 dataBindingDependencyArtifacts，由官方 DataBinding processor 递归加载并合并
            -> Mapper 固定使用 JavaCompilerInvoker apt-only
            -> 官方 ProcessMethodAdapters 先把当前声明加入内存 store并输出 current-module store
@@ -109,7 +109,7 @@ SourceCompiler.prepareSourceCompile()
 - 隔离 KAPT 直接启动项目 `K2JVMCompiler` CLI，并为 javac internal packages 添加 module exports/opens，避免旧 KAPT 继承 Android Studio 宿主 JBR 的 module 限制。
 - DataBinding mapper 失败且当前任务含 Kotlin 源时，`SourceDataBindingProcessor` 会先编译 Kotlin class，再重试一次 mapper 生成；第二次失败不再重试。正常成功路径仍只有一次 DataBinding processor invocation。
 - `DataBindingClasspathHelper` 只给 DataBinding 相关依赖做 annotation processing，避免 ARouter 等其他 processor 进入这条旁路。
-- Mapper APT 对 project module 优先复用 Jugg merged store；没有有效 cache 时回到当前 variant 最近一次 Gradle 完整构建生成的模块 `*-setter_store.json`。AAR transform 根目录下的 `data-binding/*-setter_store.json` 仍全部收集。
+- Mapper APT 对当前模块及其直接工程依赖优先复用各模块的 Jugg merged store；没有有效 cache 时回到对应 variant 最近一次 Gradle 完整构建生成的模块 `*-setter_store.json`。AAR transform 根目录下的 `data-binding/*-setter_store.json` 仍全部收集。
 - Java adapter declaration 继续由 Mapper APT 同轮处理；Kotlin adapter declaration 先由隔离 KAPT 生成 current-module store，adapter class 编译成功后再 merge，并由 Mapper APT 消费。Jugg 只解析 store 容器和 declaring type，不自行推导 adapter 方法签名。
 - 不同 setter store 按来源复制到独立子目录，因为官方 DataBinding processor 会递归读取 dependency artifacts；直接平铺会让同名 store 相互覆盖。
 - 当前模块支持 adapter declaration 新增、同一 declaring type 的修改和跨轮复用，不再因声明变化前置回退 Gradle；删除源码、移除全部声明和 declaring class 改名不在 B1 范围。
@@ -140,7 +140,7 @@ SourceCompiler.prepareSourceCompile()
 | 明明启用了 DataBinding 但未进入 mapper 阶段 | `DataBindingArgsManager.isUseDataBinding()` 与 module `packageName`；若 layout info 已存在仍报 `data binding is not enabled`，先查 `ProjectInfoSerializer` 对 Groovy `useDataBinding` 的回读 |
 | ViewBinding class 未生成 | `DataBindingGenBaseClassesCompiler.splitLayoutXml()` / `generateBaseClasses()` |
 | DataBinding mapper 生成失败 | `DataBindingGenMapperCompiler.runAnnotationProcessor()`，重点看 `runAnnotationProcessor apt output` 日志；若 `FileNotFoundException` 指向 kapt `DataBinderMapperImpl.java`，同时核对 Java APT 的 `ap_generated_sources` |
-| 自定义属性提示找不到 setter 或参数类型不匹配 | 先检查 `DataBindingClasspathHelper` 是否选择 module merged store，再检查 `DataBindingGenMapperCompiler` 是否从 `dataBindingAarOutDir` 取得 current-module store并发布 cache |
+| 自定义属性提示找不到 setter 或参数类型不匹配 | 先检查 `DataBindingClasspathHelper` 是否收集当前模块、直接工程依赖的有效 merged/Gradle store，再检查 `DataBindingGenMapperCompiler` 是否从 `dataBindingAarOutDir` 取得 current-module store 并发布 cache |
 | adapter-only 后下一轮 layout 找不到属性 | 检查 `SourceDataBindingProcessor` 是否因 adapter declaration 触发 processor，以及 setter store cache 的 baseline hash 是否命中 |
 | 删除/改名 adapter 后旧属性仍存在 | B1 不处理删除语义；执行 Gradle fallback恢复完整 baseline |
 | BR 缺字段或 id 抖动 | `mergeLibraryBr()` / `mergeAppBr()` 的 baseline BR 与 current incremental BR |

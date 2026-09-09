@@ -80,7 +80,22 @@ class CompileEffectAnalyzer(
         }.distinctBy { it.stdAbsPath }
 
         val startTime = System.currentTimeMillis()
-        val effectedSourceFiles = getEffectedSourceFiles(obfuscatedClasses.sources, moduleInfos)
+        // Classes already present in this compile payload do not need source recompilation.
+        val compiledClassNames = (
+            juggDeployData.newClasses +
+                juggDeployData.hotFixModifiedClasses +
+                juggDeployData.hotReloadModifiedClasses
+            )
+            .flatMap { it.classNodes }
+            .map { classNode ->
+                classObfuscator?.getOriginClassSigName(classNode.className) ?: classNode.className
+            }
+            .toSet()
+        val effectedSourceFiles = getEffectedSourceFiles(
+            obfuscatedClasses.sources,
+            moduleInfos,
+            compiledClassNames,
+        )
         val topLevelFacadeEffectedSourcePaths = getTopLevelFacadeEffectedSourcePaths(
             compiledFiles = compiledFiles,
             effectedClassNodes = obfuscatedClasses,
@@ -211,9 +226,13 @@ class CompileEffectAnalyzer(
         )
     }
 
-    private fun getEffectedSourceFiles(effectClassNodes: List<EffectedClassNode>, moduleInfos: Map<String, ModuleInfo>): List<File> {
-        val effectedSourceFiles = effectClassNodes
-            .fillMissingSourceFile(moduleInfos)
+    private fun getEffectedSourceFiles(
+        effectClassNodes: List<EffectedClassNode>,
+        moduleInfos: Map<String, ModuleInfo>,
+        compiledClassNames: Set<String>,
+    ): List<File> {
+        val effectedSourceNodes = effectClassNodes.fillMissingSourceFile(moduleInfos)
+        val effectedSourceFiles = effectedSourceNodes
             .map { it.sourceFileName }
             .distinct()
         if (effectedSourceFiles.isEmpty()) {
@@ -221,11 +240,22 @@ class CompileEffectAnalyzer(
         }
 
         val sourceFiles = sourceFileManager.getFiles(effectedSourceFiles)
-        if (sourceFiles.size < effectedSourceFiles.size) {
-            val missingFiles = effectedSourceFiles.filter { fileName ->
-                !sourceFiles.any { it.name == fileName }
+        val foundSourceFileNames = sourceFiles.map { it.name }.toSet()
+        val missingSourceNodes = effectedSourceNodes.filter {
+            it.sourceFileName !in foundSourceFileNames
+        }
+        if (missingSourceNodes.isNotEmpty()) {
+            val missingFiles = missingSourceNodes.map { it.sourceFileName }.distinct()
+            logger.debug("getEffectedSourceFiles: all missing source files: $missingFiles")
+            val unresolvedMissingFiles = missingSourceNodes
+                .filterNot { it.className in compiledClassNames }
+                .map { it.sourceFileName }
+                .distinct()
+            if (unresolvedMissingFiles.isNotEmpty()) {
+                logger.warn("getEffectedSourceFiles: missing source files: $unresolvedMissingFiles")
+            } else {
+                logger.debug("getEffectedSourceFiles: all missing source files are already compiled")
             }
-            logger.warn("getEffectedSourceFiles: missing source files: $missingFiles")
         }
         return sourceFiles
     }

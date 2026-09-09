@@ -342,8 +342,9 @@ open class QuailAsDeployerCompat : IAsDeployerCompat {
             val module = runConfig.modules.firstOrNull() ?: return null
             val gradleAndroidModel = GradleAndroidModel.get(module) ?: return null
             val moduleName = SuggestRunConfiguration.resolveModuleName(module, project)
+            val gradleModulePath = SuggestRunConfiguration.resolveGradleModulePath(module, project)
             val taskName = gradleAndroidModel.mainArtifact.assembleTaskName ?: return null
-            val compileCommand = SuggestRunConfiguration.createCompileCommand(moduleName, taskName)
+            val compileCommand = SuggestRunConfiguration.createCompileCommand(gradleModulePath, taskName)
             val projectPath = project.basePath ?: return null
             val buildType = gradleAndroidModel.selectedVariant.buildType
             val productFlavorPath = gradleAndroidModel.selectedVariant.productFlavors

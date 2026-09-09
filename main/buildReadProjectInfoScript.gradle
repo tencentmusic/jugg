@@ -308,6 +308,7 @@ gradle.taskGraph.whenReady {
         // Must run before factory function injection to handle all call sites.
         String processedContent = rawContent
             .replace("DependencyDiffResultSet.createEmpty(", "dependencyDiffResultSetCreateEmpty(")
+            .replace("DependencyDiffResultSet.create(",      "create(")
             .replace("DependencyDiffResult.createEmpty(",    "dependencyDiffResultCreateEmpty(")
             .replace("DependencyDiffResult.create(",         "create(")
             .replace("ProjectInfoSerializerInGradle.getJsonGenerator(", "getJsonGenerator(")
@@ -361,10 +362,30 @@ fun gradleApplicationInjector(rootProject: Project) = GradleApplicationInjector(
 fun gradleProjectInfoReaderManager(rootProject: Project, includedBuilds: Collection<IncludedBuild>) = GradleProjectInfoReaderManager(rootProject, includedBuilds)
 """
 
-        // Compat with Kotlin 1.4 grammar: remove trailing "," in last arguments
-        Pattern pattern = Pattern.compile(", *(//.*)?\\n *\\)(.*)")
+        // Compat with pre-Kotlin-1.4 grammar used by Gradle Kotlin DSL scripts.
+        // Pass 1: remove trailing "," before ")". Keep tokens after ")" (e.g. " {") and
+        // relocate end-of-line comments after those tokens.
+        Pattern pattern = Pattern.compile(", *(//.*)?(\\n *\\))(.*)")
         Matcher matcher = pattern.matcher(processedContent)
-        String finalResult = matcher.replaceAll(")\$2 \$1")
+        StringBuffer cleaned = new StringBuffer()
+        while (matcher.find()) {
+            String comment = matcher.group(1)
+            String closing = matcher.group(2)
+            String after = matcher.group(3) ?: ""
+            String replacement = closing + after
+            if (comment != null) {
+                replacement = closing + after + " " + comment
+            }
+            matcher.appendReplacement(cleaned, Matcher.quoteReplacement(replacement))
+        }
+        matcher.appendTail(cleaned)
+
+        // Pass 2: nested calls become "arg),\n)" after pass 1 because the outer trailing
+        // comma was kept on the same line as ")". Remove that remaining ")," before ")".
+        // Do not touch "),\nnextArg" separators between non-final arguments.
+        String finalResult = Pattern.compile("\\),(\\s*\\n\\s*\\))")
+                .matcher(cleaned.toString())
+                .replaceAll(")\$1")
 
         // write it!
         readProjectInfoKtsFile.write(finalResult)

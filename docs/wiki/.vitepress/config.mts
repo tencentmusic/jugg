@@ -9,7 +9,7 @@ const englishNav = [
   { text: 'Guide', link: '/guide/' },
   { text: 'How it works', link: '/concepts/' },
   { text: 'Capabilities', link: '/capabilities/' },
-  { text: 'Troubleshooting', link: '/troubleshooting/' },
+  { text: 'FAQ', link: '/troubleshooting/supported-packaging' },
   { text: 'Reference', link: '/reference/' },
   { text: 'Technical Articles', link: '/articles/' },
   ...(isWikiDev ? [{ text: 'Dev', link: '/dev/elements-demo' }] : [])
@@ -201,9 +201,14 @@ const englishSidebar = {
   ],
   '/troubleshooting/': [
     {
-      text: 'Troubleshooting',
+      text: 'Frequent questions',
       items: [
-        { text: 'Overview', link: '/troubleshooting/' },
+        { text: 'Supported packaging methods', link: '/troubleshooting/supported-packaging' }
+      ]
+    },
+    {
+      text: 'Daily development problems',
+      items: [
         { text: 'Compilation failed', link: '/troubleshooting/compile-failed' },
         { text: 'Changes did not take effect', link: '/troubleshooting/changes-not-applied' },
         { text: 'App crashed after deployment', link: '/troubleshooting/runtime-crash' },
@@ -268,7 +273,7 @@ const chineseNav = [
   { text: '使用指南', link: '/zh/guide/' },
   { text: '实现原理', link: '/zh/concepts/' },
   { text: '能力', link: '/zh/capabilities/' },
-  { text: '问题排查', link: '/zh/troubleshooting/' },
+  { text: '常见问题', link: '/zh/troubleshooting/supported-packaging' },
   { text: '参考', link: '/zh/reference/' },
   { text: '技术文章', link: '/zh/articles/' },
   ...(isWikiDev ? [{ text: 'Dev', link: '/zh/dev/elements-demo' }] : [])
@@ -460,9 +465,14 @@ const chineseSidebar = {
   ],
   '/zh/troubleshooting/': [
     {
-      text: '问题排查',
+      text: '高频问题',
       items: [
-        { text: '概览', link: '/zh/troubleshooting/' },
+        { text: '支持哪些打包方式', link: '/zh/troubleshooting/supported-packaging' }
+      ]
+    },
+    {
+      text: '日常开发问题',
+      items: [
         { text: '编译失败', link: '/zh/troubleshooting/compile-failed' },
         { text: '改动没有生效', link: '/zh/troubleshooting/changes-not-applied' },
         { text: '部署后 App 崩溃', link: '/zh/troubleshooting/runtime-crash' },

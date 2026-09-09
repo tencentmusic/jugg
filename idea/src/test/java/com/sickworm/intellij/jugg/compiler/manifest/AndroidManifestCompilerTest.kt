@@ -8,6 +8,7 @@ import com.sickworm.intellij.jugg.compiler.withOldManifest
 import com.sickworm.intellij.jugg.mock.*
 import org.junit.Before
 import org.junit.Test
+import org.w3c.dom.Element
 import java.io.File
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -34,15 +35,7 @@ class AndroidManifestCompilerTest {
         val compileResult = compiler.compile(compileTask)
 
         assertTrue(compileResult.isAllSuccess)
-        assertEquals(2, compileResult.outputs.size)
-        val outputFile = compileResult.outputs.find { it.file.name == "AndroidManifest.xml" }!!
-        assertTrue(outputFile.file.exists())
-
-        val manifest = BinaryXmlParser.parseBinaryFromStream(outputFile.file.inputStream())
-        val packageName = manifest.packageName()
-        assertEquals(context.packageName, packageName)
-        val activities = manifest.activities()
-        assertTrue(activities.isNotEmpty())
+        assertTrue(compileResult.outputs.isEmpty())
     }
 
     @Test
@@ -162,5 +155,91 @@ class AndroidManifestCompilerTest {
         assertNotNull(newActivity)
         assertTrue(newActivity.hasAction("android.intent.action.MAIN"))
         assertTrue(newActivity.hasCategory("android.intent.category.LAUNCHER"))
+    }
+
+    @Test
+    fun `library applicationId placeholder uses final package name`() {
+        val changedManifestFile = File(tempCompileDir, "library_placeholder/AndroidManifest.xml")
+        changedManifestFile.parentFile.mkdirs()
+        changedManifestFile.writeText(
+            """
+                <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+                    package="com.example.library">
+                    <application>
+                        <provider
+                            android:name="com.example.ReportFileProvider"
+                            android:authorities="${'$'}{applicationId}.report-fileprovider" />
+                    </application>
+                </manifest>
+            """.trimIndent()
+        )
+        val compileFile = CompileFile(
+            CompileFile.Type.AndroidManifest,
+            changedManifestFile,
+            changedManifestFile.parentFile,
+            context.tempModule,
+        )
+        val compileTask = CompileTask(listOf(compileFile), File(stagingDir, "library_placeholder"))
+        val apkFileUnit = context.apkInfos.first().files.first().copy(
+            applicationId = "com.example.test",
+        )
+
+        val compileResult = AndroidManifestCompiler(context, mockParentDisposable)
+            .doApkCompile(compileTask, apkFileUnit)
+
+        assertTrue(compileResult.isAllSuccess)
+        val outputManifest = compileResult.outputs.single().file
+        val providers = XmlParser().parse(outputManifest).node.getElementsByTagName("provider")
+        val provider = (0 until providers.length)
+            .map { providers.item(it) as Element }
+            .single { it.getAttribute("android:name") == "com.example.ReportFileProvider" }
+        assertEquals(
+            "${apkFileUnit.applicationId}.report-fileprovider",
+            provider.getAttribute("android:authorities"),
+        )
+    }
+
+    @Test
+    fun `library explicit applicationId placeholder is preserved`() {
+        val libraryApplicationId = "com.example.library.fixed"
+        val changedManifestFile = File(tempCompileDir, "library_explicit_placeholder/AndroidManifest.xml")
+        changedManifestFile.parentFile.mkdirs()
+        changedManifestFile.writeText(
+            """
+                <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+                    package="com.example.library">
+                    <application>
+                        <provider
+                            android:name="com.example.ExplicitFileProvider"
+                            android:authorities="${'$'}{applicationId}.explicit-fileprovider" />
+                    </application>
+                </manifest>
+            """.trimIndent()
+        )
+        val libraryModule = context.tempModule.copy(
+            manifestPlaceHolders = mapOf("applicationId" to libraryApplicationId),
+        )
+        val compileFile = CompileFile(
+            CompileFile.Type.AndroidManifest,
+            changedManifestFile,
+            changedManifestFile.parentFile,
+            libraryModule,
+        )
+        val compileTask = CompileTask(listOf(compileFile), File(stagingDir, "library_explicit_placeholder"))
+        val apkFileUnit = context.apkInfos.first().files.first()
+
+        val compileResult = AndroidManifestCompiler(context, mockParentDisposable)
+            .doApkCompile(compileTask, apkFileUnit)
+
+        assertTrue(compileResult.isAllSuccess)
+        val outputManifest = compileResult.outputs.single().file
+        val providers = XmlParser().parse(outputManifest).node.getElementsByTagName("provider")
+        val provider = (0 until providers.length)
+            .map { providers.item(it) as Element }
+            .single { it.getAttribute("android:name") == "com.example.ExplicitFileProvider" }
+        assertEquals(
+            "$libraryApplicationId.explicit-fileprovider",
+            provider.getAttribute("android:authorities"),
+        )
     }
 }

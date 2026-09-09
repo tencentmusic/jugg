@@ -8,6 +8,24 @@ import kotlin.test.assertTrue
 class ReadProjectInfoScriptContentTest {
 
     @Test
+    fun generatedScript_shouldRemoveTrailingCommasForPreKotlin14Grammar() {
+        val scriptText = javaClass.getResource("/gradle/readProjectInfo.gradle.kts")?.readText()
+        assertNotNull(scriptText)
+
+        // Gradle 5/6 Kotlin DSL scripts reject trailing commas (language version < 1.4).
+        // Nested calls must not leave ",\n)" or "),\n)" after the generator cleanup pass.
+        val trailingCommaBeforeParen = Regex(",\\s*(//.*)?\\n\\s*\\)")
+        assertFalse(
+            trailingCommaBeforeParen.containsMatchIn(scriptText),
+            "generated script must not contain trailing commas before ')' for Gradle 5/6 Kotlin DSL",
+        )
+        assertTrue(
+            scriptText.contains(") { // gson won't use default value if not exists, so it's ok to write it here"),
+            "trailing-comma cleanup must keep class-body '{' before relocated end-of-line comments",
+        )
+    }
+
+    @Test
     fun generatedScript_shouldAvoidFragileCompatibilityApis() {
         val scriptText = javaClass.getResource("/gradle/readProjectInfo.gradle.kts")?.readText()
         assertNotNull(scriptText)

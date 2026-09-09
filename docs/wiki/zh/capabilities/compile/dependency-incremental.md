@@ -18,6 +18,7 @@ Jugg 支持在修改构建文件或依赖声明后，读取 Gradle dependency di
 |---|---|---|
 | 构建文件仅修改依赖声明 | 支持检查 | Jugg 展示构建文件 diff，并询问是否读取依赖变化 |
 | library 依赖新增或更新 | 支持按内容差分处理 | 变化的 class、资源、Manifest、assets 和 native lib 进入对应增量阶段 |
+| `implementation` 带入 runtime scope 传递库，或使用 `runtimeOnly` | Application 与 Dynamic Feature 支持；完整构建基线需已记录运行时依赖 | 仅在运行时依赖图出现的 AAR/JAR 也会被识别并进入差分处理 |
 | 依赖版本回到完整 Gradle 基线 | 仅支持字节码回退 | 移除此前增量部署的 library DEX，恢复使用 APK 内的基线字节码 |
 | 用户选择不增量处理依赖 | 支持回退 | 本轮转为 Gradle 构建，重新建立基线 |
 
@@ -43,6 +44,7 @@ Jugg 支持在修改构建文件或依赖声明后，读取 Gradle dependency di
 - 选择忽略构建文件变化时，Jugg 不会验证新旧脚本等价；后续出现 classpath、生成代码或打包结果异常时，需要 Gradle 构建。
 - library DEX 可以回退；如果依赖版本回退还需要恢复资源、Manifest、assets 或 native lib，则需要 Gradle 重新构建。
 - 修改 Gradle 插件、source set、variant、annotation processor 或 Kotlin compiler 插件配置时，需要直接使用 Gradle。
+- 从未记录运行时依赖的旧版本升级后，Jugg 继续使用原有编译依赖范围，不会因此强制完整构建，也不会把当前全部运行时库显示为新增。之后任一次成功完整 Gradle 构建记录了运行时依赖基线，后续运行才开始检测 runtime-only 库。
 - 如果依赖变化后出现源码解析失败，Jugg 会尝试更新 compile context 并重试一次；仍失败时需要 Gradle 构建。
 
 ## 相关页面

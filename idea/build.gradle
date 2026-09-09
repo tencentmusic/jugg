@@ -125,6 +125,10 @@ def gitHead = {
     output
 }
 
+// Snapshot once per Gradle invocation so SOURCE.md generation and
+// verifyThirdPartyCompliance cannot diverge if HEAD moves mid-build.
+def sourceRevision = gitHead()
+
 def sourceChecksums = {
     def checksums = [:]
     thirdPartySourceChecksumsFile.eachLine('UTF-8') { line ->
@@ -155,20 +159,19 @@ def generateThirdPartySourceInfo = tasks.register('generateThirdPartySourceInfo'
     description = 'Generates immutable source locations for redistributed third-party components.'
     inputs.file thirdPartySourceChecksumsFile
     inputs.property 'pluginVersion', provider { version.toString() }
-    inputs.property 'sourceRevision', provider { gitHead() }
+    inputs.property 'sourceRevision', sourceRevision
     outputs.file thirdPartySourceInfoFile
     doLast {
-        def revision = gitHead()
         generatedThirdPartyDir.mkdirs()
         thirdPartySourceInfoFile.write("""# Corresponding Source
 
 Jugg plugin version: `${version}`
-Source revision: `${revision}`
+Source revision: `${sourceRevision}`
 
 The complete source tree for this distribution, including `third_party/sources`, is available at:
 
-- Archive: ${thirdPartyRepositoryUrl}/archive/${revision}.tar.gz
-- Third-party sources: ${thirdPartyRepositoryUrl}/tree/${revision}/third_party/sources
+- Archive: ${thirdPartyRepositoryUrl}/archive/${sourceRevision}.tar.gz
+- Third-party sources: ${thirdPartyRepositoryUrl}/tree/${sourceRevision}/third_party/sources
 
 `SOURCE_SHA256SUMS` records the expected SHA-256 values of the redistributed third-party source files.
 """, 'UTF-8')
@@ -178,6 +181,7 @@ The complete source tree for this distribution, including `third_party/sources`,
 tasks.named('prepareSandbox').configure {
     dependsOn generateThirdPartySourceInfo
     dependsOn ':cmd_line:standaloneBundle'
+    inputs.file thirdPartySourceInfoFile
     from(project(':cmd_line').tasks.named('standaloneBundle').flatMap { it.archiveFile }) {
         into 'jugg/standalone'
     }
@@ -313,9 +317,8 @@ def verifyThirdPartyCompliance = tasks.register('verifyThirdPartyCompliance') {
 
             def sourceInfo = zip.getInputStream(zip.getEntry('jugg/third_party/SOURCE.md'))
                     .getText('UTF-8')
-            def revision = gitHead()
-            if (!sourceInfo.contains("Source revision: `${revision}`") ||
-                    !sourceInfo.contains("${thirdPartyRepositoryUrl}/archive/${revision}.tar.gz")) {
+            if (!sourceInfo.contains("Source revision: `${sourceRevision}`") ||
+                    !sourceInfo.contains("${thirdPartyRepositoryUrl}/archive/${sourceRevision}.tar.gz")) {
                 throw new GradleException('Packaged third-party source reference does not match HEAD')
             }
 
@@ -461,7 +464,7 @@ intellij {
     pluginName = 'jugg'
     updateSinceUntilBuild = false
     version = ide_version
-    plugins = ['android']
+    plugins = ['java', 'android']
 }
 
 sourceSets {

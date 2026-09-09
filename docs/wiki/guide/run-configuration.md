@@ -26,6 +26,8 @@ jugg:app:paidRelease
 
 If an older configuration still shows \`Unnamed...\`, Jugg creates a readable replacement after rediscovering the project. Custom Gradle arguments in existing configurations are preserved whenever possible and are not reset merely because the Build Variant changed.
 
+Gradle module names can contain dots, such as \`:zxphone5.0\`. When Jugg generates the \`Compile command\`, it uses the Gradle project path reported by Android Studio directly: dots inside a name remain unchanged, nested modules continue to use colons, and composite builds retain the included build name. As a result, \`:zxphone5.0\`, \`:feature:app\`, and \`:SMCommon:app\` each produce the assemble task for the corresponding module without reconstructing the path from the Jugg configuration name.
+
 ## Follow the Active Build Variant
 
 When the Active Build Variant changes in Android Studio, Jugg looks for the corresponding new build target in the same module.

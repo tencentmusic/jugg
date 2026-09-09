@@ -26,6 +26,8 @@ jugg:app:paidRelease
 
 旧配置若仍显示 \`Unnamed...\`，Jugg 会在重新识别工程后补建可读配置。已有配置中的自定义 Gradle 参数会尽量保留，不会仅因 Build Variant 切换被重置。
 
+Gradle 模块名可以包含点号，例如 \`:zxphone5.0\`。Jugg 自动生成 \`Compile command\` 时直接使用 Android Studio 提供的 Gradle project path：名称内的点号保持不变，多层模块继续使用冒号分隔，组合构建则保留 included build 名称。因此 \`:zxphone5.0\`、\`:feature:app\` 和 \`:SMCommon:app\` 会分别生成对应模块的 assemble task，不会根据 Jugg 配置名反向猜测路径。
+
 ## 跟随 Active Build Variant
 
 当 Android Studio 的 Active Build Variant 改变时，Jugg 会查找同一模块对应的新构建目标。
