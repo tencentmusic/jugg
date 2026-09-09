@@ -18,7 +18,7 @@ Jugg 仅需安装 IDE 插件，不修改 Gradle 脚本，也不要求工程接�
 
 ## 社区交流
 
-加入 Jugg 微信交流群，交流使用经验和问题排查。
+加入 Jugg 微信交流群，交流使用经验和问题排查。（一群已满 200 人）
 
 <p align="center">
   <img src="./docs/images/wechat-group.jpg" alt="Jugg 微信交流群二维码" width="360">
