@@ -35,7 +35,7 @@ class IdeaHotUpdateCoordinator(
         logger,
     )
     private val ideaPluginDescriptor: IdeaPluginDescriptor?
-        get() = (JuggHotUpdateManager::class.java.classLoader as? PluginAwareClassLoader)
+        get() = (JuggHotUpdateBootstrap::class.java.classLoader as? PluginAwareClassLoader)
             ?.pluginDescriptor as? IdeaPluginDescriptor
 
     fun init(project: Project) {
