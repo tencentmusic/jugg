@@ -1,7 +1,11 @@
 <h1>Change Log</h1>
-<h2>3.4.2 (2026.09.07)</h2>
+<h2>3.4.3 (2026.09.09)</h2>
 <ol>
     <li>[feature] Change the plugin ID to support Marketplace listing</li>
+    <li>[feature] Include optional project snapshots in issue reports</li>
+    <li>[optimize] Prefer the too-many-files fallback prompt over build file diff</li>
+    <li>[optimize] Reduce init time when large worktrees contain many untracked files</li>
+    <li>[optimize] Prevent Gradle compile failures when PATH is incomplete</li>
     <li>[bugfix] Show the non-debuggable package cause on deploy failure</li>
     <li>[bugfix] Prevent incremental Kotlin compile failure when plugins require options</li>
     <li>[bugfix] Prevent APK updates from failing on paths with shell characters</li>
@@ -14,6 +18,9 @@
     <li>[bugfix] Prevent Gradle fallback from failing when gradlew lacks execute permission</li>
     <li>[bugfix] Prevent builds from failing for project paths with spaces</li>
     <li>[bugfix] Prevent mapper failure for dependency module binding adapters</li>
+    <li>[bugfix] Fix Gradle 5/6 compile failure in 3.4.2</li>
+    <li>[bugfix] Fix unreplaced library placeholders in AndroidManifest.xml</li>
+    <li>[bugfix] Fix Gradle task generation for module names that contain a dot</li>
 </ol>
 <h2>3.3.9 (2026.09.04)</h2>
 <ol>
