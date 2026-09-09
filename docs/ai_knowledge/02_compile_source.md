@@ -124,7 +124,7 @@ K2 Gradle task 暴露 `multiplatformStructure` 时，project info 会保存 frag
 
 Kotlin 1.9 的 baseline Kotlin output 可能同时包含 dirty expect/actual closure 的旧 JVM class。invoker 通过项目 incremental cache 的 source-to-output 关系定位这些 class，复制其余 baseline 到临时只读视图，并同时替换 classpath 与 friend path；正式 baseline 不被移动或删除。编译成功或失败都会删除临时视图，cache 读取失败则保持原路径交由 Kotlin compiler 判定。
 
-`GradleProjectInfoReaderManager` 先读取 Android plugin 实际加载的 R8 code source；若路径位于 Gradle `jars-*` / `transforms-*` instrumentation cache，则从 Android module 或 root project 的 buildscript classpath 选择同名原始 artifact，找不到时不暴露该外部 runtime。`DexFileMaker` 再用独立 `URLClassLoader` 加载 `agpR8Classpath` 中的 D8，避免项目 AGP R8 与插件内置 R8 在同一 classloader 中发生类冲突；runtime 按 canonical path 缓存。路径缺失、类/方法加载失败、当前 desugared-library API 不受支持，或外部 D8 执行失败时都会回退到内置 R8。外部 D8 执行失败会打印用户可见的 `warn`，包含版本、路径和原始异常；若内置 R8 也失败，则由内置执行继续抛出最终异常。
+`GradleProjectInfoReaderManager` 先读取 Android plugin 实际加载的 R8 code source；若路径位于 Gradle `jars-*` / `transforms-*` instrumentation cache，则从 Android module 或 root project 的 buildscript classpath 选择同名原始 artifact，找不到时不暴露该外部 runtime。`DexFileMaker` 再用独立 `URLClassLoader` 加载 `agpR8Classpath` 中的 D8，避免项目 AGP R8 与插件内置 R8 在同一 classloader 中发生类冲突；runtime 按 canonical path 缓存。路径缺失、类/方法加载失败、当前 desugared-library API 不受支持，或外部 D8 执行失败时都会回退到内置 R8。外部 D8 执行失败只打印不含堆栈的用户可见 `warn`；classpath 和原始异常保留在 `debug` 日志。若内置 R8 也失败，则由内置执行继续抛出最终异常。
 
 ---
 

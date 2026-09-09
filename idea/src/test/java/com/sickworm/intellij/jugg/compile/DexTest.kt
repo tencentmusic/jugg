@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.compile
 
+import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.source.DexFileMaker
 import com.sickworm.intellij.jugg.deploy.classNameToPath
@@ -10,6 +11,11 @@ import com.sickworm.intellij.jugg.org.objectweb.asm.ClassWriter
 import com.sickworm.intellij.jugg.org.objectweb.asm.Opcodes
 import org.junit.Before
 import org.junit.Test
+import org.mockito.kotlin.any
+import org.mockito.kotlin.argThat
+import org.mockito.kotlin.isNull
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.verify
 import java.io.File
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -85,6 +91,7 @@ class DexTest {
     fun dexFallsBackWhenExternalR8CompileFails() {
         javaCompileTest.javaCompile()
         val classesFiles = stagingDir.listFilesRecursively()
+        val logger = mock<Logger>()
 
         DexFileMaker(logger).dex(
             outputDir = stagingDir,
@@ -96,6 +103,14 @@ class DexTest {
         )
 
         assertTrue(stagingDir.listFilesRecursively().any { it.extension == "dex" })
+        verify(logger).warn(
+            argThat<String> { contains("use bundled R8 instead") },
+            isNull(),
+        )
+        verify(logger).debug(
+            argThat<String> { contains("use bundled R8 instead") },
+            any<Throwable>(),
+        )
     }
 
     private fun createFailingR8Classpath(): File {
