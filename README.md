@@ -101,6 +101,8 @@ Custom server upload for compile data is supported. See [Jugg Backend](https://t
 - `./gradlew buildPlugin` builds the plugin into `idea/build/distributions`.
 - `./gradlew runIde` starts an IDE instance for development and debugging.
 
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how to report issues, set up the project, and send pull requests.
+
 ## License
 
 Jugg is open source under the [MIT License](LICENSE).
