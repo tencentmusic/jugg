@@ -1,7 +1,6 @@
 package com.sickworm.intellij.jugg.cmdline.standalone
 
 import com.intellij.openapi.diagnostic.Logger
-import com.sickworm.intellij.jugg.ai.mcp.ProjectInitializationResult
 import com.sickworm.intellij.jugg.compiler.BuildTarget
 import com.sickworm.intellij.jugg.compiler.context.ICompileEnvironmentSource
 import com.sickworm.intellij.jugg.gradle.compile.CmdExecutor
@@ -21,20 +20,28 @@ class StandaloneProjectInitializer(
 ) {
     private val store = CliRunConfigurationStore(pathManager)
 
-    fun initialize(): ProjectInitializationResult {
+    internal fun initialize(): StandaloneProjectInitializationResult {
         store.loadCurrent()?.let { return it.toResult("Standalone project is already initialized.") }
         if (!pathManager.gradleProjectInfoFile.isFile && !fetchProjectInfo()) {
-            return ProjectInitializationResult(false, "Unable to read Gradle project information. Check the compile log for details.")
+            return StandaloneProjectInitializationResult(
+                false,
+                "Unable to read Gradle project information. Check the compile log for details.",
+            )
         }
         val projectInfo = GradleProjectModelSource(pathManager, logger)
             .load(ProjectModelLoadReason.INITIALIZE, BuildTarget.APP).projectInfo
-            ?: return ProjectInitializationResult(false, "No Android application module was found in Gradle project information.")
+            ?: return StandaloneProjectInitializationResult(
+                false,
+                "No Android application module was found in Gradle project information.",
+            )
         return runCatching {
             val configuration = CliRunConfigurationGenerator.generate(projectInfo)
             store.save(configuration)
             store.select(configuration.id)
             configuration.toResult("Standalone project initialized successfully.")
-        }.getOrElse { ProjectInitializationResult(false, it.message ?: "Standalone project initialization failed.") }
+        }.getOrElse {
+            StandaloneProjectInitializationResult(false, it.message ?: "Standalone project initialization failed.")
+        }
     }
 
     private fun fetchProjectInfo(): Boolean {
@@ -51,5 +58,11 @@ class StandaloneProjectInitializer(
     }
 
     private fun com.sickworm.intellij.jugg.project.runtime.CliRunConfiguration.toResult(message: String) =
-        ProjectInitializationResult(true, message, id, name, compileCommand)
+        StandaloneProjectInitializationResult(true, message)
 }
+
+/** Describes the result of preparing a standalone compile profile on demand. */
+internal data class StandaloneProjectInitializationResult(
+    val isSuccess: Boolean,
+    val message: String,
+)

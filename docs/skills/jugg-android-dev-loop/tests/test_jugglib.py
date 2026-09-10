@@ -999,6 +999,12 @@ class JuggHelpTest(unittest.TestCase):
 
         self.assertEqual(set(COMMAND_HELP.keys()), set(jugg.COMMANDS.keys()))
 
+    def test_init_is_not_a_public_command(self):
+        code, _, stderr = self._run_main(["jugg.py", "init"])
+
+        self.assertEqual(code, 1)
+        self.assertIn("unknown subcommand 'init'", stderr)
+
     def test_device_command_help_includes_global_serial(self):
         code, _, stderr = self._run_main(["jugg.py", "help", "view-locate"])
 
@@ -1078,35 +1084,6 @@ class StandaloneProjectRegistrationHeartbeatTest(unittest.TestCase):
             jugglib.raw_call(12320, "status", {"projectDir": project_dir})
 
         self.assertFalse(jugglib._selected_project_registered)
-
-
-class InitCommandTest(unittest.TestCase):
-
-    def tearDown(self):
-        jugglib.set_runtime_type_override("")
-
-    def test_init_selects_standalone_and_calls_project_action(self):
-        from cmd.cmd_init import cmd_init
-
-        response = {
-            "result": {
-                "structuredContent": {
-                    "status": "OK",
-                    "message": "Standalone project initialized successfully.",
-                    "data": {"compileCommand": "./gradlew :app:assembleDebug"},
-                }
-            }
-        }
-        output = io.StringIO()
-        with patch.object(jugglib, "resolve_project_dir", return_value="/project"), \
-             patch.object(jugglib, "resolve_port", return_value=12321), \
-             patch.object(jugglib, "raw_call", return_value=response) as mock_raw_call, \
-             contextlib.redirect_stdout(output):
-            cmd_init([])
-
-        self.assertEqual("standalone", jugglib.runtime_type_override)
-        mock_raw_call.assert_called_once_with(12321, "init", {"projectDir": "/project"})
-        self.assertIn("./gradlew :app:assembleDebug", output.getvalue())
 
 
 class RecordSessionTest(unittest.TestCase):

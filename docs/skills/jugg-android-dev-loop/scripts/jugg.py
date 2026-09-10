@@ -57,7 +57,6 @@ _RUNTIME_VALUES = ("idea", "standalone")
 # Lazy-import map: subcommand -> (module_name, function_name)
 COMMANDS = {
     "version":        ("cmd_version",        "cmd_version"),
-    "init":           ("cmd_init",           "cmd_init"),
     "stop":           ("cmd_stop",           "cmd_stop"),
     "compile":        ("cmd_compile",        "cmd_compile"),
     "deploy":         ("cmd_deploy",         "cmd_deploy"),

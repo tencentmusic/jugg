@@ -43,19 +43,7 @@ interface IMcpRuntime {
      * Returns whether app process/deploy state is currently ready for runtime tools.
      */
     fun isAppReadyDeploy(): Boolean
-
-    /** Creates or selects the standalone run configuration used by compile tools. */
-    fun initializeProject(): ProjectInitializationResult
 }
-
-/** Describes the selected run configuration after project initialization. */
-data class ProjectInitializationResult(
-    val isSuccess: Boolean,
-    val message: String,
-    val configurationId: String? = null,
-    val configurationName: String? = null,
-    val compileCommand: String? = null,
-)
 
 /**
  * IMcpInvoker executes one MCP JSON-RPC request and returns a JSON-RPC response.

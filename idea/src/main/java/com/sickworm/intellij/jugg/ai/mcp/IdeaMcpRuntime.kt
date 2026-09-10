@@ -53,10 +53,6 @@ class IdeaMcpRuntime(
         return deployStateManager.updateDeployState().isReadyDeploy
     }
 
-    override fun initializeProject(): ProjectInitializationResult {
-        return ProjectInitializationResult(false, "Project initialization is not supported by IDEA runtime")
-    }
-
     companion object {
         fun invokeMcp(request: McpJsonRpcRequest): McpJsonRpcResponse {
             if (request.method != McpJsonRpc.Method.ToolsCall) {

@@ -25,7 +25,4 @@ abstract class TestMcpRuntime : IMcpRuntime {
         return deployStateManager?.updateDeployState()?.isReadyDeploy ?: true
     }
 
-    override fun initializeProject(): ProjectInitializationResult {
-        return ProjectInitializationResult(false, "Project initialization is not supported by this test runtime")
-    }
 }

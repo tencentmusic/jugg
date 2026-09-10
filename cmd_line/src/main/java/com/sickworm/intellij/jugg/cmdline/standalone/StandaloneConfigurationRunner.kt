@@ -114,7 +114,7 @@ internal class StandaloneConfigurationRunner(
         if (!initialization.isSuccess) return JuggRunInvocationResult(false, errorMessage = initialization.message)
         if (canceled.get()) return canceledResult(request.isSkipDeploy)
         val configuration = services.configurationStore.loadCurrent()
-            ?: return JuggRunInvocationResult(false, errorMessage = "Run jugg init before compiling.")
+            ?: return JuggRunInvocationResult(false, errorMessage = "Standalone run configuration was not initialized.")
         val baseOptions = configuration.toCompileOptions(services.pathManager)
         val options = request.buildTargetOverride?.let { baseOptions.copy(buildTarget = it) } ?: baseOptions
         val handler = StandaloneCompileUiHandler(

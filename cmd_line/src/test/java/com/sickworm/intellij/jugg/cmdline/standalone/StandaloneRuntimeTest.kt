@@ -70,7 +70,7 @@ class StandaloneRuntimeTest {
         assertEquals("standalone", version.data()["runtimeType"])
         assertEquals("4.0", version.data()["runtimeVersion"])
         val expectedCapabilities = listOf(
-            "version", "list-projects", "init", "compile", "deploy", "gradle-build", "get-compile-status", "status",
+            "version", "list-projects", "compile", "deploy", "gradle-build", "get-compile-status", "status",
             "restart", "report-prepare", "report-upload", "devices",
         )
         assertEquals(expectedCapabilities, version.data()["capabilities"])
@@ -91,7 +91,7 @@ class StandaloneRuntimeTest {
     }
 
     @Test
-    fun `init creates the current standalone run configuration from Gradle project info`() {
+    fun `first standalone compile creates the current run configuration on demand`() {
         val projectDir = temporaryFolder.newFolder("project")
         val pathManager = JuggPathManager(projectDir)
         val moduleDir = projectDir.resolve("app")
@@ -105,13 +105,15 @@ class StandaloneRuntimeTest {
         )
         ProjectInfoSerializer(pathManager.gradleProjectInfoFile, Logger.getInstance("StandaloneRuntimeTest"))
             .save(JuggProjectInfo(linkedMapOf("app" to app), agpR8Classpath = null))
-        registry = StandaloneProjectRegistry(RuntimeInfo("standalone", "4.0", "java-11", "build-1")).apply {
-            initialize(projectDir)
-        }
+        registry = StandaloneProjectRegistry(RuntimeInfo("standalone", "4.0", "java-11", "build-1"))
+        val runtime = registry!!.initialize(projectDir)
 
-        val result = call("init", mapOf("projectDir" to projectDir.absolutePath))
+        runtime.juggConfigurationRunner.runFirstConfiguration(
+            isRpcMode = true,
+            isSkipDeploy = true,
+            isAlwaysRestartApp = false,
+        )
 
-        assertEquals("OK", result.structuredContent["status"])
         val configuration = CliRunConfigurationStore(pathManager).loadCurrent()
         assertEquals("app", configuration?.moduleName)
         assertEquals("./gradlew :app:assembleDebug", configuration?.compileCommand)
@@ -147,11 +149,9 @@ class StandaloneRuntimeTest {
             initialize(projectDir)
         }
 
-        val initResult = call("init", mapOf("projectDir" to projectDir.absolutePath))
         val statusResult = call("status", mapOf("projectDir" to projectDir.absolutePath))
         val compileResult = call("compile", mapOf("projectDir" to projectDir.absolutePath))
 
-        assertEquals("OK", initResult.structuredContent["status"])
         assertEquals(configuration.id, CliRunConfigurationStore(pathManager).loadCurrent()?.id)
         assertEquals(true, CliRunConfigurationStore(pathManager).loadCurrent()?.isRemoteCompile)
         assertEquals("remote", statusResult.data()["executionType"])

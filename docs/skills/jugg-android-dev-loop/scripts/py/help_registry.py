@@ -33,11 +33,6 @@ COMMAND_HELP: dict[str, CommandHelp] = {
         "Show CLI version and plugin version from all initialized projects.",
         "jugg version",
     ),
-    "init": CommandHelp(
-        "init",
-        "Initialize the standalone run configuration from Gradle project information.",
-        "jugg init",
-    ),
     "stop": CommandHelp(
         "stop",
         "Stop all standalone Runtimes and hosted projects.",

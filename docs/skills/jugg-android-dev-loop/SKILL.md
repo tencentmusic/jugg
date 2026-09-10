@@ -1,6 +1,6 @@
 ---
 name: jugg-android-dev-loop
-version: 1.0.34
+version: 1.0.35
 date: 2026-09-10
 description: >-
   Use when editing source files (Java/Kotlin/XML/layout/AndroidManifest/Gradle)
@@ -35,7 +35,7 @@ Collect mandatory variables before any action. For install-only requests, skip J
 | `hasAutoRunEntry` | `true` only when the user has **explicitly declared** the entry's fully-qualified method (e.g. `com.myapp.Test.run`) in the prompt or current context. See **§ Auto-Run Entry**. | Default `false`. Never infer from code search. |
 | `enabledAndroidTest` | Project status context. Reuse existing credible context first, e.g. a hook block's `Jugg status` plain key-value output. If absent, run `python3 {SKILL_DIR}/scripts/jugg.py --console=json status` and read `data.enabledAndroidTest`. | Default unknown. Do not assume. |
 
-The CLI resolves the Runtime that owns `projectDir` across IDEA and standalone MCP ports. Automatic selection prefers an IDEA Runtime that owns the project; only when no matching IDEA Runtime exists does it select an owning standalone Runtime or reuse a running standalone daemon. Use `--runtime idea|standalone` to override automatic selection. A command keeps its selected Runtime for its full lifetime, including compile status polling, and does not migrate when ownership changes. If no Runtime owns the project, the CLI automatically registers it in the reused standalone daemon on the first valid request; only the absence of any standalone daemon starts a new process, with launch attempts serialized globally. Global `--serial` overrides IDEA selection or standalone `ANDROID_SERIAL` for one device-related request. Without it, compile/status/device listing do not require one device, deploy/test commands target all selected devices, restart restarts all selected devices, and single-device operations return `MULTIPLE_DEVICE`. Reports accept but ignore `--serial` and collect all target-device logs. Standalone supports `init`, `compile`, `deploy`, `gradle-build`, `restart`, `devices`, `report`, compile status polling, and `status`; `stop` is a standalone-only local lifecycle command that stops all standalone projects without connecting to or starting a Runtime. UI, activity/log inspection, debug attach, and androidTest commands still require an IDEA Runtime unless their capability is explicitly advertised.
+The CLI resolves the Runtime that owns `projectDir` across IDEA and standalone MCP ports. Automatic selection prefers an IDEA Runtime that owns the project; only when no matching IDEA Runtime exists does it select an owning standalone Runtime or reuse a running standalone daemon. Use `--runtime idea|standalone` to override automatic selection. A command keeps its selected Runtime for its full lifetime, including compile status polling, and does not migrate when ownership changes. If no Runtime owns the project, the CLI automatically registers it in the reused standalone daemon on the first valid request; only the absence of any standalone daemon starts a new process, with launch attempts serialized globally. Standalone build commands create the current build profile on demand before compiling. Global `--serial` overrides IDEA selection or standalone `ANDROID_SERIAL` for one device-related request. Without it, compile/status/device listing do not require one device, deploy/test commands target all selected devices, restart restarts all selected devices, and single-device operations return `MULTIPLE_DEVICE`. Reports accept but ignore `--serial` and collect all target-device logs. Standalone supports `compile`, `deploy`, `gradle-build`, `restart`, `devices`, `report`, compile status polling, and `status`; `stop` is a standalone-only local lifecycle command that stops all standalone projects without connecting to or starting a Runtime. UI, activity/log inspection, debug attach, and androidTest commands still require an IDEA Runtime unless their capability is explicitly advertised.
 
 ---
 
@@ -93,7 +93,6 @@ Completion means the compile/deploy job reached a terminal state; CLI does not a
 
 | Command | Purpose | When to Use |
 |---------|---------|-------------|
-| `init` | Initialize standalone build profile | First standalone run or when no current CLI run configuration exists |
 | `compile` | Compile modified sources, skip deploy | Default after ordinary source edits, including generic "verify/check modification" |
 | `deploy` | Compile + deploy to device | Need to launch/run app to inspect runtime/UI state, or perform device-side verification |
 | `gradle-build` | Full Gradle compile fallback | After `deploy`/`compile` **retries exhausted and still failed** |
@@ -102,7 +101,6 @@ Completion means the compile/deploy job reached a terminal state; CLI does not a
 
 ```
 python3 {SKILL_DIR}/scripts/jugg.py compile
-python3 {SKILL_DIR}/scripts/jugg.py init
 python3 {SKILL_DIR}/scripts/jugg.py deploy
 python3 {SKILL_DIR}/scripts/jugg.py gradle-build
 python3 {SKILL_DIR}/scripts/jugg.py clean-reinstall

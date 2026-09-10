@@ -1,6 +1,6 @@
 # MCP Tools 参数清单
 
-> 最后核对：2026-09-08
+> 最后核对：2026-09-10
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -51,7 +51,7 @@
 - `projects`（可选）：当各项目版本不一致时，返回 `projectDir -> version` 的 map
 - `runtimeType`：`idea` / `standalone` / `ci` / `unknown`
 - `runtimeVersion`：当前进程实际 Runtime 版本
-- `capabilities`：当前进程的 `McpToolRegistry` 已声明可用的 MCP capability 名称，并与 `tools/list`、action 分发保持一致；standalone Step 11 包含 `version`、`list-projects`、`init`、`compile`、`deploy`、`gradle-build`、`get-compile-status`、`status`、`restart`、`report-prepare`、`report-upload`、`devices`
+- `capabilities`：当前进程的 `McpToolRegistry` 已声明可用的 MCP capability 名称，并与 `tools/list`、action 分发保持一致；standalone Step 11 包含 `version`、`list-projects`、`compile`、`deploy`、`gradle-build`、`get-compile-status`、`status`、`restart`、`report-prepare`、`report-upload`、`devices`
 
 ---
 
@@ -68,19 +68,6 @@
   - `projectDir`：项目绝对路径
   - `initialized`：是否已完成 Jugg 初始化（当前列表内项目固定为 `true`）
   - `hasBeenFullCompiled`：是否存在完整 Jugg 全量编译基线（对齐 `DeployHistoryManager.hasBeenFullCompiled` 语义）
-
----
-
-### `init`
-
-仅 standalone Runtime 注册。根据 Gradle project info 创建并选择当前 CLI Run Configuration；project info 缺失时先执行一次本地 `assembleDebug --dry-run --no-daemon` 生成快照。已存在当前配置时幂等返回该配置，不改写已选中的 remote profile。初始化在项目写锁内执行。
-
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `projectDir` | string | **是** | 项目绝对路径 |
-| `serial` | string | 否 | 兼容参数；当前忽略其值，仍收集全部目标设备日志 |
-
-**返回 data**：`configurationId`、`configurationName`、`compileCommand`。
 
 ---
 

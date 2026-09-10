@@ -1,6 +1,6 @@
 # jugg CLI 参数与 MCP 映射
 
-> 最后核对：2026-09-08
+> 最后核对：2026-09-10
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -55,7 +55,7 @@ macOS 上 Runtime 归属匹配会使用大小写折叠后的路径 key；Runtime
 
 ### 3.1.1 设备 serial
 
-`--serial <adbSerial>` / `--serial=<adbSerial>` 是与 `--project-dir` 同级的全局参数。它会向消费设备目标的命令注入 MCP `serial`：`deploy`、`gradle-build`、`clean-reinstall`、`restart`、`instrument`、`status`、`devices`、`layout-dump`、`view-locate`、`view-inspect`、`tap`、`activity-stack`、`wait-logs`，以及 `report` 的 `report-prepare` 阶段。`version`、`init`、`stop`、`compile`、`ssh-info`、`report-upload` 和内部 `get-compile-status` 不接收该参数。
+`--serial <adbSerial>` / `--serial=<adbSerial>` 是与 `--project-dir` 同级的全局参数。它会向消费设备目标的命令注入 MCP `serial`：`deploy`、`gradle-build`、`clean-reinstall`、`restart`、`instrument`、`status`、`devices`、`layout-dump`、`view-locate`、`view-inspect`、`tap`、`activity-stack`、`wait-logs`，以及 `report` 的 `report-prepare` 阶段。`version`、`stop`、`compile`、`ssh-info`、`report-upload` 和内部 `get-compile-status` 不接收该参数。
 
 显式 serial 使用大小写敏感的精确在线设备匹配，优先级高于 IDEA 当前选中设备和 standalone daemon 启动时继承的 `ANDROID_SERIAL`；只影响当前 CLI 请求，不修改 IDE 选择、Run Configuration 或后续调用。未传 serial 时保持原有 Host 行为。
 
@@ -67,7 +67,7 @@ CLI 并行扫描 `12320..12329` 后分别调用 `version`、`list-projects`，�
 
 当前没有 standalone Runtime 时，普通 CLI 取得 `~/.jugg/locks/standalone.launch.lock`，在锁内重新发现 Runtime；仍未发现时才启动 standalone launcher，并持锁等待端口注册，避免不同项目并发创建多个 daemon。测试或特殊环境可用 `JUGG_STANDALONE_LAUNCH_LOCK` 覆盖锁路径。launcher 默认路径为 `~/.jugg/standalone/bin/jugg-standalone`（Windows 为 `.bat`），可用 `JUGG_STANDALONE_LAUNCHER` 覆盖。启动和首个项目自动注册的等待硬超时均为 60 秒；launch lock 最长等待 75 秒。初始化超过 10 秒后，CLI 每 10 秒从目标项目 `build/jugg/log/standlone_cli/compile_latest.log` 读取最后一条结构化日志并向 stderr 输出 heartbeat；日志缺失或读取失败只显示日志暂不可用，不中断启动。日志行最多输出 500 个字符。新进程 stdout/stderr 仍写入启动项目 `build/jugg/log/standlone_cli/standalone_startup.log`；进程在端口就绪前退出时立即展示 exit code、日志尾部和完整日志路径。Hook 调用必须设置 `JUGG_CALLER=hook`；只有目标项目 `build/jugg/database/compile_context.db/complete_flag` 已存在时才允许启动进程或在已有 standalone 中注册新项目，否则直接以成功状态跳过。
 
-standalone Step 11 支持 `init`、`compile`、`deploy`、`gradle-build`、`restart`、`devices`、`report`、内部 `get-compile-status` 与 `status`。其中 `deploy --serial`、`restart --serial` 与 `devices --serial` 可在 daemon 已运行后按请求切换设备；未传 serial 时 standalone 将全部在线设备作为部署或重启目标，并由 `devices` 返回全部在线设备。`status --serial` 返回指定设备状态；`report` 忽略 serial 并收集全部在线设备的错误 logcat；standalone `gradle-build` 只建立 baseline，不执行设备安装，也不要求设备在线。`clean-reinstall`、`instrument`、`layout-dump`、`view-locate`、`view-inspect`、`tap`、`activity-stack`、`wait-logs` 仍未注册为 standalone capability，需 IDEA Runtime。当前配置启用 remote compile 时，standalone 复用 IDEA 的远程 Gradle 客户端执行 full build/fallback；增量编译和设备操作仍在 standalone 所在本机执行。远程构建前仍可能在本地执行 project info Gradle dry-run，不应把 remote 理解为“本地不运行 Gradle”。
+standalone Step 11 支持 `compile`、`deploy`、`gradle-build`、`restart`、`devices`、`report`、内部 `get-compile-status` 与 `status`；首次构建会按需创建当前 build profile。其中 `deploy --serial`、`restart --serial` 与 `devices --serial` 可在 daemon 已运行后按请求切换设备；未传 serial 时 standalone 将全部在线设备作为部署或重启目标，并由 `devices` 返回全部在线设备。`status --serial` 返回指定设备状态；`report` 忽略 serial 并收集全部在线设备的错误 logcat；standalone `gradle-build` 只建立 baseline，不执行设备安装，也不要求设备在线。`clean-reinstall`、`instrument`、`layout-dump`、`view-locate`、`view-inspect`、`tap`、`activity-stack`、`wait-logs` 仍未注册为 standalone capability，需 IDEA Runtime。当前配置启用 remote compile 时，standalone 复用 IDEA 的远程 Gradle 客户端执行 full build/fallback；增量编译和设备操作仍在 standalone 所在本机执行。远程构建前仍可能在本地执行 project info Gradle dry-run，不应把 remote 理解为“本地不运行 Gradle”。
 
 `status` 在项目空闲且可立即取得项目锁时完成 Git refresh、Runtime owner 恢复和一致性快照；同 Runtime 正在 compile/deploy，或项目锁正由其他写事务持有时，不等待写锁也不刷新文件状态，而是立即返回当前真实只读快照。实际部署状态、fallback 原因、待编译文件、baseline 和时间戳仍会返回；`isCompiling` 只反映当前 Runtime 的 compile/deploy 运行态，保证 CLI wait/heartbeat 不被长任务阻塞。
 
@@ -163,12 +163,11 @@ CLI 参数设计遵循“机械映射，不创造新语义”：
 
 ## 5. 公开子命令
 
-当前公开 CLI 子命令共 19 个，来自 `jugg.py::COMMANDS`。
+当前公开 CLI 子命令共 18 个，来自 `jugg.py::COMMANDS`。
 
 | 子命令 | MCP tool | 说明 |
 |--------|----------|------|
 | `version` | `version` | 显示 CLI 版本和插件版本；无需 `projectDir` |
-| `init` | `init` | 自动选择/拉起 standalone，并根据 Gradle project info 创建当前 build profile |
 | `stop` | CLI local | 停止同一 Jugg root 下的全部 standalone Runtime；不连接或启动 Runtime |
 | `compile` | `compile` | 增量编译，自动轮询终态 |
 | `deploy` | `deploy` | 编译并部署，自动轮询终态 |
@@ -200,14 +199,6 @@ jugg version
 ```
 
 无需 `projectDir`。默认输出 CLI version 与当前已初始化项目中的插件版本；`--console=json` 返回 `{"cliVersion": "...", "plugin": <MCP structuredContent>}`。
-
-### `init`
-
-```text
-jugg init
-```
-
-该命令固定选择 standalone Runtime。已有当前配置时幂等返回，包括已选中的 remote profile；缺少 Gradle project info 时执行一次本地 dry-run 生成快照，再创建默认 Application/debug profile。初始化、配置写入与 owner 接管都在项目写锁内执行。
 
 ### `stop`
 

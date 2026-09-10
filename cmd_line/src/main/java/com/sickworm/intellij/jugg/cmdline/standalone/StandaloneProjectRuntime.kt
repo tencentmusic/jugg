@@ -6,7 +6,6 @@ import com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcRequest
 import com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcResponse
 import com.sickworm.intellij.jugg.ai.mcp.McpToolInvoker
 import com.sickworm.intellij.jugg.ai.mcp.McpToolRegistry
-import com.sickworm.intellij.jugg.ai.mcp.ProjectInitializationResult
 import com.sickworm.intellij.jugg.compiler.ForceGradleCompileHelper
 import com.sickworm.intellij.jugg.compiler.IIncrementalCompileFallbackChecker
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
@@ -54,8 +53,6 @@ class StandaloneProjectRuntime internal constructor(
     }
 
     override fun isAppReadyDeploy(): Boolean = deployStateManager.updateDeployState().isReadyDeploy
-
-    override fun initializeProject(): ProjectInitializationResult = services.initializeProject()
 
     internal fun deployEnvironment() = services.deployEnvironment()
 

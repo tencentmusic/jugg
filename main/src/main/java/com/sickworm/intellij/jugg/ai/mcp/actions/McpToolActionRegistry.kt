@@ -13,7 +13,6 @@ class McpToolActionRegistry(
      */
     object ToolNames {
         const val LIST_PROJECTS = "list-projects"
-        const val INIT = "init"
         const val RESTART = "restart"
         const val COMPILE = "compile"
         const val DEPLOY = "deploy"

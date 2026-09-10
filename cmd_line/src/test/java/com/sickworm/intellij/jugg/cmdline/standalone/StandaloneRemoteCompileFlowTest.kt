@@ -34,15 +34,13 @@ class StandaloneRemoteCompileFlowTest {
 
         val store = CliRunConfigurationStore(JuggPathManager(projectDir))
         val original = store.loadCurrent()
-            ?: error("Run jugg init for $projectDir before the standalone remote L3 test")
+            ?: error("Run jugg compile for $projectDir once before the standalone remote L3 test")
         val injected = loadRemoteConfiguration(configFile, original)
         val registry = StandaloneProjectRegistry(RuntimeInfo("standalone", "test", "java-11", "test"))
         try {
             store.save(injected)
             store.select(injected.id)
             registry.initialize(projectDir)
-            val initResult = call(registry, "init", mapOf("projectDir" to projectDir.path))
-            assertEquals("OK", initResult.structuredContent["status"])
 
             val buildResult = call(registry, "gradle-build", mapOf("projectDir" to projectDir.path))
             val buildData = buildResult.data()

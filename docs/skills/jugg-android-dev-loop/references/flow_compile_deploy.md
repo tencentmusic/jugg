@@ -21,7 +21,7 @@ compile/deploy failed after source fixes and 3 retries, or status/policy require
 - `deploy`: compile + device deploy/start when runtime state matters.
 - `gradle-build`: full Gradle build fallback. IDEA installs/starts the app; standalone refreshes the incremental baseline and leaves install/start to the next `deploy`.
 
-When the standalone Runtime owns a Gradle project that has not been initialized, run `jugg init` once before this flow. Ordinary standalone build commands also attempt the same initialization, but explicit `init` makes the selected compile command visible before source changes begin.
+Standalone build commands create the current build profile on demand before compiling; no separate initialization command is required.
 
 ---
 

@@ -168,7 +168,7 @@ internal class StandaloneProjectServices(
         }
     }
 
-    fun initializeProject() = runProjectWriteLocked("Initialize standalone project") {
+    internal fun initializeProject() = runProjectWriteLocked("Initialize standalone project") {
         StandaloneProjectInitializer(pathManager, compileEnvironmentSource, logger).initialize()
     }
 
