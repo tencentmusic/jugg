@@ -23,7 +23,7 @@ Jugg 支持增量编译本轮变化的 Java 和 Kotlin 源码，并可继续处�
 | Kotlin Compose 源码 | 支持 | Compose 相关 class/DEX 随本轮增量产出；详见 [Kotlin Compose](./kotlin-compose.md) |
 | 已支持能力产生的源码 | 支持作为输入 | [DataBinding/ViewBinding](./databinding-viewbinding.md) 或[明确支持的注解入口](./annotation-processors.md)等生成源码可继续编译 |
 | 已生成或转换的 class 产物 | 支持作为输入 | 继续生成可部署 DEX，release 场景进入重混淆处理 |
-| 修改已有 Hilt Android 入口的普通逻辑 | 支持 | 已有 Hilt 生成物可用时，在 DEX 前恢复入口转换并保留注入；详见[注解器](./annotation-processors.md) |
+| 使用 Hilt `2.41`～`2.60.1` 修改已有 Android 入口的普通逻辑 | 支持 | 已有 Hilt 生成物可用时，在 DEX 前恢复入口转换并保留注入；详见[注解器](./annotation-processors.md) |
 
 ## 触发与结果
 

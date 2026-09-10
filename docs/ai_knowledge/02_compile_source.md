@@ -124,6 +124,8 @@ DexCompiler
 
 Hilt `@AndroidEntryPoint` / `@HiltAndroidApp` class 在语言编译后仍是未执行 Gradle Transform 的原始形态。`TransformerCompiler` 根据 class 自身完整注解 descriptor 识别入口，按 Hilt 命名规则查找已有 `Hilt_*` 生成父类，并在受控临时目录改写直接父类、generic signature、真实 `super` 调用以及 Receiver marker 对应的 `onReceive` 调用。生成父类先查本轮 program class，再严格按当前编译 classpath 顺序查找目录和 jar；读取到的 class 同时加入 D8 classpath。找不到必要生成父类时本轮源码编译明确失败并提示执行完整 Gradle build，不把未转换 class 继续交给 D8。
 
+当前源码级兼容范围为 Hilt `2.41`～`2.60.1`。Hilt `2.41`～`2.48.1` 在 Receiver 生成父类中使用私有 boolean 字段 `onReceiveBytecodeInjectionMarker`，`2.49` 起改用 `OnReceiveBytecodeInjectionMarker` 类注解；Jugg 读取同一份生成父类字节并同时识别两种 marker，不根据依赖版本分支。该范围表示入口转换语义已经对照官方 visitor；项目仍需先用自身 Hilt 版本完成完整 Gradle 构建，生成与当前依赖图匹配的基线。
+
 这项处理只复用最近一次完整 Gradle/Hilt 构建已经生成的代码，不运行 Hilt/Dagger APT、KAPT 或 KSP。修改注入字段、binding、构造依赖、入口注解或其他会改变生成图的内容后，仍需用户主动执行完整 Gradle build 刷新基线。已直接继承对应 `Hilt_*` 的 class 保持不变，Receiver 注入只在生成父类带官方 marker 时插入，避免重复转换。
 
 Compose resource generated source 是这条常规 source 链之前的独立前置步骤：`ComposeResourceCompiler` 将 Res、各 source set accessor、expect collector 和 Android actual collector 放进同一次 `KotlinCompilerInvoker` 调用，并显式传入 common source 文件列表。编译出的 class 随后才进入 `SourceCompiler` 的 class/dex 路径；不会分别编译 expect 与 actual。Gradle project info 仍可把 build directory 下的 generated source 保留在 `sourceDirs` 中，供 Kotlin compilation metadata 使用；`FileChangesHandler` 会在文件变更边界统一排除这些路径，避免它们再作为用户源码进入常规 Kotlin 阶段。JuggApt 等本轮由编译器直接登记的 generated source 不经过该文件事件过滤。
@@ -159,7 +161,7 @@ Kotlin 1.9 的 baseline Kotlin output 可能同时包含 dirty expect/actual clo
 - `isEnableDesugared`（基线 APK 是否存在 `$-CC` / `$DefaultImpls`）只是诊断信号，与 minApi 一起打进 debug 日志。它表达不了 variant `minSdk`，一旦参与 minApi 决策就会让增量 DEX 与 Gradle 基线分叉（`java.time` 被改写成 `j$.time`）。
 - default interface class 进入临时 classpath 是脱糖上下文，不是普通业务依赖补全；删除这一步可能让改动类生成与基线不同的 default method 调用形态。
 - pre-D8 program class 分析由 `DexCompiler` 统一完成，并通过显式 `ClassPreparation` 依次交给 `TransformerCompiler`、`getDesugarInfo` 和 D8。`DeployDataGenerator` / `CompileEffectAnalyzer` 不再从 `CompileFile.extraInfo` 读取元数据或 fallback 完整解析 program class；递归父类只读取 header，不遍历方法体。
-- Hilt 入口转换不是完整注解处理支持。它只维护已有生成物对应的入口字节码形态；生成物缺失或无法读取时失败，用户自行选择 Gradle fallback，不新增 Hilt 专属自动回退。
+- Hilt 入口转换不是完整注解处理支持。它只维护 Hilt `2.41`～`2.60.1` 已有生成物对应的入口字节码形态；生成物缺失或无法读取时失败，用户自行选择 Gradle fallback，不新增 Hilt 专属自动回退。
 - core library rewrite 只在 APK database 已发现 `j$.*` 时查找 `desugar.json`；不能因为工程声明了依赖就无条件为所有模块启用。
 - KAPT 场景下 Kotlin 编译器 warning/error 文本会按 debug 记录，避免用户可见输出被 APT/KAPT 噪音淹没；失败判定仍由 parser 处理。
 - Kotlin compiler plugin 参数优先复用 Gradle task 已解析的 `KotlinCompilerPluginData.options.arguments`，兼容 Kotlin Gradle Plugin 的 `kotlin_gradle_plugin_common` 与旧 `kotlin_gradle_plugin` getter；读取不到时保持空列表，不伪造插件参数。参数与 plugin JAR 使用同一个 current-to-parent module 列表聚合，兼容 KMP 等将插件信息保存在父模块的场景，并删除完全相同的重复项。不得只收紧参数继承范围，否则可能加载父模块插件却遗漏其 required option；plugin owner 范围如需调整，必须同时覆盖 JAR、参数与 compiler classpath。
