@@ -63,7 +63,7 @@ macOS 上 Runtime 归属匹配会使用大小写折叠后的路径 key；Runtime
 
 ### 3.2 端口与缓存
 
-CLI 扫描 `12320..12329` 后分别调用 `version`、`list-projects`，按目标 `projectDir` 选择 Runtime；端口缓存只用于优先探测，不覆盖项目归属判断。默认模式下，同一项目同时出现在 IDEA 与 standalone Runtime 时稳定选择 IDEA，不跟随瞬时 `runtime.lock.owner.json` 或最近 `runtime.owner.json` 切回 standalone；没有匹配 IDEA 时才参考 owner 信息选择其他 Runtime。全局参数 `--runtime idea|standalone` 可覆盖自动选择。单条 CLI 命令选定端口后在进程内持续复用，不因 owner 变化或新 Runtime 出现而迁移；选定端口失效时当前命令失败。没有项目 owner 且未强制 IDEA 时，CLI 复用任意已运行的 standalone Runtime，并将目标项目保留为 pending projectDir，首个合法项目请求完成自动注册。
+CLI 并行扫描 `12320..12329` 后分别调用 `version`、`list-projects`，按目标 `projectDir` 选择 Runtime；单轮端口扫描耗时由最慢端口决定，不会因 Windows 空闲端口逐个 timeout 而线性累加。端口缓存只用于优先探测，不覆盖项目归属判断。默认模式下，同一项目同时出现在 IDEA 与 standalone Runtime 时稳定选择 IDEA，不跟随瞬时 `runtime.lock.owner.json` 或最近 `runtime.owner.json` 切回 standalone；没有匹配 IDEA 时才参考 owner 信息选择其他 Runtime。全局参数 `--runtime idea|standalone` 可覆盖自动选择。单条 CLI 命令选定端口后在进程内持续复用，不因 owner 变化或新 Runtime 出现而迁移；选定端口失效时当前命令失败。没有项目 owner 且未强制 IDEA 时，CLI 复用任意已运行的 standalone Runtime，并将目标项目保留为 pending projectDir，首个合法项目请求完成自动注册。
 
 当前没有 standalone Runtime 时，普通 CLI 取得 `~/.jugg/locks/standalone.launch.lock`，在锁内重新发现 Runtime；仍未发现时才启动 standalone launcher，并持锁等待端口注册，避免不同项目并发创建多个 daemon。测试或特殊环境可用 `JUGG_STANDALONE_LAUNCH_LOCK` 覆盖锁路径。launcher 默认路径为 `~/.jugg/standalone/bin/jugg-standalone`（Windows 为 `.bat`），可用 `JUGG_STANDALONE_LAUNCHER` 覆盖。启动和首个项目自动注册的等待硬超时均为 60 秒；launch lock 最长等待 75 秒。初始化超过 10 秒后，CLI 每 10 秒从目标项目 `build/jugg/log/standlone_cli/compile_latest.log` 读取最后一条结构化日志并向 stderr 输出 heartbeat；日志缺失或读取失败只显示日志暂不可用，不中断启动。日志行最多输出 500 个字符。新进程 stdout/stderr 仍写入启动项目 `build/jugg/log/standlone_cli/standalone_startup.log`；进程在端口就绪前退出时立即展示 exit code、日志尾部和完整日志路径。Hook 调用必须设置 `JUGG_CALLER=hook`；只有目标项目 `build/jugg/database/compile_context.db/complete_flag` 已存在时才允许启动进程或在已有 standalone 中注册新项目，否则直接以成功状态跳过。
 
@@ -71,7 +71,7 @@ standalone Step 11 支持 `init`、`compile`、`deploy`、`gradle-build`、`rest
 
 `status` 在项目空闲且可立即取得项目锁时完成 Git refresh、Runtime owner 恢复和一致性快照；同 Runtime 正在 compile/deploy，或项目锁正由其他写事务持有时，不等待写锁也不刷新文件状态，而是立即返回当前真实只读快照。实际部署状态、fallback 原因、待编译文件、baseline 和时间戳仍会返回；`isCompiling` 只反映当前 Runtime 的 compile/deploy 运行态，保证 CLI wait/heartbeat 不被长任务阻塞。
 
-当进程仍存活但等待端口达到 60 秒硬超时时，CLI 先输出 `standalone_startup.log` 尾部与路径，再输出每个端口的探测摘要。只有 timeout、HTTP 5xx 或其它非预期异常会触发一次短重试；纯 connection refused 不为同一轮扫描重试。
+当进程仍存活但等待端口达到 60 秒硬超时时，CLI 会在失败前再执行一次完整 Runtime 发现，避免 daemon 恰好在最后一轮扫描期间完成启动却被误报超时。最终仍未识别时，CLI 先输出 `standalone_startup.log` 尾部与路径；若端口 ping 成功但 `version` 或 `list-projects` 握手失败，再输出 Runtime discovery summary，最后输出每个端口的探测摘要。只有 timeout、HTTP 5xx 或其它非预期异常会触发一次短重试；纯 connection refused 不为同一轮扫描重试。
 
 `jugg stop` 是 standalone CLI 专用的本地生命周期命令，不扫描 MCP 端口，也不调用 `resolve_port()`，因此不会在停止时意外拉起 Runtime。CLI 同步调用 standalone launcher 的 `--stop-all` 控制模式；bootstrap 在加载 active Runtime JAR 前按 Jugg 根目录匹配全部 standalone 进程。平台支持正常终止时先请求正常退出并等待 5 秒，仍存活时强制终止，不支持的平台直接强制终止。未找到进程时幂等成功。该命令会同时停止这些进程承载的所有项目，但不删除 run configuration、Compile Context、历史或日志；`--runtime idea` 明确失败。
 

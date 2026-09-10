@@ -7,6 +7,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import types
 import urllib.error
@@ -142,6 +143,20 @@ class ResolvePortTest(unittest.TestCase):
         self.assertEqual(port, 12320)
         self.assertGreaterEqual(mock_urlopen.call_count, 11)
         mock_sleep.assert_called_once()
+
+    def test_scan_ports_waits_only_for_the_slowest_probe(self):
+        ports = list(range(12320, 12330))
+        barrier = threading.Barrier(len(ports), timeout=0.5)
+
+        def probe(_port):
+            barrier.wait()
+            return jugglib.PortProbeResult(False, "timed out", True)
+
+        with patch.object(jugglib, "_probe_port", side_effect=probe):
+            results = jugglib._scan_ports(ports)
+
+        self.assertEqual(ports, list(results.keys()))
+        self.assertTrue(all(result.summary == "timed out" for result in results.values()))
 
     def test_resolve_port_keeps_fast_existing_runtime_discovery_silent(self):
         project_dir = os.path.join(self.tmp, "project")
@@ -362,6 +377,45 @@ class ResolvePortTest(unittest.TestCase):
         output = stderr.getvalue()
         self.assertIn("elapsed 60s", output)
         self.assertIn("Runtime log is not available yet", output)
+
+    def test_resolve_port_performs_final_discovery_at_startup_deadline(self):
+        project_dir = os.path.join(self.tmp, "project")
+        os.makedirs(project_dir)
+        endpoint = jugglib.RuntimeEndpoint(12320, "standalone", [project_dir])
+
+        class RunningProcess:
+            def poll(self):
+                return None
+
+        class FakeClock:
+            now = 0.0
+
+            def monotonic(self):
+                return self.now
+
+            def sleep(self, seconds):
+                self.now += seconds
+
+        clock = FakeClock()
+        launch = jugglib.StandaloneLaunch(RunningProcess(), Path(project_dir) / "startup.log")
+        discovery_count = 0
+
+        def discover_runtime_endpoints():
+            nonlocal discovery_count
+            discovery_count += 1
+            if discovery_count == 3:
+                clock.now = jugglib._STANDALONE_STARTUP_TIMEOUT_SECONDS
+            return [endpoint] if discovery_count == 4 else []
+
+        with patch.object(jugglib, "candidate_project_dir", return_value=project_dir), \
+             patch.object(jugglib, "discover_runtime_endpoints", side_effect=discover_runtime_endpoints), \
+             patch.object(jugglib, "launch_standalone", return_value=launch), \
+             patch.object(jugglib.time, "monotonic", side_effect=clock.monotonic), \
+             patch.object(jugglib.time, "sleep", side_effect=clock.sleep):
+            port = jugglib.resolve_port()
+
+        self.assertEqual(12320, port)
+        self.assertEqual(4, discovery_count)
 
     def test_resolve_port_reports_standalone_process_startup_failure(self):
         project_dir = os.path.join(self.tmp, "project")
@@ -698,6 +752,39 @@ class ResolvePortTest(unittest.TestCase):
             endpoint = jugglib._read_runtime_endpoint(12320)
 
         self.assertFalse(endpoint.projects_known)
+        self.assertIn("list-projects returned status ERROR", endpoint.discovery_errors)
+
+    def test_runtime_discovery_keeps_handshake_exception_details(self):
+        version_timeout = TimeoutError("timed out")
+        projects_response = {
+            "result": {"structuredContent": {"status": "OK", "data": {"projects": []}}}
+        }
+
+        with patch.object(jugglib, "_discovery_call", side_effect=[version_timeout, projects_response]):
+            endpoint = jugglib._read_runtime_endpoint(12320)
+
+        self.assertEqual("unknown", endpoint.runtime_type)
+        self.assertEqual(("version timed out",), endpoint.discovery_errors)
+
+    def test_runtime_discovery_failure_prints_handshake_details(self):
+        endpoint = jugglib.RuntimeEndpoint(
+            12320,
+            "unknown",
+            [],
+            projects_known=False,
+            discovery_errors=("version timed out", "list-projects returned status ERROR"),
+        )
+        stderr = io.StringIO()
+
+        with contextlib.redirect_stderr(stderr):
+            jugglib._print_runtime_discovery_failure([endpoint])
+
+        output = stderr.getvalue()
+        self.assertIn("Runtime discovery summary", output)
+        self.assertIn(
+            "12320: ping ok; version timed out; list-projects returned status ERROR",
+            output,
+        )
 
 
 class ProjectDirMatchTest(unittest.TestCase):

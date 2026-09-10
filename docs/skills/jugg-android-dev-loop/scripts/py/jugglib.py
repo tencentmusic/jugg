@@ -19,6 +19,7 @@ import threading
 import time
 import urllib.request
 import urllib.error
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Iterable, Optional
@@ -83,6 +84,7 @@ class RuntimeEndpoint:
     runtime_type: str
     projects: list[str]
     projects_known: bool = True
+    discovery_errors: tuple[str, ...] = ()
 
 
 @dataclass
@@ -198,7 +200,12 @@ def ping_port(port: int) -> bool:
 
 
 def _scan_ports(ports: Iterable[int]) -> dict[int, PortProbeResult]:
-    return {port: _probe_port(port) for port in ports}
+    port_list = list(ports)
+    if not port_list:
+        return {}
+    with ThreadPoolExecutor(max_workers=len(port_list)) as executor:
+        results = executor.map(_probe_port, port_list)
+    return dict(zip(port_list, results))
 
 
 def _print_port_probe_failure(results: dict[int, PortProbeResult]) -> None:
@@ -208,6 +215,16 @@ def _print_port_probe_failure(results: dict[int, PortProbeResult]) -> None:
         result = results.get(port)
         summary = result.summary if result else "not checked"
         print(f"  {port}: {summary}", file=sys.stderr)
+
+
+def _print_runtime_discovery_failure(endpoints: Iterable[RuntimeEndpoint]) -> None:
+    failed = [endpoint for endpoint in endpoints if endpoint.discovery_errors]
+    if not failed:
+        return
+    print("Runtime discovery summary:", file=sys.stderr)
+    for endpoint in failed:
+        details = "; ".join(endpoint.discovery_errors)
+        print(f"  {endpoint.port}: ping ok; {details}", file=sys.stderr)
 
 
 def _discovery_call(port: int, tool: str) -> dict:
@@ -231,12 +248,18 @@ def _read_runtime_endpoint(port: int) -> RuntimeEndpoint:
     runtime_type = "unknown"
     projects: list[str] = []
     projects_known = False
+    discovery_errors: list[str] = []
     try:
         version = extract_structured(_discovery_call(port, "version"))
         if version.get("status") == "OK":
-            runtime_type = version.get("data", {}).get("runtimeType", "unknown")
-    except Exception:
-        pass
+            version_data = version.get("data", {})
+            runtime_type = version_data.get("runtimeType", "unknown")
+            if "runtimeType" not in version_data:
+                discovery_errors.append("version response missing runtimeType")
+        else:
+            discovery_errors.append(f"version returned status {version.get('status', 'unknown')}")
+    except Exception as error:
+        discovery_errors.append(f"version {_summarize_probe_exception(error).summary}")
     try:
         project_result = extract_structured(_discovery_call(port, "list-projects"))
         project_items = project_result.get("data", {}).get("projects")
@@ -247,9 +270,15 @@ def _read_runtime_endpoint(port: int) -> RuntimeEndpoint:
                 if isinstance(item, dict) and item.get("projectDir")
             ]
             projects_known = True
-    except Exception:
-        pass
-    return RuntimeEndpoint(port, runtime_type, projects, projects_known)
+        elif project_result.get("status") == "OK":
+            discovery_errors.append("list-projects response missing projects")
+        else:
+            discovery_errors.append(
+                f"list-projects returned status {project_result.get('status', 'unknown')}"
+            )
+    except Exception as error:
+        discovery_errors.append(f"list-projects {_summarize_probe_exception(error).summary}")
+    return RuntimeEndpoint(port, runtime_type, projects, projects_known, tuple(discovery_errors))
 
 
 def discover_runtime_endpoints() -> list[RuntimeEndpoint]:
@@ -693,9 +722,18 @@ def resolve_port() -> int:
             print(f"ERROR: Failed to coordinate standalone launch: {error}", file=sys.stderr)
             sys.exit(1)
 
+    if selected is None and launch is not None and launch.process.poll() is None:
+        endpoints = discover_runtime_endpoints()
+        selected, project_registered = _select_runtime_or_standalone(
+            endpoints,
+            runtime_project_dir,
+            allow_parent_project,
+        )
+
     if selected is None:
         if launch is not None:
             _print_standalone_startup_failure(launch, "startup timed out")
+        _print_runtime_discovery_failure(endpoints)
         results = _scan_ports(range(12320, 12330))
         _print_port_probe_failure(results)
         sys.exit(1)

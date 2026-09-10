@@ -1,7 +1,7 @@
 ---
 name: jugg-android-dev-loop
-version: 1.0.33
-date: 2026-09-08
+version: 1.0.34
+date: 2026-09-10
 description: >-
   Use when editing source files (Java/Kotlin/XML/layout/AndroidManifest/Gradle)
   in a Android project, or when user asks to build/deploy/verify an Android app.
