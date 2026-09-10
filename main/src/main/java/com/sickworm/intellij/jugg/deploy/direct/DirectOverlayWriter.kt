@@ -97,10 +97,17 @@ open class DirectOverlayWriter(
                 "echo \"$MARKER APPLYING\"; " +
                 buildHeartbeatScript() +
                 buildCleanupScript(request) +
-                "unzip -oq $remoteZipPath -d \"\$overlay_dir\"; " +
+                buildExtractPayloadScript(request, remoteZipPath) +
                 "find \"\$overlay_dir\" -type f -name '*.dex' -exec chmod 0444 {} +; " +
                 "printf %s $overlayId > \"\$overlay_dir/id\"; " +
                 "echo \"$MARKER OK\""
+    }
+
+    private fun buildExtractPayloadScript(request: DirectOverlayWriteRequest, remoteZipPath: String): String {
+        if (request.files.isEmpty()) {
+            return ""
+        }
+        return "unzip -oq $remoteZipPath -d \"\$overlay_dir\"; "
     }
 
     private fun buildHeartbeatScript(): String {
