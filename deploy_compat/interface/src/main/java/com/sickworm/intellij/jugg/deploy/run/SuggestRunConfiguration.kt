@@ -32,19 +32,35 @@ data class SuggestRunConfiguration(
         /** Resolves the Gradle identity when available and preserves the legacy result on any failure. */
         fun resolveModuleName(module: Module, project: Project): String {
             val fallback = resolveModuleName(module.name, project.name)
-            return try {
-                val projectDir = project.basePath?.let(::File) ?: return fallback
+            val projectDir = project.basePath?.let(::File) ?: return fallback
+            try {
                 val pathClass = Class.forName("com.android.tools.idea.projectsystem.gradle.GradleProjectPathKt")
                 val gradleProjectPath = pathClass.getMethod("getGradleProjectPath", Module::class.java)
-                    .invoke(null, module) ?: return fallback
+                    .invoke(null, module)
                 val gradleProjectPathClass = gradleProjectPath.javaClass
-                val path = gradleProjectPathClass.getMethod("getPath").invoke(gradleProjectPath) as? String
-                    ?: return fallback
-                val buildRoot = gradleProjectPathClass.getMethod("getBuildRoot").invoke(gradleProjectPath) as? String
-                    ?: return fallback
+                val path = gradleProjectPathClass.getMethod("getPath").invoke(gradleProjectPath) as String
+                val buildRoot = gradleProjectPathClass.getMethod("getBuildRoot").invoke(gradleProjectPath) as String
                 resolveGradleModuleName(
                     gradleProjectPath = path,
                     gradleBuildRoot = buildRoot,
+                    projectDir = projectDir,
+                    externalProjectId = ExternalSystemApiUtil.getExternalProjectId(module),
+                )?.let { return it }
+            } catch (_: Throwable) {
+                // Bumblebee exposes the Gradle identity through AndroidGradleUtil instead.
+            }
+            return try {
+                val utilClass = Class.forName("com.android.tools.idea.gradle.util.AndroidGradleUtil")
+                val gradleProjectPath = utilClass.getMethod("getModuleGradleProjectPath", Module::class.java)
+                    .invoke(null, module)
+                val gradleProjectPathClass = gradleProjectPath.javaClass
+                val path = gradleProjectPathClass.getMethod("getGradleProjectPath")
+                    .invoke(gradleProjectPath) as String
+                val buildRoot = gradleProjectPathClass.getMethod("getProjectRoot")
+                    .invoke(gradleProjectPath) as File
+                resolveGradleModuleName(
+                    gradleProjectPath = path,
+                    gradleBuildRoot = buildRoot.path,
                     projectDir = projectDir,
                     externalProjectId = ExternalSystemApiUtil.getExternalProjectId(module),
                 ) ?: fallback
