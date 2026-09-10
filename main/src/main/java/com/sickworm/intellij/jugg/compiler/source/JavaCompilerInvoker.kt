@@ -8,6 +8,7 @@ import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.project.JuggException
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import java.io.File
+import java.io.IOException
 import javax.tools.*
 import javax.tools.JavaCompiler
 
@@ -17,7 +18,6 @@ import javax.tools.JavaCompiler
 class JavaCompilerInvoker {
 
     private var compiler: JavaCompiler = getJavaCompiler(Logger.getInstance(JavaCompilerInvoker::class.java))
-    private var fileManager: StandardJavaFileManager = compiler.getStandardFileManager(null, null, null)
 
     private var hasRecreateAfterInternalError = false
     private var isSourceTargetVersionNotSupport: Boolean = false
@@ -45,6 +45,7 @@ class JavaCompilerInvoker {
     ): CompileResult {
         logger.debug("compile options: $options")
 
+        val fileManager = compiler.getStandardFileManager(null, null, null)
         val compileItems = task.files.map {
             val fileObject = fileManager.getJavaFileObjectsFromFiles(listOf(it.file)).first()
             JavaCompileItem(it, fileObject)
@@ -158,7 +159,15 @@ class JavaCompilerInvoker {
             null
         }
         
-        val isSuccess = javaTask?.call() ?: false
+        val isSuccess = try {
+            javaTask?.call() ?: false
+        } finally {
+            try {
+                fileManager.close()
+            } catch (e: IOException) {
+                logger.warn("Close javac file manager failed", e)
+            }
+        }
 
         // all failed or all success
         return if (isSuccess) {
