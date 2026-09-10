@@ -177,6 +177,22 @@ class DirectOverlayWriterTest {
     }
 
     @Test
+    fun `write should commit overlay checkpoint when payload is empty`() {
+        val adb = RecordingAdb("__JUGG_DIRECT_OVERLAY__ OK", rejectEmptyArchive = true)
+        val writer = DirectOverlayWriter(adb, Mockito.mock(Logger::class.java))
+        val request = DirectOverlayWriteRequest(
+            packageName = "com.example.app",
+            expectedOverlayId = "",
+            overlayId = "new-id",
+            files = emptyList(),
+            skipPayloadCleanup = true,
+        )
+
+        assertEquals(DirectOverlayWriteResult.SUCCESS, writer.write(request))
+        assertTrue(adb.pushedZipEntries.single().isEmpty())
+    }
+
+    @Test
     fun `write should reject unsafe package name before pushing files`() {
         val adb = RecordingAdb("__JUGG_DIRECT_OVERLAY__ OK")
         val writer = DirectOverlayWriter(adb, Mockito.mock(Logger::class.java))
@@ -297,7 +313,10 @@ class DirectOverlayWriterTest {
         }
     }
 
-    private class RecordingAdb(private val scriptOutput: String) : IDeviceAdb {
+    private class RecordingAdb(
+        private val scriptOutput: String,
+        private val rejectEmptyArchive: Boolean = false,
+    ) : IDeviceAdb {
         val pushedZipEntries = mutableListOf<List<String>>()
         val commands = mutableListOf<String>()
         var lastScript: String = ""
@@ -317,6 +336,9 @@ class DirectOverlayWriterTest {
             lastScript = cmd
             return if (cmd.contains("__JUGG_RUN_AS_OK__")) {
                 "__JUGG_RUN_AS_OK__:10001\n__JUGG_RUN_AS_CONTEXT__:ctx|ctx"
+            } else if (rejectEmptyArchive && pushedZipEntries.lastOrNull()?.isEmpty() == true &&
+                cmd.contains("unzip -oq")) {
+                "__JUGG_DIRECT_OVERLAY__ APPLYING\nunzip: Empty archive"
             } else {
                 scriptOutput
             }

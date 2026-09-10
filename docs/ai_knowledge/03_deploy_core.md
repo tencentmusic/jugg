@@ -251,7 +251,7 @@ JuggDeployer.optimisticSwap()
           -> 删除本次 payload 覆盖的旧文件
           -> full resource push 跳过 base.apk 下逐文件删除，直接 unzip 整批资源；保留先前 Dex 与其他未更新 overlay
           -> base install 空 overlay id 场景跳过 payload cleanup，避免清数据/NO_DIR 首次 full push 生成大量无效 rm 命令
-          -> unzip files
+          -> 有 payload 文件时 unzip；空 payload 跳过解压并继续提交 checkpoint，避免设备将空 ZIP 判为错误
           -> chmod *.dex 0444
           -> 最后写新 id
       -> JuggDeploymentService.storeEntry()
