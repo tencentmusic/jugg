@@ -16,6 +16,7 @@ import com.android.tools.idea.gradle.model.IdeAndroidArtifact
 import com.android.tools.idea.gradle.model.IdeAndroidProject
 import com.android.tools.idea.gradle.model.IdeSigningConfig
 import com.android.tools.idea.gradle.model.IdeVariant
+import com.android.tools.idea.gradle.project.model.AndroidModuleModel
 import com.android.tools.idea.gradle.project.model.GradleAndroidModel
 import com.android.tools.idea.projectsystem.getProjectSystem
 import com.android.tools.idea.run.*
@@ -395,7 +396,11 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
                 logger.debug("getSuggestRunConfiguration module of runConfig ${runConfig.name} is null")
                 return null
             }
-            val gradleAndroidModel = GradleAndroidModel.get(module)
+            val gradleAndroidModel = try {
+                GradleAndroidModel.get(module)
+            } catch (_: Throwable) {
+                return getLegacySuggestRunConfiguration(module, project)
+            }
             try {
                 logger.debug("getSuggestRunConfiguration gradleAndroidModel: ${gradleAndroidModel?.getDesc()}")
             } catch (e: Throwable) {
@@ -441,6 +446,33 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
             logger.debug("getSuggestRunConfiguration for ${settings.name} error, ignore", e)
             return null
         }
+    }
+
+    private fun getLegacySuggestRunConfiguration(module: Module, project: Project): SuggestRunConfiguration? {
+        val modelClass = Class.forName("com.android.tools.idea.gradle.project.model.AndroidModuleModel")
+        val model = modelClass.getMethod("get", Module::class.java).invoke(null, module) ?: return null
+        val moduleName = SuggestRunConfiguration.resolveModuleName(module, project)
+        val gradleModulePath = SuggestRunConfiguration.resolveGradleModulePath(module, project)
+        val mainArtifact = modelClass.getMethod("getMainArtifact").invoke(model)
+        val taskName = mainArtifact.javaClass.getMethod("getAssembleTaskName").invoke(mainArtifact) as String
+        val selectedVariant = modelClass.getMethod("getSelectedVariant").invoke(model)
+        val buildType = selectedVariant.javaClass.getMethod("getBuildType").invoke(selectedVariant) as String
+        @Suppress("UNCHECKED_CAST")
+        val productFlavors = selectedVariant.javaClass.getMethod("getProductFlavors")
+            .invoke(selectedVariant) as List<String>
+        val productFlavorPath = productFlavors.joinToString("") {
+            it.replaceFirstChar { char -> char.uppercaseChar() }
+        }.replaceFirstChar { it.lowercaseChar() }.takeIf { it.isNotEmpty() }?.let { "$it/" } ?: ""
+        val androidProject = modelClass.getMethod("getAndroidProject").invoke(model)
+        val buildFolder = androidProject.javaClass.getMethod("getBuildFolder").invoke(androidProject) as File
+        return SuggestRunConfiguration(
+            moduleName = moduleName,
+            compileCommand = SuggestRunConfiguration.createCompileCommand(gradleModulePath, taskName),
+            outputApkPath = SuggestRunConfiguration.createOutputApkPath(
+                File(project.basePath!!), buildFolder, productFlavorPath, buildType,
+            ),
+            variantName = selectedVariant.javaClass.getMethod("getName").invoke(selectedVariant) as String,
+        )
     }
 
     private fun GradleAndroidModel.getDesc(): String {
