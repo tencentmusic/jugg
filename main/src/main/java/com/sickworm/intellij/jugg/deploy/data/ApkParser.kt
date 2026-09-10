@@ -17,9 +17,8 @@ import java.util.zip.ZipFile
  * ApkParser parses APK dex/overlay entries into class graph and reference indexes used by deploy impact analysis.
  */
 
-@OptIn(ExperimentalCoroutinesApi::class)
 class ApkParser: CoroutineScope by CoroutineScope(
-    Dispatchers.IO.limitedParallelism(
+    Dispatchers.IO.safeLimitedParallelism(
         (Runtime.getRuntime().availableProcessors() / 3).coerceAtLeast(2)
     )
 ) {
@@ -162,6 +161,19 @@ class ApkParser: CoroutineScope by CoroutineScope(
                 }
             }
         }
+    }
+}
+
+/**
+ * Applies coroutine parallelism limits when the runtime provides the API.
+ * Older Android Studio distributions may bundle a coroutines version without it.
+ */
+private fun CoroutineDispatcher.safeLimitedParallelism(parallelism: Int): CoroutineDispatcher {
+    return try {
+        javaClass.getMethod("limitedParallelism", Int::class.javaPrimitiveType)
+            .invoke(this, parallelism) as? CoroutineDispatcher ?: this
+    } catch (_: Throwable) {
+        this
     }
 }
 
