@@ -100,6 +100,7 @@ JuggDeployerHelper.deploy(isInstall=true)
   -> 普通 App 且启用自定义脚本: CustomApkInstallScriptRunner.run()
       -> 继承 IDE/Gradle 环境，并把 Android SDK platform-tools 加入 PATH
       -> 脚本成功后等待 ADB、确认包存在、dump APK 校验 checksum
+      -> app sandbox 可用时清理 code_cache/.overlay，避免重装保留旧 checkpoint
   -> 其他情况: AsDeployerCompat.install()
   -> JuggDeploymentService.storeEntry()
   -> deployHistoryManager.lastDeployOverlayIds = launchResult.overlayIds
@@ -107,7 +108,7 @@ JuggDeployerHelper.deploy(isInstall=true)
 
 脚本配置从 Run Configuration 经 `DeployOptions`、deploy/recover 请求和 `LaunchContextFactory` 写入 `LaunchContext`。`JuggDeployTask` 仅在 INSTALL 分支为普通 App 创建 `CustomApkInstallScriptRunner`，作为当前 `JuggDeployer.install()` 的可空参数；test APK 传空，使用默认 installer。脚本沿用每台设备、每个 applicationId 的安装粒度，校验和 cache 更新仍由 `JuggDeployer` 统一负责。
 
-install 前会先 stop app，避免用户看到“安装后又被停止”的错觉。自定义脚本对 Gradle install、embedded install、APK 更新 recover 和 reinstall recover 使用同一入口；androidTest APK 不执行脚本。脚本非零退出、取消、ADB 未恢复、包未安装或设备 APK 与输入 APK checksum 不一致都会明确失败，且不会触发默认 installer 的 transient retry、deploy retry 或 Gradle fallback。脚本成功后发生其它部署失败时，沿用原有 retry/fallback 策略，包括 test APK 安装失败后的 `INSTALL_FAILED_INVALID_APK` 卸载重试；由业务脚本负责重复执行的语义和副作用处理。安装与增量部署失败时优先透出 `AdbLogWrapper.realErrorMessage`，不要先改高层错误文案；`run-as: package not debuggable` 等设备侧明确原因必须覆盖 deployer 的通用失败信息。
+install 前会先 stop app，避免用户看到“安装后又被停止”的错觉。自定义脚本对 Gradle install、embedded install、APK 更新 recover 和 reinstall recover 使用同一入口；androidTest APK 不执行脚本。脚本非零退出、取消、ADB 未恢复、包未安装或设备 APK 与输入 APK checksum 不一致都会明确失败，且不会触发默认 installer 的 transient retry、deploy retry 或 Gradle fallback。脚本校验成功后，Jugg 会在 app sandbox 可用时清理 `code_cache/.overlay`，再写入新 base deployment cache；这是因为系统应用的 `adb uninstall` 只移除更新层，可能保留旧 app data 和 Direct Overlay checkpoint。sandbox 不可用时只跳过该增强清理，不影响原有自定义安装能力。脚本成功后发生其它部署失败时，沿用原有 retry/fallback 策略，包括 test APK 安装失败后的 `INSTALL_FAILED_INVALID_APK` 卸载重试；由业务脚本负责重复执行的语义和副作用处理。安装与增量部署失败时优先透出 `AdbLogWrapper.realErrorMessage`，不要先改高层错误文案；`run-as: package not debuggable` 等设备侧明确原因必须覆盖 deployer 的通用失败信息。
 
 ### 4.2 incremental deploy 链路
 

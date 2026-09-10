@@ -7,6 +7,7 @@ import com.android.tools.deployer.ClassRedefiner
 import com.android.tools.deployer.model.Apk
 import com.google.common.collect.ImmutableMap
 import com.sickworm.intellij.jugg.apk.ApkInfoReader
+import com.sickworm.intellij.jugg.deploy.AppSandboxExecutor
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.deploy.IdeaDeviceAdbClient
 import com.sickworm.intellij.jugg.deploy.run.utils.AdbTransientOffline
@@ -83,6 +84,7 @@ class JuggDeployer(
                     asDeployerCompat.dumpApks(installSession, apkList)
                 }
                 verifyApksMatch(apkList, actualApks, asDeployerCompat, logger)
+                clearOverlayAfterCustomInstall(packageName)
             }
             // Update the database
             val appId = asDeployerCompat.getPackageName(apkList)
@@ -109,6 +111,21 @@ class JuggDeployer(
             } else {
                 throw asDeployerCompat.wrapDeployerException(e) ?: e
             }
+        }
+    }
+
+    private fun clearOverlayAfterCustomInstall(packageName: String) {
+        val sandbox = launchContext.getAppSandboxExecutor(packageName, logger.logger)
+        if (sandbox.mode == AppSandboxExecutor.Mode.UNAVAILABLE) {
+            logger.info("Skip Direct Overlay reset after custom install: ${sandbox.unavailableReason}")
+            return
+        }
+        val output = sandbox.exec(
+            "rm -rf code_cache/.overlay && echo success",
+            repairCodeCache = true,
+        )
+        check(output.trim() == "success") {
+            "Failed to reset Direct Overlay after custom APK install: $output"
         }
     }
 

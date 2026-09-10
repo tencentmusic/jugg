@@ -86,7 +86,7 @@ Jugg 部署
 
 系统包已经存在后，Android 允许 `pm install` 作为更新并保留原 `FLAG_SYSTEM`。这条路径要求**新 APK 与 `/system` 里那份基线 APK 签名一致**。Android Studio / Jugg 默认 debug keystore 与 platform 签名不同，会得到 `INSTALL_FAILED_UPDATE_INCOMPATIBLE`，看起来像“无法 update”。处理是让 debug/release 都使用首次 push 时的同一套 platform 密钥，而不是 uninstall 后改用 debug 包重装（系统分区 APK 卸不掉）。
 
-Jugg 默认 install 走同一条 AS installer，签名对齐后**预期**可以更新已有系统包。启用自定义安装脚本后，Gradle install、APK 更新和 recover reinstall 都可重新执行项目脚本；脚本必须安装 Jugg 本轮提供的 APK，否则 checksum 校验失败。class、资源和 assets 可进入 Direct app sandbox transport；Manifest/native library 继续由既有 APK 更新、重签和安装流程处理，随后重放 overlay。
+Jugg 默认 install 走同一条 AS installer，签名对齐后**预期**可以更新已有系统包。启用自定义安装脚本后，Gradle install、APK 更新和 recover reinstall 都可重新执行项目脚本；脚本必须安装 Jugg 本轮提供的 APK，否则 checksum 校验失败。校验成功后，Jugg 会在 app sandbox 可用时清理旧 `code_cache/.overlay`，再记录新 base deployment cache，避免系统应用重装保留 app data 后反复出现 overlay state mismatch。class、资源和 assets 可进入 Direct app sandbox transport；Manifest/native library 继续由既有 APK 更新、重签和安装流程处理，随后重放 overlay。
 
 ### 4.1 自定义 APK 安装脚本契约
 
@@ -94,6 +94,7 @@ Jugg 默认 install 走同一条 AS installer，签名对齐后**预期**可以�
 - 脚本在本地工程根目录执行。macOS/Linux 使用 Bash shell，Windows 使用 `cmd.exe`；远程编译产物拉取完成后仍在本地主机执行。
 - Jugg 不注入设备、applicationId 或 APK 路径变量。脚本继承 IDE/Gradle 环境，Android SDK 的 `platform-tools` 会加入 `PATH`；Bash 不加载用户 shell 启动文件。
 - 普通 App APK 的 install/reinstall 按每台设备、每个 applicationId 执行脚本；androidTest APK 继续使用默认 installer。
+- 脚本安装结果校验成功后，Jugg 会在 app sandbox 可用时清理旧 Direct Overlay；系统应用脚本不能假设 `adb uninstall` 会删除 app data。
 - 脚本触发 reboot 时应自行等待设备启动和 PackageManager 扫描完成后再退出；Jugg 只复用现有短暂 ADB offline 恢复窗口。
 - 退出码非零、用户取消、ADB 未恢复、包不存在或实际 APK checksum 不匹配时失败。脚本自身失败不可 deploy retry 或 Gradle fallback；脚本成功后的其它部署失败沿用原有 retry/fallback 策略，可能重新执行脚本，重复执行的处理由业务方负责。
 

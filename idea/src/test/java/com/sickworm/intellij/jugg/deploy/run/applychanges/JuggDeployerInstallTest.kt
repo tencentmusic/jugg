@@ -19,6 +19,7 @@ import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.apk.ApkFileUnit
 import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
+import com.sickworm.intellij.jugg.deploy.AppSandboxExecutor
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.IJuggDeployerDeploymentService
@@ -190,6 +191,34 @@ class JuggDeployerInstallTest {
             fixture.compat.baseOverlayId,
             fixture.logger,
         )
+    }
+
+    @Test
+    fun `custom install script clears stale overlay before storing base cache`() {
+        val scriptRunner = Mockito.mock(CustomApkInstallScriptRunner::class.java)
+        val fixture = newFixture()
+        Mockito.mockConstruction(AppSandboxExecutor::class.java) { sandbox, _ ->
+            Mockito.`when`(sandbox.mode).thenReturn(AppSandboxExecutor.Mode.RUN_AS)
+            Mockito.`when`(sandbox.exec(Mockito.anyString(), Mockito.anyBoolean())).thenReturn("success")
+        }.use { sandboxes ->
+            fixture.deployer.install(
+                packageName = PACKAGE_NAME,
+                apks = listOf("/tmp/demo.apk"),
+                argInstallMode = JuggInstallSession.Mode.FULL,
+                customInstallScriptRunner = scriptRunner,
+            )
+
+            val sandbox = sandboxes.constructed().single()
+            val order = Mockito.inOrder(sandbox, fixture.deploymentService)
+            order.verify(sandbox).exec("rm -rf code_cache/.overlay && echo success", repairCodeCache = true)
+            order.verify(fixture.deploymentService).storeEntry(
+                "emulator-5554",
+                PACKAGE_NAME,
+                fixture.compat.parsedApks,
+                fixture.compat.baseOverlayId,
+                fixture.logger,
+            )
+        }
     }
 
     @Test
