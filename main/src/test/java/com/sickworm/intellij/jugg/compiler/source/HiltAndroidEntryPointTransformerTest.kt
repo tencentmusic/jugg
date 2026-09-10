@@ -27,7 +27,7 @@ class HiltAndroidEntryPointTransformerTest {
         val result = transformer.transform(
             input,
             ClassFileParser.analyze(input),
-            ClassFileParser.analyzeHeader(generatedBase),
+            generatedBase,
         )
         val inspected = inspect(result.bytes)
 
@@ -55,12 +55,12 @@ class HiltAndroidEntryPointTransformerTest {
         val first = transformer.transform(
             input,
             ClassFileParser.analyze(input),
-            ClassFileParser.analyzeHeader(generatedBase),
+            generatedBase,
         )
         val second = transformer.transform(
             first.bytes,
             first.analysis,
-            ClassFileParser.analyzeHeader(generatedBase),
+            generatedBase,
         )
 
         assertEquals(
@@ -73,6 +73,25 @@ class HiltAndroidEntryPointTransformerTest {
     }
 
     @Test
+    fun `legacy receiver marker field inserts generated super call`() {
+        val input = receiverClass("test/TestReceiver", "test/BaseReceiver")
+        val generatedBase = legacyReceiverBaseClass("test/Hilt_TestReceiver", "test/BaseReceiver")
+
+        val result = transformer.transform(
+            input,
+            ClassFileParser.analyze(input),
+            generatedBase,
+        )
+
+        assertEquals(
+            1,
+            inspect(result.bytes).invocations.count {
+                it.method == "onReceive" && it.owner == "test/Hilt_TestReceiver"
+            },
+        )
+    }
+
+    @Test
     fun `receiver without marker keeps onReceive body unchanged`() {
         val input = receiverClass("test/TestReceiver", "test/BaseReceiver")
         val generatedBase = simpleClass("test/Hilt_TestReceiver", "test/BaseReceiver")
@@ -80,7 +99,7 @@ class HiltAndroidEntryPointTransformerTest {
         val result = transformer.transform(
             input,
             ClassFileParser.analyze(input),
-            ClassFileParser.analyzeHeader(generatedBase),
+            generatedBase,
         )
 
         assertFalse(inspect(result.bytes).invocations.any { it.method == "onReceive" })
@@ -174,6 +193,20 @@ class HiltAndroidEntryPointTransformerTest {
         return writer.toByteArray()
     }
 
+    private fun legacyReceiverBaseClass(name: String, superName: String): ByteArray {
+        val writer = ClassWriter(0)
+        writer.visit(Opcodes.V1_8, Opcodes.ACC_PUBLIC, name, null, superName, null)
+        writer.visitField(
+            Opcodes.ACC_PRIVATE or Opcodes.ACC_FINAL,
+            LEGACY_ON_RECEIVE_MARKER,
+            "Z",
+            null,
+            false,
+        ).visitEnd()
+        writer.visitEnd()
+        return writer.toByteArray()
+    }
+
     private fun inspect(bytes: ByteArray): InspectedClass {
         var superName = ""
         var signature: String? = null
@@ -231,6 +264,7 @@ class HiltAndroidEntryPointTransformerTest {
         private const val HILT_ANDROID_APP = "Ldagger/hilt/android/HiltAndroidApp;"
         private const val ON_RECEIVE_MARKER =
             "Ldagger/hilt/android/internal/OnReceiveBytecodeInjectionMarker;"
+        private const val LEGACY_ON_RECEIVE_MARKER = "onReceiveBytecodeInjectionMarker"
         private const val ON_RECEIVE_DESCRIPTOR = "(Landroid/content/Context;Landroid/content/Intent;)V"
     }
 }

@@ -18,10 +18,11 @@ package com.sickworm.intellij.jugg.compiler.source
 
 import com.sickworm.intellij.jugg.deploy.classSigName
 import com.sickworm.intellij.jugg.deploy.data.ClassAnalysis
-import com.sickworm.intellij.jugg.deploy.data.ClassHeader
+import com.sickworm.intellij.jugg.org.objectweb.asm.AnnotationVisitor
 import com.sickworm.intellij.jugg.org.objectweb.asm.ClassReader
 import com.sickworm.intellij.jugg.org.objectweb.asm.ClassVisitor
 import com.sickworm.intellij.jugg.org.objectweb.asm.ClassWriter
+import com.sickworm.intellij.jugg.org.objectweb.asm.FieldVisitor
 import com.sickworm.intellij.jugg.org.objectweb.asm.MethodVisitor
 import com.sickworm.intellij.jugg.org.objectweb.asm.Opcodes
 
@@ -48,7 +49,7 @@ internal class HiltAndroidEntryPointTransformer {
     fun transform(
         bytes: ByteArray,
         analysis: ClassAnalysis,
-        generatedBaseHeader: ClassHeader,
+        generatedBaseBytes: ByteArray,
     ): HiltTransformResult {
         val oldSuperclass = analysis.superClass?.toInternalName()
             ?: throw IllegalStateException("Superclass of ${analysis.className} is null")
@@ -56,8 +57,9 @@ internal class HiltAndroidEntryPointTransformer {
         if (oldSuperclass == newSuperclass) {
             return HiltTransformResult(bytes, analysis)
         }
-        if (generatedBaseHeader.className.toInternalName() != newSuperclass) {
-            throw IllegalStateException("Unexpected generated Hilt base ${generatedBaseHeader.className}")
+        val generatedBase = analyzeGeneratedBase(generatedBaseBytes)
+        if (generatedBase.className != newSuperclass) {
+            throw IllegalStateException("Unexpected generated Hilt base ${generatedBase.className}")
         }
 
         val reader = ClassReader(bytes)
@@ -67,7 +69,7 @@ internal class HiltAndroidEntryPointTransformer {
                 nextVisitor = writer,
                 oldSuperclass = oldSuperclass,
                 newSuperclass = newSuperclass,
-                injectOnReceive = ON_RECEIVE_MARKER in generatedBaseHeader.annotationDescriptors,
+                injectOnReceive = generatedBase.hasOnReceiveMarker,
             ),
             0,
         )
@@ -75,6 +77,44 @@ internal class HiltAndroidEntryPointTransformer {
             bytes = writer.toByteArray(),
             analysis = analysis.copy(superClass = newSuperclass.classSigName),
         )
+    }
+
+    private fun analyzeGeneratedBase(bytes: ByteArray): GeneratedBaseInfo {
+        lateinit var className: String
+        var hasOnReceiveMarker = false
+        ClassReader(bytes).accept(object : ClassVisitor(Opcodes.ASM9) {
+            override fun visit(
+                version: Int,
+                access: Int,
+                name: String,
+                signature: String?,
+                superName: String?,
+                interfaces: Array<out String>?,
+            ) {
+                className = name
+            }
+
+            override fun visitAnnotation(descriptor: String, visible: Boolean): AnnotationVisitor? {
+                if (descriptor == ON_RECEIVE_MARKER) {
+                    hasOnReceiveMarker = true
+                }
+                return null
+            }
+
+            override fun visitField(
+                access: Int,
+                name: String,
+                descriptor: String,
+                signature: String?,
+                value: Any?,
+            ): FieldVisitor? {
+                if (name == LEGACY_ON_RECEIVE_MARKER && descriptor == BOOLEAN_DESCRIPTOR) {
+                    hasOnReceiveMarker = true
+                }
+                return null
+            }
+        }, ClassReader.SKIP_CODE or ClassReader.SKIP_DEBUG or ClassReader.SKIP_FRAMES)
+        return GeneratedBaseInfo(className, hasOnReceiveMarker)
     }
 
     private class EntryPointClassVisitor(
@@ -178,6 +218,11 @@ internal class HiltAndroidEntryPointTransformer {
         return if (startsWith('L') && endsWith(';')) substring(1, length - 1) else replace('.', '/')
     }
 
+    private data class GeneratedBaseInfo(
+        val className: String,
+        val hasOnReceiveMarker: Boolean,
+    )
+
     companion object {
         private val ENTRY_POINT_ANNOTATIONS = setOf(
             "Ldagger/hilt/android/AndroidEntryPoint;",
@@ -187,5 +232,7 @@ internal class HiltAndroidEntryPointTransformer {
         private const val ON_RECEIVE_DESCRIPTOR = "(Landroid/content/Context;Landroid/content/Intent;)V"
         private const val ON_RECEIVE_MARKER =
             "Ldagger/hilt/android/internal/OnReceiveBytecodeInjectionMarker;"
+        private const val LEGACY_ON_RECEIVE_MARKER = "onReceiveBytecodeInjectionMarker"
+        private const val BOOLEAN_DESCRIPTOR = "Z"
     }
 }

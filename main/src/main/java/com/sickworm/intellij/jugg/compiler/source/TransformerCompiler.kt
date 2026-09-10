@@ -8,8 +8,6 @@ import com.sickworm.intellij.jugg.compiler.CompileTask
 import com.sickworm.intellij.jugg.compiler.ICompileContext
 import com.sickworm.intellij.jugg.deploy.data.ClassAnalysis
 import com.sickworm.intellij.jugg.deploy.data.ClassAnalysisBatch
-import com.sickworm.intellij.jugg.deploy.data.ClassFileParser
-import com.sickworm.intellij.jugg.deploy.data.ClassHeader
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import java.io.File
 import java.util.zip.ZipFile
@@ -71,7 +69,7 @@ internal class TransformerCompiler(
         val generatedClass = resolveGeneratedClass(analysis, programClasses, classpath, module, classpathDir)
 
         val transformStartedAt = System.currentTimeMillis()
-        val result = transform(bytes, analysis, generatedClass.header)
+        val result = transform(bytes, analysis, generatedClass.bytes)
         stats.transformedCost += System.currentTimeMillis() - transformStartedAt
         stats.transformedCount++
         val outputFile = writeTransformedClass(input, result.bytes, transformDir)
@@ -96,9 +94,9 @@ internal class TransformerCompiler(
         classpathDir: File,
     ): LocatedClass {
         val generatedSuperclass = hiltTransformer.generatedSuperclass(analysis.className)
-        programClasses[generatedSuperclass.toClassSigName()]?.analysis?.analyses?.single()?.let {
+        programClasses[generatedSuperclass.toClassSigName()]?.let {
             return LocatedClass(
-                ClassHeader(it.className, it.superClass, it.annotationDescriptors),
+                requireNotNull(it.bytes),
                 null,
             )
         }
@@ -126,10 +124,10 @@ internal class TransformerCompiler(
     private fun transform(
         bytes: ByteArray,
         analysis: ClassAnalysis,
-        generatedBaseHeader: ClassHeader,
+        generatedBaseBytes: ByteArray,
     ): HiltTransformResult {
         return try {
-            hiltTransformer.transform(bytes, analysis, generatedBaseHeader)
+            hiltTransformer.transform(bytes, analysis, generatedBaseBytes)
         } catch (e: Exception) {
             val message = "pre-D8 Hilt transform failed for ${analysis.className}: ${e.message.orEmpty()}"
             logger.warn(message, e)
@@ -182,7 +180,7 @@ internal class TransformerCompiler(
             }
             val bytes = classFile.readBytes()
             return LocatedClass(
-                ClassFileParser.analyzeHeader(bytes),
+                bytes,
                 CompileFile(CompileFile.Type.Class, classFile, entry, module),
             )
         }
@@ -206,7 +204,7 @@ internal class TransformerCompiler(
                 writeBytes(bytes)
             }
             LocatedClass(
-                ClassFileParser.analyzeHeader(bytes),
+                bytes,
                 CompileFile(CompileFile.Type.Class, extractedFile, extractionDir, module),
             )
         }
@@ -219,8 +217,8 @@ internal class TransformerCompiler(
         val requiredClasspathFile: CompileFile? = null,
     )
 
-    private data class LocatedClass(
-        val header: ClassHeader,
+    private class LocatedClass(
+        val bytes: ByteArray,
         val classpathFile: CompileFile?,
     )
 
