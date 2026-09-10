@@ -101,6 +101,8 @@ Jugg 于 2021 年开始研发，2023 年在腾讯音乐内部发布。开源前�
 - `./gradlew buildPlugin`：构建插件，产物位于 `idea/build/distributions`。
 - `./gradlew runIde`：启动用于开发和调试的 IDE。
 
+如何反馈问题、搭建环境和提交 Pull Request，见 [CONTRIBUTING.zh-CN.md](CONTRIBUTING.zh-CN.md)。
+
 ## License
 
 Jugg 使用 [MIT License](LICENSE) 开源。
