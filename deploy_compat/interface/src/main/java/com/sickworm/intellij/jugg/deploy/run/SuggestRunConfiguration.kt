@@ -74,19 +74,34 @@ data class SuggestRunConfiguration(
         /** Resolves the exact Gradle project path while preserving dots inside path segments. */
         fun resolveGradleModulePath(module: Module, project: Project): String {
             val fallback = ":${resolveModuleName(module.name, project.name).replace('.', ':')}"
-            return try {
-                val projectDir = project.basePath?.let(::File) ?: return fallback
+            val projectDir = project.basePath?.let(::File) ?: return fallback
+            try {
                 val pathClass = Class.forName("com.android.tools.idea.projectsystem.gradle.GradleProjectPathKt")
                 val gradleProjectPath = pathClass.getMethod("getGradleProjectPath", Module::class.java)
-                    .invoke(null, module) ?: return fallback
+                    .invoke(null, module)
                 val gradleProjectPathClass = gradleProjectPath.javaClass
-                val path = gradleProjectPathClass.getMethod("getPath").invoke(gradleProjectPath) as? String
-                    ?: return fallback
-                val buildRoot = gradleProjectPathClass.getMethod("getBuildRoot").invoke(gradleProjectPath) as? String
-                    ?: return fallback
+                val path = gradleProjectPathClass.getMethod("getPath").invoke(gradleProjectPath) as String
+                val buildRoot = gradleProjectPathClass.getMethod("getBuildRoot").invoke(gradleProjectPath) as String
                 resolveGradleModulePath(
                     gradleProjectPath = path,
                     gradleBuildRoot = buildRoot,
+                    projectDir = projectDir,
+                    externalProjectId = ExternalSystemApiUtil.getExternalProjectId(module),
+                )?.let { return it }
+            } catch (_: Throwable) {
+            }
+            return try {
+                val utilClass = Class.forName("com.android.tools.idea.gradle.util.AndroidGradleUtil")
+                val gradleProjectPath = utilClass.getMethod("getModuleGradleProjectPath", Module::class.java)
+                    .invoke(null, module)
+                val gradleProjectPathClass = gradleProjectPath.javaClass
+                val path = gradleProjectPathClass.getMethod("getGradleProjectPath")
+                    .invoke(gradleProjectPath) as String
+                val buildRoot = gradleProjectPathClass.getMethod("getProjectRoot")
+                    .invoke(gradleProjectPath) as File
+                resolveGradleModulePath(
+                    gradleProjectPath = path,
+                    gradleBuildRoot = buildRoot.path,
                     projectDir = projectDir,
                     externalProjectId = ExternalSystemApiUtil.getExternalProjectId(module),
                 ) ?: fallback
