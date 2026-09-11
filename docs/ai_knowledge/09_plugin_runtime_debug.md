@@ -1,6 +1,6 @@
 # 插件运行时问题排查手册
 
-> 最后核对：2026-09-11
+> 最后核对：2026-09-12
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -100,6 +100,7 @@
 | 编译后 Git 补检 | `Git check after compile is still running` / `Git recovery CRC summary` |
 | APK DB 初始化 | `initAfterInstall parsed apk start` / `database all init finish` |
 | 编译或部署失败 | `incremental compile error` / `SEVERE` / `deploy start` |
+| IDE 无法识别可部署进程 | `NO_DEPLOYABLE_APP` / `deployable client unavailable` / `ideClientPids` / `Unexpected cmdline file for PID` |
 | Kotlin IR lowering 内部错误 | `BackendException` / `Exception during IR lowering` / `copyValueParametersToStatic` / `Dispatch receiver type` / `SyntheticAccessorGenerator` |
 | UI freeze | `uiFreezeStarted` / `InvocationEvent has timed out` |
 | ConstRef 启动与扫描 | `defer initial full scan` / `io throttle enabled` / `full scan progress` |
@@ -136,6 +137,7 @@
 | Windows 命令中文乱码 | 保留原始字节链路；出现 `�` 表示可能已发生不可逆解码损失 | `ProcessOutputReader`；`04_engineering_compat.md` |
 | 系统应用装不上、无 `FLAG_SYSTEM`、或特权权限被拒 | 先看 `codePath` 是否在 `/system/`，以及本次是否只走了 `pm install` / `JuggDeployer.install`；不要先当普通部署失败修 | `JuggDeployer.install`；`03_deploy_system_app.md` |
 | 系统应用 Run 提示无法 update / 签名不一致 | 对比 `/system` 基线 APK 与本次安装 APK 的 cert；debug keystore 不能更新 platform 签名的系统包 | `03_deploy_system_app.md` |
+| App 已运行但日志显示 `NO_DEPLOYABLE_APP` | 对齐 Jugg 日志与 `idea.log`，再用 `pidof`、`run-as` 区分 IDE Client 缺失和真实不可调试；Direct Overlay 成功属于 Best-effort 降级，不应仅凭该状态判失败 | `DeployStateManager`、`DirectOverlaySwapTransport`；本节 4.5、`03_deploy_core.md` |
 
 ### 4.1 IDE freeze 的最小证据集
 
@@ -230,6 +232,43 @@ JOOX Android 的 `jugg_scene_JOOX_Android_ext_20260911_144438` 报告确认过�
 5. 保存 `--info` 输出或实际 Kotlin compiler 参数，确认 dirty sources、classpath、compiler plugin 和 `-Xbackend-threads`。
 
 在没有上述复现证据前，不建议仅凭该异常自动执行全工程 clean。若后续需要 Jugg 侧降级，应只精确匹配该异常链，并优先评估一次模块级 clean 或关闭 Kotlin incremental 的有界重试，避免掩盖其它 IR lowering 错误。
+
+### 4.5 App 已运行但 Android Studio 显示 `NO_DEPLOYABLE_APP`
+
+**典型信号**：
+
+- Jugg 日志出现 `IdeDeployState(state=NO_DEPLOYABLE_APP, message=Android Studio deployable client unavailable)` 或旧版本文案 `app not running or not debuggable`。
+- 部署日志中的 `ideClientPids=[]`，但 `adb shell pidof <packageName>` 仍返回进程。
+- Android Studio `idea.log` 同一时间窗可能出现 `Unexpected cmdline file for PID` 等 DDMLib 进程识别异常。
+- 较新 Android Studio 能看到同一设备上的 App，旧版 Android Studio 看不到。
+- Android 15 及以上配合 Android Studio Meerkat 之前的版本时，首次资源部署可能因 JVMTI 兼容处理重启 App；重启后 App 明明在前台，下一次部署仍继续得到 `NO_DEPLOYABLE_APP`。
+
+**解释边界**：
+
+- `NO_DEPLOYABLE_APP` 是 Android Studio Apply Changes client 的观测结果，不是 APK `debuggable` 属性或设备进程状态的直接证据。
+- `ideClientPids` 来自 Android Studio/DDMLib client 列表，不等同于 `pidof` 返回的设备真实进程。
+- `run-as <packageName>` 成功能够证明普通 Direct Overlay 具备 sandbox 访问前提；不能仅凭 Android Studio Client 缺失认定 Direct Overlay 不可用。
+- 普通 Direct Overlay 独立校验 deployment cache 和设备 overlay checkpoint，但只提交 sandbox 文件，不会刷新正在运行的进程。日志出现 `Direct Overlay fallback succeeded` 时，说明 Best-effort 备用写入通道已经提交成功；该路径必须向部署生命周期传播重启需求，即使 App 当前在前台也必须重启。
+- 不要把普通 Direct Overlay 与 `DirectAppSandboxDeployTransport` 混为一谈。后者会尝试对运行中进程执行 runtime apply，并按实际结果决定是否重启；前者成功后固定需要重启。
+
+**当前正确行为**：
+
+1. `NO_DEPLOYABLE_APP`、App 在前台且 Direct Overlay 已启用时，先输出 `App is running but not deployable by Android Studio. Direct Deploy will restart the app after deployment.`，让用户在写入前知道本轮会重启。
+2. 普通 Direct Overlay 成功后应依次看到 `Direct Overlay fallback succeeded`、`after direct overlay deploy`、`Restarting app...` 和对应的 `am start -S`；不应出现 `App foreground, no need to restart app.`。
+3. 原始部署类型即使是 `HOT_RELOAD`，只要本轮实际重启，最终用户结果也应为 `Jugg HOT_FIX SUCCESSFUL ...` 和 `App restarted.`，不能继续显示 `Jugg HOT_RELOAD SUCCESSFUL ...` / `App deployed.`。
+
+`needsRestartApp` 只描述本轮实际是否需要重启，不携带部署路径来源。Direct Overlay 专属提示应在确认 `NO_DEPLOYABLE_APP`、App 前台和 Direct 开关的选择点输出，不能在 finish 阶段根据 `needsRestartApp && deployType == HOT_RELOAD` 反推“一定是 Direct Deploy”。
+
+**排查步骤**：
+
+1. 从 `compile_*.log` 记录 `NO_DEPLOYABLE_APP`、`ideClientPids`、App foreground、Direct Overlay enable/canTry、overlay checkpoint 和最终 fallback 结果。
+2. 对齐 Android Studio `idea.log` 的同一毫秒时间窗，搜索 `Unexpected cmdline file for PID`、DDMLib、JDWP 和 client 相关日志。
+3. 不重启现场，执行 `adb shell pidof <packageName>`，确认设备真实进程是否存在。
+4. 执行只读 `adb shell run-as <packageName> pwd` 验证 sandbox 能力；失败时保留原始错误，不把它解释为单纯 IDE 观测问题。
+5. 若 Direct Overlay checkpoint 匹配并成功提交，继续确认旧进程已通过 `am start -S` 重启，并核对最终结果为 `HOT_FIX` / `App restarted.`；若只有 `HOT_RELOAD` / `App deployed.`，或进程未变更，则说明 overlay 仅落盘、生命周期未兑现重启契约。
+6. 若 `run-as`、cache 或 checkpoint 也失败，再进入 recover/reinstall 或明确返回失败。
+
+现场结论必须限定 Android Studio、Android API、插件版本和时间窗。旧版 Android Studio 的观测缺陷不能外推为所有 IDE 版本或所有 `NO_DEPLOYABLE_APP` 都可安全忽略。
 
 ---
 

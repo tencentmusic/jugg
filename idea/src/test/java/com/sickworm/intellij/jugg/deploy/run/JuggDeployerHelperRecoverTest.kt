@@ -391,10 +391,10 @@ class JuggDeployerHelperRecoverTest {
 
         val notReady = JuggDeployState(
             JuggDeployState.State.READY_INCREMENTAL_COMPILE,
-            "app not running or not debuggable",
+            "Android Studio deployable client unavailable",
             com.sickworm.intellij.jugg.deploy.run.IdeDeployState(
                 com.sickworm.intellij.jugg.deploy.run.IdeDeployState.State.NO_DEPLOYABLE_APP,
-                "app not running or not debuggable",
+                "Android Studio deployable client unavailable",
             ),
         )
         val deployStateManager = Mockito.mock(DeployStateManager::class.java)

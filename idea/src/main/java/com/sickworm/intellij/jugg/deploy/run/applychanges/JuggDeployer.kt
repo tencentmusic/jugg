@@ -236,7 +236,7 @@ class JuggDeployer(
         logger.logger.debug("Resolve app ABI: packageName=$packageName, arch=$arch" +
                 ", source=${resolution.source}, cacheHit=${cachedArch != null}" +
                 ", cost=${(System.nanoTime() - resolveAbiStartNanos) / 1_000_000}ms")
-        logger.info("packageName: $packageName, pids: $pids, processArch: $processArch" +
+        logger.info("packageName: $packageName, ideClientPids: $pids, processArch: $processArch" +
                 ", arch: $arch")
 
         // Get the list of files from the installed app assuming deployment cache is correct.
@@ -276,6 +276,7 @@ class JuggDeployer(
             deploymentService.storeEntry(deviceSerial, packageName, newFiles, overlayId, logger)
             return Result().also {
                 it.overlayId = overlayId.sha
+                it.needsRestart = true
             }
         }
 

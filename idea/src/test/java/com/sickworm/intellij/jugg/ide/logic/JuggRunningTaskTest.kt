@@ -57,6 +57,18 @@ class JuggRunningTaskTest {
     }
 
     @Test
+    fun `hot fix success reports app restarted`() {
+        val lines = buildDeploySuccessLogLines(
+            deployType = JuggDeployData.DeployType.HOT_FIX,
+            isGradleCompile = false,
+            totalTimeMillis = 1_000,
+        )
+
+        assertEquals("\nJugg HOT_FIX SUCCESSFUL in 1s.", lines.headline)
+        assertEquals("App restarted.", lines.followUp)
+    }
+
+    @Test
     fun `first task start creates run tool window without activating it`() {
         val handler = Mockito.mock(CompileUiHandler::class.java)
 

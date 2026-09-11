@@ -1,6 +1,6 @@
 # 部署系统：核心部署机制
 
-> 最后核对：2026-09-06
+> 最后核对：2026-09-12
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -229,6 +229,16 @@ Direct transport 不再以 class-only 白名单拒绝 overlay，`data.isFullRes`
 `LaunchContext.isDirectOverlayEnabled = settingsEnabled && isAllowedByCaller && (!isDeviceReadyDeploy || forceDirectOverlayDeploy)`。
 
 Direct Overlay 是离线/非 ready 场景下的 overlay 写入旁路，不替代在线 HOT_RELOAD。外层在切片前判断是否可尝试 Direct Overlay；真正进入 swap 前仍要求 Android O 及以上、deployment cache 存在、startup agent 元数据可用或允许跳过、设备当前 overlay id 与预期一致。
+
+普通 `DirectOverlaySwapTransport` 只把 overlay 文件写入 App sandbox，不负责对正在运行的进程执行资源刷新、class redefine 或 Activity recreate。因此普通 Direct Overlay 一旦写入成功，`JuggDeployer.Result.needsRestart=true` 是固定契约，`JuggDeployerHelper` 必须重启 App；即使 `isAppForeground=true` 也不能跳过。`DirectAppSandboxDeployTransport` 不适用该固定规则：它拥有 runtime apply 能力，并根据 attach、redefine 和资源刷新结果独立返回 `needsRestart`，成功时可以保留当前进程。
+
+`isDeviceReadyDeploy=false` 只表示 Android Studio 当前没有可用于 Apply Changes 的 deployable client，不足以证明 App 未运行或 APK 的 `debuggable=false`。例如旧版 Android Studio 的 DDMLib 在新 Android 版本上可能无法识别已经启动的进程，但 `run-as`、设备进程和 sandbox 写入仍然正常。Jugg 此时按 Best-effort 原则保留 Direct Overlay：由该通道独立校验 deployment cache、`run-as` 和设备 overlay checkpoint；校验通过则继续部署，备用通道也失败时才向上返回失败。
+
+旧链路曾隐式依赖“App 未运行导致 `NO_DEPLOYABLE_APP`，Direct Overlay 写入后再由 lifecycle 启动 App”。Android Studio Eel 等旧版 IDE 在 Android 15 及以上可能出现 App 已在前台、但仍报告 `NO_DEPLOYABLE_APP` 的组合；此时 Direct Overlay 的选择条件与“是否需要启动 App”的 lifecycle 条件不再一致。若不显式传播 `needsRestart=true`，overlay 虽然写入成功，当前进程仍会继续使用旧代码或资源，直到用户手动重启。
+
+相关日志中 `ideClientPids` 只来自 Android Studio/DDMLib client 列表，不等同于设备真实进程列表。命中 `NO_DEPLOYABLE_APP` 且 App 在前台、Direct Overlay 已启用时，选择旁路前打印 `App is running but not deployable by Android Studio. Direct Deploy will restart the app after deployment.`；App 不在前台时打印 `Android Studio deployable client unavailable, try Best-effort Direct Deploy fallback.`。Direct Overlay 实际提交成功后继续打印 `IDE deployment unavailable, Direct Overlay fallback succeeded.`，生命周期随后应出现 `Restarting app...`。排查时应结合 `adb shell pidof <packageName>`、`run-as <packageName>` 和同一时间窗的 IDE `idea.log` 判断真实运行与权限状态。
+
+当输入部署类型为 `HOT_RELOAD`、但本轮实际需要重启 App 时，最终结果提升为 `HOT_FIX`，用户侧显示 `Jugg HOT_FIX SUCCESSFUL ...` 和 `App restarted.`；只有进程未重启的真实 HOT_RELOAD 才显示 `App deployed.`。`needsRestartApp` 表示本轮实际重启需求，不是 Direct Overlay 的来源标记，因此路径专属提示必须在选择 Direct Overlay 时打印，不能在 finish 阶段仅凭 `needsRestartApp` 反推部署路径。
 
 `isAllowedByCaller` 来自外层 lifecycle；默认主部署链路允许，特殊调用方可显式关闭。Direct Overlay 只替换 overlay update transport，后续 start/restart/androidTest 仍由 `JuggDeployerHelper.runTask()` 收口。
 

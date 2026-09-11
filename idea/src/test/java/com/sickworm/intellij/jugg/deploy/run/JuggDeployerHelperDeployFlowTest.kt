@@ -86,9 +86,10 @@ class JuggDeployerHelperDeployFlowTest {
     }
 
     @Test
-    fun `DF-L2-003 recover dry skips reinstall when overlay triple matched`() {
+    fun `DF-L2-003 recover dry restarts foreground app after direct write`() {
         val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_003)
         assertOverlayRecoverMatched(fixture)
+        Mockito.`when`(fixture.deployTargetManager.isAppForeground(fixture.device)).thenReturn(true)
         val recoverHost = requireNotNull(fixture.recoverRunHost)
         val result = fixture.helper.deploy(fixture.deployOptions)
         assertTrue("deploy failed: ${result.failedReason}", result.isSuccess)
@@ -97,9 +98,10 @@ class JuggDeployerHelperDeployFlowTest {
         )
         assertEquals(0, recoverHost.installRecoverTaskCount)
         assertEquals(0, fixture.virtualDevice.installInvokeCount)
-        Mockito.verify(fixture.deployTargetManager, Mockito.never()).restartApp(fixture.device)
+        Mockito.verify(fixture.deployTargetManager).restartApp(fixture.device)
         assertTrue(fixture.virtualDevice.hasDirectOverlayApply())
         assertEquals(0, fixture.compatBoundary.optimisticSwapInvokeCount)
+        assertEquals(JuggDeployData.DeployType.HOT_FIX, result.deployType)
     }
 
     @Test

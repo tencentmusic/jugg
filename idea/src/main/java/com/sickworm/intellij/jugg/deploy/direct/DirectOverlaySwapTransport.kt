@@ -79,7 +79,12 @@ class DirectOverlaySwapTransport(
             data.isFullRes,
         )
         when (DirectOverlayWriter(adb, logger).write(preparedRequest.request)) {
-            DirectOverlayWriteResult.SUCCESS -> return preparedRequest.overlayId
+            DirectOverlayWriteResult.SUCCESS -> {
+                if (!launchContext.isDeviceReadyDeploy) {
+                    logger.info("IDE deployment unavailable, Direct Overlay fallback succeeded.")
+                }
+                return preparedRequest.overlayId
+            }
             DirectOverlayWriteResult.SKIPPED -> {
                 logger.debug("Direct overlay swap skipped for writer failure before overlay mutation.")
                 return null

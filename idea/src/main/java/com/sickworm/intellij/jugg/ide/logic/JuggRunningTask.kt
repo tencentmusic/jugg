@@ -627,6 +627,13 @@ internal fun buildDeploySuccessLogLines(
                 followUp = "App launched.",
             )
         }
+        deployType == JuggDeployData.DeployType.HOT_FIX ||
+            deployType == JuggDeployData.DeployType.COMPAT_HOT_FIX -> {
+            DeploySuccessLogLines(
+                headline = "\nJugg $deployType SUCCESSFUL in ${totalSeconds}s.",
+                followUp = "App restarted.",
+            )
+        }
         else -> {
             DeploySuccessLogLines(
                 headline = "\nJugg $deployType SUCCESSFUL in ${totalSeconds}s.",

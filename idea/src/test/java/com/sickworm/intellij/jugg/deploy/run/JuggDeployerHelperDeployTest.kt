@@ -116,6 +116,77 @@ class JuggDeployerHelperDeployTest {
     }
 
     @Test
+    fun `foreground app without deployable client should report direct deploy restart`() {
+        val device = device(apiLevel = 30)
+        val apkInfo = apkInfo("/tmp/jugg-deploy-test/app.apk")
+        val deployData = hotReloadDeployData(apkInfo, "DirectDeployRestartTarget")
+        val deployTargetManager = readyTargetManager(apkInfo)
+        Mockito.`when`(deployTargetManager.isAppForeground(device)).thenReturn(true)
+        val notReady = JuggDeployState(
+            JuggDeployState.State.READY_INCREMENTAL_COMPILE,
+            "Android Studio deployable client unavailable",
+            IdeDeployState(
+                IdeDeployState.State.NO_DEPLOYABLE_APP,
+                "Android Studio deployable client unavailable",
+            ),
+        )
+        val deployStateManager = Mockito.mock(DeployStateManager::class.java)
+        Mockito.`when`(deployStateManager.updateDeployState()).thenReturn(notReady)
+        Mockito.`when`(deployStateManager.getDeployState(device)).thenReturn(notReady)
+        val dependencyChangeManager = Mockito.mock(IDependencyChangeManager::class.java)
+        Mockito.`when`(dependencyChangeManager.getRemovedLibraryFiles()).thenReturn(emptyList())
+        val deployStateRecover = Mockito.mock(DeployStateRecover::class.java)
+        whenever(
+            deployStateRecover.recoverDeployState(
+                any(),
+                anyOrNull(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+            ),
+        ).thenReturn(true to false)
+        val logger = Mockito.mock(Logger::class.java)
+        val deployRunTaskExecutor = object : IJuggDeployRunTaskExecutor {
+            override fun execute(request: JuggDeployRunTaskRequest): LaunchResult {
+                return LaunchResult(true, 0, null, emptyMap()).also { it.needsRestartApp = true }
+            }
+        }
+
+        val helper = createHelper(
+            deployTargetManager = deployTargetManager,
+            deployStateManager = deployStateManager,
+            dependencyChangeManager = dependencyChangeManager,
+            deployStateRecover = deployStateRecover,
+            deployRunTaskExecutor = deployRunTaskExecutor,
+            logger = logger,
+        )
+        val oldDirectOverlayDeploy = JuggSettings.isEnableDirectOverlayDeploy
+        JuggSettings.isEnableDirectOverlayDeploy = true
+        try {
+            val result = helper.deploy(
+                DeployOptions(
+                    device = device,
+                    isLastDevice = false,
+                    retryDeployData = deployData,
+                ),
+            )
+
+            assertTrue(result.isSuccess)
+            assertEquals(JuggDeployData.DeployType.HOT_FIX, result.deployType)
+            Mockito.verify(logger).info(
+                "App is running but not deployable by Android Studio. " +
+                    "Direct Deploy will restart the app after deployment.",
+            )
+            Mockito.verify(logger, Mockito.never()).info("Direct Deploy restarted the app to apply changes.")
+        } finally {
+            JuggSettings.isEnableDirectOverlayDeploy = oldDirectOverlayDeploy
+        }
+    }
+
+    @Test
     fun `deploy should not retry or fallback after custom install script failure`() {
         val device = device(apiLevel = 30)
         val apkInfo = apkInfo("/tmp/jugg-deploy-test/app.apk")
@@ -668,6 +739,7 @@ class JuggDeployerHelperDeployTest {
         deployStateRecover: DeployStateRecover? = null,
         deployRunTaskExecutor: IJuggDeployRunTaskExecutor? = null,
         libraryTestApkBackfillHelper: LibraryTestApkBackfillHelper? = null,
+        logger: Logger = TestGlobal.getLogger(),
     ): JuggDeployerHelper {
         val project = Mockito.mock(Project::class.java)
         Mockito.`when`(project.basePath).thenReturn("/tmp/jugg-deploy-test")
@@ -700,7 +772,7 @@ class JuggDeployerHelperDeployTest {
             compileContextManager = compileContextManager,
             juggServer = Mockito.mock(JuggServer::class.java),
             taskRunnerManager = Mockito.mock(TaskRunnerManager::class.java),
-            logger = TestGlobal.getLogger(),
+            logger = logger,
             stateRecover = deployStateRecover,
             retryHandler = deployRetryHandler,
             deployRunTaskExecutor = deployRunTaskExecutor,

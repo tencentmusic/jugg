@@ -652,6 +652,15 @@ class JuggDeployerHelper(
         if (isProjectSwitchedThisRun) {
             logger.debug("Project switched since last run, force recover deploy state.")
         }
+        if (deployStateManager.getDeployState(device).ideDeployState.state == IdeDeployState.State.NO_DEPLOYABLE_APP &&
+            deployOptions.isAllowDirectOverlayDeploy && JuggSettings.isEnableDirectOverlayDeploy) {
+            if (deployTargetManager.isAppForeground(device)) {
+                logger.info("App is running but not deployable by Android Studio. " +
+                        "Direct Deploy will restart the app after deployment.")
+            } else {
+                logger.info("Android Studio deployable client unavailable, try Best-effort Direct Deploy fallback.")
+            }
+        }
         if (isNeedReinstallApk || !deployStateManager.getDeployState(device).isReadyDeploy || isProjectSwitchedThisRun) {
             if (deployStateManager.getDeployState(device).isReadyIncCompile) {
                 val (isSuccess, isReinstalled) = deployStateRecover.recoverDeployState(
@@ -745,6 +754,13 @@ class JuggDeployerHelper(
             )
         }
 
+        val actualDeployType = if (launchResult.needsRestartApp &&
+            deployData.deployType == JuggDeployData.DeployType.HOT_RELOAD) {
+            JuggDeployData.DeployType.HOT_FIX
+        } else {
+            deployData.deployType
+        }
+
         if (deployOptions.isLastDevice) {
             logger.debug("Deploying finished, update info after deploy.")
             updateInfoAfterIncDeploy(launchResult, deployData)
@@ -754,7 +770,7 @@ class JuggDeployerHelper(
             DeployTaskResult(
                 isSuccess = true,
                 costTime = costTime(),
-                deployType = deployData.deployType,
+                deployType = actualDeployType,
                 costTimeExceptCheck = costTime() - launchResult.checkJvmtiCostTime,
                 hasDeployChanges = !deployData.isEmpty,
             ),
