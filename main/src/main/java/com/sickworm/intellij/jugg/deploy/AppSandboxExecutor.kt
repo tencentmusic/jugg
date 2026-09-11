@@ -45,6 +45,11 @@ class AppSandboxExecutor(
         val output: String = "not attempted",
     )
 
+    private data class SuProbeResult(
+        val resolution: Resolution? = null,
+        val detail: String,
+    )
+
     private val logger = loggerArg.getInstance("AppSandboxExecutor")
     private val runAsUid: Int? by lazy {
         require(PACKAGE_NAME_PATTERN.matches(packageName)) { "Unsafe package name: $packageName" }
@@ -172,20 +177,37 @@ class AppSandboxExecutor(
         }
 
         val shellUid = adb.execAdbShellCmd("id -u").trim()
+        val shellContext = probeShellContext()
+        logger.debug("Direct app sandbox shell identity for $packageName: uid=${shellUid.ifEmpty { "unknown" }}, " +
+                "context=${summarize(shellContext)}")
         val rootProbe = probeRootDirect(appDataDir, shellUid)
         rootProbe.resolution?.let {
             return it
         }
-        probeSuDirect(appDataDir)?.let {
+        val suProbe = probeSuDirect(appDataDir)
+        suProbe.resolution?.let {
             return it
         }
 
         return unavailable(
             "run-as $runAsDetail; shell uid=${shellUid.ifEmpty { "unknown" }}; " +
+                "shell context=${summarize(shellContext)}; " +
                 "direct shell probe=${summarize(directProbeOutput)}; root requested=${rootProbe.requested}; " +
-                "root reconnected=${rootProbe.reconnected}; root probe=${summarize(rootProbe.output)}; su unavailable",
+                "root reconnected=${rootProbe.reconnected}; root probe=${summarize(rootProbe.output)}; " +
+                "su probes=${suProbe.detail}",
             appDataDir,
         )
+    }
+
+    private fun probeShellContext(): String {
+        return try {
+            adb.execAdbShellCmd("id -Z")
+        } catch (e: Exception) {
+            if (e is InterruptedException) {
+                Thread.currentThread().interrupt()
+            }
+            "probe failed: ${e.message ?: e.javaClass.simpleName}"
+        }
     }
 
     private fun probeRootDirect(appDataDir: String, shellUid: String): RootProbeResult {
@@ -206,15 +228,28 @@ class AppSandboxExecutor(
         return RootProbeResult(resolution, requested = true, reconnected = true, output = output)
     }
 
-    private fun probeSuDirect(appDataDir: String): Resolution? {
+    private fun probeSuDirect(appDataDir: String): SuProbeResult {
+        val details = mutableListOf<String>()
         for (suStyle in SuStyle.entries) {
             val output = adb.execAdbShellScript(buildSuCommand(suStyle, buildScopedProbe(appDataDir)))
+            val outputSummary = summarize(output)
+            details += "${suStyle.name}=$outputSummary"
+            logger.debug("Direct app sandbox su probe for $packageName: style=${suStyle.name}, " +
+                    "output=$outputSummary")
             if (hasDirectProbeMarker(output)) {
                 logger.debug("Direct app sandbox selected for $packageName: mode=${Mode.SU_ROOT}")
-                return directResolution(Mode.SU_ROOT, appDataDir, suStyle, "${suStyle.name} probe succeeded")
+                return SuProbeResult(
+                    resolution = directResolution(
+                        Mode.SU_ROOT,
+                        appDataDir,
+                        suStyle,
+                        "${suStyle.name} probe succeeded",
+                    ),
+                    detail = details.joinToString(", "),
+                )
             }
         }
-        return null
+        return SuProbeResult(detail = details.joinToString(", "))
     }
 
     private fun directResolution(

@@ -141,15 +141,22 @@ class AppSandboxExecutorTest {
         val adb = FakeAdb(
             runAsOutput = "permission denied",
             shellUid = "2000",
+            shellContext = "u:r:shell:s0",
             directProbeOutputs = listOf("permission denied"),
             rootReconnect = false,
+            suUidOutput = "su uid denied",
+            suDefaultOutput = "su default denied",
+            suCommandOutput = "su command denied",
         )
         val executor = executor(adb)
 
         assertEquals(AppSandboxExecutor.Mode.UNAVAILABLE, executor.mode)
         assertEquals(1, adb.rootRequestCount)
+        assertTrue(executor.unavailableReason.orEmpty().contains("shell context=u:r:shell:s0"))
         assertTrue(executor.unavailableReason.orEmpty().contains("root requested=true"))
-        assertTrue(executor.unavailableReason.orEmpty().contains("su unavailable"))
+        assertTrue(executor.unavailableReason.orEmpty().contains("UID=su uid denied"))
+        assertTrue(executor.unavailableReason.orEmpty().contains("DEFAULT=su default denied"))
+        assertTrue(executor.unavailableReason.orEmpty().contains("COMMAND=su command denied"))
     }
 
     @Test(expected = IOException::class)
@@ -209,6 +216,7 @@ class AppSandboxExecutorTest {
         private val runAsOutput: String = compatibleRunAsOutput(10001),
         private val runAsException: Exception? = null,
         private val shellUid: String = "0",
+        private val shellContext: String = "u:r:shell:s0",
         private val dataDir: String = "/data/user/0/com.example.app",
         directProbeOutputs: List<String> = emptyList(),
         private val rootReconnect: Boolean = false,
@@ -235,6 +243,7 @@ class AppSandboxExecutorTest {
             commands += cmd
             return when {
                 cmd == "id -u" -> shellUid
+                cmd == "id -Z" -> shellContext
                 cmd.startsWith("dumpsys package ") -> "  dataDir=$dataDir"
                 else -> ""
             }
