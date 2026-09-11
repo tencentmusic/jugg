@@ -45,7 +45,7 @@ Direct Overlay 需要已有 deployment cache，用它还原目标 APK、现有 o
   -> 由外层流程启动或重启 App
 ```
 
-常规 Direct Overlay 使用 Android 8.0 及以上设备提供的 App sandbox 和 `run-as` 能力。若 `run-as` 没有唯一成功标记、返回 UID 不在 Android Studio Deployer 接受的 `10000..19999` 范围，或新建文件的 SELinux label 与既有缓存目录不一致，增量部署会在真实 data 目录探测普通 shell、一次 root adbd 和非交互 `su`，并固定第一个完整可用的模式。startup agent 的准备不依赖 App 进程已经在线，因此 Direct Overlay 可以在普通 Apply Changes 尚未 ready 时完成文件下发。
+常规 Direct Overlay 使用 Android 8.0 及以上设备提供的 App sandbox 和 `run-as` 能力。若 `run-as` 没有唯一成功标记、返回 UID 不在 Android Studio Deployer 接受的 `10000..19999` 范围，或新建文件的 SELinux label 与既有缓存目录不一致，增量部署会在真实 data 目录探测普通 shell、一次 root adbd 和常见的非交互 `su` 命令形式，并固定第一个完整可用的模式。startup agent 的准备不依赖 App 进程已经在线，因此 Direct Overlay 可以在普通 Apply Changes 尚未 ready 时完成文件下发。
 
 这些 Direct 权限模式创建的文件可能没有 App 的动态 SELinux categories。Jugg 会让 overlay 和请求文件继承既有 `code_cache` 的完整 label；JVMTI Agent `.so` 则使用 Android appdomain 允许执行的 `apk_data_file` 类型。SELinux 工具输出只用于修复诊断，不会混入写入脚本的成功结果。
 

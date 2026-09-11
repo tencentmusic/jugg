@@ -105,7 +105,7 @@ run-as package 执行可回滚写入探测
   -> 唯一成功标记、UID 在 10000..19999，且探针与 code_cache 的 SELinux context 一致：保留 Android Studio Apply Changes
   -> 无成功标记、UID 越界或 SELinux context 不一致：进入 Direct app sandbox transport
       -> 解析 PackageManager 真实 dataDir
-      -> 依次探测普通 shell、一次 adb root + 重连、非交互 su
+      -> 依次探测普通 shell、一次 adb root + 重连、非交互 su（含命令直传形式）
       -> 固定并复用本轮 AppSandboxExecutor
       -> 安装现有 Jugg startup agent，并把 instrumentation JAR 复制为 app 可读文件
       -> 写 code_cache/.overlay

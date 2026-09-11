@@ -28,6 +28,7 @@ class AppSandboxExecutor(
     private enum class SuStyle {
         UID,
         DEFAULT,
+        COMMAND,
     }
 
     private data class Resolution(
@@ -247,6 +248,7 @@ class AppSandboxExecutor(
         return when (suStyle) {
             SuStyle.UID -> "su 0 sh -c ${shellQuote(script)}"
             SuStyle.DEFAULT -> "su -c ${shellQuote(script)}"
+            SuStyle.COMMAND -> "su sh -c ${shellQuote(script)}"
         }
     }
 

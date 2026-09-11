@@ -18,7 +18,7 @@ Direct Overlay 是 Jugg 在设备尚未进入在线 Apply Changes ready 状态�
 |---|---|---|
 | 设备未 ready，但历史和 cache 匹配 | 支持 | 直接写入 App sandbox 中的 overlay |
 | Android O 及以上、Apply Changes 前提成立 | 支持 | 使用 `run-as` 写入 App sandbox |
-| `run-as` 无成功标记、UID 越界或 SELinux label 不一致的 class、资源或 assets 变更 | 权限探测成功时支持 | 固定使用普通 shell、root adbd 或非交互 `su` 写入真实 data 目录 |
+| `run-as` 无成功标记、UID 越界或 SELinux label 不一致的 class、资源或 assets 变更 | 权限探测成功时支持 | 固定使用普通 shell、root adbd 或设备支持的非交互 `su` 命令形式写入真实 data 目录 |
 | 需要提前准备 Apply Changes startup agent | 支持 | 由 Direct Overlay 路径推送 AS startup agent |
 | overlay id 与预期不匹配 | 不强行写入 | 转 recover 或 reinstall |
 | writer 已修改 overlay 后失败 | 不回退旧 Apply Changes | 阻止在半提交状态继续部署 |

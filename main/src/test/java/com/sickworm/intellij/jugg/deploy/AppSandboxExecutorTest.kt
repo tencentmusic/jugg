@@ -120,6 +120,23 @@ class AppSandboxExecutorTest {
     }
 
     @Test
+    fun `su fallback should support command-only form`() {
+        val adb = FakeAdb(
+            runAsOutput = "permission denied",
+            shellUid = "0",
+            directProbeOutputs = listOf("permission denied"),
+            suCommandOutput = "__JUGG_DIRECT_SANDBOX_OK__",
+        )
+        val executor = executor(adb)
+
+        executor.exec("ls code_cache")
+
+        assertEquals(AppSandboxExecutor.Mode.SU_ROOT, executor.mode)
+        assertEquals(0, adb.rootRequestCount)
+        assertTrue(adb.scripts.last().startsWith("su sh -c "))
+    }
+
+    @Test
     fun `all direct modes unavailable should preserve diagnostic reason`() {
         val adb = FakeAdb(
             runAsOutput = "permission denied",
@@ -198,6 +215,7 @@ class AppSandboxExecutorTest {
         private val rootException: Exception? = null,
         private val suUidOutput: String = "",
         private val suDefaultOutput: String = "",
+        private val suCommandOutput: String = "",
         private val commandOutput: String? = null,
     ) : IDeviceAdb {
         val commands = mutableListOf<String>()
@@ -231,6 +249,7 @@ class AppSandboxExecutorTest {
                 }
                 cmd.startsWith("su 0 ") && cmd.contains("__JUGG_DIRECT_SANDBOX_OK__") -> suUidOutput
                 cmd.startsWith("su -c ") && cmd.contains("__JUGG_DIRECT_SANDBOX_OK__") -> suDefaultOutput
+                cmd.startsWith("su sh -c ") && cmd.contains("__JUGG_DIRECT_SANDBOX_OK__") -> suCommandOutput
                 cmd.contains("__JUGG_DIRECT_SANDBOX_OK__") -> {
                     directProbeCount++
                     if (directProbeOutputs.isEmpty()) "" else directProbeOutputs.removeFirst()

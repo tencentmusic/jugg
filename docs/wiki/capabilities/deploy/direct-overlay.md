@@ -18,7 +18,7 @@ Direct Overlay is Jugg's alternate overlay-write path when a device has not yet 
 |---|---|---|
 | Device is not ready, but history and cache match | Supported | Writes the overlay directly into the app sandbox |
 | Android O or later, with compatible Apply Changes prerequisites | Supported | Uses `run-as` to write into the app sandbox |
-| Class, resource, or asset change with no `run-as` success marker, an out-of-range UID, or a mismatched SELinux label | Supported when the permission probe succeeds | Uses a fixed ordinary-shell, root-adbd, or non-interactive-`su` mode against the real data directory |
+| Class, resource, or asset change with no `run-as` success marker, an out-of-range UID, or a mismatched SELinux label | Supported when the permission probe succeeds | Uses a fixed ordinary-shell, root-adbd, or device-supported non-interactive-`su` command form against the real data directory |
 | Apply Changes startup agent must be prepared in advance | Supported | The Direct Overlay path pushes the Android Studio startup agent |
 | Overlay ID does not match the expected value | Does not force a write | Switches to recovery or reinstallation |
 | The writer fails after modifying the overlay | Does not fall back to old Apply Changes | Prevents continued deployment from a partially committed state |
