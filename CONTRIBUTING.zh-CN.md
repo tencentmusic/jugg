@@ -36,7 +36,7 @@
 
 上传内容和本地日志位置见 Wiki [报告问题](https://tencentmusic.github.io/jugg/zh/guide/report-issue)。
 
-不要在公开 Issue 中张贴凭据、私有诊断包或疑似安全漏洞细节。如果认为发现了安全问题，请私下联系维护者，不要提交公开缺陷。
+不要在公开 Issue 中张贴凭据、私有诊断包或疑似安全漏洞细节。如果认为发现了安全问题，请按 [SECURITY.zh-CN.md](SECURITY.zh-CN.md) 私下报告，不要提交公开缺陷。
 
 ## 提出功能建议
 

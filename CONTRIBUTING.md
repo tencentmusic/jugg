@@ -36,7 +36,7 @@ How to get a Report ID or Diagnostics Bundle:
 
 See the Wiki [Report an issue](https://tencentmusic.github.io/jugg/guide/report-issue) page for what is uploaded and where local logs live.
 
-Do not post credentials, private diagnostic dumps, or suspected security vulnerabilities in a public issue. If you believe you found a security problem, contact the maintainers privately instead of filing a public bug.
+Do not post credentials, private diagnostic dumps, or suspected security vulnerabilities in a public issue. If you believe you found a security problem, follow [SECURITY.md](SECURITY.md) instead of filing a public bug.
 
 ## Request a feature
 
