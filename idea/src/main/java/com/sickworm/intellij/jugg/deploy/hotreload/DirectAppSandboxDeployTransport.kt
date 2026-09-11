@@ -154,12 +154,6 @@ class DirectAppSandboxDeployTransport(
             logger.debug("Direct app sandbox Hot Reload succeeded: ${hotReloadResult.detail}")
             return DirectAppSandboxDeployResult(overlayId, needsRestart = false)
         }
-        if (!refreshResources && hasClassRuntimeChanges(data) &&
-            hotReloadResult.detail.startsWith("ERROR\trestart_activity\t")) {
-            throw DirectOverlayDirtyException(
-                "Direct app sandbox Activity relaunch failed after runtime class changes: ${hotReloadResult.detail}",
-            )
-        }
         logger.info(runtimeFallbackMessage(hotReloadResult.detail))
         return DirectAppSandboxDeployResult(overlayId, needsRestart = true)
     }

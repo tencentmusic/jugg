@@ -20,7 +20,6 @@ import com.sickworm.intellij.jugg.deploy.direct.DirectOverlayWriteResult
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlayWriter
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlayDeployFailedException
-import com.sickworm.intellij.jugg.deploy.direct.DirectOverlayDirtyException
 import com.sickworm.intellij.jugg.deploy.run.ClassDeployItem
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
@@ -128,12 +127,11 @@ class DirectAppSandboxDeployTransportTest {
     }
 
     @Test
-    fun `Activity relaunch failure should not fall back to process restart`() {
+    fun `Activity relaunch failure falls back to process restart`() {
         assertDirectDeploy(
             classData(),
-            needsRestart = false,
+            needsRestart = true,
             hotReloadResult = DirectHotReloadResult(false, "ERROR\trestart_activity\t0\tActivity relaunch failed"),
-            expectRelaunchFailure = true,
         )
     }
 
@@ -221,7 +219,6 @@ class DirectAppSandboxDeployTransportTest {
         data: JuggDeployData,
         needsRestart: Boolean,
         hotReloadResult: DirectHotReloadResult = DirectHotReloadResult(true, "OK"),
-        expectRelaunchFailure: Boolean = false,
         expectedRefreshResources: Boolean = false,
         expectRuntimeApply: Boolean = true,
         logger: Logger = Mockito.mock(Logger::class.java),
@@ -261,7 +258,7 @@ class DirectAppSandboxDeployTransportTest {
                     }
                 }.use { _ ->
                     assertDirectResult(
-                        data, overlayUpdate, compat, needsRestart, hotReloadResult, expectRelaunchFailure,
+                        data, overlayUpdate, compat, needsRestart, hotReloadResult,
                         expectedRefreshResources,
                         expectRuntimeApply,
                         logger,
@@ -282,7 +279,6 @@ class DirectAppSandboxDeployTransportTest {
         compat: IAsDeployerCompat,
         needsRestart: Boolean,
         hotReloadResult: DirectHotReloadResult,
-        expectRelaunchFailure: Boolean,
         expectedRefreshResources: Boolean,
         expectRuntimeApply: Boolean,
         logger: Logger,
@@ -304,16 +300,6 @@ class DirectAppSandboxDeployTransportTest {
                 requireNotNull(transport(DirectAdb(), logger).tryDeploy(
                     "com.example.app", data, overlayUpdate, compat, listOf(123), Deploy.Arch.ARCH_64_BIT,
                 ))
-            }
-            if (expectRelaunchFailure) {
-                val error = try {
-                    deploy()
-                    throw AssertionError("Expected DirectOverlayDirtyException")
-                } catch (e: DirectOverlayDirtyException) {
-                    e
-                }
-                assertTrue(error.message.orEmpty().contains("Activity relaunch failed after runtime class changes"))
-                return@use
             }
             val result = deploy()
             assertEquals("next", result.overlayId.sha)
