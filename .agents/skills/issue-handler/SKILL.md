@@ -54,7 +54,11 @@ When a bug investigation cannot determine the cause because critical project evi
 
 Use the template only after completing the available investigation. Clearly separate a naturally reproduced failure from an artificially constructed downstream state, and summarize what was attempted, what was observed, what remains unknown, and why more project evidence is required.
 
-Let the reporter's Agent choose the reproduction strategy based on the project state and available tools. Specify the required evidence and deliverables without prescribing a workspace or mutation strategy. Do not ask the Agent to upload artifacts without the reporter's action.
+Offer diagnostics upload first, then one local Agent investigation option that may produce an analysis report, a minimal Demo, or both according to [references/local-agent-investigation-guide.md](references/local-agent-investigation-guide.md). Do not present Demo creation and local analysis as separate choices.
+
+Use the built-in Chinese or English launch template matching the reporter's primary language. Keep the selected template unchanged except for replacing its Issue URL and key-error placeholders; do not translate, expand, or inline the linked guide. Keep every URL exposed on its own line without trailing punctuation.
+
+Do not ask the reporter's Agent to upload artifacts. The reporter must review and share any diagnostics, report, or Demo themselves.
 
 ## Feature Request Handling
 

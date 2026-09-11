@@ -18,7 +18,7 @@ Example structure:
 
 ## Evidence Options
 
-Offer these three executable options. Replace every placeholder with the real Issue number, external URL, failure details, relevant paths, and investigation focus before replying.
+Offer these two executable options. Replace every placeholder in the selected launch template with the real Issue URL and the most specific key error supported by the available evidence.
 
 ### 1. Upload Jugg Diagnostics
 
@@ -28,49 +28,52 @@ Recommend this first:
 2. Select `Upload logs` and reply to the Issue with the Report ID.
 3. If upload is unavailable, select `Save locally without uploading` and attach the generated Diagnostics Bundle ZIP to the Issue.
 
-### 2. Provide a Reproducible Demo
+### 2. Run a Local Agent Investigation
 
-Give the reporter a prompt that asks their Agent to create and verify a minimal Demo. Let the Agent choose the appropriate extraction or reconstruction strategy for the available project and environment.
+Give the reporter one short, directly copyable prompt. The linked English guide contains the complete investigation workflow and lets the reporter's Agent decide whether the useful deliverable is an analysis report, a minimal Demo, or both.
 
-```text
-Create a minimal Android Demo that reliably reproduces Jugg Issue #[ISSUE_NUMBER]:
-[ISSUE_URL]
-
-Review the available project and choose an appropriate way to extract or reconstruct the Demo. Match the reported AGP, Gradle, Kotlin, JDK, Android build configuration, and [REPORTED_SCENARIO]. Keep only the minimum files and module relationships required for reproduction. Ensure the deliverable does not contain accounts, credentials, secrets, unrelated business code, or private dependencies.
-
-Verify the reported steps in the Demo. Run the minimum normal Gradle full-build and Jugg incremental-build checks needed to confirm whether the issue reproduces. If Jugg, a device, or another required dependency is unavailable, record the limitation instead of claiming success.
-
-Add a README containing the environment, complete reproduction steps, expected result, actual result, relevant logs or stack traces, and the difference between normal Gradle and Jugg results. Return the local Demo path and verification result. Do not upload the Demo; the reporter will review and share it.
-```
-
-Write the prompt in the reporter's language. Keep the Issue URL exposed on its own line inside the code block.
-
-### 3. Generate a Local Agent Analysis Report
-
-Give the reporter a second directly copyable prompt. It must include both the exposed Issue URL and the exposed Jugg runtime troubleshooting guide URL inside a fenced `text` code block:
+Use this built-in template when the reporter's primary language is Chinese:
 
 ```text
-Analyze Jugg Issue #[ISSUE_NUMBER] only:
+请在当前 Android 工程中调查以下 Jugg 异常，基于现场证据尽可能定位根因。
+
+相关 Issue：
 [ISSUE_URL]
 
-First read the Jugg runtime troubleshooting guide:
-https://github.com/tencentmusic/jugg/blob/main/docs/ai_knowledge/09_plugin_runtime_debug.md
+关键错误：
+[KEY_ERROR]
 
-First construct the reported reproduction scenario. Choose the appropriate reproduction strategy based on the available project and tools, match the reported environment and steps, and run the focused build, deployment, or device checks required to determine whether the issue reproduces. If the required toolchain, dependencies, or device are unavailable, record the limitation.
+必读指引：
+https://raw.githubusercontent.com/tencentmusic/jugg/main/.agents/skills/issue-handler/references/local-agent-investigation-guide.md
 
-Then inspect build/jugg/log/compile_latest.log and locate logs related to [RELEVANT_COMPONENTS_OR_SYMBOLS]. Read the relevant generated outputs, source or resource variants, module relationships, and the deepest cause from the complete runtime stack if a crash is involved.
-
-Compare the reproduction results, normal Gradle full-build evidence, and Jugg incremental-build evidence. Produce an analysis report containing the constructed scenario, evidence paths, reproduction results, root-cause assessment, competing explanations, limitations, and missing information. Remove sensitive information before sharing the report publicly.
+权限：调查阻塞时，可以按指引将 Jugg 仓库 clone 到 /tmp/jugg-issue-handler/repository。
 ```
 
-Adapt the inspection targets to the Issue. Do not leave generic placeholders in the published reply.
+Use this built-in template for all other reporters:
+
+```text
+Investigate the following Jugg failure in the current Android project and identify the root cause as far as the available evidence allows.
+
+Related Issue:
+[ISSUE_URL]
+
+Key error:
+[KEY_ERROR]
+
+Required guide:
+https://raw.githubusercontent.com/tencentmusic/jugg/main/.agents/skills/issue-handler/references/local-agent-investigation-guide.md
+
+Permission: If the investigation is blocked, you may clone the Jugg repository to /tmp/jugg-issue-handler/repository as specified by the guide.
+```
 
 ## Formatting Requirements
 
 - Keep the opening concise and evidence-based.
-- Present diagnostics upload, reproducible Demo, and local Agent analysis as three alternatives.
-- Let the Agent choose the reproduction workspace and implementation strategy based on the project state and available tools.
-- Never ask the Agent to upload a Demo, logs, or analysis report automatically.
-- Put both Agent prompts in fenced `text` code blocks, not blockquotes.
+- Present diagnostics upload and local Agent investigation as two alternatives.
+- Use exactly one built-in launch template according to the reporter's primary language. Do not translate, expand, summarize, or inline the linked guide.
+- Keep both built-in templates in this file so the Issue reply does not depend on ad-hoc translation.
+- Put the selected launch template in a fenced `text` code block, not a blockquote.
 - Keep every URL complete and exposed on its own line inside the prompt code block. Do not use `[label](url)` Markdown links there.
+- Do not leave placeholders in the published reply.
+- Never ask the Agent to upload a Demo, logs, or analysis report automatically.
 - Do not request evidence already supplied and inspected.
