@@ -41,6 +41,7 @@ The important point is that a layout change does not produce only a resource ove
 ## Key boundaries
 
 - A regular layout does not necessarily enter the DataBinding mapper just because ViewBinding is enabled.
+- When the installed APK does not contain `androidx.viewbinding.ViewBindings` (for example AGP 4.2.2's default `viewbinding:4.2.2`), Jugg generates `findViewById` lookups to match the official Gradle output.
 - The DataBinding mapper depends on layout info and the BR baseline produced by the latest Gradle build. Gradle must rebuild them when they are missing.
 - A BindingAdapter from a direct project dependency requires that dependency module to have generated a setter store. Run a Gradle build or Sync after adding the dependency for the first time or when the baseline is missing.
 - Stripped XML is both a resource artifact and an input used by the source stage to determine mapper work. Java output alone does not show whether processing succeeded.

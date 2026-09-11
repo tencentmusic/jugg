@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.deploy
 import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.project.ChangedFile
+import com.sickworm.intellij.jugg.compiler.ClassNode
 import com.sickworm.intellij.jugg.compiler.ClassPreparation
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.CompileOutput
@@ -335,6 +336,20 @@ class DeployFileManager(
 
     fun isEnableDesugared(): Boolean {
         return deployDataGenerator.isEnableDesugared()
+    }
+
+    fun containsApkClass(classDescriptors: List<String>): List<ClassNode> {
+        val names = classDescriptors.filter { it.isNotEmpty() }
+        if (names.isEmpty()) {
+            return emptyList()
+        }
+        return try {
+            val nodes = deployDataGenerator.deployDataDatabase.getClassNodes(names)
+            names.mapNotNull { nodes[it] }
+        } catch (e: Exception) {
+            logger.debug("containsApkClass failed for $names: $e")
+            emptyList()
+        }
     }
 
     @Synchronized

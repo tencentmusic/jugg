@@ -387,6 +387,13 @@ interface ICompileContext {
      */
     val isEnableDesugared: Boolean
 
+    /**
+     * Query class structures from the deployed APK baseline.
+     * [classDescriptors] use dex form, for example `Landroidx/viewbinding/ViewBindings;`.
+     * Missing database, empty input, or query failure must return an empty list.
+     */
+    fun containsApkClass(classDescriptors: List<String>): List<ClassNode> = emptyList()
+
     val modulesWithOrder: List<ModuleInfo>
 
     val moduleBelongsApkMap: ModuleApkBelongs

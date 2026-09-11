@@ -8,6 +8,7 @@ import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.databinding.DataBindingArgsManager
 import com.sickworm.intellij.jugg.compiler.databinding.DataBindingGenBaseClassesCompiler
 import com.sickworm.intellij.jugg.compiler.databinding.DataBindingGenMapperCompiler
+import com.sickworm.intellij.jugg.compiler.databinding.LegacyViewBindingLookup
 import com.sickworm.intellij.jugg.mock.*
 import org.junit.Before
 import org.junit.BeforeClass
@@ -256,6 +257,46 @@ open class DataBindingCompileTest {
             "TestLayoutBinding",
             "includeTestLayout",
         )
+    }
+
+    @Test
+    fun viewBindingRewritesLookupWhenApkLacksViewBindings() {
+        val compileTask = makeTask(
+            File(assetsAndroidDir, "app/src/main/res/layout/activity_view_binding_include.xml"),
+        )
+        val result = DataBindingGenBaseClassesCompiler(context, mockParentDisposable).compile(compileTask)
+        assertTrue(result.isAllSuccess)
+        val java = readGeneratedBindingJava("ActivityViewBindingIncludeBinding.java")
+        assertTrue(java.contains(".findViewById("), java)
+        assertFalse(java.contains("ViewBindings"), java)
+    }
+
+    @Test
+    fun viewBindingKeepsViewBindingsWhenApkHasClass() {
+        val compileContext = object : ICompileContext by context {
+            override fun containsApkClass(classDescriptors: List<String>): List<ClassNode> {
+                return classDescriptors.filter { it == LegacyViewBindingLookup.VIEW_BINDINGS_DESCRIPTOR }
+                    .map { descriptor ->
+                        ClassNode(
+                            dexFileName = "",
+                            className = descriptor,
+                            access = 0,
+                            methods = emptyList(),
+                            fields = emptyList(),
+                            interfaceNames = emptyList(),
+                            superClass = "Ljava/lang/Object;",
+                            sourceArg = null,
+                        )
+                    }
+            }
+        }
+        val compileTask = makeTask(
+            File(assetsAndroidDir, "app/src/main/res/layout/activity_view_binding_include.xml"),
+        )
+        val result = DataBindingGenBaseClassesCompiler(compileContext, mockParentDisposable).compile(compileTask)
+        assertTrue(result.isAllSuccess)
+        val java = readGeneratedBindingJava("ActivityViewBindingIncludeBinding.java")
+        assertTrue(java.contains("ViewBindings.findChildViewById("), java)
     }
 
     @Test
@@ -690,6 +731,16 @@ open class DataBindingCompileTest {
             val includeField = javaContent.find { it.contains("$name;") }
             assertNotNull(includeField)
             assertTrue(includeField.contains("$type $name;"), "include field is not generated correct type, actual: \"$includeField\"")
+        }
+
+        private fun readGeneratedBindingJava(fileName: String): String {
+            val generatedDir = File(
+                context.tempModule.buildPathInfo.buildDir,
+                "data_binding/app/generated/data_binding_base_class_source_out/debug/out",
+            )
+            val file = generatedDir.walkTopDown().firstOrNull { it.name == fileName }
+                ?: throw AssertionError("generated $fileName not found under $generatedDir")
+            return file.readText()
         }
 
 

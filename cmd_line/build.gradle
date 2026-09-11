@@ -43,7 +43,7 @@ dependencies {
     testImplementation "junit:junit:4.12"
     testImplementation "org.jetbrains.kotlin:kotlin-test:1.9.23"
 
-    // override databinding library to Java 11 class, or will get:
+    // pin Java 11 databinding jars (same as :main). 8.7.3 is class file 61.0 and fails on Java 11:
     // android/databinding/parser/XMLParser$ElementContext has been compiled by a more recent version
     // of the Java Runtime (class file version 61.0), this version of the Java Runtime only recognizes
     // class file versions up to 55.0

@@ -244,6 +244,10 @@ class BaseCompileContext(
         deployFileManager.isEnableDesugared()
     }
 
+    override fun containsApkClass(classDescriptors: List<String>): List<ClassNode> {
+        return deployFileManager.containsApkClass(classDescriptors)
+    }
+
     override var modulesWithOrder: List<ModuleInfo> = ModuleCompileOrderUtils.getModuleCompileOrders(modules, tempModule, logger)
 
     override var moduleBelongsApkMap: ModuleApkBelongs = ModuleApkBelongsUtils.getModuleApkBelongs(applicationModule, apkInfos, modules, tempModule, logger)
