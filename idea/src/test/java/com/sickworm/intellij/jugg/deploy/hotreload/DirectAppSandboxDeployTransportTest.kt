@@ -74,6 +74,11 @@ class DirectAppSandboxDeployTransportTest {
     }
 
     @Test
+    fun `resolved 32 bit ABI is forwarded to startup agent preparation`() {
+        assertDirectDeploy(classData(), needsRestart = false, appArch = Deploy.Arch.ARCH_32_BIT)
+    }
+
+    @Test
     fun `new classes remain online after overlay commit`() {
         assertDirectDeploy(newClassData(), needsRestart = false)
     }
@@ -222,6 +227,7 @@ class DirectAppSandboxDeployTransportTest {
         expectedRefreshResources: Boolean = false,
         expectRuntimeApply: Boolean = true,
         logger: Logger = Mockito.mock(Logger::class.java),
+        appArch: Deploy.Arch = Deploy.Arch.ARCH_64_BIT,
     ) {
         val compat = Mockito.mock(IAsDeployerCompat::class.java)
         val baseId = JuggOverlayId(Any(), "base", false)
@@ -242,8 +248,12 @@ class DirectAppSandboxDeployTransportTest {
         )
         var written: DirectOverlayWriteRequest? = null
         var checkedExpectedOverlayId: String? = null
+        var pushedAppArch: String? = null
         Mockito.mockConstruction(JuggJvmtiAgentManager::class.java) { manager, _ ->
-            whenever(manager.pushAgentToApp(any(), any())).thenReturn(true)
+            whenever(manager.pushAgentToApp(any(), any(), any())).thenAnswer {
+                pushedAppArch = it.getArgument(2)
+                true
+            }
         }.use { _ ->
             Mockito.mockConstruction(DirectOverlayStateChecker::class.java) { checker, _ ->
                 whenever(checker.checkDevice(any(), any())).thenAnswer {
@@ -262,11 +272,13 @@ class DirectAppSandboxDeployTransportTest {
                         expectedRefreshResources,
                         expectRuntimeApply,
                         logger,
+                        appArch,
                     )
                 }
             }
         }
         assertEquals("base", checkedExpectedOverlayId)
+        assertEquals(appArch.name, pushedAppArch)
         assertEquals(data.isFullRes, requireNotNull(written).isFullResourcePush)
         val expectedPaths = (overlayUpdate.dexOverlays.newClasses + overlayUpdate.dexOverlays.modifiedClasses)
             .map { "${it.name}.dex" } + data.overlays.map { "base.apk/${it.name}" }
@@ -282,6 +294,7 @@ class DirectAppSandboxDeployTransportTest {
         expectedRefreshResources: Boolean,
         expectRuntimeApply: Boolean,
         logger: Logger,
+        appArch: Deploy.Arch,
     ) {
         var restartActivity: Boolean? = null
         var refreshResources: Boolean? = null
@@ -298,7 +311,7 @@ class DirectAppSandboxDeployTransportTest {
         }.use { reload ->
             val deploy = {
                 requireNotNull(transport(DirectAdb(), logger).tryDeploy(
-                    "com.example.app", data, overlayUpdate, compat, listOf(123), Deploy.Arch.ARCH_64_BIT,
+                    "com.example.app", data, overlayUpdate, compat, listOf(123), appArch,
                 ))
             }
             val result = deploy()

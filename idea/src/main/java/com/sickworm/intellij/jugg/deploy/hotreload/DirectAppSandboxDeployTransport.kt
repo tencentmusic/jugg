@@ -60,13 +60,19 @@ class DirectAppSandboxDeployTransport(
         )
 
         logger.debug("Direct app sandbox deploy selected: package=$packageName, mode=${sandbox.mode}, arch=$appArch")
-        prepareStartupAgent(packageName, sandbox)
+        prepareStartupAgent(packageName, sandbox, appArch)
         val overlayId = writeOverlay(packageName, requiredOverlayUpdate, asDeployerCompat, sandbox, data.isFullRes)
         return finishDeploy(packageName, data, pids, sandbox, overlayId)
     }
 
-    private fun prepareStartupAgent(packageName: String, sandbox: AppSandboxExecutor) {
-        if (!JuggJvmtiAgentManager(launchContext.deviceAdb, logger).pushAgentToApp(packageName, sandbox)) {
+    private fun prepareStartupAgent(
+        packageName: String,
+        sandbox: AppSandboxExecutor,
+        appArch: Deploy.Arch,
+    ) {
+        val isAgentPushed = JuggJvmtiAgentManager(launchContext.deviceAdb, logger)
+            .pushAgentToApp(packageName, sandbox, appArch.name)
+        if (!isAgentPushed) {
             throw DirectOverlayDeployFailedException("Direct app sandbox startup agent preparation failed.")
         }
         val result = sandbox.exec("touch code_cache/${BuildConfig.DIRECT_RESOURCE_OVERLAY_FLAG_FILE} && echo success",

@@ -444,7 +444,7 @@ class JuggDeployerHelperDeployFlowTest {
                 }
             }.use { sandboxes ->
                 Mockito.mockConstruction(JuggJvmtiAgentManager::class.java) { manager, _ ->
-                    whenever(manager.pushAgentToApp(any(), any())).thenReturn(true)
+                    whenever(manager.pushAgentToApp(any(), any(), any())).thenReturn(true)
                 }.use {
                     val result = fixture.helper.deploy(fixture.deployOptions.copy(isAllowDirectOverlayDeploy = false))
 

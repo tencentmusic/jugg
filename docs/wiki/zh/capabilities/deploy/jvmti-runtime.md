@@ -19,13 +19,30 @@ JVMTI Runtime 是 Jugg 部署后的运行时支撑能力。它负责把 Jugg age
 | 增量部署后准备 Jugg agent | 支持 | 部署完成后为目标 App 补齐 startup agent |
 | Apply Changes startup agent 准备 | 支持 | Direct Overlay 路径可以补齐在线替换所需的 Agent |
 | JVMTI 可用性检测 | 支持 | App 重启后得到可用或不可用结果 |
-| 32 位与 64 位 App | 支持 | 自动选择与目标进程架构匹配的 Agent |
+| 32 位与 64 位 ARM App | 支持 | 运行中和已停止 App 都按可用证据选择对应 Agent |
 | 运行时修正 hook | 支持 | 在 App 启动阶段处理命中的 ClassLoader、资源和系统兼容差异 |
 | Direct Activity relaunch | 支持 | 仅在 Restart Activity 模式下于 class 替换后重建 Activity，HOT_RELOAD 不变 |
 | 不兼容 app/device 记录 | 支持 | 后续部署直接进入兼容路径，避免重复尝试不可用的在线替换 |
 
 > [!NOTE]
 > install 本身没有增量部署文件，通常不会触发“部署后补 push agent”。agent 检测依赖 App 重启后 startup agent 被系统加载。
+
+## 32 位与 64 位 Agent 如何选择
+
+运行中的 App 可以直接使用进程架构。App 已停止时没有进程可供探测，Jugg 会继续按以下顺序寻找证据：
+
+```text
+运行中进程架构
+  -> 已安装包的 primaryCpuAbi
+  -> Manifest android:use32bitAbi
+  -> 全部 base/split APK 中的 ARM native library
+  -> 设备主 ABI
+  -> 仍然未知：使用 64 位兜底
+```
+
+APK 只有在全部 split 聚合后能够确定唯一 ARM 位数时才参与选择。同时包含 32 位和 64 位 library，或完全没有 ARM library 时，APK 证据保持未知；不含 native library 的资源 split 不会覆盖其它 APK 的有效结果。
+
+当前只支持 `armeabi`、`armeabi-v7a` 和 `arm64-v8a`，不兼容 x86。App sandbox 中已经存在同版本 Agent 时不会主动替换；App ABI 发生变化后如仍残留旧架构 Agent，重装 App 可以清理该状态。
 
 ## 这项能力如何生效
 

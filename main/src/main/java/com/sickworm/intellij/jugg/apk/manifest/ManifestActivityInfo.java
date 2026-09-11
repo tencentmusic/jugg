@@ -36,6 +36,7 @@ public class ManifestActivityInfo {
   private String myPackageName;
   private String myFeatureSplit;
   private String myDebuggable;
+  private boolean myUse32bitAbi;
   private String myInstrumentationTargetPackage;
   private String myInstrumentationRunner;
 
@@ -62,6 +63,10 @@ public class ManifestActivityInfo {
   @Nullable
   public String debuggable() {
     return myDebuggable;
+  }
+
+  public boolean use32bitAbi() {
+    return myUse32bitAbi;
   }
 
   @Nullable
@@ -107,6 +112,9 @@ public class ManifestActivityInfo {
       String value = node.attributes().get(attribute);
       if ("debuggable".equals(attribute)) {
           myDebuggable = value;
+      }
+      if ("use32bitAbi".equals(attribute)) {
+          myUse32bitAbi = Boolean.parseBoolean(value);
       }
     }
   }

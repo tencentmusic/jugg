@@ -1,6 +1,6 @@
 # 运行时与 JVMTI 支持
 
-> 最后核对：2026-09-10
+> 最后核对：2026-09-11
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -17,6 +17,8 @@
 
 | 类/文件 | 路径 | 作用 |
 |---|---|---|
+| `AppAbiResolver` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/AppAbiResolver.kt` | 在部署入口聚合进程、已安装包、Manifest、APK 和设备证据，解析目标 ARM 位数 |
+| `ApkInfoReader` | `main/src/main/java/com/sickworm/intellij/jugg/apk/ApkInfoReader.kt` | 跨 base/split APK 聚合 ARM native library，并读取 `android:use32bitAbi` |
 | `JuggJvmtiAgentManager` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/JuggJvmtiAgentManager.kt` | 管理 Jugg agent bundle 的 push、app sandbox setup、attach 与清理 |
 | `JuggJvmtiAgentManagerHelper` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/JuggJvmtiAgentManagerHelper.kt` | 决定部署后是否需要补 push agent，读取 flag 文件判断 JVMTI 可用性 |
 | `JuggDeployerHelper` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployerHelper.kt` | 在 deploy 前后串联 async agent 检查、push、restart、JVMTI compat 检测和 retry |
@@ -78,6 +80,8 @@ push agent 放在部署之后，是为了避免 Android Studio Apply Changes 首
 
 `AppSandboxExecutor` 统一包装 setup script：Apply Changes 兼容应用使用 `run-as`；不兼容应用在真实 `dataDir` 以本轮固定的普通 shell、root adbd 或非交互 `su` 模式执行。普通文件修正为既有 `code_cache` 的 owner 与动态 MCS context，JVMTI `.so` 修正为 appdomain 可执行的 `apk_data_file:s0`；修复阶段输出不会混入 setup script 的 `success`/`failed` 结果。上层 agent manager 不再分别拼装权限命令。
 
+部署入口只解析一次目标 ARM 位数，并把结果传给 Direct app sandbox 与后续 Apply Changes transport。优先级依次为：运行中进程、已安装包的 `primaryCpuAbi`、Manifest `android:use32bitAbi`、全部 base/split APK 中唯一可确定的 ARM native library 位数、设备主 ABI，最后保留 64 位缺省值。APK 同时包含 32/64 位 ARM library 或完全没有 ARM library 时保持 unknown，避免单个无 native library 的 resource split 覆盖其它 APK 的有效证据。Direct app sandbox 准备 startup agent 时必须复用这个结果，不能在已停止进程上再次调用进程架构探测。
+
 ### 4.2 失败重试中的兼容检测
 
 ```text
@@ -129,7 +133,7 @@ Direct Overlay 已提交
 
 `.jugg_jvmti_available` 在取得 JVMTI/JNI 后、进入 `HandleStartupAgent()` 前写入。因此它只证明 JVMTI 基础环境可取得，不能用于断言后续每个 framework hook 都已安装成功。
 
-Direct transport 复制 app-local JAR 时沿用 `AppSandboxExecutor` 的 owner/SELinux 修复，只影响 `pushAgentToApp(packageName, sandboxExecutor)` 调用；普通 App 的无 sandbox manager 调用及 Android Studio deploy transport 不改变。
+Direct transport 复制 app-local JAR 时沿用 `AppSandboxExecutor` 的 owner/SELinux 修复，并把部署入口解析的 app arch 传给 `pushAgentToApp(packageName, sandboxExecutor, appArch)`；普通 App 的无 sandbox manager 调用及 Android Studio deploy transport 不改变。
 
 ### 4.5 非宿主资源的 Apply Changes overlay 修正
 
@@ -185,6 +189,7 @@ hook 不限制资源名。部署到 `.overlay` 的内容是预期覆盖状态，
 - 工程根 `build.gradle` 的 `agentVersion` 是设备目录、startup agent 文件名前缀和 bundle 文件名的共同版本源。
 - 修改 `jvmti_agent` 里的 native、Java runtime（含 `ViewExpressionEvaluator` / `view-inspect` 求值）、setup script 或 bundle 内容后，必须递增 `agentVersion`。`isAgentBundlePushed()` 只看 `/data/local/tmp/jugg/{AGENT_VERSION}` 是否已有 4 个文件；同版本插件更新不会重推，设备会继续加载旧 `jugg-instruments.jar`。
 - 32 位 app 使用 `_alt.so`：bundle 打包时把 armeabi-v7a so 改名为 `jugg_jvmti_agent_alt.so`，`attachAgentToApp()` / setup script 都依赖这个约定。
+- ABI 解析当前只支持 ARM：`armeabi` / `armeabi-v7a` 映射 32 位，`arm64-v8a` 映射 64 位；不兼容 x86。所有证据都无法确定时仍按 64 位处理，覆盖大部分现有设备。
 - Java runtime 入口由 `HotfixLoader` 统一做设备 API 判定；API < 26 时 `init()` 会在访问 `Context.getCodeCacheDir()` 前 return，`install()` / `installDex()` / `isNeedEnableHotfix()` 也会短路。这个判断不改变 Gradle 构建产物，`BootstrapApplication` 注入仍只受 `jugg.inject.application.enable` 控制。
 - `BootstrapApplication` 查询不到 application meta-data 时按“没有原始 Application / AppComponentFactory”处理并继续启动；仅在 meta-data 中存在 Jugg 保存的原始类名时才创建和替换对应实例。
 - API 29+ 的 `BootstrapAppComponentFactory.instantiateClassLoader()` 必须在 Framework 创建 Application 前委托原始 `AppComponentFactory`，并把原始工厂返回的 ClassLoader 直接交还 Framework。委托时传入恢复了原始 Application 和 AppComponentFactory 类名的 `ApplicationInfo`；原始工厂实例必须缓存并由 `BootstrapApplication` 复用，禁止在 `attachBaseContext()` 中重复调用 `instantiateClassLoader()`。
@@ -210,6 +215,7 @@ hook 不限制资源名。部署到 `.overlay` 的内容是预期覆盖状态，
 - `CompatDeployHelper` 读取 `ro.product.manufacturer`；值去除首尾空白后等于 `asus`（忽略大小写）时，所有 App 都直接启用 compat deploy。该自动策略不写入设备兼容记录，因此 More Options 的手动 Force 选项不会自动勾选，也不能用来关闭自动策略。
 - `CompatDeployHelper` 读取 `hw_sc.build.platform.version`；属性非空时即识别为 HarmonyOS 并直接启用 compat deploy，不限制系统版本。该自动策略不写入设备兼容记录，因此 More Options 的手动 Force 选项不会自动勾选，也不能用来关闭自动策略。
 - `jugg_agent_setup.sh` 不再按 HarmonyOS 版本创建 `.need_fix_dex_path_list`。升级前已经存在的旧 flag 不在本轮主动清理，避免误删 `DexPathListFixer` 自检测产生的状态。
+- app sandbox 已存在当前 agent 版本时不会按新解析结果替换其 so。App ABI 变化后若残留旧架构 agent，需要通过重装 App 清理 sandbox 后重新准备。
 - `AndroidNClassLoader` 重建 dex path 时，仅在非 isolated split 场景使用 `sourceDir + splitSourceDirs`；无 split APK、启用 isolated split loading 或无法可靠识别隔离状态时继续沿用原有 base APK 筛选。不能只从原 `dexElements` 取 split 路径，因为应用早期启动阶段已安装的 split APK 可能尚未挂入该数组。
 
 ---
@@ -221,7 +227,7 @@ hook 不限制资源名。部署到 `.overlay` 的内容是预期覆盖状态，
 | agent bundle 未更新 | 根 `build.gradle` 的 `agentVersion`，再查 `/data/local/tmp/jugg/{version}` 目录时间戳与文件数 |
 | `view-inspect` 无括号字段仍报 `expected '(' after method name` | 设备仍在用旧 `jugg-instruments.jar`；确认 `agentVersion` 已递增后再部署/重启 App |
 | app sandbox 中没有 Jugg agent | `JuggJvmtiAgentManager.pushAgentToApp()`、`setupAgent()`、`jugg_agent_setup.sh` |
-| 32/64 位 so 选错 | `JuggJvmtiAgentManager.attachAgentToApp()` 的 `_alt.so` 判断和 `adb.getArch(packageName)` |
+| 32/64 位 so 选错 | 检查 `AppAbiResolver` 的 source 日志、`dumpsys package` 中的 `primaryCpuAbi`、Manifest `use32bitAbi`、APK ARM library；Direct app sandbox 应直接使用已解析 arch |
 | 部署后被判 JVMTI 不可用 | `JuggJvmtiAgentManagerHelper.isHasJvmtiCompatIssue()`，检查 `.jugg_jvmti_not_available` |
 | 检测一直不收口 | app 是否 restart、`code_cache` 是否存在、native `Agent_OnAttach` 是否写 flag |
 | Direct Overlay 缺 AS startup agent | `AsStartupAgentPusher.hasApplyChangesStartupAgent()` 与 `pushApplyChangesStartupAgent()` |

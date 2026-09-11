@@ -7,6 +7,7 @@ import com.android.tools.deployer.ClassRedefiner
 import com.android.tools.deployer.model.Apk
 import com.google.common.collect.ImmutableMap
 import com.sickworm.intellij.jugg.apk.ApkInfoReader
+import com.sickworm.intellij.jugg.deploy.AppAbiResolver
 import com.sickworm.intellij.jugg.deploy.AppSandboxExecutor
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.deploy.IdeaDeviceAdbClient
@@ -200,19 +201,17 @@ class JuggDeployer(
             logger.info("getPids exception: $e")
             emptyList()
         }
-        var arch = adbClient.getArch(pids)
-        logger.info("packageName: $packageName, pids: $pids, arch: $arch")
-        if (arch == Deploy.Arch.ARCH_UNKNOWN) {
-            // if arch is unknown, installer will use 32-bit agent, which may apply failed.
-            try {
-                val archInApks = ApkInfoReader(logger.logger).getArch(newFiles)
-                arch = Deploy.Arch.valueOf(archInApks)
-                logger.info("set arch from unknown to $arch")
-            } catch (e: IllegalArgumentException) {
-                logger.info("get arch from apks failed, set to ARCH_64_BIT")
-                arch = Deploy.Arch.ARCH_64_BIT
-            }
-        }
+        val processArch = adbClient.getArch(pids)
+        val apkInfoReader = ApkInfoReader(logger.logger)
+        val arch = AppAbiResolver(deviceAdb, logger.logger).resolve(
+            packageName = packageName,
+            processArch = processArch,
+            apkArch = apkInfoReader.getArch(newFiles),
+            use32BitAbi = apkInfoReader.isUse32BitAbi(newFiles),
+            deviceAbi = launchContext.deviceAbi,
+        )
+        logger.info("packageName: $packageName, pids: $pids, processArch: $processArch" +
+                ", arch: $arch")
 
         // Get the list of files from the installed app assuming deployment cache is correct.
         val speculativeDump: JuggDeploymentCacheEntry? = deploymentService.loadEntry(deviceSerial, packageName, logger)

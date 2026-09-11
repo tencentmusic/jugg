@@ -56,11 +56,19 @@ class JuggJvmtiAgentManager(private val adb: IDeviceAdb, loggerArg: Logger) : IJ
     }
 
     @Synchronized
-    fun pushAgentToApp(packageName: String, sandboxExecutor: AppSandboxExecutor): Boolean {
-        return pushAgentToAppInternal(packageName, sandboxExecutor)
+    fun pushAgentToApp(
+        packageName: String,
+        sandboxExecutor: AppSandboxExecutor,
+        appArch: String? = null,
+    ): Boolean {
+        return pushAgentToAppInternal(packageName, sandboxExecutor, appArch)
     }
 
-    private fun pushAgentToAppInternal(packageName: String, sandboxExecutor: AppSandboxExecutor?): Boolean {
+    private fun pushAgentToAppInternal(
+        packageName: String,
+        sandboxExecutor: AppSandboxExecutor?,
+        appArch: String? = null,
+    ): Boolean {
         val isAgentBundlePushed = isAgentBundlePushed()
         logger.debug("pushAgentBundle isAgentBundlePushed: $isAgentBundlePushed")
         if (!isAgentBundlePushed) {
@@ -74,7 +82,7 @@ class JuggJvmtiAgentManager(private val adb: IDeviceAdb, loggerArg: Logger) : IJ
         val isAgentPushed = isAgentPushed(packageName, sandboxExecutor)
         if (!isAgentPushed) {
             logger.debug("going to setup agent")
-            if (!setupAgent(packageName, sandboxExecutor)) {
+            if (!setupAgent(packageName, sandboxExecutor, appArch)) {
                 logger.warn("[WARN ONLY] Push JVMTI agent to App failed, $WARN_REASON. Failed reason: $lastError")
                 return false
             }
@@ -180,7 +188,11 @@ class JuggJvmtiAgentManager(private val adb: IDeviceAdb, loggerArg: Logger) : IJ
         return execAdbShellCmd(cmd)
     }
 
-    private fun setupAgent(packageName: String, sandboxExecutor: AppSandboxExecutor? = null): Boolean {
+    private fun setupAgent(
+        packageName: String,
+        sandboxExecutor: AppSandboxExecutor? = null,
+        appArch: String? = null,
+    ): Boolean {
         val sandbox = sandboxExecutor ?: AppSandboxExecutor(adb, packageName, logger)
         val scriptPath = "code_cache/jugg_agent_setup.sh"
         val pushScriptOutput = sandbox.exec(
@@ -193,7 +205,7 @@ class JuggJvmtiAgentManager(private val adb: IDeviceAdb, loggerArg: Logger) : IJ
             return false
         }
 
-        val arch = adb.getArch(packageName)
+        val arch = appArch ?: adb.getArch(packageName)
         val runScriptOutput = sandbox.exec(
             "$scriptPath ${BuildConfig.AGENT_VERSION} $arch && echo success || echo failed",
             repairCodeCache = true,

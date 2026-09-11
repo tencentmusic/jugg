@@ -22,7 +22,17 @@ class JuggJvmtiAgentManagerDirectSandboxTest {
         })
     }
 
-    private class DirectAdb : IDeviceAdb {
+    @Test
+    fun `direct sandbox uses resolved 32 bit app ABI`() {
+        val adb = DirectAdb(agentPushed = false)
+        val sandbox = AppSandboxExecutor(adb, "com.example.app", Mockito.mock(Logger::class.java))
+
+        assertTrue(JuggJvmtiAgentManager(adb, Mockito.mock(Logger::class.java))
+            .pushAgentToApp("com.example.app", sandbox, "ARCH_32_BIT"))
+        assertTrue(adb.scripts.any { it.contains("jugg_agent_setup.sh") && it.contains("ARCH_32_BIT") })
+    }
+
+    private class DirectAdb(private val agentPushed: Boolean = true) : IDeviceAdb {
         val scripts = mutableListOf<String>()
         override val displayName: String = "fake"
         override val api: Int = 35
@@ -43,7 +53,9 @@ class JuggJvmtiAgentManagerDirectSandboxTest {
                 cmd.contains("__JUGG_RUN_AS_OK__") ->
                     "__JUGG_RUN_AS_OK__:1000\n__JUGG_RUN_AS_CONTEXT__:ctx|ctx"
                 cmd.contains("__JUGG_DIRECT_SANDBOX_OK__") -> "__JUGG_DIRECT_SANDBOX_OK__"
-                cmd.contains("jugg_jvmti_agent") -> "success"
+                cmd.contains("ls code_cache/startup_agents") -> if (agentPushed) "success" else "failed"
+                cmd.contains("jugg_agent_setup.sh") ->
+                    "success\n__JUGG_APP_SANDBOX_REPAIR_START__\n__JUGG_APP_SANDBOX_REPAIRED__"
                 cmd.contains("jugg-instruments.jar") ->
                     "success\n__JUGG_APP_SANDBOX_REPAIR_START__\n__JUGG_APP_SANDBOX_REPAIRED__"
                 else -> ""

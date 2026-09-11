@@ -18,17 +18,32 @@ class ApkInfoReader(
      * @return ARCH_UNKNOWN, ARCH_32_BIT, ARCH_64_BIT
      */
     fun getArch(apks: List<Apk>): String {
-        var is32Bit = true
+        var has32Bit = false
+        var has64Bit = false
         apks.forEach {
-            val has64Bit = it.apkEntries.any { (name, _) -> name.startsWith("lib/arm64-v8a") }
-            val has32Bit = it.apkEntries.any { (name, _) -> name.startsWith("lib/armeabi-v7a") }
-            if (is32Bit) {
-                is32Bit = !has64Bit && has32Bit
+            val apkHas64Bit = it.apkEntries.any { (name, _) -> name.startsWith("lib/arm64-v8a/") }
+            val apkHas32Bit = it.apkEntries.any { (name, _) ->
+                name.startsWith("lib/armeabi-v7a/") || name.startsWith("lib/armeabi/")
             }
-            logger.debug("Apk getArch: path: ${it.path} has64Bit=$has64Bit, has32Bit=$has32Bit")
+            has64Bit = has64Bit || apkHas64Bit
+            has32Bit = has32Bit || apkHas32Bit
+            logger.debug("Apk getArch: path: ${it.path} has64Bit=$apkHas64Bit, has32Bit=$apkHas32Bit")
         }
-        logger.debug("Apk getArch: is32Bit=$is32Bit")
-        return if (is32Bit) "ARCH_32_BIT" else "ARCH_64_BIT"
+        val arch = when {
+            has32Bit && !has64Bit -> "ARCH_32_BIT"
+            has64Bit && !has32Bit -> "ARCH_64_BIT"
+            else -> "ARCH_UNKNOWN"
+        }
+        logger.debug("Apk getArch: has32Bit=$has32Bit, has64Bit=$has64Bit, arch=$arch")
+        return arch
+    }
+
+    fun isUse32BitAbi(apks: List<Apk>): Boolean {
+        return apks.any { apk ->
+            runCatching { ApkReader(File(apk.path), logger).getManifest().use32bitAbi() }
+                .onFailure { logger.debug("Read use32bitAbi failed for ${apk.path}", it) }
+                .getOrDefault(false)
+        }
     }
 
     fun createApkInfo(apks: List<File>): List<ApkInfo> {
