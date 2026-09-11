@@ -1,6 +1,6 @@
 # 插件运行时问题排查手册
 
-> 最后核对：2026-09-05
+> 最后核对：2026-09-11
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -100,6 +100,7 @@
 | 编译后 Git 补检 | `Git check after compile is still running` / `Git recovery CRC summary` |
 | APK DB 初始化 | `initAfterInstall parsed apk start` / `database all init finish` |
 | 编译或部署失败 | `incremental compile error` / `SEVERE` / `deploy start` |
+| Kotlin IR lowering 内部错误 | `BackendException` / `Exception during IR lowering` / `copyValueParametersToStatic` / `Dispatch receiver type` / `SyntheticAccessorGenerator` |
 | UI freeze | `uiFreezeStarted` / `InvocationEvent has timed out` |
 | ConstRef 启动与扫描 | `defer initial full scan` / `io throttle enabled` / `full scan progress` |
 | ConstRef 降级 | `fallback to no-op const-ref` |
@@ -131,6 +132,7 @@
 | Kotlin `cannot access ... which is a supertype of ...` / `unresolved supertypes:`，常见于 ROM、车机系统应用引用 hidden API | 先看 `kotlin compile: kotlinc` 的 `-cp` 里 SDK `android.jar` 是否排在同名 framework/HideAPI jar 之前；这不是 HideAPI 路径缺失。命中后应出现后置重试日志，日志中 `-cp` 顺序与默认不同属预期 | `AndroidJarClasspathRetry`、`KotlinCompilerInvoker`；`02_compile_source.md` |
 | Kotlin `required plugin option not present` | 对比 `gradle_project_infos.json` 的 `kotlinPluginOptions` 与 `kotlin compile: kotlinc` 中的 `-P plugin:`；参数已存在仍失败时检查 plugin/Kotlin 版本，参数缺失时检查 `KotlinCompilerPluginData` 读取。兜底禁用必须按 `CommandLineProcessor` 声明的 plugin id 精确命中，不能禁用全部插件 | `GradleProjectInfoReader`、`KotlinCompilerInvoker`；`02_compile_source.md` |
 | Kotlin `unsupported plugin option` | 先确认错误参数是否来自 `kotlinPluginOptions`；Jugg 只会为 Gradle-resolved 参数移除同 plugin id 的整组参数并重试一次，用户 `kotlinFreeCompilerArgs` 不会自动修改。重复出现时检查 compiler toolchain、插件 JAR 与 Gradle task 是否属于同一 compilation | `KotlinCompiler`、`KotlinCompilerInvoker`；`02_compile_source.md` |
+| Kotlin `BackendException: Exception during IR lowering`，根因含 `copyValueParametersToStatic` 和 `Dispatch receiver type ... is not a subtype of ...` | 先核对真实继承链、失败是否来自 Gradle/Kotlin 增量编译、clean 后是否恢复。继承链合法且 clean 可恢复时，优先按 Kotlin compiler 的间歇性 IR synthetic accessor 缺陷调查，不要直接归因于源码类型错误或 Jugg 漏跟编 | 本节 4.4；`02_compile_source.md` |
 | Windows 命令中文乱码 | 保留原始字节链路；出现 `�` 表示可能已发生不可逆解码损失 | `ProcessOutputReader`；`04_engineering_compat.md` |
 | 系统应用装不上、无 `FLAG_SYSTEM`、或特权权限被拒 | 先看 `codePath` 是否在 `/system/`，以及本次是否只走了 `pm install` / `JuggDeployer.install`；不要先当普通部署失败修 | `JuggDeployer.install`；`03_deploy_system_app.md` |
 | 系统应用 Run 提示无法 update / 签名不一致 | 对比 `/system` 基线 APK 与本次安装 APK 的 cert；debug keystore 不能更新 platform 签名的系统包 | `03_deploy_system_app.md` |
@@ -186,6 +188,48 @@
 main/.../deploy/data/SourceFileManager.kt
 main/.../deploy/data/SourceFileDatabaseSqLiteHelper.kt
 ```
+
+### 4.4 Kotlin IR lowering 中间歇性的 dispatch receiver 类型断言
+
+**典型信号**：
+
+```text
+org.jetbrains.kotlin.backend.common.BackendException: Exception during IR lowering
+java.lang.AssertionError: Dispatch receiver type A is not a subtype of B
+org.jetbrains.kotlin.ir.util.IrUtilsKt.copyValueParametersToStatic
+org.jetbrains.kotlin.backend.common.lower.inline.SyntheticAccessorGenerator
+```
+
+JOOX Android 的 `jugg_scene_JOOX_Android_ext_20260911_144438` 报告确认过一次完整案例：
+
+- 现场使用 Kotlin 2.0.21，失败发生在远程 Gradle 的 `:wemusic:compileDebugKotlin`，调用栈进入 `IncrementalJvmCompilerRunner`。
+- 报错声称 `PlayerGeneralSongInfoFragment` 不是 `AbsPlayerFragment` 的子类型，但 APK/Dex 中的实际继承链为 `PlayerGeneralSongInfoFragment -> AbsPlayerPagerSubCellFragment -> AbsPlayerFragment`，继承关系合法。
+- 前一轮 Jugg 增量编译在修改 `AbsPlayerFragment.kt` 后，已正确级联编译中间类和 `PlayerGeneralSongInfoFragment.kt` 并成功，现有证据不支持稳定的影响分析漏编。
+- 失败的 Gradle 构建有大量 task 处于 `UP-TO-DATE`；执行 clean 后再次运行同一 Gradle 配置成功，现有证据不支持稳定的源码语义错误。
+- `PlayerGeneralSongInfoFragment` 的 Kotlin SMAP 包含来自 `AbsPlayerFragment.kt` 的内联代码映射，与异常栈中的 synthetic accessor lowering 边界一致。
+
+**当前结论**：
+
+- 高置信度根因是 Kotlin JVM IR compiler 的间歇性内部缺陷。公开问题 [KT-73245](https://youtrack.jetbrains.com/issue/KT-73245) 与现场异常、Kotlin 版本和间歇性表现高度一致，并被归并到 [KT-51944](https://youtrack.jetbrains.com/issue/KT-51944)。
+- 中高置信度触发因素是 Gradle/Kotlin 增量编译状态。远程源码同步排除普通 `build` 目录，远端 Gradle/Kotlin 编译产物会跨构建保留；基类、间接子类及内联访问连续变化时，可能更容易暴露该 compiler 缺陷。
+- 报告未包含失败瞬间的远端 Kotlin cache，无法确认具体损坏的 cache 条目，也无法区分确定性的脏增量状态与非确定性的 compiler race。
+- 现场未发现 `-Xbackend-threads`，不能直接认定启用了 parallel IR backend。KT-51944 仍未关闭，升级 Kotlin 只能作为候选验证，不能宣称必然修复。
+
+**反证边界**：
+
+- 若 clean 后仍能稳定复现，应重新检查源码、compiler plugin 和固定 toolchain 兼容问题，降低增量状态假设的权重。
+- 若 Dex/源码继承链确实不满足断言中的父子关系，则属于真实类型或混合版本输入问题，不能套用本案例。
+- 若日志显示相关基类或中间类未同步到远端，应优先调查同步输入，不把同步缺失解释为 compiler bug。
+
+**下次复现时的最小保全与区分步骤**：
+
+1. clean 前保存完整 Jugg 报告，并备份远端模块的 `build/kotlin/compileDebugKotlin`、`build/tmp/kotlin-classes`、项目 `.gradle/kotlin` 和 `.kotlin/errors`；路径不存在时记录未生成，不伪造缺失原因。
+2. 不修改源码，原命令直接重试一次；无修改即恢复会增强非确定性 compiler bug 或 race 判断。
+3. 尝试定向执行 `./gradlew :<module>:compileDebugKotlin -Pkotlin.incremental=false`；仅关闭 Kotlin incremental 后恢复会增强增量状态判断。
+4. 再尝试模块级 `:<module>:clean`，判断是否无需清理整个工程。
+5. 保存 `--info` 输出或实际 Kotlin compiler 参数，确认 dirty sources、classpath、compiler plugin 和 `-Xbackend-threads`。
+
+在没有上述复现证据前，不建议仅凭该异常自动执行全工程 clean。若后续需要 Jugg 侧降级，应只精确匹配该异常链，并优先评估一次模块级 clean 或关闭 Kotlin incremental 的有界重试，避免掩盖其它 IR lowering 错误。
 
 ---
 

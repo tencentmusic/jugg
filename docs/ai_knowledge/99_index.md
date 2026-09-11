@@ -1,6 +1,6 @@
 # AI 使用指引（任务路由版）
 
-> 最后核对：2026-09-05
+> 最后核对：2026-09-11
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -52,6 +52,7 @@
 | 工具类能力（apk/git/logger/server） | `98_code_map.md`, `05_utilities.md` | `main/.../apk`, `main/.../git`, `main/.../logger`, `main/.../server` |
 | **release 增量编译后注解/反射/类引用 crash** | `98_code_map.md`, `02_compile_obfuscation.md` | `DexObfuscator.kt`, `DexMinifyCompiler.kt` |
 | **插件运行时排查**（IDE 卡顿 / 启动期卡死 / 编译异常 / DB 问题） | `09_plugin_runtime_debug.md`，再按症状路由读取专题 | `JuggPathManager`, `DeployFileManager`, `TaskRunnerManager`, `ConstRefEngine` |
+| **Kotlin IR lowering / `copyValueParametersToStatic` / `Dispatch receiver type` / clean 后恢复** | `09_plugin_runtime_debug.md` §4.4, `02_compile_source.md` | 先区分真实继承错误、远端同步输入与 Kotlin/Gradle 增量状态 |
 | 知识库维护 / 专题文档重整 | `97_maintenance_manual.md`, `99_index.md`, `98_code_map.md` | `docs/ai_knowledge/*` |
 | Wiki 架构 / 本地运行 / 发布 | `10_wiki_architecture.md`, `97_maintenance_manual.md` | `docs/wiki/package.json`, `docs/wiki/.vitepress/config.mts` |
 | Wiki 文章写作 / Markdown 元素 | `10_wiki_authoring.md`, `97_maintenance_manual.md` | `docs/wiki/**/*.md` |
