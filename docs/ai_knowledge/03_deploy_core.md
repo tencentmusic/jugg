@@ -250,7 +250,7 @@ JuggDeployer.optimisticSwap()
           -> push /data/local/tmp/jugg/direct-overlay-*.zip
           -> 以 no-fallback shell 经 AppSandboxExecutor 执行 apply script，避免非幂等脚本被 ADB fallback 重入
           -> 删除旧 id
-          -> 启动 heartbeat，避免 full push 长时间无输出触发 ADB inactive timeout
+          -> 启动 heartbeat，避免长时间无输出触发 ADB inactive timeout
           -> 删除本次 payload 覆盖的旧文件
           -> full resource push 跳过 base.apk 下逐文件删除，直接 unzip 整批资源；保留先前 Dex 与其他未更新 overlay
           -> base install 空 overlay id 场景跳过 payload cleanup，避免清数据/NO_DIR 首次 full push 生成大量无效 rm 命令
@@ -270,7 +270,7 @@ base install cache 对应的 expected device overlay id 为空字符串；非 ba
 - writer 在修改 overlay 目录前失败：返回 `SKIPPED`，允许 fallback 旧 Apply Changes。
 - writer 已开始修改 overlay 目录后失败，或脚本重入时发现 overlay id 已缺失：返回 `FAILED_DIRTY` 并抛 `DirectOverlayDirtyException`，不再继续旧 Apply Changes，避免半提交状态上做伪回退。
 
-Direct 写入脚本虽然定期输出 heartbeat，仍通过 `execAdbShellScriptNoFallback()` → `invokeAdbShellCmd()` 使用带 `5 SECONDS` 超时参数的 ADB 调用。Heartbeat 不等于无限等待；超时或断连仍需按写入状态处理失败。Direct 权限模式在命令退出时递归修复整个 `code_cache`，这是随文件量增长的性能检查项，不改变本轮整批部署或失败契约。
+Direct Overlay 写入脚本定期输出 heartbeat，并通过 `execAdbShellScriptNoFallback()` → `invokeAdbShellCmd()` 使用带 `5 SECONDS` 连续无输出超时参数的 ADB 调用。heartbeat 会延续仍有连接的长写入，但不屏蔽断连和传输错误，也不提供独立的总执行时长上限。heartbeat 的 `sleep` 子进程不继承 ADB 输入输出，脚本结束时立即终止 heartbeat shell，避免继续占用 ADB 输出管道和产生固定退出耗时。Direct 权限模式在命令退出时递归修复整个 `code_cache`，这是随文件量增长的性能检查项，不改变本轮整批部署或失败契约。
 
 ### 6.4 Direct app sandbox 与官方 Apply Changes 的能力边界
 

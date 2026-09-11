@@ -111,9 +111,10 @@ open class DirectOverlayWriter(
     }
 
     private fun buildHeartbeatScript(): String {
-        return "heartbeat() { while true; do echo \"$MARKER HEARTBEAT\"; sleep 1; done; }; " +
+        return "heartbeat() { while true; do echo \"$MARKER HEARTBEAT\"; " +
+                "sleep 1 </dev/null >/dev/null 2>&1 || break; done; }; " +
                 "heartbeat & heartbeat_pid=\$!; " +
-                "trap \"kill \$heartbeat_pid 2>/dev/null || true\" EXIT; "
+                "trap \"kill -KILL \$heartbeat_pid 2>/dev/null || true\" EXIT; "
     }
 
     private fun buildPreApplyGuardScript(request: DirectOverlayWriteRequest): String {

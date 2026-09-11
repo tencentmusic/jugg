@@ -46,8 +46,8 @@ class DirectOverlayWriterTest {
         assertTrue(adb.lastScript.contains("overlay_dir=code_cache/.overlay"))
         assertTrue(adb.lastScript.contains("\$overlay_dir/id"))
         assertTrue(adb.lastScript.contains("__JUGG_DIRECT_OVERLAY__ HEARTBEAT"))
-        assertTrue(adb.lastScript.contains("heartbeat_pid=\$!"))
-        assertTrue(adb.lastScript.contains("trap \"kill \$heartbeat_pid 2>/dev/null || true\" EXIT"))
+        assertTrue(adb.lastScript.contains("sleep 1 </dev/null >/dev/null 2>&1 || break"))
+        assertTrue(adb.lastScript.contains("trap \"kill -KILL \$heartbeat_pid 2>/dev/null || true\" EXIT"))
         assertTrue(adb.lastScript.contains("unzip -oq"))
         assertTrue(adb.lastScript.contains("-exec chmod 0444 {} +"))
         assertTrue(adb.commands.contains("mkdir -p /data/local/tmp/jugg"))
@@ -138,6 +138,10 @@ class DirectOverlayWriterTest {
         assertEquals(DirectOverlayWriteResult.SUCCESS, writer.write(request))
 
         val script = adb.lastScript
+        assertTrue(script.contains("__JUGG_DIRECT_OVERLAY__ HEARTBEAT"))
+        assertTrue(script.contains("heartbeat_pid=\$!"))
+        assertTrue(script.contains("sleep 1 </dev/null >/dev/null 2>&1 || break"))
+        assertTrue(script.contains("trap \"kill -KILL \$heartbeat_pid 2>/dev/null || true\" EXIT"))
         val removeDexIndex = script.indexOf("rm -f \"\$overlay_dir\"/\"com.example.Foo.dex\"")
         val unzipIndex = script.indexOf("unzip -oq")
         assertTrue(removeDexIndex >= 0)
