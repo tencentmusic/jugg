@@ -194,6 +194,32 @@ class DeployRetryHandlerTest {
     }
 
     @Test
+    fun `tryRetry should redeploy with hot fix fallback when resource requires application restart`() {
+        val device = Mockito.mock(IDevice::class.java)
+        val deployOptions = DeployOptions(device = device, isLastDevice = true)
+        val deployData = JuggDeployData.forInstall(emptyList())
+        val reason = "Adding or renaming a resource requires an application restart."
+
+        val deployRunHost = RecordingDeployRunHost(DeployTaskResult(isSuccess = true, costTime = 3L))
+        val handler = createHandler(
+            deployRunHost = deployRunHost,
+            deployTargetManager = foregroundAwareTargetManager(device, isForeground = false),
+        )
+
+        val result = handler.tryRetry(
+            deployOptions,
+            finalIsFallbackAllHotFix = false,
+            deployData = deployData,
+            reason = reason,
+        )
+
+        assertEquals(deployRunHost.lastResult, result)
+        assertEquals(deployData.toFallbackToHotFixData(), deployRunHost.lastRedeployOptions?.retryDeployData)
+        assertEquals(reason, deployRunHost.lastRedeployOptions?.retryReason)
+        assertEquals(true, deployRunHost.lastRedeployOptions?.isSkipExceptOverlayCheck)
+    }
+
+    @Test
     fun `tryRetry should prefer direct overlay retry when legacy jvmti compat issue is detected`() {
         val device = Mockito.mock(IDevice::class.java)
         val deployOptions = DeployOptions(device = device, isLastDevice = true)

@@ -49,7 +49,7 @@ class DeployRetryHandler(
         // through we can detect it in some way, but it's more simple and good enough to fall back to HOT_FIX.
         val isUnmodifiableClass = reason.contains("JVMTI_ERROR_UNMODIFIABLE_CLASS")
         // something wrong with DeployDataGenerator... fall back too
-        val isRequiresAppRestart = reason.contains("app restart")
+        val isRequiresAppRestart = reason.contains("app restart") || reason.contains("application restart")
         // seems like a bug of some devices e.g. OPPO Reno.
         val isRedifinerError = reason.contains("R+ Device should have FULL debugger swap support")
         // seems like a bug of deploy service, just retry
