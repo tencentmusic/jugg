@@ -39,3 +39,11 @@ Before claiming a root cause, validating a suspected fix, or concluding that the
 5. Keep the conclusion within the observed version, time, host, and execution boundaries. Current HEAD does not automatically represent the reported runtime version.
 
 These gates constrain evidence quality, not the number of files, tool calls, hypotheses, or reasoning tokens.
+
+## Missing Evidence Follow-up
+
+When the investigation cannot determine the cause because critical project evidence is unavailable, read and use [references/information-collection-template.md](references/information-collection-template.md) to prepare the Issue follow-up.
+
+Use the template only after completing the available investigation. Clearly separate a naturally reproduced failure from an artificially constructed downstream state, and summarize what was attempted, what was observed, what remains unknown, and why more project evidence is required.
+
+Let the reporter's Agent choose the reproduction strategy based on the project state and available tools. Specify the required evidence and deliverables without prescribing a workspace or mutation strategy. Do not ask the Agent to upload artifacts without the reporter's action.
