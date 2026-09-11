@@ -6,6 +6,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Computable
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
+import com.sickworm.intellij.jugg.deploy.AppAbiCache
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.deploy.direct.InstallerDeviceAbiResolver
 import com.sickworm.intellij.jugg.deploy.run.utils.AdbLogWrapper
@@ -20,6 +21,7 @@ class LaunchContextFactory(
     private val asDeployerCompat: IAsDeployerCompat,
     private val deviceAdbFactory: (IDevice, Logger) -> IDeviceAdb,
     private val logger: Logger,
+    private val appAbiCache: AppAbiCache,
 ) {
 
     fun create(
@@ -67,6 +69,7 @@ class LaunchContextFactory(
             isAllowDirectOverlayDeploy = isAllowDirectOverlayDeploy,
             forceDirectOverlayDeploy = forceDirectOverlayDeploy,
             customApkInstallScript = customApkInstallScript,
+            appAbiCache = appAbiCache,
         )
     }
 }

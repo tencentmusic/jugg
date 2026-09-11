@@ -7,6 +7,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Computable
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
+import com.sickworm.intellij.jugg.deploy.AppAbiCache
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.mock.TestGlobal
@@ -119,6 +120,7 @@ class LaunchContextFactoryTest {
             asDeployerCompat = asDeployerCompat,
             deviceAdbFactory = { _: IDevice, _: Logger -> adb },
             logger = logger,
+            appAbiCache = AppAbiCache(),
         )
     }
 

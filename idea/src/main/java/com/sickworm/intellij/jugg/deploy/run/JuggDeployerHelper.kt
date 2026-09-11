@@ -90,6 +90,7 @@ class JuggDeployerHelper(
 ) : IJuggDeployHelperRunHost {
 
     private val deployRunHostBridge = JuggDeployHelperRunHostBridge()
+    private val appAbiCache = AppAbiCache()
 
     private val deployStateRecover: DeployStateRecover = stateRecover ?: DeployStateRecover(
         project = project,
@@ -199,6 +200,7 @@ class JuggDeployerHelper(
             asDeployerCompat = asDeployerCompat,
             deviceAdbFactory = deviceAdbFactory,
             logger = logger,
+            appAbiCache = appAbiCache,
         )
         val baseLaunchContext = launchContextFactory.create(
             device = device,

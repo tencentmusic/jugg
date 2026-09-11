@@ -202,14 +202,40 @@ class JuggDeployer(
             emptyList()
         }
         val processArch = adbClient.getArch(pids)
-        val apkInfoReader = ApkInfoReader(logger.logger)
-        val arch = AppAbiResolver(deviceAdb, logger.logger).resolve(
-            packageName = packageName,
-            processArch = processArch,
-            apkArch = apkInfoReader.getArch(newFiles),
-            use32BitAbi = apkInfoReader.isUse32BitAbi(newFiles),
-            deviceAbi = launchContext.deviceAbi,
-        )
+        val resolveAbiStartNanos = System.nanoTime()
+        val appAbiCache = launchContext.appAbiCache
+        val cacheKey = appAbiCache.createKey(deviceSerial, packageName, argPaths)
+        val cachedArch = if (processArch == Deploy.Arch.ARCH_UNKNOWN) appAbiCache.get(cacheKey) else null
+        val resolution = if (processArch != Deploy.Arch.ARCH_UNKNOWN) {
+            AppAbiResolver(deviceAdb, logger.logger).resolveDetailed(
+                packageName = packageName,
+                processArch = processArch,
+                apkArch = Deploy.Arch.ARCH_UNKNOWN.name,
+                use32BitAbi = false,
+                deviceAbi = launchContext.deviceAbi,
+            ).also {
+                appAbiCache.put(cacheKey, it.arch)
+            }
+        } else if (cachedArch != null) {
+            AppAbiResolver.Resolution(cachedArch, "cache", true)
+        } else {
+            val apkInfoReader = ApkInfoReader(logger.logger)
+            AppAbiResolver(deviceAdb, logger.logger).resolveDetailed(
+                packageName = packageName,
+                processArch = processArch,
+                apkArch = apkInfoReader.getArch(newFiles),
+                use32BitAbi = apkInfoReader.isUse32BitAbi(newFiles),
+                deviceAbi = launchContext.deviceAbi,
+            ).also {
+                if (it.cacheable) {
+                    appAbiCache.put(cacheKey, it.arch)
+                }
+            }
+        }
+        val arch = resolution.arch
+        logger.logger.debug("Resolve app ABI: packageName=$packageName, arch=$arch" +
+                ", source=${resolution.source}, cacheHit=${cachedArch != null}" +
+                ", cost=${(System.nanoTime() - resolveAbiStartNanos) / 1_000_000}ms")
         logger.info("packageName: $packageName, pids: $pids, processArch: $processArch" +
                 ", arch: $arch")
 

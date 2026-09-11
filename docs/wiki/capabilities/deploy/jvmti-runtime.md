@@ -33,14 +33,14 @@ Jugg can use the process architecture directly for a running app. A stopped app 
 
 ```text
 running process architecture
-  -> primaryCpuAbi of the installed package
   -> Manifest android:use32bitAbi
   -> ARM native libraries across all base/split APKs
+  -> primaryCpuAbi of the installed package
   -> device primary ABI
   -> still unknown: use the 64-bit fallback
 ```
 
-APK evidence participates only when aggregating every split identifies one ARM bitness. The evidence remains unknown when the APKs contain both 32-bit and 64-bit libraries or no ARM library. A resource split without native libraries does not override valid evidence from another APK.
+APK evidence participates only when aggregating every split identifies one ARM bitness. The evidence remains unknown when the APKs contain both 32-bit and 64-bit libraries or no ARM library. A resource split without native libraries does not override valid evidence from another APK. Jugg queries the installed package through ADB only when neither the Manifest nor the APKs determine the bitness, avoiding extra deployment latency when local evidence is already sufficient.
 
 Jugg currently supports only `armeabi`, `armeabi-v7a`, and `arm64-v8a`; x86 is not supported. An Agent of the current version already present in the app sandbox is not replaced automatically. If an app ABI change leaves an Agent for the old architecture, reinstalling the app clears that state.
 

@@ -113,6 +113,12 @@ class JuggDeployerHelperDeployFlowTest {
             "expected Apply Changes fallback after direct overlay push failure",
             fixture.compatBoundary.optimisticSwapInvokeCount >= 1,
         )
+        assertEquals(
+            1,
+            fixture.virtualDevice.shellCommands.count {
+                it == "dumpsys package ${DeployFlowOverlaySeed.packageName()}"
+            },
+        )
     }
 
     @Test
@@ -386,6 +392,12 @@ class JuggDeployerHelperDeployFlowTest {
             assertTrue("deploy failed: ${result.failedReason}", result.isSuccess)
             assertEquals(3, fixture.compatBoundary.optimisticSwapInvokeCount)
             assertEquals(listOf(false, false, true), fixture.compatBoundary.optimisticSwapRestartArgs)
+            assertEquals(
+                1,
+                fixture.virtualDevice.shellCommands.count {
+                    it == "dumpsys package ${DeployFlowOverlaySeed.packageName()}"
+                },
+            )
         }
     }
 

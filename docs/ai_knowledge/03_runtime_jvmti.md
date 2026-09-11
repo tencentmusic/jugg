@@ -17,7 +17,8 @@
 
 | 类/文件 | 路径 | 作用 |
 |---|---|---|
-| `AppAbiResolver` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/AppAbiResolver.kt` | 在部署入口聚合进程、已安装包、Manifest、APK 和设备证据，解析目标 ARM 位数 |
+| `AppAbiResolver` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/AppAbiResolver.kt` | 在部署入口聚合进程、Manifest、APK、已安装包和设备证据，解析目标 ARM 位数 |
+| `AppAbiCache` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/AppAbiCache.kt` | 按设备、包名和完整 APK 文件指纹复用 ABI 解析结果，并在 APK 变化时自动淘汰旧结果 |
 | `ApkInfoReader` | `main/src/main/java/com/sickworm/intellij/jugg/apk/ApkInfoReader.kt` | 跨 base/split APK 聚合 ARM native library，并读取 `android:use32bitAbi` |
 | `JuggJvmtiAgentManager` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/JuggJvmtiAgentManager.kt` | 管理 Jugg agent bundle 的 push、app sandbox setup、attach 与清理 |
 | `JuggJvmtiAgentManagerHelper` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/JuggJvmtiAgentManagerHelper.kt` | 决定部署后是否需要补 push agent，读取 flag 文件判断 JVMTI 可用性 |
@@ -80,7 +81,9 @@ push agent 放在部署之后，是为了避免 Android Studio Apply Changes 首
 
 `AppSandboxExecutor` 统一包装 setup script：Apply Changes 兼容应用使用 `run-as`；不兼容应用在真实 `dataDir` 以本轮固定的普通 shell、root adbd 或非交互 `su` 模式执行。普通文件修正为既有 `code_cache` 的 owner 与动态 MCS context，JVMTI `.so` 修正为 appdomain 可执行的 `apk_data_file:s0`；修复阶段输出不会混入 setup script 的 `success`/`failed` 结果。上层 agent manager 不再分别拼装权限命令。
 
-部署入口只解析一次目标 ARM 位数，并把结果传给 Direct app sandbox 与后续 Apply Changes transport。优先级依次为：运行中进程、已安装包的 `primaryCpuAbi`、Manifest `android:use32bitAbi`、全部 base/split APK 中唯一可确定的 ARM native library 位数、设备主 ABI，最后保留 64 位缺省值。APK 同时包含 32/64 位 ARM library 或完全没有 ARM library 时保持 unknown，避免单个无 native library 的 resource split 覆盖其它 APK 的有效证据。Direct app sandbox 准备 startup agent 时必须复用这个结果，不能在已停止进程上再次调用进程架构探测。
+部署入口只解析一次目标 ARM 位数，并把结果传给 Direct app sandbox 与后续 Apply Changes transport。优先级依次为：运行中进程、Manifest `android:use32bitAbi`、全部 base/split APK 中唯一可确定的 ARM native library 位数、已安装包的 `primaryCpuAbi`、设备主 ABI，最后保留 64 位缺省值。APK 同时包含 32/64 位 ARM library 或完全没有 ARM library 时保持 unknown，避免单个无 native library 的 resource split 覆盖其它 APK 的有效证据。只有本地 Manifest 和 APK 都无法判断时才执行 `dumpsys package`，避免确定性本地证据已经足够时仍承担同步 ADB 查询耗时。Direct app sandbox 准备 startup agent 时必须复用这个结果，不能在已停止进程上再次调用进程架构探测。
+
+ABI 结果缓存由 `JuggDeployerHelper` 持有，key 为 device serial、packageName，以及排序后的全部 APK `absolute path + size + mtime`。同一 APK 集合在多个部署切片、内部降级和后续增量部署中只解析一次；本地证据不足时，installed package 在该缓存周期内至多查询一次。APK 指纹变化后会重新解析，并淘汰同设备同包名的旧结果。`dumpsys package` 抛出异常时仍允许本轮使用后续证据降级，但不缓存该结果，设备恢复后可重新读取更强证据。调试日志分别打印 installed package 查询耗时，以及整段 ABI 解析的 `source`、`cacheHit` 和耗时。
 
 ### 4.2 失败重试中的兼容检测
 

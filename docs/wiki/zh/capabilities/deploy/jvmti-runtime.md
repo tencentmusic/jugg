@@ -33,14 +33,14 @@ JVMTI Runtime 是 Jugg 部署后的运行时支撑能力。它负责把 Jugg age
 
 ```text
 运行中进程架构
-  -> 已安装包的 primaryCpuAbi
   -> Manifest android:use32bitAbi
   -> 全部 base/split APK 中的 ARM native library
+  -> 已安装包的 primaryCpuAbi
   -> 设备主 ABI
   -> 仍然未知：使用 64 位兜底
 ```
 
-APK 只有在全部 split 聚合后能够确定唯一 ARM 位数时才参与选择。同时包含 32 位和 64 位 library，或完全没有 ARM library 时，APK 证据保持未知；不含 native library 的资源 split 不会覆盖其它 APK 的有效结果。
+APK 只有在全部 split 聚合后能够确定唯一 ARM 位数时才参与选择。同时包含 32 位和 64 位 library，或完全没有 ARM library 时，APK 证据保持未知；不含 native library 的资源 split 不会覆盖其它 APK 的有效结果。只有 Manifest 和 APK 都无法判断时，Jugg 才会通过 ADB 查询已安装包，避免本地证据已经足够时仍增加部署等待时间。
 
 当前只支持 `armeabi`、`armeabi-v7a` 和 `arm64-v8a`，不兼容 x86。App sandbox 中已经存在同版本 Agent 时不会主动替换；App ABI 发生变化后如仍残留旧架构 Agent，重装 App 可以清理该状态。
 

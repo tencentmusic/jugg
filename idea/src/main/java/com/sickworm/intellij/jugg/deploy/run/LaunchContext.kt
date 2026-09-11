@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.deploy.run
 import com.android.ddmlib.IDevice
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
+import com.sickworm.intellij.jugg.deploy.AppAbiCache
 import com.sickworm.intellij.jugg.deploy.AppSandboxExecutor
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 
@@ -25,6 +26,7 @@ class LaunchContext(
     /** Non-blank when ordinary app APK installation uses a project script. */
     val customApkInstallScript: String = "",
     private val appSandboxExecutors: MutableMap<String, AppSandboxExecutor> = mutableMapOf(),
+    internal val appAbiCache: AppAbiCache = AppAbiCache(),
 ) {
     val isDirectOverlayEnabled: Boolean
         get() = isDirectOverlaySettingsEnabled &&
@@ -68,6 +70,7 @@ class LaunchContext(
             forceDirectOverlayDeploy = forceDirectOverlayDeploy,
             customApkInstallScript = customApkInstallScript,
             appSandboxExecutors = appSandboxExecutors,
+            appAbiCache = appAbiCache,
         )
     }
 }
