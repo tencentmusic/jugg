@@ -13,8 +13,9 @@ Jugg is an open-source Android Studio plugin from the Tencent Music engineering 
 Jugg only requires an IDE plugin; it does not modify Gradle scripts or require SDK integration. A Jugg Run Configuration coexists with the native App Run Configuration: select Jugg for incremental compilation and deployment, or switch back to the native App configuration at any time for the original Android Studio build flow. The two run completely independently. When a project change falls outside the incremental path, Jugg itself falls back to Gradle and establishes a new baseline.
 
 - [Download the latest stable release](https://github.com/tencentmusic/jugg/releases/latest)
-- [Jugg Wiki](https://tencentmusic.github.io/jugg/)
+- [Technical overview](https://juejin.cn/post/7680996030843125796)
 - [Watch the demo](https://www.bilibili.com/video/BV1W3411C7PU/)
+- [Jugg Wiki](https://tencentmusic.github.io/jugg/)
 
 ## Community
 

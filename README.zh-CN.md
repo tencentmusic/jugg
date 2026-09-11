@@ -13,8 +13,9 @@ Jugg 是腾讯音乐技术团队开源的 Android Studio 插件。它复用最�
 Jugg 仅需安装 IDE 插件，不修改 Gradle 脚本，也不要求工程接入 SDK。Jugg Run Configuration 与原生 App Run Configuration 同时保留：选择 Jugg 配置时使用增量编译与部署；需要原来的 Android Studio 构建流程时，随时切回原生 App 配置即可，两者完全独立运行。当工程变化超出增量路径的处理范围时，Jugg 自身也会回退 Gradle 构建并重新建立基线。
 
 - [下载最新稳定版](https://github.com/tencentmusic/jugg/releases/latest)
-- [Jugg Wiki](https://tencentmusic.github.io/jugg/zh/)
+- [技术方案介绍](https://juejin.cn/post/7680996030843125796)
 - [观看演示视频](https://www.bilibili.com/video/BV1W3411C7PU/)
+- [Jugg Wiki](https://tencentmusic.github.io/jugg/zh/)
 
 ## 社区交流
 
