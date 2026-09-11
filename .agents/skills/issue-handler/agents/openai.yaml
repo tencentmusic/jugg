@@ -1,4 +1,4 @@
 interface:
   display_name: "Issue Handler"
-  short_description: "Investigate, fix, and validate Jugg issues"
-  default_prompt: "Use $issue-handler to investigate the supplied Jugg issue and determine its actual cause from the available evidence."
+  short_description: "Investigate Jugg bugs and assess feature requests"
+  default_prompt: "Use $issue-handler to classify and handle the supplied Jugg issue from the available evidence."

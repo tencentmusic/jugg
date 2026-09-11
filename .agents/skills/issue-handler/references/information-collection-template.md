@@ -1,6 +1,6 @@
-# Issue Information Collection Template
+# Bug Information Collection Template
 
-Use this template when the available evidence cannot explain the project-specific cause. Adapt it to the actual investigation instead of copying placeholders or unsupported claims.
+Use this template only when the available evidence cannot explain the project-specific cause of a bug report. Never use it for a pure feature request. Adapt it to the actual investigation instead of copying placeholders or unsupported claims.
 
 ## Opening
 
