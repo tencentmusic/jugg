@@ -352,7 +352,12 @@ bool LoadInstrumentationJarForApp(jvmtiEnv* jvmti, JNIEnv* jni,
         "com/sickworm/intellij/jugg/instrument/DirectActivityRelauncher");
     if (relauncher != nullptr && !jni->ExceptionCheck()) {
         jni->DeleteLocalRef(relauncher);
-        return true;
+        jclass dex_utility = jni->FindClass(
+            "com/sickworm/intellij/jugg/instrument/DexUtility");
+        if (dex_utility != nullptr && !jni->ExceptionCheck()) {
+            jni->DeleteLocalRef(dex_utility);
+            return true;
+        }
     }
     jni->ExceptionClear();
     const std::string jar_path = GetInstrumentJarPath(app_data_dir);

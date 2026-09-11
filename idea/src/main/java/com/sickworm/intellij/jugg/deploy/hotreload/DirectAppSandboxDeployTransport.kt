@@ -13,6 +13,7 @@ import com.sickworm.intellij.jugg.deploy.direct.DirectOverlayStateChecker
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlayWriteRequestBuilder
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlayWriteResult
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlayWriter
+import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.deploy.run.JuggOverlayId
@@ -119,8 +120,8 @@ class DirectAppSandboxDeployTransport(
         overlayId: JuggOverlayId,
     ): DirectAppSandboxDeployResult {
         val refreshResources = data.overlays.isNotEmpty()
-        if (!isPureHotReload(data) && !isResourceHotReload(data)) {
-            logger.info("Direct app sandbox changes require app restart after overlay commit.")
+        restartReason(data)?.let { reason ->
+            logger.info(reason)
             return DirectAppSandboxDeployResult(overlayId, needsRestart = true)
         }
         if (refreshResources && launchContext.deviceAdb.api < 30) {
@@ -129,10 +130,17 @@ class DirectAppSandboxDeployTransport(
         }
         val pid = findMainProcessPid(packageName, pids)
         if (pid == null) {
+            if (!hasRuntimeChanges(data)) {
+                logger.debug("Direct app sandbox completed with no running process or runtime changes.")
+                return DirectAppSandboxDeployResult(overlayId, needsRestart = false)
+            }
             logger.info("Direct app sandbox target is not running; restart to load committed overlay.")
             return DirectAppSandboxDeployResult(overlayId, needsRestart = true)
         }
-        val classes = data.hotReloadModifiedClasses.map { clazz ->
+        val newClasses = data.newClasses.map { clazz ->
+            DirectHotReloadClass(clazz.name, clazz.content)
+        }
+        val modifiedClasses = data.hotReloadModifiedClasses.map { clazz ->
             val descriptor = clazz.classNodes.singleOrNull()?.className
             if (descriptor == null) {
                 logger.info("Direct Hot Reload requires one class per dex; restart to load overlay: ${clazz.name}")
@@ -141,33 +149,77 @@ class DirectAppSandboxDeployTransport(
             DirectHotReloadClass(descriptor, clazz.content)
         }
         val hotReloadResult = DirectHotReloadWriter(launchContext.deviceAdb, logger, sandbox)
-            .apply(packageName, pid, classes, refreshResources, data.isNeedRestartActivity)
+            .apply(packageName, pid, newClasses, modifiedClasses, refreshResources, data.isNeedRestartActivity)
         if (hotReloadResult.success) {
             logger.debug("Direct app sandbox Hot Reload succeeded: ${hotReloadResult.detail}")
             return DirectAppSandboxDeployResult(overlayId, needsRestart = false)
         }
-        if (!refreshResources && hotReloadResult.detail.startsWith("ERROR\trestart_activity\t")) {
+        if (!refreshResources && hasClassRuntimeChanges(data) &&
+            hotReloadResult.detail.startsWith("ERROR\trestart_activity\t")) {
             throw DirectOverlayDirtyException(
-                "Direct app sandbox Activity relaunch failed after class redefinition: ${hotReloadResult.detail}",
+                "Direct app sandbox Activity relaunch failed after runtime class changes: ${hotReloadResult.detail}",
             )
         }
-        logger.info("Direct app sandbox Hot Reload fallback to app restart: ${hotReloadResult.detail}")
+        logger.info(runtimeFallbackMessage(hotReloadResult.detail))
         return DirectAppSandboxDeployResult(overlayId, needsRestart = true)
     }
 
-    private fun isPureHotReload(data: JuggDeployData): Boolean {
-        return data.hotReloadModifiedClasses.isNotEmpty() &&
-            data.newClasses.isEmpty() &&
-            data.hotFixModifiedClasses.isEmpty() &&
-            data.overlays.isEmpty() && data.updateApkFiles.isEmpty() &&
-            !data.isNeedRestartApp && !data.isInstall && !data.isCompatDeploy
+    private fun restartReason(data: JuggDeployData): String? {
+        return when {
+            data.hotFixModifiedClasses.isNotEmpty() ->
+                "Direct app sandbox class structure changes require app restart to load the committed overlay."
+            data.updateApkFiles.isNotEmpty() ->
+                "Direct app sandbox APK updates require app restart after overlay commit."
+            data.isRecoverReplayAfterReinstall ->
+                "Direct app sandbox recovery replay requires app restart after overlay commit."
+            data.isCompatDeploy ->
+                "Direct app sandbox compatibility deployment requires app restart after overlay commit."
+            data.isInstall ->
+                "Direct app sandbox installation requires app restart after overlay commit."
+            data.isPushOverlayOnly && !data.isEmpty ->
+                "Direct app sandbox overlay-only deployment requires app restart after overlay commit."
+            data.overlays.any(::isApkRootOverlay) ->
+                "Direct app sandbox APK-root overlay changes require app restart after overlay commit."
+            data.isComposeResourceCompiled && !data.isEmpty ->
+                "Direct app sandbox Compose resource changes require app restart after overlay commit."
+            else -> null
+        }
     }
 
-    private fun isResourceHotReload(data: JuggDeployData): Boolean {
-        return data.overlays.isNotEmpty() &&
-            data.newClasses.isEmpty() && data.hotFixModifiedClasses.isEmpty() &&
-            data.updateApkFiles.isEmpty() &&
-            !data.isNeedRestartApp && !data.isInstall && !data.isCompatDeploy
+    private fun isApkRootOverlay(item: DeployItem): Boolean {
+        return !item.name.startsWith("res/") &&
+            !item.name.startsWith("assets/") &&
+            item.name != "resources.arsc"
+    }
+
+    private fun hasRuntimeChanges(data: JuggDeployData): Boolean {
+        return hasClassRuntimeChanges(data) || data.overlays.isNotEmpty()
+    }
+
+    private fun hasClassRuntimeChanges(data: JuggDeployData): Boolean {
+        return data.newClasses.isNotEmpty() || data.hotReloadModifiedClasses.isNotEmpty()
+    }
+
+    private fun runtimeFallbackMessage(detail: String): String {
+        if (detail.startsWith("ERROR\tdefine_new_classes\t")) {
+            val cause = detail.split('\t', limit = 4).getOrNull(3)
+                ?.removePrefix("defining new classes failed: ")
+                ?.takeUnless { it.isBlank() || it == "defining new classes failed" }
+            val message = "Direct app sandbox could not add new classes to the running process; restarting the " +
+                    "app to activate the committed class overlay."
+            return cause?.let { "$message Cause: $it" } ?: message
+        }
+        val missingClass = when {
+            detail.startsWith("CLASS_NOT_FOUND\t") -> detail.substringAfter('\t')
+            detail.startsWith("MISSING\t") -> detail.substringAfter('\t')
+            else -> null
+        }
+        if (missingClass != null) {
+            val className = missingClass.removePrefix("L").removeSuffix(";").replace('/', '.')
+            return "Direct app sandbox could not redefine $className because it is not loaded in the running " +
+                    "process; restarting the app to activate the committed class overlay."
+        }
+        return "Direct app sandbox Hot Reload fallback to app restart: $detail"
     }
 
     private fun findMainProcessPid(packageName: String, knownPids: List<Int>): Int? {

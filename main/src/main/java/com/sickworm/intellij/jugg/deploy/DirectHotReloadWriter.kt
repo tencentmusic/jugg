@@ -21,12 +21,14 @@ class DirectHotReloadWriter(
     fun apply(
         packageName: String,
         pid: Int,
-        classes: List<DirectHotReloadClass>,
+        newClasses: List<DirectHotReloadClass>,
+        modifiedClasses: List<DirectHotReloadClass>,
         refreshResources: Boolean,
         restartActivity: Boolean,
     ): DirectHotReloadResult {
-        if (classes.size > MAX_CLASS_COUNT || classes.isEmpty() && !refreshResources) {
-            return DirectHotReloadResult(false, "invalid class count: ${classes.size}")
+        val classCount = newClasses.size + modifiedClasses.size
+        if (classCount > MAX_CLASS_COUNT) {
+            return DirectHotReloadResult(false, "invalid class count: $classCount")
         }
         if (sandbox.mode == AppSandboxExecutor.Mode.RUN_AS || sandbox.mode == AppSandboxExecutor.Mode.UNAVAILABLE) {
             return DirectHotReloadResult(false, "direct app sandbox unavailable")
@@ -37,7 +39,7 @@ class DirectHotReloadWriter(
         val archive = File.createTempFile("jugg-hot-reload-", ".zip")
         var requestCompleted = false
         try {
-            writeArchive(archive, classes, refreshResources, restartActivity)
+            writeArchive(archive, newClasses, modifiedClasses, refreshResources, restartActivity)
             stageRequest(archive, remoteZip, requestDir)?.let {
                 return it
             }
@@ -99,7 +101,8 @@ class DirectHotReloadWriter(
 
     private fun writeArchive(
         file: File,
-        classes: List<DirectHotReloadClass>,
+        newClasses: List<DirectHotReloadClass>,
+        modifiedClasses: List<DirectHotReloadClass>,
         refreshResources: Boolean,
         restartActivity: Boolean,
     ) {
@@ -109,26 +112,45 @@ class DirectHotReloadWriter(
                 append(PROTOCOL).append('\n')
                 append(REFRESH_RESOURCES).append('\t').append(if (refreshResources) 1 else 0).append('\n')
                 append(RESTART_ACTIVITY).append('\t').append(if (restartActivity) 1 else 0).append('\n')
-                classes.forEachIndexed { index, clazz ->
-                    require(DESCRIPTOR_PATTERN.matches(clazz.descriptor)) {
-                        "Invalid class descriptor: ${clazz.descriptor}"
+                newClasses.forEachIndexed { index, clazz ->
+                    require(clazz.name.isNotBlank() && clazz.name.none { it == '\t' || it == '\n' || it == '\r' }) {
+                        "Invalid class name: ${clazz.name}"
                     }
-                    require(clazz.dex.isNotEmpty() && clazz.dex.size <= MAX_DEX_SIZE) {
-                        "Invalid dex size for ${clazz.descriptor}: ${clazz.dex.size}"
+                    totalSize = validateDex(clazz, totalSize)
+                    append(NEW_CLASS).append('\t').append(clazz.name).append('\t')
+                        .append("dex/new/$index.dex").append('\n')
+                }
+                modifiedClasses.forEachIndexed { index, clazz ->
+                    require(DESCRIPTOR_PATTERN.matches(clazz.name)) {
+                        "Invalid class descriptor: ${clazz.name}"
                     }
-                    totalSize += clazz.dex.size
-                    require(totalSize <= MAX_TOTAL_DEX_SIZE) { "Hot Reload request is too large" }
-                    append(clazz.descriptor).append('\t').append("dex/$index.dex").append('\n')
+                    totalSize = validateDex(clazz, totalSize)
+                    append(MODIFIED_CLASS).append('\t').append(clazz.name).append('\t')
+                        .append("dex/modified/$index.dex").append('\n')
                 }
             }
             zip.putNextEntry(ZipEntry("request.txt"))
             zip.write(request.toByteArray())
             zip.closeEntry()
-            classes.forEachIndexed { index, clazz ->
-                zip.putNextEntry(ZipEntry("dex/$index.dex"))
+            newClasses.forEachIndexed { index, clazz ->
+                zip.putNextEntry(ZipEntry("dex/new/$index.dex"))
                 zip.write(clazz.dex)
                 zip.closeEntry()
             }
+            modifiedClasses.forEachIndexed { index, clazz ->
+                zip.putNextEntry(ZipEntry("dex/modified/$index.dex"))
+                zip.write(clazz.dex)
+                zip.closeEntry()
+            }
+        }
+    }
+
+    private fun validateDex(clazz: DirectHotReloadClass, currentTotalSize: Long): Long {
+        require(clazz.dex.isNotEmpty() && clazz.dex.size <= MAX_DEX_SIZE) {
+            "Invalid dex size for ${clazz.name}: ${clazz.dex.size}"
+        }
+        return (currentTotalSize + clazz.dex.size).also {
+            require(it <= MAX_TOTAL_DEX_SIZE) { "Hot Reload request is too large" }
         }
     }
 
@@ -136,7 +158,8 @@ class DirectHotReloadWriter(
         val line = output.lineSequence().firstOrNull { it.isNotBlank() } ?: return null
         return when {
             line.startsWith("OK\t") -> DirectHotReloadResult(true, line)
-            line.startsWith("ERROR\t") || line.startsWith("MISSING\t") ||
+            line.startsWith("ERROR\t") || line.startsWith("CLASS_NOT_FOUND\t") ||
+                line.startsWith("MISSING\t") ||
                 line.startsWith("UNMODIFIABLE\t") -> DirectHotReloadResult(false, line)
             else -> null
         }
@@ -144,9 +167,11 @@ class DirectHotReloadWriter(
 
     companion object {
         private const val REQUEST_ROOT = "code_cache/jugg_hot_reload"
-        private const val PROTOCOL = "JUGG_HOT_RELOAD_V3"
+        private const val PROTOCOL = "JUGG_HOT_RELOAD_V4"
         private const val REFRESH_RESOURCES = "REFRESH_RESOURCES"
         private const val RESTART_ACTIVITY = "RESTART_ACTIVITY"
+        private const val NEW_CLASS = "NEW"
+        private const val MODIFIED_CLASS = "MODIFIED"
         private const val MARKER = "__JUGG_HOT_RELOAD__"
         private const val RESULT_POLL_COUNT = 50
         private const val RESULT_POLL_INTERVAL_MS = 100L
@@ -158,7 +183,7 @@ class DirectHotReloadWriter(
 }
 
 data class DirectHotReloadClass(
-    val descriptor: String,
+    val name: String,
     val dex: ByteArray,
 )
 

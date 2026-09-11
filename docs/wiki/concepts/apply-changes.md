@@ -27,18 +27,20 @@ installed APK and deployment cache
   -> preserve process, recreate Activity, or restart app according to deployment type
 ```
 
-The deployment cache records the APK snapshot and overlay ID after the last successful installation or Apply Changes. A new local update must be generated from that snapshot. If local records and device state do not match, Jugg performs recovery before accumulating another difference.
+The deployment cache records the APK snapshot and overlay ID after the last successful installation or Apply Changes. A new local update must be generated from that snapshot. Even when the current run has no classes or resources to deliver, Apply Changes still completes overlay ID validation and checkpoint update. An empty payload does not process classes, recreate the Activity, or restart the app. If local records and device state do not match, Jugg performs recovery before accumulating another difference.
 
 ## Classes are divided into online modifications and new content
 
-Apply Changes relies on JVMTI for online modification of loaded classes. After the Apply Changes Agent obtains JVMTI, it performs class redefinition for modified classes, so method-body changes can take effect without restarting the app process. Structural changes to fields, method signatures, or inheritance cannot use this online replacement path. They become Hot Fix data and are loaded after the app restarts. Apps where `run-as` completes fully, the UID is within `10000..19999`, and newly created files use the same SELinux label as the app's existing cache directory reuse this channel directly. When those prerequisites fail but the ordinary shell, root adbd, or non-interactive `su` can fully access the sandbox, Jugg uses its own Agent after persisting the same overlay. See [Jugg JVMTI Agent](./jugg-jvmti-agent.md) for details.
+Apply Changes relies on JVMTI for online modification of loaded classes. After the Apply Changes Agent obtains JVMTI, it performs class redefinition for modified classes, so method-body changes can take effect without restarting the app process. New classes do not use redefinition. The device converts the new DEX from the current run into in-memory DEX elements and appends them after the Application ClassLoader's existing elements. The current process can then load the new classes, while the overlay preserves the same content for a later process start. Structural changes to fields, method signatures, or inheritance cannot use either online path. They become Hot Fix data and are loaded after the app restarts.
+
+Apps where `run-as` completes fully, the UID is within `10000..19999`, and newly created files use the same SELinux label as the app's existing cache directory reuse the Android Studio channel directly. When those prerequisites fail but the ordinary shell, root adbd, or non-interactive `su` can fully access the sandbox, Jugg Direct sandbox persists the same overlay first and then updates the current process with the same new-class and modified-class handling as Apply Changes. See [Jugg JVMTI Agent](./jugg-jvmti-agent.md) for details.
 
 Before deployment, Jugg compares old and new class structures and sends class changes to two Apply Changes input sets.
 
 | Class change | Apply Changes input | Activation boundary |
 |---|---|---|
 | Method-body change with unchanged class structure | Modified class | JVMTI replaces the implementation of the loaded class online |
-| New class | New class | Added to the overlay as new DEX content and loaded by the current or next process |
+| New class | New class | Added to the current Application ClassLoader as in-memory DEX elements and written to the overlay for the next process start |
 | Field, method signature, inheritance, or generic structure change | New class / Hot Fix data | Cannot rely on class redefinition in the current process; loaded after app restart |
 | Class in library DEX, multi-dex, or another location that cannot be replaced online reliably | Hot Fix data | Loaded by the runtime after app restart |
 
@@ -46,7 +48,7 @@ A method-body change being eligible for modified class does not mean that Jugg p
 
 ## Overlays carry resources, assets, and DEX files
 
-Incremental resource compilation outputs local files such as `resources.arsc`, `res/**`, and `assets/**`. New classes and DEX that must be loaded after restart also enter the device overlay. Apply Changes organizes these files by target APK so that content for base APKs, split APKs, and test APKs is written to the corresponding overlay location.
+Incremental resource compilation outputs local files such as `resources.arsc`, `res/**`, and `assets/**`. New classes and DEX needed by later process starts also enter the device overlay. Apply Changes organizes these files by target APK so that content for base APKs, split APKs, and test APKs is written to the corresponding overlay location.
 
 When a deployment baseline receives a resource overlay for the first time, Jugg supplies the complete resource set. The device has no reusable resource overlay yet, so one changed file alone cannot form the complete new resource view. Later deployments can accumulate the current difference only after a trusted resource state exists.
 

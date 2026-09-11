@@ -19,7 +19,8 @@ class DirectHotReloadWriterTest {
         val result = DirectHotReloadWriter(adb, logger, sandbox).apply(
             packageName = "com.example.app",
             pid = 123,
-            classes = listOf(
+            newClasses = emptyList(),
+            modifiedClasses = listOf(
                 DirectHotReloadClass("Lcom/example/Foo;", "dex\n035\u0000".toByteArray()),
             ),
             refreshResources = true,
@@ -27,10 +28,10 @@ class DirectHotReloadWriterTest {
         )
 
         assertFalse(result.success)
-        assertEquals(listOf("request.txt", "dex/0.dex"), adb.zipEntries)
+        assertEquals(listOf("request.txt", "dex/modified/0.dex"), adb.zipEntries)
         assertEquals(
-            "JUGG_HOT_RELOAD_V3\nREFRESH_RESOURCES\t1\nRESTART_ACTIVITY\t1\n" +
-                "Lcom/example/Foo;\tdex/0.dex\n",
+            "JUGG_HOT_RELOAD_V4\nREFRESH_RESOURCES\t1\nRESTART_ACTIVITY\t1\n" +
+                "MODIFIED\tLcom/example/Foo;\tdex/modified/0.dex\n",
             adb.requestText,
         )
         assertTrue(adb.scripts.any { it.contains("code_cache/jugg_hot_reload/") })
@@ -45,7 +46,8 @@ class DirectHotReloadWriterTest {
         DirectHotReloadWriter(adb, logger, sandbox).apply(
             packageName = "com.example.app",
             pid = 123,
-            classes = listOf(
+            newClasses = emptyList(),
+            modifiedClasses = listOf(
                 DirectHotReloadClass("Lcom/example/Foo;", "dex\n035\u0000".toByteArray()),
             ),
             refreshResources = false,
@@ -53,7 +55,7 @@ class DirectHotReloadWriterTest {
         )
 
         assertTrue(adb.requestText.startsWith(
-            "JUGG_HOT_RELOAD_V3\nREFRESH_RESOURCES\t0\nRESTART_ACTIVITY\t0\n",
+            "JUGG_HOT_RELOAD_V4\nREFRESH_RESOURCES\t0\nRESTART_ACTIVITY\t0\n",
         ))
     }
 
@@ -66,14 +68,68 @@ class DirectHotReloadWriterTest {
         DirectHotReloadWriter(adb, logger, sandbox).apply(
             packageName = "com.example.app",
             pid = 123,
-            classes = emptyList(),
+            newClasses = emptyList(),
+            modifiedClasses = emptyList(),
             refreshResources = true,
             restartActivity = true,
         )
 
         assertEquals(listOf("request.txt"), adb.zipEntries)
         assertEquals(
-            "JUGG_HOT_RELOAD_V3\nREFRESH_RESOURCES\t1\nRESTART_ACTIVITY\t1\n",
+            "JUGG_HOT_RELOAD_V4\nREFRESH_RESOURCES\t1\nRESTART_ACTIVITY\t1\n",
+            adb.requestText,
+        )
+    }
+
+    @Test
+    fun `writer should send new classes separately from modified classes`() {
+        val adb = RecordingDirectAdb()
+        val logger = Mockito.mock(Logger::class.java)
+        val sandbox = AppSandboxExecutor(adb, "com.example.app", logger)
+
+        DirectHotReloadWriter(adb, logger, sandbox).apply(
+            packageName = "com.example.app",
+            pid = 123,
+            newClasses = listOf(
+                DirectHotReloadClass("com.example.NewClass", "dex\n035\u0000".toByteArray()),
+            ),
+            modifiedClasses = listOf(
+                DirectHotReloadClass("Lcom/example/Foo;", "dex\n035\u0000".toByteArray()),
+            ),
+            refreshResources = false,
+            restartActivity = true,
+        )
+
+        assertEquals(
+            listOf("request.txt", "dex/new/0.dex", "dex/modified/0.dex"),
+            adb.zipEntries,
+        )
+        assertEquals(
+            "JUGG_HOT_RELOAD_V4\nREFRESH_RESOURCES\t0\nRESTART_ACTIVITY\t1\n" +
+                "NEW\tcom.example.NewClass\tdex/new/0.dex\n" +
+                "MODIFIED\tLcom/example/Foo;\tdex/modified/0.dex\n",
+            adb.requestText,
+        )
+    }
+
+    @Test
+    fun `writer should allow empty Apply Changes request`() {
+        val adb = RecordingDirectAdb()
+        val logger = Mockito.mock(Logger::class.java)
+        val sandbox = AppSandboxExecutor(adb, "com.example.app", logger)
+
+        DirectHotReloadWriter(adb, logger, sandbox).apply(
+            packageName = "com.example.app",
+            pid = 123,
+            newClasses = emptyList(),
+            modifiedClasses = emptyList(),
+            refreshResources = false,
+            restartActivity = false,
+        )
+
+        assertEquals(listOf("request.txt"), adb.zipEntries)
+        assertEquals(
+            "JUGG_HOT_RELOAD_V4\nREFRESH_RESOURCES\t0\nRESTART_ACTIVITY\t0\n",
             adb.requestText,
         )
     }

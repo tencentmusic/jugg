@@ -24,7 +24,7 @@
 | `AsStartupAgentPusher` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/direct/AsStartupAgentPusher.kt` | Direct Overlay 路径推 Android Studio Apply Changes startup agent，不依赖 app 进程在线 |
 | `DirectHotReloadWriter` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/DirectHotReloadWriter.kt` | 为 Direct app sandbox transport 生成 dynamic attach 请求、复制请求级 agent、等待结果文件 |
 | `native-lib.cpp` | `jvmti_agent/src/main/cpp/native-lib.cpp` | `Agent_OnAttach` 入口，区分 startup dataDir 与 `jugg_hot_reload:` dynamic attach options |
-| `class_redefiner.cc` | `jvmti_agent/src/main/cpp/class_redefiner.cc` | 解析 Hot Reload 请求、匹配已加载类并 batch `RedefineClasses()`，原子写结果 |
+| `class_redefiner.cc` | `jvmti_agent/src/main/cpp/class_redefiner.cc` | 解析 Hot Reload 请求；按官方职责边界在 native 侧更新 Application ClassLoader 的 in-memory DEX elements，再匹配已加载类并 batch `RedefineClasses()`，原子写结果 |
 | `instrumenter.cc` | `jvmti_agent/src/main/cpp/instrumenter.cc` | 加载 `jugg-instruments.jar`，设置 class file load hook 并 retransform 目标类 |
 | `InstrumentationHooks` | `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/instrument/InstrumentationHooks.java` | 处理 ResourcesManager、ClassLoader resource 等 framework hook；compat deploy 启用后必须跳过普通 Apply Changes overlay 修正 |
 | `ApplyChangesOverlayPolicy` | `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/instrument/ApplyChangesOverlayPolicy.java` | 记录宿主 APK 路径，判断非宿主资源环境是否需要移除 Apply Changes overlay |
@@ -114,13 +114,16 @@ Direct Overlay 已提交
   -> request.txt + Dex 写入 code_cache/jugg_hot_reload/<requestId>
   -> 为本次请求复制独立 agent so
   -> am attach-agent <pid> <agent>=jugg_hot_reload:<requestDir>
-  -> 有 class 时执行 GetLoadedClasses、IsModifiableClass 与 batch RedefineClasses
+  -> NEW class DEX 转为 in-memory dex elements，并追加到 Application ClassLoader
+  -> MODIFIED class 执行 GetLoadedClasses、IsModifiableClass 与 batch RedefineClasses
   -> refreshResources=true 时更新 ResourcesLoader providers 并挂载到现存宿主 Resources
   -> restartActivity=true 时在同一个主线程任务中对当前进程全部存活 Activity 执行 recreate()
   -> result.tmp rename result.txt
 ```
 
-只有 `OK` 表示请求完成。V3 请求允许纯资源场景不携带 class；`refreshResources=false` 保持纯 class HOT_RELOAD 语义，`refreshResources=true` 对齐 Apply Changes 的资源切换顺序。`restartActivity=true` 在同一主线程任务中先刷新资源，再像 Apply Changes 一样遍历 `ActivityThread.mActivities` 并重建当前进程全部存活 Activity；读取失败时从 `WindowManagerGlobal` 收集窗口关联 Activity 作为回退，不重新调用 Android Studio `fullSwap/overlaySwap`。`MISSING`、`UNMODIFIABLE`、JVMTI redefine error、attach 失败或结果超时由外层降级为整应用重启；资源请求的刷新或 Activity 重建失败也显式降级为进程重启。纯 class 请求在类重定义后 Activity relaunch 失败时仍报告 Direct dirty failure。
+只有 `OK` 表示请求完成。V4 请求显式区分 `NEW` 与 `MODIFIED`：新增 class 不参与 JVMTI redefine。native 侧按官方职责边界从 `ActivityThread.currentApplication()` 取得 Application ClassLoader，读取并写回 `DexPathList.dexElements`；Java `DexUtility` 只负责复用 `makeInMemoryDexElements` 创建新 elements，并按 `old + new` 顺序合并。JNI 失败结果保留异常类型和消息，上层明确说明本轮新增类无法在线加载、将重启进程使用已提交 overlay。modified class 仍通过 JVMTI batch redefine。空请求和纯资源请求都允许不携带 class，因此 `[nothing to deploy]` 会完成 overlay checkpoint 与 runtime 请求，不会因 payload 为空自动重启。`refreshResources=false` 保持纯 class HOT_RELOAD 语义，`refreshResources=true` 对齐 Apply Changes 的资源切换顺序。
+
+`restartActivity=true` 在同一主线程任务中先刷新资源，再像 Apply Changes 一样遍历 `ActivityThread.mActivities` 并重建当前进程全部存活 Activity；读取失败时从 `WindowManagerGlobal` 收集窗口关联 Activity 作为回退，不重新调用 Android Studio `fullSwap/overlaySwap`。modified class 未加载时返回 `CLASS_NOT_FOUND`，Host 会明确说明当前进程无法 redefine 该 class，并重启 App 让已提交 overlay 生效；Host 仍兼容旧 agent 的 `MISSING` 结果。`UNMODIFIABLE`、JVMTI redefine error、attach 失败或结果超时同样降级为整应用重启；资源请求的刷新或 Activity 重建失败也显式降级为进程重启。纯 class 请求在类重定义后 Activity relaunch 失败时仍报告 Direct dirty failure。
 
 终态结果返回后 Host 删除对应请求目录；超时请求在下一次请求开始前清理，避免与仍在执行的 agent 竞争文件，同时限制请求 Dex 和动态 agent so 的累积。
 

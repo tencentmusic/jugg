@@ -27,18 +27,20 @@ Android Studio 的 Apply Changes 不会重新安装一份完整 APK。它以设�
   -> 按部署类型保持进程、重建 Activity 或重启 App
 ```
 
-deployment cache 记录了设备上一次成功安装或 Apply Changes 后的 APK 快照和 overlay ID。新的局部更新必须基于这份快照生成；如果本地记录和设备状态对不上，Jugg 会先进入 Recover，而不是继续叠加差异。
+deployment cache 记录了设备上一次成功安装或 Apply Changes 后的 APK 快照和 overlay ID。新的局部更新必须基于这份快照生成；即使本轮没有 class 或资源需要下发，Apply Changes 仍会走完 overlay ID 校验和 checkpoint 更新。空 payload 不触发 class 处理、Activity 重建或 App 重启。如果本地记录和设备状态对不上，Jugg 会先进入 Recover，而不是继续叠加差异。
 
 ## class 分为在线修改和新增内容
 
-Apply Changes 对已加载 class 的在线修改依赖 JVMTI。Apply Changes Agent 取得 JVMTI 后，对 modified class 执行 class redefinition，因此方法体修改可以在不重启 App 进程的情况下生效；字段、方法签名或继承关系等结构变化不能沿用这条在线替换路径，需要转为 Hot Fix 并在 App 重启后加载。`run-as` 可完整执行、UID 位于 `10000..19999`，且新建文件与 App 既有缓存目录使用相同 SELinux label 的 App 直接复用这条通道；前提不成立、但普通 shell、root adbd 或非交互 `su` 能完整访问 sandbox 时，会改用 Jugg 自有 Agent，并先持久化同一份 overlay。详情见 [Jugg JVMTI Agent](./jugg-jvmti-agent.md)。
+Apply Changes 对已加载 class 的在线修改依赖 JVMTI。Apply Changes Agent 取得 JVMTI 后，对 modified class 执行 class redefinition，因此方法体修改可以在不重启 App 进程的情况下生效。新增 class 不走 redefine；设备端把本轮新 DEX 转为 in-memory dex elements，追加到 Application ClassLoader 的既有 elements 后面，使当前进程能够加载新 class，同时 overlay 为后续进程启动保留同一份内容。字段、方法签名或继承关系等结构变化不能沿用这两条在线路径，需要转为 Hot Fix 并在 App 重启后加载。
+
+`run-as` 可完整执行、UID 位于 `10000..19999`，且新建文件与 App 既有缓存目录使用相同 SELinux label 的 App 直接复用 Android Studio 通道；前提不成立、但普通 shell、root adbd 或非交互 `su` 能完整访问 sandbox 时，Jugg Direct sandbox 先持久化同一份 overlay，再按 Apply Changes 的 new class 与 modified class 处理方式更新当前进程。详情见 [Jugg JVMTI Agent](./jugg-jvmti-agent.md)。
 
 Jugg 在部署前比较新旧 class 结构，并把 class 变化交给 Apply Changes 的两个输入集合。
 
 | class 变化 | Apply Changes 输入 | 生效边界 |
 |---|---|---|
 | 方法体变化，class 结构保持不变 | modified class | 由 JVMTI 在线替换已加载的 class 实现 |
-| 新增 class | new class | 作为新的 DEX 内容加入 overlay，由当前或下一次进程加载 |
+| 新增 class | new class | 作为 in-memory dex elements 加入当前 Application ClassLoader，同时写入 overlay 供下一次进程加载 |
 | 字段、方法签名、继承或泛型结构变化 | new class / Hot Fix 数据 | 不能依赖当前进程中的 class redefine，需要重启 App 后加载 |
 | library dex、multi-dex 等不能稳定在线替换的 class | Hot Fix 数据 | 重启 App 后由运行时加载 |
 
@@ -46,7 +48,7 @@ Jugg 在部署前比较新旧 class 结构，并把 class 变化交给 Apply Cha
 
 ## overlay 承载资源、assets 和 DEX 文件
 
-资源增量编译会输出 `resources.arsc`、`res/**` 或 `assets/**` 等局部文件，新增 class 和需要重启后加载的 DEX 也会进入设备 overlay。Apply Changes 按目标 APK 组织这些文件，让 base APK、split APK 和 test APK 的内容写入各自的 overlay 位置。
+资源增量编译会输出 `resources.arsc`、`res/**` 或 `assets/**` 等局部文件，新增 class 和需要在后续进程启动时加载的 DEX 也会进入设备 overlay。Apply Changes 按目标 APK 组织这些文件，让 base APK、split APK 和 test APK 的内容写入各自的 overlay 位置。
 
 首次向某个部署基线发送资源 overlay 时，Jugg 会补齐完整资源集合。设备端此前没有可复用的资源 overlay，只发送单个变化文件无法构成完整的新资源视图。后续部署已经有可信资源状态时，才继续叠加本轮差异。
 
