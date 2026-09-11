@@ -9,6 +9,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.compiler.ClassNode
+import com.sickworm.intellij.jugg.deploy.DirectHotReloadClass
 import com.sickworm.intellij.jugg.deploy.DirectHotReloadResult
 import com.sickworm.intellij.jugg.deploy.DirectHotReloadWriter
 import com.sickworm.intellij.jugg.deploy.JuggJvmtiAgentManager
@@ -71,6 +72,59 @@ class DirectAppSandboxDeployTransportTest {
     @Test
     fun `pure method changes remain online after overlay commit`() {
         assertDirectDeploy(classData(), needsRestart = false)
+    }
+
+    @Test
+    fun `new classes remain online after overlay commit`() {
+        assertDirectDeploy(newClassData(), needsRestart = false)
+    }
+
+    @Test
+    fun `empty payload completes Direct Apply Changes without restart`() {
+        assertDirectDeploy(
+            JuggDeployData.forDryDeploy(emptyList()).copy(isPushOverlayOnly = false),
+            needsRestart = false,
+        )
+    }
+
+    @Test
+    fun `missing modified class explains why committed overlay needs restart`() {
+        val logger = Mockito.mock(Logger::class.java)
+
+        listOf("CLASS_NOT_FOUND", "MISSING").forEach { result ->
+            assertDirectDeploy(
+                classData(),
+                needsRestart = true,
+                hotReloadResult = DirectHotReloadResult(false, "$result\tLcom/example/Foo;"),
+                logger = logger,
+            )
+        }
+
+        Mockito.verify(logger, Mockito.times(2)).info(
+            "Direct app sandbox could not redefine com.example.Foo because it is not loaded in the running " +
+                "process; restarting the app to activate the committed class overlay.",
+        )
+    }
+
+    @Test
+    fun `new class definition failure explains why committed overlay needs restart`() {
+        val logger = Mockito.mock(Logger::class.java)
+
+        assertDirectDeploy(
+            newClassData(),
+            needsRestart = true,
+            hotReloadResult = DirectHotReloadResult(
+                false,
+                "ERROR\tdefine_new_classes\t0\tdefining new classes failed: " +
+                    "java.lang.NoSuchFieldException: mLoadedApk",
+            ),
+            logger = logger,
+        )
+
+        Mockito.verify(logger).info(
+            "Direct app sandbox could not add new classes to the running process; restarting the app to activate " +
+                "the committed class overlay. Cause: java.lang.NoSuchFieldException: mLoadedApk",
+        )
     }
 
     @Test
@@ -170,6 +224,7 @@ class DirectAppSandboxDeployTransportTest {
         expectRelaunchFailure: Boolean = false,
         expectedRefreshResources: Boolean = false,
         expectRuntimeApply: Boolean = true,
+        logger: Logger = Mockito.mock(Logger::class.java),
     ) {
         val compat = Mockito.mock(IAsDeployerCompat::class.java)
         val baseId = JuggOverlayId(Any(), "base", false)
@@ -177,7 +232,10 @@ class DirectAppSandboxDeployTransportTest {
         whenever(compat.buildOverlayId(any(), any())).thenReturn(nextId)
         val overlayUpdate = JuggOverlayUpdate(
             JuggDeploymentCacheEntry(Any(), emptyList(), baseId),
-            DexComparator.ChangedClasses(emptyList(), emptyList()),
+            DexComparator.ChangedClasses(
+                (data.newClasses + data.hotFixModifiedClasses).map { it.toIncompleteDexClass() },
+                data.hotReloadModifiedClasses.map { it.toIncompleteDexClass() },
+            ),
             data.overlays.associate { item ->
                 val entry = Mockito.mock(ApkEntry::class.java)
                 whenever(entry.qualifiedPath).thenReturn("base.apk/${item.name}")
@@ -186,11 +244,15 @@ class DirectAppSandboxDeployTransportTest {
             Any(),
         )
         var written: DirectOverlayWriteRequest? = null
+        var checkedExpectedOverlayId: String? = null
         Mockito.mockConstruction(JuggJvmtiAgentManager::class.java) { manager, _ ->
             whenever(manager.pushAgentToApp(any(), any())).thenReturn(true)
         }.use { _ ->
             Mockito.mockConstruction(DirectOverlayStateChecker::class.java) { checker, _ ->
-                whenever(checker.checkDevice(any(), any())).thenReturn(DirectOverlayStateCheckResult.MATCHED)
+                whenever(checker.checkDevice(any(), any())).thenAnswer {
+                    checkedExpectedOverlayId = it.getArgument(1)
+                    DirectOverlayStateCheckResult.MATCHED
+                }
             }.use { _ ->
                 Mockito.mockConstruction(DirectOverlayWriter::class.java) { writer, _ ->
                     whenever(writer.write(any())).thenAnswer {
@@ -202,12 +264,16 @@ class DirectAppSandboxDeployTransportTest {
                         data, overlayUpdate, compat, needsRestart, hotReloadResult, expectRelaunchFailure,
                         expectedRefreshResources,
                         expectRuntimeApply,
+                        logger,
                     )
                 }
             }
         }
+        assertEquals("base", checkedExpectedOverlayId)
         assertEquals(data.isFullRes, requireNotNull(written).isFullResourcePush)
-        assertEquals(data.overlays.map { "base.apk/${it.name}" }, written!!.files.map { it.path })
+        val expectedPaths = (overlayUpdate.dexOverlays.newClasses + overlayUpdate.dexOverlays.modifiedClasses)
+            .map { "${it.name}.dex" } + data.overlays.map { "base.apk/${it.name}" }
+        assertEquals(expectedPaths, written!!.files.map { it.path })
     }
 
     private fun assertDirectResult(
@@ -219,18 +285,23 @@ class DirectAppSandboxDeployTransportTest {
         expectRelaunchFailure: Boolean,
         expectedRefreshResources: Boolean,
         expectRuntimeApply: Boolean,
+        logger: Logger,
     ) {
         var restartActivity: Boolean? = null
         var refreshResources: Boolean? = null
+        var newClassCount: Int? = null
+        var modifiedClassCount: Int? = null
         Mockito.mockConstruction(DirectHotReloadWriter::class.java) { writer, _ ->
-            whenever(writer.apply(any(), any(), any(), any(), any())).thenAnswer {
-                refreshResources = it.getArgument(3)
-                restartActivity = it.getArgument(4)
+            whenever(writer.apply(any(), any(), any(), any(), any(), any())).thenAnswer {
+                newClassCount = it.getArgument<List<DirectHotReloadClass>>(2).size
+                modifiedClassCount = it.getArgument<List<DirectHotReloadClass>>(3).size
+                refreshResources = it.getArgument(4)
+                restartActivity = it.getArgument(5)
                 hotReloadResult
             }
         }.use { reload ->
             val deploy = {
-                requireNotNull(transport(DirectAdb()).tryDeploy(
+                requireNotNull(transport(DirectAdb(), logger).tryDeploy(
                     "com.example.app", data, overlayUpdate, compat, listOf(123), Deploy.Arch.ARCH_64_BIT,
                 ))
             }
@@ -241,7 +312,7 @@ class DirectAppSandboxDeployTransportTest {
                 } catch (e: DirectOverlayDirtyException) {
                     e
                 }
-                assertTrue(error.message.orEmpty().contains("Activity relaunch failed after class redefinition"))
+                assertTrue(error.message.orEmpty().contains("Activity relaunch failed after runtime class changes"))
                 return@use
             }
             val result = deploy()
@@ -249,13 +320,18 @@ class DirectAppSandboxDeployTransportTest {
             assertEquals(needsRestart, result.needsRestart)
             assertEquals(if (expectRuntimeApply) 1 else 0, reload.constructed().size)
             if (expectRuntimeApply) {
+                assertEquals(data.newClasses.size, newClassCount)
+                assertEquals(data.hotReloadModifiedClasses.size, modifiedClassCount)
                 assertEquals(expectedRefreshResources, refreshResources)
                 assertEquals(data.isNeedRestartActivity, restartActivity)
             }
         }
     }
 
-    private fun transport(adb: IDeviceAdb): DirectAppSandboxDeployTransport {
+    private fun transport(
+        adb: IDeviceAdb,
+        logger: Logger = Mockito.mock(Logger::class.java),
+    ): DirectAppSandboxDeployTransport {
         val context = LaunchContext(
             device = Mockito.mock(IDevice::class.java),
             deviceAdb = adb,
@@ -269,7 +345,7 @@ class DirectAppSandboxDeployTransportTest {
             isDeviceReadyDeploy = true,
             isAllowDirectOverlayDeploy = false,
         )
-        return DirectAppSandboxDeployTransport(context, Mockito.mock(Logger::class.java))
+        return DirectAppSandboxDeployTransport(context, logger)
     }
 
     private fun classData(): JuggDeployData {
@@ -285,6 +361,25 @@ class DirectAppSandboxDeployTransportTest {
                     ),
                     listOf(ClassNode("Foo.dex", "Lcom/example/Foo;", 1, emptyList(), emptyList(),
                         emptyList(), "Ljava/lang/Object;", "Foo.java")),
+                ),
+            ),
+            isPushOverlayOnly = false,
+        )
+    }
+
+    private fun newClassData(): JuggDeployData {
+        return JuggDeployData.forDryDeploy(emptyList()).copy(
+            newClasses = listOf(
+                ClassDeployItem(
+                    DeployItem(
+                        "com.example.NewClass",
+                        CompileOutput.Type.Dex,
+                        1,
+                        byteArrayOf(1),
+                        DeployItem.FLAG_CLASS,
+                    ),
+                    listOf(ClassNode("NewClass.dex", "Lcom/example/NewClass;", 1, emptyList(), emptyList(),
+                        emptyList(), "Ljava/lang/Object;", "NewClass.java")),
                 ),
             ),
             isPushOverlayOnly = false,

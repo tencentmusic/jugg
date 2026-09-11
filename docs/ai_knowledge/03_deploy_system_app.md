@@ -1,6 +1,6 @@
 # 系统应用部署约束
 
-> 最后核对：2026-09-10
+> 最后核对：2026-09-11
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ## 1. 文档定位
@@ -23,7 +23,7 @@ Jugg **没有内置**把普通 APK 首次安装成系统应用的 installer、`p
 | `CustomApkInstallScriptRunner` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/applychanges/CustomApkInstallScriptRunner.kt` | 在本地工程根目录执行用户脚本，补齐 Android SDK platform-tools 路径，并在脚本后校验已安装 APK。 |
 | `IAsDeployerCompat.install()` | `deploy_compat/*/AsDeployerCompat.kt` | 实际执行 AS install session。失败文案来自 PackageManager，不能据此推断“已经按系统应用安装”。 |
 | `AppSandboxExecutor` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/AppSandboxExecutor.kt` | app 私有目录统一入口。以唯一成功标记、UID 范围和探针 SELinux context 判断 Apply Changes 兼容性；不兼容时依次探测普通 shell、root adbd 和非交互 `su`，并固定本轮使用的真实 `dataDir` 与权限模式。 |
-| `DirectAppSandboxDeployTransport` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/hotreload/DirectAppSandboxDeployTransport.kt` | 在 AS deployer 前接管 `run-as` 不兼容应用的 class、资源和 assets 增量部署：先写 Direct Overlay，纯方法体尝试在线 redefine；Android 11+ 的普通资源及混合变化刷新运行中 Resources，并按 deploy mode 重建 Activity，失败时请求重启应用。 |
+| `DirectAppSandboxDeployTransport` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/hotreload/DirectAppSandboxDeployTransport.kt` | 在 AS deployer 前接管 `run-as` 不兼容应用的 class、资源和 assets 增量部署：先写 Direct Overlay，新增 class 追加 in-memory dex elements，纯方法体尝试在线 redefine；Android 11+ 的普通资源及混合变化刷新运行中 Resources，并按 deploy mode 重建 Activity，失败时请求重启应用。 |
 | `DirectOverlayWriter` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/direct/DirectOverlayWriter.kt` | 通过 `AppSandboxExecutor` 原子写 `code_cache/.overlay`，新 overlay id 最后提交。 |
 
 ## 3. 关键模型
@@ -109,13 +109,15 @@ run-as package 执行可回滚写入探测
       -> 固定并复用本轮 AppSandboxExecutor
       -> 安装现有 Jugg startup agent，并把 instrumentation JAR 复制为 app 可读文件
       -> 写 code_cache/.overlay
+      -> 新增 class：生成 in-memory dex elements 并追加到 Application ClassLoader
+          -> 当前进程可加载新 class；已提交 overlay 供后续进程启动复用
       -> 纯方法体变更：am attach-agent + RedefineClasses
           -> APPLY_CHANGES：成功后仅更新 class
           -> APPLY_CHANGES_AND_RESTART_ACTIVITY：成功后在主线程调度 Activity.recreate()，保留进程
           -> 失败：重启应用，由 startup agent 加载 overlay
       -> Android 11+ 普通资源/asset 或方法体与资源混合变化：刷新宿主 Resources，再重建 Activity
           -> 失败：重启应用，由 startup agent 加载已提交 overlay
-      -> 新类、结构变化、APK 根目录资源或 Android 8～10 普通资源：重启并加载 overlay
+      -> 结构变化、APK 根目录资源或 Android 8～10 普通资源：重启并加载 overlay
       -> 兼容部署继续加载资源 APK
 ```
 

@@ -214,11 +214,13 @@ timeout 规则：overlay 数超过首片阈值时先降低 slice size；否则�
 
 `JuggDeployerHelper` 先用可回滚写入和唯一成功标记判断 Android Studio Deployer 的 `run-as` 前提；只有 UID 位于 `10000..19999`，且 `run-as` 新建探针的 SELinux context 与既有 `code_cache` context 一致，才视为兼容。无成功标记、UID 越界或 context 不一致时，`JuggDeployer.optimisticSwap()` 在普通 Direct Overlay 和 AS deployer 之前进入 `DirectAppSandboxDeployTransport`。该路径不受“设备是否 ready”或 Direct Overlay 用户开关限制，因为它是 Apply Changes 前提不成立时的 增量 overlay 替代通道。
 
-同一轮部署从 `LaunchContext` 取得并复用一个已解析的 `AppSandboxExecutor`。它在 PackageManager 的真实 `dataDir` 依次探测普通 shell、最多一次 adb root 并等待同一 serial 重连、非交互 `su 0`/`su -c`；选定后 Direct Overlay、startup agent 与 Hot Reload 不再重新判断模式。transport 先准备 Jugg startup agent 并提交 Direct Overlay。纯方法体变化对主进程执行 class redefine；Android 11+ 的普通资源/asset 或方法体与资源混合变化使用同一 dynamic 请求刷新宿主 Resources，并按上层语义重建 Activity。请求成功时保留进程，attach、资源刷新或其他可恢复失败通过 `Result.needsRestart` 让 `JuggDeployerHelper` 重启应用。新类、结构变化、APK 根目录 overlay、兼容部署和 APK 更新保持原有重启或安装路径。
+同一轮部署从 `LaunchContext` 取得并复用一个已解析的 `AppSandboxExecutor`。它在 PackageManager 的真实 `dataDir` 依次探测普通 shell、最多一次 adb root 并等待同一 serial 重连、非交互 `su 0`/`su -c`；选定后 Direct Overlay、startup agent 与 Hot Reload 不再重新判断模式。transport 先准备 Jugg startup agent 并提交 Direct Overlay。新增 class 按官方 Apply Changes 语义将本轮 DEX 转为 in-memory dex elements 并追加到 Application ClassLoader，纯方法体变化对已加载 class 执行 redefine；Android 11+ 的普通资源/asset 或代码与资源混合变化使用同一 dynamic 请求刷新宿主 Resources，并按上层语义重建 Activity。请求成功时保留进程，attach、资源刷新或其他可恢复失败通过 `Result.needsRestart` 让 `JuggDeployerHelper` 重启应用。结构变化、APK 根目录 overlay、兼容部署和 APK 更新保持原有重启或安装路径。
 
 Direct 权限模式创建的文件可能只有静态 `app_data_file:s0`，不能直接复用 `restorecon -RF code_cache`：它会丢失应用目录的动态 MCS categories，并使 `platform_app` 无法执行 JVMTI agent。executor 先把普通 overlay/request 文件修正为既有 `code_cache` 的完整 context，再把其中的 `.so` 标记为 Android appdomain 允许执行的 `apk_data_file:s0`；修复脚本输出通过内部边界标记与业务命令结果隔离，避免 `restorecon`/`chcon` 的成功诊断污染 `success` 协议。
 
 Direct transport 不再以 class-only 白名单拒绝 overlay，`data.isFullRes` 原样传递到 `DirectOverlayWriteRequestBuilder`。Manifest/native library 的 APK 改写、重签和 reinstall 仍由上游部署流程负责，随后可重放 overlay。Direct 权限不可用或 deployment cache 缺失时提前失败，不回落到必然失败的 AS deployer；ADB transport/offline 异常继续按原有 transient 语义传播。
+
+空 payload 仍完整执行 device overlay ID 校验和 Direct Overlay checkpoint 提交；运行中主进程随后发送空 runtime 请求并取得明确终态，不创建 class redefine，也不触发 Activity 或 App 重启。主进程未运行时在 checkpoint 提交后直接成功。
 
 准备 Jugg startup agent 后，Direct transport 写入 `code_cache/.jugg_direct_resource_overlay` 标记。Android 11+ 的 startup agent 通过 `LoadedApk.getResources()` hook 和迁移的 `ResourceOverlays` 加载 `.overlay/*.apk` 下的 `resources.arsc`、`res/`、`assets/`；资源 loader 只加入真实宿主 APK 对应的 Resources，不污染 WebView 等非宿主资源。运行中提交资源后，dynamic agent 更新 loader providers、补挂现存宿主 Resources，再重建 Activity；连续资源更新不会复用旧 provider。兼容部署标记存在时保持原资源 APK 路径，Android 8～10 继续通过进程重启生效。
 
@@ -281,11 +283,11 @@ Direct app sandbox 是 Android Studio Apply Changes 的 app sandbox 前提不成
 | Android 版本 | 运行中普通资源刷新依赖 Android 11+ `ResourcesLoader`。 | Android 8～10 提交 overlay 后重启进程，由 startup agent 加载。 |
 | 进程范围 | `pidof <package>` 选择主进程的一个 PID，并与本轮已知 PID 交叉确认；单次 dynamic 请求只附加该进程。 | 独立进程不会在同一轮获得在线 class/resource 刷新，需要相应进程重新启动。 |
 | Activity 范围 | 遍历主进程 `ActivityThread.mActivities`，重建全部存活 Activity；反射读取失败时从窗口关联 Activity 回退。 | 覆盖同进程的后台 Activity、其他 task 和多窗口实例；独立进程仍需在对应进程重启后加载 overlay。 |
-| class payload | 只在线处理 `hotReloadModifiedClasses`，且每份 Dex 必须能唯一映射到一个 class descriptor。 | 新类、结构变化、不可修改类或多 class Dex 进入 overlay + 进程重启。官方通道拥有更完整的 PID/redefiner 与 Dex 元数据编排，但同样受 JVMTI 结构重定义限制。 |
+| class payload | `newClasses` 按官方语义追加 in-memory dex elements；`hotReloadModifiedClasses` 通过 JVMTI redefine，且每份 modified Dex 必须能唯一映射到一个 class descriptor。 | 新类可在当前主进程加载；结构变化、不可修改类或不能唯一映射的 modified Dex 进入 overlay + 进程重启。官方通道仍拥有更完整的 PID/redefiner 与 Dex 元数据编排。 |
 | 资源类型 | 在线刷新只覆盖 `res/**`、`assets/**` 和 `resources.arsc` 表示的普通宿主资源。 | APK 根目录、legacy/现代 Compose 等依赖 ClassLoader 或进程内缓存的资源仍要求重启进程。 |
 | 批次模型 | 普通 Direct 与 Direct app sandbox 都整批部署，不进入 `SliceDeployHelper`。 | 没有官方 Apply Changes 的切片进度、分片重试和分片结果汇总；大 payload 的失败粒度更粗。 |
 | 状态前提 | 必须已有 deployment cache，且预期 overlay id 与设备状态匹配。 | cache 缺失、状态不匹配或 Direct 权限不可用时明确失败并进入既有 recover/reinstall，不能在 Direct transport 内重建基线。 |
-| 协议与诊断 | 使用精简的 V3 文本请求/结果协议，Host 轮询结果，主线程资源应用也有独立超时。 | phase 诊断和调试器协同少于官方 Deployer；heartbeat 不取消 ADB 超时，超时、断连和无结果仍按失败处理。 |
+| 协议与诊断 | 使用精简的 V4 文本请求/结果协议，显式区分 `NEW` / `MODIFIED` 并允许空请求；Host 轮询结果，JNI 失败保留异常类型和消息，主线程资源应用也有独立超时。 | phase 诊断和调试器协同少于官方 Deployer；heartbeat 不取消 ADB 超时，超时、断连和无结果仍按失败处理。 |
 | 平台适配 | 资源刷新依赖 `ResourcesManager` 内部引用、宿主 APK 路径过滤和 `ResourcesLoader`。 | OEM 或 framework 差异导致刷新失败时降级为进程重启，不承诺覆盖官方 Agent 的全部版本适配。 |
 
 Manifest、native library 等 `updateApkFiles` 继续由 APK 改写、重签和安装链路处理，不属于 Direct dynamic agent 需要补齐的能力。Direct 当前的设计目标是让官方 app sandbox 通道不可用的应用获得常用增量部署结果，同时保留原有 lifecycle、recover 和安装边界。

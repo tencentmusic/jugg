@@ -19,7 +19,7 @@ Hot Reload is Jugg's preferred online incremental deployment capability. It send
 | Method-body code change | Supported | Apps that satisfy the `run-as`, UID, and SELinux-label prerequisites use Apply Changes; incompatible apps with usable sandbox access persist an overlay and let the Jugg Agent replace the class without recreating the Activity |
 | Resource or asset change eligible for an overlay | Supported | Pushes the overlay; ordinary Apply Changes restarts the Activity when needed, while Direct sandbox refreshes resources and recreates the current Activity on Android 11+ and restarts the app on Android 8–10 |
 | First resource overlay | Supported | Includes all baseline resources to avoid missing resources on the device |
-| New class | Supported for incremental delivery | Enters Apply Changes as a new class |
+| New class | Supported online | Apply Changes or Direct sandbox adds the new DEX to the current process's Application ClassLoader; ordinary non-empty deployment still recreates the Activity according to the upper-level lifecycle policy |
 | Class with structural changes | Supported for incremental delivery, but requires restart | Enters the Hot Fix path |
 | Manifest, `resources.arsc`, or `.so` update | Supported as an APK update | Modifies and re-signs the APK, then installs it or recovers state |
 | Device state does not match | Automatic recovery supported | Runs recover/retry first, then determines whether Hot Reload can continue |
@@ -45,7 +45,7 @@ Jugg checks the Android Studio Apply Changes prerequisites with a reversible wri
 
 The Direct path makes DEX and request files inherit the app cache directory's dynamic SELinux label and labels JVMTI Agent `.so` files with a type the app process can execute. Root-written files therefore remain usable after restart or dynamic attach despite differences in ownership, MCS categories, or executable file type.
 
-When `run-as`, the UID, or the SELinux label is incompatible, Jugg can deliver classes, resources, and assets directly. Pure method-body changes can be replaced online. On Android 11+, ordinary resource, asset, and mixed code/resource changes refresh resources in the main process and recreate the current Activity; Jugg restarts the app if refresh fails. Android 8–10 require a process restart, while compatible deployment retains the resource-APK path. Manifest and native-library changes still use APK updates and installation. Failed permission probes or a missing deployment cache cause an explicit failure.
+When `run-as`, the UID, or the SELinux label is incompatible, Jugg can deliver classes, resources, and assets directly. New classes are added to the current process's Application ClassLoader as in-memory DEX elements, while method-body changes are replaced online through JVMTI. On Android 11+, ordinary resource, asset, and mixed code/resource changes refresh resources in the main process and recreate the current Activity; Jugg restarts the app if refresh fails. Resource changes on Android 8–10 require a process restart, while compatible deployment retains the resource-APK path. Manifest and native-library changes still use APK updates and installation. Failed permission probes or a missing deployment cache cause an explicit failure.
 
 ## Boundaries
 
@@ -60,7 +60,7 @@ Direct sandbox is the alternative when the Apply Changes prerequisites are unava
 
 - One online request handles one main process. Separate processes load the overlay after those processes restart.
 - Jugg recreates all live Activities in the main process, including instances in other tasks and multi-window. Activities in separate processes are refreshed after those processes restart.
-- New classes, structural changes, APK-root resources, and Compose resources continue using a path that restarts the process.
+- Structural changes, APK-root resources, and Compose resources continue using a path that restarts the process; new classes can take effect online in the current main process.
 - Direct deployment submits the current changes as one batch and does not provide official Apply Changes slicing progress or per-slice retry.
 - A verifiable deployment cache and overlay state must already exist. Missing or mismatched state enters recovery or reinstallation first.
 

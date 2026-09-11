@@ -19,7 +19,7 @@ Hot Reload 是 Jugg 默认优先尝试的在线增量部署能力。它把本轮
 | 方法体级代码修改 | 支持 | 满足 `run-as`、UID 和 SELinux label 前提的 App 使用 Apply Changes；不兼容 App 在 sandbox 权限可用时先写 overlay，再由 Jugg Agent 在线替换，不重建 Activity |
 | 可 overlay 的资源或 asset 修改 | 支持 | 推送 overlay；普通 Apply Changes 按需重启 Activity，Direct sandbox 在 Android 11+ 刷新资源并重建当前 Activity，Android 8～10 重启 App |
 | 首次资源 overlay | 支持 | 补齐全量资源，避免设备端缺资源 |
-| 新增 class | 支持增量下发 | 作为 new class 进入 Apply Changes |
+| 新增 class | 支持在线生效 | Apply Changes 或 Direct sandbox 会把新 DEX 加入当前进程的 Application ClassLoader；普通非空部署仍按上层语义重建 Activity |
 | 结构变化 class | 支持增量下发，但需要重启 | 进入 Hot Fix 路径 |
 | Manifest、`resources.arsc`、`.so` 更新 | 支持作为 APK 更新 | 修改 APK 并重签名后安装或恢复状态 |
 | 设备状态不匹配 | 支持自动恢复 | 先 recover/retry，再决定是否继续热更 |
@@ -45,7 +45,7 @@ Jugg 用一次可回滚写入探测判断 Android Studio Apply Changes 的前提
 
 Direct 路径会让 Dex 和请求文件继承 App 缓存目录的动态 SELinux label，并把 JVMTI Agent `.so` 标为 App 进程可执行的类型。这样 root 写入不会因为 owner、MCS categories 或文件执行类型不同而在重启或 dynamic attach 时失效。
 
-`run-as`、UID 或 SELinux label 不兼容时，Jugg 可以直接下发 class、资源和 assets。纯方法体变化可在线替换；Android 11+ 的普通资源、assets 或与代码混合的变化会刷新主进程资源并重建当前 Activity，刷新失败时再重启 App。Android 8～10 需要重启进程，兼容部署沿用资源 APK。Manifest 和 native library 仍走 APK 更新与安装流程。权限探测失败或缺少 deployment cache 时会直接报告失败。
+`run-as`、UID 或 SELinux label 不兼容时，Jugg 可以直接下发 class、资源和 assets。新增 class 会以 in-memory DEX elements 加入当前进程的 Application ClassLoader，方法体变化由 JVMTI 在线替换；Android 11+ 的普通资源、assets 或与代码混合的变化会刷新主进程资源并重建当前 Activity，刷新失败时再重启 App。Android 8～10 的资源变化需要重启进程，兼容部署沿用资源 APK。Manifest 和 native library 仍走 APK 更新与安装流程。权限探测失败或缺少 deployment cache 时会直接报告失败。
 
 ## 使用边界
 
@@ -60,7 +60,7 @@ Direct sandbox 是 Apply Changes 前提不成立时的替代通道，当前仍�
 
 - 单次在线请求只处理一个主进程；独立进程在对应进程重启后加载 overlay。
 - 重建主进程全部存活 Activity，包括其它任务栈和多窗口实例；独立进程中的 Activity 需要在对应进程重启后刷新。
-- 新类、结构变化、APK 根目录资源和 Compose 资源继续走需要进程重启的路径。
+- 结构变化、APK 根目录资源和 Compose 资源继续走需要进程重启的路径；新增 class 可在当前主进程在线生效。
 - Direct 整批提交本轮变化，不提供官方 Apply Changes 的切片进度和分片重试。
 - 必须已有可校验的 deployment cache 和 overlay 状态；缺失或不匹配时先进入 recover 或 reinstall。
 
