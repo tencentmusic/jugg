@@ -184,8 +184,9 @@ hook 不限制资源名。部署到 `.overlay` 的内容是预期覆盖状态，
 - native 目标库是 `jugg_jvmti_agent`，构建入口是 `jvmti_agent/CMakeLists.txt`。
 - `jvmti_agent/buildAgentBundle.gradle` 生成 `BuildConfig.AGENT_VERSION`、`AGENT_BUNDLE_PATH`、flag 文件名，并把 agent bundle 放到 plugin resource 路径。
 - `jugg-instruments.jar` 是 native agent 通过 `AddToBootstrapClassLoaderSearch()` 实际加载的 DEX JAR；ViewHierarchy 依赖的 Dragonfly 必须随 Jugg runtime class 一起进入该产物，不能只存在于 Gradle 注入 App 的 `jugg-runtime.jar`。
-- Dragonfly 源 DEX JAR 只用于离线预处理。`jvmti_agent/libs/dragonfly/preprocess.sh` 固定并校验 dex2jar、Jar Jar Abrams 版本与 SHA-256，先转为 class JAR并将 Dragonfly API 和其内置 Kotlin、coroutines、Guava、dexlib2 依赖统一重命名到 `com.sickworm.intellij.jugg.internal.dragonfly.**`，再将 dex2jar 生成但缺少 `StackMapTable` 的 Java 8 class version 规范为 Java 6；正式 Gradle 流程只消费仓库中的 `*-jugg.jar`，避免与宿主 App 的同名类冲突及 D8 非线性控制流告警。
-- `jugg-runtime.jar` 继续合并相同的预处理 Dragonfly JAR，保持 `GradleApplicationInjector` 的单 runtime JAR 接口；构建同时校验私有 Dragonfly、Kotlin runtime 入口存在且原包 class entry 不存在。Dragonfly 不再依赖宿主 App 提供 Kotlin runtime。
+- Dragonfly 主体来源是上游 AAR 中源码编译的 `classes.jar`，AAR Manifest、asset 和 native library 不进入 Jugg。`jvmti_agent/libs/dragonfly/preprocess.sh` 使用固定 SHA-256 的 Jar Jar Abrams 完成私有包名重写，并剔除 Jugg 不使用且旧 D8 无法读取 `NestHost` 属性的 `DragonflyJvmtiBridge` class。`implementation_0.jar` 仍由固定版本 dex2jar 转换；预处理会删除仅供 Kuikly hook 使用、且会触发 AGP 8.8 D8 frame 分析崩溃的 dexlib2 子树，该可选调用已由 Dragonfly 的 `Throwable` 边界收口。
+- implementation 中 dex2jar 生成的 Kotlin 子集会替换为固定 SHA-256 的源码编译 Kotlin stdlib 2.0.0，并继续重命名到 `com.sickworm.intellij.jugg.internal.dragonfly.runtime.kotlin.**`；其余 dex2jar class 在删除旧 Kotlin 与 dexlib2 后才将缺少 `StackMapTable` 的 Java 8 class version 规范为 Java 6。正式 Gradle 流程只消费仓库中的 `*-jugg.jar`，既避免宿主 App 同名依赖冲突，也不依赖宿主提供 Kotlin runtime。
+- `jugg-runtime.jar` 继续合并相同的预处理 Dragonfly JAR，保持 `GradleApplicationInjector` 的单 runtime JAR 接口；构建同时校验私有 Dragonfly、Kotlin runtime 入口存在且原包 class entry 不存在。
 - 工程根 `build.gradle` 的 `agentVersion` 是设备目录、startup agent 文件名前缀和 bundle 文件名的共同版本源。
 - 修改 `jvmti_agent` 里的 native、Java runtime（含 `ViewExpressionEvaluator` / `view-inspect` 求值）、setup script 或 bundle 内容后，必须递增 `agentVersion`。`isAgentBundlePushed()` 只看 `/data/local/tmp/jugg/{AGENT_VERSION}` 是否已有 4 个文件；同版本插件更新不会重推，设备会继续加载旧 `jugg-instruments.jar`。
 - 32 位 app 使用 `_alt.so`：bundle 打包时把 armeabi-v7a so 改名为 `jugg_jvmti_agent_alt.so`，`attachAgentToApp()` / setup script 都依赖这个约定。
