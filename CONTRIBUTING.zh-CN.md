@@ -141,7 +141,7 @@ logger.warn("message bla bla bla" +
 1. Fork 仓库，并从 `main` 拉取新分支。
 2. 向 `main` 提交 Pull Request。较大改动时，维护者可能会要求改以 `develop` 为目标分支。
 3. 保持 PR 聚焦：一个问题、一个修复、一套验证说明。
-4. 在描述里写清：
+4. 填写 Pull Request 模板（`.github/PULL_REQUEST_TEMPLATE.md`）。GitHub 创建 PR 时会自动带上该模板。至少写清：
    - 改了什么用户可观察问题或能力
    - 如何验证
    - 关联 Issue（如有）

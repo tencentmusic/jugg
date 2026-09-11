@@ -141,7 +141,7 @@ Examples:
 1. Fork the repository and create a branch from `main`.
 2. Open a pull request against `main`. Maintainers may redirect larger work to `develop`.
 3. Keep the pull request focused. One problem, one fix, one verification story.
-4. Fill in:
+4. Complete the pull request template (`.github/PULL_REQUEST_TEMPLATE.md`). GitHub fills it in when you open a PR. At minimum, include:
    - What user-visible problem or capability this changes
    - How you verified it
    - Linked issue, if there is one

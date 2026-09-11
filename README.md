@@ -96,6 +96,10 @@ The standard plugin runs offline by default, and Jugg no longer collects project
 
 Custom server upload for compile data is supported. See [Jugg Backend](https://tencentmusic.github.io/jugg/guide/jugg-backend/).
 
+## Security
+
+To report a vulnerability in Jugg, see [SECURITY.md](SECURITY.md). Do not open a public issue.
+
 ## Development
 
 - `./gradlew buildPlugin` builds the plugin into `idea/build/distributions`.

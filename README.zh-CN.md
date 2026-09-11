@@ -96,6 +96,10 @@ Jugg 于 2021 年开始研发，2023 年在腾讯音乐内部发布。开源前�
 
 支持设置自定义服务器上传编译数据。见 [Jugg 后台](https://tencentmusic.github.io/jugg/zh/guide/jugg-backend/)。
 
+## 安全
+
+若发现 Jugg 的安全漏洞，请按 [SECURITY.zh-CN.md](SECURITY.zh-CN.md) 私下报告，不要提交公开 Issue。
+
 ## 开发
 
 - `./gradlew buildPlugin`：构建插件，产物位于 `idea/build/distributions`。

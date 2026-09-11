@@ -1,2 +1,5 @@
 blank_issues_enabled: false
-contact_links: []
+contact_links:
+  - name: Security policy / 安全策略
+    url: https://github.com/tencentmusic/jugg/security/policy
+    about: Report vulnerabilities privately. Do not open a public issue. 请私下报告安全漏洞，不要提交公开 Issue。
