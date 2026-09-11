@@ -7,7 +7,7 @@ object GradleBuildHelper {
     private val gradlew = if (isWindows) "cmd.exe /c gradlew" else "./gradlew"
 
     fun clean() {
-        val process = Runtime.getRuntime().exec("$gradlew clean", null, assetsAndroidDir)
+        val process = Runtime.getRuntime().exec("$gradlew clean --no-daemon", null, assetsAndroidDir)
         println("\n----------- clean start -----------\n")
         println(String(process.inputStream.readBytes()))
         println()

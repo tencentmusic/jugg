@@ -170,7 +170,12 @@ abstract class ReadProjectInfoGradleCompatTestBase {
 
     protected fun runGradle(projectDir: File, vararg args: String): ProcessResult {
         val output = ByteArrayOutputStream()
-        val process = ProcessBuilder(listOf(File(projectDir, "gradlew").absolutePath) + args)
+        val command = mutableListOf(File(projectDir, "gradlew").absolutePath)
+        command += args
+        if (args.none { it == "--no-daemon" }) {
+            command += "--no-daemon"
+        }
+        val process = ProcessBuilder(command)
             .directory(projectDir)
             .redirectErrorStream(true)
             .apply {
