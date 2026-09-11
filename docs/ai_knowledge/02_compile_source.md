@@ -1,6 +1,6 @@
 # 编译系统：源码编译链（Java/Kotlin/Dex）
 
-> 最后核对：2026-09-10
+> 最后核对：2026-09-12
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -53,6 +53,7 @@
 | `agpR8Classpath` | `GradleProjectInfoReaderManager` | `DexCompiler` / `DexMinifyCompiler` | 引用项目 AGP 的 R8 分发包；Gradle code source 已 instrumentation 时解析原始 buildscript artifact；不复制 jar，不进入 `FullBuildInfo` 或 compile context 磁盘格式 |
 | 普通 KMP complementary closure | Kotlin Gradle incremental cache | `KotlinCompiler` | 仅 Android owner 存在 Gradle authoritative `kotlinCommonSourceDirs` 且源码出现 expect/actual token 时查询；requested 与 complementary files 按 canonical path 去重后在 Android owner invocation 中联合编译；成功后用 tracker 原地刷新双向 edge |
 | Kotlin module identity | `ModuleInfo` + Kotlin baseline output | `KotlinCompilerInvoker` | `module-name`、friend path、输出目录和 `.kotlin_module` 必须保持同一 Gradle module/variant 语义 |
+| Kotlin 有效 free compiler args | `GradleProjectInfoReader` | `KotlinCompilerInvoker` | 优先读 Kotlin 2.x typed `compilerOptions.freeCompilerArgs`；typed `compilerOptions.optIn` 的每个 marker 转为 `-opt-in=<marker>` 后合并，按完整参数字符串去重并保持原顺序；旧版回退 `kotlinOptions.freeCompilerArgs`，读取不到 `optIn` 时只舍弃该增强 |
 | Kotlin compiler plugin options | 选中 Kotlin Gradle task 的 `KotlinCompilerPluginData` | `KotlinCompilerInvoker` | 按模块保存 Gradle 已解析的 `plugin:<id>:<key>=<value>`，调用 CLI 时逐项配对 `-P`；与 plugin JAR 使用相同的 current-to-parent module 范围聚合并删除完全相同的重复项 |
 | `DesugarInfo` | APK/deploy DB + changed class parser | `DexCompiler` / D8 | default interface、`j$.*` rewrite 与 `desugar.json` 都以已安装 APK 的脱糖事实为基线 |
 | `ClassPreparation` | `DexCompiler`，由 `TransformerCompiler` 更新 | `getDesugarInfo` / `CompileEffectAnalyzer` / D8 | 显式携带最终 program files、一次分析结果和转换所需 classpath；不写入 `CompileFile.extraInfo` 或部署历史 |
@@ -168,6 +169,7 @@ Kotlin 1.9 的 baseline Kotlin output 可能同时包含 dirty expect/actual clo
 - Kotlin compiler plugin 参数优先复用 Gradle task 已解析的 `KotlinCompilerPluginData.options.arguments`，兼容 Kotlin Gradle Plugin 的 `kotlin_gradle_plugin_common` 与旧 `kotlin_gradle_plugin` getter；读取不到时保持空列表，不伪造插件参数。参数与 plugin JAR 使用同一个 current-to-parent module 列表聚合，兼容 KMP 等将插件信息保存在父模块的场景，并删除完全相同的重复项。不得只收紧参数继承范围，否则可能加载父模块插件却遗漏其 required option；plugin owner 范围如需调整，必须同时覆盖 JAR、参数与 compiler classpath。
 - Gradle-resolved plugin 参数只在本轮加载项目 compiler plugin 时转换为 `-P`。已加载插件报 `unsupported plugin option` 时，仅移除该 plugin id 的 Gradle-resolved 参数并共享全局单次重试预算；降级成功后按 compiler toolchain 与原参数集缓存，toolchain 或参数变化后重新尝试。用户显式写入 `kotlinFreeCompilerArgs` 的参数不参与该降级。
 - compiler plugin 报 `required plugin option not present` 时只重试一次。Jugg 优先从 JAR 的 `CommandLineProcessor` service 与 class 常量识别 plugin id，再回退旧的文件名匹配；命中的插件仅在本次 invoker 后续编译中禁用，无法识别时保留原始失败，不扩大为禁用全部插件。
+- Kotlin 2.x 的 opt-in marker 保存在独立的 typed `compilerOptions.optIn`，不保证折叠进 `freeCompilerArgs`。Gradle project info 读取边界把每个 marker 转为 `-opt-in=<marker>` 与 free args 合并，按完整参数字符串去重且不改变原有顺序；`optIn` 读取不到时只舍弃该增强，`freeCompilerArgs` 与 `kotlinOptions` 回退结果不变。缺少该参数时，`@HiddenFromObjC` 一类需要 opt-in 的声明会在增量 `kotlinc` 调用中报 `this declaration needs opt-in`，而 Gradle 编译正常。
 - `commonSourceFiles` 是 Kotlin invoker 的类型化参数，不靠调用方拼自由字符串；为空时不添加 multiplatform 参数，Compose generated expect/actual 场景则同时添加 `-Xmulti-platform` 和 `-Xcommon-sources`。
 - `ModuleInfo.sourceDirs` 是模块全部有效源码根的扁平集合；Gradle common roots 和 fragment roots 会同时加入其中，供文件变更识别、模块归属、源码数据库和影响分析复用。`ModuleInfo.kotlinCommonSourceDirs` 是其中由 Gradle authoritative 数据标记的 common 子集，IDE 扁平 `sourceDirs` 不得覆盖，也不得根据 `commonMain`、`sharedMain` 等目录名反推。普通 KMP 调用只用该子集标记最终输入的 common 文件。
 - complementary 查询以非空 `kotlinCommonSourceDirs` 作为 KMP module/source-set 门禁。仅把普通 Android 模块的源码目录配置为 `commonMain`（例如 local-shell 聚合源码）不会启用 KMP complementary 逻辑，即使源码文本出现 expect/actual token。

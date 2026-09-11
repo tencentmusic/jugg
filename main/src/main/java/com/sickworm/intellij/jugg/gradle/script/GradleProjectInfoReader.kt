@@ -993,9 +993,16 @@ class GradleProjectInfoReader(
     private fun readKotlinFreeCompilerArgs(kotlinTask: Any?, legacyOptions: Reflector?): List<String> {
         val compilerOptions = readProperty(kotlinTask, "compilerOptions")
         val args = readKotlinOptionValue(compilerOptions, "freeCompilerArgs") as? Collection<*>
-        return args?.map { it.toString() }
+        val freeArgs = args?.map { it.toString() }
             ?: (legacyOptions["freeCompilerArgs"]?.value as? Collection<*>)?.map { it.toString() }
             ?: emptyList()
+        // Kotlin 2.x keeps opt-in markers in the typed compilerOptions.optIn instead of freeCompilerArgs.
+        val optInArgs = (readKotlinOptionValue(compilerOptions, "optIn") as? Collection<*>)
+            ?.map { "-opt-in=$it" } ?: emptyList()
+        val mergedArgs = freeArgs.toMutableList()
+        val existingArgs = freeArgs.toMutableSet()
+        optInArgs.forEach { if (existingArgs.add(it)) mergedArgs.add(it) }
+        return mergedArgs
     }
 
     /** Reads resolved subplugin arguments across Kotlin Gradle Plugin getter name changes. */
