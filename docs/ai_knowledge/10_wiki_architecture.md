@@ -1,6 +1,6 @@
 # Wiki 架构与运行
 
-> 最后核对：2026-08-04
+> 最后核对：2026-09-12
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -18,7 +18,8 @@
 | 文件 | 作用 |
 |---|---|
 | `docs/wiki/package.json` | Wiki 开发、打包、产物预览的 npm scripts 入口；后续 npm 操作都在 `docs/wiki` 下执行。 |
-| `docs/wiki/.vitepress/config.mts` | VitePress 站点配置，包含 base/nav/sidebar/search/dev-only 页面排除。 |
+| `docs/wiki/.vitepress/config.mts` | VitePress 站点配置，包含 base/nav/sidebar/search、GA4 首屏统计和 dev-only 页面排除。 |
+| `docs/wiki/.vitepress/theme/index.ts` | 继承 VitePress 默认主题、加载现有样式，并在浏览器端补充 GA4 单页路由统计。 |
 | `.agents/skills/wiki-writer/scripts/validate_wiki.py` | 检查中英文 Markdown 路径、nav/sidebar 路由顺序、相对链接、配置路由和构建产物。 |
 | `.github/workflows/wiki-pages.yml` | `main` 分支 Wiki 变更触发 GitHub Pages 构建与发布。 |
 | `.github/workflows/release.yml` | 版本 tag 触发正式 GitHub Release；仅 tag commit 已包含在 `main` 时构建，避免 develop tag 发布正式包。 |
@@ -55,6 +56,12 @@ docs/wiki/
 ```
 
 英文页面位于根路径，中文页面位于 `/zh/` 路径。中文是唯一内容基准；去掉 `zh/` 前缀后，中英文 Markdown 路径集合必须完全一致，nav/sidebar 的层级、顺序和目标页面也必须严格镜像。
+
+### 3.1 GA4 页面统计
+
+`docs/wiki/.vitepress/config.mts` 在页面 `head` 中加载 Google tag，并使用衡量 ID `G-GNEQK6VECM` 初始化 GA4。该初始化负责首屏页面统计。
+
+VitePress 后续切页不会完整刷新浏览器页面。`docs/wiki/.vitepress/theme/index.ts` 继承默认主题，并在浏览器端监听路由切换；首个路由回调由初始化统计覆盖，后续回调使用新路径再次调用 `gtag('config', ...)`。修改衡量 ID 时必须同时更新两个文件。
 
 ---
 
