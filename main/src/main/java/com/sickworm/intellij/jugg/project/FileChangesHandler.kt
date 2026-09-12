@@ -4,7 +4,8 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.ICompileContext
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
-import com.sickworm.intellij.jugg.project.data.ExternalBuildType
+import com.sickworm.intellij.jugg.compiler.external.isInExternalBuildCacheDirectory
+import com.sickworm.intellij.jugg.compiler.external.resolveExternalBuild
 import com.sickworm.intellij.jugg.compiler.relativePathForPrintSafe
 import com.sickworm.intellij.jugg.git.FileMatcher
 import com.sickworm.intellij.jugg.git.IFileMatcher
@@ -49,6 +50,7 @@ class FileChangesHandler(
     private var compiledModules = emptyList<ModuleInfo>()
     private var buildDirs = emptyList<File>()
     private var scanRoots = listOf(projectDir.normalizedPath)
+    private var excludedExternalBuildDirs = emptyList<Path>()
 
     @Suppress("ConvertArgumentToSet")
     override fun init(compileContext: ICompileContext) {
@@ -194,6 +196,9 @@ class FileChangesHandler(
         scanRoots = (listOf(projectDir) + compiledModules.map { it.moduleRootDir } + externalSourceDirs)
             .map { it.normalizedPath }
             .distinct()
+        excludedExternalBuildDirs = compiledModules.flatMap { module ->
+            module.externalBuildInfos.flatMap { it.excludedDirs }
+        }.map { it.normalizedPath }.distinct()
     }
 
     private fun shouldExpandDirectory(directory: File): Boolean {
@@ -207,16 +212,17 @@ class FileChangesHandler(
     }
 
     private fun toChangeFile(file: File): ChangedFile? {
-        // file not exists
-        if (!file.exists()) {
-            return null
-        }
         // is directory
         if (file.isDirectory) {
             return null
         }
         if (file.isInBuildDir) {
             return null
+        }
+        // A removed external build input stays visible so the incremental pre-check can require a
+        // full Gradle build; its artifacts cannot be removed from the APK incrementally.
+        if (!file.exists()) {
+            return checkExternalBuildSource(file)
         }
 
         checkBuildFiles(file)?.let {
@@ -246,21 +252,12 @@ class FileChangesHandler(
         if (file.hasExcludedExternalBuildDirectory()) {
             return null
         }
-        val extension = file.extension.lowercase()
         getModules().forEach { module ->
-            module.externalBuildInfos.forEach buildLoop@{ buildInfo ->
-                val isSupported = when (buildInfo.type) {
-                    ExternalBuildType.Flutter -> extension == "dart"
-                    ExternalBuildType.Cpp -> extension in cppSourceExtensions
-                }
-                if (!isSupported) {
-                    return@buildLoop
-                }
-                val sourceDir = buildInfo.sourceDirs.firstOrNull { sourceDir ->
-                    file.pathEquals(sourceDir) || file.isChild(sourceDir)
-                } ?: return@buildLoop
-                return ChangedFile(CompileFile.Type.ExternalBuildSource, file, sourceDir, module)
-            }
+            val buildInfo = resolveExternalBuild(module, file) ?: return@forEach
+            val baseDir = buildInfo.sourceDirs.firstOrNull { sourceDir ->
+                file.pathEquals(sourceDir) || file.isChild(sourceDir)
+            } ?: file.absoluteFile.normalize().parentFile ?: return@forEach
+            return ChangedFile(CompileFile.Type.ExternalBuildSource, file, baseDir, module)
         }
         return null
     }
@@ -393,11 +390,12 @@ class FileChangesHandler(
 
     private val abiFolders = listOf("armeabi", "armeabi-v7a", "arm64-v8a", "x86", "x86_64")
 
-    private val cppSourceExtensions = setOf("c", "cc", "cpp", "cxx", "h", "hh", "hpp", "hxx")
-
     private fun File.hasExcludedExternalBuildDirectory(): Boolean {
-        val normalizedParts = absoluteFile.normalize().toPath().map { it.toString() }
-        return normalizedParts.any { it in externalBuildExcludedDirectories }
+        if (isInExternalBuildCacheDirectory()) {
+            return true
+        }
+        val path = normalizedPath
+        return excludedExternalBuildDirs.any { path.startsWith(it) }
     }
 
     private fun checkNativeLib(file: File): ChangedFile? {
@@ -445,6 +443,4 @@ class FileChangesHandler(
 
     private val File.normalizedPath: Path
         get() = toPath().toAbsolutePath().normalize()
-
-    private val externalBuildExcludedDirectories = setOf(".dart_tool", ".cxx", ".externalNativeBuild")
 }

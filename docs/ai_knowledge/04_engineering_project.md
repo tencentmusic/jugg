@@ -68,7 +68,7 @@
 | `kotlinCommonSourceDirs` | 选中 Android Kotlin compilation 视为 common 的 Kotlin source roots；非 KMP 或读取失败时为空列表 |
 | `kotlinFragmentSourceDirs` | 选中 Android Kotlin task 暴露的 fragment 到 source roots 映射；旧快照或不支持时为空 map |
 | `kotlinFragmentRefines` | fragment refinement edge，key 为 refining fragment，value 为其直接 refined fragments |
-| `externalBuildInfos` | 当前 variant 的 Flutter/C++ 外部构建类型、源码根、产生最终 native 产物的 Gradle task、native 输出位置，以及 Flutter assets 输出目录；native 输出是单个 `File`，运行时按归档或目录分派，不为容器类型分别建模；旧快照缺失时为空列表 |
+| `externalBuildInfos` | 当前 variant 的 Flutter/C++ 外部构建类型、`sourceDirs`（broad 源码根）、`inputFiles`（工具链确认的精确输入）、`configFiles`（配置输入）、`excludedDirs`（永不监听的生成/缓存目录）、产生最终 native 产物的 Gradle task、native 输出位置，以及 Flutter assets 输出目录；native 输出是单个 `File`，运行时按归档或目录分派，不为容器类型分别建模；后三组输入字段旧快照缺失时为空列表，语义退化为只掌握 broad 源码根 |
 | `kotlinDefaultFragmentName` | 无 source root 精确命中时使用的 task default fragment；旧快照或不支持时为 `null` |
 | `composeResourceInfo` | 已检测的 Compose resource task metadata；同时保存 supported/unsupported 状态与原因，由增量链按 task 和 generator API 结构消费，不按 Kotlin/Compose 精确版本过滤 |
 
@@ -158,7 +158,7 @@ JuggManager.onSyncEvent()
 
 `JuggProjectInfoMerger` 合并得到的最终 `JuggProjectInfo` / `ModuleInfo` 只保存在编译上下文内存中，不会回写 `project_infos.json`。磁盘上的 `project_infos.json`、`gradle_project_infos.json` 和 include build 快照分别代表各自输入源，时间戳和单个文件字段都不能直接代表最终合并状态；排查最终行为时应结合全部输入快照与编译日志判断。
 
-`ModuleInfo.externalBuildInfos` 保存 Flutter/C++ 源码根、当前变体 task、native 输出位置和 Flutter assets 输出目录。能够识别源码根但无法读取 task、assets 输出或 native 输出时仍保留该记录，并通过 `unsupportedReason` 标记不支持；这样文件变化不会被静默过滤，Run 预检会转为完整 Gradle 构建。旧快照缺少 `externalBuildInfos` 时按空列表读取；Flutter 记录已有 task 和 assets 输出但 native 输出缺失时（即升级前写入、没有 native 输出字段的旧 metadata），本轮首次命中 Dart 变化会强制刷新一次 Gradle project info，等待排队中的最新刷新结束，并按 compile context 中同名 module 的新 metadata 决策；已带 native 输出的记录不触发该刷新。
+`ModuleInfo.externalBuildInfos` 保存 Flutter/C++ broad 源码根、精确输入、配置输入、排除目录、当前变体 task、native 输出位置和 Flutter assets 输出目录。Flutter 的精确输入来自 `compileFlutterBuild<Variant>` 的 `sourceFiles`（工程内文件全部接受，工程外只接受能找到 `pubspec.yaml` package 根的 `.dart`），`pubspec.yaml`/`pubspec.lock` 作为配置输入；Native 的配置输入来自 `externalNativeBuild` 的 `CMakeLists.txt`/`*.cmake`/`Android.mk`/`Application.mk`，精确输入来自 CMake File API reply 与 AGP 的 `android_gradle_build.json`，按当前 build variant 过滤，取不到时保留 broad 源码根。Flutter SDK 根、pub cache 根、`.dart_tool` 与模块 build directory 进入 `excludedDirs`，永不监听。能够识别源码根但无法读取 task、assets 输出或 native 输出时仍保留该记录，并通过 `unsupportedReason` 标记不支持；这样文件变化不会被静默过滤，Run 预检会转为完整 Gradle 构建。旧快照缺少 `externalBuildInfos` 时按空列表读取；Flutter 记录已有 task 和 assets 输出但 native 输出缺失时（即升级前写入、没有 native 输出字段的旧 metadata），本轮首次命中 Dart 变化会强制刷新一次 Gradle project info，等待排队中的最新刷新结束，并按 compile context 中同名 module 的新 metadata 决策；已带 native 输出的记录不触发该刷新。
 
 全量构建完成后，如果 IDE 没有可靠返回 Sync Success，Jugg 会补偿读取一次 IDE project info。该分支仅使用 IDE 数据补充 module/source 结构，library dependency 始终以同一次全量构建生成的 Gradle project info 为准，不受 IDE JSON mtime 更新影响；正常 IDE Sync 仍沿用现有的 mtime 新旧判断。
 
@@ -266,7 +266,7 @@ APK 拉取全部成功后，`LocalGradleCompileClient` / `RemoteGradleCompileCli
 | Compose 默认/自定义资源目录未识别 | `GradleProjectInfoReader.getComposeResourceInfo()`、`readComposeResourceDirectories()` 与序列化后的 `composeResourceInfo` |
 | Compose resource API 不受支持 | task 类型集合与必要属性、task class 的 code source、generator class/method/constructor 结构及 `unsupportedReason` |
 | `-I readProjectInfo.gradle.kts` 报 trailing commas / Expecting an argument | `buildReadProjectInfoScript.gradle` 尾逗号清理；用 `ReadProjectInfoScriptContentTest` 与 Gradle 5/6 compat 回归，见 `06_testing.md` §7.4 |
-| Dart/C/C++ 修改没有触发外部构建 | `externalBuildInfos` 的 task/native 输出元数据、当前 variant 的 Flutter/native task、`FileChangesHandler` 扫描根与外部目录排除规则 |
+| Dart/C/C++/Flutter asset/CMake 配置修改没有触发外部构建 | `externalBuildInfos` 的 `inputFiles`/`configFiles`/`sourceDirs`/`excludedDirs`、task/native 输出元数据、当前 variant 的 Flutter/native task、`FileChangesHandler` 扫描根与外部目录排除规则 |
 
 ---
 

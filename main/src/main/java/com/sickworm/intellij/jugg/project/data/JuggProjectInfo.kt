@@ -46,6 +46,7 @@ data class ComposeResourceDirectory(
 /** External Gradle build discovered for sources that Jugg cannot compile directly. */
 data class ExternalBuildInfo(
     val type: ExternalBuildType,
+    /** Broad source roots: any matching source under them belongs to this external build. */
     val sourceDirs: List<File>,
     /** Task producing the final native artifacts: a Flutter pack/copy task or a C++ merge task. */
     val taskPath: String?,
@@ -54,6 +55,15 @@ data class ExternalBuildInfo(
     /** Final deployable native output holding `<abi>` native libraries: one archive or one directory. */
     val nativeOutput: File?,
     val unsupportedReason: String? = null,
+    /** Exact inputs confirmed by the toolchain task model; empty when only broad source roots are known. */
+    val inputFiles: List<File> = emptyList(),
+    /**
+     * Configuration inputs of this external build. Changing one reruns the external task, which
+     * rewrites this metadata; it does not by itself require a full Gradle build.
+     */
+    val configFiles: List<File> = emptyList(),
+    /** Generated output and cache roots owned by the toolchain; never watched as sources. */
+    val excludedDirs: List<File> = emptyList(),
 ) {
     val isSupported: Boolean
         get() = taskPath != null && nativeOutput != null && unsupportedReason == null &&

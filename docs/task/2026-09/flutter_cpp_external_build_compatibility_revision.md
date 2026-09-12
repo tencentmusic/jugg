@@ -320,86 +320,143 @@ Gradle 5/6 兼容测试只在匹配 JDK 可用时运行；若修改的生成脚�
 
 仓库没有可直接运行的 Flutter/Android C++ fixture，因此 modern/legacy Flutter 真机构建、AGP 7/8/9 C++ 运行时行为及混合输入 L3 尚未执行。本次只将已通过的模拟 Flow、reader fixture 和 Gradle 生成脚本兼容回归作为自动化证据，不把它们表述为真实工具链验收。
 
-## 12. `3dd9ac3e` 后续兼容性修订方案（2026-09-12）
+## 12. 外部构建输入覆盖与失败原子性方案（2026-09-12 修订并落地）
 
-### 12.1 当前结论
+本节是 Flutter/Native 外部构建兼容性的**当前有效方案与实现记录**。第 1～11 节保留 `94ce2ece` 落地时的决策与验证语境，凡与本节冲突处一律以本节为准（例如"pubspec 变化必须完整 Gradle"的判断已在本节修正）。
 
-`94ce2ece` 已覆盖标准 Flutter module/add-to-app 和标准 Android CMake/ndk-build 外部构建主路径，`3dd9ac3e` 进一步补齐 Flutter 新版目录型 native 输出。当前能力应表述为：
+### 12.1 能力声明
 
-> 支持能够可靠发现源码根、Gradle task 和最终产物位置的标准 Flutter 与 Android Native 工程；无法识别的版本、输入或构建链安全回退完整 Gradle。
+`94ce2ece` 覆盖标准 Flutter module/add-to-app 与标准 Android CMake/ndk-build 外部构建主路径，`3dd9ac3e` 补齐 Flutter 新版目录型 native 输出，本节补齐输入发现与失败原子性。当前能力表述为：
 
-不声明覆盖所有 Flutter 版本、AGP 3.4～9.1 的同等 Native 增量能力或任意自定义外部构建系统。剩余问题集中在输入覆盖和失败原子性，不再把 `copyJniLibsflutterBuild` 或 AGP 3.4 旧 Transform 管线列为待实现能力。
+> 支持能够可靠发现源码根、Gradle task、构建配置输入和最终产物位置的标准 Flutter 与 Android Native 工程；无法识别的版本、输入或构建链安全回退完整 Gradle。
 
-### 12.2 已纠正和已完成事项
+不声明覆盖所有 Flutter 版本、AGP 3.4～9.1 的同等 Native 增量能力，或任意自定义外部构建系统。
 
-| 事项 | 当前事实 | 方案结论 |
+### 12.2 五个边界
+
+外部构建的行为必须按五个边界分别判断，任何一段结论不能外推到其他段：
+
+| 边界 | 回答的问题 | 失败时的收口 |
 |---|---|---|
-| Flutter `copyJniLibsflutterBuild<Variant>` | `3dd9ac3e` 已识别 copy task 的 `destinationDir`，并统一使用 archive 或目录形式的 `nativeOutput` 收集 `.so` | 已完成，不进入后续实施范围 |
-| AGP 3.4 Native | AGP 3.4 没有现代 `merge<Variant>NativeLibs` task；源码根可识别但 task 不可用时 metadata 保留 `unsupportedReason`，增量预检回退完整 Gradle | 定义为安全降级，不实现旧 Transform 专用增量路径 |
-| Flutter native 更新后的重启 | `NativeLib` 输出进入 `changedLibs` 和 `updateApkFiles`，随后更新、重签并重新安装 APK | 产生变化 `.so` 的路径必然重启进程，不存在缓存 FlutterEngine 继续使用旧 native 产物的问题 |
-| Flutter Debug 仅 assets 变化 | 允许 native 目录为空，只要 `flutter_assets` 有效；这种情况下可能只走 assets overlay | 不预判为缺陷；在真实 add-to-app 验收中区分“assets-only”和“同时有 native 变化”并记录实际生命周期结果 |
+| 输入发现 | 哪些文件属于这个外部构建、哪些目录永不监听 | 保留源码根与 `unsupportedReason`，不静默丢弃 |
+| 变化识别 | 某次变化是源码、配置输入还是无关文件 | 无法归类则忽略；被删除的已识别输入必须保留可见 |
+| task 执行 | 复用哪个 Gradle task、用哪条命令 | 派生失败、task 不支持或输入不完整 → 完整 Gradle |
+| 产物收集 | 从哪个输出收集哪些条目 | 输出缺失/损坏/条目非法 → 本轮明确失败，不复用旧产物 |
+| 部署与删除 | 新产物如何生效、消失的产物如何处理 | 现有链无法表达删除 → 明确触发完整 Gradle |
 
-### 12.3 剩余边界分类
+### 12.3 输入模型职责
 
-#### A. Flutter 输入覆盖
+`ExternalBuildInfo` 用四类字段表达输入，职责互不重叠：
 
-`sourceDirs` 只回答“文件是否属于该 external build”，不能代替构建触发规则。
+| 字段 | 职责 | 匹配规则 |
+|---|---|---|
+| `sourceDirs` | broad/fallback 源码根。回答"文件是否属于该外部构建" | 目录前缀 + 该工具链的源码扩展名 |
+| `inputFiles` | 工具链确认的精确 incremental inputs | 精确路径命中，不看扩展名 |
+| `configFiles` | 构建配置输入，变化后执行既有 external task 并刷新输入 metadata | 精确路径命中 |
+| `excludedDirs` | 工具链拥有的生成输出/缓存目录，永不作为源码监听 | 目录前缀排除 |
 
-- Flutter module 外的本地 path dependency 需要把实际 package root 加入 `ExternalBuildInfo.sourceDirs`。
-- `pubspec.yaml`、`pubspec.lock`、图片、字体及其他 Flutter assets 即使位于现有 root 下，也需要独立的文件名、文件类型或声明式 asset 规则。
-- 非 `.dart` 的生成器输入不能通过扩大 Dart source root 自动覆盖；应监听稳定的生成器输入并执行生成任务，不能监听 `.dart_tool` 或 `build` 中的生成结果。
-- 删除文件需要单独确认历史产物移除语义，不能只依赖重新扫描当前输出。
+匹配规则由 `main/.../compiler/external/ExternalBuildSource.kt` 的 `resolveExternalBuild(module, file)` 单点实现，被 `FileChangesHandler`、`JuggCompileHelper` 预检与 `ExternalBuildCompiler` 共同调用。三者共用同一规则是硬约束：此前三处各有一份按扩展名 + 源码根判断的逻辑，规则漂移会让预检放行、执行阶段却解析失败。
 
-后续调查优先从 Flutter task 的已声明 inputs 和 package metadata 取得真实输入，不递归猜测所有相邻目录，也不把全局 pub cache 纳入监听。
+字段缺省为空列表，语义是"只掌握 broad 源码根"，与旧的降级行为一致；旧 JSON/数据库快照在读取边界恢复为空列表，不提升序列化版本。
 
-#### B. Native 输入覆盖
+### 12.4 Flutter 输入发现
 
-- `CMakeLists.txt` 或 `Android.mk` 的父目录只能覆盖主 source tree；`add_subdirectory("../native-common")`、绝对路径或复用仓库中的共享源码需要把实际 source tree 加入 `sourceDirs`。
-- `.S/.s`、`.inc/.inl/.ipp/.tpp` 属于文件类型规则缺口，不是 source root 缺口。
-- `.proto`、`.idl` 等生成器输入可能同时缺少目录、文件类型和前置任务信息，应按真实生成任务建模。
-- `.cxx`、`.externalNativeBuild`、`build/generated` 是构建输出，不直接监听；应监听其稳定输入并让 Gradle 执行生成及 native task。
-- Bazel、Cargo、脚本和自定义 Gradle task 缺少任务、命令及产物契约，继续回退完整 Gradle，不纳入标准 CMake/ndk-build 支持声明。
+1. 从当前 variant 的 `compileFlutterBuild<Variant>` 读取官方 `sourceFiles` FileCollection。历史与现代 Flutter 都基于 `flutter_build.d`，并显式包含 `pubspec.yaml`；不解析 pubspec YAML。
+2. `sourceFiles` 中位于工程根之下、且不在排除目录内的文件全部进入 `inputFiles`（因此覆盖 Flutter assets 与其他真实读到的输入）。
+3. 工程外文件只接受 `.dart`，且要求向上能找到带 `pubspec.yaml` 的 pub package 根；该 package 根加入 `sourceDirs`，文件加入 `inputFiles`。找不到 package 根的文件被丢弃，避免把任意相邻目录纳入监听。
+4. `pubspec.yaml`、`pubspec.lock` 进入 `configFiles`；同时用 Flutter 源码根下的同名文件兜底，保证 `sourceFiles` 不可用时仍能识别配置变化。
+5. `excludedDirs` 至少包含 `<flutterSourceDir>/.dart_tool`、模块 build directory；Flutter SDK 根与 pub cache 根通过能力检测取得（`flutter` 扩展的 `sdk`/`flutterRoot`、`flutter.sdk` 属性、`local.properties` 的 `flutter.sdk`、`FLUTTER_ROOT`；pub cache 取 `PUB_CACHE`，否则 `~/.pub-cache`）。取不到时只跳过该排除项，不伪造成功。
+6. `sourceFiles` 不可用或为空时保持 best-effort：`inputFiles` 为空，行为退回"只看 `sourceDirs` + `.dart`"，并打印一行说明。这是既有行为，不是新增缺陷。
+7. `.dart_tool/package_config.json` 可作为只读辅助 metadata 使用，但其生成结果不作为监听对象。
 
-#### C. 混合输入失败原子性
+### 12.5 Native 输入发现
 
-任务覆盖不足与混合输入漏处理是两个独立问题。当前 `ExternalBuildCompiler` 通过 `task.files.mapNotNull(::resolveBuild)` 收集 build；只要至少一个文件解析成功，就可能继续执行，并在最后把原始 `task.files` 全部标记成功。
+1. 配置输入来自 Android 扩展的 `externalNativeBuild`：CMake 为 `path` 指向的 `CMakeLists.txt` 加上其目录树内的 `*.cmake`（跳过 `.git`/`.cxx`/`.externalNativeBuild`/`.dart_tool`/`build`/`node_modules`，深度受限）；ndk-build 为 `Android.mk` 加同目录的 `Application.mk`。这些都归入 `configFiles`，变化后执行既有 `merge<Variant>NativeLibs`。
+2. 精确输入优先消费工具链已生成的结构化 native metadata，不解析 CMake/GNU Make 语言：
+   - CMake File API：定位 `<staging>/**/.cmake/api/v1/reply`，读 `codemodel-v2-*.json` → target → `sources[].path` 与 `compileGroups[].includes[].path`；
+   - ndk-build：定位 `android_gradle_build.json`，读 `files[].src` 与 `-I` 编译参数。
+   候选路径要求包含当前 build variant（大小写不敏感），因此不会误选其他 variant/ABI 的陈旧 reply；`.cxx` 等路径只作为**搜索入口**做能力检测，variant/ABI/hash 目录一律由发现得到。
+3. 搜索入口按优先级：DSL 的 `buildStagingDirectory` → 模块根下的 `.cxx` / `.externalNativeBuild`（工具链固定目录名）→ `<buildDir>/intermediates/cxx`。
+4. metadata 里的工程外共享源码与项目内 include root 分别进入 `inputFiles` 与 `sourceDirs`；位于 build directory / staging directory 下的生成源码被排除，因为无法从 metadata 得到任意自定义生成命令的依赖，属于明确非目标。
+5. 无 metadata 或解析失败时 `inputFiles` 为空，退回"makefile 父目录 + 有限扩展名"的既有能力，安全降级。
 
-例如同轮修改两个 Flutter module，其中一个 task 可识别、另一个不可识别时，不能只构建可识别部分后报告全部成功。目标行为是：
+### 12.6 完整 Gradle 的触发条件
 
-1. 预检发现任一 external 输入缺少匹配 metadata、task 或产物契约时，整轮回退完整 Gradle。
-2. compiler 再做一次防御校验；解析结果数量与原始输入不一致时整轮失败，不启动部分 external task。
-3. 只有全部输入解析成功后才按 build 去重、执行和收集产物；任一 build 或产物收集失败时，不提交其他 build 的半成品和成功状态。
+配置输入（`CMakeLists.txt`、`*.cmake`、`Android.mk`、`Application.mk`、`pubspec.yaml`、`pubspec.lock`）变化**默认复用现有 external task**，不无条件完整 Gradle：
 
-### 12.4 推荐实施顺序
+- 既有 external task 自身依赖这些配置输入，Gradle 会重新 configure/build；
+- external 命令派生自成功 full build 的基线命令，因此保留 `-I readProjectInfo.gradle.kts`，init script 会在任务图结束时重写项目信息，即"task 成功后刷新输入 metadata"；
+- IDE 预检在命中配置输入时额外强制刷新一次 project info 并等待排队刷新结束，使本轮读到最新快照。
 
-| 优先级 | 工作项 | 最小范围 | 非目标 |
-|---|---|---|---|
-| P0 | 修复混合输入原子性 | 预检整体回退；compiler 禁止 `mapNotNull` 部分成功；保持现有 staging 和状态提交契约 | 不扩展新的 external build 类型 |
-| P1 | 补 Flutter 本地依赖与声明输入 | 识别本地 path package roots；覆盖 pubspec、已声明 assets 和稳定生成器输入 | 不监听全局 pub cache、`.dart_tool` 或任意工程文件 |
-| P1 | 补标准 Native 真实 source tree | 从标准 CMake/ndk-build 能力取得共享源码根；补汇编及常见头文件扩展名 | 不解析完整 CMake 语言，不支持 Bazel/Cargo |
-| P2 | 删除语义 | 明确已删除 Flutter asset/native library 的 APK 或 overlay 移除契约 | 不进行全量 Flutter bundle 重建框架化改造 |
-| 验收 | 更新兼容矩阵 | 区分 legacy pack、modern pack、modern copy、AGP 3.4 fallback、AGP 7/8/9 native | 不用源码结构检查替代真实工程结果 |
+只有以下情况才回退完整 Gradle：
 
-阶段顺序为 P0 → Flutter/Native P1 → 删除语义评估。P0 是正确性修复，不能等待输入覆盖一起完成；P1 中 Flutter 与 Native 相互独立，可以分别落地。AGP 3.4 和自定义构建系统保持安全降级，不为扩大版本数字引入平行实现。
+1. 任一 external 输入没有匹配 metadata、task 或产物契约（含混合 module 场景）；
+2. metadata 标记为 `unsupportedReason`（例如 AGP 3.4 没有现代 `merge<Variant>NativeLibs`）；
+3. 无法从基线命令安全派生外部 task；
+4. 已识别的 external 输入被删除；
+5. 远程编译、build target/命令变化等既有全局门禁；
+6. 本轮 external task 成功后，上一轮已收集的 native/asset 产物不再出现（见 12.7）。
 
-### 12.5 后续验证计划
+### 12.7 失败原子性与删除边界
 
-本节只定义后续实施需要取得的证据，本次方案更新不执行测试。
+- **预检**（`JuggCompileHelper.findExternalBuildFallbackReason`）对全部 external 输入逐条解析；任一输入缺失 metadata、不支持或被删除 → 整轮 `incrementalFailed(true, reason)`，自动回退完整 Gradle。
+- **执行前的防御校验**（`ExternalBuildCompiler.doCompile`）：解析结果数量必须等于原始输入数量，任一 `null` 或文件已不存在 → 整轮失败，禁止 `mapNotNull` 部分成功后再把全部文件标记成功。只有全部解析成功后才按 build 去重执行。
+- **产物收集**：任一 build 失败或产物收集失败 → 整轮失败，不提交其他 build 的半成品。
+- **删除/重命名产物**：现有 APK/overlay 链没有删除原语，因此删除源码输入走 12.6 的完整 Gradle；本轮 external task 成功后额外比较 staging 下记录的上一轮产物清单（`external/<module>/<type>-artifacts.txt`），一旦上一轮产物不再产生 → 本轮明确失败并提示需要完整 Gradle，禁止残留旧 `.so` 或 asset 后报告成功。清单写入 staging 目录，只用于本机比较，不进入项目快照。
+- 已删除的 external 输入在 `FileChangesHandler` 中保持可见（普通源码删除行为不变）；`ExternalBuildCompiler` 对不存在的输入显式失败，避免下游处理空文件。
 
-| 层级 | owner/场景 | 修改前应证明 | 修改后结果 |
-|---|---|---|---|
-| L1 Flow | `ExternalBuildFlowTest`：两个 module 中一个可解析、一个不可解析 | 当前只保留可解析 build，存在全量成功标记风险 | 未启动 runner，全部 external 输入失败并交由上层回退 |
-| L2 | `JuggCompileHelperTest`：unsupported metadata 与 supported metadata 混合 | 预检可能未整体阻断 | 在进入 incremental compiler 前选择完整 Gradle |
-| Reader/序列化 | Flutter path package、Native 共享 source tree | 当前 metadata 未包含工程外真实 source root | sourceDirs 往返后保持实际绝对路径和工程搬迁语义 |
-| 文件变化 | pubspec、Flutter asset、汇编、生成器输入 | 当前只覆盖 `.dart` 和有限 C/C++ 扩展名 | 仅声明支持的输入进入 external build，生成输出目录继续忽略 |
-| L3 Flutter | legacy pack、modern pack、modern copy；assets-only 与 native changed 分开 | 模拟 task 不能证明真实产物及生命周期 | Dart/asset 行为变化可见；`.so` 变化走 APK 重装；assets-only 记录实际 engine 生命周期 |
-| L3 Native | AGP 3.4、7、8、9 的标准 CMake/ndk-build | 3.4 缺 modern merge task；现代版本仅有结构证据 | 3.4 明确回退；现代版本返回值变化生效且未误跑宿主 assemble |
+### 12.8 已完成、明确降级与本次实现
 
-### 12.6 文档和支持声明
+| 分类 | 事项 | 说明 |
+|---|---|---|
+| 已完成（`3dd9ac3e`） | Flutter `copyJniLibsflutterBuild<Variant>` 目录型输出 | 已识别 `destinationDir`，与 archive 形式统一为 `nativeOutput`，不再重复实现 |
+| 已完成（`94ce2ece`） | 基线命令复用、任务派生、Flutter archive 收集、CLI 迁移、旧快照恢复 | 见第 11 节 |
+| 明确降级 | AGP 3.4 Native | 没有现代 `merge<Variant>NativeLibs`；保留源码根与 `unsupportedReason`，预检回退完整 Gradle。不实现旧 Transform 平行增量路径 |
+| 明确降级 | Bazel、Cargo、任意脚本/自定义 task | 没有完整 input/task/output 契约，不猜测，不引入通用 adapter 框架 |
+| 明确降级 | 任意自定义生成命令的依赖发现 | 生成源码位于 build/staging 目录时只排除，不监听 |
+| 本次实现 | 四类输入模型 + 单一解析规则 | `ExternalBuildInfo`、`ExternalBuildSource.kt` |
+| 本次实现 | Flutter `sourceFiles` → 精确输入/配置输入/排除目录 | `GradleProjectInfoReader.readFlutterInputs` |
+| 本次实现 | Native 配置输入 + CMake File API / ndk-build model 消费 | `readCppBuildConfig`、`NativeBuildMetadata.kt` |
+| 本次实现 | 汇编与模板扩展名（`.s`/`.asm`/`.inc`/`.inl`/`.ipp`/`.tpp`） | 共享扩展名集合 |
+| 本次实现 | 混合输入 all-or-nothing、删除输入回退、产物消失失败 | `ExternalBuildCompiler`、`JuggCompileHelper` |
+| 本次实现 | 旧 JSON 缺字段恢复、CLI 路径搬迁覆盖新字段 | 两个 serializer、`CmdLineContextManager` |
 
-后续实现时同步知识库及 Wiki，并保持以下边界一致：
+### 12.9 测试价值、owner 与层级
 
-- Flutter `packLibs`、`packJniLibs`、`copyJniLibs` 是已支持的已知任务结构，不等同于承诺所有未来 Flutter 版本。
-- AGP 3.4 支持 Jugg 完整 Gradle 工作流，但不支持本功能的 Native 增量执行；AGP 3.5+ 仍按 task 和输出能力动态判断。
-- 无法可靠识别 source root、输入类型、task 或产物位置时回退完整 Gradle，不扫描旧中间目录伪造成功。
-- 缓存 FlutterEngine 不是 native 更新路径的剩余风险；仅对没有变化 `.so` 的 assets-only Debug 场景保留真实验收项。
+测试门禁：保护"输入是否被识别/是否完整解析/是否安全降级/是否伪造成功"这些用户可见行为，不为字段存在、getter 透传或私有函数签名新增测试。`resolveExternalBuild` 不再单独建测试 owner——它的契约已由 `FileChangesHandlerTest`（识别）与 `ExternalBuildFlowTest`（解析失败）在真实调用点覆盖，同一规则不重复建第三个 owner。
+
+| 目标 | owner / 层级 | 修改前失败证据 |
+|---|---|---|
+| 混合输入不启动 runner、整轮失败 | `ExternalBuildFlowTest#fails the whole round when one external input has no metadata`（main, 内部 Flow） | 旧 `mapNotNull` 实现下该用例失败（部分成功） |
+| 产物消失不伪造成功 | `ExternalBuildFlowTest#fails when a previously collected external artifact is no longer produced`（main, 内部 Flow） | 旧实现下该用例失败（返回成功） |
+| Flutter 精确输入/配置输入/排除目录 | `GradleProjectInfoReaderExternalBuildTest`（main, L1） | 旧 reader 下 3 个用例失败（无 inputFiles/configFiles/excludedDirs） |
+| CMake 配置输入与 variant 过滤的 native metadata | `GradleProjectInfoReaderExternalBuildTest#discovers CMake configuration inputs...`（main, L1） | 同上 |
+| asset、工程外 local path package、汇编识别、排除目录、删除输入 | `FileChangesHandlerTest`（idea, L1） | 旧 handler 下 4 个用例失败 |
+| 预检整体回退与配置输入刷新 | `JuggCompileHelperTest`（idea, L2） | 旧预检下删除输入、配置输入刷新 2 个用例失败；混合 module 用例在旧预检下已通过（旧预检本就逐条解析），它是回归守卫，混合输入的缺陷证据由 `ExternalBuildFlowTest` 提供 |
+| 新字段往返与旧快照恢复 | `ProjectInfoSerializerInGradleAndroidTestTest`、`JuggProjectInfoSerializerAndroidTestTest`（main, L1） | 旧 serializer 下 2 个用例失败 |
+| 生成脚本语法与高版本 Gradle/AGP 行为 | `ReadProjectInfoScriptContentTest`、`ReadProjectInfoGradle6/7/9CompatTest`（main, L1/L2） | 本次实现期间真实复现：脚本顶层函数名冲突导致 Gradle 9 fixture 编译失败（17/18 通过）。`ReadProjectInfoGradle9CompatTest#generatedScript_shouldMinifyReleaseWithBundledRuntime` 在未改动的源码上同样失败，属既有环境问题，与本次改动无关 |
+
+实施顺序（已按序完成）：先取得上述失败证据 → 输入模型与单一解析规则 → 变化识别 → 预检回退 → 收集原子性与删除边界 → reader 输入发现 → 序列化/CLI → 文档与 Wiki。
+
+### 12.10 真实工具链残余风险
+
+仓库没有可运行的 Flutter/Android C++ fixture，本节列出的都是**未执行**的真实组合，不得在交付中表述为通过：
+
+| 未验证组合 | 具体风险 |
+|---|---|
+| 真实 Flutter 2.10/3.22/3.35/3.41 工程 | `sourceFiles` 的实际内容、`flutter_build.d` 缺失时的行为、`.dart_tool` 与 SDK 路径的实际形状 |
+| 真实 CMake 工程 | File API reply 的实际目录深度、`sources[].path` 是否为绝对路径、多 ABI 目录结构 |
+| 真实 ndk-build 工程 | `android_gradle_build.json` 是否总是生成、`files[].src` 的完整度 |
+| AGP 7/8/9 C++ 运行时 | 任务发现、返回值变化、APK 归属 |
+| AGP 3.4 | 仅确认降级路径，未验证增量执行（不承诺） |
+| Flutter Debug 仅 assets 变化 | 实际 engine 生命周期（本次不预判为缺陷） |
+
+模拟 Flow 与 reader fixture 只能证明内部数据流与解析规则，不能替代真实构建与设备运行证据。
+
+### 12.11 落地结果（本次实现）
+
+生产改动：`JuggProjectInfo.kt`（模型）、`ExternalBuildSource.kt`（单一解析规则，新增）、`ExternalBuildCompiler.kt`（原子性/删除边界）、`FileChangesHandler.kt`（识别与排除）、`JuggCompileHelper.kt`（预检与刷新）、`GradleProjectInfoReader.kt`（Flutter/Native 输入发现）、`NativeBuildMetadata.kt`（CMake File API / ndk-build model，新增）、`ProjectInfoSerializerInGradle.kt`、`ProjectInfoSerializer.kt`、`CmdLineContextManager.kt`。
+
+本次实现期间发现并修正的真实缺陷：生成的 `readProjectInfo.gradle.kts` 是扁平的脚本作用域，新增的 `parse` 等顶层私有函数名会与既有 `XmlParser` 的同名函数冲突，导致 Gradle 9 fixture 编译失败；已改为唯一命名的成员函数。该约束对后续新增脚本代码同样适用。
+
+同步更新的文档：`docs/ai_knowledge/02_compile_core.md`、`04_engineering_project.md`、`98_code_map.md`，以及 Wiki 中英文的 `concepts/incremental-compile/assets-native.md`、`capabilities/compile/so-update.md`。

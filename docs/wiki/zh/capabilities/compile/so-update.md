@@ -23,7 +23,8 @@ Jugg 支持更新已产出的 native lib / `.so` 文件。对于 Gradle 管理�
 | Flutter Debug 只生成 assets，不生成 native lib | 支持 | 只更新 `flutter_assets`，不要求 native 输出存在；原生目录为空时本轮编译仍然成功 |
 | 同轮更新多个 ABI 的 native lib | 支持按目标 APK 归属处理 | 每个目标 APK 只接收属于自己的 native lib |
 | 删除 `.so` | 不生成移除结果 | 已安装 APK 继续包含原有 native lib |
-| 修改 CMake、ndk-build、NDK、ABI 或 packaging 配置 | 不作为源码增量输入 | 通过完整 Gradle 构建刷新项目模型和 APK 基线 |
+| 修改 `CMakeLists.txt`、项目内 `*.cmake`、`Android.mk`、`Application.mk` | 支持 | 执行当前变体的 native task，并在任务结束后刷新项目模型；新 `.so` 按既有流程更新 APK |
+| 修改 NDK、ABI、native source set 或 packaging 规则 | 不作为源码增量输入 | 通过完整 Gradle 构建刷新项目模型和 APK 基线 |
 
 ## 触发与结果
 
@@ -53,7 +54,9 @@ Flutter Dart 源码变化
 - 每次检测到 Dart 源码变化都会执行当前变体的 Flutter native 输出 task。Jugg 只读取该 task 自己声明的 native 输出，并按它是归档还是目录解析出 ABI 下的 `.so`；不从 Flutter 中间目录递归猜测 native 输出，也不按固定路径拼接产物位置。
 - 已识别 Flutter 源码根但缺少 compile task、assets 输出目录或 native 输出元数据时，Jugg 会回退完整 Gradle 构建；native 输出无法读取，或归档中出现不安全、重复的 native 条目时，本轮编译失败。Debug 等本身不产出 native lib 的构建模式只要 assets 输出有效就算成功。
 - 已识别 C/C++ 源码根但缺少任务或输出目录元数据时，Jugg 会回退完整 Gradle 构建；外部任务失败或没有生成有效 `.so` 时，本轮编译失败，不使用旧中间产物继续部署。
-- 修改 CMake、ndk-build、NDK、ABI、source set 或 packaging 规则后，先完成 Sync 和完整 Gradle 构建以刷新项目模型与 APK 基线。
+- 项目内 CMake/ndk-build 配置文件（`CMakeLists.txt`、`*.cmake`、`Android.mk`、`Application.mk`）属于当前变体 native build 的配置输入：修改后 Jugg 执行既有 native task，并在任务结束后刷新项目模型，其中新增的工程外共享源码、汇编文件与 include root 会在下一轮成为可识别的输入。NDK、ABI、native source set 或 packaging 规则等无法由该 task 覆盖的配置变化，仍需完整 Gradle 构建刷新 APK 基线。
+- 已识别的 C/C++ 源码或 native 配置文件被删除时，Jugg 回退完整 Gradle 构建；外部构建成功后若上一轮收集到的 native 产物本轮不再产生，本轮编译失败并提示需要完整 Gradle 构建，不会残留旧 `.so` 后报告成功。
+- 同一轮内多个外部输入并非全部可解析时（例如多 module 工程中只有一个 module 配置了 native 构建），整轮回退完整 Gradle 构建，不会只构建可识别的部分。
 - 删除 `.so` 不会生成 APK 内文件的移除数据，也不会仅因此让增量编译失败。已安装 APK 继续包含原有 native lib，只有需要让删除真正生效时才执行完整 Gradle 构建。
 - 多 APK 工程按目标 APK 归属更新，不会把同一份 native lib 默认写入所有 APK。
 - 签名配置缺失或无效时，本轮增量 APK 更新失败；需要通过 Gradle 构建恢复可安装的 APK 基线。

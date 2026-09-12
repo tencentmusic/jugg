@@ -59,7 +59,7 @@ JuggCompilerHelper.compile(options, uiHandler)
      -> 异步启动 Git 漏文件检查；它不决定本轮 Gradle 回退
      -> 按固定优先级判断：
         1. Force Gradle Compile
-        2. 外部源码变化但当前使用远程编译或非标准 Gradle command
+        2. 外部源码变化但当前使用远程编译、非标准 Gradle command，或存在未解析/已删除的 external 输入
         3. BuildTarget 切换（APP <-> ANDROID_TEST）
         4. compile command 与 full-build 基线不一致
         5. 未建立 full-build 基线（`not gradle compile yet`）
@@ -151,9 +151,9 @@ pre-D8 class preparation 是 `DexCompiler` 的内部步骤，不是新的 `BaseC
 - `splitApkAndCompile()` 是 APK scoped 的产物分流；子类在 `doApkCompile()` 输出时必须保留当前 APK 归属，否则多 APK 场景部署会丢失目标。
 - `RDexForSubmoduleCompiler` 生成的模块 `R.dex` 必须携带 `ModuleApkBelongs` 给出的 `apkPath` / `targetApkPaths`。Dynamic Feature 场景若遗漏该归属，产物会退化为通用 class dex 并扩散到所有 APK，使同包名但资源集合不同的 R 类相互覆盖。
 - `JuggCompiler` 中资源阶段产生的 DataBinding/ViewBinding 源不会立即作为最终产物结束，而是转成下一步 `SourceCompiler` 输入。
-- Dart/C/C++ 源码命中模块的 `externalBuildInfos` 后进入 `ExternalBuildSource`。每次变化都会执行对应 Gradle task；产物 CRC 只用于跳过重复部署，不用于跳过 Flutter/C++ 编译。Jugg 只记录一个 native 输出位置，收集时按 file/directory 分派：Flutter 的 native task 是 `compileFlutterBuild<Variant>` 依赖的 `packJniLibsflutterBuild<Variant>` / `packLibsflutterBuild<Variant>`（归档）或 `copyJniLibsflutterBuild<Variant>`（目录），前者只读 archive 的 `lib/<abi>/*.so`，后者只读真实 `destinationDir` 的 `<abi>/*.so`，都不递归扫描 Flutter 中间目录；`flutter_assets` 单独从 assets 输出目录进入 asset overlay。C++ 从 `merge<Variant>NativeLibs` 输出目录收集 `.so`。项目快照保留已识别但缺少 task、assets 输出或 native 输出的不支持状态，Run 预检命中后回退完整 Gradle；外部 task 执行失败、native 输出损坏或既没有 assets 也没有有效产物时本轮明确失败，禁止读取旧中间产物继续成功；Debug 等 native 输出为空目录但 assets 有效的构建模式视为成功。
+- Dart/C/C++ 源码（含 Flutter assets、工程外 local path package 的 Dart、`.cmake`/汇编等由 task metadata 确认的输入）命中模块的 `externalBuildInfos` 后进入 `ExternalBuildSource`。归属判定由 `resolveExternalBuild()` 单点给出：`inputFiles`/`configFiles` 精确命中，`sourceDirs` 按该工具链的源码扩展名命中，`excludedDirs` 与工具链缓存目录（`.dart_tool`/`.cxx`/`.externalNativeBuild`）始终排除。每次变化都会执行对应 Gradle task；产物 CRC 只用于跳过重复部署，不用于跳过 Flutter/C++ 编译。Jugg 只记录一个 native 输出位置，收集时按 file/directory 分派：Flutter 的 native task 是 `compileFlutterBuild<Variant>` 依赖的 `packJniLibsflutterBuild<Variant>` / `packLibsflutterBuild<Variant>`（归档）或 `copyJniLibsflutterBuild<Variant>`（目录），前者只读 archive 的 `lib/<abi>/*.so`，后者只读真实 `destinationDir` 的 `<abi>/*.so`，都不递归扫描 Flutter 中间目录；`flutter_assets` 单独从 assets 输出目录进入 asset overlay。C++ 从 `merge<Variant>NativeLibs` 输出目录收集 `.so`。项目快照保留已识别但缺少 task、assets 输出或 native 输出的不支持状态，Run 预检命中后回退完整 Gradle；外部 task 执行失败、native 输出损坏或既没有 assets 也没有有效产物时本轮明确失败，禁止读取旧中间产物继续成功；Debug 等 native 输出为空目录但 assets 有效的构建模式视为成功。
 - `FileChangesHandler` 统一排除所有模块的实际 Gradle build directory 与传统 `${moduleRootDir}/build`。文件监听、Git 补检、恢复事件和源码影响传播经过该入口时，Gradle generated source、resource、asset、manifest、native lib 或 build file 都不会进入变更列表；目录事件会在递归前剪枝。该规则不影响编译器在本轮内直接登记和交接的 JuggApt/Resource/Compose generated source。
-- 外部源码根可位于 Android 模块目录之外，因此会额外加入文件扫描根；`.dart_tool`、`.cxx`、`.externalNativeBuild` 和模块 build directory 始终排除，避免把生成文件重新识别为源码变化。
+- 外部源码根可位于 Android 模块目录之外，因此会额外加入文件扫描根；`.dart_tool`、`.cxx`、`.externalNativeBuild`、模块 build directory，以及 metadata 声明的 `excludedDirs`（Flutter SDK 根、pub cache 根等）始终排除，避免把生成文件或依赖缓存重新识别为源码变化。已识别的 external 输入被删除时仍会保留为变更项，交由预检回退完整 Gradle，因为现有 APK/overlay 链没有删除原语；普通源码删除行为不变。
 - 删除事件只按路径移除此前登记的待编译项；已不存在的文件不会转成 `ChangedFile`，也不会生成 class、resource、asset 或 Manifest 的移除数据。删除本身因此不会让增量编译失败或自动回退，设备继续保留已安装 APK 和既有 overlay 中的旧内容。重命名会被拆成旧路径删除和新路径新增/修改，只有新路径能够进入编译。需要让旧内容真正消失时，才通过完整 Gradle build 刷新 APK 基线。
 - Compose resource 按项目 Gradle task 暴露的 generator API 结构识别支持能力，不使用 Compose 或 Kotlin 精确版本白名单。项目快照会保留“已检测但不支持”的状态、已配置资源根和用户可见原因；资源变化仍进入编译并失败，随后复用现有下一次运行 Gradle fallback 语义，不会因 `composeResourceInfo=null` 静默过滤。
 - Compose resource 文件删除同样不会形成编译输入；当前没有 deletion 图、generated source/cache 复用或完整 source-set 依赖图，旧 generated class 和已部署资源会继续保留到完整 Gradle build 刷新基线。
@@ -167,7 +167,7 @@ pre-D8 class preparation 是 `DexCompiler` 的内部步骤，不是新的 `BaseC
 
 Run 前判断的完整优先级见 §4.1。可回退条件分为三类：
 
-- 用户或基线强制：Force Gradle、BuildTarget 切换、compile command 变化、project info 不可用；外部源码变化遇到远程编译或无法安全派生 task 的非标准 Gradle command。
+- 用户或基线强制：Force Gradle、BuildTarget 切换、compile command 变化、project info 不可用；外部源码变化遇到远程编译、无法安全派生 task 的非标准 Gradle command、任一 external 输入缺少 metadata/task/产物契约、metadata 标记不支持、external 输入被删除，或上一轮已收集的 native/asset 产物本轮不再产生。
 - 状态强制：未建立基线或上次 Gradle 失败时直接要求 full compile，避免用户看到无效确认框；build file 是否要求 rebuild 则在大改动确认之后由用户选择决定。
 - 性能策略：Java/Kotlin 文件点数或模块数超过阈值时，IDE 默认 Gradle，允许用户只在本轮选择 Continue；选择 Continue 后才检查 build file / dependency 变化。MCP/CLI 与 `checkFallback()` 不弹窗，直接报告回退。
 

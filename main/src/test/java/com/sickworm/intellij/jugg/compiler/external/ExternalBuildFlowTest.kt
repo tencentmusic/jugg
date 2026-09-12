@@ -392,6 +392,102 @@ class ExternalBuildFlowTest {
     }
 
     @Test
+    fun `fails the whole round when one external input has no metadata`() {
+        val root = Files.createTempDirectory("jugg-external-build-partial").toFile()
+        val parent = object : Disposable {
+            override fun dispose() = Unit
+        }
+        try {
+            val flutterRoot = File(root, "flutter").apply { mkdirs() }
+            val unresolvedRoot = File(root, "other-flutter").apply { mkdirs() }
+            val module = createModule(
+                root,
+                flutterRoot,
+                File(root, "native"),
+                File(root, "build/flutter"),
+                File(root, "build/flutter-native.jar"),
+                File(root, "build/cpp"),
+            )
+            createGradleScript(root, File(root, "build/flutter"), File(root, "build/flutter-native.jar"), File(root, "build/cpp"))
+            val dartFile = File(File(flutterRoot, "lib"), "main.dart").apply {
+                parentFile.mkdirs()
+                writeText("void main() {}")
+            }
+            val unresolvedDart = File(File(unresolvedRoot, "lib"), "other.dart").apply {
+                parentFile.mkdirs()
+                writeText("void main() {}")
+            }
+            val context = createContext(root, module, fullBuildGradleCommand = "./gradlew :app:assembleDebug")
+
+            val result = JuggCompiler(context, parent).compile(CompileTask(
+                files = listOf(
+                    CompileFile(CompileFile.Type.ExternalBuildSource, dartFile, flutterRoot, module),
+                    CompileFile(CompileFile.Type.ExternalBuildSource, unresolvedDart, unresolvedRoot, module),
+                ),
+                outputDir = File(root, "staging"),
+                compileStatusHolder = CompileStatusHolder.DEFAULT,
+            ))
+
+            assertTrue(!result.isAllSuccess)
+            assertTrue(result.outputs.isEmpty())
+            assertTrue(!File(root, "invocation.txt").exists(), "no external task may run for a partial round")
+        } finally {
+            Disposer.dispose(parent)
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `fails when a previously collected external artifact is no longer produced`() {
+        val root = Files.createTempDirectory("jugg-external-artifact-removed").toFile()
+        val parent = object : Disposable {
+            override fun dispose() = Unit
+        }
+        try {
+            val flutterRoot = File(root, "flutter").apply { mkdirs() }
+            val flutterOutput = File(root, "build/flutter")
+            val flutterNativeDir = File(root, "build/jniLibs")
+            val module = createModule(
+                root,
+                flutterRoot,
+                File(root, "native"),
+                flutterOutput,
+                flutterNativeDir,
+                File(root, "build/cpp"),
+                flutterTaskPath = ":flutter:copyJniLibsflutterBuildDebug",
+            )
+            val dartFile = File(File(flutterRoot, "lib"), "main.dart").apply {
+                parentFile.mkdirs()
+                writeText("void main() {}")
+            }
+            createGradleScript(root, flutterOutput, flutterNativeDir)
+            val context = createContext(root, module, fullBuildGradleCommand = "./gradlew :app:assembleDebug")
+            val stagingDir = File(root, "staging")
+            val task = {
+                CompileTask(
+                    listOf(CompileFile(CompileFile.Type.ExternalBuildSource, dartFile, flutterRoot, module)),
+                    stagingDir,
+                    CompileStatusHolder.DEFAULT,
+                )
+            }
+
+            val first = JuggCompiler(context, parent).compile(task())
+            assertTrue(first.isAllSuccess)
+            assertTrue(first.outputs.any { it.relativeFile.invariantSeparatorsPath == "lib/arm64-v8a/libapp.so" })
+
+            // The next build keeps producing assets but drops the native library.
+            createEmptyJniLibsGradleScript(root, flutterOutput, flutterNativeDir)
+            val second = JuggCompiler(context, parent).compile(task())
+
+            assertTrue(!second.isAllSuccess)
+            assertTrue(second.outputs.isEmpty())
+        } finally {
+            Disposer.dispose(parent)
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
     fun `fails only external build when legacy context lacks Gradle command getter`() {
         val root = Files.createTempDirectory("jugg-external-build-legacy-context").toFile()
         val parent = object : Disposable {
@@ -521,7 +617,9 @@ class ExternalBuildFlowTest {
 
     private fun createEmptyJniLibsGradleScript(root: File, flutterOutput: File, flutterNativeDir: File) {
         File(root, "gradlew").apply {
+            // Flutter owns the jniLibs directory and regenerates it, so stale entries must disappear.
             writeText("""#!/bin/bash
+                rm -rf "${flutterNativeDir.path}"
                 mkdir -p "${File(flutterOutput, "flutter_assets").path}"
                 mkdir -p "${flutterNativeDir.path}"
                 printf flutter-code > "${File(flutterOutput, "flutter_assets/kernel_blob.bin").path}"
