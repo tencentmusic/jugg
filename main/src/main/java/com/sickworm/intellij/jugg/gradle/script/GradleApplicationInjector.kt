@@ -237,6 +237,10 @@ class GradleApplicationInjector(
         rules.add("-dontwarn com.sickworm.intellij.jugg.internal.dragonfly.runtime.kotlin.Metadata")
         rules.add("-dontwarn com.sickworm.intellij.jugg.internal.dragonfly.runtime.kotlin.jvm.JvmStatic")
         rules.add("-dontwarn com.sickworm.intellij.jugg.internal.dragonfly.runtime.kotlin.jvm.internal.markers.KMappedMarker")
+        // The bundled runtime keeps Kotlin nullability annotations that are not shipped inside the jar
+        // and may be absent from the app classpath, e.g. in a Java-only Android project.
+        rules.add("-dontwarn org.jetbrains.annotations.NotNull")
+        rules.add("-dontwarn org.jetbrains.annotations.Nullable")
 
         outputFile.writeText(rules.joinToString("\n"))
     }
