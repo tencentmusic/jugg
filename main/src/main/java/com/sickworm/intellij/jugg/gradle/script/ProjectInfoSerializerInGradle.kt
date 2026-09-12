@@ -124,12 +124,23 @@ class ProjectInfoSerializerInGradle(private val dataFile: File) {
             } ?: return@mapNotNull null
             val sourceDirs = (info["sourceDirs"] as? List<String>).orEmpty().map(::File)
             if (sourceDirs.isEmpty()) return@mapNotNull null
+            // Snapshots written before the outputs were unified are restored here: legacy Flutter kept
+            // the assets directory in outputDir and the native output in nativeLibsArchive (a Jar) or
+            // nativeLibsDir (a jniLibs directory); legacy C++ kept its native output in outputDir.
+            val legacyOutputDir = (info["outputDir"] as? String)?.let(::File)
+            val isFlutter = type == ExternalBuildType.Flutter
             ExternalBuildInfo(
                 type = type,
                 sourceDirs = sourceDirs,
                 taskPath = info["taskPath"] as? String,
-                outputDir = (info["outputDir"] as? String)?.let(::File),
-                nativeLibsArchive = (info["nativeLibsArchive"] as? String)?.let(::File),
+                assetsOutputDir = (info["assetsOutputDir"] as? String)?.let(::File)
+                    ?: legacyOutputDir?.takeIf { isFlutter },
+                nativeOutput = (info["nativeOutput"] as? String)?.let(::File) ?: if (isFlutter) {
+                    (info["nativeLibsArchive"] as? String)?.let(::File)
+                        ?: (info["nativeLibsDir"] as? String)?.let(::File)
+                } else {
+                    legacyOutputDir
+                },
                 unsupportedReason = info["unsupportedReason"] as? String,
             )
         }

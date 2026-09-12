@@ -40,15 +40,15 @@ changed, already generated .so
   -> generate a native library incremental artifact owned by the target APK
 
 Dart change
-  -> run the Flutter native packaging task for the current variant every time; that task also depends on the Flutter compile task
-  -> convert flutter_assets into assets and lib/<abi>/*.so entries in the packaging archive into native libraries
+  -> run the Flutter native output task for the current variant every time; that task also depends on the Flutter compile task
+  -> convert flutter_assets into assets and the native libraries in the native output that task declares (an archive or a directory) into native libraries
 
 C/C++ change
   -> run the native build/merge task for the current variant
   -> convert new .so files into native library incremental artifacts
 ```
 
-This process does not run aapt2 or generate `resources.arsc`. A Dart change always runs Flutter compilation and native packaging without adding a Jugg-side Flutter cache. Jugg reads Flutter assets from the current output directory and accepts native libraries only from well-formed `lib/<abi>/*.so` entries in the packaging archive; it does not recursively scan Flutter intermediate directories. Gradle, CMake, and NDK still convert C/C++ source into `.so` files. Jugg selects only the external task required for the current variant and collects its new output, so Android Java/Kotlin and resource changes continue through the existing incremental compilation flow.
+This process does not run aapt2 or generate `resources.arsc`. A Dart change always runs Flutter compilation and the native output task without adding a Jugg-side Flutter cache. Jugg reads Flutter assets from the current output directory and accepts native libraries only from well-formed ABI entries in the native output that task declares; it does not recursively scan Flutter intermediate directories. Gradle, CMake, and NDK still convert C/C++ source into `.so` files. Jugg selects only the external task required for the current variant and collects its new output, so Android Java/Kotlin and resource changes continue through the existing incremental compilation flow.
 
 Artifact CRC checks only determine whether new output needs another deployment. They do not skip Flutter or C/C++ compilation, which prevents changed source from being judged against stale intermediate output.
 
@@ -73,7 +73,7 @@ An asset overlay preserves its `assets/**` path for the new resource loading pat
 ## When Jugg must return to Gradle
 
 - When an asset is deleted, Jugg does not generate an overlay that removes the device file. The old asset remains readable through `AssetManager`. Run a full Gradle build only when the deletion must take effect.
-- If Jugg recognizes a Flutter/C++ source root but cannot find its task, output directory, or Flutter native archive metadata, it falls back to a full Gradle build. If the external task fails, the archive cannot be read, or no valid artifact is produced, the current compilation fails instead of reusing old intermediate output.
+- If Jugg recognizes a Flutter/C++ source root but cannot find its task, output directory, or Flutter native output metadata, it falls back to a full Gradle build. If the external task fails, the native output cannot be read, or neither assets nor a valid artifact is produced, the current compilation fails instead of reusing old intermediate output. A build mode that legitimately produces no native library, such as Debug, succeeds as long as the assets are valid.
 - Remote compilation and custom commands from which Jugg cannot safely derive external tasks fall back to a complete Gradle build.
 - After changing `pubspec.yaml`, CMake, ndk-build, NDK, ABI, native source sets, or packaging rules, use Sync and a full Gradle build to refresh the project model and APK baseline.
 - After changing asset source sets, variant, or build configuration that affects APK paths or ownership, refresh the Gradle baseline.

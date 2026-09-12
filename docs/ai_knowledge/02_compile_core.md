@@ -1,6 +1,6 @@
 # 编译系统：核心架构
 
-> 最后核对：2026-09-10
+> 最后核对：2026-09-12
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -151,7 +151,7 @@ pre-D8 class preparation 是 `DexCompiler` 的内部步骤，不是新的 `BaseC
 - `splitApkAndCompile()` 是 APK scoped 的产物分流；子类在 `doApkCompile()` 输出时必须保留当前 APK 归属，否则多 APK 场景部署会丢失目标。
 - `RDexForSubmoduleCompiler` 生成的模块 `R.dex` 必须携带 `ModuleApkBelongs` 给出的 `apkPath` / `targetApkPaths`。Dynamic Feature 场景若遗漏该归属，产物会退化为通用 class dex 并扩散到所有 APK，使同包名但资源集合不同的 R 类相互覆盖。
 - `JuggCompiler` 中资源阶段产生的 DataBinding/ViewBinding 源不会立即作为最终产物结束，而是转成下一步 `SourceCompiler` 输入。
-- Dart/C/C++ 源码命中模块的 `externalBuildInfos` 后进入 `ExternalBuildSource`。每次变化都会执行对应 Gradle task；产物 CRC 只用于跳过重复部署，不用于跳过 Flutter/C++ 编译。Flutter 执行依赖 `compileFlutterBuild<Variant>` 的 `packJniLibsflutterBuild<Variant>` / `packLibsflutterBuild<Variant>` Jar task，`flutter_assets` 进入 asset overlay，native 只从 archive 的 `lib/<abi>/*.so` 条目进入 APK 更新，不递归扫描 Flutter 中间目录；C++ 继续从 `merge<Variant>NativeLibs` 输出目录收集 `.so`。项目快照保留已识别但缺少 task/output/archive 的不支持状态，Run 预检命中后回退完整 Gradle；外部 task 执行失败、archive 损坏或没有发现有效产物时本轮明确失败，禁止读取旧中间产物继续成功。
+- Dart/C/C++ 源码命中模块的 `externalBuildInfos` 后进入 `ExternalBuildSource`。每次变化都会执行对应 Gradle task；产物 CRC 只用于跳过重复部署，不用于跳过 Flutter/C++ 编译。Jugg 只记录一个 native 输出位置，收集时按 file/directory 分派：Flutter 的 native task 是 `compileFlutterBuild<Variant>` 依赖的 `packJniLibsflutterBuild<Variant>` / `packLibsflutterBuild<Variant>`（归档）或 `copyJniLibsflutterBuild<Variant>`（目录），前者只读 archive 的 `lib/<abi>/*.so`，后者只读真实 `destinationDir` 的 `<abi>/*.so`，都不递归扫描 Flutter 中间目录；`flutter_assets` 单独从 assets 输出目录进入 asset overlay。C++ 从 `merge<Variant>NativeLibs` 输出目录收集 `.so`。项目快照保留已识别但缺少 task、assets 输出或 native 输出的不支持状态，Run 预检命中后回退完整 Gradle；外部 task 执行失败、native 输出损坏或既没有 assets 也没有有效产物时本轮明确失败，禁止读取旧中间产物继续成功；Debug 等 native 输出为空目录但 assets 有效的构建模式视为成功。
 - `FileChangesHandler` 统一排除所有模块的实际 Gradle build directory 与传统 `${moduleRootDir}/build`。文件监听、Git 补检、恢复事件和源码影响传播经过该入口时，Gradle generated source、resource、asset、manifest、native lib 或 build file 都不会进入变更列表；目录事件会在递归前剪枝。该规则不影响编译器在本轮内直接登记和交接的 JuggApt/Resource/Compose generated source。
 - 外部源码根可位于 Android 模块目录之外，因此会额外加入文件扫描根；`.dart_tool`、`.cxx`、`.externalNativeBuild` 和模块 build directory 始终排除，避免把生成文件重新识别为源码变化。
 - 删除事件只按路径移除此前登记的待编译项；已不存在的文件不会转成 `ChangedFile`，也不会生成 class、resource、asset 或 Manifest 的移除数据。删除本身因此不会让增量编译失败或自动回退，设备继续保留已安装 APK 和既有 overlay 中的旧内容。重命名会被拆成旧路径删除和新路径新增/修改，只有新路径能够进入编译。需要让旧内容真正消失时，才通过完整 Gradle build 刷新 APK 基线。

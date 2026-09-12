@@ -179,15 +179,15 @@ class FileChangesHandlerTest {
                 type = ExternalBuildType.Flutter,
                 sourceDirs = listOf(flutterRoot),
                 taskPath = ":app:compileFlutterBuildDebug",
-                outputDir = File(app.moduleRootDir, "build/intermediates/flutter/debug"),
-                nativeLibsArchive = File(app.moduleRootDir, "build/intermediates/flutter/debug/native.jar"),
+                assetsOutputDir = File(app.moduleRootDir, "build/intermediates/flutter/debug"),
+                nativeOutput = File(app.moduleRootDir, "build/intermediates/flutter/debug/native.jar"),
             ),
             ExternalBuildInfo(
                 type = ExternalBuildType.Cpp,
                 sourceDirs = listOf(cppRoot),
                 taskPath = ":app:mergeDebugNativeLibs",
-                outputDir = File(app.moduleRootDir, "build/intermediates/merged_native_libs/debug/out/lib"),
-                nativeLibsArchive = null,
+                assetsOutputDir = null,
+                nativeOutput = File(app.moduleRootDir, "build/intermediates/merged_native_libs/debug/out/lib"),
             ),
         ))
         handler.init(context.copy(modules = context.modules + (module.name to module)))
@@ -217,15 +217,15 @@ class FileChangesHandlerTest {
                 type = ExternalBuildType.Flutter,
                 sourceDirs = listOf(app.moduleRootDir),
                 taskPath = ":app:compileFlutterBuildDebug",
-                outputDir = File(app.moduleRootDir, "build/intermediates/flutter/debug"),
-                nativeLibsArchive = File(app.moduleRootDir, "build/intermediates/flutter/debug/native.jar"),
+                assetsOutputDir = File(app.moduleRootDir, "build/intermediates/flutter/debug"),
+                nativeOutput = File(app.moduleRootDir, "build/intermediates/flutter/debug/native.jar"),
             ),
             ExternalBuildInfo(
                 type = ExternalBuildType.Cpp,
                 sourceDirs = listOf(app.moduleRootDir),
                 taskPath = ":app:mergeDebugNativeLibs",
-                outputDir = File(app.moduleRootDir, "build/intermediates/merged_native_libs/debug/out/lib"),
-                nativeLibsArchive = null,
+                assetsOutputDir = null,
+                nativeOutput = File(app.moduleRootDir, "build/intermediates/merged_native_libs/debug/out/lib"),
             ),
         ))
         handler.init(context.copy(modules = context.modules + (module.name to module)))
@@ -257,8 +257,8 @@ class FileChangesHandlerTest {
                 type = ExternalBuildType.Flutter,
                 sourceDirs = listOf(flutterRoot),
                 taskPath = null,
-                outputDir = null,
-                nativeLibsArchive = null,
+                assetsOutputDir = null,
+                nativeOutput = null,
                 unsupportedReason = "Flutter task not found",
             )
         ))

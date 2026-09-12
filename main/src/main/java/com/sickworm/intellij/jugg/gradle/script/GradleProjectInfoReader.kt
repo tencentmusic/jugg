@@ -762,39 +762,20 @@ class GradleProjectInfoReader(
         val flutterSourceDir = readConfiguredSourceRoots(readProperty(flutterTask, "sourceDir")).firstOrNull()
             ?: readProjectFile(project, readProperty(project.extensions.findByName("flutter"), "source"))
         if (flutterSourceDir != null) {
-            val outputDir = readConfiguredSourceRoots(readProperty(flutterTask, "outputDirectory")).firstOrNull()
+            val assetsOutputDir = readConfiguredSourceRoots(readProperty(flutterTask, "outputDirectory")).firstOrNull()
                 ?: readConfiguredSourceRoots(readProperty(flutterTask, "intermediateDir")).firstOrNull()
-            val packTaskNames = listOf(
-                "packJniLibsflutterBuild$variantCapital",
-                "packLibsflutterBuild$variantCapital",
-            )
-            val packTasks = packTaskNames.mapNotNull { findTaskByNameWithRetry(project, it) as? Task }
-            val validPackTasks = if (flutterTask == null) {
-                emptyList()
-            } else {
-                packTasks.filter { packTask ->
-                    packTask is Jar && runCatching {
-                        packTask.taskDependencies.getDependencies(packTask).contains(flutterTask)
-                    }.getOrDefault(false)
-                }
-            }
-            val packTask = validPackTasks.singleOrNull()
-            val nativeLibsArchive = readFileValue(readProperty(packTask, "archiveFile"))
-                ?: readFileValue(readProperty(packTask, "archivePath"))
+            val nativeOutput = readFlutterNativeOutput(project, variantCapital, flutterTask)
             val reason = when {
                 flutterTask == null -> "Flutter compile task for $variantCapital was not found"
-                outputDir == null -> "Flutter task ${flutterTask.path} output directory was not found"
-                validPackTasks.size > 1 -> "Multiple Flutter native archive tasks were found for $variantCapital"
-                packTask == null -> "Flutter native archive task for $variantCapital was not found"
-                nativeLibsArchive == null -> "Flutter task ${packTask.path} native archive was not found"
-                else -> null
+                assetsOutputDir == null -> "Flutter task ${flutterTask.path} output directory was not found"
+                else -> nativeOutput.reason
             }
             result.add(ExternalBuildInfo(
                 type = ExternalBuildType.Flutter,
                 sourceDirs = listOf(flutterSourceDir.absoluteFile.normalize()),
-                taskPath = packTask?.path,
-                outputDir = outputDir?.absoluteFile?.normalize(),
-                nativeLibsArchive = nativeLibsArchive?.absoluteFile?.normalize(),
+                taskPath = nativeOutput.task?.path,
+                assetsOutputDir = assetsOutputDir?.absoluteFile?.normalize(),
+                nativeOutput = nativeOutput.output?.absoluteFile?.normalize(),
                 unsupportedReason = reason,
             ))
         }
@@ -802,24 +783,69 @@ class GradleProjectInfoReader(
         val nativeTask = findTaskByNameWithRetry(project, "merge${variantCapital}NativeLibs") as? Task
         val nativeSourceDirs = getCppSourceDirs(project)
         if (nativeSourceDirs.isNotEmpty()) {
-            val outputDir = readConfiguredSourceRoots(readProperty(nativeTask, "outputDir")).firstOrNull()
+            val nativeOutput = readConfiguredSourceRoots(readProperty(nativeTask, "outputDir")).firstOrNull()
                 ?: readConfiguredSourceRoots(readProperty(nativeTask, "outputDirectory")).firstOrNull()
             val reason = when {
                 nativeTask == null -> "Native merge task for $variantCapital was not found"
-                outputDir == null -> "Native task ${nativeTask.path} output directory was not found"
+                nativeOutput == null -> "Native task ${nativeTask.path} output directory was not found"
                 else -> null
             }
             result.add(ExternalBuildInfo(
                 type = ExternalBuildType.Cpp,
                 sourceDirs = nativeSourceDirs,
                 taskPath = nativeTask?.path,
-                outputDir = outputDir?.absoluteFile?.normalize(),
-                nativeLibsArchive = null,
+                assetsOutputDir = null,
+                nativeOutput = nativeOutput?.absoluteFile?.normalize(),
                 unsupportedReason = reason,
             ))
         }
         return result
     }
+
+    /**
+     * Reads the native artifacts of the current Flutter variant from its real Gradle task.
+     * Legacy Flutter packages them into a Jar archive, Flutter 3.x stages them into a jniLibs directory.
+     */
+    private fun readFlutterNativeOutput(project: Project, variantCapital: String, flutterTask: Task?): FlutterNativeOutput {
+        if (flutterTask == null) {
+            return FlutterNativeOutput(null, null, "Flutter native task for $variantCapital was not found")
+        }
+        val packTasks = listOf(
+            "packJniLibsflutterBuild$variantCapital",
+            "packLibsflutterBuild$variantCapital",
+        ).mapNotNull { findTaskByNameWithRetry(project, it) as? Task }
+            .filter { it is Jar && it.dependsOnTask(flutterTask) }
+        if (packTasks.size > 1) {
+            return FlutterNativeOutput(null, null, "Multiple Flutter native tasks were found for $variantCapital")
+        }
+        val packTask = packTasks.singleOrNull()
+        if (packTask != null) {
+            val archive = readFileValue(readProperty(packTask, "archiveFile"))
+                ?: readFileValue(readProperty(packTask, "archivePath"))
+                ?: return FlutterNativeOutput(null, null, "Flutter task ${packTask.path} native output was not found")
+            return FlutterNativeOutput(packTask, archive, null)
+        }
+
+        val copyTask = findTaskByNameWithRetry(project, "copyJniLibsflutterBuild$variantCapital") as? Task
+        if (copyTask == null || !copyTask.dependsOnTask(flutterTask)) {
+            return FlutterNativeOutput(null, null, "Flutter native task for $variantCapital was not found")
+        }
+        val nativeDir = readFileValue(readProperty(copyTask, "destinationDir"))
+            ?: return FlutterNativeOutput(null, null, "Flutter task ${copyTask.path} native output was not found")
+        return FlutterNativeOutput(copyTask, nativeDir, null)
+    }
+
+    /** Reads the task dependency without failing when the graph is not resolvable yet. */
+    private fun Task.dependsOnTask(other: Task): Boolean {
+        return runCatching { taskDependencies.getDependencies(this).contains(other) }.getOrDefault(false)
+    }
+
+    /** Native output of one Flutter variant, expressed as an archive or a directory. */
+    private data class FlutterNativeOutput(
+        val task: Task?,
+        val output: File?,
+        val reason: String?,
+    )
 
     private fun getCppSourceDirs(project: Project): List<File> {
         val androidExt = try {

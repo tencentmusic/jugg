@@ -168,8 +168,8 @@ class CmdLineContextManager(
                 externalBuildInfos = baseModule.externalBuildInfos.map { buildInfo ->
                     buildInfo.copy(
                         sourceDirs = buildInfo.sourceDirs.convertSourceBaseDir(),
-                        outputDir = buildInfo.outputDir?.convertSourceBaseDir(),
-                        nativeLibsArchive = buildInfo.nativeLibsArchive?.convertSourceBaseDir(),
+                        assetsOutputDir = buildInfo.assetsOutputDir?.convertSourceBaseDir(),
+                        nativeOutput = buildInfo.nativeOutput?.convertSourceBaseDir(),
                     )
                 },
             )

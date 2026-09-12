@@ -152,15 +152,15 @@ class JuggProjectInfoSerializerAndroidTestTest {
                 type = ExternalBuildType.Flutter,
                 sourceDirs = listOf(File("/project/flutter")),
                 taskPath = ":app:compileFlutterBuildDebug",
-                outputDir = File("/project/app/build/flutter/intermediates"),
-                nativeLibsArchive = File("/project/app/build/flutter/native.jar"),
+                assetsOutputDir = File("/project/app/build/flutter/intermediates"),
+                nativeOutput = File("/project/app/build/flutter/native.jar"),
             ),
             ExternalBuildInfo(
                 type = ExternalBuildType.Cpp,
                 sourceDirs = listOf(File("/project/native/src/main/cpp")),
                 taskPath = ":native:mergeDebugNativeLibs",
-                outputDir = File("/project/native/build/intermediates/merged_native_libs/debug/out/lib"),
-                nativeLibsArchive = null,
+                assetsOutputDir = null,
+                nativeOutput = File("/project/native/build/intermediates/merged_native_libs/debug/out/lib"),
             ),
         )
         val original = projectInfoWithoutAgpR8(

@@ -55,6 +55,10 @@ class ExternalBuildTaskRunnerTest {
             listOf(":flutter:packJniLibsflutterBuildDebug"),
         ))
         assertNull(deriveExternalBuildCommand(
+            "./gradlew :app:assembleDebug -x :flutter:compileFlutterBuildDebug",
+            listOf(":flutter:copyJniLibsflutterBuildDebug"),
+        ))
+        assertNull(deriveExternalBuildCommand(
             "./gradlew :app:assembleDebug --unknown value",
             listOf(":native:mergeDebugNativeLibs"),
         ))

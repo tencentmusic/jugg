@@ -511,10 +511,11 @@ class JuggCompilerHelper(
         return null
     }
 
+    /** Snapshots written before the Flutter native output was recorded need one refresh. */
     private fun hasLegacyFlutterBuildInfo(files: List<ChangedFile>): Boolean {
         return files.mapNotNull(::resolveExternalBuildInfo).any { buildInfo ->
             buildInfo.type == ExternalBuildType.Flutter && buildInfo.taskPath != null &&
-                    buildInfo.outputDir != null && buildInfo.nativeLibsArchive == null &&
+                    buildInfo.assetsOutputDir != null && buildInfo.nativeOutput == null &&
                     buildInfo.unsupportedReason == null
         }
     }

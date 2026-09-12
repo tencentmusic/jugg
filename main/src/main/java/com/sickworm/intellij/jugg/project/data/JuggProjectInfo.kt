@@ -47,14 +47,17 @@ data class ComposeResourceDirectory(
 data class ExternalBuildInfo(
     val type: ExternalBuildType,
     val sourceDirs: List<File>,
+    /** Task producing the final native artifacts: a Flutter pack/copy task or a C++ merge task. */
     val taskPath: String?,
-    val outputDir: File?,
-    val nativeLibsArchive: File?,
+    /** Directory holding Flutter `flutter_assets`; null for external builds without assets output. */
+    val assetsOutputDir: File?,
+    /** Final deployable native output holding `<abi>` native libraries: one archive or one directory. */
+    val nativeOutput: File?,
     val unsupportedReason: String? = null,
 ) {
     val isSupported: Boolean
-        get() = taskPath != null && outputDir != null &&
-                (type != ExternalBuildType.Flutter || nativeLibsArchive != null) && unsupportedReason == null
+        get() = taskPath != null && nativeOutput != null && unsupportedReason == null &&
+                (type != ExternalBuildType.Flutter || assetsOutputDir != null)
 }
 
 /** Supported external source toolchains. */

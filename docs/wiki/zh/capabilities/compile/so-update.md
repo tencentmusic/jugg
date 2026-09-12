@@ -19,7 +19,8 @@ Jugg 支持更新已产出的 native lib / `.so` 文件。对于 Gradle 管理�
 |---|---|---|
 | 更新项目目录中已有、位于 ABI 目录下的 `.so` | 支持 | 更新目标 APK，重新签名并安装 |
 | 修改 Gradle 管理的 C/C++ 源码 | 支持 | 执行当前变体的 native 构建任务，再更新生成的 `.so` |
-| Flutter Profile/Release 生成 `app.so` 或 native assets | 支持 | 执行当前变体的 Flutter native 打包任务，从 archive 读取目标 ABI 的 native lib，再更新 APK |
+| Flutter Profile/Release 生成 `app.so` 或 native assets | 支持 | 执行当前变体的 Flutter native 输出任务，从该任务自己的输出中读取目标 ABI 的 native lib，再更新 APK |
+| Flutter Debug 只生成 assets，不生成 native lib | 支持 | 只更新 `flutter_assets`，不要求 native 输出存在；原生目录为空时本轮编译仍然成功 |
 | 同轮更新多个 ABI 的 native lib | 支持按目标 APK 归属处理 | 每个目标 APK 只接收属于自己的 native lib |
 | 删除 `.so` | 不生成移除结果 | 已安装 APK 继续包含原有 native lib |
 | 修改 CMake、ndk-build、NDK、ABI 或 packaging 配置 | 不作为源码增量输入 | 通过完整 Gradle 构建刷新项目模型和 APK 基线 |
@@ -32,8 +33,8 @@ C/C++ 源码变化
   -> 从中间产物目录收集新 .so
 
 Flutter Dart 源码变化
-  -> 执行当前变体的 Flutter native 打包 task
-  -> 从打包 archive 的 lib/<abi>/*.so 收集 native lib
+  -> 执行当前变体的 Flutter native 输出 task
+  -> 从该 task 自己的 native 输出（归档或目录）中收集 <abi> 下的 .so
 
 项目目录中已有的 .so 发生变化
   -> 根据 ABI 和 APK 归属确定目标路径
@@ -49,8 +50,8 @@ Flutter Dart 源码变化
 - 直接文件变化入口只识别项目目录中已经存在、父目录为 `armeabi`、`armeabi-v7a`、`arm64-v8a`、`x86` 或 `x86_64` 的 `.so`。
 - C/C++ 源码入口要求 Android Gradle 配置提供 CMake 或 ndk-build 文件，并能够找到当前变体的 native task。Jugg 不监听 `.cxx`、`.externalNativeBuild` 或 Gradle `build` 目录中的生成文件。
 - 每次检测到 C/C++ 源码变化都会执行 native task；产物内容校验只避免重复写入 APK，不跳过 native 编译。
-- 每次检测到 Dart 源码变化都会执行 Flutter native 打包 task；Jugg 只读取 archive 中的 `lib/<abi>/*.so`，不从 Flutter 中间目录递归猜测 native 输出。
-- 已识别 Flutter 源码根但缺少 compile/pack task、assets 输出目录或 native archive 元数据时，Jugg 会回退完整 Gradle 构建；archive 无法读取或包含不安全、重复的 native 条目时，本轮编译失败。
+- 每次检测到 Dart 源码变化都会执行当前变体的 Flutter native 输出 task。Jugg 只读取该 task 自己声明的 native 输出，并按它是归档还是目录解析出 ABI 下的 `.so`；不从 Flutter 中间目录递归猜测 native 输出，也不按固定路径拼接产物位置。
+- 已识别 Flutter 源码根但缺少 compile task、assets 输出目录或 native 输出元数据时，Jugg 会回退完整 Gradle 构建；native 输出无法读取，或归档中出现不安全、重复的 native 条目时，本轮编译失败。Debug 等本身不产出 native lib 的构建模式只要 assets 输出有效就算成功。
 - 已识别 C/C++ 源码根但缺少任务或输出目录元数据时，Jugg 会回退完整 Gradle 构建；外部任务失败或没有生成有效 `.so` 时，本轮编译失败，不使用旧中间产物继续部署。
 - 修改 CMake、ndk-build、NDK、ABI、source set 或 packaging 规则后，先完成 Sync 和完整 Gradle 构建以刷新项目模型与 APK 基线。
 - 删除 `.so` 不会生成 APK 内文件的移除数据，也不会仅因此让增量编译失败。已安装 APK 继续包含原有 native lib，只有需要让删除真正生效时才执行完整 Gradle 构建。

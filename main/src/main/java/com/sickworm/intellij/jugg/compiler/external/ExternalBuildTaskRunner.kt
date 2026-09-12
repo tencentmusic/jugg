@@ -231,6 +231,9 @@ private fun protectedTaskNames(taskPath: String): Set<String> {
         taskName.startsWith("packLibsflutterBuild") -> {
             names += "compileFlutterBuild${taskName.removePrefix("packLibsflutterBuild")}"
         }
+        taskName.startsWith("copyJniLibsflutterBuild") -> {
+            names += "compileFlutterBuild${taskName.removePrefix("copyJniLibsflutterBuild")}"
+        }
         taskName.startsWith("merge") && taskName.endsWith("NativeLibs") -> {
             names += "externalNativeBuild${taskName.removePrefix("merge").removeSuffix("NativeLibs")}"
         }

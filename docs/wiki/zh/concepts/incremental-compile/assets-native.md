@@ -40,15 +40,15 @@ assets 变化文件
   -> 生成归属于目标 APK 的 native lib 增量产物
 
 Dart 变化
-  -> 每次执行当前变体的 Flutter native 打包 task；该 task 同时依赖 Flutter compile task
-  -> flutter_assets 转为 asset；打包 archive 中的 lib/<abi>/*.so 转为 native lib
+  -> 每次执行当前变体的 Flutter native 输出 task；该 task 同时依赖 Flutter compile task
+  -> flutter_assets 转为 asset；该 task 自己声明的 native 输出（归档或目录）中的 native lib 转为 native lib
 
 C/C++ 变化
   -> 执行当前变体的 native build/merge task
   -> 新 .so 转为 native lib 增量产物
 ```
 
-这个过程不执行 aapt2，也不会生成 `resources.arsc`。Dart 变化始终执行 Flutter 编译和 native 打包，不增加 Jugg 侧 Flutter 缓存；Flutter assets 从当前输出目录读取，native lib 只接受打包 archive 中结构明确的 `lib/<abi>/*.so`，不会递归扫描 Flutter 中间目录。C/C++ 到 `.so` 的转换仍由 Gradle、CMake 和 NDK 完成。Jugg 只选择当前变体所需的外部 task，并收集它们的新输出，因此 Android Java/Kotlin 和资源部分仍走原有增量编译。
+这个过程不执行 aapt2，也不会生成 `resources.arsc`。Dart 变化始终执行 Flutter 编译和 native 输出 task，不增加 Jugg 侧 Flutter 缓存；Flutter assets 从当前输出目录读取，native lib 只接受该任务自身声明的 native 输出中结构明确的 ABI 条目，不会递归扫描 Flutter 中间目录。C/C++ 到 `.so` 的转换仍由 Gradle、CMake 和 NDK 完成。Jugg 只选择当前变体所需的外部 task，并收集它们的新输出，因此 Android Java/Kotlin 和资源部分仍走原有增量编译。
 
 产物 CRC 只决定新输出是否需要再次部署。它不会跳过 Flutter 或 C/C++ 编译，避免源码已经变化但中间产物尚未刷新的情况被误判为无变化。
 
@@ -73,7 +73,7 @@ asset overlay 会保持 `assets/**` 路径，供新的资源加载路径读取�
 ## 需要回到 Gradle 的情况
 
 - 删除 asset 文件时，Jugg 不会生成移除设备端文件的 overlay；原有 asset 仍可通过 `AssetManager` 读取。只有需要让删除真正生效时，才执行完整 Gradle 构建。
-- 已识别 Flutter/C++ 源码根但缺少 task、输出目录或 Flutter native archive 元数据时，Jugg 会回退完整 Gradle 构建；外部 task 执行失败、archive 无法读取或没有生成有效产物时，本轮编译失败，不复用旧中间产物。
+- 已识别 Flutter/C++ 源码根但缺少 task、输出目录或 Flutter native 输出元数据时，Jugg 会回退完整 Gradle 构建；外部 task 执行失败、native 输出无法读取或既没有 assets 也没有有效产物时，本轮编译失败，不复用旧中间产物。Debug 等本身不产出 native lib 的构建模式只要 assets 有效就算成功。
 - 远程编译和无法安全派生外部 task 的自定义命令会回到完整 Gradle 构建。
 - 修改 `pubspec.yaml`、CMake、ndk-build、NDK、ABI、native source set 或 packaging 规则后，需要通过 Sync 和完整 Gradle 构建刷新项目模型与 APK 基线。
 - 修改 asset source set、variant 或影响 APK 路径与归属的构建配置后，需要刷新 Gradle 基线。

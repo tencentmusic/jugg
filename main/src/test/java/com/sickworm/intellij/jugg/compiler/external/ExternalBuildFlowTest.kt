@@ -91,6 +91,143 @@ class ExternalBuildFlowTest {
     }
 
     @Test
+    fun `stages Flutter jniLibs directory outputs through Jugg compile flow`() {
+        val root = Files.createTempDirectory("jugg-flutter-native-dir").toFile()
+        val parent = object : Disposable {
+            override fun dispose() = Unit
+        }
+        try {
+            val flutterRoot = File(root, "flutter").apply { mkdirs() }
+            val flutterOutput = File(root, "build/flutter")
+            val flutterNativeDir = File(root, "build/jniLibs")
+            val module = createModule(
+                root,
+                flutterRoot,
+                File(root, "native"),
+                flutterOutput,
+                flutterNativeDir,
+                File(root, "build/cpp"),
+                flutterTaskPath = ":flutter:copyJniLibsflutterBuildDebug",
+            )
+            val dartFile = File(flutterRoot, "lib/main.dart").apply {
+                parentFile.mkdirs()
+                writeText("void main() {}")
+            }
+            createGradleScript(root, flutterOutput, flutterNativeDir)
+            val context = createContext(root, module, fullBuildGradleCommand = "./gradlew :app:assembleDebug")
+
+            val result = JuggCompiler(context, parent).compile(CompileTask(
+                listOf(CompileFile(CompileFile.Type.ExternalBuildSource, dartFile, flutterRoot, module)),
+                File(root, "staging"),
+                CompileStatusHolder.DEFAULT,
+            ))
+
+            assertTrue(result.isAllSuccess)
+            assertEquals(
+                setOf("assets/flutter_assets/kernel_blob.bin", "lib/arm64-v8a/libapp.so"),
+                result.outputs.filter {
+                    it.type == CompileOutput.Type.Asset || it.type == CompileOutput.Type.NativeLib
+                }.map { it.relativeFile.invariantSeparatorsPath }.toSet(),
+            )
+            val invocation = File(root, "invocation.txt").readText()
+            assertTrue(invocation.contains(":flutter:copyJniLibsflutterBuildDebug"))
+            assertTrue(!invocation.contains(":app:assembleDebug"))
+        } finally {
+            Disposer.dispose(parent)
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `accepts empty Flutter jniLibs directory when debug assets exist`() {
+        val root = Files.createTempDirectory("jugg-flutter-native-dir-empty").toFile()
+        val parent = object : Disposable {
+            override fun dispose() = Unit
+        }
+        try {
+            val flutterRoot = File(root, "flutter").apply { mkdirs() }
+            val flutterOutput = File(root, "build/flutter")
+            val flutterNativeDir = File(root, "build/jniLibs")
+            val module = createModule(
+                root,
+                flutterRoot,
+                File(root, "native"),
+                flutterOutput,
+                flutterNativeDir,
+                File(root, "build/cpp"),
+                flutterTaskPath = ":flutter:copyJniLibsflutterBuildDebug",
+            )
+            val dartFile = File(flutterRoot, "lib/main.dart").apply {
+                parentFile.mkdirs()
+                writeText("void main() {}")
+            }
+            createEmptyJniLibsGradleScript(root, flutterOutput, flutterNativeDir)
+            val context = createContext(root, module, fullBuildGradleCommand = "./gradlew :app:assembleDebug")
+
+            val result = JuggCompiler(context, parent).compile(CompileTask(
+                listOf(CompileFile(CompileFile.Type.ExternalBuildSource, dartFile, flutterRoot, module)),
+                File(root, "staging"),
+                CompileStatusHolder.DEFAULT,
+            ))
+
+            assertTrue(result.isAllSuccess)
+            assertEquals(
+                listOf("assets/flutter_assets/kernel_blob.bin"),
+                result.outputs.map { it.relativeFile.invariantSeparatorsPath },
+            )
+        } finally {
+            Disposer.dispose(parent)
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `fails when Flutter jniLibs directory is not produced`() {
+        val root = Files.createTempDirectory("jugg-flutter-native-dir-missing").toFile()
+        val parent = object : Disposable {
+            override fun dispose() = Unit
+        }
+        try {
+            val flutterRoot = File(root, "flutter").apply { mkdirs() }
+            val flutterOutput = File(root, "build/flutter")
+            val flutterNativeDir = File(root, "build/jniLibs")
+            val module = createModule(
+                root,
+                flutterRoot,
+                File(root, "native"),
+                flutterOutput,
+                flutterNativeDir,
+                File(root, "build/cpp"),
+                flutterTaskPath = ":flutter:copyJniLibsflutterBuildDebug",
+            )
+            val dartFile = File(flutterRoot, "lib/main.dart").apply {
+                parentFile.mkdirs()
+                writeText("void main() {}")
+            }
+            File(root, "gradlew").apply {
+                writeText("""#!/bin/bash
+                    mkdir -p "${File(flutterOutput, "flutter_assets").path}"
+                    printf flutter-code > "${File(flutterOutput, "flutter_assets/kernel_blob.bin").path}"
+                """.trimIndent())
+                setExecutable(true)
+            }
+            val context = createContext(root, module, fullBuildGradleCommand = "./gradlew :app:assembleDebug")
+
+            val result = JuggCompiler(context, parent).compile(CompileTask(
+                listOf(CompileFile(CompileFile.Type.ExternalBuildSource, dartFile, flutterRoot, module)),
+                File(root, "staging"),
+                CompileStatusHolder.DEFAULT,
+            ))
+
+            assertTrue(!result.isAllSuccess)
+            assertTrue(result.outputs.isEmpty())
+        } finally {
+            Disposer.dispose(parent)
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
     fun `does not deploy old outputs when external build fails`() {
         val root = Files.createTempDirectory("jugg-external-build-failure").toFile()
         val parent = object : Disposable {
@@ -321,9 +458,10 @@ class ExternalBuildFlowTest {
         root: File,
         flutterRoot: File,
         cppRoot: File,
-        flutterOutput: File,
-        flutterArchive: File,
+        flutterAssetsOutputDir: File,
+        flutterNativeOutput: File?,
         cppOutput: File,
+        flutterTaskPath: String = ":flutter:packJniLibsflutterBuildDebug",
     ): ModuleInfo {
         return ModuleInfo.virtualModule.copy(
             name = "app",
@@ -336,16 +474,16 @@ class ExternalBuildFlowTest {
                 ExternalBuildInfo(
                     ExternalBuildType.Flutter,
                     listOf(flutterRoot),
-                    ":flutter:packJniLibsflutterBuildDebug",
-                    flutterOutput,
-                    flutterArchive,
+                    flutterTaskPath,
+                    flutterAssetsOutputDir,
+                    flutterNativeOutput,
                 ),
                 ExternalBuildInfo(
                     ExternalBuildType.Cpp,
                     listOf(cppRoot),
                     ":app:mergeDebugNativeLibs",
-                    cppOutput,
                     null,
+                    cppOutput,
                 ),
             ),
         )
@@ -363,6 +501,30 @@ class ExternalBuildFlowTest {
                 cd "${File(root, "flutter-archive").path}"
                 jar cf "${flutterArchive.path}" lib
                 printf native-so > "${File(cppOutput, "arm64-v8a/libnative.so").path}"
+            """.trimIndent())
+            setExecutable(true)
+        }
+    }
+
+    private fun createGradleScript(root: File, flutterOutput: File, flutterNativeDir: File) {
+        File(root, "gradlew").apply {
+            writeText("""#!/bin/bash
+                echo "${'$'}@" > "${File(root, "invocation.txt").path}"
+                mkdir -p "${File(flutterOutput, "flutter_assets").path}"
+                mkdir -p "${File(flutterNativeDir, "arm64-v8a").path}"
+                printf flutter-code > "${File(flutterOutput, "flutter_assets/kernel_blob.bin").path}"
+                printf flutter-so > "${File(flutterNativeDir, "arm64-v8a/libapp.so").path}"
+            """.trimIndent())
+            setExecutable(true)
+        }
+    }
+
+    private fun createEmptyJniLibsGradleScript(root: File, flutterOutput: File, flutterNativeDir: File) {
+        File(root, "gradlew").apply {
+            writeText("""#!/bin/bash
+                mkdir -p "${File(flutterOutput, "flutter_assets").path}"
+                mkdir -p "${flutterNativeDir.path}"
+                printf flutter-code > "${File(flutterOutput, "flutter_assets/kernel_blob.bin").path}"
             """.trimIndent())
             setExecutable(true)
         }

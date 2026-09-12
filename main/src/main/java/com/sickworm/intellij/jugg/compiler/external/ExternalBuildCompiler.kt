@@ -94,34 +94,59 @@ class ExternalBuildCompiler(
         task: CompileTask,
         module: ModuleInfo,
         buildInfo: ExternalBuildInfo,
-    ): CollectedArtifacts {
-        val outputDir = buildInfo.outputDir
-        if (outputDir == null || !outputDir.isDirectory) {
-            return CollectedArtifacts("External build output directory is unavailable: $outputDir", 0, emptyList())
-        }
-        return when (buildInfo.type) {
-            ExternalBuildType.Flutter -> collectFlutterArtifacts(task, module, outputDir, buildInfo.nativeLibsArchive)
-            ExternalBuildType.Cpp -> collectNativeArtifacts(task, module, outputDir)
-        }
+    ): CollectedArtifacts = when (buildInfo.type) {
+        ExternalBuildType.Flutter -> collectFlutterArtifacts(task, module, buildInfo)
+        ExternalBuildType.Cpp -> collectCppArtifacts(task, module, buildInfo)
     }
 
     private fun collectFlutterArtifacts(
         task: CompileTask,
         module: ModuleInfo,
-        outputDir: File,
-        nativeLibsArchive: File?,
+        buildInfo: ExternalBuildInfo,
     ): CollectedArtifacts {
-        val assets = File(outputDir, "flutter_assets").walkTopDown()
+        val assetsOutputDir = buildInfo.assetsOutputDir
+        if (assetsOutputDir == null || !assetsOutputDir.isDirectory) {
+            return CollectedArtifacts("Flutter assets output directory is unavailable: $assetsOutputDir", 0, emptyList())
+        }
+        val assets = File(assetsOutputDir, "flutter_assets").walkTopDown()
             .filter(File::isFile)
-            .map { file -> CompileOutput(CompileOutput.Type.Asset, file, outputDir, relativeModule = module) }
+            .map { file -> CompileOutput(CompileOutput.Type.Asset, file, assetsOutputDir, relativeModule = module) }
             .toList()
-        val native = collectFlutterNativeArtifacts(task, module, nativeLibsArchive)
+        val native = collectFlutterNativeArtifacts(task, module, buildInfo.nativeOutput)
         native.error?.let { return native }
         val changedAssets = assets.filter { isChangedAsset(it, module) }
         if (assets.isEmpty() && native.discoveredCount == 0) {
             return CollectedArtifacts("External build produced no deployable artifacts", 0, emptyList())
         }
         return CollectedArtifacts(null, assets.size + native.discoveredCount, changedAssets + native.outputs)
+    }
+
+    private fun collectCppArtifacts(
+        task: CompileTask,
+        module: ModuleInfo,
+        buildInfo: ExternalBuildInfo,
+    ): CollectedArtifacts {
+        val nativeOutput = buildInfo.nativeOutput
+        if (nativeOutput == null || !nativeOutput.isDirectory) {
+            return CollectedArtifacts("External build output directory is unavailable: $nativeOutput", 0, emptyList())
+        }
+        return collectNativeArtifacts(task, module, nativeOutput)
+    }
+
+    /** Collects one Flutter native output, which is a Jar archive or a directory depending on the Flutter version. */
+    private fun collectFlutterNativeArtifacts(
+        task: CompileTask,
+        module: ModuleInfo,
+        nativeOutput: File?,
+    ): CollectedArtifacts {
+        if (nativeOutput == null) {
+            return CollectedArtifacts("Flutter native output is unavailable", 0, emptyList())
+        }
+        return if (nativeOutput.isDirectory) {
+            collectFlutterNativeDirArtifacts(task, module, nativeOutput)
+        } else {
+            collectFlutterNativeArchiveArtifacts(task, module, nativeOutput)
+        }
     }
 
     private fun collectNativeArtifacts(
@@ -149,20 +174,46 @@ class ExternalBuildCompiler(
         return CollectedArtifacts(null, sourceFiles.size, outputs)
     }
 
-    private fun collectFlutterNativeArtifacts(
+    private fun collectFlutterNativeDirArtifacts(
         task: CompileTask,
         module: ModuleInfo,
-        archive: File?,
+        nativeDir: File,
     ): CollectedArtifacts {
-        if (archive == null || !archive.isFile || !archive.canRead()) {
-            return CollectedArtifacts("Flutter native archive is unavailable: $archive", 0, emptyList())
+        if (!nativeDir.isDirectory) {
+            return CollectedArtifacts("Flutter native output is unavailable: $nativeDir", 0, emptyList())
+        }
+        val nativeRoot = File(task.outputDir, "external/${module.name.safeName()}/flutter-native")
+        nativeRoot.deleteRecursively()
+        val outputs = nativeDir.listFiles().orEmpty()
+            .filter { it.isDirectory && it.name in abiFolders }
+            .flatMap { abiDir ->
+                abiDir.listFiles().orEmpty().filter { it.isFile && it.extension == "so" }
+                    .map { source -> abiDir.name to source }
+            }
+            .map { (abi, source) ->
+                val output = File(nativeRoot, "$abi/${source.name}")
+                output.parentFile.mkdirs()
+                source.copyTo(output, overwrite = true)
+                CompileOutput(CompileOutput.Type.NativeLib, output, nativeRoot, relativeModule = module)
+            }
+            .distinctBy { it.relativeFile.invariantSeparatorsPath }
+        return CollectedArtifacts(null, outputs.size, outputs.filter { isChangedNativeLib(it, module) })
+    }
+
+    private fun collectFlutterNativeArchiveArtifacts(
+        task: CompileTask,
+        module: ModuleInfo,
+        nativeOutput: File,
+    ): CollectedArtifacts {
+        if (!nativeOutput.isFile || !nativeOutput.canRead()) {
+            return CollectedArtifacts("Flutter native output is unavailable: $nativeOutput", 0, emptyList())
         }
         val nativeRoot = File(task.outputDir, "external/${module.name.safeName()}/flutter-native")
         nativeRoot.deleteRecursively()
         val outputs = mutableListOf<CompileOutput>()
         val entryNames = mutableSetOf<String>()
         return try {
-            ZipFile(archive).use { zip ->
+            ZipFile(nativeOutput).use { zip ->
                 val entries = zip.entries()
                 while (entries.hasMoreElements()) {
                     val entry = entries.nextElement()
@@ -173,11 +224,11 @@ class ExternalBuildCompiler(
                     if (segments.size != 3 || segments[1] !in abiFolders ||
                         !segments[2].endsWith(".so") || segments[2].contains("..") || segments[2].contains('\\')
                     ) {
-                        return CollectedArtifacts("Flutter native archive contains an unsafe entry: ${entry.name}", 0, emptyList())
+                        return CollectedArtifacts("Flutter native output contains an unsafe entry: ${entry.name}", 0, emptyList())
                     }
                     val relativePath = "${segments[1]}/${segments[2]}"
                     if (!entryNames.add(relativePath)) {
-                        return CollectedArtifacts("Flutter native archive contains duplicate entry: ${entry.name}", 0, emptyList())
+                        return CollectedArtifacts("Flutter native output contains duplicate entry: ${entry.name}", 0, emptyList())
                     }
                     val output = File(nativeRoot, relativePath)
                     output.parentFile.mkdirs()
@@ -187,8 +238,8 @@ class ExternalBuildCompiler(
             }
             CollectedArtifacts(null, outputs.size, outputs.filter { isChangedNativeLib(it, module) })
         } catch (e: Exception) {
-            logger.debug("Read Flutter native archive $archive failed", e)
-            CollectedArtifacts("Flutter native archive could not be read: $archive", 0, emptyList())
+            logger.debug("Read Flutter native output $nativeOutput failed", e)
+            CollectedArtifacts("Flutter native output could not be read: $nativeOutput", 0, emptyList())
         }
     }
 

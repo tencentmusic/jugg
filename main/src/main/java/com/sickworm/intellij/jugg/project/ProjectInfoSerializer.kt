@@ -7,6 +7,7 @@ import com.google.gson.TypeAdapter
 import com.google.gson.stream.JsonReader
 import com.google.gson.stream.JsonWriter
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.project.data.ExternalBuildType
 import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
 import com.sickworm.intellij.jugg.project.data.JuggProjectInfoSerialize
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
@@ -94,6 +95,7 @@ class ProjectInfoSerializer(val dataFile: File, private val logger: Logger) {
             .registerTypeAdapter(ModuleInfo::class.java, JsonDeserializer { json, _, _ ->
                 val obj = json.asJsonObject
                 copyGroovyBooleanIsPropertyAliases(obj)
+                restoreExternalBuildOutputs(obj)
                 moduleInfoGson.fromJson(obj, ModuleInfo::class.java)
             })
             .create()
@@ -107,6 +109,37 @@ class ProjectInfoSerializer(val dataFile: File, private val logger: Logger) {
                 return false
             }
             return field.type == java.lang.Boolean::class.java || field.type == java.lang.Boolean.TYPE
+        }
+
+        /**
+         * Restores the unified external build outputs from snapshots written before they were unified:
+         * legacy Flutter kept the assets directory in `outputDir` and the native output in
+         * `nativeLibsArchive` (a Jar) or `nativeLibsDir` (a jniLibs directory); legacy C++ kept its
+         * native output in `outputDir`.
+         */
+        private fun restoreExternalBuildOutputs(moduleObj: JsonObject) {
+            val buildInfos = moduleObj.getAsJsonArray("externalBuildInfos") ?: return
+            buildInfos.forEach { element ->
+                val info = element.asJsonObject
+                val isFlutter = info.stringOrNull("type") == ExternalBuildType.Flutter.name
+                if (!info.has("assetsOutputDir") && isFlutter) {
+                    info.stringOrNull("outputDir")?.let { info.addProperty("assetsOutputDir", it) }
+                }
+                if (info.has("nativeOutput")) {
+                    return@forEach
+                }
+                val nativeOutput = if (isFlutter) {
+                    info.stringOrNull("nativeLibsArchive") ?: info.stringOrNull("nativeLibsDir")
+                } else {
+                    info.stringOrNull("outputDir")
+                }
+                nativeOutput?.let { info.addProperty("nativeOutput", it) }
+            }
+        }
+
+        private fun JsonObject.stringOrNull(name: String): String? {
+            val value = get(name) ?: return null
+            return if (value.isJsonPrimitive) value.asString else null
         }
 
         private fun copyGroovyBooleanIsPropertyAliases(obj: JsonObject) {

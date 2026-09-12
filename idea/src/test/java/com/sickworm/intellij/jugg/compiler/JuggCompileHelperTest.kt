@@ -350,8 +350,8 @@ class JuggCompileHelperTest {
                 type = ExternalBuildType.Flutter,
                 sourceDirs = listOf(flutterRoot),
                 taskPath = null,
-                outputDir = null,
-                nativeLibsArchive = null,
+                assetsOutputDir = null,
+                nativeOutput = null,
                 unsupportedReason = "Flutter task not found",
             ),
         ))
@@ -379,15 +379,14 @@ class JuggCompileHelperTest {
                 type = ExternalBuildType.Flutter,
                 sourceDirs = listOf(flutterRoot),
                 taskPath = ":app:compileFlutterBuildDebug",
-                outputDir = File(flutterRoot, "build/flutter"),
-                nativeLibsArchive = null,
+                assetsOutputDir = File(flutterRoot, "build/flutter"),
+                nativeOutput = null,
             )),
         )
         val refreshedModule = legacyModule.copy(externalBuildInfos = listOf(
             legacyModule.externalBuildInfos.single().copy(
                 taskPath = null,
-                nativeLibsArchive = null,
-                unsupportedReason = "Flutter native archive task was not found",
+                unsupportedReason = "Flutter native task was not found",
             ),
         ))
         var currentModules = mapOf(legacyModule.name to legacyModule)
@@ -409,8 +408,43 @@ class JuggCompileHelperTest {
         val result = invokePreprocessIncrementalCompile(fixture.helper, fixture.options, fixture.uiHandler)
 
         assertTrue(result!!.isCanFallback)
-        assertEquals("Flutter native archive task was not found", result.failedReason)
+        assertEquals("Flutter native task was not found", result.failedReason)
         verify(fixture.gradleProjectInfoLocalFetchManager).waitForCurrentUpdate()
+    }
+
+    @Test
+    fun preprocessIncrementalCompile_flutterNativeDirMetadata_keepsIncrementalCompile() {
+        val fixture = createFixture()
+        val flutterRoot = temporaryFolder.newFolder("flutter-native-dir")
+        val dartFile = File(flutterRoot, "lib/main.dart").apply {
+            parentFile.mkdirs()
+            writeText("void main() {}")
+        }
+        val module = ModuleInfo.virtualModule.copy(
+            name = "app",
+            externalBuildInfos = listOf(ExternalBuildInfo(
+                type = ExternalBuildType.Flutter,
+                sourceDirs = listOf(flutterRoot),
+                taskPath = ":flutter:copyJniLibsflutterBuildDebug",
+                assetsOutputDir = File(flutterRoot, "build/flutter"),
+                nativeOutput = File(flutterRoot, "build/jniLibs"),
+            )),
+        )
+        val context = mock<ICompileContext>()
+        whenever(context.modules).thenReturn(mapOf(module.name to module))
+        whenever(fixture.compileContextManager.compileContext).thenReturn(context)
+        whenever(fixture.options.compileCommand).thenReturn("./gradlew :app:assembleDebug")
+        whenever(fixture.deployHistoryManager.getFullBuildInfo()).thenReturn(
+            FullBuildInfo("./gradlew :app:assembleDebug", BuildTarget.APP, 1L),
+        )
+        whenever(fixture.deployFileManager.getUncompiledFiles()).thenReturn(listOf(
+            ChangedFile(CompileFile.Type.ExternalBuildSource, dartFile, flutterRoot, module),
+        ))
+
+        val result = invokePreprocessIncrementalCompile(fixture.helper, fixture.options, fixture.uiHandler)
+
+        assertEquals(null, result)
+        verify(fixture.gradleProjectInfoLocalFetchManager, never()).waitForCurrentUpdate()
     }
 
     @Test
