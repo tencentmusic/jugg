@@ -586,6 +586,13 @@ export default defineConfig({
   themeConfig: {
     search: {
       provider: 'local'
-    }
+    },
+    socialLinks: [
+      {
+        icon: 'github',
+        link: 'https://github.com/tencentmusic/jugg',
+        ariaLabel: 'Jugg GitHub repository'
+      }
+    ]
   }
 })
