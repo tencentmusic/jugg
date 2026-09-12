@@ -1,5 +1,6 @@
 import { defineConfig } from 'vitepress'
 
+const GA_ID = 'G-GNEQK6VECM'
 const isWikiDev = process.env.JUGG_WIKI_DEV === 'true' || process.argv.includes('dev')
 const productionSrcExclude = isWikiDev ? [] : ['dev/**', 'zh/dev/**']
 const wikiBase = process.env.JUGG_WIKI_BASE || '/'
@@ -538,6 +539,17 @@ export default defineConfig({
   base: wikiBase,
   title: 'Jugg Wiki',
   description: 'User documentation for Jugg',
+  head: [
+    ['script', { async: '', src: `https://www.googletagmanager.com/gtag/js?id=${GA_ID}` }],
+    [
+      'script',
+      {},
+      `window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+gtag('js', new Date());
+gtag('config', '${GA_ID}');`
+    ]
+  ],
   cleanUrls: true,
   srcExclude: productionSrcExclude,
   markdown: {
