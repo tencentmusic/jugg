@@ -1,3 +1,23 @@
+- version: 3.5.0
+  date: 2026.09.12
+  updates:
+    - "[feature] 支持 Flutter 和 C++ 源码变更，变更调用 Gradle task 生成 so，然后走 Jugg 增量构建"
+    - "[feature] 支持系统应用增量更新"
+    - "[feature] 兼容 Hilt，增量源码更新时保留 Hilt 注入，避免崩溃"
+    - "[feature] 支持自定义 APK 安装脚本"
+    - "[optimize] Dex 报错回退时展示更简洁的警告"
+    - "[optimize] 优化自研部署通道耗时"
+    - "[bugfix] 修复 Bumblebee 运行配置查找与命名"
+    - "[bugfix] 修复上架问题：移除不兼容 API，更新 IDE 上的 Gradle Sync 处理"
+    - "[bugfix] 避免 profile 构建误用 debug 任务元数据"
+    - "[bugfix] 兼容调用 ROM hidden API，Kotlin 增量编译失败时后置 android.jar 重试"
+    - "[bugfix] 修复小概率 Windows 上 Java 编译后 clean 失败"
+    - "[bugfix] 修复特定版本 AGP 8.8.0 编译失败"
+    - "[bugfix] 修复小概率 Android Studio Quail 在资源部署不生效，需要重启"
+    - "[bugfix] 修复 AGP 4.2.2 运行时增量 ViewBinding 失败"
+    - "[bugfix] 修复 KMP common 源码使用 @HiddenFromObjC 时 Kotlin 增量编译缺少 opt-in 参数"
+    - "[bugfix] 修复 KMP Compose resource 场景，设备 >= Android 15，Android Studio < Meerkat，Kotlin >= 2.1，第一次编译就修改了 KMP Compose resource 资源时，需要重启两次才能生效的问题 🤣"
+
 - version: 3.4.3
   date: 2026.09.09
   updates:

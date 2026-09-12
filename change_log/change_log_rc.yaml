@@ -1,3 +1,23 @@
+- version: 3.5.0
+  date: 2026.09.12
+  updates:
+    - "[feature] Support Flutter and C++ source changes: run Gradle tasks to generate native libraries, then continue with Jugg incremental builds"
+    - "[feature] Support incremental updates for system apps"
+    - "[feature] Support Hilt: preserve injection during incremental source updates to avoid crashes"
+    - "[feature] Support custom APK install scripts"
+    - "[optimize] Show a concise warning when Dex compilation falls back"
+    - "[optimize] Reduce latency on the self-built deploy channel"
+    - "[bugfix] Restore Bumblebee run configuration lookup and naming"
+    - "[bugfix] Fix Marketplace listing issues by removing incompatible APIs and updating Gradle sync handling"
+    - "[bugfix] Prevent profile builds from using debug task metadata"
+    - "[bugfix] Support calling ROM hidden APIs by retrying with a postponed android.jar when Kotlin incremental compile fails"
+    - "[bugfix] Fix rare clean failures after Java compilation on Windows"
+    - "[bugfix] Fix compile failure on AGP 8.8.0"
+    - "[bugfix] Fix rare Android Studio Quail cases where resource deploy does not take effect and a restart is required"
+    - "[bugfix] Fix incremental ViewBinding failure on AGP 4.2.2 runtimes"
+    - "[bugfix] Fix missing Kotlin opt-in arguments when KMP common sources use @HiddenFromObjC"
+    - "[bugfix] Fix KMP Compose resource changes requiring two restarts to take effect on the first compile with Android 15+, Android Studio older than Meerkat, and Kotlin 2.1+🤣"
+
 - version: 3.4.3
   date: 2026.09.09
   updates:
