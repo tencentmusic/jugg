@@ -73,7 +73,7 @@ class JuggCompileHelperTest {
         @JvmStatic
         fun initTestEnv() {
             TestGlobal.init()
-            JuggLogger.register("/tmp/jugg-test", TestGlobal.projectInfo.projectRoot)
+            JuggLogger.register("/tmp/jugg-test", JuggPathManager(TestGlobal.projectInfo.projectRoot).logDir)
         }
     }
 
