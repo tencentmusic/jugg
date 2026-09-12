@@ -34,6 +34,15 @@ open class ResourceCompileTest {
         return context
     }
 
+    /**
+     * Context of a module whose Gradle DataBinding flag is unknown, so a plain layout is compiled
+     * through the ViewBinding base class path instead of the DataBinding trigger path.
+     */
+    open fun getViewBindingOnlyContext(): SimpleCompileContext {
+        val origin = getContext()
+        return origin.copy(modules = origin.modules.mapValues { it.value.copy(isUseDataBinding = null) })
+    }
+
     @Before
     fun init() {
         build()
@@ -404,7 +413,7 @@ open class ResourceCompileTest {
         )
 
         val result = resourceOverlayCompiler.compile(task)
-        checkArscResult(task, result, 32, isRJavaChanged = false)
+        checkArscResult(task, result, 33, isRJavaChanged = false)
     }
 
     @Test
@@ -431,6 +440,15 @@ open class ResourceCompileTest {
 
     @Test
     fun compileResourceDirOverlayWithOldRes() {
+        val compiler = ResourceOverlayCompiler(getViewBindingOnlyContext(), mockParentDisposable)
+        try {
+            compileResourceDirOverlayWithOldRes(compiler)
+        } finally {
+            Disposer.dispose(compiler)
+        }
+    }
+
+    private fun compileResourceDirOverlayWithOldRes(resourceOverlayCompiler: ResourceOverlayCompiler) {
         val newResDir = File(buildDir, "new_res")
         newResDir.deleteRecursively()
         newResDir.mkdirs()

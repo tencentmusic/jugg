@@ -13,6 +13,16 @@ class JuggCompileTest {
 
     private val juggCompiler = JuggCompiler(context, mockParentDisposable)
 
+    /**
+     * Module fixture whose Gradle DataBinding flag is unknown, so a plain layout is compiled through
+     * the ViewBinding base class path instead of the DataBinding mapper path. The demo module enables
+     * DataBinding, which routes every layout of the module through the mapper.
+     */
+    private val viewBindingOnlyContext: SimpleCompileContext
+        get() = context.let { origin ->
+            origin.copy(modules = origin.modules.mapValues { it.value.copy(isUseDataBinding = null) })
+        }
+
     @Before
     fun init() {
         clearBuild()
@@ -50,14 +60,14 @@ class JuggCompileTest {
     @Test
     fun compileResource() {
         val task = ResourceCompileTestTask().resourceOverlayTask
-        val result = juggCompiler.compile(task)
+        val result = JuggCompiler(viewBindingOnlyContext, mockParentDisposable).compile(task)
         assertCompileResultJugg(task, result)
     }
 
     @Test
     fun compileResourceAddIds() {
         val task = ResourceCompileTestTask().resourceOverlayAddIdsTask
-        val result = juggCompiler.compile(task)
+        val result = JuggCompiler(viewBindingOnlyContext, mockParentDisposable).compile(task)
         assertCompileResultJugg(task, result)
     }
 
@@ -97,7 +107,7 @@ class JuggCompileTest {
     @Test
     fun compileMultiJavaAndAssetAndRes() {
         val task = JavaCompileTest().multiFilesTask + AssetCompileTest().multiFilesTask + ResourceCompileTestTask().resourceOverlayTask
-        val result = juggCompiler.compile(task)
+        val result = JuggCompiler(viewBindingOnlyContext, mockParentDisposable).compile(task)
         assertCompileResultJugg(task, result)
     }
 

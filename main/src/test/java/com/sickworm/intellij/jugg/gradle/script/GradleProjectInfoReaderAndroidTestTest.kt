@@ -19,6 +19,7 @@ import org.gradle.api.file.Directory
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.ProjectLayout
 import org.gradle.api.invocation.Gradle
+import org.gradle.api.plugins.ExtensionContainer
 import org.gradle.api.plugins.PluginContainer
 import org.gradle.api.tasks.TaskContainer
 import org.junit.Assert.*
@@ -118,7 +119,10 @@ class GradleProjectInfoReaderAndroidTestTest {
         whenever(layout.buildDirectory).thenReturn(buildDirectory)
         val configurations = mock<ConfigurationContainer>()
         whenever(configurations.names).thenReturn(sortedSetOf())
+        val extensions = mock<ExtensionContainer>()
+        whenever(extensions.findByName(any<String>())).thenReturn(null)
         val composeProject = mock<Project>()
+        whenever(composeProject.extensions).thenReturn(extensions)
         whenever(composeProject.path).thenReturn(":compose")
         whenever(composeProject.name).thenReturn("compose")
         whenever(composeProject.projectDir).thenReturn(File("/project/compose"))

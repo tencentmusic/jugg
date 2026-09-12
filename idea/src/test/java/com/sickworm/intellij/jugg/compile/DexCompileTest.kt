@@ -25,18 +25,20 @@ class DexCompileTest {
         clearBuild()
     }
 
-    private val classTask = CompileTask(
+    private val javaClassPath get() = mockModule.buildPathInfo.javaClassPath.absoluteFile
+
+    private val classTask get() = CompileTask(
         listOf(
             CompileFile(
                 CompileFile.Type.Class,
-                File(assetsAndroidDir, "app/build/intermediates/javac/debug/classes/com/example/myapplication/MainActivity2.class"),
-                File(assetsAndroidDir, "app/build/intermediates/javac/debug/classes/"),
+                File(javaClassPath, "com/example/myapplication/MainActivity2.class"),
+                javaClassPath,
                 context.tempModule,
             ),
             CompileFile(
                 CompileFile.Type.Class,
-                File(assetsAndroidDir, "app/build/intermediates/javac/debug/classes/com/example/myapplication/ABC.class"),
-                File(assetsAndroidDir, "app/build/intermediates/javac/debug/classes/"),
+                File(javaClassPath, "com/example/myapplication/ABC.class"),
+                javaClassPath,
                 context.tempModule,
             )
         ),

@@ -2,7 +2,9 @@ package com.sickworm.intellij.jugg.gradle.script
 
 import org.gradle.api.Project
 import org.gradle.api.Task
+import org.gradle.api.artifacts.Configuration
 import org.gradle.api.artifacts.ConfigurationContainer
+import org.gradle.api.artifacts.DependencySet
 import org.gradle.api.execution.TaskExecutionGraph
 import org.gradle.api.file.Directory
 import org.gradle.api.file.DirectoryProperty
@@ -175,7 +177,13 @@ class GradleProjectInfoReaderKotlinOptionsTest {
         whenever(tasks.findByName(kotlinTaskName)).thenReturn(kotlinTask)
         whenever(tasks.iterator()).thenReturn(mutableListOf<Task>().iterator())
         val configurations = mock<ConfigurationContainer>()
-        whenever(configurations.names).thenReturn(sortedSetOf())
+        // Application modules must expose a variant runtime classpath, like real Gradle.
+        whenever(configurations.names).thenReturn(sortedSetOf("debugRuntimeClasspath"))
+        val runtimeDependencies = mock<DependencySet>()
+        whenever(runtimeDependencies.isEmpty()).thenReturn(true)
+        val runtimeClasspath = mock<Configuration>()
+        whenever(runtimeClasspath.allDependencies).thenReturn(runtimeDependencies)
+        whenever(configurations.findByName("debugRuntimeClasspath")).thenReturn(runtimeClasspath)
         val extensions = mock<ExtensionContainer>()
         whenever(extensions.getByName("android")).thenReturn(AndroidExtension())
         whenever(extensions.findByName("kapt")).thenReturn(null)

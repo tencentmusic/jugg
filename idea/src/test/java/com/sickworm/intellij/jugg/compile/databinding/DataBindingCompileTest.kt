@@ -58,6 +58,25 @@ open class DataBindingCompileTest {
         "com/sickworm/jugg/demo/testcase/databinding/library1/DataBindingKotlinDemoActivityLibrary1.kt")
     private val library1KotlinLayoutFile get() = File(library1ResBaseDir, "layout/activity_data_binding_kotlin_demo_library1.xml")
 
+    /**
+     * Module fixture whose Gradle DataBinding flag is unknown (legacy init script), so a layout
+     * without a `<layout>` root is compiled through the ViewBinding base class path. The demo
+     * module enables DataBinding, which routes every layout through the DataBinding trigger path.
+     */
+    private val viewBindingOnlyContext: SimpleCompileContext
+        get() = context.let { origin ->
+            origin.copy(modules = origin.modules.mapValues { it.value.copy(isUseDataBinding = null) })
+        }
+
+    private fun viewBindingOnlyTask(vararg files: File): CompileTask {
+        val module = viewBindingOnlyContext.applicationModule
+        return CompileTask(
+            files.map { CompileFile(CompileFile.Type.Resource, it, it.parentFile.parentFile, module) },
+            CompileHelper.outputDir,
+            CompileStatusHolder.DEFAULT,
+        )
+    }
+
     @Before
     fun setUp() {
         AssembleAndroidProjectOnce.forceRecompile(isNeedClean = false)
@@ -240,11 +259,11 @@ open class DataBindingCompileTest {
 
     @Test
     fun testXmlIncludeNodeViewBinding() {
-        val compileTask = makeTask(
+        val compileTask = viewBindingOnlyTask(
             File(assetsAndroidDir, "app/src/main/res/layout/activity_view_binding_include.xml"),
         )
 
-        val baseClassCompiler = DataBindingGenBaseClassesCompiler(context, mockParentDisposable)
+        val baseClassCompiler = DataBindingGenBaseClassesCompiler(viewBindingOnlyContext, mockParentDisposable)
         val result = baseClassCompiler.compile(compileTask)
         assertTrue(result.isAllSuccess)
         checkOutputFiles(result, listOf(
@@ -313,10 +332,10 @@ open class DataBindingCompileTest {
     }
 
     private fun compileXmlIncludeNewXmlViewBinding() {
-        val compileTask = makeTask(
+        val compileTask = viewBindingOnlyTask(
             File(assetsAndroidModifySourceDir, "app/src/main/res/layout/activity_view_binding_new_include.xml"),
         )
-        val baseClassCompiler = DataBindingGenBaseClassesCompiler(context, mockParentDisposable)
+        val baseClassCompiler = DataBindingGenBaseClassesCompiler(viewBindingOnlyContext, mockParentDisposable)
         val result = baseClassCompiler.compile(compileTask)
         assertTrue(result.isAllSuccess)
         checkOutputFiles(result, listOf(
@@ -332,10 +351,10 @@ open class DataBindingCompileTest {
     }
 
     private fun compileNewXmlViewBinding() {
-        val compileTask = makeTask(
+        val compileTask = viewBindingOnlyTask(
             File(assetsAndroidModifySourceDir, "app/src/main/res/layout/activity_view_binding_new.xml"),
         )
-        val baseClassCompiler = DataBindingGenBaseClassesCompiler(context, mockParentDisposable)
+        val baseClassCompiler = DataBindingGenBaseClassesCompiler(viewBindingOnlyContext, mockParentDisposable)
         val result = baseClassCompiler.compile(compileTask)
         assertTrue(result.isAllSuccess)
         checkOutputFiles(result, listOf(
@@ -345,10 +364,10 @@ open class DataBindingCompileTest {
     }
 
     private fun compileNewXml2ViewBinding() {
-        val compileTask = makeTask(
+        val compileTask = viewBindingOnlyTask(
             File(assetsAndroidModifySourceDir, "app/src/main/res/layout/activity_view_binding_new2.xml"),
         )
-        val baseClassCompiler = DataBindingGenBaseClassesCompiler(context, mockParentDisposable)
+        val baseClassCompiler = DataBindingGenBaseClassesCompiler(viewBindingOnlyContext, mockParentDisposable)
         val result = baseClassCompiler.compile(compileTask)
         assertTrue(result.isAllSuccess)
         checkOutputFiles(result, listOf(
@@ -361,7 +380,16 @@ open class DataBindingCompileTest {
     fun testMultipleNewXmlDataBinding() {
         val context = context
 
+        // Each new layout is compiled through the full base class + mapper path, but this fixture
+        // never compiles the generated bindings into the module classpath the way the full source
+        // compile does. The incremental state of the previous layout would keep referencing them,
+        // so every new layout starts from the same clean incremental state.
+        fun resetIncrementalState() {
+            context.tempModule.buildPathInfo.buildDir.deleteRecursively()
+        }
+
         fun compileNewXmlDataBinding() {
+            resetIncrementalState()
             CompileHelper.outputDir.clearDir()
             val compileTask = makeTask(
                 File(assetsAndroidModifySourceDir, "app/src/main/res/layout/activity_data_binding_new.xml"),
@@ -384,7 +412,7 @@ open class DataBindingCompileTest {
         }
 
         fun compileNewXml2DataBinding() {
-            CompileHelper.outputDir.clearDir()
+            resetIncrementalState()
             val compileTask = makeTask(
                 File(assetsAndroidModifySourceDir, "app/src/main/res/layout/activity_data_binding_new2.xml"),
             )
@@ -406,6 +434,7 @@ open class DataBindingCompileTest {
         }
 
         fun compileXmlIncludeNewXmlDataBinding() {
+            resetIncrementalState()
             CompileHelper.outputDir.clearDir()
             val compileTask = makeTask(
                 File(assetsAndroidModifySourceDir, "app/src/main/res/layout/activity_data_binding_old_include.xml"),

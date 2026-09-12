@@ -150,7 +150,7 @@ class TopLevelFlowWithGitTest {
             packageName = originalProjectInfo.packageName,
             projectRootDir = originalProjectInfo.projectRootDir,
             modifiedSourceDir = originalProjectInfo.modifiedSourceDir,
-            apkPath = "app/build/outputs/apk/debug/app-debug.apk",
+            apkPath = "build/app/outputs/apk/debug/app-debug.apk",
             apkEntryInfo = originalProjectInfo.apkEntryInfo,
         )
         try {

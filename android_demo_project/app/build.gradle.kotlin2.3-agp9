@@ -80,6 +80,12 @@ kotlin {
     }
 }
 
+tasks.matching { it.name in ['compileDebugKotlin', 'compileReleaseKotlin'] }.configureEach {
+    // Kotlin 2.3 no longer resolves the ROM framework supertype when the public SDK android.jar
+    // comes first on the classpath, so the Jugg side fixture is excluded from the Kotlin compile.
+    exclude '**/romhiddenapi/**'
+}
+
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
     // ROM hidden api fixture: rom_framework.jar redeclares android.net.wifi.WifiManager with the
