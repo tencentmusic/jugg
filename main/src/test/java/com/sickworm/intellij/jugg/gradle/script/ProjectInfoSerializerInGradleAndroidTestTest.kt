@@ -332,6 +332,91 @@ class ProjectInfoSerializerInGradleAndroidTestTest {
         }
     }
 
+    @Test
+    fun `save and load round-trip preserves external build inputs`() {
+        val tmpFile = Files.createTempFile("jugg_test_", ".json").toFile()
+        val buildInfos = listOf(
+            ExternalBuildInfo(
+                type = ExternalBuildType.Flutter,
+                sourceDirs = listOf(File("/project/flutter"), File("/project/shared-package")),
+                taskPath = ":flutter:copyJniLibsflutterBuildDebug",
+                assetsOutputDir = File("/project/flutter/build/intermediates/flutter/debug"),
+                nativeOutput = File("/project/flutter/build/generated/jniLibs/copyJniLibsflutterBuildDebug"),
+                inputFiles = listOf(File("/project/flutter/lib/main.dart"), File("/project/flutter/assets/logo.png")),
+                configFiles = listOf(File("/project/flutter/pubspec.yaml")),
+                excludedDirs = listOf(File("/project/flutter/.dart_tool")),
+            ),
+            ExternalBuildInfo(
+                type = ExternalBuildType.Cpp,
+                sourceDirs = listOf(File("/project/native/src/main/cpp")),
+                taskPath = ":native:mergeDebugNativeLibs",
+                assetsOutputDir = null,
+                nativeOutput = File("/project/native/build/merged_native_libs"),
+                inputFiles = listOf(File("/project/shared/shared.cpp")),
+                configFiles = listOf(File("/project/native/src/main/cpp/CMakeLists.txt")),
+                excludedDirs = listOf(File("/project/native/.cxx")),
+            ),
+        )
+        try {
+            ProjectInfoSerializerInGradle(tmpFile).save(projectInfoWithoutAgpR8(mapOf(
+                "native" to ModuleInfo.virtualModule.copy(name = "native", externalBuildInfos = buildInfos),
+            )))
+
+            val loaded = ProjectInfoSerializerInGradle(tmpFile).load()
+
+            assertEquals(buildInfos, loaded?.modules?.single()?.moduleInfoExceptLibraries?.externalBuildInfos)
+        } finally {
+            tmpFile.delete()
+        }
+    }
+
+    @Test
+    fun `load restores snapshots written before the external build input model existed`() {
+        val tmpFile = Files.createTempFile("jugg_test_", ".json").toFile()
+        val buildInfos = listOf(
+            ExternalBuildInfo(
+                type = ExternalBuildType.Flutter,
+                sourceDirs = listOf(File("/project/flutter")),
+                taskPath = ":flutter:copyJniLibsflutterBuildDebug",
+                assetsOutputDir = File("/project/flutter/build/intermediates/flutter/debug"),
+                nativeOutput = File("/project/flutter/build/generated/jniLibs/copyJniLibsflutterBuildDebug"),
+                inputFiles = listOf(File("/project/flutter/lib/main.dart")),
+                configFiles = listOf(File("/project/flutter/pubspec.yaml")),
+                excludedDirs = listOf(File("/project/flutter/.dart_tool")),
+            ),
+        )
+        try {
+            ProjectInfoSerializerInGradle(tmpFile).save(projectInfoWithoutAgpR8(mapOf(
+                "native" to ModuleInfo.virtualModule.copy(name = "native", externalBuildInfos = buildInfos),
+            )))
+            tmpFile.removeExternalBuildInputKeys()
+
+            val loaded = ProjectInfoSerializerInGradle(tmpFile).load()
+
+            val restored = loaded?.modules?.single()?.moduleInfoExceptLibraries?.externalBuildInfos?.single()
+            assertEquals(emptyList<File>(), restored?.inputFiles)
+            assertEquals(emptyList<File>(), restored?.configFiles)
+            assertEquals(emptyList<File>(), restored?.excludedDirs)
+            assertEquals(buildInfos.single().sourceDirs, restored?.sourceDirs)
+        } finally {
+            tmpFile.delete()
+        }
+    }
+
+    /** Drops the external build input keys, reproducing a snapshot written before they existed. */
+    private fun File.removeExternalBuildInputKeys() {
+        val root = JsonParser.parseString(readText()).asJsonObject
+        root.getAsJsonArray("modules").forEach { module ->
+            val buildInfos = module.asJsonObject.getAsJsonObject("moduleInfoExceptLibraries")
+                .getAsJsonArray("externalBuildInfos") ?: return@forEach
+            buildInfos.forEach { element ->
+                val info = element.asJsonObject
+                listOf("inputFiles", "configFiles", "excludedDirs").forEach { info.remove(it) }
+            }
+        }
+        writeText(root.toString())
+    }
+
     /** Rewrites the unified external build keys back to the fields older Jugg versions persisted. */
     private fun File.rewriteExternalBuildInfosToLegacyFormat() {
         val root = JsonParser.parseString(readText()).asJsonObject

@@ -142,6 +142,9 @@ class ProjectInfoSerializerInGradle(private val dataFile: File) {
                     legacyOutputDir
                 },
                 unsupportedReason = info["unsupportedReason"] as? String,
+                inputFiles = (info["inputFiles"] as? List<String>).orEmpty().map(::File),
+                configFiles = (info["configFiles"] as? List<String>).orEmpty().map(::File),
+                excludedDirs = (info["excludedDirs"] as? List<String>).orEmpty().map(::File),
             )
         }
     }

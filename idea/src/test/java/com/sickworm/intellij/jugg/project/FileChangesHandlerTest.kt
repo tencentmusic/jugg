@@ -210,6 +210,102 @@ class FileChangesHandlerTest {
     }
 
     @Test
+    fun `detects Flutter assets, configuration and local package sources confirmed by task inputs`() {
+        val app = context.applicationModule
+        val flutterRoot = File(app.moduleRootDir, "flutter-assets")
+        val localPackage = File(app.moduleRootDir.parentFile, "jugg-shared-package")
+        val localPackageDart = File(File(localPackage, "lib"), "shared.dart")
+        val assetFile = File(File(flutterRoot, "assets/images"), "logo.png")
+        val pubspec = File(flutterRoot, "pubspec.yaml")
+        val module = app.copy(externalBuildInfos = listOf(
+            ExternalBuildInfo(
+                type = ExternalBuildType.Flutter,
+                sourceDirs = listOf(flutterRoot, localPackage),
+                taskPath = ":app:compileFlutterBuildDebug",
+                assetsOutputDir = File(app.moduleRootDir, "build/intermediates/flutter/debug"),
+                nativeOutput = File(app.moduleRootDir, "build/intermediates/flutter/debug/native.jar"),
+                inputFiles = listOf(assetFile, localPackageDart),
+                configFiles = listOf(pubspec),
+            ),
+        ))
+        handler.init(context.copy(modules = context.modules + (module.name to module)))
+
+        // A png is not a Flutter source extension, only the confirmed task input can recognize it.
+        assertChangedFileFile(assetFile)
+        assertChangedFileFile(localPackageDart)
+        assertChangedFileFile(pubspec)
+        assertChangedFile(
+            path = "app/flutter-assets/lib/main.dart",
+            expectedType = CompileFile.Type.ExternalBuildSource,
+            expectedBaseDir = "app/flutter-assets",
+        )
+    }
+
+    @Test
+    fun `detects assembly and header sources of native external builds`() {
+        val app = context.applicationModule
+        val cppRoot = File(app.moduleRootDir, "src/main/cpp")
+        val module = app.copy(externalBuildInfos = listOf(
+            projectCppBuildInfo(cppRoot, app.moduleRootDir),
+        ))
+        handler.init(context.copy(modules = context.modules + (module.name to module)))
+
+        listOf("start.S", "arch.asm", "native.inl", "native.tpp").forEach { name ->
+            assertChangedFile(
+                path = "app/src/main/cpp/$name",
+                expectedType = CompileFile.Type.ExternalBuildSource,
+                expectedBaseDir = "app/src/main/cpp",
+            )
+        }
+    }
+
+    @Test
+    fun `ignores external build directories excluded by metadata`() {
+        val app = context.applicationModule
+        val sdkRoot = File(app.moduleRootDir.parentFile, "jugg-flutter-sdk")
+        val module = app.copy(externalBuildInfos = listOf(
+            ExternalBuildInfo(
+                type = ExternalBuildType.Flutter,
+                sourceDirs = listOf(app.moduleRootDir),
+                taskPath = ":app:compileFlutterBuildDebug",
+                assetsOutputDir = File(app.moduleRootDir, "build/intermediates/flutter/debug"),
+                nativeOutput = File(app.moduleRootDir, "build/intermediates/flutter/debug/native.jar"),
+                excludedDirs = listOf(sdkRoot),
+            ),
+        ))
+        handler.init(context.copy(modules = context.modules + (module.name to module)))
+
+        withTemporaryFile(File(sdkRoot, "lib/ui.dart")) {
+            assertTrue(handler.filter(listOf(File(sdkRoot, "lib/ui.dart"))).isEmpty())
+        }
+        assertTrue(handler.filter(listOf(UnexpectedTraversalDirectory(sdkRoot.path))).isEmpty())
+    }
+
+    @Test
+    fun `keeps removed external build inputs visible for the incremental pre-check`() {
+        val app = context.applicationModule
+        val flutterRoot = File(app.moduleRootDir, "flutter-removed")
+        val module = app.copy(externalBuildInfos = listOf(
+            ExternalBuildInfo(
+                type = ExternalBuildType.Flutter,
+                sourceDirs = listOf(flutterRoot),
+                taskPath = ":app:compileFlutterBuildDebug",
+                assetsOutputDir = File(app.moduleRootDir, "build/intermediates/flutter/debug"),
+                nativeOutput = File(app.moduleRootDir, "build/intermediates/flutter/debug/native.jar"),
+            ),
+        ))
+        handler.init(context.copy(modules = context.modules + (module.name to module)))
+        val removedDart = File(File(flutterRoot, "lib"), "removed.dart")
+
+        val removed = handler.filter(listOf(removedDart)).single()
+
+        assertEquals(CompileFile.Type.ExternalBuildSource, removed.type)
+        assertTrue(!removed.file.exists())
+        // A removed ordinary source keeps its previous behaviour and is not reported.
+        assertTrue(handler.filter(listOf(File(app.moduleRootDir, "src/main/java/com/example/Removed.kt"))).isEmpty())
+    }
+
+    @Test
     fun `ignores generated external build directories`() {
         val app = context.applicationModule
         val module = app.copy(externalBuildInfos = listOf(
@@ -439,6 +535,23 @@ class FileChangesHandlerTest {
             assertEquals(context.applicationModule.name, changed.module.name)
         }
     }
+
+    /** Asserts one explicit file outside the module source roots is recognized as an external build source. */
+    private fun assertChangedFileFile(file: File) {
+        withTemporaryFile(file) {
+            val changed = handler.filter(listOf(file)).single()
+            assertEquals(CompileFile.Type.ExternalBuildSource, changed.type)
+            assertEquals(context.applicationModule.name, changed.module.name)
+        }
+    }
+
+    private fun projectCppBuildInfo(cppRoot: File, moduleRootDir: File) = ExternalBuildInfo(
+        type = ExternalBuildType.Cpp,
+        sourceDirs = listOf(cppRoot),
+        taskPath = ":app:mergeDebugNativeLibs",
+        assetsOutputDir = null,
+        nativeOutput = File(moduleRootDir, "build/intermediates/merged_native_libs/debug/out/lib"),
+    )
 
     private class UnexpectedTraversalDirectory(path: String) : File(path) {
         override fun isDirectory() = true

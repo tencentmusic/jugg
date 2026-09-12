@@ -27,11 +27,20 @@ class ExternalBuildCompiler(
     private val runner = ExternalBuildTaskRunner(logger)
 
     override fun doCompile(task: CompileTask): CompileResult {
-        val builds = task.files.mapNotNull(::resolveBuild).distinctBy {
-            it.second.taskPath ?: "${it.second.type}:${it.second.sourceDirs}"
-        }
-        if (builds.isEmpty()) {
+        // Every changed external input must resolve; a partially resolved round would run only some
+        // builds and still report all files as compiled.
+        val resolved = task.files.map { it to resolveBuild(it) }
+        if (resolved.isEmpty()) {
             return task.allFailed("External build metadata not found")
+        }
+        resolved.firstOrNull { it.second == null }?.first?.let { unresolved ->
+            return task.allFailed("External build metadata not found: ${unresolved.file.name}")
+        }
+        resolved.firstOrNull { !it.first.file.exists() }?.first?.let { missing ->
+            return task.allFailed("External build source no longer exists: ${missing.file.name}")
+        }
+        val builds = resolved.map { (file, buildInfo) -> moduleOf(file) to buildInfo!! }.distinctBy {
+            it.second.taskPath ?: "${it.second.type}:${it.second.sourceDirs}"
         }
         builds.firstOrNull { !it.second.isSupported }?.second?.let { unsupported ->
             return task.allFailed(unsupported.unsupportedReason ?: "External build is not supported")
@@ -52,11 +61,14 @@ class ExternalBuildCompiler(
             return task.allFailed("External Gradle build failed")
         }
 
-        val collected = builds.map { (module, buildInfo) ->
-            collectArtifacts(task, module, buildInfo)
-        }
+        val collected = builds.map { (module, buildInfo) -> collectArtifacts(task, module, buildInfo) }
         collected.firstNotNullOfOrNull { it.error }?.let { error ->
             return task.allFailed(error)
+        }
+        // Removed artifacts cannot be uninstalled incrementally, so a shrunken artifact set must fail
+        // instead of silently keeping the previous .so or asset in the APK.
+        collected.firstNotNullOfOrNull { it.removedArtifacts }?.let { removed ->
+            return task.allFailed("External build no longer produces $removed, full Gradle build required")
         }
         return CompileResult(
             task = task,
@@ -65,18 +77,10 @@ class ExternalBuildCompiler(
         )
     }
 
-    private fun resolveBuild(file: CompileFile): Pair<ModuleInfo, ExternalBuildInfo>? {
-        val module = context.modules[file.module.name] ?: file.module
-        val extension = file.file.extension.lowercase()
-        val info = module.externalBuildInfos.firstOrNull { buildInfo ->
-            val supportsExtension = when (buildInfo.type) {
-                ExternalBuildType.Flutter -> extension == "dart"
-                ExternalBuildType.Cpp -> extension in cppSourceExtensions
-            }
-            supportsExtension && buildInfo.sourceDirs.any { file.file.toPath().startsWith(it.toPath()) }
-        }
-        return info?.let { module to it }
-    }
+    private fun resolveBuild(file: CompileFile): ExternalBuildInfo? = resolveExternalBuild(moduleOf(file), file.file)
+
+    /** Uses the latest module snapshot; changed files may still hold the module read before a refresh. */
+    private fun moduleOf(file: CompileFile): ModuleInfo = context.modules[file.module.name] ?: file.module
 
     private fun getFullBuildGradleCommand(): String? {
         val command = try {
@@ -94,9 +98,50 @@ class ExternalBuildCompiler(
         task: CompileTask,
         module: ModuleInfo,
         buildInfo: ExternalBuildInfo,
-    ): CollectedArtifacts = when (buildInfo.type) {
-        ExternalBuildType.Flutter -> collectFlutterArtifacts(task, module, buildInfo)
-        ExternalBuildType.Cpp -> collectCppArtifacts(task, module, buildInfo)
+    ): CollectedArtifacts {
+        val collected = when (buildInfo.type) {
+            ExternalBuildType.Flutter -> collectFlutterArtifacts(task, module, buildInfo)
+            ExternalBuildType.Cpp -> collectCppArtifacts(task, module, buildInfo)
+        }
+        if (collected.error != null) {
+            return collected
+        }
+        val removed = compareWithPreviousArtifacts(task, module, buildInfo, collected.outputs)
+        return if (removed == null) collected else collected.copy(removedArtifacts = removed)
+    }
+
+    /**
+     * Compares this round's deployable artifacts with the previous round's, so a removed or renamed
+     * artifact fails instead of leaving the old `.so` or asset inside the APK.
+     */
+    private fun compareWithPreviousArtifacts(
+        task: CompileTask,
+        module: ModuleInfo,
+        buildInfo: ExternalBuildInfo,
+        outputs: List<CompileOutput>,
+    ): String? {
+        val manifest = File(File(task.outputDir, "external/${module.name.safeName()}"),
+            "${buildInfo.type.name.lowercase()}-artifacts.txt")
+        val current = outputs.map { it.deployKey() }.toSortedSet()
+        val previous = if (manifest.isFile) {
+            manifest.readLines().filter { it.isNotBlank() }.toSet()
+        } else {
+            emptySet()
+        }
+        val removed = previous - current
+        if (removed.isEmpty()) {
+            manifest.parentFile.mkdirs()
+            manifest.writeText(current.joinToString("\n"))
+            return null
+        }
+        // Keep the previous list, so every later round keeps requiring a full Gradle build until the
+        // APK baseline is rebuilt without the removed artifact.
+        return removed.sorted().joinToString(", ")
+    }
+
+    private fun CompileOutput.deployKey(): String {
+        val prefix = if (type == CompileOutput.Type.NativeLib) "lib/" else "assets/"
+        return prefix + relativeFile.invariantSeparatorsPath
     }
 
     private fun collectFlutterArtifacts(
@@ -304,10 +349,10 @@ class ExternalBuildCompiler(
         val error: String?,
         val discoveredCount: Int,
         val outputs: List<CompileOutput>,
+        val removedArtifacts: String? = null,
     )
 
     companion object {
         private val abiFolders = setOf("armeabi", "armeabi-v7a", "arm64-v8a", "x86", "x86_64")
-        private val cppSourceExtensions = setOf("c", "cc", "cpp", "cxx", "h", "hh", "hpp", "hxx")
     }
 }

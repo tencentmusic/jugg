@@ -179,6 +179,63 @@ class JuggProjectInfoSerializerAndroidTestTest {
     }
 
     @Test
+    fun `deserialize old project info without external build inputs defaults to empty lists`() {
+        val original = projectInfoWithoutAgpR8(
+            modules = mapOf("app" to ModuleInfo.virtualModule.copy(
+                name = "app",
+                externalBuildInfos = listOf(externalBuildInfo()),
+            ))
+        )
+        val json = JsonParser.parseString(
+            ProjectInfoSerializer.gson.toJson(JuggProjectInfoSerialize.serialize(original))
+        ).asJsonObject
+        val info = json.getAsJsonArray("modules")[0]
+            .asJsonObject
+            .getAsJsonObject("moduleInfoExceptLibraries")
+            .getAsJsonArray("externalBuildInfos")[0]
+            .asJsonObject
+        listOf("inputFiles", "configFiles", "excludedDirs").forEach { info.remove(it) }
+        val serialized = ProjectInfoSerializer.gson.fromJson(json, JuggProjectInfoSerialize::class.java)
+
+        val restored = JuggProjectInfoSerialize.deserialize(serialized, isSkipVersionCheck = true)
+
+        val restoredInfo = restored.modules["app"]?.externalBuildInfos?.single()
+        assertEquals(emptyList<File>(), restoredInfo?.inputFiles)
+        assertEquals(emptyList<File>(), restoredInfo?.configFiles)
+        assertEquals(emptyList<File>(), restoredInfo?.excludedDirs)
+        assertEquals(externalBuildInfo().sourceDirs, restoredInfo?.sourceDirs)
+    }
+
+    @Test
+    fun `serialize and deserialize preserves external build inputs`() {
+        val info = externalBuildInfo()
+        val original = projectInfoWithoutAgpR8(
+            modules = mapOf("app" to ModuleInfo.virtualModule.copy(
+                name = "app",
+                externalBuildInfos = listOf(info),
+            ))
+        )
+
+        val restored = JuggProjectInfoSerialize.deserialize(
+            JuggProjectInfoSerialize.serialize(original),
+            isSkipVersionCheck = true,
+        )
+
+        assertEquals(info, restored.modules["app"]?.externalBuildInfos?.single())
+    }
+
+    private fun externalBuildInfo() = ExternalBuildInfo(
+        type = ExternalBuildType.Flutter,
+        sourceDirs = listOf(File("/project/flutter"), File("/project/shared-package")),
+        taskPath = ":flutter:copyJniLibsflutterBuildDebug",
+        assetsOutputDir = File("/project/flutter/build/intermediates/flutter/debug"),
+        nativeOutput = File("/project/flutter/build/generated/jniLibs/copyJniLibsflutterBuildDebug"),
+        inputFiles = listOf(File("/project/flutter/lib/main.dart"), File("/project/flutter/assets/logo.png")),
+        configFiles = listOf(File("/project/flutter/pubspec.yaml")),
+        excludedDirs = listOf(File("/project/flutter/.dart_tool")),
+    )
+
+    @Test
     fun `serialize and deserialize preserves Kotlin compiler plugin options`() {
         val pluginOptions = listOf("plugin:dev.zacsweers.moshix.compiler:enabled=true")
         val original = projectInfoWithoutAgpR8(

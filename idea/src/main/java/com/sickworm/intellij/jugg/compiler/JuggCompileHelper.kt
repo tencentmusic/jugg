@@ -11,6 +11,7 @@ import com.sickworm.intellij.jugg.ai.mcp.util.LastCompileTimestampRegistry
 import com.sickworm.intellij.jugg.compiler.ui.BuildChangesConfirmResult
 import com.sickworm.intellij.jugg.compiler.ui.TooManyChangesConfirmResult
 import com.sickworm.intellij.jugg.compiler.external.deriveExternalBuildCommand
+import com.sickworm.intellij.jugg.compiler.external.resolveExternalBuild
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.instrument.LibraryTestApkBuildHistory
 import com.sickworm.intellij.jugg.deploy.run.IdeDeployState
@@ -64,7 +65,6 @@ class JuggCompilerHelper(
     companion object {
         private const val FILE_PROCESSING_WAIT_TIMEOUT_MS = 1_000L
         private const val GRADLE_PROJECT_INFO_UNAVAILABLE = "Gradle project info unavailable"
-        private val cppSourceExtensions = setOf("c", "cc", "cpp", "cxx", "h", "hh", "hpp", "hxx")
     }
 
     var juggCompiler: JuggCompiler? = null
@@ -424,7 +424,9 @@ class JuggCompilerHelper(
             return CompileTaskResult.incrementalFailed(true, "Compile command changed")
         }
 
-        if (hasExternalBuildSources && hasLegacyFlutterBuildInfo(externalBuildSources)) {
+        val needsExternalBuildRefresh = hasExternalBuildSources &&
+                (hasLegacyFlutterBuildInfo(externalBuildSources) || hasConfigInputChanges(externalBuildSources))
+        if (needsExternalBuildRefresh) {
             gradleProjectInfoLocalFetchManager.runUpdateIfNeeded(
                 isForce = true,
                 specificCompileCommand = lastCompileCommand,
@@ -432,7 +434,7 @@ class JuggCompilerHelper(
             )
             gradleProjectInfoLocalFetchManager.waitForCurrentUpdate()
         }
-        findUnsupportedExternalBuildReason(externalBuildSources)?.let { reason ->
+        findExternalBuildFallbackReason(externalBuildSources)?.let { reason ->
             logger.info("$reason, forcing Gradle full compile.")
             return CompileTaskResult.incrementalFailed(true, reason)
         }
@@ -500,8 +502,16 @@ class JuggCompilerHelper(
         return null
     }
 
-    private fun findUnsupportedExternalBuildReason(files: List<ChangedFile>): String? {
+    /**
+     * Resolves every external input before the incremental compile starts. Any input without usable
+     * metadata, task or artifact contract, and any removed input, forces a full Gradle build instead
+     * of a partial external build.
+     */
+    private fun findExternalBuildFallbackReason(files: List<ChangedFile>): String? {
         files.forEach { file ->
+            if (!file.file.exists()) {
+                return "External build source was removed, full Gradle compile required"
+            }
             val buildInfo = resolveExternalBuildInfo(file)
                 ?: return "External build metadata not found"
             if (!buildInfo.isSupported) {
@@ -520,20 +530,22 @@ class JuggCompilerHelper(
         }
     }
 
+    /**
+     * Configuration inputs change the external build itself, so the run reuses the external task and
+     * reloads the metadata it rewrites instead of assuming the cached snapshot is still accurate.
+     */
+    private fun hasConfigInputChanges(files: List<ChangedFile>): Boolean {
+        return files.any { file ->
+            val buildInfo = resolveExternalBuildInfo(file) ?: return@any false
+            val path = file.file.toPath().toAbsolutePath().normalize()
+            buildInfo.configFiles.any { path == it.toPath().toAbsolutePath().normalize() }
+        }
+    }
+
     private fun resolveExternalBuildInfo(file: ChangedFile): ExternalBuildInfo? {
         val module = runCatching { compileContextManager.compileContext.modules[file.module.name] }
             .getOrNull() ?: file.module
-        val extension = file.file.extension.lowercase()
-        return module.externalBuildInfos.firstOrNull { buildInfo ->
-            val matchesType = when (buildInfo.type) {
-                ExternalBuildType.Flutter -> extension == "dart"
-                ExternalBuildType.Cpp -> extension in cppSourceExtensions
-            }
-            matchesType && buildInfo.sourceDirs.any { sourceDir ->
-                file.file.toPath().toAbsolutePath().normalize()
-                    .startsWith(sourceDir.toPath().toAbsolutePath().normalize())
-            }
-        }
+        return resolveExternalBuild(module, file.file)
     }
 
     private fun isCompileCommandChanged(options: JuggGradleCompileOptions): Boolean {

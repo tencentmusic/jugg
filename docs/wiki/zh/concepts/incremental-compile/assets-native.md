@@ -50,6 +50,8 @@ C/C++ 变化
 
 这个过程不执行 aapt2，也不会生成 `resources.arsc`。Dart 变化始终执行 Flutter 编译和 native 输出 task，不增加 Jugg 侧 Flutter 缓存；Flutter assets 从当前输出目录读取，native lib 只接受该任务自身声明的 native 输出中结构明确的 ABI 条目，不会递归扫描 Flutter 中间目录。C/C++ 到 `.so` 的转换仍由 Gradle、CMake 和 NDK 完成。Jugg 只选择当前变体所需的外部 task，并收集它们的新输出，因此 Android Java/Kotlin 和资源部分仍走原有增量编译。
 
+外部构建的触发范围以工具链自己的输入模型为准，而不是按目录或扩展名猜测：Flutter 使用当前变体 compile task 声明的输入，因此 `pubspec.yaml`、已参与构建的工程外 local path package Dart、以及被该构建读取的 Flutter assets 都会触发；Native 使用 CMake File API 与 AGP 生成的 native metadata 得到目标源码，因此工程外共享源码、汇编和项目内 include root 也会触发。Flutter SDK、全局 pub cache、`.dart_tool`、`.cxx`、`.externalNativeBuild` 和构建输出目录始终不监听。取不到这些工具链输入时，Jugg 退回只按源码根和源码扩展名识别的旧行为，不会把相邻目录或缓存纳入监听。
+
 产物 CRC 只决定新输出是否需要再次部署。它不会跳过 Flutter 或 C/C++ 编译，避免源码已经变化但中间产物尚未刷新的情况被误判为无变化。
 
 多 APK 工程中，每份产物还必须保留自己的目标 APK 归属。Jugg 不会把同一份 asset 或 native lib 默认复制到所有 APK。
@@ -72,10 +74,12 @@ asset overlay 会保持 `assets/**` 路径，供新的资源加载路径读取�
 
 ## 需要回到 Gradle 的情况
 
-- 删除 asset 文件时，Jugg 不会生成移除设备端文件的 overlay；原有 asset 仍可通过 `AssetManager` 读取。只有需要让删除真正生效时，才执行完整 Gradle 构建。
+- 已识别的外部输入被删除时，Jugg 直接回退完整 Gradle 构建。现有 APK 与 overlay 链没有删除设备端文件的原语，删除 asset 文件或 native 源码都可能让产物集合缩小，无法在增量路径上安全表达。
+- 外部构建成功后，Jugg 会比较本轮与上一轮的 native/asset 产物。上一轮已收集的产物本轮不再产生时，本轮编译失败并提示需要完整 Gradle 构建，不会残留旧 `.so` 或 asset 后报告成功。
+- 同一轮里有多个外部输入时，Jugg 要求全部输入都能解析。任一输入缺少 metadata、task 或产物契约（例如多 module 工程中只有一个 module 配置了外部构建）时整轮回退完整 Gradle，不会只构建可识别的部分。
 - 已识别 Flutter/C++ 源码根但缺少 task、输出目录或 Flutter native 输出元数据时，Jugg 会回退完整 Gradle 构建；外部 task 执行失败、native 输出无法读取或既没有 assets 也没有有效产物时，本轮编译失败，不复用旧中间产物。Debug 等本身不产出 native lib 的构建模式只要 assets 有效就算成功。
 - 远程编译和无法安全派生外部 task 的自定义命令会回到完整 Gradle 构建。
-- 修改 `pubspec.yaml`、CMake、ndk-build、NDK、ABI、native source set 或 packaging 规则后，需要通过 Sync 和完整 Gradle 构建刷新项目模型与 APK 基线。
+- `pubspec.yaml`、`pubspec.lock`、`CMakeLists.txt`、项目内 `*.cmake`、`Android.mk` 和 `Application.mk` 是外部构建的配置输入。修改它们会执行既有外部 task，并在 task 结束后刷新项目模型，不需要单独触发完整构建；只有 NDK、ABI、native source set、packaging 规则等无法由该 task 覆盖的配置变化，才需要完整 Gradle 构建刷新 APK 基线。
 - 修改 asset source set、variant 或影响 APK 路径与归属的构建配置后，需要刷新 Gradle 基线。
 - native lib 更新依赖可用的 APK 签名配置；无法完成重签名时，不能继续使用这条增量更新路径。
 

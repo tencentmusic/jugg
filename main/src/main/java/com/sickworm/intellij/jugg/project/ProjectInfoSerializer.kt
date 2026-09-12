@@ -121,6 +121,7 @@ class ProjectInfoSerializer(val dataFile: File, private val logger: Logger) {
             val buildInfos = moduleObj.getAsJsonArray("externalBuildInfos") ?: return
             buildInfos.forEach { element ->
                 val info = element.asJsonObject
+                restoreExternalBuildLists(info)
                 val isFlutter = info.stringOrNull("type") == ExternalBuildType.Flutter.name
                 if (!info.has("assetsOutputDir") && isFlutter) {
                     info.stringOrNull("outputDir")?.let { info.addProperty("assetsOutputDir", it) }
@@ -134,6 +135,18 @@ class ProjectInfoSerializer(val dataFile: File, private val logger: Logger) {
                     info.stringOrNull("outputDir")
                 }
                 nativeOutput?.let { info.addProperty("nativeOutput", it) }
+            }
+        }
+
+        /**
+         * Snapshots written before the external build input model existed have no input, configuration
+         * or exclusion list. They are restored as empty, so the broad source roots keep working.
+         */
+        private fun restoreExternalBuildLists(info: JsonObject) {
+            listOf("inputFiles", "configFiles", "excludedDirs").forEach { name ->
+                if (!info.has(name)) {
+                    info.add(name, com.google.gson.JsonArray())
+                }
             }
         }
 

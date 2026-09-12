@@ -170,6 +170,9 @@ class CmdLineContextManager(
                         sourceDirs = buildInfo.sourceDirs.convertSourceBaseDir(),
                         assetsOutputDir = buildInfo.assetsOutputDir?.convertSourceBaseDir(),
                         nativeOutput = buildInfo.nativeOutput?.convertSourceBaseDir(),
+                        inputFiles = buildInfo.inputFiles.convertSourceBaseDir(),
+                        configFiles = buildInfo.configFiles.convertSourceBaseDir(),
+                        excludedDirs = buildInfo.excludedDirs.convertSourceBaseDir(),
                     )
                 },
             )
