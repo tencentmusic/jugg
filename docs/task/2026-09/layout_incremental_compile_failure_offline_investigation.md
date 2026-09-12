@@ -2,9 +2,7 @@
 
 > 本文用于无法联网的 Android/Jugg 环境。只使用现场已有的历史日志、应用源码、构建配置、项目结构、版本匹配的 Jugg 源码、本地产物和设备状态；禁止搜索、下载、上传材料或创建外部复现工程。
 >
-> 配套文件：
-> - [证据采集清单](layout_incremental_compile_failure_evidence_checklist.md)
-> - [调查报告模板](layout_incremental_compile_failure_report_template.md)
+> 本文是可独立复制传播的单文件交付物，已内置证据采集命令、Agent 执行清单、报告模板和脱敏检查，不依赖其它配套文档。
 
 ## 1. 结论边界
 
@@ -49,7 +47,34 @@
 
 ## 2. 现场保全
 
-任何再次 Run、编译、部署、重启、Gradle build/clean、清缓存、重装或清数据之前，先执行配套[证据采集清单](layout_incremental_compile_failure_evidence_checklist.md)的第 1～3 节。
+任何再次 Run、编译、部署、重启、Gradle build/clean、清缓存、重装或清数据之前，先初始化证据目录并保存现场。`EVIDENCE_ROOT` 必须位于工程目录之外，并且不可复用已有目录。
+
+```bash
+PROJECT_ROOT='<PROJECT_ROOT>'
+EVIDENCE_ROOT='<EVIDENCE_ROOT>'
+LAYOUT_RELATIVE_PATH='<MODULE_RELATIVE_LAYOUT_PATH>'
+mkdir -p "$EVIDENCE_ROOT/log" "$EVIDENCE_ROOT/project" "$EVIDENCE_ROOT/jugg" "$EVIDENCE_ROOT/artifacts" "$EVIDENCE_ROOT/device"
+
+git -C "$PROJECT_ROOT" rev-parse HEAD > "$EVIDENCE_ROOT/project/git_head.txt"
+git -C "$PROJECT_ROOT" branch --show-current > "$EVIDENCE_ROOT/project/git_branch.txt"
+git -C "$PROJECT_ROOT" status --short > "$EVIDENCE_ROOT/project/git_status.txt"
+git -C "$PROJECT_ROOT" diff -- "$LAYOUT_RELATIVE_PATH" > "$EVIDENCE_ROOT/project/layout.diff"
+if [ -f "$PROJECT_ROOT/$LAYOUT_RELATIVE_PATH" ]; then
+  cp -p "$PROJECT_ROOT/$LAYOUT_RELATIVE_PATH" "$EVIDENCE_ROOT/project/layout.xml"
+  shasum -a 256 "$EVIDENCE_ROOT/project/layout.xml" > "$EVIDENCE_ROOT/project/layout.sha256"
+fi
+
+cp -R "$PROJECT_ROOT/build/jugg/log" "$EVIDENCE_ROOT/log/original"
+cp -R "$PROJECT_ROOT/build/jugg/database" "$EVIDENCE_ROOT/jugg/database"
+cp -R "$PROJECT_ROOT/build/jugg/build/staging" "$EVIDENCE_ROOT/jugg/staging"
+rg --files "$EVIDENCE_ROOT/log/original" | sort > "$EVIDENCE_ROOT/log/files.txt"
+while IFS= read -r file; do
+  wc -c "$file"
+  shasum -a 256 "$file"
+done < "$EVIDENCE_ROOT/log/files.txt" > "$EVIDENCE_ROOT/log/metadata_and_sha256.txt"
+```
+
+目录不存在时记录“确认不存在”；没有权限读取时记录“不可访问”。复制命令失败后只收口受影响材料，不继续执行会覆盖现场的动作。
 
 至少保存：
 
@@ -65,7 +90,7 @@
 
 ### 3.1 日志清点
 
-输入：现场保全后的 `$EVIDENCE_ROOT/log/`。变量初始化方式见配套证据采集清单。
+输入：现场保全后的 `$EVIDENCE_ROOT/log/`。变量初始化方式见第 2 节。
 
 搜索目标：
 
@@ -378,4 +403,108 @@ Compile classes to DEX
 - 已用版本匹配源码定位症状 owner、behavior owner 和最短调用链；若版本不匹配已明确限制。
 - 领先结论有可观察证据和明确反证，冲突证据已解释。
 - 任何状态变更前都已保存现场，并且只执行能区分假设的单变量实验。
-- 输出报告已使用[调查报告模板](layout_incremental_compile_failure_report_template.md)完成脱敏检查。
+- 输出报告已使用第 12 节模板完成脱敏检查。
+
+## 11. Offline Agent 执行清单
+
+- [ ] 已按第 2 节保存原始环境，记录不能复制或读取的材料。
+- [ ] 已清点全部历史日志，标记轮转、截断、空文件和缺失区间。
+- [ ] 已按第 3 节确定最后正常、首次分歧和最终失败。
+- [ ] 已按第 4 节确认 layout、resource root、module、variant、APK owner、baseline 和 staging 的关系。
+- [ ] 已按第 5 节从首个异常进入唯一匹配的最短分支，没有从最终异常倒推根因。
+- [ ] 已按第 6 节使用版本匹配的 Jugg 源码；只有主线源码时已明确版本限制。
+- [ ] 已按第 7 节只检查首个分歧所需的本地产物。
+- [ ] 已按第 8 节记录领先假设、竞争假设和可直接推翻它们的观察。
+- [ ] 只有现有证据仍不能区分假设时，才按第 9 节执行单变量实验。
+- [ ] 所有状态变更均发生在现场保全之后，且已记录动作与影响。
+- [ ] 已使用第 12 节报告模板输出结论，并完成 Agent 侧脱敏。
+
+## 12. 最终调查报告模板
+
+### 12.1 结论与证据边界
+
+- 结论：`<已确认根因 / 最小失败边界 / 证据不足>`
+- 置信度：`<高 / 中 / 低>`
+- 用户可见现象：`<...>`
+- 首个分歧：`<时间 + phase + owner + 输入/状态>`
+- behavior owner：`<类/方法/分支>`
+- 最小修复或下一步：`<...>`
+- 已读取材料：`<日志、源码、项目结构、数据库、产物、设备状态>`
+- 未收集：`<...>`
+- 尚未读取：`<...>`
+- 不可访问：`<...>`
+- 确认不存在：`<...>`
+- 内容截断：`<...>`
+- 版本边界：`<App / Jugg / Android Studio / Gradle / AGP / Kotlin / JDK / Android>`
+- Jugg 源码来源：`<匹配版本 ref / 当前主线仅作定位地图>`
+
+### 12.2 历史时间线
+
+| 运行 | 时间 | 输入/动作 | 首要 tag/phase | module/variant/APK owner | 状态或产物 | 结论 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 最后正常 | `<...>` | `<...>` | `<...>` | `<...>` | `<...>` | `<...>` |
+| 首次分歧 | `<...>` | `<...>` | `<...>` | `<...>` | `<...>` | `<...>` |
+| 最终失败 | `<...>` | `<...>` | `<...>` | `<...>` | `<...>` | `<...>` |
+
+首个异常的最小日志上下文：
+
+```text
+<只保留必要上下文，使用稳定别名>
+```
+
+与最后正常运行的差异：`<输入、阶段顺序、基线、owner、告警、跳过、重试或产物差异>`
+
+### 12.3 项目拓扑与源码定位
+
+```text
+<LAYOUT_A>
+  -> <RESOURCE_ROOT_A>
+  -> <MODULE_A>
+  -> <VARIANT_A>
+  -> <APK_A: base/feature/test>
+  -> <BASELINE_A>
+  -> <STAGING_A>
+  -> <OUTPUT_OR_DEVICE_OBJECT_A>
+```
+
+- layout 改动类型及关键 XML/resource 变化：`<...>`
+- DataBinding/ViewBinding、include 和生成源：`<...>`
+- 依赖来源、重名资源、多个 `res.srcDirs`：`<...>`
+- 症状 owner：`<展示最终错误的位置>`
+- behavior owner：`<决定错误输入、状态或产物的位置>`
+- 最短调用链和关键分支：`<entry -> branch -> artifact/error>`
+- 现场执行该分支的证据：`<...>`
+
+### 12.4 产物、假设与实验
+
+| 分歧边界 | 本地材料 | 检查方法 | 观察结果 | 对诊断的影响 |
+| --- | --- | --- | --- | --- |
+| `<识别/DB/VB/flat/load/link/source/deploy>` | `<...>` | `<只读命令或工具>` | `<存在性/大小/hash/内容摘要>` | `<增强/削弱哪个假设>` |
+
+| 假设 | 支持证据 | 冲突/缺失证据 | 反证条件 | 当前状态 |
+| --- | --- | --- | --- | --- |
+| 领先假设 | `<...>` | `<...>` | `<...>` | `<保留/推翻/降级>` |
+| 竞争假设 | `<...>` | `<...>` | `<...>` | `<...>` |
+
+| 单一变量 | 已保全材料 | 操作 | 结果 | 诊断变化 |
+| --- | --- | --- | --- | --- |
+| `<未执行则删除本表>` | `<...>` | `<...>` | `<...>` | `<...>` |
+
+- 已确认事实：`<...>`
+- 基于证据的推断：`<...>`
+- 已排除项：`<...>`
+- 尚不能确认项：`<...>`
+- 已执行的状态变更及影响：`<没有则写“未执行”>`
+
+### 12.5 脱敏检查
+
+- [ ] 绝对路径已替换为稳定别名。
+- [ ] 内部域名/IP、账号、设备标识和业务包名已替换。
+- [ ] token、secret、cookie、个人信息和业务数据已移除。
+- [ ] 源码与日志只保留支持结论的最小上下文。
+- [ ] 版本、descriptor、phase、相对时间、checksum 和别名关系已保留。
+- [ ] 未把“未收集”“尚未读取”“不可访问”“确认不存在”混为一谈。
+
+Agent 已完成的脱敏类别：`<...>`
+
+仍需提交者人工复核：`<...>`
