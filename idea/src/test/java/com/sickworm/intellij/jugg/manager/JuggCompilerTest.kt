@@ -918,6 +918,23 @@ class KmpComposeFlowReproTest {
     }
 
     @Test
+    fun compileCommonSourceWithHiddenFromObjCRequiringOptIn() {
+        val common = kmpSource("commonMain", "ObjCRefinementCase.kt")
+        val actual = kmpSource("androidMain", "ObjCRefinementCase.android.kt")
+
+        changeAndRevert(common, "\"objc-baseline:", "\"objc-changed:") {
+            val jugg = compileKmpChanges(common)
+            val log = jugg.readLatestProjectLog()
+
+            assertKmpCompileSuccess(jugg, common, actual)
+            // The fixture only compiles when the invocation carries the module level opt-in argument.
+            assertTrue(log.contains("-opt-in=kotlin.experimental.ExperimentalObjCRefinement"), log)
+            assertTrue(stagingDexPaths(jugg).any { it.endsWith("/ObjCRefinementCaseKt.dex") }, log)
+            assertNoComposeGradle(jugg)
+        }
+    }
+
+    @Test
     fun compileIntermediateSharedMainActual() {
         val common = kmpSource("commonMain", "SharedPlatformLabel.kt")
         val sharedActual = kmpSource("sharedMain", "SharedPlatformLabel.shared.kt")
