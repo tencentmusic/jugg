@@ -65,7 +65,7 @@ plugin version: 1.2.3
 
 ## Build & Deploy Commands
 
-All build commands **block** until completion; no polling needed.
+All build commands **block** until completion. Run compile-class commands (`compile`, `deploy`, `gradle-build`, and `instrument`) as a single foreground CLI call, wait for that process to exit, then parse its output once. These commands may trigger Gradle internally; do not start them in the background or poll `status`, processes, logs, files, or Git state to infer progress. Process exit is the only completion signal.
 Completion means the MCP compile/deploy job has reached a terminal state. The CLI does not expose
 `waitAppReadyAfterSuccess`, so it does not add an extra app-ready wait after `deploy`, `gradle-build`,
 `clean-reinstall`, or `restart`.

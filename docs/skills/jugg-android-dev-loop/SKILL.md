@@ -1,7 +1,7 @@
 ---
 name: jugg-android-dev-loop
-version: 1.0.28
-date: 2026-09-06
+version: 1.0.29
+date: 2026-09-12
 description: >-
   Use when editing source files (Java/Kotlin/XML/layout/AndroidManifest/Gradle)
   in a Android project, or when user asks to build/deploy/verify an Android app.
@@ -85,7 +85,7 @@ python3 {SKILL_DIR}/scripts/jugg.py help <subcommand>
 
 ### Build & Deploy Commands
 
-All build commands **block** until completion; no polling needed.
+All build commands **block** until completion. Run compile-class commands (`compile`, `deploy`, `gradle-build`, and `instrument`) as a single foreground CLI call, wait for that process to exit, then parse its output once. These commands may trigger Gradle internally; do not start them in the background or poll `status`, processes, logs, files, or Git state to infer progress. Process exit is the only completion signal.
 Completion means the compile/deploy job reached a terminal state; CLI does not add an extra app-ready wait.
 
 | Command | Purpose | When to Use |
