@@ -16,7 +16,9 @@ import com.sickworm.intellij.jugg.project.data.ExternalBuildType
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import org.junit.Test
+import org.mockito.kotlin.argThat
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.verify
 import java.io.File
 import java.nio.file.Files
 import java.util.zip.ZipEntry
@@ -217,7 +219,13 @@ class ExternalBuildFlowTest {
                 """.trimIndent())
                 setExecutable(true)
             }
-            val context = createContext(root, module, fullBuildGradleCommand = "./gradlew :app:assembleDebug")
+            val logger = mock<Logger>()
+            val context = createContext(
+                root,
+                module,
+                fullBuildGradleCommand = "./gradlew :app:assembleDebug",
+                logger = logger,
+            )
 
             val result = JuggCompiler(context, parent).compile(CompileTask(
                 listOf(CompileFile(CompileFile.Type.ExternalBuildSource, dartFile, flutterRoot, module)),
@@ -226,6 +234,47 @@ class ExternalBuildFlowTest {
             ))
 
             assertTrue(!result.isAllSuccess)
+            assertTrue(result.outputs.isEmpty())
+            assertTrue(result.details.single().getFailure().errors.single().second
+                .contains("Flutter native output is unavailable"))
+            verify(logger).warn(argThat<String> { contains("Flutter native output is unavailable") })
+        } finally {
+            Disposer.dispose(parent)
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `accepts Cpp task with no deployable output`() {
+        val root = Files.createTempDirectory("jugg-cpp-empty-output").toFile()
+        val parent = object : Disposable {
+            override fun dispose() = Unit
+        }
+        try {
+            val cppRoot = File(root, "native").apply { mkdirs() }
+            val cppOutput = File(root, "build/cpp")
+            val module = createModule(
+                root,
+                File(root, "flutter"),
+                cppRoot,
+                File(root, "build/flutter"),
+                File(root, "build/flutter-native.jar"),
+                cppOutput,
+            )
+            File(root, "gradlew").apply {
+                writeText("#!/bin/bash\nmkdir -p \"${cppOutput.path}\"\n")
+                setExecutable(true)
+            }
+            val cppFile = File(cppRoot, "native.cpp").apply { writeText("void nativeCall() {}") }
+            val context = createContext(root, module, fullBuildGradleCommand = "./gradlew :app:assembleDebug")
+
+            val result = JuggCompiler(context, parent).compile(CompileTask(
+                listOf(CompileFile(CompileFile.Type.ExternalBuildSource, cppFile, cppRoot, module)),
+                File(root, "staging"),
+                CompileStatusHolder.DEFAULT,
+            ))
+
+            assertTrue(result.isAllSuccess)
             assertTrue(result.outputs.isEmpty())
         } finally {
             Disposer.dispose(parent)
@@ -444,7 +493,7 @@ class ExternalBuildFlowTest {
     }
 
     @Test
-    fun `fails when a previously collected external artifact is no longer produced`() {
+    fun `ignores removed Flutter native outputs on the second build`() {
         val root = Files.createTempDirectory("jugg-external-artifact-removed").toFile()
         val parent = object : Disposable {
             override fun dispose() = Unit
@@ -480,12 +529,13 @@ class ExternalBuildFlowTest {
             val first = JuggCompiler(context, parent).compile(task())
             assertTrue(first.isAllSuccess)
             assertTrue(first.outputs.any { it.relativeFile.invariantSeparatorsPath == "lib/arm64-v8a/libapp.so" })
+            context.deployedFiles += first.outputs
 
             // The next build keeps producing assets but drops the native library.
             createEmptyJniLibsGradleScript(root, flutterOutput, flutterNativeDir)
             val second = JuggCompiler(context, parent).compile(task())
 
-            assertTrue(!second.isAllSuccess)
+            assertTrue(second.isAllSuccess)
             assertTrue(second.outputs.isEmpty())
         } finally {
             Disposer.dispose(parent)
@@ -646,10 +696,11 @@ class ExternalBuildFlowTest {
         module: ModuleInfo,
         fullBuildGradleCommand: String,
         scene: ICompileContext.Scene = ICompileContext.Scene.IDE,
+        logger: Logger = mock(),
     ): SimpleCompileContext {
         val apk = File(root, "app.apk").also(::createEmptyApk)
         return SimpleCompileContext(
-            logger = mock<Logger>(),
+            logger = logger,
             tempCompileDir = File(root, "compiled"),
             tempModuleDir = File(root, "temp"),
             androidHome = File(root, "android-sdk"),

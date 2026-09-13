@@ -31,21 +31,21 @@ class ExternalBuildCompiler(
         // builds and still report all files as compiled.
         val resolved = task.files.map { it to resolveBuild(it) }
         if (resolved.isEmpty()) {
-            return task.allFailed("External build metadata not found")
+            return task.failed("External build metadata not found")
         }
         resolved.firstOrNull { it.second == null }?.first?.let { unresolved ->
-            return task.allFailed("External build metadata not found: ${unresolved.file.name}")
+            return task.failed("External build metadata not found: ${unresolved.file.name}")
         }
         resolved.firstOrNull { !it.first.file.exists() }?.first?.let { missing ->
-            return task.allFailed("External build source no longer exists: ${missing.file.name}")
+            return task.failed("External build source no longer exists: ${missing.file.name}")
         }
         val builds = resolved.map { (file, buildInfo) -> moduleOf(file) to buildInfo!! }.distinctBy {
             it.second.taskPath ?: "${it.second.type}:${it.second.sourceDirs}"
         }
         builds.firstOrNull { !it.second.isSupported }?.second?.let { unsupported ->
-            return task.allFailed(unsupported.unsupportedReason ?: "External build is not supported")
+            return task.failed(unsupported.unsupportedReason ?: "External build is not supported")
         }
-        val gradleCommand = getFullBuildGradleCommand() ?: return task.allFailed("Gradle command not found")
+        val gradleCommand = getFullBuildGradleCommand() ?: return task.failed("Gradle command not found")
         val buildNames = builds.map { it.second.type.name }.distinct().joinToString("/")
         logger.info("Compiling $buildNames sources with Gradle...")
         if (!runner.run(
@@ -58,17 +58,12 @@ class ExternalBuildCompiler(
             if (task.isShouldCancel) {
                 return task.toCancelResult()
             }
-            return task.allFailed("External Gradle build failed")
+            return task.failed("External Gradle build failed")
         }
 
         val collected = builds.map { (module, buildInfo) -> collectArtifacts(task, module, buildInfo) }
         collected.firstNotNullOfOrNull { it.error }?.let { error ->
-            return task.allFailed(error)
-        }
-        // Removed native libraries cannot be uninstalled incrementally, so a shrunken native
-        // artifact set must fail instead of silently keeping the previous .so in the APK.
-        collected.firstNotNullOfOrNull { it.removedArtifacts }?.let { removed ->
-            return task.allFailed("External build no longer produces $removed, full Gradle build required")
+            return task.failed(error)
         }
         return CompileResult(
             task = task,
@@ -99,51 +94,15 @@ class ExternalBuildCompiler(
         module: ModuleInfo,
         buildInfo: ExternalBuildInfo,
     ): CollectedArtifacts {
-        val collected = when (buildInfo.type) {
+        return when (buildInfo.type) {
             ExternalBuildType.Flutter -> collectFlutterArtifacts(task, module, buildInfo)
             ExternalBuildType.Cpp -> collectCppArtifacts(task, module, buildInfo)
         }
-        if (collected.error != null) {
-            return collected
-        }
-        val removed = compareWithPreviousArtifacts(task, module, buildInfo, collected.artifactKeys)
-        return if (removed == null) collected else collected.copy(removedArtifacts = removed)
     }
 
-    /**
-     * Compares this round's deployable artifacts with the previous round's. Removed Flutter assets
-     * are ignored and remain available from the existing APK or overlay until a full Gradle build.
-     */
-    private fun compareWithPreviousArtifacts(
-        task: CompileTask,
-        module: ModuleInfo,
-        buildInfo: ExternalBuildInfo,
-        artifactKeys: Set<String>,
-    ): String? {
-        val manifest = File(File(task.outputDir, "external/${module.name.safeName()}"),
-            "${buildInfo.type.name.lowercase()}-artifacts.txt")
-        val current = artifactKeys.toSortedSet()
-        val previous = if (manifest.isFile) {
-            manifest.readLines().filter { it.isNotBlank() }.toSet()
-        } else {
-            emptySet()
-        }
-        val removed = (previous - current).filterNot { artifact ->
-            buildInfo.type == ExternalBuildType.Flutter && artifact.startsWith("assets/")
-        }.toSet()
-        if (removed.isEmpty()) {
-            manifest.parentFile.mkdirs()
-            manifest.writeText(current.joinToString("\n"))
-            return null
-        }
-        // Keep the previous list, so every later round keeps requiring a full Gradle build until the
-        // APK baseline is rebuilt without the removed artifact.
-        return removed.sorted().joinToString(", ")
-    }
-
-    private fun CompileOutput.deployKey(): String {
-        val prefix = if (type == CompileOutput.Type.NativeLib) "lib/" else "assets/"
-        return prefix + relativeFile.invariantSeparatorsPath
+    private fun CompileTask.failed(message: String): CompileResult {
+        logger.warn(message)
+        return allFailed(message)
     }
 
     private fun collectFlutterArtifacts(
@@ -152,8 +111,8 @@ class ExternalBuildCompiler(
         buildInfo: ExternalBuildInfo,
     ): CollectedArtifacts {
         val assetsOutputDir = buildInfo.assetsOutputDir
-        if (assetsOutputDir == null || !assetsOutputDir.isDirectory) {
-            return CollectedArtifacts("Flutter assets output directory is unavailable: $assetsOutputDir", 0, emptyList())
+        if (assetsOutputDir == null || !assetsOutputDir.isDirectory || !assetsOutputDir.canRead()) {
+            return CollectedArtifacts("Flutter assets output directory is unavailable: $assetsOutputDir", emptyList())
         }
         val assets = File(assetsOutputDir, "flutter_assets").walkTopDown()
             .filter(File::isFile)
@@ -166,14 +125,9 @@ class ExternalBuildCompiler(
         logger.debug("Flutter asset change detection: files=${assets.size}, " +
                 "sourceBytes=${assets.sumOf { it.file.length() }}, changed=${changedAssets.size}, " +
                 "cost=${(System.nanoTime() - changeDetectionStart) / 1_000_000}ms")
-        if (assets.isEmpty() && native.discoveredCount == 0) {
-            return CollectedArtifacts("External build produced no deployable artifacts", 0, emptyList())
-        }
         return CollectedArtifacts(
             error = null,
-            discoveredCount = assets.size + native.discoveredCount,
             outputs = changedAssets + native.outputs,
-            artifactKeys = assets.map { it.deployKey() }.toSet() + native.artifactKeys,
         )
     }
 
@@ -183,8 +137,8 @@ class ExternalBuildCompiler(
         buildInfo: ExternalBuildInfo,
     ): CollectedArtifacts {
         val nativeOutput = buildInfo.nativeOutput
-        if (nativeOutput == null || !nativeOutput.isDirectory) {
-            return CollectedArtifacts("External build output directory is unavailable: $nativeOutput", 0, emptyList())
+        if (nativeOutput == null || !nativeOutput.isDirectory || !nativeOutput.canRead()) {
+            return CollectedArtifacts("External build output directory is unavailable: $nativeOutput", emptyList())
         }
         return collectNativeArtifacts(task, module, nativeOutput)
     }
@@ -196,7 +150,7 @@ class ExternalBuildCompiler(
         nativeOutput: File?,
     ): CollectedArtifacts {
         if (nativeOutput == null) {
-            return CollectedArtifacts("Flutter native output is unavailable", 0, emptyList())
+            return CollectedArtifacts("Flutter native output is unavailable", emptyList())
         }
         return if (nativeOutput.isDirectory) {
             collectFlutterNativeDirArtifacts(task, module, nativeOutput)
@@ -215,9 +169,6 @@ class ExternalBuildCompiler(
         val sourceFiles = outputDir.walkTopDown().filter { file ->
             file.isFile && file.extension == "so" && file.findAbi() != null
         }.toList()
-        if (sourceFiles.isEmpty()) {
-            return CollectedArtifacts("External build produced no deployable artifacts", 0, emptyList())
-        }
         val allOutputs = sourceFiles.mapNotNull { source ->
             val abi = source.findAbi() ?: return@mapNotNull null
             val output = File(nativeRoot, "$abi/${source.name}")
@@ -229,9 +180,7 @@ class ExternalBuildCompiler(
         }
         return CollectedArtifacts(
             error = null,
-            discoveredCount = sourceFiles.size,
             outputs = allOutputs.filter { isChangedNativeLib(it, module) },
-            artifactKeys = allOutputs.map { it.deployKey() }.toSet(),
         )
     }
 
@@ -240,8 +189,8 @@ class ExternalBuildCompiler(
         module: ModuleInfo,
         nativeDir: File,
     ): CollectedArtifacts {
-        if (!nativeDir.isDirectory) {
-            return CollectedArtifacts("Flutter native output is unavailable: $nativeDir", 0, emptyList())
+        if (!nativeDir.isDirectory || !nativeDir.canRead()) {
+            return CollectedArtifacts("Flutter native output is unavailable: $nativeDir", emptyList())
         }
         val nativeRoot = File(task.outputDir, "external/${module.name.safeName()}/flutter-native")
         nativeRoot.deleteRecursively()
@@ -260,9 +209,7 @@ class ExternalBuildCompiler(
             .distinctBy { it.relativeFile.invariantSeparatorsPath }
         return CollectedArtifacts(
             error = null,
-            discoveredCount = allOutputs.size,
             outputs = allOutputs.filter { isChangedNativeLib(it, module) },
-            artifactKeys = allOutputs.map { it.deployKey() }.toSet(),
         )
     }
 
@@ -272,7 +219,7 @@ class ExternalBuildCompiler(
         nativeOutput: File,
     ): CollectedArtifacts {
         if (!nativeOutput.isFile || !nativeOutput.canRead()) {
-            return CollectedArtifacts("Flutter native output is unavailable: $nativeOutput", 0, emptyList())
+            return CollectedArtifacts("Flutter native output is unavailable: $nativeOutput", emptyList())
         }
         val nativeRoot = File(task.outputDir, "external/${module.name.safeName()}/flutter-native")
         nativeRoot.deleteRecursively()
@@ -290,11 +237,11 @@ class ExternalBuildCompiler(
                     if (segments.size != 3 || segments[1] !in abiFolders ||
                         !segments[2].endsWith(".so") || segments[2].contains("..") || segments[2].contains('\\')
                     ) {
-                        return CollectedArtifacts("Flutter native output contains an unsafe entry: ${entry.name}", 0, emptyList())
+                        return CollectedArtifacts("Flutter native output contains an unsafe entry: ${entry.name}", emptyList())
                     }
                     val relativePath = "${segments[1]}/${segments[2]}"
                     if (!entryNames.add(relativePath)) {
-                        return CollectedArtifacts("Flutter native output contains duplicate entry: ${entry.name}", 0, emptyList())
+                        return CollectedArtifacts("Flutter native output contains duplicate entry: ${entry.name}", emptyList())
                     }
                     val output = File(nativeRoot, relativePath)
                     output.parentFile.mkdirs()
@@ -304,13 +251,11 @@ class ExternalBuildCompiler(
             }
             CollectedArtifacts(
                 error = null,
-                discoveredCount = outputs.size,
                 outputs = outputs.filter { isChangedNativeLib(it, module) },
-                artifactKeys = outputs.map { it.deployKey() }.toSet(),
             )
         } catch (e: Exception) {
             logger.debug("Read Flutter native output $nativeOutput failed", e)
-            CollectedArtifacts("Flutter native output could not be read: $nativeOutput", 0, emptyList())
+            CollectedArtifacts("Flutter native output could not be read: $nativeOutput", emptyList())
         }
     }
 
@@ -373,10 +318,7 @@ class ExternalBuildCompiler(
 
     private data class CollectedArtifacts(
         val error: String?,
-        val discoveredCount: Int,
         val outputs: List<CompileOutput>,
-        val artifactKeys: Set<String> = emptySet(),
-        val removedArtifacts: String? = null,
     )
 
     companion object {

@@ -91,10 +91,10 @@ Jugg runtime 在 overlay 生效后把包含该 overlay 的 `AssetManager` 更新
 ## 需要回到 Gradle 的情况
 
 - 删除 Flutter asset 时，Jugg 不生成删除产物，也不触发增量编译失败或 Gradle 回退。已安装 APK 或既有 overlay 中的旧 asset 继续保留；需要让删除真正生效时，再执行完整 Gradle 构建刷新 APK 基线。
-- 外部构建成功后，Flutter asset 产物集合缩小同样会被忽略。上一轮已收集的 native lib 本轮不再产生时，本轮编译仍会失败并提示需要完整 Gradle 构建，避免旧 `.so` 被继续使用后报告成功。
+- 外部构建成功且约定输出路径可访问时，Flutter asset 或 native lib 产物集合缩小，乃至本轮没有可部署产物，都会被视为成功且不生成对应的移除结果。旧 asset 或 `.so` 继续保留；只有需要让删除真正生效时才执行完整 Gradle 构建。
 - 已识别的 Dart/C/C++ 源码或外部构建配置输入被删除时，Jugg 回退完整 Gradle 构建。
 - 同一轮里有多个外部输入时，Jugg 要求全部输入都能解析。任一输入缺少 metadata、task 或产物契约（例如多 module 工程中只有一个 module 配置了外部构建）时整轮回退完整 Gradle，不会只构建可识别的部分。
-- 已识别 Flutter/C++ 源码根但缺少 task、输出目录或 Flutter native 输出元数据时，Jugg 会回退完整 Gradle 构建；外部 task 执行失败、native 输出无法读取或既没有 assets 也没有有效产物时，本轮编译失败，不复用旧中间产物。Debug 等本身不产出 native lib 的构建模式只要 assets 有效就算成功。
+- 已识别 Flutter/C++ 源码根但缺少 task、输出目录或 Flutter native 输出元数据时，Jugg 会回退完整 Gradle 构建；外部 task 执行失败、约定输出路径缺失或不可读、native 归档损坏或包含不安全/重复条目时，本轮编译失败。具体原因由对应 compiler 打印并保存在编译错误中。
 - 远程编译和无法安全派生外部 task 的自定义命令会回到完整 Gradle 构建。
 - `pubspec.yaml`、`pubspec.lock`、`CMakeLists.txt`、项目内 `*.cmake`、`Android.mk` 和 `Application.mk` 是外部构建的配置输入。修改它们会执行既有外部 task，并在 task 结束后刷新项目模型，不需要单独触发完整构建；只有 NDK、ABI、native source set、packaging 规则等无法由该 task 覆盖的配置变化，才需要完整 Gradle 构建刷新 APK 基线。
 - 修改 asset source set、variant 或影响 APK 路径与归属的构建配置后，需要刷新 Gradle 基线。
