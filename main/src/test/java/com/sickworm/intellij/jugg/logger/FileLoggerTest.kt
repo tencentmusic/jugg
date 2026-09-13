@@ -132,8 +132,9 @@ class FileLoggerTest {
             repeat(8) { index ->
                 fileLogger.logger.info("message-$index-" + "x".repeat(64))
             }
-
-            waitUntil { mainLogFiles().size == 2 }
+            // Records are written by a dedicated writer thread, and a rotation recreates the active file
+            // empty before the current record is appended. Drain the handler so the paged files are final.
+            fileLogger.logger.handlers.forEach { it.flush() }
 
             val mainLogs = mainLogFiles().sortedBy { it.name }
             assertEquals(listOf("0", "1"), mainLogs.map { MAIN_LOG_GENERATION_REGEX.matchEntire(it.name)?.groupValues?.get(1) })

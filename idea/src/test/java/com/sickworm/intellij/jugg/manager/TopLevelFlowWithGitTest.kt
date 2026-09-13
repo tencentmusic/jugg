@@ -199,8 +199,27 @@ class TopLevelFlowWithGitTest {
         println("\n\nstart deploy 3")
         assertTrue(jugg2.deployTargetManager.startApp(jugg2.deployTargetManager.getSelectedDevices().first()))
         jugg2.waitingLaunchAppAndCheck()
-        jugg2.juggManager.updateDeployState()
-        assertEquals(JuggDeployState.State.READY_DEPLOY, jugg2.deployStateManager.deployState.state)
+        // The relaunched app can be stopped and restarted again right after launch, so the recovered
+        // state is only observable once the app process stays up. Poll instead of sampling one instant.
+        assertTrue(
+            waitForDeployState(jugg2, JuggDeployState.State.READY_DEPLOY),
+            "deploy state did not recover after app relaunch: ${jugg2.deployStateManager.deployState.state}",
+        )
+    }
+
+    private fun waitForDeployState(
+        jugg: MockJugg,
+        expected: JuggDeployState.State,
+        timeoutMs: Long = 30_000L,
+    ): Boolean {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (System.currentTimeMillis() < deadline) {
+            if (jugg.juggManager.updateDeployState().state == expected) {
+                return true
+            }
+            Thread.sleep(500)
+        }
+        return false
     }
 
     @Test

@@ -163,14 +163,29 @@ class MockJugg(
         val logger = LogWrapper(logger)
         val adb = AdbClient(device, logger)
 
-        val pids = adb.getPids(androidApkPackage).ifEmpty {
-            listOf(adbDeviceHelper.getPidOfLaunchedApp(androidApkPackage))
-                .filter { it > 0 }
-        }
-        assertEquals(1, pids.size)
+        // ddmlib registers a launched client asynchronously and the app can be restarted right after
+        // launch, so wait until the ABI resolves instead of sampling a single instant.
+        assertEquals(Deploy.Arch.ARCH_64_BIT, waitForLaunchedAppArch(adb))
+    }
 
-        val arch = adb.getArch(pids)
-        assertEquals(Deploy.Arch.ARCH_64_BIT, arch)
+    private fun waitForLaunchedAppArch(adb: AdbClient, timeoutMs: Long = 10_000L): Deploy.Arch {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        var arch = Deploy.Arch.ARCH_UNKNOWN
+        while (System.currentTimeMillis() < deadline) {
+            val pids = adb.getPids(androidApkPackage).ifEmpty {
+                listOf(adbDeviceHelper.getPidOfLaunchedApp(androidApkPackage))
+                    .filter { it > 0 }
+            }
+            if (pids.isNotEmpty()) {
+                assertEquals(1, pids.size, "app should own exactly one process")
+                arch = adb.getArch(pids)
+                if (arch != Deploy.Arch.ARCH_UNKNOWN) {
+                    return arch
+                }
+            }
+            Thread.sleep(200)
+        }
+        return arch
     }
 
     /**
