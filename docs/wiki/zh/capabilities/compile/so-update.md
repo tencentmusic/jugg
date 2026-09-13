@@ -20,7 +20,7 @@ Jugg 支持更新已产出的 native lib / `.so` 文件。对于 Gradle 管理�
 | 更新项目目录中已有、位于 ABI 目录下的 `.so` | 支持 | 更新目标 APK，重新签名并安装 |
 | 修改 Gradle 管理的 C/C++ 源码 | 支持 | 执行当前变体的 native 构建任务，再更新生成的 `.so` |
 | Flutter Profile/Release 生成 `app.so` 或 native assets | 支持 | 执行当前变体的 Flutter native 输出任务，从该任务自己的输出中读取目标 ABI 的 native lib，再更新 APK |
-| Flutter Debug 只生成 assets，不生成 native lib | 支持 | 只更新 `flutter_assets`，不要求 native 输出存在；原生目录为空时本轮编译仍然成功 |
+| Flutter Debug 只生成 assets，不生成 native lib | 支持 | 只更新 `flutter_assets`，不要求 native 输出存在；原生目录为空时本轮编译仍然成功；不重打包、不重签名、不安装 APK |
 | 同轮更新多个 ABI 的 native lib | 支持按目标 APK 归属处理 | 每个目标 APK 只接收属于自己的 native lib |
 | 删除 `.so` | 不生成移除结果 | 已安装 APK 继续包含原有 native lib |
 | 修改 `CMakeLists.txt`、项目内 `*.cmake`、`Android.mk`、`Application.mk` | 支持 | 执行当前变体的 native task，并在任务结束后刷新项目模型；新 `.so` 按既有流程更新 APK |
@@ -45,6 +45,14 @@ Flutter Dart 源码变化
 ```
 
 安装完成后，App 使用更新后 APK 中的 native lib。从 C/C++ 源码生成 `.so` 仍由 Gradle、CMake 和 NDK 完成；Jugg 负责在检测到源码变化时启动对应任务，并把新产物接入既有 native lib 部署。
+
+## Debug Dart 代码如何生效
+
+Flutter Debug/JIT 的 Dart 代码不是 native lib，而是 `assets/flutter_assets/kernel_blob.bin` 等 asset。Jugg 把它们作为 asset overlay 下发，不写回 APK，因此 Debug 下修改 Dart 不会触发重打包、重签名或安装。
+
+Flutter Android embedding 会把 `flutter_assets` 解压到应用私有目录 `app_flutter`，并用 `app_flutter/res_timestamp-<versionCode>-<lastUpdateTime>` 判断是否需要重新解压。overlay 更新不改变 APK 的 `lastUpdateTime`，所以 Jugg 在全部 overlay 分片成功后删除该 timestamp，再完整重启 App，让 Flutter 从已生效的 overlay 重新解压。涉及该流程时本轮部署类型为 Hot Fix。
+
+Profile/Release 使用 AOT 产物 `libapp.so`，属于 native lib，继续按上面的 APK 更新、重签名和安装路径处理。
 
 ## 使用边界
 

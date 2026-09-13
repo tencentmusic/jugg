@@ -20,7 +20,7 @@ Jugg can update already generated native library / `.so` files. For C/C++ module
 | Update an existing `.so` under an ABI directory in the project | Supported | Updates the target APK, re-signs it, and installs it |
 | Change C/C++ source managed by Gradle | Supported | Runs the native build task for the current variant, then updates the generated `.so` |
 | Flutter Profile/Release produces `app.so` or native assets | Supported | Runs the Flutter native output task for the current variant, reads native libraries for the target ABI from that task's own output, then updates the APK |
-| Flutter Debug produces assets only, without native libraries | Supported | Updates `flutter_assets` only and does not require native output; an empty native directory still lets the compilation succeed |
+| Flutter Debug produces assets only, without native libraries | Supported | Updates `flutter_assets` only and does not require native output; an empty native directory still lets the compilation succeed, and no APK is repackaged, re-signed, or installed |
 | Update native libraries for multiple ABIs in the same run | Supported according to target APK ownership | Each target APK receives only its own native libraries |
 | Delete an `.so` | Does not produce a removal result | The installed APK continues containing the old native library |
 | Change `CMakeLists.txt`, project `*.cmake`, `Android.mk`, or `Application.mk` | Supported | Runs the native task for the current variant and refreshes the project model after it finishes; new `.so` files update the APK through the existing flow |
@@ -45,6 +45,14 @@ An existing .so in the project changes
 ```
 
 After installation, the app uses the native library from the updated APK. Gradle, CMake, and NDK remain responsible for producing `.so` files from C/C++ source. Jugg starts the corresponding task after detecting a source change and passes the new artifacts into the existing native library deployment flow.
+
+## How Debug Dart code takes effect
+
+Flutter Debug/JIT Dart code is not a native library but an asset such as `assets/flutter_assets/kernel_blob.bin`. Jugg delivers it as an asset overlay and never writes it back into the APK, so changing Dart in Debug never repackages, re-signs, or installs an APK.
+
+The Flutter Android embedding extracts `flutter_assets` into the app private directory `app_flutter` and uses `app_flutter/res_timestamp-<versionCode>-<lastUpdateTime>` to decide whether it has to extract again. An overlay update does not change the APK `lastUpdateTime`, so after all overlay slices succeed Jugg deletes that timestamp and fully restarts the app, letting Flutter re-extract from the overlay that already took effect. The deployment type for such a run is Hot Fix.
+
+Profile/Release use the AOT artifact `libapp.so`, which is a native library and keeps using the APK update, re-sign, and install path described above.
 
 ## Boundaries
 

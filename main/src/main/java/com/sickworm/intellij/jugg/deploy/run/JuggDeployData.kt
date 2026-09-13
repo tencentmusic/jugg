@@ -49,6 +49,12 @@ data class JuggDeployData(
     val isComposeResourceCompiled: Boolean = false,
     /** current replay follows a recover reinstall */
     val isRecoverReplayAfterReinstall: Boolean = false,
+    /**
+     * Flutter JIT runtime assets (`kernel_blob.bin`, `vm_snapshot_data`, `isolate_snapshot_data`)
+     * compiled in this round. Flutter extracts them into `app_flutter` and reuses that copy until the
+     * APK `lastUpdateTime` changes, so these files also require invalidating the Flutter cache.
+     */
+    val flutterJitRuntimeFiles: List<DeployItem> = emptyList(),
 ) {
 
     val isEmpty get() = newClasses.isEmpty() &&
@@ -77,6 +83,7 @@ data class JuggDeployData(
             || hasApkRootOverlay
             || (isComposeResourceCompiled && !isEmpty)
             || isRecoverReplayAfterReinstall
+            || flutterJitRuntimeFiles.isNotEmpty()
 
     /** is need update files in APK and resign, e.g. AndroidManifest.xml lib/arm64-v8a/xxx.so */
     val isNeedUpdateApk: Boolean = updateApkFiles.isNotEmpty()
@@ -111,6 +118,7 @@ data class JuggDeployData(
             hotReloadModifiedClasses = hotReloadModifiedClasses.filter { it.deployItem.belongsToAny(apkPaths) },
             overlays = overlays.filter { it.belongsToAny(apkPaths) },
             updateApkFiles = updateApkFiles.filter { it.belongsToAny(apkPaths) },
+            flutterJitRuntimeFiles = flutterJitRuntimeFiles.filter { it.belongsToAny(apkPaths) },
         )
     }
 
@@ -134,6 +142,9 @@ data class JuggDeployData(
         builder.append("JuggDeployData ($deployType): ")
         if (isFull) {
             builder.append("isFullRes: $isFullRes, isWarmUp: $isWarmUp, isInstall: $isInstall, isPushOverlayOnly: $isPushOverlayOnly, isComposeResourceCompiled: $isComposeResourceCompiled, isRecoverReplayAfterReinstall: $isRecoverReplayAfterReinstall, isNeedRestartApp: $isNeedRestartApp, isCompatDeploy: $isCompatDeploy, isNeedRestartActivity:$isNeedRestartActivity\n")
+            if (flutterJitRuntimeFiles.isNotEmpty()) {
+                builder.append("flutter jit runtime files: ${flutterJitRuntimeFiles.map { it.name }}\n")
+            }
             if (updateApkFiles.isNotEmpty()) {
                 builder.append("update apks: ${updateApkFiles.map { it.name }}")
             }

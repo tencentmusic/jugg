@@ -26,6 +26,7 @@ import org.junit.Test
 import org.mockito.Mockito
 import org.mockito.kotlin.any
 import org.mockito.kotlin.whenever
+import java.io.File
 
 /**
  * L2 deploy-flow via [com.sickworm.intellij.jugg.deploy.run.deployflow.VirtualDeployDevice].
@@ -332,6 +333,127 @@ class JuggDeployerHelperDeployFlowTest {
 
         assertTrue("deploy failed: ${result.failedReason}", result.isSuccess)
         Mockito.verify(fixture.deployTargetManager, Mockito.times(1)).restartApp(fixture.device)
+    }
+
+    @Test
+    fun `flutter jit runtime change invalidates extraction cache before app restart`() {
+        val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_003)
+        val deployData = DeployFlowTestSupport.incrementalDeployDataWithoutAppRestart()
+        val apkPath = deployData.apks.first().files.first().apkFile.path
+        val timestamp = File(
+            fixture.virtualDevice.packageDataDir(),
+            "app_flutter/res_timestamp-1-1789261483352",
+        ).apply {
+            parentFile.mkdirs()
+            writeText("1")
+        }
+        Mockito.`when`(
+            fixture.deployFileManager.getDeployData(Mockito.anyBoolean(), Mockito.anyBoolean()),
+        ).thenReturn(
+            deployData.copy(
+                flutterJitRuntimeFiles = listOf(
+                    DeployItem(
+                        name = "assets/flutter_assets/kernel_blob.bin",
+                        type = CompileOutput.Type.Asset,
+                        checksum = 1L,
+                        content = byteArrayOf(1, 2, 3),
+                        apkPath = apkPath,
+                    ),
+                ),
+            ),
+        )
+        Mockito.doAnswer { fixture.virtualDevice.onAppRestart(); true }
+            .`when`(fixture.deployTargetManager).restartApp(fixture.device)
+
+        val result = fixture.helper.deploy(fixture.deployOptions)
+
+        assertTrue("deploy failed: ${result.failedReason}", result.isSuccess)
+        assertEquals(JuggDeployData.DeployType.HOT_FIX, result.deployType)
+        assertEquals(1, fixture.virtualDevice.flutterCacheInvalidationCount)
+        assertEquals(
+            "Flutter timestamp must be invalidated after the overlays are committed and before the app restart",
+            0,
+            fixture.virtualDevice.appRestartCountAtFlutterCacheInvalidation,
+        )
+        assertFalse("Flutter timestamp should be removed on device", timestamp.exists())
+        Mockito.verify(fixture.deployTargetManager).restartApp(fixture.device)
+    }
+
+    @Test
+    fun `flutter jit cache invalidation failure fails the deploy without restart`() {
+        val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_003)
+        val deployData = DeployFlowTestSupport.incrementalDeployDataWithoutAppRestart()
+        val apkPath = deployData.apks.first().files.first().apkFile.path
+        Mockito.`when`(
+            fixture.deployFileManager.getDeployData(Mockito.anyBoolean(), Mockito.anyBoolean()),
+        ).thenReturn(
+            deployData.copy(
+                flutterJitRuntimeFiles = listOf(
+                    DeployItem(
+                        name = "assets/flutter_assets/kernel_blob.bin",
+                        type = CompileOutput.Type.Asset,
+                        checksum = 1L,
+                        content = byteArrayOf(1, 2, 3),
+                        apkPath = apkPath,
+                    ),
+                ),
+            ),
+        )
+        val adb = fixture.virtualDevice.asIDeviceAdb()
+        Mockito.mockConstruction(AppSandboxExecutor::class.java) { sandbox, _ ->
+            whenever(sandbox.mode).thenReturn(AppSandboxExecutor.Mode.RUN_AS)
+            // Delegate filesystem commands to the virtual device; only the Flutter cache step fails.
+            whenever(sandbox.exec(any(), any())).thenAnswer {
+                val command = it.getArgument<String>(0)
+                if (command.contains("app_flutter/res_timestamp-")) {
+                    throw IllegalStateException("app sandbox shell failed")
+                }
+                adb.execAdbShellScript("run-as ${DeployFlowOverlaySeed.packageName()} sh -c '$command'")
+            }
+            whenever(sandbox.execNoFallback(any(), any())).thenAnswer {
+                adb.execAdbShellScript("run-as ${DeployFlowOverlaySeed.packageName()} sh -c '${it.getArgument<String>(0)}'")
+            }
+        }.use {
+            val result = fixture.helper.deploy(
+                fixture.deployOptions.copy(retryReason = JuggDeployerHelper.DO_NOT_RETRY),
+            )
+
+            assertFalse("deploy must fail when the Flutter cache cannot be invalidated", result.isSuccess)
+            assertTrue(result.failedReason.orEmpty().contains("app sandbox shell failed"))
+            assertEquals(0, fixture.virtualDevice.flutterCacheInvalidationCount)
+            Mockito.verify(fixture.deployTargetManager, Mockito.never()).restartApp(fixture.device)
+        }
+    }
+
+    @Test
+    fun `failed overlay slice does not invalidate flutter jit cache`() {
+        withSingleOverlayPerSlice {
+            val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_011)
+            val deployData = DeployFlowTestSupport.fullResourceDeployData(overlayCount = 3)
+            val apkPath = deployData.apks.first().files.first().apkFile.path
+            Mockito.`when`(
+                fixture.deployFileManager.getDeployData(Mockito.anyBoolean(), Mockito.anyBoolean()),
+            ).thenReturn(
+                deployData.copy(
+                    flutterJitRuntimeFiles = listOf(
+                        DeployItem(
+                            name = "assets/flutter_assets/kernel_blob.bin",
+                            type = CompileOutput.Type.Asset,
+                            checksum = 1L,
+                            content = byteArrayOf(1, 2, 3),
+                            apkPath = apkPath,
+                        ),
+                    ),
+                ),
+            )
+
+            val result = fixture.helper.deploy(
+                fixture.deployOptions.copy(retryReason = JuggDeployerHelper.DO_NOT_RETRY),
+            )
+
+            assertFalse("deploy should fail on second slice", result.isSuccess)
+            assertEquals(0, fixture.virtualDevice.flutterCacheInvalidationCount)
+        }
     }
 
     @Test

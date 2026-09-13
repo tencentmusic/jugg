@@ -29,7 +29,8 @@
 | `CustomApkInstallScriptRunner` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/applychanges/CustomApkInstallScriptRunner.kt` | 在本地工程根目录执行当前 Run Configuration 的自定义普通 App APK 安装脚本，转发输出、响应取消并校验包与 APK checksum。 |
 | `DeployFileManager` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/DeployFileManager.kt` | 部署文件 facade。维护 changed/compiled/staging/deployed 状态，生成 `JuggDeployData`，reinstall 后 reset。 |
 | `DeployDataPlanner` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/DeployDataPlanner.kt` | 从 staging + history 规划部署数据，处理 dex merge 与 compat deploy 组装。 |
-| `JuggDeployData` / `DeployItem` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployData.kt` | 最终下发设备的部署数据模型，包含 deploy type、APK 归属、restart 判断、split/filter。 |
+| `JuggDeployData` / `DeployItem` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployData.kt` | 最终下发设备的部署数据模型，包含 deploy type、APK 归属、restart 判断、split/filter，以及本轮 Flutter JIT runtime 变化（`flutterJitRuntimeFiles`）。 |
+| `FlutterJitCacheInvalidator` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/flutter/FlutterJitCacheInvalidator.kt` | 通过 `AppSandboxExecutor` 删除目标应用 `app_flutter` 直属的 `res_timestamp-*`，让 Flutter 下次启动重新从 overlay 解压 `flutter_assets`。 |
 | `DirectOverlaySwapTransport` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/direct/DirectOverlaySwapTransport.kt` | Direct Overlay swap transport。只替换 Apply Changes 的 overlay update 动作，不接管部署生命周期。 |
 | `AppSandboxExecutor` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/AppSandboxExecutor.kt` | 统一 app 私有目录命令；严格探测 Apply Changes 的 `run-as`、UID 与 SELinux label 前提，并在不兼容时固定普通 shell、root adbd 或非交互 `su` 模式与真实 `dataDir`。 |
 | `DirectOverlayWriter` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/direct/DirectOverlayWriter.kt` | 通过 app sandbox 原子写入设备 `code_cache/.overlay`，新 overlay id 最后提交。 |
@@ -52,7 +53,11 @@
 | `isNeedRestartApp` | `HOT_FIX` | 需要重启 App 生效。 |
 | 其他 | `HOT_RELOAD` | 在线 Apply Changes，尽量不重启 App。 |
 
-`isNeedRestartApp` 由 hot-fix classes、非空 `isPushOverlayOnly`、APK 根目录 overlay、非空的本轮 Compose resource compile，或 reinstall recover 后的 follow-up replay 决定；`isNeedRestartActivity` 只在非 warm-up、非空、且不需要重启 App 时成立。
+`isNeedRestartApp` 由 hot-fix classes、非空 `isPushOverlayOnly`、APK 根目录 overlay、非空的本轮 Compose resource compile、非空的本轮 Flutter JIT runtime 变化，或 reinstall recover 后的 follow-up replay 决定；`isNeedRestartActivity` 只在非 warm-up、非空、且不需要重启 App 时成立。
+
+Flutter JIT runtime 变化指本轮真实编译并部署的 `assets/flutter_assets/kernel_blob.bin`、`vm_snapshot_data`、`isolate_snapshot_data`。`DeployDataPlanner` 从本轮 staging 产物识别：产物类型为 `Asset`、来源模块含 `ExternalBuildType.Flutter`、标准化部署路径命中上述三个文件之一。识别必须发生在 `DeployDataGenerator` 首次 full-resource overlay 扩展之前，否则 APK 基线带入 overlay 的旧 kernel 会被误判为本轮变化。命中结果写入瞬态字段 `flutterJitRuntimeFiles`（`List<DeployItem>`，随 `filterForApks()` 一起裁剪，不持久化、不进部署历史），warm-up 与 install 数据保持为空。
+
+Flutter Android embedding 把 JIT runtime 文件解压到应用私有目录 `app_flutter`，并以 `app_flutter/res_timestamp-<versionCode>-<lastUpdateTime>` 判断是否需要重新解压。overlay 更新不改变 APK 的 `lastUpdateTime`，所以必须显式删除该 timestamp，App 才能在重启后从已生效的 overlay 重新解压。
 
 正常部署由 `DeployDataPlanner` 从 `DeployFileStateTracker.getCompiledFiles()` 识别 `CompileFile.Type.ComposeResource`，写入瞬态 `isComposeResourceCompiled`。该状态在 commit 前保留，能覆盖正常部署与 retry；不需要从已经丢失来源信息的 `CompileOutput.Type.Asset` 或历史 staging 路径恢复 Compose 身份。Compose 标记只对非空 payload 生效，避免编译成功但最终无产物时空重启。
 
@@ -144,9 +149,12 @@ runTask()
   -> 复用本轮 sandbox 能力，前置判断普通 Direct Overlay 或 Direct app sandbox 是否可尝试
   -> 任一 Direct 通道可尝试时整批部署；否则按原阈值切片
   -> 每个 deploy data 派生 slice LaunchContext + JuggDeployTask
+  -> 全部 slice 成功后：按 applicationId 失效 Flutter JIT 解压缓存
   -> 必要时 push agent / restart app / start app / run androidTest
   -> 必要时检查 JVMTI compat issue
 ```
+
+Flutter 缓存失效只在 `data.flutterJitRuntimeFiles` 非空时执行，位于全部 overlay slice 之后、`push_agent` 与最终 restart 之前：切片中途失败不破坏当前缓存；`AppSandboxExecutor` 不可用或删除后校验仍有残留 timestamp 时明确抛错，本轮部署失败且不重启。成功时本轮结果为 `HOT_FIX`，走既有 `restartApp` / `restartAppForDebug` 完整重启进程，不做 Activity-only restart。
 
 `LaunchContextFactory` 统一创建 deviceAdb、install session、installer metadata、Direct Overlay lifecycle facts，以及 deploy prompt/message 回调。切片前复用两种 transport 的 `canTry()`：普通 Direct Overlay 沿用开关、调用方许可和 ready/force 条件；Direct app sandbox 在 Android 8+ 复用本轮 `LaunchContext` 缓存的 sandbox 能力判断，目标 APK 中任一应用与 Apply Changes 不兼容时也整批部署，不受普通 Direct 开关限制。非 install、非空 payload 命中任一 Direct 通道后不再进入 `SliceDeployHelper`；官方 Apply Changes 保留现有切片。Direct 不新增分片或分片结果汇总。`JuggDeployTask` 仍按 applicationId 分组处理整批数据。
 
@@ -315,6 +323,8 @@ Manifest、native library 等 `updateApkFiles` 继续由 APK 改写、重签和�
 - compat deploy 会去掉原 res/asset overlays，追加 enable flag，并按资源 overlay 生成 resource APK deploy item。
 - APK 根目录 overlay 必须重启进程；Activity restart 无法可靠清除 ClassLoader、legacy Compose resource 或 `JarURLConnection` 缓存。
 - 现代 Compose resource 即使最终路径位于 `assets/**` 也必须重启进程；`AssetManager` / Compose runtime 缓存不能依赖 Activity restart 清理。
+- Flutter JIT 的 overlay 更新只改 overlay 目录，Flutter 仍会复用 `app_flutter` 里已解压的旧 `kernel_blob.bin`；只有删除 `app_flutter/res_timestamp-*` 才会触发重新解压。失效命令只允许删除 `app_flutter` 直属、`res_timestamp-` 前缀的普通文件，不触碰 `flutter_assets`、kernel、overlay 和应用其它数据；timestamp 不存在视为幂等成功。
+- 失效与 overlay 提交不构成同一文件系统事务：失效失败必须让本轮部署失败（不提交成功历史），设备 overlay 可能已更新，由下一轮现有 overlay-id mismatch/recover 流程对齐。Flutter Profile/Release AOT 走 `libapp.so` 的 APK 更新链路，不进入该失效流程。
 - `CompatDeployHelper` 对 API < 30、设备兼容记录以及所有 HarmonyOS 设备返回 true；HarmonyOS 通过非空的 `hw_sc.build.platform.version` 属性识别，不持久化为手动 Force 记录。
 - dex merge 阈值是 `DeployDataPlanner.MAX_DEPLOYED_DEX_COUNT = 1000`；超过阈值时把 staging dex + 未 staging 的历史 dex merge，失败则保留原数据继续部署。
 - transient offline 的设计目标是在失败点附近恢复：shell/deployer 层原地等待并重试一次，编排层只处理已经冒泡的 offline 失败。
@@ -331,6 +341,7 @@ Manifest、native library 等 `updateApkFiles` 继续由 APK 改写、重签和�
 | Direct Overlay 未触发 | `LaunchContext.logDirectOverlayEnabled()`、`DirectOverlaySwapTransport.canTry()` |
 | Direct Overlay 后不能 fallback | `DirectOverlayWriter.write()` |
 | 部署后总是重启 App | `JuggDeployData.isNeedRestartApp`、`JuggDeployerHelper.runTask()` |
+| Flutter Debug 改了 Dart 但 App 仍跑旧代码 | `DeployDataPlanner.buildDeployData()` 的 `flutterJitRuntimeFiles`、`JuggDeployerHelper.invalidateFlutterJitCaches()`、`FlutterJitCacheInvalidator` |
 | library dex 回滚后仍生效 | `JuggDeployerHelper.removeLibraryDexFiles()` |
 | androidTest 部署到错误 APK | `JuggDeployData.groupByApplicationId()`、`filterForApks()`、`LibraryTestApkBackfillHelper` |
 | install 错误信息太泛 | `AdbLogWrapper.realErrorMessage`、`JuggDeployer.install()` |

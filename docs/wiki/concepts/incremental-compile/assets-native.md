@@ -72,6 +72,14 @@ native library incremental artifact
 
 An asset overlay preserves its `assets/**` path for the new resource loading path. An ordinary asset or resource overlay does not become an APK native library search directory, so the current `.so` update path modifies the target APK instead of delivering the `.so` as an asset overlay.
 
+### The Flutter Debug/JIT extraction cache
+
+Dart code in Debug mode lives in `assets/flutter_assets/kernel_blob.bin`, together with `vm_snapshot_data` and `isolate_snapshot_data`. On first start the Flutter Android embedding extracts these files into the app private directory `app_flutter` and then uses that copy, re-extracting only when `app_flutter/res_timestamp-<versionCode>-<lastUpdateTime>` no longer matches the installed APK.
+
+An overlay update does not change the APK `lastUpdateTime`, so delivering only the asset overlay plus an ordinary restart still makes the app read the old Dart code from `app_flutter`. When the current round really compiles and deploys those Flutter JIT runtime files, Jugg therefore waits until all overlay slices succeed, deletes the `res_timestamp-*` files directly inside the target app's `app_flutter`, and then fully restarts the app so Flutter itself re-extracts from the overlay that already took effect. This path never repackages, re-signs, or installs an APK, and the deployment type users see is Hot Fix.
+
+Flutter Profile/Release use the AOT artifact `libapp.so` and keep using the native library APK update path, without entering this extraction cache invalidation. The invalidation command only deletes regular `res_timestamp-*` files directly inside `app_flutter`; it never touches `flutter_assets`, the kernel, the overlay, or other app data, and a missing timestamp counts as success.
+
 ## When Jugg must return to Gradle
 
 - When a recognized external input is deleted, Jugg falls back to a full Gradle build. The existing APK and overlay chain has no primitive for removing a device file, and deleting an asset file or native source can shrink the artifact set, which the incremental path cannot express safely.

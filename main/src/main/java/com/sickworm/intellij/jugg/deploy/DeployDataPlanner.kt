@@ -12,6 +12,7 @@ import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.jvmti_agent.BuildConfig
 import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.project.data.ExternalBuildType
 import java.io.File
 import java.util.zip.CRC32
 
@@ -28,6 +29,13 @@ class DeployDataPlanner(
     companion object {
         // dex count to trigger dex merge, dex initialize may get OOM if dex count is too large e.g. > 2000
         const val MAX_DEPLOYED_DEX_COUNT = 1000
+
+        /** Deploy paths of the Flutter JIT runtime files extracted by the Flutter Android embedding. */
+        private val FLUTTER_JIT_RUNTIME_PATHS = setOf(
+            "assets/flutter_assets/kernel_blob.bin",
+            "assets/flutter_assets/vm_snapshot_data",
+            "assets/flutter_assets/isolate_snapshot_data",
+        )
     }
 
     /**
@@ -42,13 +50,24 @@ class DeployDataPlanner(
         val stagingOutputs = stateTracker.getStagingFiles(isFilterMergedDex = true)
         val notStagingDeployedFiles = stateTracker.getNotStagingDeployedFiles()
         logger.trace("[PERF] DeployDataPlanner.getStagingFiles end, cost=${System.currentTimeMillis() - plannerStart}ms, thread=${Thread.currentThread().name}")
-        val deployItems = stagingOutputs.map { it.toDeployItem() }
+        // Flutter JIT runtime assets must be collected from this round's staging outputs: the full
+        // resource overlay also carries the old kernel from the APK baseline, which must not
+        // invalidate the Flutter extraction cache.
+        val flutterJitRuntimeFiles = mutableListOf<DeployItem>()
+        val deployItems = stagingOutputs.map { output ->
+            val deployItem = output.toDeployItem()
+            if (!isWarmUp && isFlutterJitRuntimeOutput(output)) {
+                flutterJitRuntimeFiles += deployItem
+            }
+            deployItem
+        }
         logger.trace("[PERF] DeployDataPlanner.deployDataGenerator.buildDeployData start, thread=${Thread.currentThread().name}, deployItemsSize=${deployItems.size}")
         val buildDataStart = System.currentTimeMillis()
         var deployData = deployDataGenerator.buildDeployData(deployItems, isWarmUp, isNeedCheckRecompile = false).copy(
             isComposeResourceCompiled = !isWarmUp && stateTracker.getCompiledFiles().any {
                 it.type == CompileFile.Type.ComposeResource
             },
+            flutterJitRuntimeFiles = flutterJitRuntimeFiles,
         )
         logger.trace("[PERF] DeployDataPlanner.deployDataGenerator.buildDeployData end, cost=${System.currentTimeMillis() - buildDataStart}ms, thread=${Thread.currentThread().name}")
 
@@ -72,6 +91,19 @@ class DeployDataPlanner(
             deployData = appendCompatDeployFiles(deployData, notStagingDeployedFiles)
         }
         return deployData
+    }
+
+    /**
+     * True when the staging output is one of the Flutter JIT runtime assets extracted by the Flutter
+     * Android embedding. Only assets produced by a Flutter external build qualify.
+     */
+    private fun isFlutterJitRuntimeOutput(output: CompileOutput): Boolean {
+        if (output.type != CompileOutput.Type.Asset) {
+            return false
+        }
+        val isFlutterBuild = output.relativeModule?.externalBuildInfos
+            ?.any { it.type == ExternalBuildType.Flutter } == true
+        return isFlutterBuild && output.deployItemName in FLUTTER_JIT_RUNTIME_PATHS
     }
 
     fun appendCompatDeployFiles(

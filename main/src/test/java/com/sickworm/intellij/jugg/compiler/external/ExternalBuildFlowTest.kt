@@ -80,6 +80,12 @@ class ExternalBuildFlowTest {
                     it.type == CompileOutput.Type.Asset || it.type == CompileOutput.Type.NativeLib
                 }.map { it.relativeFile.invariantSeparatorsPath }.toSet(),
             )
+            // Deploy planning identifies Flutter JIT runtime assets by the module owning the staged output.
+            assertEquals(
+                setOf(module.name),
+                result.outputs.filter { it.type == CompileOutput.Type.Asset }
+                    .map { it.relativeModule?.name }.toSet(),
+            )
             val invocation = File(root, "invocation.txt").readText()
             assertTrue(invocation.contains(":flutter:packJniLibsflutterBuildDebug"))
             assertTrue(invocation.contains(":app:mergeDebugNativeLibs"))

@@ -12,6 +12,7 @@ import com.sickworm.intellij.jugg.compiler.IncrementalDeployHelper
 import com.sickworm.intellij.jugg.compiler.jarDexFileName
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlaySwapTransport
+import com.sickworm.intellij.jugg.deploy.flutter.FlutterJitCacheInvalidator
 import com.sickworm.intellij.jugg.deploy.hotreload.DirectAppSandboxDeployTransport
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestApkSelector
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestResultModel
@@ -265,6 +266,8 @@ class JuggDeployerHelper(
         }
         TimeLogger.end("deploy_to_device", logger)
 
+        invalidateFlutterJitCaches(baseLaunchContext, data)
+
         TimeLogger.start("push_agent")
         var isNeedPushAgentAfterDeploy: Boolean
         runBlocking {
@@ -380,6 +383,29 @@ class JuggDeployerHelper(
         isRunning = false
 
         return launchResult
+    }
+
+    /**
+     * Drops the Flutter extraction cache of every app whose Flutter JIT runtime assets were deployed
+     * in this round, so the following app restart loads the new Dart code from the overlay.
+     * Runs only after all overlay slices are committed; failure must fail the whole deploy.
+     */
+    private fun invalidateFlutterJitCaches(launchContext: LaunchContext, data: JuggDeployData) {
+        if (data.flutterJitRuntimeFiles.isEmpty()) {
+            return
+        }
+        data.apks.forEach { apkInfo ->
+            val apkPaths = apkInfo.files.map { it.apkFile.path }
+            if (!data.flutterJitRuntimeFiles.any { it.belongsToAny(apkPaths) }) {
+                return@forEach
+            }
+            val applicationId = apkInfo.applicationId
+            logger.info("Flutter JIT runtime changed, invalidating the Flutter extraction cache for $applicationId.")
+            FlutterJitCacheInvalidator(
+                launchContext.getAppSandboxExecutor(applicationId, logger),
+                logger,
+            ).invalidate()
+        }
     }
 
     private fun AndroidDeployType.forDeploySlice(sliceIndex: Int, lastSliceIndex: Int): AndroidDeployType {

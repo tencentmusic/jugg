@@ -72,6 +72,14 @@ native lib 增量产物
 
 asset overlay 会保持 `assets/**` 路径，供新的资源加载路径读取。普通 asset 或资源 overlay 不会成为 APK 的 native library 搜索目录，因此当前 `.so` 更新路径会修改目标 APK，而不是把 `.so` 当作 asset overlay 下发。
 
+### Flutter Debug/JIT 的解压缓存
+
+Debug 模式的 Dart 代码放在 `assets/flutter_assets/kernel_blob.bin`，并配套 `vm_snapshot_data`、`isolate_snapshot_data`。Flutter Android embedding 在首次启动时把这些文件解压到应用私有目录 `app_flutter`，之后直接使用解压结果，只在 `app_flutter/res_timestamp-<versionCode>-<lastUpdateTime>` 与实际安装的 APK 不匹配时才重新解压。
+
+overlay 更新不改变 APK 的 `lastUpdateTime`，所以只下发 asset overlay 再加一次普通重启，App 仍会读取 `app_flutter` 中的旧 Dart 代码。Jugg 因此在本轮真实编译并部署了上述 Flutter JIT runtime 文件时，等全部 overlay 分片成功后删除目标应用 `app_flutter` 直属的 `res_timestamp-*`，再完整重启 App，让 Flutter 自己从已生效的 overlay 重新解压。这条路径不重打包、不重签名、不安装 APK，用户看到的部署类型是 Hot Fix。
+
+Flutter Profile/Release 使用 AOT 产物 `libapp.so`，继续走 native lib 的 APK 更新路径，不进入该解压缓存失效流程。失效命令只删除 `app_flutter` 直属的 `res_timestamp-*` 普通文件，不触碰 `flutter_assets`、kernel、overlay 和应用其它数据；timestamp 不存在时视为成功。
+
 ## 需要回到 Gradle 的情况
 
 - 已识别的外部输入被删除时，Jugg 直接回退完整 Gradle 构建。现有 APK 与 overlay 链没有删除设备端文件的原语，删除 asset 文件或 native 源码都可能让产物集合缩小，无法在增量路径上安全表达。

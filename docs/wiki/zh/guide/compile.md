@@ -46,7 +46,7 @@ Jugg 编译发生在你点击 Jugg Run、Jugg Debug、androidTest gutter，或�
 | `AndroidManifest.xml` 简单修改 | Manifest 增量处理 | 通过更新 APK 并重签名生效 |
 | assets 修改 | overlay 下发 | 不需要完整 Gradle |
 | native lib / `.so` 产物修改 | so 更新 | 写入 APK 并重签名 |
-| Dart 源码修改 | Flutter 局部构建 | 每次执行当前变体的 Flutter task，assets/`.so` 进入既有增量部署 |
+| Dart 源码修改 | Flutter 局部构建 | 每次执行当前变体的 Flutter task，assets/`.so` 进入既有增量部署；Debug/JIT 只更新 asset overlay 并失效 Flutter 解压缓存后完整重启 App，不重打包、不重签名、不安装 APK |
 | Gradle 管理的 C/C++ 源码修改 | native 局部构建 | 执行当前变体的 native task，生成的 `.so` 写入 APK 并重签名 |
 | Gradle 脚本或依赖修改 | 进入回退或依赖 diff 判断 | 取决于依赖变化判断和用户选择 |
 | 仅依赖库版本变化 | 可选择依赖库增量 | 需要用户确认 diff，比完整 Gradle 少跑无关模块 |

@@ -63,11 +63,14 @@ class AssetOverlayCompiler(
                     val dirToFilesMap: Map<File, List<File>> = DirToFileMapHelper.createDirToResFileMap(listOf(it), logger)
                     dirToFilesMap.values.firstOrNull()?.forEach { subFile ->
                         val outputFile = subFile.copyToBaseDir(it.baseDir, outputDir)
-                        outputs.add(CompileOutput(outputType, outputFile, outputBaseDir, apkFileUnit.apkFile.path))
+                        // Keep the owning module: deploy planning identifies Flutter JIT runtime assets by it.
+                        outputs.add(CompileOutput(outputType, outputFile, outputBaseDir, apkFileUnit.apkFile.path,
+                            relativeModule = it.module))
                     }
                 } else {
                     val outputFile = it.file.copyToBaseDir(it.baseDir, outputDir)
-                    outputs.add(CompileOutput(outputType, outputFile, outputBaseDir, apkFileUnit.apkFile.path))
+                    outputs.add(CompileOutput(outputType, outputFile, outputBaseDir, apkFileUnit.apkFile.path,
+                        relativeModule = it.module))
                 }
                 details.add(Result.success(it))
             } catch (e: Exception) {
