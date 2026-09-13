@@ -90,8 +90,9 @@ Jugg runtime 在 overlay 生效后把包含该 overlay 的 `AssetManager` 更新
 
 ## 需要回到 Gradle 的情况
 
-- 已识别的外部输入被删除时，Jugg 直接回退完整 Gradle 构建。现有 APK 与 overlay 链没有删除设备端文件的原语，删除 asset 文件或 native 源码都可能让产物集合缩小，无法在增量路径上安全表达。
-- 外部构建成功后，Jugg 会比较本轮与上一轮的 native/asset 产物。上一轮已收集的产物本轮不再产生时，本轮编译失败并提示需要完整 Gradle 构建，不会残留旧 `.so` 或 asset 后报告成功。
+- 删除 Flutter asset 时，Jugg 不生成删除产物，也不触发增量编译失败或 Gradle 回退。已安装 APK 或既有 overlay 中的旧 asset 继续保留；需要让删除真正生效时，再执行完整 Gradle 构建刷新 APK 基线。
+- 外部构建成功后，Flutter asset 产物集合缩小同样会被忽略。上一轮已收集的 native lib 本轮不再产生时，本轮编译仍会失败并提示需要完整 Gradle 构建，避免旧 `.so` 被继续使用后报告成功。
+- 已识别的 Dart/C/C++ 源码或外部构建配置输入被删除时，Jugg 回退完整 Gradle 构建。
 - 同一轮里有多个外部输入时，Jugg 要求全部输入都能解析。任一输入缺少 metadata、task 或产物契约（例如多 module 工程中只有一个 module 配置了外部构建）时整轮回退完整 Gradle，不会只构建可识别的部分。
 - 已识别 Flutter/C++ 源码根但缺少 task、输出目录或 Flutter native 输出元数据时，Jugg 会回退完整 Gradle 构建；外部 task 执行失败、native 输出无法读取或既没有 assets 也没有有效产物时，本轮编译失败，不复用旧中间产物。Debug 等本身不产出 native lib 的构建模式只要 assets 有效就算成功。
 - 远程编译和无法安全派生外部 task 的自定义命令会回到完整 Gradle 构建。

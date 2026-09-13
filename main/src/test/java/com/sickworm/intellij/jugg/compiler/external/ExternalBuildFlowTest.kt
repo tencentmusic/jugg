@@ -545,6 +545,63 @@ class ExternalBuildFlowTest {
     }
 
     @Test
+    fun `ignores removed Flutter assets on the second build`() {
+        val root = Files.createTempDirectory("jugg-flutter-removed-assets").toFile()
+        val parent = object : Disposable {
+            override fun dispose() = Unit
+        }
+        try {
+            val flutterRoot = File(root, "flutter").apply { mkdirs() }
+            val flutterOutput = File(root, "build/flutter")
+            val flutterNativeDir = File(root, "build/jniLibs")
+            val module = createModule(
+                root,
+                flutterRoot,
+                File(root, "native"),
+                flutterOutput,
+                flutterNativeDir,
+                File(root, "build/cpp"),
+                flutterTaskPath = ":flutter:copyJniLibsflutterBuildDebug",
+            )
+            val dartFile = File(File(flutterRoot, "lib"), "main.dart").apply {
+                parentFile.mkdirs()
+                writeText("void main() {}")
+            }
+            val context = createContext(root, module, fullBuildGradleCommand = "./gradlew :app:assembleDebug")
+            val task = {
+                CompileTask(
+                    listOf(CompileFile(CompileFile.Type.ExternalBuildSource, dartFile, flutterRoot, module)),
+                    File(root, "staging"),
+                    CompileStatusHolder.DEFAULT,
+                )
+            }
+
+            createFlutterAssetsGradleScript(
+                root,
+                flutterOutput,
+                flutterNativeDir,
+                "first-kernel",
+                additionalAssetName = "removed.png",
+            )
+            val first = JuggCompiler(context, parent).compile(task())
+            assertTrue(first.isAllSuccess)
+            context.deployedFiles += first.outputs
+
+            createFlutterAssetsGradleScript(root, flutterOutput, flutterNativeDir, "second-kernel")
+            val second = JuggCompiler(context, parent).compile(task())
+
+            assertTrue(second.isAllSuccess)
+            assertEquals(
+                listOf("assets/flutter_assets/kernel_blob.bin"),
+                second.outputs.map { it.relativeFile.invariantSeparatorsPath },
+            )
+        } finally {
+            Disposer.dispose(parent)
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
     fun `fails only external build when legacy context lacks Gradle command getter`() {
         val root = Files.createTempDirectory("jugg-external-build-legacy-context").toFile()
         val parent = object : Disposable {
@@ -690,13 +747,19 @@ class ExternalBuildFlowTest {
         flutterOutput: File,
         flutterNativeDir: File,
         kernelContent: String,
+        additionalAssetName: String? = null,
     ) {
+        val additionalAsset = additionalAssetName?.let { assetName ->
+            """printf "additional-asset" > "${File(flutterOutput, "flutter_assets/$assetName").path}""""
+        }.orEmpty()
         File(root, "gradlew").apply {
             writeText("""#!/bin/bash
+                rm -rf "${File(flutterOutput, "flutter_assets").path}"
                 mkdir -p "${File(flutterOutput, "flutter_assets").path}"
                 mkdir -p "${flutterNativeDir.path}"
                 printf "$kernelContent" > "${File(flutterOutput, "flutter_assets/kernel_blob.bin").path}"
                 printf "stable-manifest" > "${File(flutterOutput, "flutter_assets/AssetManifest.bin").path}"
+                $additionalAsset
             """.trimIndent())
             setExecutable(true)
         }

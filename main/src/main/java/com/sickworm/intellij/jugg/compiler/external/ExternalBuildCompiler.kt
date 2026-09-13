@@ -65,8 +65,8 @@ class ExternalBuildCompiler(
         collected.firstNotNullOfOrNull { it.error }?.let { error ->
             return task.allFailed(error)
         }
-        // Removed artifacts cannot be uninstalled incrementally, so a shrunken artifact set must fail
-        // instead of silently keeping the previous .so or asset in the APK.
+        // Removed native libraries cannot be uninstalled incrementally, so a shrunken native
+        // artifact set must fail instead of silently keeping the previous .so in the APK.
         collected.firstNotNullOfOrNull { it.removedArtifacts }?.let { removed ->
             return task.allFailed("External build no longer produces $removed, full Gradle build required")
         }
@@ -111,8 +111,8 @@ class ExternalBuildCompiler(
     }
 
     /**
-     * Compares this round's deployable artifacts with the previous round's, so a removed or renamed
-     * artifact fails instead of leaving the old `.so` or asset inside the APK.
+     * Compares this round's deployable artifacts with the previous round's. Removed Flutter assets
+     * are ignored and remain available from the existing APK or overlay until a full Gradle build.
      */
     private fun compareWithPreviousArtifacts(
         task: CompileTask,
@@ -128,7 +128,9 @@ class ExternalBuildCompiler(
         } else {
             emptySet()
         }
-        val removed = previous - current
+        val removed = (previous - current).filterNot { artifact ->
+            buildInfo.type == ExternalBuildType.Flutter && artifact.startsWith("assets/")
+        }.toSet()
         if (removed.isEmpty()) {
             manifest.parentFile.mkdirs()
             manifest.writeText(current.joinToString("\n"))
