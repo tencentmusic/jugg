@@ -106,7 +106,7 @@ class ExternalBuildCompiler(
         if (collected.error != null) {
             return collected
         }
-        val removed = compareWithPreviousArtifacts(task, module, buildInfo, collected.outputs)
+        val removed = compareWithPreviousArtifacts(task, module, buildInfo, collected.artifactKeys)
         return if (removed == null) collected else collected.copy(removedArtifacts = removed)
     }
 
@@ -118,11 +118,11 @@ class ExternalBuildCompiler(
         task: CompileTask,
         module: ModuleInfo,
         buildInfo: ExternalBuildInfo,
-        outputs: List<CompileOutput>,
+        artifactKeys: Set<String>,
     ): String? {
         val manifest = File(File(task.outputDir, "external/${module.name.safeName()}"),
             "${buildInfo.type.name.lowercase()}-artifacts.txt")
-        val current = outputs.map { it.deployKey() }.toSortedSet()
+        val current = artifactKeys.toSortedSet()
         val previous = if (manifest.isFile) {
             manifest.readLines().filter { it.isNotBlank() }.toSet()
         } else {
@@ -159,11 +159,20 @@ class ExternalBuildCompiler(
             .toList()
         val native = collectFlutterNativeArtifacts(task, module, buildInfo.nativeOutput)
         native.error?.let { return native }
+        val changeDetectionStart = System.nanoTime()
         val changedAssets = assets.filter { isChangedAsset(it, module) }
+        logger.debug("Flutter asset change detection: files=${assets.size}, " +
+                "sourceBytes=${assets.sumOf { it.file.length() }}, changed=${changedAssets.size}, " +
+                "cost=${(System.nanoTime() - changeDetectionStart) / 1_000_000}ms")
         if (assets.isEmpty() && native.discoveredCount == 0) {
             return CollectedArtifacts("External build produced no deployable artifacts", 0, emptyList())
         }
-        return CollectedArtifacts(null, assets.size + native.discoveredCount, changedAssets + native.outputs)
+        return CollectedArtifacts(
+            error = null,
+            discoveredCount = assets.size + native.discoveredCount,
+            outputs = changedAssets + native.outputs,
+            artifactKeys = assets.map { it.deployKey() }.toSet() + native.artifactKeys,
+        )
     }
 
     private fun collectCppArtifacts(
@@ -207,7 +216,7 @@ class ExternalBuildCompiler(
         if (sourceFiles.isEmpty()) {
             return CollectedArtifacts("External build produced no deployable artifacts", 0, emptyList())
         }
-        val outputs = sourceFiles.mapNotNull { source ->
+        val allOutputs = sourceFiles.mapNotNull { source ->
             val abi = source.findAbi() ?: return@mapNotNull null
             val output = File(nativeRoot, "$abi/${source.name}")
             output.parentFile.mkdirs()
@@ -215,8 +224,13 @@ class ExternalBuildCompiler(
             CompileOutput(CompileOutput.Type.NativeLib, output, nativeRoot, relativeModule = module)
         }.distinctBy {
             it.relativeFile.invariantSeparatorsPath
-        }.filter { isChangedNativeLib(it, module) }
-        return CollectedArtifacts(null, sourceFiles.size, outputs)
+        }
+        return CollectedArtifacts(
+            error = null,
+            discoveredCount = sourceFiles.size,
+            outputs = allOutputs.filter { isChangedNativeLib(it, module) },
+            artifactKeys = allOutputs.map { it.deployKey() }.toSet(),
+        )
     }
 
     private fun collectFlutterNativeDirArtifacts(
@@ -229,7 +243,7 @@ class ExternalBuildCompiler(
         }
         val nativeRoot = File(task.outputDir, "external/${module.name.safeName()}/flutter-native")
         nativeRoot.deleteRecursively()
-        val outputs = nativeDir.listFiles().orEmpty()
+        val allOutputs = nativeDir.listFiles().orEmpty()
             .filter { it.isDirectory && it.name in abiFolders }
             .flatMap { abiDir ->
                 abiDir.listFiles().orEmpty().filter { it.isFile && it.extension == "so" }
@@ -242,7 +256,12 @@ class ExternalBuildCompiler(
                 CompileOutput(CompileOutput.Type.NativeLib, output, nativeRoot, relativeModule = module)
             }
             .distinctBy { it.relativeFile.invariantSeparatorsPath }
-        return CollectedArtifacts(null, outputs.size, outputs.filter { isChangedNativeLib(it, module) })
+        return CollectedArtifacts(
+            error = null,
+            discoveredCount = allOutputs.size,
+            outputs = allOutputs.filter { isChangedNativeLib(it, module) },
+            artifactKeys = allOutputs.map { it.deployKey() }.toSet(),
+        )
     }
 
     private fun collectFlutterNativeArchiveArtifacts(
@@ -281,7 +300,12 @@ class ExternalBuildCompiler(
                     outputs += CompileOutput(CompileOutput.Type.NativeLib, output, nativeRoot, relativeModule = module)
                 }
             }
-            CollectedArtifacts(null, outputs.size, outputs.filter { isChangedNativeLib(it, module) })
+            CollectedArtifacts(
+                error = null,
+                discoveredCount = outputs.size,
+                outputs = outputs.filter { isChangedNativeLib(it, module) },
+                artifactKeys = outputs.map { it.deployKey() }.toSet(),
+            )
         } catch (e: Exception) {
             logger.debug("Read Flutter native output $nativeOutput failed", e)
             CollectedArtifacts("Flutter native output could not be read: $nativeOutput", 0, emptyList())
@@ -349,6 +373,7 @@ class ExternalBuildCompiler(
         val error: String?,
         val discoveredCount: Int,
         val outputs: List<CompileOutput>,
+        val artifactKeys: Set<String> = emptySet(),
         val removedArtifacts: String? = null,
     )
 
