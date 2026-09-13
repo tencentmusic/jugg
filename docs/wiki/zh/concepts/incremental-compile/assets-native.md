@@ -80,6 +80,12 @@ overlay 更新不改变 APK 的 `lastUpdateTime`，所以只下发 asset overlay
 
 Flutter Profile/Release 使用 AOT 产物 `libapp.so`，继续走 native lib 的 APK 更新路径，不进入该解压缓存失效流程。失效命令只删除 `app_flutter` 直属的 `res_timestamp-*` 普通文件，不触碰 `flutter_assets`、kernel、overlay 和应用其它数据；timestamp 不存在时视为成功。
 
+### Flutter 引擎持有的 AssetManager
+
+Flutter 引擎会长期保留创建时取得的 `AssetManager`，而 Apply Changes 更新应用资源时会建立新的资源视图。仅让 Android `Resources` 使用新 overlay，已经运行的 Flutter 引擎仍可能从旧 `AssetManager` 读取 asset。
+
+Jugg runtime 在 overlay 生效后把包含该 overlay 的 `AssetManager` 更新给存活的 Flutter 引擎；新引擎创建时使用的宿主包资源也会先补齐相同的 overlay。overlay 目录以最高查找优先级加入，并通过 Android 原生目录读取路径提供文件，避免 Flutter 工作线程依赖 Java asset 回调。这样 Flutter 的后续 asset 读取与 Android 当前 overlay 保持一致。
+
 ## 需要回到 Gradle 的情况
 
 - 已识别的外部输入被删除时，Jugg 直接回退完整 Gradle 构建。现有 APK 与 overlay 链没有删除设备端文件的原语，删除 asset 文件或 native 源码都可能让产物集合缩小，无法在增量路径上安全表达。

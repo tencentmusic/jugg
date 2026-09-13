@@ -32,6 +32,7 @@
 | `InstrumentationHooks` | `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/instrument/InstrumentationHooks.java` | 处理 ResourcesManager、ClassLoader resource 等 framework hook；compat deploy 启用后必须跳过普通 Apply Changes overlay 修正 |
 | `ApplyChangesOverlayPolicy` | `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/instrument/ApplyChangesOverlayPolicy.java` | 记录宿主 APK 路径，判断非宿主资源环境是否需要移除 Apply Changes overlay |
 | `ResourceOverlays` | `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/instrument/ResourceOverlays.java` | 将展开 APK 目录中的资源和 assets 接入 Android 11+ ResourcesLoader；限 Direct sandbox 标记和宿主 APK，兼容部署沿用资源 APK |
+| `FlutterAssetRefresh` | `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/instrument/FlutterAssetRefresh.java` | 让 FlutterEngine 使用 overlay-aware AssetManager：已启动 Dart 的 Engine 走 `updateJavaAssetManager()`，未启动的替换 `DartExecutor.assetManager`，宿主包上下文在 `ContextImpl#createPackageContext` exit 补齐 overlay loader；失败按批 warn + Toast |
 | `HotfixLoader` | `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/hotfix/HotfixLoader.java` | 初始化 app code cache 路径，识别 compat flag，并安装 dex/resource patch |
 | `jugg_agent_setup.sh` | `jvmti_agent/src/main/script/jugg_agent_setup.sh` | 在 app `code_cache/startup_agents` 中放置版本化 agent so |
 | `buildAgentBundle.gradle` | `jvmti_agent/buildAgentBundle.gradle` | 将 Jugg runtime 与预处理后的 Dragonfly JAR 编译进 `jugg-instruments.jar`，并打包 64/32 位 so 和 setup script，生成 plugin resource |
@@ -164,7 +165,54 @@ Android 11 以下不使用 ResourcesLoader；兼容部署 flag 存在时也不�
 
 Direct app sandbox 与官方 Apply Changes 在 Android 版本、进程与 Activity 覆盖、class payload、切片、状态恢复和诊断协议上的完整边界见 `03_deploy_core.md` §6.4。
 
-### 4.7 ClassLoader resource overlay
+### 4.8 FlutterEngine AssetManager 刷新
+
+`FlutterEngine` 构造时一次性取得 AssetManager（`createPackageContext(...).getAssets()`），native `APKAssetProvider` 又在构造时缓存对应的 `AAssetManager*`。Apply Changes 会让 `ResourcesManager.applyAllPendingAppInfoUpdates()` 重建 `ResourcesImpl/AssetManager` 并 `Resources.setImpl()`，Engine 仍持旧实例，因此继续读旧 asset。
+
+首次 Dart launch 前的可靠边界（Flutter 是 app 类，startup agent 阶段无法 hook，见下）：
+
+```text
+InstrumentationHooks.handleCreatePackageContextExit(Context)   [ContextImpl#createPackageContext exit hook]
+  -> compat / Android 11 以下：直接返回
+  -> App ClassLoader 无 FlutterEngine：直接返回，不读取 AssetManager
+  -> FlutterAssetRefresh.prepareHostPackageContext(context)
+     -> 包上下文属于宿主 APK 时：applyOverlayAssets(context.getResources().getAssets())
+        -> 把 Apply Changes overlay 目录作为 native ApkAssets 追加到列表末尾
+```
+
+`FlutterEngine` 构造期用 `context.createPackageContext(pkg, 0).getAssets()` 取得并终身持有 AssetManager，该 hook 在 native 消费之前把它补齐。已运行 Engine 与延迟启动 Engine 的批量逻辑：
+
+```text
+InstrumentationHooks.createAssetManager*Exit()（宿主 APK 分支）
+  -> Android 11 以下 / App ClassLoader 无 FlutterEngine：直接返回，不 post
+  -> FlutterAssetRefresh.scheduleRefresh()      只登记 + post，不做 Flutter 调用
+  -> 主线程：重新创建宿主 package context 并取得其 overlay-aware AssetManager
+     无存活 Engine / 无 overlay（路径不含 /code_cache/.overlay/）-> no-op
+     idToEngine 等反射契约不可读 -> warn，不当作“无 Flutter”
+  -> 用同一份 FlutterEngine.idToEngine 快照逐个处理（覆盖未进入 FlutterEngineCache 与 spawn 的 Engine）
+     -> flutterJNI.isAttached() 为假 -> 记为失败
+     -> DartExecutor.isExecutingDart() 为真
+        -> flutterJNI.updateJavaAssetManager(assetManager, FlutterLoader.findAppBundlePath())
+     -> 否则 -> 替换 DartExecutor.assetManager，让随后的 runBundleAndSnapshotFromLibrary() 使用新实例
+  -> 本批有失败：warn 一次 + Toast 一次；全部成功：仅 debug 日志（区分两条路径）
+```
+
+边界与约束：
+
+- `ResourcesManager` 与 `ContextImpl` 是 framework 级 hook，startup agent 会在普通 App 和 Flutter App 中都安装；安装和方法进入不等于状态修改。Android 11+ 仅当 App ClassLoader 能解析 `FlutterEngine` 时才继续，非 Flutter App 不投递主线程任务，也不读取或改写 package-context AssetManager。
+- compat deploy 在两个 `createAssetManager` exit 和 `createPackageContext` exit 开头就 `return`；Android 11 以下在 Flutter 调度与 package-context 处理前返回，两者继续走 `resource.ap_` + 进程重启。
+- `createPackageContext` 只会增强包含宿主 base/split APK 的 AssetManager；WebView provider、SDK 独立资源和其他 package context 不包含宿主 APK，保持原状态。Flutter App 内普通的同宿主 package context 会共享该增强，这是 framework 边界无法区分调用者时为冷启动 Engine 保留的最小影响。
+- 不能 hook Flutter 类：`io/flutter/embedding/engine/FlutterJNI` 在 startup agent 阶段不可解析（`Optional hook transform class not found`），改按需安装也因 agent 库不经 `System.loadLibrary` 加载而 `RegisterNatives` 绑不到调用方副本（`UnsatisfiedLinkError`）。因此启动边界取 framework 的 `ContextImpl#createPackageContext`。
+- 未启动 Dart 的 Engine 必须替换其 `DartExecutor` 构造期保存的 AssetManager：Flutter `RunBundleAndSnapshotFromLibrary()` 在 Dart 启动时会用它重建 `APKAssetProvider`，启动前发出的 JNI 刷新会被这次启动覆盖，只跳过则会永久遗漏。
+- 批次只枚举一次 Engine 快照；入口的定位失败（无 Application、无 Flutter、无 overlay、无 Engine）是正常 no-op，确认 overlay 且快照非空之后的任何失败都计入同一批 warn + Toast，不能只记日志或输出 `refreshed for N` 掩盖未更新。
+- 两套 `createAssetManager` Enter/Exit 的配对状态用 `ThreadLocal` 保存：Android 14+ 两个签名同时被 hook 且旧签名委托新签名（嵌套），`ResourcesManager.getResources()` 也可从任意线程进入。
+- agent 的 Java 类由 bootstrap ClassLoader 加载，Flutter 类必须用 `context.getClassLoader()` 解析，否则 `Class.forName` 永远失败。
+- 全程 fail-open：Flutter 缺失、反射失败、刷新失败都只在内部收口，不影响 Android Resources / Activity 流程；但已确认 overlay 且存在 Engine 后的失败必须按批 warn + Toast，不能静默伪装为成功。
+- 只替换 `kApkAssetProvider` resolver；已读入内存的 asset 与 Dart 侧 `rootBundle` 字符串缓存不会回退重读，因此“同一 key 的旧值”只能通过新 isolate 或未缓存读取观察到。
+- raw asset 的 overlay 覆盖通过 `ResourcesProvider.loadFromDirectory(dir, null)` 取得 Android 原生目录 ApkAssets，再把它作为**最后一个** ApkAssets 追加进宿主包上下文的 AssetManager（`OpenNonAsset` 倒序 ⇒ 优先），并用 identity WeakHashMap 去重。这里的 `null` 只表示不提供 Java 覆盖回调；Android 仍会用 native `DirectoryAssetsProvider` 读取目录文件。禁止把 Java `AssetsProvider` 交给 Flutter：Flutter 会在未附着 JVM 的 `io.worker` 线程调用 `AAssetManager_open()`，Android 的 `LoaderAssetsProvider` 会因无法取得 `JNIEnv` 直接 abort。最终实现已通过真实 Jugg 编译部署流程确认 asset 更新生效且不再触发该崩溃；历史证据见方案 §16～§17。
+- `executeDartCallback()` 使用 `DartCallback.androidAssetManager`，同样不在覆盖范围内。
+
+### 4.9 ClassLoader resource overlay
 
 legacy Compose resource 会通过 `ClassLoader#getResource()` 读取 APK 根目录文件，而不是通过 `AssetManager` 读取 `assets/`。Jugg 对 `java/lang/ClassLoader#getResource(String)` 做 retransformation，在原方法入口执行 overlay-first 查找：
 
@@ -205,6 +253,8 @@ hook 不限制资源名。部署到 `.overlay` 的内容是预期覆盖状态，
 - ResourcesManager 两个 `createAssetManager` 签名的 exit hook 都必须在 compat deploy 启用时直接返回。否则普通模式的 `tryFixOutSideApk()` 会把路径位于 `code_cache/.overlay` 的 `resource.ap_` 当成 Apply Changes overlay 删除，导致新 Activity 的 AssetManager 丢失应用包 ID `0x7f`。
 - `ClassLoader#getResource` hook 必须保持 early-return + fail-open：只有 overlay URL 非空时提前返回，未命中和异常继续原方法。不要改回 exit hook，否则原始 resource lookup 会先执行，失去真正的 overlay-first 语义。
 - ClassLoader resource 的可靠刷新边界是进程重启，不是 Activity 重建。Compose resource 与 `JarURLConnection` 都可能缓存旧结果。
+- Flutter JNI 刷新只能发生在 Engine 已 attach 且已启动 Dart 之后；Dart 启动前推送给 JNI 的 AssetManager 会被 Flutter 自己的 `RunBundleAndSnapshotFromLibrary()` 覆盖。对尚未启动 Dart 的 Engine，不能只跳过并等待不确定的下一次 ResourcesManager hook。
+- 修改 `FlutterAssetRefresh` 等 runtime 类后必须递增根 `build.gradle` 的 `agentVersion`，设备才会加载新的 `jugg-instruments.jar`。
 
 ---
 
@@ -241,6 +291,7 @@ hook 不限制资源名。部署到 `.overlay` 的内容是预期覆盖状态，
 | compat deploy 中 Application 资源正常、Activity 报 `Resources$NotFoundException` | 检查 `isEnableHotfix()` 是否过早缓存 false，以及 `createAssetManagerNewExit()` 是否删除了 `resource.ap_` |
 | 业务 `ActivityLifecycleCallbacks` 完全不回调 | 先看 `replaceApplication: no LoadedApk#mApplication replaced` warn 是否出现；未出现时对比 Activity `getApplication()` 与业务 Application 的 identity，确认注册与分派是否落在同一实例 |
 | legacy Compose resource 仍是旧值 | 检查 `java/lang/ClassLoader` retransformation、`Classpath resource hook in`、overlay hit 来源，以及部署后是否重启进程 |
+| Apply Changes 后 Flutter asset 仍是旧值 | 先确认 `assetManager hook action=skip`、`FlutterEngine@… updated through FlutterJNI`（已启动 Dart）或 `… will start Dart with the new AssetManager`（未启动 Dart）是否出现；未出现时按 `Flutter asset refresh skipped` 与 `not refreshed for N engine(s)` 的原因（无 Application / 无 overlay / 无 Engine / 无 native shell / 契约不可读）排查。刷新成功后仍读到旧值时，使用未缓存 key 或 `cache: false` 排除 Dart `rootBundle` 的同 key 缓存 |
 
 ---
 

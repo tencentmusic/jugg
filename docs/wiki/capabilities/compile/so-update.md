@@ -52,6 +52,8 @@ Flutter Debug/JIT Dart code is not a native library but an asset such as `assets
 
 The Flutter Android embedding extracts `flutter_assets` into the app private directory `app_flutter` and uses `app_flutter/res_timestamp-<versionCode>-<lastUpdateTime>` to decide whether it has to extract again. An overlay update does not change the APK `lastUpdateTime`, so after all overlay slices succeed Jugg deletes that timestamp and fully restarts the app, letting Flutter re-extract from the overlay that already took effect. The deployment type for such a run is Hot Fix.
 
+After the overlay takes effect, the Jugg runtime also refreshes the `AssetManager` retained by Flutter engines so subsequent asset reads use the current overlay. See [Assets and native library internals](../../concepts/incremental-compile/assets-native.md) for the mechanism.
+
 Profile/Release use the AOT artifact `libapp.so`, which is a native library and keeps using the APK update, re-sign, and install path described above.
 
 ## Boundaries

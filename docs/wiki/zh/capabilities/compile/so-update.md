@@ -52,6 +52,8 @@ Flutter Debug/JIT 的 Dart 代码不是 native lib，而是 `assets/flutter_asse
 
 Flutter Android embedding 会把 `flutter_assets` 解压到应用私有目录 `app_flutter`，并用 `app_flutter/res_timestamp-<versionCode>-<lastUpdateTime>` 判断是否需要重新解压。overlay 更新不改变 APK 的 `lastUpdateTime`，所以 Jugg 在全部 overlay 分片成功后删除该 timestamp，再完整重启 App，让 Flutter 从已生效的 overlay 重新解压。涉及该流程时本轮部署类型为 Hot Fix。
 
+overlay 生效后，Jugg runtime 还会刷新 Flutter 引擎持有的 `AssetManager`，让后续 asset 读取使用当前 overlay；具体机制见 [assets 与 native lib 原理](../../concepts/incremental-compile/assets-native.md)。
+
 Profile/Release 使用 AOT 产物 `libapp.so`，属于 native lib，继续按上面的 APK 更新、重签名和安装路径处理。
 
 ## 使用边界

@@ -219,11 +219,20 @@ bool Instrument(jvmtiEnv* jvmti, JNIEnv* jni, const std::string& jar,
         "(Landroid/content/res/ResourcesKey;Landroid/app/ResourcesManager$ApkAssetsSupplier;)Landroid/content/res/AssetManager;", // used in Android 14 at least
         "createAssetManagerNewEnter", "createAssetManagerNewExit");
 
+    // A FlutterEngine captures the AssetManager of the package context it creates here, and a
+    // package context does not inherit the overlay loaders of the live Resources.
+    const HookTransform contextImpl(
+        "android/app/ContextImpl",
+        "createPackageContext",
+        "(Ljava/lang/String;I)Landroid/content/Context;",
+        MethodHooks::kNoHook, "handleCreatePackageContextExit");
+
     const HookTransform loadedApk(
         "android/app/LoadedApk",
         "getResources",
         "()Landroid/content/res/Resources;",
         "prepareResourceOverlays", "addResourceOverlays");
+
 
     const MethodHooks sendMessage(
         "sendMessage",
@@ -260,7 +269,7 @@ bool Instrument(jvmtiEnv* jvmti, JNIEnv* jni, const std::string& jar,
         jni,
         kNoCache,
         { &application, &appComponentFactory, &resManager, &activityThread,
-          &classLoader });
+          &classLoader, &contextImpl });
     ApplyTransforms(jvmti, jni, kNoCache, { &resManagerNew, &loadedApk });
   }
 

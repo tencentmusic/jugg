@@ -80,6 +80,12 @@ An overlay update does not change the APK `lastUpdateTime`, so delivering only t
 
 Flutter Profile/Release use the AOT artifact `libapp.so` and keep using the native library APK update path, without entering this extraction cache invalidation. The invalidation command only deletes regular `res_timestamp-*` files directly inside `app_flutter`; it never touches `flutter_assets`, the kernel, the overlay, or other app data, and a missing timestamp counts as success.
 
+### The AssetManager retained by a Flutter engine
+
+A Flutter engine retains the `AssetManager` captured when the engine is created, while Apply Changes builds a new resource view when it updates application resources. Updating Android `Resources` alone can therefore leave a running Flutter engine reading assets through its old `AssetManager`.
+
+After the overlay takes effect, the Jugg runtime supplies live Flutter engines with an `AssetManager` that includes that overlay. Host package resources used to create a new engine receive the same overlay before Flutter captures them. The overlay directory is added at the highest lookup priority and serves files through Android's native directory loading path, so Flutter worker threads do not depend on a Java asset callback. Subsequent Flutter asset reads then use the current Android overlay.
+
 ## When Jugg must return to Gradle
 
 - When a recognized external input is deleted, Jugg falls back to a full Gradle build. The existing APK and overlay chain has no primitive for removing a device file, and deleting an asset file or native source can shrink the artifact set, which the incremental path cannot express safely.
