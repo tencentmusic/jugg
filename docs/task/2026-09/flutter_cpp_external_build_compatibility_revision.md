@@ -460,3 +460,37 @@ Gradle 5/6 兼容测试只在匹配 JDK 可用时运行；若修改的生成脚�
 本次实现期间发现并修正的真实缺陷：生成的 `readProjectInfo.gradle.kts` 是扁平的脚本作用域，新增的 `parse` 等顶层私有函数名会与既有 `XmlParser` 的同名函数冲突，导致 Gradle 9 fixture 编译失败；已改为唯一命名的成员函数。该约束对后续新增脚本代码同样适用。
 
 同步更新的文档：`docs/ai_knowledge/02_compile_core.md`、`04_engineering_project.md`、`98_code_map.md`，以及 Wiki 中英文的 `concepts/incremental-compile/assets-native.md`、`capabilities/compile/so-update.md`。
+
+## 13. 新增 Flutter asset 输入边界修订（2026-09-13）
+
+本节修订 12.3、12.4 中“`inputFiles` 仅为精确输入”和“不解析 pubspec YAML”的结论；其余 task 执行、产物收集、失败原子性与部署边界保持不变。
+
+### 13.1 失败证据与丢失阶段
+
+复现工程 `compile_latest.log` 显示，Git 恢复阶段把 `icon2.png`～`icon5.png` 识别为 `no-record` 新文件，监听入口也打印了 `Detect file changed (before filter)`，因此 IDE/Git 文件变化检测没有丢失。随后没有 filtered size、`ChangedFile[ExternalBuildSource]` 或 `ExternalBuildCompiler` 日志，丢失点确定在 `FileChangesHandler` 调用 `resolveExternalBuild` 的 ChangedFile 分类阶段，尚未进入 external build 调度、Flutter task 输入刷新和 assets 输出 diff。
+
+同一日志与项目快照还给出三项对照：已有 `main.dart` 和已声明 asset 能形成 `ExternalBuildSource` 并执行 `:flutter:copyJniLibsflutterBuildDebug`；当前 Flutter 快照的 `sourceDirs` 是 Flutter module 根，但 broad 匹配只接受 `.dart`；`inputFiles` 只有前次 `flutter_build.d` 中已存在的 `icon.png`、marker 和 `main.dart`。Flutter 3.47.2 的 `FlutterTaskHelper.getSourceFiles` 读取 `flutter_build.d` 再附加 pubspec，证明新 asset 在 task 首次执行前不会出现在 `sourceFiles`，依赖项目模型刷新无法打破这个循环。
+
+当前 demo 的 pubspec 只逐文件声明 `icon.png` 和 marker，未声明 `icon2.png`～`icon5.png`。这些文件是最强负例：即使修复后也必须继续忽略，不能把“位于 assets 目录”当作输入证据。
+
+### 13.2 竞争假设与证伪
+
+- 主假设：旧 depfile 快照只能提供采集时已存在的精确 asset，broad Flutter 根又仅接受 Dart，导致 pubspec 已声明目录中的后续新增文件在分类阶段被过滤。证伪条件是：项目快照已经保存对应 pubspec asset 根，但目录直接子文件仍无法命中；新增 reader/分类测试在该条件下通过后，主假设成立。
+- 最强替代假设：IDE/Git 未上报新文件，或文件被归到错误 module/variant，导致 external build 未调度。日志中的 Git `no-record`、before-filter 和同 module Dart 成功调度已否定前半；快照中当前 variant Flutter task、source root、assets/native 输出完整，否定后半。项目模型刷新只会让已执行 task 的 depfile 增加精确文件，不能解释首次新增文件在刷新前丢失。
+
+### 13.3 最小实现
+
+`GradleProjectInfoReader` 继续以当前 variant Flutter task 的 `sourceFiles` 作为已确认精确输入，同时从同一 Flutter source root 的当前 `pubspec.yaml` 提取 `flutter.assets` 声明，将标量文件、标量目录和 map 形式的 `path` 保存到既有 `inputFiles`。只接受 Flutter root 内路径，并继续应用 `.dart_tool`、module build directory、Flutter SDK 和 pub cache 排除规则；读取失败只舍弃这项增强并打印原因，保留 task 输入与 Dart broad root。
+
+`resolveExternalBuild` 对精确文件保持原规则；对 Flutter 目录输入只接受直接子文件，以及基文件存在时相邻 `2.0x` 等分辨率目录中的同名变体。单文件声明允许同级分辨率目录中的同名变体。它不递归扫描整个 Flutter module、任意 assets 目录或任意非 Dart 文件，也不改变工程外 local path package、C++、多 module、task 调度和 overlay 部署链。
+
+项目模型刷新前，pubspec 目录根负责识别首次新增文件；task 成功并刷新模型后，depfile 精确输入与该稳定根并存。逐文件声明只覆盖该文件及 Flutter 分辨率变体，因此 demo 中未声明的 `icon2.png`～`icon5.png` 仍不会误触发。
+
+### 13.4 测试 owner 与验证
+
+- `GradleProjectInfoReaderExternalBuildTest` 是 pubspec 输入边界 owner：旧实现下新增用例失败，修复后覆盖标量目录、标量文件、带注释的引号路径、map `path`、越界路径与 `.dart_tool` 排除。
+- `FileChangesHandlerTest` 是变化识别 owner：旧实现下新增目录图片首次取 `.single()` 失败；修复后覆盖声明目录图片、单文件及分辨率变体触发，无关图片/任意嵌套图片/`.dart_tool`/build 不触发，并复用既有用例保护 Dart、已有 asset、local path package 与 C++ 行为。
+- `ExternalBuildFlowTest` 继续保护 ChangedFile 之后的 task 调度、产物收集和失败原子性，不为相同分类规则新增重复测试 owner。
+- 生成脚本必须继续通过 `ReadProjectInfoScriptContentTest` 和低版本 Gradle compat；真实 demo 不修改 pubspec，因此只用现有日志和快照验证未声明新图片仍是负例，不伪造已完成设备端 L3。
+
+实际结果：两个新增 owner 用例在生产修改前分别失败，修复后通过；`ExternalBuildFlowTest`、`ReadProjectInfoScriptContentTest`、`ReadProjectInfoGradle6CompatTest`、`:main:compileKotlin`、`:idea:compileKotlin` 均通过。使用本次生成的 init script 在 demo 执行 Gradle 9.3.1 `help` 成功，刷新后的当前 Flutter 输入仍只有 pubspec 已声明的 `icon.png`、marker 与 `main.dart`，未把 `icon2.png`～`icon5.png` 纳入输入。Wiki 中英文镜像检查和 production build 通过。由于没有修改 demo pubspec 建立声明目录，也没有替换 IDE 中正在运行的插件，本次未伪造“新增已声明目录 asset 已在设备生效”的真实 L3；该正向行为由 reader + FileChangesHandler owner 测试和既有 external Flow 共同保护。

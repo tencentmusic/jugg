@@ -68,7 +68,7 @@
 | `kotlinCommonSourceDirs` | 选中 Android Kotlin compilation 视为 common 的 Kotlin source roots；非 KMP 或读取失败时为空列表 |
 | `kotlinFragmentSourceDirs` | 选中 Android Kotlin task 暴露的 fragment 到 source roots 映射；旧快照或不支持时为空 map |
 | `kotlinFragmentRefines` | fragment refinement edge，key 为 refining fragment，value 为其直接 refined fragments |
-| `externalBuildInfos` | 当前 variant 的 Flutter/C++ 外部构建类型、`sourceDirs`（broad 源码根）、`inputFiles`（工具链确认的精确输入）、`configFiles`（配置输入）、`excludedDirs`（永不监听的生成/缓存目录）、产生最终 native 产物的 Gradle task、native 输出位置，以及 Flutter assets 输出目录；native 输出是单个 `File`，运行时按归档或目录分派，不为容器类型分别建模；后三组输入字段旧快照缺失时为空列表，语义退化为只掌握 broad 源码根 |
+| `externalBuildInfos` | 当前 variant 的 Flutter/C++ 外部构建类型、`sourceDirs`（broad 源码根）、`inputFiles`（工具链确认的精确输入及 Flutter pubspec 声明的 asset 文件/目录根）、`configFiles`（配置输入）、`excludedDirs`（永不监听的生成/缓存目录）、产生最终 native 产物的 Gradle task、native 输出位置，以及 Flutter assets 输出目录；Flutter asset 目录根只覆盖直接文件与合法分辨率变体，不等价于递归扫描整个目录；native 输出是单个 `File`，运行时按归档或目录分派，不为容器类型分别建模；后三组输入字段旧快照缺失时为空列表，语义退化为只掌握 broad 源码根 |
 | `kotlinDefaultFragmentName` | 无 source root 精确命中时使用的 task default fragment；旧快照或不支持时为 `null` |
 | `composeResourceInfo` | 已检测的 Compose resource task metadata；同时保存 supported/unsupported 状态与原因，由增量链按 task 和 generator API 结构消费，不按 Kotlin/Compose 精确版本过滤 |
 
@@ -268,7 +268,7 @@ APK 拉取全部成功后，`LocalGradleCompileClient` / `RemoteGradleCompileCli
 | Compose 默认/自定义资源目录未识别 | `GradleProjectInfoReader.getComposeResourceInfo()`、`readComposeResourceDirectories()` 与序列化后的 `composeResourceInfo` |
 | Compose resource API 不受支持 | task 类型集合与必要属性、task class 的 code source、generator class/method/constructor 结构及 `unsupportedReason` |
 | `-I readProjectInfo.gradle.kts` 报 trailing commas / Expecting an argument | `buildReadProjectInfoScript.gradle` 尾逗号清理；用 `ReadProjectInfoScriptContentTest` 与 Gradle 5/6 compat 回归，见 `06_testing.md` §7.4 |
-| Dart/C/C++/Flutter asset/CMake 配置修改没有触发外部构建 | `externalBuildInfos` 的 `inputFiles`/`configFiles`/`sourceDirs`/`excludedDirs`、task/native 输出元数据、当前 variant 的 Flutter/native task、`FileChangesHandler` 扫描根与外部目录排除规则 |
+| Dart/C/C++/Flutter asset/CMake 配置修改没有触发外部构建 | 先从 `compile_latest.log` 确认文件是否到达 before-filter/ChangedFile；再检查 `externalBuildInfos` 的 `inputFiles` 是否包含 task 精确输入或当前 pubspec asset 文件/目录根、`configFiles`/`sourceDirs`/`excludedDirs`、task/native 输出元数据、当前 variant 的 Flutter/native task、`FileChangesHandler` 扫描根与外部目录排除规则。新增 Flutter asset 若只出现在 before-filter 而未形成 ChangedFile，重点核对旧 depfile 快照与 pubspec 声明边界；未声明文件应继续忽略。 |
 
 ---
 

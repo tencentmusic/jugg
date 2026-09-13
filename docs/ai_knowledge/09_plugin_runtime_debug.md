@@ -1,6 +1,6 @@
 # 插件运行时问题排查手册
 
-> 最后核对：2026-09-12
+> 最后核对：2026-09-13
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -122,6 +122,7 @@
 | ConstRef SQLite corrupt | 检查损坏重建和 `fallback to no-op const-ref`；DB 异常不应扩大为 Run/compile/deploy 失败 | `ConstRefCacheDatabase`、`ConstRefEngine`；`03_deploy_const_ref.md` |
 | Jugg Debug 断点不可用 | 同一时间窗确认 WAITING、`Connected to the target VM` 与最终 session 创建；“等待 debugger”不等于 VM 已连接 | `04_engineering_debug_attach.md` |
 | 有改动却回退全量 Gradle | 核对 changed files、IDE 文件事件、Git 补检和 deploy history；不要先删除 history 破坏现场 | `JuggCompileHelper`、`DeployFileManager`；`02_compile_core.md` |
+| 新增 Flutter asset 没有触发编译 | 先查 `Detect file changed (before filter)`、Git `no-record` 与后续 `ChangedFile[ExternalBuildSource]`；若停在分类前，再对照 `gradle_project_infos.json` 的 Flutter `inputFiles`、当前 pubspec asset 文件/目录声明和 `excludedDirs`。未声明的新文件应继续忽略，不能按任意 assets 目录推断归属 | `FileChangesHandler`、`resolveExternalBuild`、`GradleProjectInfoReader.readFlutterInputs`；`02_compile_core.md`、`04_engineering_project.md` |
 | 升级后 `not gradle compile yet` | 查 `complete_flag`、`module_builds.json` 版本及恢复日志；缺失 flag 不应手工伪造 | `CompileContextDb`、`BuildPathInfoSerializer`；`04_engineering_project.md` |
 | `Git check after compile is still running` | 该 debug 只表示本轮不等待异步补检，不代表编译失败；持续出现才检查 Git 查询规模与历史 | `GitChangesCompileChecker`；`02_compile_core.md` |
 | APK DB 初始化慢 | 对齐 APK 大小、隔离解析信号、数据库体积和实际耗时 | APK parser / database；`05_utilities.md` |

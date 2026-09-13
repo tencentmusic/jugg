@@ -39,7 +39,7 @@ assets 变化文件
   -> 保留 ABI 和 lib 下的相对路径
   -> 生成归属于目标 APK 的 native lib 增量产物
 
-Dart 变化
+Dart 或 Flutter asset 变化
   -> 每次执行当前变体的 Flutter native 输出 task；该 task 同时依赖 Flutter compile task
   -> flutter_assets 转为 asset；该 task 自己声明的 native 输出（归档或目录）中的 native lib 转为 native lib
 
@@ -48,9 +48,11 @@ C/C++ 变化
   -> 新 .so 转为 native lib 增量产物
 ```
 
-这个过程不执行 aapt2，也不会生成 `resources.arsc`。Dart 变化始终执行 Flutter 编译和 native 输出 task，不增加 Jugg 侧 Flutter 缓存；Flutter assets 从当前输出目录读取，native lib 只接受该任务自身声明的 native 输出中结构明确的 ABI 条目，不会递归扫描 Flutter 中间目录。C/C++ 到 `.so` 的转换仍由 Gradle、CMake 和 NDK 完成。Jugg 只选择当前变体所需的外部 task，并收集它们的新输出，因此 Android Java/Kotlin 和资源部分仍走原有增量编译。
+这个过程不执行 aapt2，也不会生成 `resources.arsc`。Dart 或已确认的 Flutter asset 变化始终执行 Flutter 编译和 native 输出 task，不增加 Jugg 侧 Flutter 缓存；Flutter assets 从当前输出目录读取，native lib 只接受该任务自身声明的 native 输出中结构明确的 ABI 条目，不会递归扫描 Flutter 中间目录。C/C++ 到 `.so` 的转换仍由 Gradle、CMake 和 NDK 完成。Jugg 只选择当前变体所需的外部 task，并收集它们的新输出，因此 Android Java/Kotlin 和资源部分仍走原有增量编译。
 
-外部构建的触发范围以工具链自己的输入模型为准，而不是按目录或扩展名猜测：Flutter 使用当前变体 compile task 声明的输入，因此 `pubspec.yaml`、已参与构建的工程外 local path package Dart、以及被该构建读取的 Flutter assets 都会触发；Native 使用 CMake File API 与 AGP 生成的 native metadata 得到目标源码，因此工程外共享源码、汇编和项目内 include root 也会触发。Flutter SDK、全局 pub cache、`.dart_tool`、`.cxx`、`.externalNativeBuild` 和构建输出目录始终不监听。取不到这些工具链输入时，Jugg 退回只按源码根和源码扩展名识别的旧行为，不会把相邻目录或缓存纳入监听。
+外部构建的触发范围以工具链自己的输入模型为准，而不是按目录或扩展名猜测。Flutter 会保留当前变体 compile task 已读取的精确输入，并读取当前 `pubspec.yaml` 的 `flutter.assets` 声明作为新增文件边界：单文件声明覆盖该文件及其 `2.0x` 等分辨率变体；目录声明覆盖目录中的直接文件及其分辨率变体；带 `path` 的 asset 配置按同样规则处理。目录声明不会递归接纳任意嵌套文件，未被当前 pubspec 覆盖的新图片、JSON 或其他文件不会启动 Flutter 编译。
+
+修改 `pubspec.yaml` 本身会执行当前 Flutter task 并刷新项目模型。因此新增单文件 asset 时，可以在同一轮把文件加入 pubspec；已经声明目录时，后续直接加入该目录的文件无需先刷新项目模型。已参与构建的工程外 local path package Dart 仍按 Flutter task 输入识别。Native 使用 CMake File API 与 AGP 生成的 native metadata 得到目标源码，因此工程外共享源码、汇编和项目内 include root 也会触发。Flutter SDK、全局 pub cache、`.dart_tool`、`.cxx`、`.externalNativeBuild` 和构建输出目录始终不监听。取不到这些工具链输入时，Jugg 退回只按源码根和源码扩展名识别的旧行为，不会把相邻目录或缓存纳入监听。
 
 产物 CRC 只决定新输出是否需要再次部署。它不会跳过 Flutter 或 C/C++ 编译，避免源码已经变化但中间产物尚未刷新的情况被误判为无变化。
 

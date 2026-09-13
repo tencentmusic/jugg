@@ -811,9 +811,9 @@ class GradleProjectInfoReader(
     }
 
     /**
-     * Reads the Flutter inputs confirmed by the Flutter task model. Files outside the project are
-     * accepted only when they belong to a local pub package, so the Flutter SDK, the global pub cache
-     * and generated outputs are never watched; without task inputs the broad source root is kept.
+     * Reads Flutter task inputs and stable asset declarations from the current pubspec. Files outside
+     * the project are accepted only for local pub packages, while SDK, cache and generated outputs are
+     * excluded; without task inputs the broad source root is kept for Dart sources.
      */
     private fun readFlutterInputs(
         project: Project,
@@ -844,16 +844,95 @@ class GradleProjectInfoReader(
                 inputFiles.add(file)
             }
         }
-        // pubspec is this build's configuration even before the task model lists it.
+        // Pubspec is this build's configuration even before the task model lists it.
         listOf("pubspec.yaml", "pubspec.lock").forEach { name ->
             val file = File(flutterSourceDir, name)
-            if (file.isFile) configFiles.add(file.absoluteFile.normalize())
+            if (!file.isFile) return@forEach
+            val normalizedFile = file.absoluteFile.normalize()
+            configFiles.add(normalizedFile)
+            if (name == "pubspec.yaml") {
+                readFlutterAssetInputs(normalizedFile, flutterSourceDir).forEach { input ->
+                    if (excludedDirs.none { input.isUnderPath(it) }) inputFiles.add(input)
+                }
+            }
         }
         if (taskInputs.isEmpty()) {
             println("Jugg: Flutter task inputs are unavailable for $flutterSourceDir, " +
                     "only the source root is watched")
         }
         return FlutterBuildInputs(inputFiles.toList(), configFiles.toList(), packageRoots.toList(), excludedDirs)
+    }
+
+    /** Reads scalar and map-style entries from the current `flutter.assets` list. */
+    private fun readFlutterAssetInputs(pubspec: File, flutterSourceDir: File): List<File> {
+        val paths = runCatching { readFlutterAssetPaths(pubspec) }.getOrElse { error ->
+            println("Jugg: Failed to read Flutter asset declarations from $pubspec: ${error.message}")
+            emptyList()
+        }
+        val normalizedRoot = flutterSourceDir.absoluteFile.normalize()
+        return paths.mapNotNull { path ->
+            if (path.isBlank() || File(path).isAbsolute) return@mapNotNull null
+            File(normalizedRoot, path).absoluteFile.normalize().takeIf { it.isUnderPath(normalizedRoot) }
+        }.distinct()
+    }
+
+    /** Parses only the indentation-bounded `flutter.assets` list without loading arbitrary YAML. */
+    private fun readFlutterAssetPaths(pubspec: File): List<String> {
+        var flutterIndent: Int? = null
+        var assetsIndent: Int? = null
+        var assetEntryIndent: Int? = null
+        val result = mutableListOf<String>()
+        pubspec.forEachLine { rawLine ->
+            val line = stripYamlComment(rawLine).trimEnd()
+            if (line.isBlank()) return@forEachLine
+            val indent = line.indexOfFirst { !it.isWhitespace() }.coerceAtLeast(0)
+            val content = line.trimStart()
+            if (flutterIndent == null) {
+                if (indent == 0 && content == "flutter:") flutterIndent = indent
+                return@forEachLine
+            }
+            if (assetsIndent == null) {
+                if (indent <= flutterIndent!!) flutterIndent = null
+                if (flutterIndent != null && content == "assets:") assetsIndent = indent
+                return@forEachLine
+            }
+            if (indent <= assetsIndent!!) {
+                assetsIndent = null
+                return@forEachLine
+            }
+            if (!content.startsWith("- ")) return@forEachLine
+            if (assetEntryIndent == null) assetEntryIndent = indent
+            if (indent != assetEntryIndent) return@forEachLine
+            parseFlutterAssetEntry(content.removePrefix("- "))?.let(result::add)
+        }
+        return result
+    }
+
+    private fun parseFlutterAssetEntry(value: String): String? {
+        val scalar = if (value.startsWith("path:")) value.removePrefix("path:").trim() else value.trim()
+        if (scalar.isEmpty()) return null
+        val quote = scalar.first()
+        if ((quote == '\'' || quote == '"') && scalar.lastOrNull() == quote) {
+            return scalar.substring(1, scalar.length - 1)
+        }
+        return scalar
+    }
+
+    private fun stripYamlComment(line: String): String {
+        var quote: Char? = null
+        var escaped = false
+        line.forEachIndexed { index, character ->
+            if (character == '#' && quote == null) return line.substring(0, index)
+            if (character == '\\' && quote == '"') {
+                escaped = !escaped
+                return@forEachIndexed
+            }
+            if ((character == '\'' || character == '"') && !escaped) {
+                quote = if (quote == character) null else if (quote == null) character else quote
+            }
+            escaped = false
+        }
+        return line
     }
 
     /** Generated output and cache roots of one Flutter build; the Flutter SDK and pub cache included. */

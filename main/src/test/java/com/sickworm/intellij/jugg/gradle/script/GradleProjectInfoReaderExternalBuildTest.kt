@@ -215,6 +215,61 @@ class GradleProjectInfoReaderExternalBuildTest {
     }
 
     @Test
+    fun `reads pubspec asset file and directory declarations as stable Flutter inputs`() {
+        val project = ProjectBuilder.builder().withProjectDir(temporaryFolder.root).build()
+        val flutterRoot = temporaryFolder.newFolder("flutter-pubspec-assets").canonicalFile
+        val declaredDirectory = File(flutterRoot, "assets/images").apply { mkdirs() }.canonicalFile
+        val mappedDirectory = File(flutterRoot, "assets/flavored").apply { mkdirs() }.canonicalFile
+        val existingAsset = writeFile(File(declaredDirectory, "existing.png"))
+        val declaredFile = File(flutterRoot, "assets/splash.png").canonicalFile
+        val quotedFile = File(flutterRoot, "assets/quoted image.webp").canonicalFile
+        writeFile(
+            File(flutterRoot, "pubspec.yaml"),
+            """
+                flutter:
+                  assets:
+                    - assets/images/
+                    - assets/splash.png
+                    - "assets/quoted image.webp" # Keep inline comments outside the path.
+                    - path: assets/flavored/
+                      flavors:
+                        - free
+                    - .dart_tool/generated.png
+                    - ../outside.png
+            """.trimIndent(),
+        )
+        val compileTask = project.tasks.create("compileFlutterBuildDebug", TestFlutterCompileTask::class.java).apply {
+            sourceDir = flutterRoot
+            outputDirectory = temporaryFolder.newFolder("flutter-output-pubspec-assets")
+            sourceFiles = project.files(existingAsset)
+        }
+        project.tasks.create("packJniLibsflutterBuildDebug", TestFlutterPackTask::class.java).apply {
+            destinationDirectory.set(temporaryFolder.newFolder("flutter-archive-pubspec-assets"))
+            archiveFileName.set("flutter-native.jar")
+            dependsOn(compileTask)
+        }
+        val moduleInfo = ModuleInfo.virtualModule.copy(
+            name = "app",
+            moduleRootDir = project.projectDir,
+            projectRootDir = project.projectDir,
+            buildVariant = "debug",
+            buildPathInfo = ModuleBuildPathInfo(
+                project.projectDir,
+                project.projectDir,
+                "debug",
+                buildDirRelativePath = "build",
+            ),
+        )
+
+        val info = readExternalBuildInfos(project, moduleInfo).single()
+
+        assertEquals(
+            setOf(declaredDirectory, existingAsset, declaredFile, quotedFile, mappedDirectory),
+            info.inputFiles.canonical().toSet(),
+        )
+    }
+
+    @Test
     fun `keeps the broad Flutter source root when the task inputs are unavailable`() {
         val project = ProjectBuilder.builder().withProjectDir(temporaryFolder.root).build()
         val flutterRoot = temporaryFolder.newFolder("flutter-no-inputs")

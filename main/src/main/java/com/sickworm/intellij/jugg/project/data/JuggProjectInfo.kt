@@ -55,7 +55,7 @@ data class ExternalBuildInfo(
     /** Final deployable native output holding `<abi>` native libraries: one archive or one directory. */
     val nativeOutput: File?,
     val unsupportedReason: String? = null,
-    /** Exact inputs confirmed by the toolchain task model; empty when only broad source roots are known. */
+    /** Exact task inputs and declared input roots; empty when only broad source roots are known. */
     val inputFiles: List<File> = emptyList(),
     /**
      * Configuration inputs of this external build. Changing one reruns the external task, which

@@ -242,6 +242,52 @@ class FileChangesHandlerTest {
     }
 
     @Test
+    fun `detects only new Flutter assets covered by pubspec input declarations`() {
+        val app = context.applicationModule
+        val flutterRoot = File(app.moduleRootDir, "flutter-new-assets")
+        val declaredDirectory = File(flutterRoot, "assets/images").apply { mkdirs() }
+        val declaredFile = File(flutterRoot, "assets/splash.png")
+        val module = app.copy(externalBuildInfos = listOf(
+            ExternalBuildInfo(
+                type = ExternalBuildType.Flutter,
+                sourceDirs = listOf(flutterRoot),
+                taskPath = ":app:compileFlutterBuildDebug",
+                assetsOutputDir = File(app.moduleRootDir, "build/intermediates/flutter/debug"),
+                nativeOutput = File(app.moduleRootDir, "build/intermediates/flutter/debug/native.jar"),
+                inputFiles = listOf(
+                    declaredDirectory,
+                    declaredFile,
+                    File(flutterRoot, ".dart_tool/assets"),
+                    File(flutterRoot, "build/assets"),
+                ),
+                excludedDirs = listOf(File(flutterRoot, "build")),
+            ),
+        ))
+        handler.init(context.copy(modules = context.modules + (module.name to module)))
+
+        try {
+            assertChangedFileFile(File(declaredDirectory, "new.png"))
+            File(declaredDirectory, "logo.png").createNewFile()
+            assertChangedFileFile(File(declaredDirectory, "2.0x/logo.png"))
+            assertChangedFileFile(declaredFile)
+            assertChangedFileFile(File(flutterRoot, "assets/2.0x/splash.png"))
+            withTemporaryFile(File(flutterRoot, "assets/unrelated.png")) {
+                assertTrue(handler.filter(listOf(File(flutterRoot, "assets/unrelated.png"))).isEmpty())
+            }
+            withTemporaryFile(File(declaredDirectory, "nested/unrelated.png")) {
+                assertTrue(handler.filter(listOf(File(declaredDirectory, "nested/unrelated.png"))).isEmpty())
+            }
+            listOf(".dart_tool/assets/generated.png", "build/assets/generated.png").forEach { path ->
+                withTemporaryFile(File(flutterRoot, path)) {
+                    assertTrue(handler.filter(listOf(File(flutterRoot, path))).isEmpty())
+                }
+            }
+        } finally {
+            flutterRoot.deleteRecursively()
+        }
+    }
+
+    @Test
     fun `detects assembly and header sources of native external builds`() {
         val app = context.applicationModule
         val cppRoot = File(app.moduleRootDir, "src/main/cpp")
