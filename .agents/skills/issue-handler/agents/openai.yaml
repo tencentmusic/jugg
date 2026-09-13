@@ -1,4 +1,4 @@
 interface:
-  display_name: "Issue Handler"
-  short_description: "Investigate Jugg bugs and assess feature requests"
-  default_prompt: "Use $issue-handler to classify and handle the supplied Jugg issue from the available evidence."
+  display_name: "GitHub Issue Handler"
+  short_description: "Investigate and handle Jugg GitHub Issues"
+  default_prompt: "Use $issue-handler to classify and handle the supplied Jugg GitHub Issue from the available evidence."
