@@ -205,7 +205,58 @@ const englishSidebar = {
     {
       text: 'Frequent questions',
       items: [
-        { text: 'Supported packaging methods', link: '/troubleshooting/supported-packaging' }
+        {
+          text: 'Common operations',
+          collapsed: false,
+          items: [
+            { text: 'How do I set up and run Jugg for the first time?', link: '/onboarding/first-run' },
+            { text: 'How do I run changes quickly?', link: '/guide/run' },
+            { text: 'How do I force a Gradle build?', link: '/guide/downgrade-gradle' },
+            { text: 'How do I cancel an ongoing Gradle build?', link: '/guide/downgrade-gradle' },
+            { text: 'How do I restart only the app?', link: '/guide/restart-app' },
+            { text: 'How do I clear app data and reinstall?', link: '/guide/clean-data' },
+            { text: 'How do I export an incremental APK?', link: '/guide/export-incremental-apk' },
+            { text: 'Which packaging methods are supported?', link: '/troubleshooting/supported-packaging' }
+          ]
+        },
+        {
+          text: 'Compilation and results',
+          collapsed: false,
+          items: [
+            { text: 'Was this run incremental or Gradle?', link: '/guide/run' },
+            { text: 'Where can I see the run duration?', link: '/guide/run' },
+            { text: 'When does Jugg restart the app?', link: '/guide/deploy' },
+            { text: 'How do I update a dependency incrementally?', link: '/capabilities/compile/dependency-incremental' },
+            { text: 'What should I do when incremental compilation fails?', link: '/troubleshooting/compile-failed' },
+            { text: 'What should I do after `no file changes`?', link: '/troubleshooting/changes-not-applied' },
+            { text: 'Why did a successful run keep the old behavior?', link: '/troubleshooting/changes-not-applied' },
+            { text: 'Why was generated code not updated after an annotation change?', link: '/troubleshooting/changes-not-applied' },
+            { text: 'Why did a style change not take effect?', link: '/troubleshooting/changes-not-applied' },
+            { text: 'Why did a DataBinding/ViewBinding change fail?', link: '/troubleshooting/runtime-crash' }
+          ]
+        },
+        {
+          text: 'Deployment and devices',
+          collapsed: false,
+          items: [
+            { text: 'What should I do after `App not launched` or `Recovery failed`?', link: '/troubleshooting/app-cannot-run' },
+            { text: 'What should I do after `Try recover deploy state failed`?', link: '/troubleshooting/app-cannot-run' },
+            { text: 'What should I do after an agent attach failure?', link: '/troubleshooting/app-cannot-run' },
+            { text: 'What should I do after a deployment timeout?', link: '/troubleshooting/app-cannot-run' },
+            { text: 'What should I do after an `AssetManager` native crash?', link: '/troubleshooting/runtime-crash' },
+            { text: 'When should I enable compatibility deployment?', link: '/guide/compat-device' },
+            { text: 'Why did changes not take effect on HarmonyOS?', link: '/capabilities/deploy/harmonyos-compat' }
+          ]
+        },
+        {
+          text: 'Remote builds and multiple devices',
+          collapsed: false,
+          items: [
+            { text: 'How do I synchronize multiple projects to a remote host?', link: '/guide/remote-gradle' },
+            { text: 'What should I do when remote Gradle compilation fails?', link: '/troubleshooting/remote-build-failed' },
+            { text: 'How do I select multiple devices?', link: '/guide/multi-device' }
+          ]
+        }
       ]
     },
     {
@@ -470,7 +521,58 @@ const chineseSidebar = {
     {
       text: '高频问题',
       items: [
-        { text: '支持哪些打包方式', link: '/zh/troubleshooting/supported-packaging' }
+        {
+          text: '常用操作',
+          collapsed: false,
+          items: [
+            { text: '如何接入和首次运行 Jugg？', link: '/zh/onboarding/first-run' },
+            { text: '修改后如何快速运行？', link: '/zh/guide/run' },
+            { text: '如何主动降级到 Gradle 编译？', link: '/zh/guide/downgrade-gradle' },
+            { text: '如何取消已经开始的 Gradle 编译？', link: '/zh/guide/downgrade-gradle' },
+            { text: '如何只重启 App？', link: '/zh/guide/restart-app' },
+            { text: '如何清数据并重装？', link: '/zh/guide/clean-data' },
+            { text: '如何导出增量 APK？', link: '/zh/guide/export-incremental-apk' },
+            { text: '支持哪些打包方式？', link: '/zh/troubleshooting/supported-packaging' }
+          ]
+        },
+        {
+          text: '编译与生效',
+          collapsed: false,
+          items: [
+            { text: '如何判断本轮是增量还是 Gradle 编译？', link: '/zh/guide/run' },
+            { text: '如何查看本轮耗时？', link: '/zh/guide/run' },
+            { text: '什么时候会重启 App？', link: '/zh/guide/deploy' },
+            { text: '如何增量更新依赖库？', link: '/zh/capabilities/compile/dependency-incremental' },
+            { text: '增量编译失败怎么办？', link: '/zh/troubleshooting/compile-failed' },
+            { text: '提示 `no file changes` 怎么办？', link: '/zh/troubleshooting/changes-not-applied' },
+            { text: '编译成功但改动没有生效怎么办？', link: '/zh/troubleshooting/changes-not-applied' },
+            { text: '修改注解后生成代码没有更新怎么办？', link: '/zh/troubleshooting/changes-not-applied' },
+            { text: '修改 style 后没有生效怎么办？', link: '/zh/troubleshooting/changes-not-applied' },
+            { text: 'DataBinding/ViewBinding 修改后异常怎么办？', link: '/zh/troubleshooting/runtime-crash' }
+          ]
+        },
+        {
+          text: '部署与设备',
+          collapsed: false,
+          items: [
+            { text: '提示 `App not launched` 或 `Recovery failed` 怎么办？', link: '/zh/troubleshooting/app-cannot-run' },
+            { text: '提示 `Try recover deploy state failed` 怎么办？', link: '/zh/troubleshooting/app-cannot-run' },
+            { text: 'Agent 附加失败怎么办？', link: '/zh/troubleshooting/app-cannot-run' },
+            { text: '部署超时怎么办？', link: '/zh/troubleshooting/app-cannot-run' },
+            { text: '出现 `AssetManager` native crash 怎么办？', link: '/zh/troubleshooting/runtime-crash' },
+            { text: '什么时候应该开启兼容部署？', link: '/zh/guide/compat-device' },
+            { text: 'HarmonyOS 修改代码没有生效怎么办？', link: '/zh/capabilities/deploy/harmonyos-compat' }
+          ]
+        },
+        {
+          text: '远端与多设备',
+          collapsed: false,
+          items: [
+            { text: '云开发机如何同步多个工程？', link: '/zh/guide/remote-gradle' },
+            { text: '远端 Gradle 编译失败怎么办？', link: '/zh/troubleshooting/remote-build-failed' },
+            { text: '如何选择多台设备？', link: '/zh/guide/multi-device' }
+          ]
+        }
       ]
     },
     {

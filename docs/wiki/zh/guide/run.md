@@ -33,8 +33,10 @@ tags:
 1. 确认使用的是 Jugg Run Configuration，而不是原生 App configuration。
 2. 选择目标设备。普通 Run 可以选择多台设备；Debug 只选择一台。
 3. 保存或等待 Jugg 自动保存当前修改。
-4. 点击 Run。
+4. 点击 Run，或使用 Android Studio 当前 Keymap 为 Run action 配置的快捷键。
 5. 在 Run tool window 里看本轮结果。
+
+快捷键由 Android Studio Keymap 决定，不同系统、Keymap 和个人配置可能不同。如果不确定，在 `Settings / Preferences > Keymap` 中搜索 `Run` 查看当前按键。
 
 如果你点击的是 Debug，前半段仍然是同一条运行链路：Jugg 先编译并部署，成功后再用 debug 模式重启 App，并交给 Android Studio 原生 debugger attach。
 
@@ -57,12 +59,24 @@ Jugg Run
 
 | 你看到的结果 | 说明 | 下一步 |
 |---|---|---|
-| Jugg Hot Reload / 热重载成功 | 修改已在线生效，通常不重启 App | 直接在当前页面验证 |
-| Jugg Hot Fix / 热修复成功 | 修改已下发，App 会重启后生效 | 等待 App 重新启动后验证 |
-| Gradle 编译安装成功 | 本轮走完整 Gradle 构建和安装 | 后续小改动可继续 Jugg Run |
+| `Jugg HOT_RELOAD SUCCESSFUL` | 修改已在线生效，通常不重启 App | 直接在当前页面验证 |
+| `Jugg HOT_FIX SUCCESSFUL` | 修改已下发，App 会重启后生效 | 等待 `App restarted.` 后验证 |
+| `Gradle BUILD_AND_INSTALL SUCCESSFUL` | 本轮走完整 Gradle 构建和安装 | 后续小改动可继续 Jugg Run |
+| `Jugg INSTALL SUCCESSFUL` | 本轮使用 Jugg 产物完成安装 | 等待 App 启动后验证 |
 | Clean Reinstall 成功 | 已清数据、重装 APK，并恢复 Jugg 部署状态 | 重新进入需要验证的页面 |
 | compile 成功但 deploy 失败 | 代码已经编译完成，设备部署或启动失败 | 先看设备连接、兼容模式和部署日志 |
 | 没有检测到文件变化 | Jugg 未发现可处理改动 | 确认文件已保存，必要时 Sync 或直接 Gradle 对照 |
+
+## 在哪里查看本轮耗时
+
+Run tool window 的最终成功标题会带上总耗时，例如：
+
+```text
+Jugg HOT_RELOAD SUCCESSFUL in 3s.
+Gradle BUILD_AND_INSTALL SUCCESSFUL in 42s.
+```
+
+Jugg 运行面板的当前运行状态和 Recent runs 也会显示本轮耗时。这里展示的是整次运行耗时，不是单独的编译阶段耗时。
 
 ## 什么时候主动选别的入口
 

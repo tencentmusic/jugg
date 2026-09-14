@@ -23,6 +23,19 @@ Check Jugg output and deployment logs instead of relying on a single keyword. Co
 
 If only the current code result is unexpected, compare it with Restart or a Gradle build first. Do not classify it as a device compatibility issue solely because `JVMTI`, `Apply Changes`, or `classloader` appears in the logs.
 
+## When compatibility deployment is enabled automatically
+
+When compatibility deployment is allowed globally, Jugg automatically uses it for the following devices or apps:
+
+| Condition | Reason |
+|---|---|
+| Devices running Android 8 through 10 | The system does not support Jugg's normal resource-overlay switching path |
+| Android devices that expose a HarmonyOS version property | Jugg selects the HarmonyOS compatibility path automatically |
+| ASUS devices | Jugg avoids known compatibility problems in the normal deployment path |
+| A device or specific app previously recorded as compatible | Later runs reuse the corresponding compatibility setting |
+
+You do not need to enable the option manually when one of these conditions matches. If none matches and normal deployment still fails repeatedly, use the entry point below for the current device.
+
 The entry point is in More Options. After connecting a device, an option like this appears:
 
 ```text

@@ -33,8 +33,10 @@ You can still start with Jugg Run in these cases, but be ready to accept a Gradl
 1. Confirm that the selected Run Configuration is a Jugg configuration, not a native App configuration.
 2. Select the target devices. A normal Run supports multiple devices; Debug supports only one.
 3. Save your changes, or wait for Jugg to save them automatically.
-4. Click Run.
+4. Click Run, or use the shortcut assigned to the Run action by the current Android Studio Keymap.
 5. Check the result in the Run tool window.
+
+The shortcut comes from the Android Studio Keymap and can vary by operating system, Keymap, and personal settings. If you are unsure, search for `Run` under `Settings / Preferences > Keymap` to see the current shortcut.
 
 If you click Debug, the first part uses the same run flow: Jugg compiles and deploys first, then restarts the app in debug mode and lets the native Android Studio debugger attach.
 
@@ -57,12 +59,24 @@ Compilation and device updates are internal stages. In everyday use, check the f
 
 | Result | Meaning | Next step |
 |---|---|---|
-| Jugg Hot Reload succeeded | The change has taken effect without restarting the app in most cases | Verify it on the current screen |
-| Jugg Hot Fix succeeded | The change was delivered and will take effect after the app restarts | Wait for the app to relaunch, then verify it |
-| Gradle compilation and installation succeeded | This run used a full Gradle build and installation | Continue using Jugg Run for subsequent small changes |
+| `Jugg HOT_RELOAD SUCCESSFUL` | The change has taken effect without restarting the app in most cases | Verify it on the current screen |
+| `Jugg HOT_FIX SUCCESSFUL` | The change was delivered and will take effect after the app restarts | Wait for `App restarted.`, then verify it |
+| `Gradle BUILD_AND_INSTALL SUCCESSFUL` | This run used a full Gradle build and installation | Continue using Jugg Run for subsequent small changes |
+| `Jugg INSTALL SUCCESSFUL` | This run installed an artifact produced by Jugg | Wait for the app to launch, then verify it |
 | Clean Reinstall succeeded | App data was cleared, the APK was reinstalled, and Jugg deployment state was restored | Navigate back to the screen you need to verify |
 | Compilation succeeded but deployment failed | The code compiled, but device deployment or launch failed | Check the device connection, compatibility mode, and deployment logs |
 | No file changes detected | Jugg did not find any changes it can process | Confirm that files are saved; Sync or compare with Gradle if necessary |
+
+## Where to view the run duration
+
+The final success headline in the Run tool window includes the total duration, for example:
+
+```text
+Jugg HOT_RELOAD SUCCESSFUL in 3s.
+Gradle BUILD_AND_INSTALL SUCCESSFUL in 42s.
+```
+
+The current run status and Recent runs in the Jugg control panel also show the duration. This is the duration of the complete run, not only the compilation stage.
 
 ## When to use another entry point
 

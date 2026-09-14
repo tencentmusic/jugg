@@ -32,9 +32,18 @@ tags:
 
 执行一次 [降级 Gradle 编译](../guide/downgrade-gradle.md)，用完整 Gradle 构建刷新结果。
 
+## 修改注解后生成代码没有更新
+
+Jugg 只会为已经适配的注解处理器执行增量生成。未列入支持范围的 APT、KAPT 或 KSP 处理器不会在 Jugg 增量编译中自动运行，因此相关生成代码可能保持旧版本。
+
+1. 先查看[注解处理器](../capabilities/compile/annotation-processors.md)确认当前处理器是否受支持。
+2. 不在支持范围内时，执行一次[降级 Gradle 编译](../guide/downgrade-gradle.md)生成完整结果。
+3. Gradle 结果正常、Jugg 对已支持处理器仍稳定不更新时，[报告问题](../guide/report-issue.md)。
+
 ## 相关页面
 
 - [重启 App](../guide/restart-app.md)
 - [降级 Gradle 编译](../guide/downgrade-gradle.md)
 - [DataBinding/ViewBinding](../capabilities/compile/databinding-viewbinding.md)
 - [资源编译](../capabilities/compile/resource-compile.md)
+- [注解处理器](../capabilities/compile/annotation-processors.md)

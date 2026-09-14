@@ -66,14 +66,20 @@ local.properties; .idea/; *.iml; .git/objects/; .git/modules/; .cxx/
 
 ## 同步多个工程
 
-如果你的开发目录中有多个相关工程，常见策略有两种：
+使用 iFT 或完整 `rsync` 模式时，可以在 Remote Compile Options 中打开：
+
+```text
+Enable multiple projects mode (sync and fetch all projects in [Local to remote sync path])
+```
+
+开启后，Jugg 会以 `Local to remote sync path` 为范围同步和拉取其中的多个工程，适合 include build、依赖源码或其它跨工程构建关系。常见目录策略有两种：
 
 | 方式 | 适合场景 |
 |---|---|
 | 同步 iFT 目录下所有文件 | iFT 目录只包含有限工程 |
 | 把需要同步的工程放到同一个子目录 | iFT 目录工程很多，但本次只关心其中一组 |
 
-同步多个工程时，不建议使用过于简化的同步方式；否则 include build、依赖源码或跨工程 classpath 可能缺失。
+`rsync_simple` 只同步当前工程根目录，因此界面不会显示多工程开关。需要跨工程同步时，改用 iFT 或完整 `rsync`，并把相关工程放进同一个同步范围；否则 include build、依赖源码或跨工程 classpath 可能缺失。
 
 ## 生成代码报红
 
@@ -104,3 +110,4 @@ Library Test APK 首次缺失时，也会通过远端 Gradle 构建生成对应 
 - [项目模型](../concepts/project-model.md)
 - [Android Test](./android-test.md)
 - [日志文件](../reference/log-files.md)
+- [远端编译失败](../troubleshooting/remote-build-failed.md)

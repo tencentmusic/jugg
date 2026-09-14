@@ -15,13 +15,30 @@ tags:
 ## Q：提示 No Device
 
 1. 如果 Android Studio 选择的是虚拟机，请确认虚拟机已启动 -- Jugg 不会自动启动虚拟机，这在仅需要编译的场景通常体验更好。
-2. 如果选择的是真实设备，请先确认 `adb device` 能看到设备 online，如果不能推荐 kill 掉 adb 进程再试。
+2. 如果选择的是真实设备，请先确认 `adb devices` 能看到设备为 `device` 状态；如果不能，重启 ADB 后再试。
 
-## Q：部署失败如 `Try recover deploy state failed`、`MISSING_AGENT_RESPONSES`、`AGENT_ATTACH_FAILED`、`deploy timeout`
+## App not launched 或 Recovery failed
 
-通常是设备 adb 状态异常导致。
+这表示 Jugg 没有找到可附加的目标 App 进程，或启动后的部署状态恢复没有完成。
 
-1. 确认 `adb device` 能看到设备 online，如果不能推荐 kill 掉 adb 进程再试。
+1. 确认设备上安装的是当前 variant 的 debuggable App，并先把 App 启动到前台。
+2. 确认 `adb devices` 能看到设备为 `device` 状态。
+3. 关闭其他可能同时使用该设备的 Android Studio 实例或 ADB 工具。
+4. 使用 Android Studio 自带的 `Attach Debugger to Android Process` 做对照；它也无法找到或附加进程时，先恢复 App 或 ADB 状态。
+5. 重新执行一次 Jugg Run；仍失败时使用 [Clean Reinstall](../guide/clean-data.md) 重建安装和部署状态。
+
+## Try recover deploy state failed
+
+这表示设备上的 App 安装或数据仍在，但 Jugg 没能恢复一套可继续增量部署的状态。
+
+1. 确认设备连接正常，且 applicationId、variant 和当前 Jugg Run Configuration 一致。
+2. 如果刚手动清过 App 数据、替换过 APK 或切换过 variant，使用 [Clean Reinstall](../guide/clean-data.md)。
+3. 未做过这些操作时，重新执行一次 Jugg Run，让 Jugg 进行有限恢复重试。
+4. 仍能稳定复现时，保留当前现场并[报告问题](../guide/report-issue.md)。
+
+## 其它部署失败先检查什么
+
+1. 确认 `adb devices` 能看到设备为 `device` 状态。
 2. 关闭其他可能同时使用该设备的 Android Studio 实例或 ADB 工具。
 3. 测试 `adb install` 能否正常完成 APK 安装。
 4. 如果 Android Studio 自带的 `Attach Debugger to Android Process` 也提示失败，应先恢复 ADB 正常能力。
@@ -29,13 +46,13 @@ tags:
 
 ## Q：提示 `MISSING_AGENT_RESPONSES` 或 `AGENT_ATTACH_FAILED` 怎么办？
 
-这表示 Apply Changes agent 附加后没有响应。Jugg 会先重试，并在检测到 JVMTI 兼容问题时改用兼容部署。
+这表示 Apply Changes agent 附加失败或附加后没有响应。Jugg 会先重试，并在检测到 JVMTI 兼容问题时改用兼容部署。
 
 如果同一设备仍然反复出现，按[设备兼容部署](../guide/compat-device.md)为该设备开启兼容模式后重新运行。
 
 ## Q：提示 `Got deploy timeout exception, retry after 5s` 怎么办？
 
-Jugg 会对部署超时执行有限重试。重试后仍失败时，卸载设备上的 App 后重新部署；也可以使用 [Clean Reinstall](../guide/clean-data.md) 重新安装。
+Jugg 会依次尝试缩减资源 overlay、等待后重试，并在最后一次重试时重新安装 APK。仍失败时，使用 [Clean Reinstall](../guide/clean-data.md) 重建安装和部署状态。
 
 ## Q：APK 安装失败
 
