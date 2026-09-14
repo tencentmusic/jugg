@@ -6,6 +6,7 @@ import org.junit.rules.TemporaryFolder
 import java.io.File
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class ModuleBuildPathInfoTest {
@@ -236,6 +237,20 @@ class ModuleBuildPathInfoTest {
     }
 
     @Test
+    fun `allBuildPathRelative includes AGP 7 module compile R jar directory`() {
+        val projectRootDir = File("/tmp/jugg-project")
+        val moduleRootDir = File(projectRootDir, "ime")
+        val info = ModuleBuildPathInfo(projectRootDir, moduleRootDir, "release", buildDirRelativePath = "")
+
+        assertTrue(
+            info.allBuildPathRelative.any {
+                it.path == File("ime/build/intermediates/compile_r_class_jar/release").path
+            },
+            "compile_r_class_jar should be included in synced build outputs",
+        )
+    }
+
+    @Test
     fun `allBuildPathRelative includes KMP Android output`() {
         val projectRootDir = File("/tmp/jugg-project")
         val moduleRootDir = File(projectRootDir, "foundation")
@@ -333,6 +348,113 @@ class ModuleBuildPathInfoTest {
         )
 
         assertEquals(listOf(rootRJar.canonicalPath), info.rFilePathCandidates.map { it.canonicalPath })
+    }
+
+    @Test
+    fun `moduleCompileRFile resolves AGP 7 compile_r_class_jar path`() {
+        val moduleRootDir = tempFolder.newFolder("ime")
+        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug", buildDirRelativePath = "")
+        val agp7RJar = createRJar(
+            moduleRootDir,
+            "build/intermediates/compile_r_class_jar/debug/R.jar",
+            1000L
+        )
+
+        assertEquals(agp7RJar.canonicalPath, info.moduleCompileRFile?.canonicalPath,
+            "moduleCompileRFile should resolve the AGP 7 compile_r_class_jar path")
+    }
+
+    @Test
+    fun `moduleCompileRFile selects newest module compile R jar when AGP upgrade leaves both paths`() {
+        val moduleRootDir = tempFolder.newFolder("ime")
+        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug", buildDirRelativePath = "")
+        val staleLegacyRJar = createRJar(
+            moduleRootDir,
+            "build/intermediates/compile_only_not_namespaced_r_class_jar/debug/R.jar",
+            1000L
+        )
+        val currentAgp7RJar = createRJar(
+            moduleRootDir,
+            "build/intermediates/compile_r_class_jar/debug/R.jar",
+            2000L
+        )
+
+        assertTrue(staleLegacyRJar.exists())
+        assertEquals(currentAgp7RJar.canonicalPath, info.moduleCompileRFile?.canonicalPath)
+        assertEquals(
+            listOf(currentAgp7RJar.canonicalPath, staleLegacyRJar.canonicalPath),
+            info.moduleCompileRFileCandidates.map { it.canonicalPath },
+        )
+    }
+
+    @Test
+    fun `moduleCompileRFile selects legacy R jar when AGP downgrade updated it`() {
+        val moduleRootDir = tempFolder.newFolder("ime")
+        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug", buildDirRelativePath = "")
+        createRJar(
+            moduleRootDir,
+            "build/intermediates/compile_r_class_jar/debug/R.jar",
+            1000L
+        )
+        val currentLegacyRJar = createRJar(
+            moduleRootDir,
+            "build/intermediates/compile_only_not_namespaced_r_class_jar/debug/R.jar",
+            2000L
+        )
+
+        assertEquals(currentLegacyRJar.canonicalPath, info.moduleCompileRFile?.canonicalPath)
+    }
+
+    @Test
+    fun `moduleCompileRFile keeps candidate order when module compile R jars have same modified time`() {
+        val moduleRootDir = tempFolder.newFolder("ime")
+        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug", buildDirRelativePath = "")
+        val agp7RJar = createRJar(
+            moduleRootDir,
+            "build/intermediates/compile_r_class_jar/debug/R.jar",
+            1000L
+        )
+        createRJar(
+            moduleRootDir,
+            "build/intermediates/compile_only_not_namespaced_r_class_jar/debug/R.jar",
+            1000L
+        )
+
+        assertEquals(agp7RJar.canonicalPath, info.moduleCompileRFile?.canonicalPath)
+    }
+
+    @Test
+    fun `moduleCompileRFile stays null when module has no compile R jar`() {
+        val moduleRootDir = tempFolder.newFolder("ime")
+        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug", buildDirRelativePath = "")
+
+        assertNull(info.moduleCompileRFile)
+    }
+
+    @Test
+    fun `allClassPath keeps gradle R jars out so each module resolves one R provider`() {
+        val moduleRootDir = tempFolder.newFolder("ime")
+        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug", buildDirRelativePath = "")
+        createRJar(
+            moduleRootDir,
+            "build/intermediates/compile_and_runtime_not_namespaced_r_class_jar/debug/R.jar",
+            1000L
+        )
+        createRJar(
+            moduleRootDir,
+            "build/intermediates/compile_r_class_jar/debug/R.jar",
+            2000L
+        )
+        createRJar(
+            moduleRootDir,
+            "build/intermediates/compile_only_not_namespaced_r_class_jar/debug/R.jar",
+            3000L
+        )
+
+        assertEquals(
+            emptyList(),
+            info.allClassPath.filter { it.name == "R.jar" }.map { it.canonicalPath },
+        )
     }
 
     @Test

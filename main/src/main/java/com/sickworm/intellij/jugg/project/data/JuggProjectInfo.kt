@@ -260,6 +260,22 @@ data class ModuleBuildPathInfo(
     val libraryRFilePathInLowAgp get() = File(libraryRFileDirInLowAgp, "generate${buildVariant.camelCompat}RFile/R.jar").takeIf(File::exists) // AGP 3.4.3
         ?: File(libraryRFileDirInLowAgp, "R.jar") // AGP 3.5.4
 
+    // AGP 7.4+ writes the module compile-time R.jar of libraries here (compile_r_class_jar)
+    private val moduleCompileRFileDir get() = File(buildDir, "intermediates/compile_r_class_jar/$buildVariant")
+
+    /**
+     * Module compile R.jar candidates. A dirty workspace keeps the pre-AGP-7 output layout
+     * (compile_only_not_namespaced_r_class_jar) next to the current compile_r_class_jar, so both
+     * layouts are one semantic set and the newest one wins. Application aggregate R.jar lives in
+     * another set and must never be compared with these.
+     */
+    val moduleCompileRFileCandidates get() = (moduleCompileRFileDir.listFilesRecursively().filter { it.name == "R.jar" } +
+        libraryRFileDirInLowAgp.listFilesRecursively().filter { it.name == "R.jar" })
+        .distinctByAbsolutePath()
+
+    /** Module compile R.jar selected from the newest candidate; null when this module writes none. */
+    val moduleCompileRFile get() = moduleCompileRFileCandidates.newestFile()
+
     private val legacyKotlinClassPath get() = File(buildDir, "tmp/kotlin-classes/$buildVariant")
 
     /** AGP 9 Built-in Kotlin compiler output. */
@@ -320,11 +336,16 @@ data class ModuleBuildPathInfo(
 
     val syncToLocalPathList get() = customSyncFiles + listOf(generatedSourcePath)
 
-    val allClassPath get() = customClasspathFiles + listOf(kotlinClassPath, javaClassPath, rFilePath, kotlinClassPathForJavaLibrary, javaClassPathForJavaLibrary, libraryRFilePathInLowAgp)
+    /**
+     * Normal Gradle outputs of this module. Gradle R.jars are excluded on purpose: the compile
+     * context picks one R provider per module type and appends it, so a stale R.jar of another
+     * layout can never shadow the selected one.
+     */
+    val allClassPath get() = customClasspathFiles + listOf(kotlinClassPath, javaClassPath, kotlinClassPathForJavaLibrary, javaClassPathForJavaLibrary)
 
     // use to fetch all class path after full build
     val allBuildPaths get() = listOf(legacyKotlinClassPath, builtInKotlinClassPath, kmpAndroidKotlinClassPath,
-        javaClassPathNew, javaClassPathOld, rFilePathDir,
+        javaClassPathNew, javaClassPathOld, rFilePathDir, moduleCompileRFileDir,
         kotlinClassPathForJavaLibrary, javaClassPathForJavaLibrary, generatedSourcePath,
         oldLibraryMergedManifestDir, libraryMergedManifestDir, applicationMergedManifestDir, libraryRFileDirInLowAgp,
         dataBindingInfoDir, dataBindingDependencyInfoDir, dataBindingArtifactDir,

@@ -17,6 +17,7 @@
 
 | 类/接口 | 文件 | 作用 |
 |---|---|---|
+| `BaseCompileContext.getGradleRFilePaths()` | `main/src/main/java/com/sickworm/intellij/jugg/project/BaseCompileContext.kt` | 按模块类型为源码编译选择唯一的 Gradle R provider，避免 modern/legacy R 布局同名类 shadow |
 | `SourceCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/source/SourceCompiler.kt` | 模块内协调 JuggApt、DataBinding mapper、Kotlin、Java、Dex 与 minify |
 | `JuggAptCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/source/apt/JuggAptCompiler.kt` | 执行自定义生成源码处理器，输出 Java/Kotlin shadow sources |
 | `IJuggAptProcessor` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/source/apt/IJuggAptProcessor.kt` | JuggApt 处理器接口 |
@@ -101,6 +102,8 @@ KotlinCompilerInvoker
 - 非 KAPT 编译把 `-d` 指向模块 Kotlin classpath，使编译器把 baseline class 与本轮源码视为共同编译结果，避免 `public API property declared in different module` 一类误判和 smart cast 失效。
 - `-Xjava-source-roots` 让 Kotlin 先读取本轮或同模块 Java 源码，解决 Java/Kotlin 相互引用；因此语言阶段固定 Kotlin 在前、Java 在后。
 - `.kotlin_module` 承载 class 文件无法完整表达的顶层函数、扩展函数和 file facade 信息。单文件编译前后都要合并 baseline 与新元数据；失败时仅告警并保留主编译结果，但后续可能出现 extension unresolved reference 或影响传播缺失。
+
+源码编译 classpath 里的 Gradle R provider 由 `BaseCompileContext` 按模块类型各选一个：Application/DynamicFeature（以及已被解析为 APK owner 的 `Unknown`）用 aggregate `rFilePath`，其他 Android/Library/`Unknown` 模块用 `ModuleBuildPathInfo.moduleCompileRFile`，JavaLibrary 不贡献 R，没有任何候选的模块保持 best-effort 空贡献。顺序为：Jugg temp module（含本轮生成的 R.class）→ included build target/base/feature R → 当前模块普通输出 + 其唯一 Gradle R.jar → 依赖模块普通输出 + 各自唯一 Gradle R.jar → library/parent 依赖 → 其余 aggregate R（`getRFiles()` 兜底）→ task dependency。一个模块最多贡献一个显式 Gradle R.jar；aggregate 集合与 module compile 集合各自按 mtime 选最新，跨集合不比较。
 
 included build 的 Library/JavaLibrary 源码可能同时看到 included build 独立构建的 R 与主 APK 最终 R。IDE 场景会从 Gradle 快照来源保存 included module roots；命中后，`BaseCompileContext.getModuleDependencies()` 先放入推断目标 APK 的 `R.jar`，再补齐主 build 的 Application/Dynamic Feature `R.jar`，最后才放普通 module output。这样即使 base `R.jar` 不包含只存在于 split 的业务 R package，Kotlin/Java 仍会先命中 host feature 的最终资源 ID，而不会退回 included build 的独立 R。本轮 Jugg 生成的 temp classpath 仍保持最高优先级；普通主 build 模块、其他模块类型、host R 全部缺失或快照身份不完整时保持原 classpath 顺序。
 
@@ -196,6 +199,7 @@ Kotlin 1.9 的 baseline Kotlin output 可能同时包含 dirty expect/actual clo
 | Kotlin 编译失败后 Java 大量连带报错 | `compileLanguageStages()`：确认 Java 阶段是否被跳过，以及 Kotlin failed details |
 | classpath 缺失 / Kotlin metadata 异常 | `K2JVMCompilerIsolate.checkClasspath`、`KotlinCompilerOutputParser`、`KmModuleMergerForCompilation` |
 | included build 源码增量后资源 ID 错误 | `CompileContextManager` 的 included build module roots、`BaseCompileContext.findIncludedBuildTargetRFiles()` 与 Kotlin 实际 `-classpath`；确认推断目标和 host feature R 都位于 included module output 前，并对比新 DEX 内联 ID 与实际 base/split APK 资源表 |
+| 源码编译报 `找不到符号: 变量 <新资源字段>`，R 类本身能找到 | 先看 `-classpath` 中第一个同名 `R$xxx` 来自哪个 jar；`BaseCompileContext.getGradleRFilePaths()` 是否选中了遗留的 `compile_only_not_namespaced_r_class_jar` 而不是 `compile_r_class_jar`，并对照 `module compile R.jar candidates found in module` debug 日志 |
 | Kotlin `internal` 运行时找不到方法或 smart cast 被误判跨模块 | `KotlinCompilerInvoker` 的 `module-name`、friend path 与 `-d` 输出目录 |
 | DataBinding mapper 未生成 | `SourceDataBindingProcessor.processDataBindingMapper()` 与 `DataBindingGenMapperCompiler` |
 | dex 合并失败 | `DexCompiler`、`DexFileMerger`、`IncrementalCompilerHelper.mergeDex` |

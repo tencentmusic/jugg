@@ -100,6 +100,7 @@
 | 编译后 Git 补检 | `Git check after compile is still running` / `Git recovery CRC summary` |
 | APK DB 初始化 | `initAfterInstall parsed apk start` / `database all init finish` |
 | 编译或部署失败 | `incremental compile error` / `SEVERE` / `deploy start` |
+| R 类存在但资源字段缺失 | `module compile R.jar candidates found in module` / `R.jar candidates found in module` / `compile_r_class_jar` / `compile_only_not_namespaced_r_class_jar` |
 | IDE 无法识别可部署进程 | `NO_DEPLOYABLE_APP` / `deployable client unavailable` / `ideClientPids` / `Unexpected cmdline file for PID` |
 | Kotlin IR lowering 内部错误 | `BackendException` / `Exception during IR lowering` / `copyValueParametersToStatic` / `Dispatch receiver type` / `SyntheticAccessorGenerator` |
 | UI freeze | `uiFreezeStarted` / `InvocationEvent has timed out` |
@@ -122,6 +123,7 @@
 | ConstRef SQLite corrupt | 检查损坏重建和 `fallback to no-op const-ref`；DB 异常不应扩大为 Run/compile/deploy 失败 | `ConstRefCacheDatabase`、`ConstRefEngine`；`03_deploy_const_ref.md` |
 | Jugg Debug 断点不可用 | 同一时间窗确认 WAITING、`Connected to the target VM` 与最终 session 创建；“等待 debugger”不等于 VM 已连接 | `04_engineering_debug_attach.md` |
 | 有改动却回退全量 Gradle | 核对 changed files、IDE 文件事件、Git 补检和 deploy history；不要先删除 history 破坏现场 | `JuggCompileHelper`、`DeployFileManager`；`02_compile_core.md` |
+| 增量编译报找不到资源字段（`找不到符号: 变量 xxx`），但 R 类存在、资源也没删 | 先确认不是资源缺失：错误位置是 `R$xxx` 内部缺少字段，属 classpath shadow。按顺序核对：javac/kotlinc 实际 `-classpath` 中第一个同名 `R$xxx` 来自哪个 jar；该 module 目录下 `compile_r_class_jar` 与 `compile_only_not_namespaced_r_class_jar` 的 lastModified；`module compile R.jar candidates found in module` debug 日志的 selected 路径。修复后一个 module 只贡献一个 Gradle R.jar，若仍看到两个 R 布局同时进入 classpath，按 `BaseCompileContext.getGradleRFilePaths()` 回归处理 | `BaseCompileContext.getGradleRFilePaths()`、`ModuleBuildPathInfo.moduleCompileRFileCandidates`；`02_compile_source.md`、`04_engineering_project.md` |
 | 新增 Flutter asset 没有触发编译 | 先查 `Detect file changed (before filter)`、Git `no-record` 与后续 `ChangedFile[ExternalBuildSource]`；若停在分类前，再对照 `gradle_project_infos.json` 的 Flutter `inputFiles`、当前 pubspec asset 文件/目录声明和 `excludedDirs`。未声明的新文件应继续忽略，不能按任意 assets 目录推断归属 | `FileChangesHandler`、`resolveExternalBuild`、`GradleProjectInfoReader.readFlutterInputs`；`02_compile_core.md`、`04_engineering_project.md` |
 | 升级后 `not gradle compile yet` | 查 `complete_flag`、`module_builds.json` 版本及恢复日志；缺失 flag 不应手工伪造 | `CompileContextDb`、`BuildPathInfoSerializer`；`04_engineering_project.md` |
 | `Git check after compile is still running` | 该 debug 只表示本轮不等待异步补检，不代表编译失败；持续出现才检查 Git 查询规模与历史 | `GitChangesCompileChecker`；`02_compile_core.md` |

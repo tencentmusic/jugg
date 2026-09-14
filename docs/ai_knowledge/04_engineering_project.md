@@ -235,7 +235,8 @@ APK 拉取全部成功后，`LocalGradleCompileClient` / `RemoteGradleCompileCli
 - `ModuleBuildPathInfo.buildDirRelativePath` 必须在 Gradle JSON、IDE project info、compile context merge、classpath backup 和 deploy history 序列化中完整保留；修改字段结构时先判断旧值能否确定性迁移，不能仅通过提升 compile context 版本迫使用户重新全量构建。
 - 远端 classpath 过滤规则不能随普通模块数量线性增长；普通 `${moduleRoot}/build` 输出按 variant 去重，自定义 build directory 与配置路径保持精确。
 - `ModuleBuildPathInfo.allBuildPathRelative` 包含当前 variant 的 `intermediates/data_binding_artifact`，确保远端 Gradle 编译生成的 DataBinding setter store 等产物会同步回本地。
-- `ModuleBuildPathInfo.rFilePath` 只在既有 application R.jar 匹配候选内选择；当 AGP 升级或远端同步导致多个候选 `R.jar` 并存时，按 `lastModifiedTime` 选择最新产物，mtime 相同时保留候选匹配顺序，低版本 library R.jar 仍走独立兼容分支；`BaseCompileContext` 会在多候选时打印 debug 日志。
+- `ModuleBuildPathInfo` 把 Gradle R.jar 分成两个语义集合，集合之间不比较：application aggregate 集合（`rFilePathCandidates`：`compile_and_runtime_r_class_jar` / `compile_and_runtime_not_namespaced_r_class_jar`）和 module compile 集合（`moduleCompileRFileCandidates`：AGP 7.4+ 的 `compile_r_class_jar` 与 legacy `compile_only_not_namespaced_r_class_jar`）。两个集合内部都在多个候选并存时按 `lastModifiedTime` 选最新，mtime 相同时保留候选声明顺序；`BaseCompileContext` 会在多候选时打印 debug 日志。`moduleCompileRFile` 没有真实候选时为 `null`，不制造不存在的现代路径。
+- `ModuleBuildPathInfo.allClassPath` 只包含模块的普通 Gradle 输出，不包含任何 Gradle R.jar：R provider 由 `BaseCompileContext` 按模块类型选择并追加，避免同一 module 同时暴露 modern 与 legacy R 布局。`allBuildPaths` 同时包含 aggregate 目录和 `compile_r_class_jar`，保证远端 full build 后两种集合都能同步回本地。
 - `ModuleBuildPathInfo.javaClassPath` 在 `intermediates/javac/<variant>/classes` 与 `compile<Variant>JavaWithJavac/classes` 并存时同样按 `lastModifiedTime` 选择最新目录；`allClassPath` 只挂载解析后的单一 Java 输出目录，避免 AGP 升级后旧目录 shadow 新 class。
 - `readProjectInfo.gradle.kts` 读取依赖时使用上次 project info 做 CRC 缓存，但不能只依赖缓存，因为 transitive dependency 信息可能不完整。
 - `:idea:prepareSandbox` 必须把仓库 `third_party`（排除 `sources` payload）、根目录 `THIRD_PARTY_NOTICES.md`、生成的 `SOURCE.md` 和源码校验值放入 `jugg/third_party`；对应源码保留在 `SOURCE.md` 指向的公开不可变 Git revision。`:idea:buildPlugin` 结束后由 `verifyThirdPartyCompliance` 校验 104 行组件清单、固定许可证选择、许可证/源码定位/修改声明、仓库源码 SHA-256、CI 源码 Git 状态、插件内无源码 payload、合规数据压缩后不超过 256 KiB，以及 104 个 package 的 SPDX 2.3 SBOM。第三方资产缺失或不匹配必须让发行构建失败，不能降级为 warning。
@@ -257,6 +258,7 @@ APK 拉取全部成功后，`LocalGradleCompileClient` / `RemoteGradleCompileCli
 | Gradle root 与 IDE project root 不一致 | `GradleProjectInfoReaderManager` 的 `jugg.projectDir` 处理 |
 | 模块 source/res/manifest 路径异常 | `GradleProjectInfoReader.getModuleInfo()` 与 `ModuleBuildPathInfo` |
 | AGP 升级后找不到 R.jar / manifest / data binding 输出 | `ModuleBuildPathInfo` 对应属性 |
+| R 类能找到但字段缺失、library 资源字段突然找不到 | `BaseCompileContext.getGradleRFilePaths()` 选中的单个 R provider 与 `module compile R.jar candidates found in module` debug 日志；对照 `compile_r_class_jar` 与 `compile_only_not_namespaced_r_class_jar` 的 lastModified |
 | project info JSON 缺字段 | `ModuleInfo` 字段同步清单、`ProjectInfoSerializerInGradle`、`JuggProjectInfoMerger` |
 | 已启用 DataBinding 但增量仍报 `data binding is not enabled` | `ProjectInfoSerializer` 对 Groovy `useDataBinding` 的读取别名；再查 merger 是否保留 `isUseDataBinding` |
 | AGP 升级后增量 D8 断言/不兼容 | `JuggProjectInfo.agpR8Classpath`、`GradleProjectInfoReaderManager.findAgpR8Classpath()`、`DexFileMaker` |

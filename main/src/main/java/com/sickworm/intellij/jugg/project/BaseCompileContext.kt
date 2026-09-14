@@ -77,6 +77,7 @@ class BaseCompileContext(
         return modules.mapNotNull { module ->
             val moduleInfo = module.value
             logRFileCandidates(moduleInfo)
+            logModuleCompileRFileCandidates(moduleInfo)
             val rFile = moduleInfo.buildPathInfo.rFilePath
             if (rFile.exists()) {
                 rFile.absolutePath
@@ -99,6 +100,20 @@ class BaseCompileContext(
             "  - path=${it.absolutePath}, lastModified=${it.lastModified()}, size=${it.length()}"
         }
         logger.debug("R.jar candidates found in module ${moduleInfo.name}, selected=${selectedRFile.absolutePath}\n$candidateText")
+    }
+
+    private fun logModuleCompileRFileCandidates(moduleInfo: ModuleInfo) {
+        val candidates = moduleInfo.buildPathInfo.moduleCompileRFileCandidates
+        if (candidates.size <= 1) {
+            return
+        }
+
+        val selectedRFile = moduleInfo.buildPathInfo.moduleCompileRFile
+        val candidateText = candidates.joinToString(separator = "\n") {
+            "  - path=${it.absolutePath}, lastModified=${it.lastModified()}, size=${it.length()}"
+        }
+        logger.debug("module compile R.jar candidates found in module ${moduleInfo.name} " +
+                "(type=${moduleInfo.moduleType}), selected=${selectedRFile?.absolutePath}\n$candidateText")
     }
 
     private fun logJavaClassPathCandidates(moduleInfo: ModuleInfo) {
@@ -265,22 +280,14 @@ class BaseCompileContext(
             .map { it.file.absolutePath }
         tempDependencies = tempDependencies + tempLibraryDependency
 
-        val classpathDependencies = moduleInfo.buildPathInfo.allClassPath.filter { file ->
-            file.exists()
-        }.map { file ->
-            file.absolutePath
-        }
+        val classpathDependencies = getModuleClassPath(moduleInfo)
 
         val moduleDependencies: List<String> = moduleInfo.moduleDependencies.flatMap {
             val dependencyModuleInfo = modules[it.moduleName] ?: run {
                 logger.warn("module ${it.moduleName} not found in ${moduleInfo.name}'s dependencies, maybe sync gradle again helps.")
                 return@flatMap emptyList()
             }
-            dependencyModuleInfo.buildPathInfo.allClassPath.filter { file ->
-                file.exists()
-            }.map { file ->
-                file.absolutePath
-            }
+            getModuleClassPath(dependencyModuleInfo)
         }
         val libraryDependency = moduleInfo.getLibraryDependencyPaths()
 
@@ -315,6 +322,55 @@ class BaseCompileContext(
         }
 
         return dependencies
+    }
+
+    /** Source compile classpath of one module: normal Gradle outputs plus its single Gradle R.jar. */
+    private fun getModuleClassPath(moduleInfo: ModuleInfo): List<String> {
+        val classPath = moduleInfo.buildPathInfo.allClassPath.filter { file ->
+            file.exists()
+        }.map { file ->
+            file.absolutePath
+        }
+        return classPath + getGradleRFilePaths(moduleInfo)
+    }
+
+    /**
+     * Resolves the only Gradle R.jar allowed to join [moduleInfo]'s source compile classpath.
+     *
+     * Application and dynamic feature keep the aggregate R.jar that also feeds styleable and
+     * runtime resource ids. Other modules use the module compile R.jar, which AGP renamed to
+     * compile_r_class_jar; a module without any resolved R provider contributes nothing and keeps
+     * the existing best-effort classpath. A module never contributes both layouts, otherwise the
+     * stale one shadows the current R class.
+     */
+    private fun getGradleRFilePaths(moduleInfo: ModuleInfo): List<String> {
+        val buildPathInfo = moduleInfo.buildPathInfo
+        if (moduleInfo.isApkOwnerModule()) {
+            return listOfNotNull(buildPathInfo.rFilePath.takeIf(File::exists)).map { it.absolutePath }
+        }
+        if (moduleInfo.moduleType == ModuleInfo.Type.JavaLibrary) {
+            return emptyList()
+        }
+        return listOfNotNull(buildPathInfo.moduleCompileRFile).map { it.absolutePath }
+    }
+
+    /**
+     * Returns true when this module owns the aggregate R.jar of an APK.
+     *
+     * An [ModuleInfo.Type.Unknown] module only counts as an owner when this context already resolved
+     * it as the application or a dynamic feature module. Its own artifact directories are not used
+     * as proof: a dirty workspace can leave an aggregate R.jar in a module that is not the APK owner.
+     */
+    private fun ModuleInfo.isApkOwnerModule(): Boolean {
+        if (moduleType == ModuleInfo.Type.Application || moduleType == ModuleInfo.Type.DynamicFeature) {
+            return true
+        }
+        if (moduleType != ModuleInfo.Type.Unknown) {
+            return false
+        }
+        val modulePath = moduleRootDir.normalizedPath
+        return applicationModule?.moduleRootDir?.normalizedPath == modulePath ||
+                dynamicFeatureModules.any { it.moduleRootDir.normalizedPath == modulePath }
     }
 
     private fun findIncludedBuildTargetRFiles(moduleInfo: ModuleInfo): List<File> {
