@@ -308,6 +308,13 @@ class JuggDeployerHelper(
                 isNeedRestartApp = true
             }
         }
+        val composeResourceRestartHelper = ComposeResourceRestartHelper(logger)
+        val isNeedSecondComposeResourceRestart = composeResourceRestartHelper.isRequired(
+            data = data,
+            isDirectDeployCandidate = isDirectDeployCandidate,
+            isFirstDeploy = deployFileManager.getDeployedFiles().isEmpty(),
+            adb = baseLaunchContext.deviceAdb,
+        )
 
         if (androidTestRunSpec != null) {
             // AM_INSTRUMENT launch strategy: run instrumentation tests instead of starting the app.
@@ -347,10 +354,14 @@ class JuggDeployerHelper(
             logger.debug("Defer post-deploy launch; follow-up deploy will restart the app.")
         } else if (isNeedRestartApp || androidDeployType == AndroidDeployType.INSTALL) {
             logger.debug("Restarting app...")
-            if (compileUiHandler.isDebugRun) {
-                deployTargetManager.restartAppForDebug(device)
-            } else {
-                deployTargetManager.restartApp(device)
+            restartApp(device, compileUiHandler.isDebugRun)
+            if (isNeedSecondComposeResourceRestart) {
+                composeResourceRestartHelper.waitUntilTransformCacheReady(
+                    baseLaunchContext.getAppSandboxExecutor(deployTargetManager.getPackageName(), logger),
+                )
+                logger.info("Restart app again to apply the first Compose resource overlay on Android 15 " +
+                        "below Android Studio Meerkat.")
+                restartApp(device, compileUiHandler.isDebugRun)
             }
         } else if (!deployTargetManager.isAppForeground(device)) {
             logger.debug("Starting app...")
@@ -383,6 +394,14 @@ class JuggDeployerHelper(
         isRunning = false
 
         return launchResult
+    }
+
+    private fun restartApp(device: IDevice, isDebugRun: Boolean) {
+        if (isDebugRun) {
+            deployTargetManager.restartAppForDebug(device)
+        } else {
+            deployTargetManager.restartApp(device)
+        }
     }
 
     /**

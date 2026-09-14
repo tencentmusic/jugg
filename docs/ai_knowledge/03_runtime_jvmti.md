@@ -1,6 +1,6 @@
 # 运行时与 JVMTI 支持
 
-> 最后核对：2026-09-11
+> 最后核对：2026-09-14
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -79,6 +79,8 @@ JuggDeployerHelper.runTask()
 ```
 
 push agent 放在部署之后，是为了避免 Android Studio Apply Changes 首次部署清理 startup agents 后把 Jugg agent 删掉。JVMTI 检测必须等 restart 后进行，因为 startup agent 只有 app 进程启动时才会被系统加载。
+
+Android 15 及以上、Android Studio Meerkat 以下的普通 Apply Changes 在首次部署就是完整资源 overlay 时，旧 startup agent 可能只生成 framework transform cache，当前进程尚未应用缓存 transform。若历史 deployed files 为空、本轮明确编译了现代 Compose resource，且 overlay 包含 `assets/composeResources/**`，Host 会在第一次进程重启后轮询 `.studio/instruments-*.jar.cache` 中的 `android-app-ResourcesManager` 与 `android-app-LoadedApk`；两者均生成后立即再次重启，约 5 秒仍未完成则告警并继续重启，让缓存 transform 消费已提交的 overlay。该兼容只覆盖普通 Deployer；Direct Overlay、compat deploy、已有成功部署历史和 legacy Compose resource 不增加重启。
 
 `AppSandboxExecutor` 统一包装 setup script：Apply Changes 兼容应用使用 `run-as`；不兼容应用在真实 `dataDir` 以本轮固定的普通 shell、root adbd 或非交互 `su` 模式执行。普通文件修正为既有 `code_cache` 的 owner 与动态 MCS context，JVMTI `.so` 修正为 appdomain 可执行的 `apk_data_file:s0`；修复阶段输出不会混入 setup script 的 `success`/`failed` 结果。上层 agent manager 不再分别拼装权限命令。
 

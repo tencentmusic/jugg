@@ -1,8 +1,10 @@
 package com.sickworm.intellij.jugg.deploy.run
 
+import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlayStateCheckResult
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlayStateChecker
 import com.sickworm.intellij.jugg.deploy.AppSandboxExecutor
+import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.deploy.JuggJvmtiAgentManager
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.compiler.CompileOutput
@@ -17,6 +19,8 @@ import com.sickworm.intellij.jugg.deploy.run.deployflow.DeployFlowTestSupport
 import com.sickworm.intellij.jugg.deploy.run.deployflow.VirtualDeployDevice
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.mock.logger
+import com.sickworm.intellij.jugg.platform.IPlatformApi
+import com.sickworm.intellij.jugg.platform.PlatformApi
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -336,6 +340,74 @@ class JuggDeployerHelperDeployFlowTest {
     }
 
     @Test
+    fun `affected AS restarts app twice for first modern compose resource deploy`() {
+        withRelaunchActivityIssues {
+            val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_006)
+            val deployData = modernComposeResourceDeployData()
+            writeAsTransformCache(fixture.virtualDevice)
+            Mockito.`when`(
+                fixture.deployFileManager.getDeployData(Mockito.anyBoolean(), Mockito.anyBoolean()),
+            ).thenReturn(deployData)
+
+            val result = fixture.helper.deploy(fixture.deployOptions)
+
+            assertTrue("deploy failed: ${result.failedReason}", result.isSuccess)
+            Mockito.verify(fixture.deployTargetManager, Mockito.times(2)).restartApp(fixture.device)
+        }
+    }
+
+    @Test
+    fun `affected AS does not restart app twice for legacy compose resource deploy`() {
+        withRelaunchActivityIssues {
+            val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_006)
+            val modernData = modernComposeResourceDeployData()
+            val deployData = modernData.copy(
+                overlays = listOf(modernData.overlays.single().let {
+                    DeployItem(
+                        name = "values/strings.xml",
+                        type = CompileOutput.Type.Res,
+                        checksum = it.checksum,
+                        content = it.content,
+                        apkPath = it.apkPath,
+                    )
+                }),
+            )
+            Mockito.`when`(
+                fixture.deployFileManager.getDeployData(Mockito.anyBoolean(), Mockito.anyBoolean()),
+            ).thenReturn(deployData)
+
+            val result = fixture.helper.deploy(fixture.deployOptions)
+
+            assertTrue("deploy failed: ${result.failedReason}", result.isSuccess)
+            Mockito.verify(fixture.deployTargetManager, Mockito.times(1)).restartApp(fixture.device)
+        }
+    }
+
+    @Test
+    fun `affected AS does not restart app twice after a previous successful deploy`() {
+        withRelaunchActivityIssues {
+            val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_006)
+            val deployData = modernComposeResourceDeployData()
+            val deployedFile = File(fixture.virtualDevice.root, "previous/Previous.dex").apply {
+                parentFile.mkdirs()
+                writeText("deployed")
+            }
+            writeAsTransformCache(fixture.virtualDevice)
+            Mockito.`when`(fixture.deployFileManager.getDeployedFiles()).thenReturn(
+                listOf(CompileOutput(CompileOutput.Type.Dex, deployedFile, deployedFile.parentFile)),
+            )
+            Mockito.`when`(
+                fixture.deployFileManager.getDeployData(Mockito.anyBoolean(), Mockito.anyBoolean()),
+            ).thenReturn(deployData)
+
+            val result = fixture.helper.deploy(fixture.deployOptions)
+
+            assertTrue("deploy failed: ${result.failedReason}", result.isSuccess)
+            Mockito.verify(fixture.deployTargetManager, Mockito.times(1)).restartApp(fixture.device)
+        }
+    }
+
+    @Test
     fun `flutter jit runtime change invalidates extraction cache before app restart`() {
         val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_003)
         val deployData = DeployFlowTestSupport.incrementalDeployDataWithoutAppRestart()
@@ -601,6 +673,45 @@ class JuggDeployerHelperDeployFlowTest {
             block()
         } finally {
             JuggSettings.sliceDeployRecordJson = oldRecordJson
+        }
+    }
+
+    private fun modernComposeResourceDeployData(): JuggDeployData {
+        val data = DeployFlowTestSupport.fullResourceDeployData(overlayCount = 1)
+        val overlay = data.overlays.single()
+        return data.copy(
+            overlays = listOf(
+                DeployItem(
+                    name = "assets/composeResources/example/values/strings.commonMain.cvr",
+                    type = CompileOutput.Type.Asset,
+                    checksum = overlay.checksum,
+                    content = overlay.content,
+                    apkPath = overlay.apkPath,
+                ),
+            ),
+            isComposeResourceCompiled = true,
+        )
+    }
+
+    private fun writeAsTransformCache(device: VirtualDeployDevice) {
+        val cacheDir = File(device.studioDir(), "instruments-flow.jar.cache")
+        cacheDir.mkdirs()
+        File(cacheDir, "android-app-ResourcesManager").writeText("ready")
+        File(cacheDir, "android-app-LoadedApk").writeText("ready")
+    }
+
+    private fun withRelaunchActivityIssues(block: () -> Unit) {
+        val original = PlatformApi.impl
+        PlatformApi.impl = object : IPlatformApi by original {
+            override fun isHasRelaunchActivityIssues(
+                device: IDeviceAdb,
+                logger: Logger,
+            ): Boolean = true
+        }
+        try {
+            block()
+        } finally {
+            PlatformApi.impl = original
         }
     }
 
