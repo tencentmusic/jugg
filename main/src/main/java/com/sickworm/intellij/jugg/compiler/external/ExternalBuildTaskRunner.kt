@@ -3,15 +3,25 @@ package com.sickworm.intellij.jugg.compiler.external
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.CompileTask
 import com.sickworm.intellij.jugg.compiler.isWindows
+import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
+import com.sickworm.intellij.jugg.project.data.ExternalBuildInfoRequest
+import com.sickworm.intellij.jugg.project.data.ExternalBuildInfoRequestItem
+import com.sickworm.intellij.jugg.project.data.ExternalBuildInfoUpdate
+import com.sickworm.intellij.jugg.project.data.ExternalBuildInfoUpdateResult
 import java.io.File
 import java.util.ArrayDeque
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 
 /**
  * Replaces the original Gradle tasks with external build tasks while preserving validated Gradle arguments.
  */
-fun deriveExternalBuildCommand(compileCommand: String, taskPaths: List<String>): String? {
+fun deriveExternalBuildCommand(
+    compileCommand: String,
+    taskPaths: List<String>,
+    collector: ExternalBuildCollectorCommand? = null,
+): String? {
     if (taskPaths.isEmpty() || compileCommand.containsControlOperator()) {
         return null
     }
@@ -65,23 +75,112 @@ fun deriveExternalBuildCommand(compileCommand: String, taskPaths: List<String>):
             else -> index++
         }
     }
-    return (tokens.take(executableIndex + 1).map { it.raw } + taskPaths.distinct() + arguments).joinToString(" ")
+    val tasks = taskPaths.distinct() + listOfNotNull(
+        collector?.let { ExternalBuildCollectorCommand.COLLECTOR_TASK_PATH },
+    )
+    val collectorArguments = collector?.arguments().orEmpty()
+    return (tokens.take(executableIndex + 1).map { it.raw } + tasks.distinct() + arguments + collectorArguments)
+        .joinToString(" ")
 }
+
+/** Arguments required by the invocation-scoped Gradle metadata collector. */
+data class ExternalBuildCollectorCommand(
+    val initScript: File,
+    val requestFile: File,
+    val outputDir: File,
+    val invocationId: String,
+) {
+    fun arguments(): List<String> = listOf(
+        "-I", quoteCommandArgument(initScript.absolutePath),
+        "-Pjugg.externalBuildRequest=${quoteCommandArgument(requestFile.absolutePath)}",
+        "-Pjugg.externalBuildOutput=${quoteCommandArgument(outputDir.absolutePath)}",
+        "-Pjugg.externalBuildInvocation=$invocationId",
+    )
+
+    companion object {
+        const val COLLECTOR_TASK_PATH = ":juggCollectExternalBuildInfo"
+    }
+}
+
+/** Result of one scoped external Gradle invocation. */
+internal data class ExternalBuildRunResult(
+    val isSuccess: Boolean,
+    val updates: List<ExternalBuildInfoUpdate> = emptyList(),
+)
 
 /** Runs selected Gradle tasks while preserving the active run configuration arguments. */
 internal class ExternalBuildTaskRunner(private val logger: Logger) {
 
     fun run(
         compileCommand: String,
-        taskPaths: List<String>,
+        requests: List<ExternalBuildInfoRequestItem>,
         compileEnv: List<String>,
         projectDir: File,
+        metadataRoot: File,
+        initScript: File?,
         task: CompileTask,
-    ): Boolean {
-        val command = deriveExternalBuildCommand(compileCommand, taskPaths) ?: return false
+    ): ExternalBuildRunResult {
+        if (initScript != null && !initScript.isFile) {
+            logger.warn("External build info init script not found: $initScript")
+            return ExternalBuildRunResult(false)
+        }
+        val collector = initScript?.let { createCollectorCommand(metadataRoot, requests, it) }
+        val command = deriveExternalBuildCommand(
+            compileCommand,
+            requests.map { it.taskPath },
+            collector,
+        ) ?: return ExternalBuildRunResult(false)
         logger.debug("External build command: $command")
         val process = startProcess(command, compileEnv, projectDir)
-        return waitForProcess(process, task)
+        if (!waitForProcess(process, task)) {
+            return ExternalBuildRunResult(false)
+        }
+        if (collector == null) {
+            return ExternalBuildRunResult(true)
+        }
+        val updates = readUpdates(collector, requests) ?: return ExternalBuildRunResult(false)
+        return ExternalBuildRunResult(true, updates)
+    }
+
+    private fun createCollectorCommand(
+        metadataRoot: File,
+        requests: List<ExternalBuildInfoRequestItem>,
+        initScript: File,
+    ): ExternalBuildCollectorCommand {
+        val invocationId = UUID.randomUUID().toString()
+        val invocationDir = File(metadataRoot, invocationId)
+        val outputDir = File(invocationDir, "output")
+        outputDir.mkdirs()
+        val requestFile = File(invocationDir, "request.json")
+        requestFile.parentFile.mkdirs()
+        requestFile.writeText(ProjectInfoSerializer.gson.toJson(
+            ExternalBuildInfoRequest(invocationId, requests),
+        ))
+        return ExternalBuildCollectorCommand(initScript, requestFile, outputDir, invocationId)
+    }
+
+    private fun readUpdates(
+        collector: ExternalBuildCollectorCommand,
+        requests: List<ExternalBuildInfoRequestItem>,
+    ): List<ExternalBuildInfoUpdate>? {
+        val results = collector.outputDir.listFiles().orEmpty().filter { it.isFile && it.extension == "json" }
+            .mapNotNull { file ->
+                runCatching {
+                    ProjectInfoSerializer.gson.fromJson(file.readText(), ExternalBuildInfoUpdateResult::class.java)
+                }.onFailure { logger.debug("Read external build info result $file failed", it) }.getOrNull()
+            }
+        if (results.isEmpty() || results.any { it.invocationId != collector.invocationId }) {
+            logger.warn("External build info collector produced no valid result")
+            return null
+        }
+        val updates = results.flatMap { it.updates }
+        val requestedKeys = requests.map { it.key() }.toSet()
+        val updateKeys = updates.map { it.key() }.toSet()
+        if (requestedKeys != updateKeys || updates.size != updateKeys.size) {
+            logger.warn("External build info collector result does not match requested tasks")
+            return null
+        }
+        return updates
     }
 
     private fun startProcess(command: String, compileEnv: List<String>, projectDir: File): Process {
@@ -148,6 +247,21 @@ internal class ExternalBuildTaskRunner(private val logger: Logger) {
         private const val PROCESS_POLL_MILLIS = 100L
         private const val OUTPUT_LINE_LIMIT = 30
     }
+}
+
+private fun ExternalBuildInfoRequestItem.key(): String {
+    return "${moduleRootDir.absoluteFile.normalize()}:$buildVariant:$taskPath:$type"
+}
+
+private fun ExternalBuildInfoUpdate.key(): String {
+    return "${moduleRootDir.absoluteFile.normalize()}:$buildVariant:$previousTaskPath:${externalBuildInfo.type}"
+}
+
+private fun quoteCommandArgument(value: String): String {
+    if (isWindows) {
+        return "\"${value.replace("\"", "\\\"")}\""
+    }
+    return "'${value.replace("'", "'\"'\"'")}'"
 }
 
 private data class CommandToken(val raw: String, val value: String)

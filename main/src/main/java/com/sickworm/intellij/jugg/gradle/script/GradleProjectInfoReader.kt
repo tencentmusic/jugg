@@ -755,7 +755,10 @@ class GradleProjectInfoReader(
             ?: findTaskByNameWithRetry(project, kotlinTaskNameKmm)
     }
 
-    private fun getExternalBuildInfos(project: Project, moduleInfo: ModuleInfo): List<ExternalBuildInfo> {
+    /**
+     * Reads the external build scope and outputs for one module without resolving full project data.
+     */
+    fun getExternalBuildInfos(project: Project, moduleInfo: ModuleInfo): List<ExternalBuildInfo> {
         val variantCapital = moduleInfo.buildVariant.camelCompat
         val result = mutableListOf<ExternalBuildInfo>()
         val flutterTask = findTaskByNameWithRetry(project, "compileFlutterBuild$variantCapital") as? Task
@@ -773,19 +776,20 @@ class GradleProjectInfoReader(
             val flutterInputs = readFlutterInputs(project, moduleInfo, flutterTask, flutterSourceDir)
             result.add(ExternalBuildInfo(
                 type = ExternalBuildType.Flutter,
-                sourceDirs = listOf(flutterSourceDir.absoluteFile.normalize()) + flutterInputs.packageRoots,
+                inputDirs = compactInputDirs(
+                    listOf(flutterSourceDir.absoluteFile.normalize()) + flutterInputs.inputDirs,
+                ),
                 taskPath = nativeOutput.task?.path,
                 assetsOutputDir = assetsOutputDir?.absoluteFile?.normalize(),
                 nativeOutput = nativeOutput.output?.absoluteFile?.normalize(),
                 unsupportedReason = reason,
-                inputFiles = flutterInputs.inputFiles,
                 configFiles = flutterInputs.configFiles,
                 excludedDirs = flutterInputs.excludedDirs,
             ))
         }
 
         val nativeTask = findTaskByNameWithRetry(project, "merge${variantCapital}NativeLibs") as? Task
-        val cppConfig = readCppBuildConfig(project, moduleInfo)
+        val cppConfig = readCppBuildConfig(project)
         if (cppConfig.sourceDirs.isNotEmpty()) {
             val nativeOutput = readConfiguredSourceRoots(readProperty(nativeTask, "outputDir")).firstOrNull()
                 ?: readConfiguredSourceRoots(readProperty(nativeTask, "outputDirectory")).firstOrNull()
@@ -797,12 +801,14 @@ class GradleProjectInfoReader(
             val nativeInputs = readNativeInputs(cppConfig, moduleInfo)
             result.add(ExternalBuildInfo(
                 type = ExternalBuildType.Cpp,
-                sourceDirs = (cppConfig.sourceDirs + nativeInputs.includeDirs).distinct(),
+                inputDirs = compactInputDirs(
+                    cppConfig.sourceDirs + nativeInputs.includeDirs +
+                            nativeInputs.sourceFiles.mapNotNull { it.parentFile },
+                ),
                 taskPath = nativeTask?.path,
                 assetsOutputDir = null,
                 nativeOutput = nativeOutput?.absoluteFile?.normalize(),
                 unsupportedReason = reason,
-                inputFiles = nativeInputs.sourceFiles,
                 configFiles = cppConfig.configFiles,
                 excludedDirs = nativeInputs.excludedDirs,
             ))
@@ -811,9 +817,8 @@ class GradleProjectInfoReader(
     }
 
     /**
-     * Reads Flutter task inputs and stable asset declarations from the current pubspec. Files outside
-     * the project are accepted only for local pub packages, while SDK, cache and generated outputs are
-     * excluded; without task inputs the broad source root is kept for Dart sources.
+     * Reads local package roots from Flutter task inputs. The Flutter root itself is always watched
+     * recursively, so new assets and source directories do not depend on a refreshed exact file list.
      */
     private fun readFlutterInputs(
         project: Project,
@@ -822,26 +827,22 @@ class GradleProjectInfoReader(
         flutterSourceDir: File,
     ): FlutterBuildInputs {
         val excludedDirs = readFlutterExcludedDirs(project, moduleInfo, flutterSourceDir)
-        val inputFiles = linkedSetOf<File>()
         val configFiles = linkedSetOf<File>()
-        val packageRoots = linkedSetOf<File>()
+        val inputDirs = linkedSetOf<File>()
         val taskInputs = runCatching {
             readInputFiles(readProperty(flutterTask, "sourceFiles"))
         }.getOrDefault(emptyList())
-        taskInputs.map { it.absoluteFile.normalize() }.filter { it.isFile }.forEach { file ->
+        taskInputs.map { it.absoluteFile.normalize() }.forEach { file ->
             if (excludedDirs.any { file.isUnderPath(it) }) return@forEach
+            val inputDir = if (file.isDirectory) file else file.parentFile
+            inputDir?.let(inputDirs::add)
             if (file.name == "pubspec.yaml" || file.name == "pubspec.lock") {
                 configFiles.add(file)
                 return@forEach
             }
-            if (file.isUnderPath(moduleInfo.projectRootDir)) {
-                inputFiles.add(file)
-                return@forEach
-            }
             if (file.extension == "dart") {
                 val packageRoot = findPubPackageRoot(file, excludedDirs) ?: return@forEach
-                packageRoots.add(packageRoot)
-                inputFiles.add(file)
+                inputDirs.add(packageRoot)
             }
         }
         // Pubspec is this build's configuration even before the task model lists it.
@@ -850,89 +851,12 @@ class GradleProjectInfoReader(
             if (!file.isFile) return@forEach
             val normalizedFile = file.absoluteFile.normalize()
             configFiles.add(normalizedFile)
-            if (name == "pubspec.yaml") {
-                readFlutterAssetInputs(normalizedFile, flutterSourceDir).forEach { input ->
-                    if (excludedDirs.none { input.isUnderPath(it) }) inputFiles.add(input)
-                }
-            }
         }
         if (taskInputs.isEmpty()) {
             println("Jugg: Flutter task inputs are unavailable for $flutterSourceDir, " +
                     "only the source root is watched")
         }
-        return FlutterBuildInputs(inputFiles.toList(), configFiles.toList(), packageRoots.toList(), excludedDirs)
-    }
-
-    /** Reads scalar and map-style entries from the current `flutter.assets` list. */
-    private fun readFlutterAssetInputs(pubspec: File, flutterSourceDir: File): List<File> {
-        val paths = runCatching { readFlutterAssetPaths(pubspec) }.getOrElse { error ->
-            println("Jugg: Failed to read Flutter asset declarations from $pubspec: ${error.message}")
-            emptyList()
-        }
-        val normalizedRoot = flutterSourceDir.absoluteFile.normalize()
-        return paths.mapNotNull { path ->
-            if (path.isBlank() || File(path).isAbsolute) return@mapNotNull null
-            File(normalizedRoot, path).absoluteFile.normalize().takeIf { it.isUnderPath(normalizedRoot) }
-        }.distinct()
-    }
-
-    /** Parses only the indentation-bounded `flutter.assets` list without loading arbitrary YAML. */
-    private fun readFlutterAssetPaths(pubspec: File): List<String> {
-        var flutterIndent: Int? = null
-        var assetsIndent: Int? = null
-        var assetEntryIndent: Int? = null
-        val result = mutableListOf<String>()
-        pubspec.forEachLine { rawLine ->
-            val line = stripYamlComment(rawLine).trimEnd()
-            if (line.isBlank()) return@forEachLine
-            val indent = line.indexOfFirst { !it.isWhitespace() }.coerceAtLeast(0)
-            val content = line.trimStart()
-            if (flutterIndent == null) {
-                if (indent == 0 && content == "flutter:") flutterIndent = indent
-                return@forEachLine
-            }
-            if (assetsIndent == null) {
-                if (indent <= flutterIndent!!) flutterIndent = null
-                if (flutterIndent != null && content == "assets:") assetsIndent = indent
-                return@forEachLine
-            }
-            if (indent <= assetsIndent!!) {
-                assetsIndent = null
-                return@forEachLine
-            }
-            if (!content.startsWith("- ")) return@forEachLine
-            if (assetEntryIndent == null) assetEntryIndent = indent
-            if (indent != assetEntryIndent) return@forEachLine
-            parseFlutterAssetEntry(content.removePrefix("- "))?.let(result::add)
-        }
-        return result
-    }
-
-    private fun parseFlutterAssetEntry(value: String): String? {
-        val scalar = if (value.startsWith("path:")) value.removePrefix("path:").trim() else value.trim()
-        if (scalar.isEmpty()) return null
-        val quote = scalar.first()
-        if ((quote == '\'' || quote == '"') && scalar.lastOrNull() == quote) {
-            return scalar.substring(1, scalar.length - 1)
-        }
-        return scalar
-    }
-
-    private fun stripYamlComment(line: String): String {
-        var quote: Char? = null
-        var escaped = false
-        line.forEachIndexed { index, character ->
-            if (character == '#' && quote == null) return line.substring(0, index)
-            if (character == '\\' && quote == '"') {
-                escaped = !escaped
-                return@forEachIndexed
-            }
-            if ((character == '\'' || character == '"') && !escaped) {
-                quote = if (quote == character) null else if (quote == null) character else quote
-            }
-            escaped = false
-        }
-        return line
+        return FlutterBuildInputs(configFiles.toList(), inputDirs.toList(), excludedDirs)
     }
 
     /** Generated output and cache roots of one Flutter build; the Flutter SDK and pub cache included. */
@@ -1002,7 +926,7 @@ class GradleProjectInfoReader(
     }
 
     /** Native configuration inputs and structured native metadata inputs of one module. */
-    private fun readCppBuildConfig(project: Project, moduleInfo: ModuleInfo): CppBuildConfig {
+    private fun readCppBuildConfig(project: Project): CppBuildConfig {
         val empty = CppBuildConfig(emptyList(), emptyList(), emptyList())
         val androidExt = try {
             reflector(project.extensions.getByName("android"))
@@ -1096,11 +1020,24 @@ class GradleProjectInfoReader(
         }
     }
 
+    /** Removes duplicate descendants while keeping the broadest known task input roots. */
+    private fun compactInputDirs(directories: List<File>): List<File> {
+        val result = mutableListOf<File>()
+        directories.map { it.absoluteFile.normalize() }
+            .distinctBy { it.path }
+            .sortedBy { it.toPath().nameCount }
+            .forEach { directory ->
+                if (result.none { directory.isUnderPath(it) }) {
+                    result.add(directory)
+                }
+            }
+        return result
+    }
+
     /** Flutter inputs confirmed by the task model plus the roots and exclusions they imply. */
     private class FlutterBuildInputs(
-        val inputFiles: List<File>,
         val configFiles: List<File>,
-        val packageRoots: List<File>,
+        val inputDirs: List<File>,
         val excludedDirs: List<File>,
     )
 

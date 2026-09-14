@@ -424,16 +424,6 @@ class JuggCompilerHelper(
             return CompileTaskResult.incrementalFailed(true, "Compile command changed")
         }
 
-        val needsExternalBuildRefresh = hasExternalBuildSources &&
-                (hasLegacyFlutterBuildInfo(externalBuildSources) || hasConfigInputChanges(externalBuildSources))
-        if (needsExternalBuildRefresh) {
-            gradleProjectInfoLocalFetchManager.runUpdateIfNeeded(
-                isForce = true,
-                specificCompileCommand = lastCompileCommand,
-                buildTarget = options.buildTarget,
-            )
-            gradleProjectInfoLocalFetchManager.waitForCurrentUpdate()
-        }
         findExternalBuildFallbackReason(externalBuildSources)?.let { reason ->
             logger.info("$reason, forcing Gradle full compile.")
             return CompileTaskResult.incrementalFailed(true, reason)
@@ -519,27 +509,6 @@ class JuggCompilerHelper(
             }
         }
         return null
-    }
-
-    /** Snapshots written before the Flutter native output was recorded need one refresh. */
-    private fun hasLegacyFlutterBuildInfo(files: List<ChangedFile>): Boolean {
-        return files.mapNotNull(::resolveExternalBuildInfo).any { buildInfo ->
-            buildInfo.type == ExternalBuildType.Flutter && buildInfo.taskPath != null &&
-                    buildInfo.assetsOutputDir != null && buildInfo.nativeOutput == null &&
-                    buildInfo.unsupportedReason == null
-        }
-    }
-
-    /**
-     * Configuration inputs change the external build itself, so the run reuses the external task and
-     * reloads the metadata it rewrites instead of assuming the cached snapshot is still accurate.
-     */
-    private fun hasConfigInputChanges(files: List<ChangedFile>): Boolean {
-        return files.any { file ->
-            val buildInfo = resolveExternalBuildInfo(file) ?: return@any false
-            val path = file.file.toPath().toAbsolutePath().normalize()
-            buildInfo.configFiles.any { path == it.toPath().toAbsolutePath().normalize() }
-        }
     }
 
     private fun resolveExternalBuildInfo(file: ChangedFile): ExternalBuildInfo? {

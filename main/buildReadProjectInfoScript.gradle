@@ -257,6 +257,14 @@ gradle.allprojects {
 }
 
 gradle.rootProject {
+    tasks.maybeCreate(GradleProjectInfoReaderManager.COLLECT_EXTERNAL_BUILD_INFO_TASK_NAME).apply {
+        group = "jugg"
+        description = "Writes refreshed external build info for this build"
+        outputs.upToDateWhen { false }
+        doLast {
+            gradleProjectInfoReaderManager(rootProject, gradle.includedBuilds).collectExternalBuildInfo()
+        }
+    }
     if (gradle.parent != null) {
         tasks.maybeCreate(GradleProjectInfoReaderManager.READ_PROJECT_INFO_TASK_NAME).apply {
             group = "jugg"
@@ -268,6 +276,7 @@ gradle.rootProject {
 gradle.projectsEvaluated {
     val projectInfoReaderManager = gradleProjectInfoReaderManager(rootProject, gradle.includedBuilds)
     projectInfoReaderManager.injectAndroidTestTaskIfNeeded()
+    projectInfoReaderManager.configureExternalBuildInfoCollector()
     if (gradle.includedBuilds.isNotEmpty()) {
         projectInfoReaderManager.injectIncludedBuildProjectInfoTasks()
     }
@@ -275,6 +284,8 @@ gradle.projectsEvaluated {
 
 gradle.taskGraph.whenReady {
     println("Jugg: task graph ready for \${rootProject.projectDir}")
+    val isExternalBuildInfoCollection =
+        rootProject.properties[GradleProjectInfoReaderManager.PARAM_EXTERNAL_BUILD_REQUEST] != null
     val isDryRun = gradle.startParameter.isDryRun
     var hasReadProjectInfo = false
 
@@ -286,7 +297,9 @@ gradle.taskGraph.whenReady {
         gradleProjectInfoReaderManager(rootProject, gradle.includedBuilds).readAndSave()
     }
 
-    if (isDryRun) {
+    if (isExternalBuildInfoCollection) {
+        println("Jugg: skip full project info read during external build collection")
+    } else if (isDryRun) {
         readProjectInfoOnce()
     } else {
         val terminalTask = gradle.taskGraph.allTasks.lastOrNull()

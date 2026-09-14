@@ -46,8 +46,8 @@ data class ComposeResourceDirectory(
 /** External Gradle build discovered for sources that Jugg cannot compile directly. */
 data class ExternalBuildInfo(
     val type: ExternalBuildType,
-    /** Broad source roots: any matching source under them belongs to this external build. */
-    val sourceDirs: List<File>,
+    /** Recursive trigger roots: any non-excluded file below them belongs to this external build. */
+    val inputDirs: List<File>,
     /** Task producing the final native artifacts: a Flutter pack/copy task or a C++ merge task. */
     val taskPath: String?,
     /** Directory holding Flutter `flutter_assets`; null for external builds without assets output. */
@@ -55,8 +55,6 @@ data class ExternalBuildInfo(
     /** Final deployable native output holding `<abi>` native libraries: one archive or one directory. */
     val nativeOutput: File?,
     val unsupportedReason: String? = null,
-    /** Exact task inputs and declared input roots; empty when only broad source roots are known. */
-    val inputFiles: List<File> = emptyList(),
     /**
      * Configuration inputs of this external build. Changing one reruns the external task, which
      * rewrites this metadata; it does not by itself require a full Gradle build.
@@ -75,6 +73,36 @@ enum class ExternalBuildType {
     Flutter,
     Cpp,
 }
+
+/** One external build whose metadata must be refreshed after its Gradle task finishes. */
+data class ExternalBuildInfoRequestItem(
+    val moduleName: String,
+    val moduleRootDir: File,
+    val buildVariant: String,
+    val taskPath: String,
+    val type: ExternalBuildType,
+)
+
+/** Invocation-scoped request consumed by the Gradle init script collector. */
+data class ExternalBuildInfoRequest(
+    val invocationId: String,
+    val items: List<ExternalBuildInfoRequestItem>,
+)
+
+/** Targeted project-info patch produced after one external Gradle task. */
+data class ExternalBuildInfoUpdate(
+    val moduleName: String,
+    val moduleRootDir: File,
+    val buildVariant: String,
+    val previousTaskPath: String,
+    val externalBuildInfo: ExternalBuildInfo,
+)
+
+/** One build-root collector result. Multiple files may form one composite-build invocation. */
+data class ExternalBuildInfoUpdateResult(
+    val invocationId: String,
+    val updates: List<ExternalBuildInfoUpdate>,
+)
 
 /**
  * Gradle module snapshot used to resolve sources, manifests, classpaths, and dependencies.

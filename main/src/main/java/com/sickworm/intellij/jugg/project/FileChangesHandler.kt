@@ -46,17 +46,34 @@ class FileChangesHandler(
     private var doNotIgnoreModulePaths = emptyList<String>()
 
 
-    private var allModules = emptyList<ModuleInfo>()
-    private var compiledModules = emptyList<ModuleInfo>()
-    private var buildDirs = emptyList<File>()
-    private var scanRoots = listOf(projectDir.normalizedPath)
-    private var excludedExternalBuildDirs = emptyList<Path>()
+    @Volatile
+    private var scope = Scope(
+        allModules = emptyList(),
+        compiledModules = emptyList(),
+        buildDirs = emptyList(),
+        scanRoots = listOf(projectDir.normalizedPath),
+        excludedExternalBuildDirs = emptyList(),
+    )
+    @Volatile
+    private var listenedContext: ICompileContext? = null
 
     @Suppress("ConvertArgumentToSet")
     override fun init(compileContext: ICompileContext) {
+        if (listenedContext !== compileContext) {
+            listenedContext = compileContext
+            compileContext.listenUpdate {
+                if (listenedContext === compileContext) {
+                    updateScope(compileContext)
+                }
+            }
+        }
+        updateScope(compileContext)
+    }
+
+    private fun updateScope(compileContext: ICompileContext) {
         logger.debug("init FileChangesHandler")
-        allModules = compileContext.modules.values.toList()
-        buildDirs = allModules.flatMap { module ->
+        val allModules = compileContext.modules.values.toList()
+        val buildDirs = allModules.flatMap { module ->
             // buildPathInfo roots may point to fetched classpath storage after a remote build.
             val localBuildDir = module.buildPathInfo.copy(
                 projectRootDir = module.projectRootDir,
@@ -83,8 +100,8 @@ class FileChangesHandler(
             }
         }
 
-        compiledModules = allModules - ignoreModules
-        updateScanRoots()
+        val compiledModules = allModules - ignoreModules
+        scope = createScope(allModules, compiledModules, buildDirs)
         val sourceDirs = compiledModules.flatMap { it.sourceDirs }
         val resourceDirs = compiledModules.flatMap { it.resourceDirs }
         val assetDirs = compiledModules.flatMap { it.assetsDirs }
@@ -161,18 +178,20 @@ class FileChangesHandler(
         buildFileMatcher.init(projectDir, newRules)
         this.doNotIgnoreModulePaths = doNotIgnoreModulePaths
 
-        if (allModules.isNotEmpty()) {
+        if (scope.allModules.isNotEmpty()) {
             appendCompiledModules()
         }
     }
 
     private fun appendCompiledModules() {
+        val currentScope = scope
+        var compiledModules = currentScope.compiledModules
         doNotIgnoreModulePaths.forEach { doNotIgnoreModulePath ->
             val isNotInCompiledModules = compiledModules.all {
                 it.moduleStdPath != doNotIgnoreModulePath
             }
             if (isNotInCompiledModules) {
-                val relativeModule = allModules.find {
+                val relativeModule = currentScope.allModules.find {
                     it.moduleStdPath == doNotIgnoreModulePath
                 }
                 if (relativeModule == null) {
@@ -186,19 +205,24 @@ class FileChangesHandler(
                 }
             }
         }
-        updateScanRoots()
+        scope = createScope(currentScope.allModules, compiledModules, currentScope.buildDirs)
     }
 
-    private fun updateScanRoots() {
+    private fun createScope(
+        allModules: List<ModuleInfo>,
+        compiledModules: List<ModuleInfo>,
+        buildDirs: List<File>,
+    ): Scope {
         val externalSourceDirs = compiledModules.flatMap { module ->
-            module.externalBuildInfos.flatMap { it.sourceDirs }
+            module.externalBuildInfos.flatMap { it.inputDirs }
         }
-        scanRoots = (listOf(projectDir) + compiledModules.map { it.moduleRootDir } + externalSourceDirs)
+        val scanRoots = (listOf(projectDir) + compiledModules.map { it.moduleRootDir } + externalSourceDirs)
             .map { it.normalizedPath }
             .distinct()
-        excludedExternalBuildDirs = compiledModules.flatMap { module ->
+        val excludedExternalBuildDirs = compiledModules.flatMap { module ->
             module.externalBuildInfos.flatMap { it.excludedDirs }
         }.map { it.normalizedPath }.distinct()
+        return Scope(allModules, compiledModules, buildDirs, scanRoots, excludedExternalBuildDirs)
     }
 
     private fun shouldExpandDirectory(directory: File): Boolean {
@@ -206,7 +230,7 @@ class FileChangesHandler(
             return false
         }
         val directoryPath = directory.normalizedPath
-        return scanRoots.any { scanRoot ->
+        return scope.scanRoots.any { scanRoot ->
             directoryPath.startsWith(scanRoot) || scanRoot.startsWith(directoryPath)
         }
     }
@@ -254,7 +278,7 @@ class FileChangesHandler(
         }
         getModules().forEach { module ->
             val buildInfo = resolveExternalBuild(module, file) ?: return@forEach
-            val baseDir = buildInfo.sourceDirs.firstOrNull { sourceDir ->
+            val baseDir = buildInfo.inputDirs.firstOrNull { sourceDir ->
                 file.pathEquals(sourceDir) || file.isChild(sourceDir)
             } ?: file.absoluteFile.normalize().parentFile ?: return@forEach
             return ChangedFile(CompileFile.Type.ExternalBuildSource, file, baseDir, module)
@@ -383,7 +407,7 @@ class FileChangesHandler(
 
     private val File.isInBuildDir: Boolean get() {
         val file = absoluteFile.normalize()
-        return buildDirs.any { buildDir ->
+        return scope.buildDirs.any { buildDir ->
             file.pathEquals(buildDir) || file.isChild(buildDir)
         }
     }
@@ -395,7 +419,7 @@ class FileChangesHandler(
             return true
         }
         val path = normalizedPath
-        return excludedExternalBuildDirs.any { path.startsWith(it) }
+        return scope.excludedExternalBuildDirs.any { path.startsWith(it) }
     }
 
     private fun checkNativeLib(file: File): ChangedFile? {
@@ -433,14 +457,23 @@ class FileChangesHandler(
     }
 
     private fun getModules(): Collection<ModuleInfo> {
-        if (compiledModules.isEmpty()) {
+        val modules = scope.compiledModules
+        if (modules.isEmpty()) {
             logger.warn("getModules compiledModules not set to FileChangesManager, this should not happened")
             return emptyList()
         }
 
-        return compiledModules
+        return modules
     }
 
     private val File.normalizedPath: Path
         get() = toPath().toAbsolutePath().normalize()
+
+    private data class Scope(
+        val allModules: List<ModuleInfo>,
+        val compiledModules: List<ModuleInfo>,
+        val buildDirs: List<File>,
+        val scanRoots: List<Path>,
+        val excludedExternalBuildDirs: List<Path>,
+    )
 }

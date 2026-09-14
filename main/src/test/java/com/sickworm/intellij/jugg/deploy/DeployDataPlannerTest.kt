@@ -211,7 +211,7 @@ class DeployDataPlannerTest {
             externalBuildInfos = listOf(
                 ExternalBuildInfo(
                     type = ExternalBuildType.Flutter,
-                    sourceDirs = emptyList(),
+                    inputDirs = emptyList(),
                     taskPath = ":flutter:compileFlutterBuildDebug",
                     assetsOutputDir = File("/flutter/build/assets"),
                     nativeOutput = null,

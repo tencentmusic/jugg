@@ -6,6 +6,7 @@ import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 import java.nio.file.Files
@@ -150,14 +151,14 @@ class JuggProjectInfoSerializerAndroidTestTest {
         val externalBuildInfos = listOf(
             ExternalBuildInfo(
                 type = ExternalBuildType.Flutter,
-                sourceDirs = listOf(File("/project/flutter")),
+                inputDirs = listOf(File("/project/flutter")),
                 taskPath = ":app:compileFlutterBuildDebug",
                 assetsOutputDir = File("/project/app/build/flutter/intermediates"),
                 nativeOutput = File("/project/app/build/flutter/native.jar"),
             ),
             ExternalBuildInfo(
                 type = ExternalBuildType.Cpp,
-                sourceDirs = listOf(File("/project/native/src/main/cpp")),
+                inputDirs = listOf(File("/project/native/src/main/cpp")),
                 taskPath = ":native:mergeDebugNativeLibs",
                 assetsOutputDir = null,
                 nativeOutput = File("/project/native/build/intermediates/merged_native_libs/debug/out/lib"),
@@ -179,7 +180,7 @@ class JuggProjectInfoSerializerAndroidTestTest {
     }
 
     @Test
-    fun `deserialize old project info without external build inputs defaults to empty lists`() {
+    fun `deserialize old project info compacts exact inputs into recursive directories`() {
         val original = projectInfoWithoutAgpR8(
             modules = mapOf("app" to ModuleInfo.virtualModule.copy(
                 name = "app",
@@ -194,16 +195,24 @@ class JuggProjectInfoSerializerAndroidTestTest {
             .getAsJsonObject("moduleInfoExceptLibraries")
             .getAsJsonArray("externalBuildInfos")[0]
             .asJsonObject
-        listOf("inputFiles", "configFiles", "excludedDirs").forEach { info.remove(it) }
+        info.add("sourceDirs", info.remove("inputDirs"))
+        info.add("inputFiles", JsonParser.parseString("""[
+            "/project/flutter/lib/main.dart",
+            "/project/shared/lib/first.dart",
+            "/project/shared/lib/second.dart"
+        ]""").asJsonArray)
+        listOf("configFiles", "excludedDirs").forEach { info.remove(it) }
         val serialized = ProjectInfoSerializer.gson.fromJson(json, JuggProjectInfoSerialize::class.java)
 
         val restored = JuggProjectInfoSerialize.deserialize(serialized, isSkipVersionCheck = true)
 
         val restoredInfo = restored.modules["app"]?.externalBuildInfos?.single()
-        assertEquals(emptyList<File>(), restoredInfo?.inputFiles)
         assertEquals(emptyList<File>(), restoredInfo?.configFiles)
         assertEquals(emptyList<File>(), restoredInfo?.excludedDirs)
-        assertEquals(externalBuildInfo().sourceDirs, restoredInfo?.sourceDirs)
+        assertEquals(
+            externalBuildInfo().inputDirs + File("/project/shared/lib"),
+            restoredInfo?.inputDirs,
+        )
     }
 
     @Test
@@ -226,11 +235,10 @@ class JuggProjectInfoSerializerAndroidTestTest {
 
     private fun externalBuildInfo() = ExternalBuildInfo(
         type = ExternalBuildType.Flutter,
-        sourceDirs = listOf(File("/project/flutter"), File("/project/shared-package")),
+        inputDirs = listOf(File("/project/flutter"), File("/project/shared-package")),
         taskPath = ":flutter:copyJniLibsflutterBuildDebug",
         assetsOutputDir = File("/project/flutter/build/intermediates/flutter/debug"),
         nativeOutput = File("/project/flutter/build/generated/jniLibs/copyJniLibsflutterBuildDebug"),
-        inputFiles = listOf(File("/project/flutter/lib/main.dart"), File("/project/flutter/assets/logo.png")),
         configFiles = listOf(File("/project/flutter/pubspec.yaml")),
         excludedDirs = listOf(File("/project/flutter/.dart_tool")),
     )
@@ -283,6 +291,25 @@ class JuggProjectInfoSerializerAndroidTestTest {
             val restored = ProjectInfoSerializer(dataFile, logger).load(isSkipVersionCheck = true)
 
             assertEquals(r8Classpath, restored?.agpR8Classpath)
+        } finally {
+            dataFile.delete()
+        }
+    }
+
+    @Test
+    fun `targeted load preserves invalid project info file`() {
+        val dataFile = Files.createTempFile("jugg_project_info_invalid_", ".json").toFile()
+        try {
+            dataFile.writeText("invalid json")
+
+            val restored = ProjectInfoSerializer(
+                dataFile,
+                StdLogger("JuggProjectInfoSerializerAndroidTestTest"),
+            ).loadPreservingFile(isSkipVersionCheck = true)
+
+            assertNull(restored)
+            assertTrue(dataFile.exists())
+            assertEquals("invalid json", dataFile.readText())
         } finally {
             dataFile.delete()
         }

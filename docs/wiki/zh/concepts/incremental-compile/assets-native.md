@@ -50,9 +50,9 @@ C/C++ 变化
 
 这个过程不执行 aapt2，也不会生成 `resources.arsc`。Dart 或已确认的 Flutter asset 变化始终执行 Flutter 编译和 native 输出 task，不增加 Jugg 侧 Flutter 缓存；Flutter assets 从当前输出目录读取，native lib 只接受该任务自身声明的 native 输出中结构明确的 ABI 条目，不会递归扫描 Flutter 中间目录。C/C++ 到 `.so` 的转换仍由 Gradle、CMake 和 NDK 完成。Jugg 只选择当前变体所需的外部 task，并收集它们的新输出，因此 Android Java/Kotlin 和资源部分仍走原有增量编译。
 
-外部构建的触发范围以工具链自己的输入模型为准，而不是按目录或扩展名猜测。Flutter 会保留当前变体 compile task 已读取的精确输入，并读取当前 `pubspec.yaml` 的 `flutter.assets` 声明作为新增文件边界：单文件声明覆盖该文件及其 `2.0x` 等分辨率变体；目录声明覆盖目录中的直接文件及其分辨率变体；带 `path` 的 asset 配置按同样规则处理。目录声明不会递归接纳任意嵌套文件，未被当前 pubspec 覆盖的新图片、JSON 或其他文件不会启动 Flutter 编译。
+外部构建采用“目录触发、Gradle 判定”的策略：Jugg 监控 Flutter 根，以及当前 Flutter task 输入的父目录和本地 package 根；Native 监控 externalNativeBuild 配置根、源码父目录和 include root。若一个目录已经覆盖另一个目录，项目模型只保留较上层的目录。目录下任意非排除文件都可能触发对应 task，因此允许少量误触发；是否真的需要重新构建仍由 Gradle 的 up-to-date 机制决定。Jugg 不再依赖旧 depfile 的精确文件列表，也不解析 `pubspec.yaml` 的 asset 声明，所以 Flutter 根中新建的图片、JSON 或嵌套目录文件不会因为上次尚不存在而漏掉。
 
-修改 `pubspec.yaml` 本身会执行当前 Flutter task 并刷新项目模型。因此新增单文件 asset 时，可以在同一轮把文件加入 pubspec；已经声明目录时，后续直接加入该目录的文件无需先刷新项目模型。已参与构建的工程外 local path package Dart 仍按 Flutter task 输入识别。Native 使用 CMake File API 与 AGP 生成的 native metadata 得到目标源码，因此工程外共享源码、汇编和项目内 include root 也会触发。Flutter SDK、全局 pub cache、`.dart_tool`、`.cxx`、`.externalNativeBuild` 和构建输出目录始终不监听。取不到这些工具链输入时，Jugg 退回只按源码根和源码扩展名识别的旧行为，不会把相邻目录或缓存纳入监听。
+Flutter SDK、全局 pub cache、`.dart_tool`、`.cxx`、`.externalNativeBuild` 和构建输出目录始终不监听。每次外部 task 执行时，Jugg 会在同一 Gradle invocation 结束前只收集本轮相关 module 和 variant 的最新外部构建信息；它不会为了配置文件变化另起一个完整 project-info 刷新。新信息合入项目模型后，文件监控范围立即更新，因此新加入的本地 package、共享 C/C++ 目录或 include root 从下一次文件变化开始即可触发。若定向信息未完整生成或无法合入，当前增量编译会失败并保留完整 Gradle 回退边界，而不会继续使用已知过期的监控范围。
 
 产物 CRC 只决定新输出是否需要再次部署。它不会跳过 Flutter 或 C/C++ 编译，避免源码已经变化但中间产物尚未刷新的情况被误判为无变化。
 

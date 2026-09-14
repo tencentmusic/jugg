@@ -295,6 +295,37 @@ class CompileContextManager(
         }.toMap()
     }
 
+    /** Persists task-local external build patches before rebuilding the merged module snapshot. */
+    @Synchronized
+    private fun updateExternalBuildInfos(updates: List<ExternalBuildInfoUpdate>): Map<String, ModuleInfo>? {
+        ensureInitProjectInfo()
+        val remaining = updates.toMutableList()
+        allGradleProjectInfoSerializerList.forEach { serializer ->
+            val freshSerializer = ProjectInfoSerializer(serializer.dataFile, logger)
+            val projectInfo = freshSerializer.loadPreservingFile() ?: return@forEach
+            val matching = remaining.filter { update ->
+                projectInfo.modules.values.any { module ->
+                    module.moduleRootDir.absoluteFile.normalize() == update.moduleRootDir.absoluteFile.normalize() &&
+                            module.buildVariant == update.buildVariant
+                }
+            }
+            if (matching.isEmpty()) {
+                return@forEach
+            }
+            val modules = mergeExternalBuildInfoUpdates(projectInfo.modules, matching) ?: return null
+            freshSerializer.save(projectInfo.copy(modules = modules))
+            serializer.clearMemoryCache()
+            remaining.removeAll(matching)
+        }
+        if (remaining.isNotEmpty()) {
+            logger.warn("External build info update target was not found: ${remaining.map { it.moduleRootDir }}")
+            return null
+        }
+        juggProjectInfoMerger.afterLocalFetch(allGradleProjectInfoSerializerList, currentBuildTarget())
+        val projectInfo = getProjectInfo()
+        return buildEffectiveModules(projectInfo.modules)
+    }
+
     private fun createCompileContext(): BaseCompileContext {
         TimeLogger.start("createCompileContext")
         val androidHome = getAndroidSdkRootDir(logger)
@@ -315,6 +346,11 @@ class CompileContextManager(
             deployFileManager = deployFileManager,
             deployHistoryManager = deployHisManager,
             customCompilerManager = customCompilerManager,
+            externalBuildInfoUpdater = object : IExternalBuildInfoUpdater {
+                override fun update(updates: List<ExternalBuildInfoUpdate>): Map<String, ModuleInfo>? {
+                    return updateExternalBuildInfos(updates)
+                }
+            },
             incrementalDataDir = File(pathManager.compileRootDir, "incremental"),
             cmdCompileEnv = LocalGradleCompileClient.buildCompileEnv(project, logger),
             scene = ICompileContext.Scene.IDE,

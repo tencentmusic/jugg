@@ -163,6 +163,8 @@ class GradleProjectInfoReaderExternalBuildTest {
             val project = ProjectBuilder.builder().withProjectDir(temporaryFolder.root).build()
             val appDir = temporaryFolder.newFolder("app").canonicalFile
             val flutterRoot = temporaryFolder.newFolder("flutter").canonicalFile
+            val sameProjectPackage = temporaryFolder.newFolder("same-project-package").canonicalFile
+            val sharedAssets = temporaryFolder.newFolder("shared-assets").canonicalFile
             val sdkRoot = temporaryFolder.newFolder("flutter-sdk").canonicalFile
             val generatedDart = writeFile(File(File(appDir, "build/generated"), "Generated.dart"))
             val sdkDart = writeFile(File(File(sdkRoot, "bin/cache/pkg/sky_engine/lib/ui"), "ui.dart"))
@@ -171,14 +173,18 @@ class GradleProjectInfoReaderExternalBuildTest {
             val assetFile = writeFile(File(File(flutterRoot, "assets"), "logo.png"))
             val pubspec = writeFile(File(flutterRoot, "pubspec.yaml"))
             val localPackageDart = writeFile(File(File(localPackage, "lib"), "shared.dart"))
+            val sameProjectPackageDart = writeFile(File(File(sameProjectPackage, "lib"), "shared.dart"))
+            val sharedAsset = writeFile(File(sharedAssets, "logo.png"))
             writeFile(File(localPackage, "pubspec.yaml"))
+            writeFile(File(sameProjectPackage, "pubspec.yaml"))
             writeFile(File(sdkRoot, "pubspec.yaml"))
             writeFile(File(temporaryFolder.root, "local.properties"), "flutter.sdk=${sdkRoot.path}\n")
             val compileTask = project.tasks.create("compileFlutterBuildDebug", TestFlutterCompileTask::class.java).apply {
                 sourceDir = flutterRoot
                 outputDirectory = temporaryFolder.newFolder("flutter-output")
                 sourceFiles = project.files(
-                    appDart, assetFile, pubspec, localPackageDart, generatedDart, sdkDart, cachedDart,
+                    appDart, assetFile, pubspec, localPackageDart, sameProjectPackageDart, sharedAsset,
+                    generatedDart, sdkDart, cachedDart,
                 )
             }
             project.tasks.create("packJniLibsflutterBuildDebug", TestFlutterPackTask::class.java).apply {
@@ -197,14 +203,18 @@ class GradleProjectInfoReaderExternalBuildTest {
             val info = readExternalBuildInfos(project, moduleInfo).single()
 
             assertEquals(
-                setOf(appDart, assetFile, localPackageDart).canonical().toSet(),
-                info.inputFiles.canonical().toSet(),
+                setOf(flutterRoot, localPackage, sameProjectPackage, sharedAssets).canonical().toSet(),
+                info.inputDirs.canonical().toSet(),
             )
             assertEquals(setOf(pubspec), info.configFiles.canonical().toSet())
 
             assertTrue(
-                localPackage in info.sourceDirs.canonical(),
-                "local path package root should be watched: ${info.sourceDirs}",
+                localPackage in info.inputDirs.canonical(),
+                "local path package root should be watched: ${info.inputDirs}",
+            )
+            assertTrue(
+                sameProjectPackage in info.inputDirs.canonical(),
+                "same-project package root should be watched: ${info.inputDirs}",
             )
             assertTrue(sdkRoot in info.excludedDirs.canonical(), "SDK must be excluded: ${info.excludedDirs}")
             assertTrue(File(flutterRoot, ".dart_tool").canonicalFile in info.excludedDirs.canonical())
@@ -215,14 +225,10 @@ class GradleProjectInfoReaderExternalBuildTest {
     }
 
     @Test
-    fun `reads pubspec asset file and directory declarations as stable Flutter inputs`() {
+    fun `uses the Flutter root instead of parsing pubspec asset declarations`() {
         val project = ProjectBuilder.builder().withProjectDir(temporaryFolder.root).build()
         val flutterRoot = temporaryFolder.newFolder("flutter-pubspec-assets").canonicalFile
-        val declaredDirectory = File(flutterRoot, "assets/images").apply { mkdirs() }.canonicalFile
-        val mappedDirectory = File(flutterRoot, "assets/flavored").apply { mkdirs() }.canonicalFile
-        val existingAsset = writeFile(File(declaredDirectory, "existing.png"))
-        val declaredFile = File(flutterRoot, "assets/splash.png").canonicalFile
-        val quotedFile = File(flutterRoot, "assets/quoted image.webp").canonicalFile
+        val existingAsset = writeFile(File(flutterRoot, "assets/images/existing.png"))
         writeFile(
             File(flutterRoot, "pubspec.yaml"),
             """
@@ -263,10 +269,8 @@ class GradleProjectInfoReaderExternalBuildTest {
 
         val info = readExternalBuildInfos(project, moduleInfo).single()
 
-        assertEquals(
-            setOf(declaredDirectory, existingAsset, declaredFile, quotedFile, mappedDirectory),
-            info.inputFiles.canonical().toSet(),
-        )
+        assertEquals(listOf(flutterRoot), info.inputDirs.canonical())
+        assertTrue(existingAsset.isFile)
     }
 
     @Test
@@ -287,8 +291,7 @@ class GradleProjectInfoReaderExternalBuildTest {
 
         val info = readExternalBuildInfos(project).single()
 
-        assertEquals(emptyList(), info.inputFiles)
-        assertEquals(listOf(flutterRoot.canonicalFile), info.sourceDirs.canonical())
+        assertEquals(listOf(flutterRoot.canonicalFile), info.inputDirs.canonical())
         assertEquals(listOf(File(flutterRoot, "pubspec.yaml").canonicalFile), info.configFiles.canonical())
     }
 
@@ -326,9 +329,8 @@ class GradleProjectInfoReaderExternalBuildTest {
                 .canonical().toSet(),
             info.configFiles.canonical().toSet(),
         )
-        assertTrue(File("/debug/shared.cpp") in info.inputFiles, "debug target sources: ${info.inputFiles}")
-        assertTrue(File("/debug/include") in info.sourceDirs, "include roots: ${info.sourceDirs}")
-        assertTrue(File("/release/stale.cpp") !in info.inputFiles, "stale variant reply must be ignored")
+        assertTrue(File("/debug") in info.inputDirs, "debug target roots: ${info.inputDirs}")
+        assertTrue(File("/release") !in info.inputDirs, "stale variant reply must be ignored")
         assertTrue(File(temporaryFolder.root, ".cxx").canonicalFile in info.excludedDirs.canonical())
     }
 

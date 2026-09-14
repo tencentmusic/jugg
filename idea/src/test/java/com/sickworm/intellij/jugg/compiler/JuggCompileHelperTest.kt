@@ -348,7 +348,7 @@ class JuggCompileHelperTest {
         val module = ModuleInfo.virtualModule.copy(externalBuildInfos = listOf(
             ExternalBuildInfo(
                 type = ExternalBuildType.Flutter,
-                sourceDirs = listOf(flutterRoot),
+                inputDirs = listOf(flutterRoot),
                 taskPath = null,
                 assetsOutputDir = null,
                 nativeOutput = null,
@@ -379,7 +379,7 @@ class JuggCompileHelperTest {
             externalBuildInfos = listOf(
                 ExternalBuildInfo(
                     type = ExternalBuildType.Flutter,
-                    sourceDirs = listOf(File(flutterRoot, "lib")),
+                    inputDirs = listOf(File(flutterRoot, "lib")),
                     taskPath = ":flutter:copyJniLibsflutterBuildDebug",
                     assetsOutputDir = File(flutterRoot, "build/flutter"),
                     nativeOutput = File(flutterRoot, "build/jniLibs"),
@@ -416,7 +416,7 @@ class JuggCompileHelperTest {
             externalBuildInfos = listOf(
                 ExternalBuildInfo(
                     type = ExternalBuildType.Flutter,
-                    sourceDirs = listOf(flutterRoot),
+                    inputDirs = listOf(flutterRoot),
                     taskPath = ":flutter:copyJniLibsflutterBuildDebug",
                     assetsOutputDir = File(flutterRoot, "build/flutter"),
                     nativeOutput = File(flutterRoot, "build/jniLibs"),
@@ -441,7 +441,7 @@ class JuggCompileHelperTest {
     }
 
     @Test
-    fun preprocessIncrementalCompile_externalConfigInput_refreshesMetadataAndKeepsIncrementalCompile() {
+    fun preprocessIncrementalCompile_externalConfigInput_doesNotFetchFullProjectInfo() {
         val fixture = createFixture()
         val nativeRoot = temporaryFolder.newFolder("native-config")
         val cmakeLists = File(nativeRoot, "CMakeLists.txt").apply { writeText("cmake_minimum_required(VERSION 3.22)") }
@@ -450,7 +450,7 @@ class JuggCompileHelperTest {
             externalBuildInfos = listOf(
                 ExternalBuildInfo(
                     type = ExternalBuildType.Cpp,
-                    sourceDirs = listOf(nativeRoot),
+                    inputDirs = listOf(nativeRoot),
                     taskPath = ":app:mergeDebugNativeLibs",
                     assetsOutputDir = null,
                     nativeOutput = File(nativeRoot, "build/merged"),
@@ -472,11 +472,11 @@ class JuggCompileHelperTest {
         val result = invokePreprocessIncrementalCompile(fixture.helper, fixture.options, fixture.uiHandler)
 
         assertEquals(null, result)
-        verify(fixture.gradleProjectInfoLocalFetchManager).waitForCurrentUpdate()
+        verify(fixture.gradleProjectInfoLocalFetchManager, never()).waitForCurrentUpdate()
     }
 
     @Test
-    fun preprocessIncrementalCompile_legacyFlutterMetadata_refreshesAndUsesLatestModule() {
+    fun preprocessIncrementalCompile_legacyFlutterMetadata_fallsBackWithoutFetchingProjectInfo() {
         val fixture = createFixture()
         val flutterRoot = temporaryFolder.newFolder("legacy-flutter")
         val dartFile = File(flutterRoot, "lib/main.dart").apply {
@@ -487,26 +487,15 @@ class JuggCompileHelperTest {
             name = "app",
             externalBuildInfos = listOf(ExternalBuildInfo(
                 type = ExternalBuildType.Flutter,
-                sourceDirs = listOf(flutterRoot),
+                inputDirs = listOf(flutterRoot),
                 taskPath = ":app:compileFlutterBuildDebug",
                 assetsOutputDir = File(flutterRoot, "build/flutter"),
                 nativeOutput = null,
             )),
         )
-        val refreshedModule = legacyModule.copy(externalBuildInfos = listOf(
-            legacyModule.externalBuildInfos.single().copy(
-                taskPath = null,
-                unsupportedReason = "Flutter native task was not found",
-            ),
-        ))
-        var currentModules = mapOf(legacyModule.name to legacyModule)
         val context = mock<ICompileContext>()
-        whenever(context.modules).thenAnswer { currentModules }
+        whenever(context.modules).thenReturn(mapOf(legacyModule.name to legacyModule))
         whenever(fixture.compileContextManager.compileContext).thenReturn(context)
-        doAnswer {
-            currentModules = mapOf(refreshedModule.name to refreshedModule)
-            null
-        }.whenever(fixture.gradleProjectInfoLocalFetchManager).waitForCurrentUpdate()
         whenever(fixture.options.compileCommand).thenReturn("./gradlew :app:assembleDebug")
         whenever(fixture.deployHistoryManager.getFullBuildInfo()).thenReturn(
             FullBuildInfo("./gradlew :app:assembleDebug", BuildTarget.APP, 1L),
@@ -518,8 +507,8 @@ class JuggCompileHelperTest {
         val result = invokePreprocessIncrementalCompile(fixture.helper, fixture.options, fixture.uiHandler)
 
         assertTrue(result!!.isCanFallback)
-        assertEquals("Flutter native task was not found", result.failedReason)
-        verify(fixture.gradleProjectInfoLocalFetchManager).waitForCurrentUpdate()
+        assertEquals("External build is not supported", result.failedReason)
+        verify(fixture.gradleProjectInfoLocalFetchManager, never()).waitForCurrentUpdate()
     }
 
     @Test
@@ -534,7 +523,7 @@ class JuggCompileHelperTest {
             name = "app",
             externalBuildInfos = listOf(ExternalBuildInfo(
                 type = ExternalBuildType.Flutter,
-                sourceDirs = listOf(flutterRoot),
+                inputDirs = listOf(flutterRoot),
                 taskPath = ":flutter:copyJniLibsflutterBuildDebug",
                 assetsOutputDir = File(flutterRoot, "build/flutter"),
                 nativeOutput = File(flutterRoot, "build/jniLibs"),

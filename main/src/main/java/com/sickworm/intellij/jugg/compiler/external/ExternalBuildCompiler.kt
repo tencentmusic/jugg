@@ -11,6 +11,7 @@ import com.sickworm.intellij.jugg.compiler.Result
 import com.sickworm.intellij.jugg.compiler.toCancelResult
 import com.sickworm.intellij.jugg.gradle.compile.crc32
 import com.sickworm.intellij.jugg.project.data.ExternalBuildInfo
+import com.sickworm.intellij.jugg.project.data.ExternalBuildInfoRequestItem
 import com.sickworm.intellij.jugg.project.data.ExternalBuildType
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import java.io.File
@@ -40,7 +41,7 @@ class ExternalBuildCompiler(
             return task.failed("External build source no longer exists: ${missing.file.name}")
         }
         val builds = resolved.map { (file, buildInfo) -> moduleOf(file) to buildInfo!! }.distinctBy {
-            it.second.taskPath ?: "${it.second.type}:${it.second.sourceDirs}"
+            it.second.taskPath ?: "${it.second.type}:${it.second.inputDirs}"
         }
         builds.firstOrNull { !it.second.isSupported }?.second?.let { unsupported ->
             return task.failed(unsupported.unsupportedReason ?: "External build is not supported")
@@ -48,20 +49,56 @@ class ExternalBuildCompiler(
         val gradleCommand = getFullBuildGradleCommand() ?: return task.failed("Gradle command not found")
         val buildNames = builds.map { it.second.type.name }.distinct().joinToString("/")
         logger.info("Compiling $buildNames sources with Gradle...")
-        if (!runner.run(
-                gradleCommand,
-                builds.mapNotNull { it.second.taskPath },
-                context.cmdCompileEnv,
-                context.projectDir,
-                task,
-            )) {
+        val requests = builds.map { (module, buildInfo) ->
+            ExternalBuildInfoRequestItem(
+                moduleName = module.name,
+                moduleRootDir = module.moduleRootDir,
+                buildVariant = module.buildVariant,
+                taskPath = buildInfo.taskPath!!,
+                type = buildInfo.type,
+            )
+        }
+        val initScript = try {
+            context.externalBuildInfoInitScript
+        } catch (_: AbstractMethodError) {
+            null
+        }
+        val runResult = runner.run(
+            gradleCommand,
+            requests,
+            context.cmdCompileEnv,
+            context.projectDir,
+            File(context.tempCompileDir, "external_build_info"),
+            initScript,
+            task,
+        )
+        if (!runResult.isSuccess) {
             if (task.isShouldCancel) {
                 return task.toCancelResult()
             }
             return task.failed("External Gradle build failed")
         }
+        if (runResult.updates.isNotEmpty()) {
+            val updated = try {
+                context.updateExternalBuildInfos(runResult.updates)
+            } catch (_: AbstractMethodError) {
+                false
+            }
+            if (!updated) {
+                return task.failed("External build metadata update failed")
+            }
+        }
 
-        val collected = builds.map { (module, buildInfo) -> collectArtifacts(task, module, buildInfo) }
+        val updatedBuilds = builds.map { (module, buildInfo) ->
+            val updatedInfo = runResult.updates.singleOrNull { update ->
+                update.moduleRootDir.absoluteFile.normalize() == module.moduleRootDir.absoluteFile.normalize() &&
+                        update.buildVariant == module.buildVariant &&
+                        update.previousTaskPath == buildInfo.taskPath &&
+                        update.externalBuildInfo.type == buildInfo.type
+            }?.externalBuildInfo ?: buildInfo
+            (context.modules[module.name] ?: module) to updatedInfo
+        }
+        val collected = updatedBuilds.map { (module, buildInfo) -> collectArtifacts(task, module, buildInfo) }
         collected.firstNotNullOfOrNull { it.error }?.let { error ->
             return task.failed(error)
         }

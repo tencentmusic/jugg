@@ -1,6 +1,6 @@
 # Flutter/C++ 外部构建兼容性修订方案
 
-创建日期：2026-09-06。状态：原方案已落地；`3dd9ac3e` 后的剩余兼容性方案见第 12 节。
+创建日期：2026-09-06。状态：原方案已落地；当前源码检测与 task-local metadata 更新方案见第 14 节。
 
 > 2026-09-12 复核说明：第 1～11 节保留 `94ce2ece` 落地时的决策与验证记录。Flutter `copyJniLibsflutterBuild<Variant>` 已由 `3dd9ac3e` 支持；后续范围、优先级和兼容性表述以第 12 节为准。第 12 节同时撤回“Flutter native 更新未保证进程重启”的原判断：变化的 `.so` 会进入 APK 更新和重新安装链路，进程必然重启。
 
@@ -494,3 +494,38 @@ Gradle 5/6 兼容测试只在匹配 JDK 可用时运行；若修改的生成脚�
 - 生成脚本必须继续通过 `ReadProjectInfoScriptContentTest` 和低版本 Gradle compat；真实 demo 不修改 pubspec，因此只用现有日志和快照验证未声明新图片仍是负例，不伪造已完成设备端 L3。
 
 实际结果：两个新增 owner 用例在生产修改前分别失败，修复后通过；`ExternalBuildFlowTest`、`ReadProjectInfoScriptContentTest`、`ReadProjectInfoGradle6CompatTest`、`:main:compileKotlin`、`:idea:compileKotlin` 均通过。使用本次生成的 init script 在 demo 执行 Gradle 9.3.1 `help` 成功，刷新后的当前 Flutter 输入仍只有 pubspec 已声明的 `icon.png`、marker 与 `main.dart`，未把 `icon2.png`～`icon5.png` 纳入输入。Wiki 中英文镜像检查和 production build 通过。由于没有修改 demo pubspec 建立声明目录，也没有替换 IDE 中正在运行的插件，本次未伪造“新增已声明目录 asset 已在设备生效”的真实 L3；该正向行为由 reader + FileChangesHandler owner 测试和既有 external Flow 共同保护。
+
+## 14. 目录触发与 task-local metadata 更新（2026-09-14）
+
+本节取代第 12～13 节关于 `sourceDirs`、`inputFiles`、pubspec asset 声明解析和“配置变化后异步刷新完整 project info”的设计；外部 task 选择、产物读取、删除边界和部署方式继续沿用既有结论。
+
+### 14.1 目标与取舍
+
+源码检测只承担 Gradle task 触发职责：允许因为目录范围较宽而误触发，但不允许因为旧 depfile、首次新增文件或监控范围更新滞后而漏检。Gradle task 自身的 up-to-date 机制仍是“是否真正执行构建工作”的权威。
+
+`ExternalBuildInfo` 移除 `sourceDirs` 与 `inputFiles`，改为递归 `inputDirs`：Flutter 使用 Flutter 根、当前 task input 的父目录和可识别的本地 pub package 根；Native 使用 externalNativeBuild 配置根、metadata source 的父目录和 include root。目录规范化后按祖先关系压缩，已有父目录时不再保留子目录。`configFiles` 继续精确保存配置语义，`excludedDirs` 继续排除 Flutter SDK、pub cache、`.dart_tool`、`.cxx`、`.externalNativeBuild` 和 build 输出。旧 JSON 在读取边界把 `sourceDirs` 与 `inputFiles.parent` 恢复为 `inputDirs`，不要求删库或完整迁移。
+
+Flutter 不再解析 `pubspec.yaml` 的 asset 声明。Flutter 根递归覆盖首次新增 asset、JSON 和嵌套文件；task inputs 的父目录与 package 根覆盖同一 Gradle 根工程内及工程外的本地 package。Native 同样不再依赖有限扩展名决定归属，监控目录中的非排除文件统一触发 native task。
+
+### 14.2 task-local collector
+
+`ExternalBuildTaskRunner` 派生 task command 时同时追加 Jugg init script、`juggCollectExternalBuildInfo` 和 invocation-scoped `-P` 参数。request 只包含本轮 module name/root、variant、旧 task path 与 external type；collector 始终执行，即使 external task 本身为 `UP-TO-DATE`，并在 task 后只重读请求记录。完整 project-info terminal read 与 included-build full reader 注入在 collector 模式下跳过。
+
+每个 build root 把 `ExternalBuildInfoUpdateResult` 原子写入本次临时输出目录。runtime 校验 invocation id、请求集合与结果集合完全一致；结果缺失、重复或不完整均使 external 编译失败。产物收集直接使用 collector 返回的新 output metadata，不能继续读取 task 执行前的旧路径。
+
+### 14.3 定向合并与监控刷新
+
+`ICompileContext.updateExternalBuildInfos` 是 task-local metadata 回传边界。IDE 实现重新从磁盘读取最新 Gradle 快照，按 module name/root、variant、external type 与旧 task path 定位记录，只替换目标 `ExternalBuildInfo`，原子保存完整快照，再复用既有 `JuggProjectInfoMerger` 生成有效 modules。找不到唯一目标或 context 回写失败时本轮失败，禁止继续使用旧监控范围。
+
+`BaseCompileContext.update()` 派发 modules 更新；`FileChangesHandler` 只注册一次 listener，并用不可变 scope 原子替换 modules、build dirs、scan roots 与 excluded dirs。无需重新初始化 `JuggCompiler`，新 package/source/include 目录在 external task 完成后立即进入下一次文件变化的检测范围。
+
+### 14.4 验证 owner
+
+- `GradleProjectInfoReaderExternalBuildTest`：保护 Flutter 根、同工程/工程外 package、任意 task input 父目录、Native source/include/config 根与祖先压缩。
+- `ExternalBuildTaskRunnerTest`、`ReadProjectInfoScriptContentTest`：保护命令参数、collector task、始终执行和 collector 模式跳过完整 project-info read。
+- `ExternalBuildInfoUpdaterTest`：保护定向替换只修改目标 external record，并在旧 task 定位失效时拒绝覆盖。
+- `FileChangesHandlerTest`：保护递归任意文件触发、排除目录，以及 compile context 更新后无需重建 handler 即切换监控范围。
+- `JuggCompileHelperTest`：保护 config 变化不再等待异步 local fetch，旧不支持 metadata 直接按既有 full Gradle fallback 收口。
+- `ProjectInfoSerializerInGradleAndroidTestTest`、`JuggProjectInfoSerializerAndroidTestTest`：保护新字段往返与旧快照恢复。
+
+生产修改前，新增 `inputDirs`/collector API 的定向测试首先以编译失败形式取得失败证据；实现后执行结果以本次任务交付清单为准。真实 Flutter/NDK 设备端组合仍沿用第 12.10 节的残余风险说明，内部 fixture 与生成脚本兼容测试不替代真实 L3。

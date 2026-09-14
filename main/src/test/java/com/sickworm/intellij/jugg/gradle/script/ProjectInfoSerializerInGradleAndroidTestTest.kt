@@ -177,14 +177,14 @@ class ProjectInfoSerializerInGradleAndroidTestTest {
         val buildInfos = listOf(
             ExternalBuildInfo(
                 type = ExternalBuildType.Cpp,
-                sourceDirs = listOf(File("/project/native")),
+                inputDirs = listOf(File("/project/native")),
                 taskPath = ":native:mergeDebugNativeLibs",
                 assetsOutputDir = null,
                 nativeOutput = File("/project/native/build/intermediates/merged_native_libs/debug/out"),
             ),
             ExternalBuildInfo(
                 type = ExternalBuildType.Flutter,
-                sourceDirs = listOf(File("/project/flutter")),
+                inputDirs = listOf(File("/project/flutter")),
                 taskPath = null,
                 assetsOutputDir = null,
                 nativeOutput = null,
@@ -192,14 +192,14 @@ class ProjectInfoSerializerInGradleAndroidTestTest {
             ),
             ExternalBuildInfo(
                 type = ExternalBuildType.Flutter,
-                sourceDirs = listOf(File("/project/flutter")),
+                inputDirs = listOf(File("/project/flutter")),
                 taskPath = ":flutter:copyJniLibsflutterBuildDebug",
                 assetsOutputDir = File("/project/flutter/build/intermediates/flutter/debug"),
                 nativeOutput = File("/project/flutter/build/generated/jniLibs/copyJniLibsflutterBuildDebug"),
             ),
             ExternalBuildInfo(
                 type = ExternalBuildType.Flutter,
-                sourceDirs = listOf(File("/project/flutter")),
+                inputDirs = listOf(File("/project/flutter")),
                 taskPath = ":flutter:packJniLibsflutterBuildDebug",
                 assetsOutputDir = File("/project/flutter/build/intermediates/flutter/debug"),
                 nativeOutput = File("/project/flutter/build/archive/flutter-native.jar"),
@@ -231,14 +231,14 @@ class ProjectInfoSerializerInGradleAndroidTestTest {
                 externalBuildInfos = listOf(
                     ExternalBuildInfo(
                         type = ExternalBuildType.Cpp,
-                        sourceDirs = listOf(File("/project/native")),
+                        inputDirs = listOf(File("/project/native")),
                         taskPath = ":native:mergeDebugNativeLibs",
                         assetsOutputDir = null,
                         nativeOutput = File("/project/native/build/merged_native_libs"),
                     ),
                     ExternalBuildInfo(
                         type = ExternalBuildType.Flutter,
-                        sourceDirs = listOf(File("/project/flutter")),
+                        inputDirs = listOf(File("/project/flutter")),
                         taskPath = ":flutter:packJniLibsflutterBuildDebug",
                         assetsOutputDir = File("/project/flutter/build/intermediates/flutter/debug"),
                         nativeOutput = File("/project/flutter/build/archive/flutter-native.jar"),
@@ -270,7 +270,7 @@ class ProjectInfoSerializerInGradleAndroidTestTest {
                 externalBuildInfos = listOf(
                     ExternalBuildInfo(
                         type = ExternalBuildType.Flutter,
-                        sourceDirs = listOf(File("/project/flutter")),
+                        inputDirs = listOf(File("/project/flutter")),
                         taskPath = ":flutter:copyJniLibsflutterBuildDebug",
                         assetsOutputDir = File("/project/flutter/build/intermediates/flutter/debug"),
                         nativeOutput = File("/project/flutter/build/generated/jniLibs/copyJniLibsflutterBuildDebug"),
@@ -338,21 +338,19 @@ class ProjectInfoSerializerInGradleAndroidTestTest {
         val buildInfos = listOf(
             ExternalBuildInfo(
                 type = ExternalBuildType.Flutter,
-                sourceDirs = listOf(File("/project/flutter"), File("/project/shared-package")),
+                inputDirs = listOf(File("/project/flutter"), File("/project/shared-package")),
                 taskPath = ":flutter:copyJniLibsflutterBuildDebug",
                 assetsOutputDir = File("/project/flutter/build/intermediates/flutter/debug"),
                 nativeOutput = File("/project/flutter/build/generated/jniLibs/copyJniLibsflutterBuildDebug"),
-                inputFiles = listOf(File("/project/flutter/lib/main.dart"), File("/project/flutter/assets/logo.png")),
                 configFiles = listOf(File("/project/flutter/pubspec.yaml")),
                 excludedDirs = listOf(File("/project/flutter/.dart_tool")),
             ),
             ExternalBuildInfo(
                 type = ExternalBuildType.Cpp,
-                sourceDirs = listOf(File("/project/native/src/main/cpp")),
+                inputDirs = listOf(File("/project/native/src/main/cpp"), File("/project/shared")),
                 taskPath = ":native:mergeDebugNativeLibs",
                 assetsOutputDir = null,
                 nativeOutput = File("/project/native/build/merged_native_libs"),
-                inputFiles = listOf(File("/project/shared/shared.cpp")),
                 configFiles = listOf(File("/project/native/src/main/cpp/CMakeLists.txt")),
                 excludedDirs = listOf(File("/project/native/.cxx")),
             ),
@@ -376,11 +374,10 @@ class ProjectInfoSerializerInGradleAndroidTestTest {
         val buildInfos = listOf(
             ExternalBuildInfo(
                 type = ExternalBuildType.Flutter,
-                sourceDirs = listOf(File("/project/flutter")),
+                inputDirs = listOf(File("/project/flutter")),
                 taskPath = ":flutter:copyJniLibsflutterBuildDebug",
                 assetsOutputDir = File("/project/flutter/build/intermediates/flutter/debug"),
                 nativeOutput = File("/project/flutter/build/generated/jniLibs/copyJniLibsflutterBuildDebug"),
-                inputFiles = listOf(File("/project/flutter/lib/main.dart")),
                 configFiles = listOf(File("/project/flutter/pubspec.yaml")),
                 excludedDirs = listOf(File("/project/flutter/.dart_tool")),
             ),
@@ -394,10 +391,9 @@ class ProjectInfoSerializerInGradleAndroidTestTest {
             val loaded = ProjectInfoSerializerInGradle(tmpFile).load()
 
             val restored = loaded?.modules?.single()?.moduleInfoExceptLibraries?.externalBuildInfos?.single()
-            assertEquals(emptyList<File>(), restored?.inputFiles)
             assertEquals(emptyList<File>(), restored?.configFiles)
             assertEquals(emptyList<File>(), restored?.excludedDirs)
-            assertEquals(buildInfos.single().sourceDirs, restored?.sourceDirs)
+            assertEquals(buildInfos.single().inputDirs, restored?.inputDirs)
         } finally {
             tmpFile.delete()
         }
@@ -411,7 +407,8 @@ class ProjectInfoSerializerInGradleAndroidTestTest {
                 .getAsJsonArray("externalBuildInfos") ?: return@forEach
             buildInfos.forEach { element ->
                 val info = element.asJsonObject
-                listOf("inputFiles", "configFiles", "excludedDirs").forEach { info.remove(it) }
+                info.add("sourceDirs", info.remove("inputDirs"))
+                listOf("configFiles", "excludedDirs").forEach { info.remove(it) }
             }
         }
         writeText(root.toString())

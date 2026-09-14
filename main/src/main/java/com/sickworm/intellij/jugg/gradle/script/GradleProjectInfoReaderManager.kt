@@ -5,7 +5,11 @@ import com.sickworm.intellij.jugg.project.data.*
 import org.gradle.api.Project
 import org.gradle.api.initialization.IncludedBuild
 import org.gradle.util.GradleVersion
+import groovy.json.JsonSlurper
 import java.io.File
+import java.nio.file.AtomicMoveNotSupportedException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 
 /**
  * Implementation of readProjectInfo.gradle.kts
@@ -200,6 +204,9 @@ class GradleProjectInfoReaderManager(
      * Adds lightweight reader tasks from configured included builds before the requested root-build tasks.
      */
     fun injectIncludedBuildProjectInfoTasks() {
+        if (isExternalBuildInfoCollection()) {
+            return
+        }
         if (includeBuildProjects.isEmpty()) {
             return
         }
@@ -218,6 +225,113 @@ class GradleProjectInfoReaderManager(
                 println("Jugg: inject $projectInfoTask before ${targetTask.path}")
             }
         }
+    }
+
+    /** Configures the invocation-scoped collector after all external build tasks are available. */
+    fun configureExternalBuildInfoCollector() {
+        if (!isExternalBuildInfoCollection()) {
+            return
+        }
+        val collector = rootProject.tasks.maybeCreate(COLLECT_EXTERNAL_BUILD_INFO_TASK_NAME)
+        val localTasks = readExternalBuildInfoRequests().mapNotNull { request ->
+            rootProject.allprojects.firstOrNull {
+                it.projectDir.absoluteFile.normalize() == request.moduleRootDir.absoluteFile.normalize()
+            }?.tasks?.findByPath(request.taskPath)
+        }
+        if (localTasks.isNotEmpty()) {
+            collector.mustRunAfter(localTasks)
+        }
+        includeBuildProjects.forEach { includedBuild ->
+            collector.dependsOn(includedBuild.task(COLLECT_EXTERNAL_BUILD_INFO_TASK_PATH))
+        }
+    }
+
+    /** Re-reads only requested external build records and writes one atomic result per build root. */
+    fun collectExternalBuildInfo() {
+        if (!isExternalBuildInfoCollection()) {
+            return
+        }
+        val invocationId = rootProject.properties[PARAM_EXTERNAL_BUILD_INVOCATION]?.toString() ?: return
+        val outputDir = rootProject.properties[PARAM_EXTERNAL_BUILD_OUTPUT]?.toString()?.let(::File) ?: return
+        val requests = readExternalBuildInfoRequests().filter { request ->
+            rootProject.allprojects.any {
+                it.projectDir.absoluteFile.normalize() == request.moduleRootDir.absoluteFile.normalize()
+            }
+        }
+        if (requests.isEmpty()) {
+            return
+        }
+        val lastProjectInfo = readLastProjectInfo()?.let {
+            JuggProjectInfoSerialize.deserialize(it, isSkipVersionCheck = true)
+        } ?: throw IllegalStateException("Jugg project info is unavailable for external build collection")
+        val updates = requests.mapNotNull { request ->
+            val project = rootProject.allprojects.firstOrNull {
+                it.projectDir.absoluteFile.normalize() == request.moduleRootDir.absoluteFile.normalize()
+            } ?: return@mapNotNull null
+            val module = lastProjectInfo.modules.values.firstOrNull {
+                it.moduleRootDir.absoluteFile.normalize() == request.moduleRootDir.absoluteFile.normalize() &&
+                        it.buildVariant == request.buildVariant
+            } ?: throw IllegalStateException("Jugg module not found for ${request.moduleRootDir}")
+            val buildInfo = GradleProjectInfoReader(rootProject, null, ideProjectDir)
+                .getExternalBuildInfos(project, module)
+                .singleOrNull { it.type == request.type }
+                ?: throw IllegalStateException("External build info not found for ${request.taskPath}")
+            ExternalBuildInfoUpdate(
+                moduleName = module.name,
+                moduleRootDir = module.moduleRootDir,
+                buildVariant = module.buildVariant,
+                previousTaskPath = request.taskPath,
+                externalBuildInfo = buildInfo,
+            )
+        }
+        if (updates.isEmpty()) {
+            return
+        }
+        outputDir.mkdirs()
+        val outputFile = File(outputDir, "external_build_info_${rootProject.rootDir.absolutePath.hashCode()}.json")
+        val tempFile = File(outputDir, outputFile.name + ".tmp")
+        tempFile.writeText(ProjectInfoSerializerInGradle.getJsonGenerator().toJson(
+            ExternalBuildInfoUpdateResult(invocationId, updates),
+        ))
+        try {
+            Files.move(
+                tempFile.toPath(),
+                outputFile.toPath(),
+                StandardCopyOption.REPLACE_EXISTING,
+                StandardCopyOption.ATOMIC_MOVE,
+            )
+        } catch (_: AtomicMoveNotSupportedException) {
+            Files.move(tempFile.toPath(), outputFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
+        }
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun readExternalBuildInfoRequests(): List<ExternalBuildInfoRequestItem> {
+        val requestFile = rootProject.properties[PARAM_EXTERNAL_BUILD_REQUEST]?.toString()?.let(::File)
+            ?: return emptyList()
+        val root = JsonSlurper().parse(requestFile) as? Map<String, Any> ?: return emptyList()
+        val invocationId = root["invocationId"] as? String ?: return emptyList()
+        if (invocationId != rootProject.properties[PARAM_EXTERNAL_BUILD_INVOCATION]?.toString()) {
+            return emptyList()
+        }
+        return (root["items"] as? List<Map<String, Any>>).orEmpty().mapNotNull { item ->
+            val type = (item["type"] as? String)?.let {
+                runCatching { ExternalBuildType.valueOf(it) }.getOrNull()
+            } ?: return@mapNotNull null
+            ExternalBuildInfoRequestItem(
+                moduleName = item["moduleName"] as? String ?: return@mapNotNull null,
+                moduleRootDir = File(item["moduleRootDir"] as? String ?: return@mapNotNull null),
+                buildVariant = item["buildVariant"] as? String ?: return@mapNotNull null,
+                taskPath = item["taskPath"] as? String ?: return@mapNotNull null,
+                type = type,
+            )
+        }
+    }
+
+    private fun isExternalBuildInfoCollection(): Boolean {
+        return rootProject.properties[PARAM_EXTERNAL_BUILD_REQUEST] != null &&
+                rootProject.properties[PARAM_EXTERNAL_BUILD_OUTPUT] != null &&
+                rootProject.properties[PARAM_EXTERNAL_BUILD_INVOCATION] != null
     }
 
     private fun injectApplicationAndroidTestTasks(
@@ -335,8 +449,13 @@ class GradleProjectInfoReaderManager(
         const val PARAM_INC_DEPLOY_TIMES = "jugg.incDeployTimes"
         const val PARAM_BUILD_TARGET = "jugg.buildTarget"
         const val PARAM_LIBRARY_TEST_TASKS = "jugg.libraryTestTasks"
+        const val PARAM_EXTERNAL_BUILD_REQUEST = "jugg.externalBuildRequest"
+        const val PARAM_EXTERNAL_BUILD_OUTPUT = "jugg.externalBuildOutput"
+        const val PARAM_EXTERNAL_BUILD_INVOCATION = "jugg.externalBuildInvocation"
         const val BUILD_TARGET_ANDROID_TEST = "ANDROID_TEST"
         const val READ_PROJECT_INFO_TASK_NAME = "juggReadProjectInfo"
         const val READ_PROJECT_INFO_TASK_PATH = ":$READ_PROJECT_INFO_TASK_NAME"
+        const val COLLECT_EXTERNAL_BUILD_INFO_TASK_NAME = "juggCollectExternalBuildInfo"
+        const val COLLECT_EXTERNAL_BUILD_INFO_TASK_PATH = ":$COLLECT_EXTERNAL_BUILD_INFO_TASK_NAME"
     }
 }

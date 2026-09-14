@@ -1,6 +1,8 @@
 package com.sickworm.intellij.jugg.project
 
 import com.sickworm.intellij.jugg.compiler.CompileFile
+import com.sickworm.intellij.jugg.compiler.ICompileContext
+import com.sickworm.intellij.jugg.compiler.OnContextUpdate
 import com.sickworm.intellij.jugg.mock.context
 import com.sickworm.intellij.jugg.mock.logger
 import com.sickworm.intellij.jugg.mock.projectInfo
@@ -177,14 +179,14 @@ class FileChangesHandlerTest {
         val module = app.copy(externalBuildInfos = listOf(
             ExternalBuildInfo(
                 type = ExternalBuildType.Flutter,
-                sourceDirs = listOf(flutterRoot),
+                inputDirs = listOf(flutterRoot),
                 taskPath = ":app:compileFlutterBuildDebug",
                 assetsOutputDir = File(app.moduleRootDir, "build/intermediates/flutter/debug"),
                 nativeOutput = File(app.moduleRootDir, "build/intermediates/flutter/debug/native.jar"),
             ),
             ExternalBuildInfo(
                 type = ExternalBuildType.Cpp,
-                sourceDirs = listOf(cppRoot),
+                inputDirs = listOf(cppRoot),
                 taskPath = ":app:mergeDebugNativeLibs",
                 assetsOutputDir = null,
                 nativeOutput = File(app.moduleRootDir, "build/intermediates/merged_native_libs/debug/out/lib"),
@@ -210,7 +212,7 @@ class FileChangesHandlerTest {
     }
 
     @Test
-    fun `detects Flutter assets, configuration and local package sources confirmed by task inputs`() {
+    fun `detects every file below Flutter and local package input directories`() {
         val app = context.applicationModule
         val flutterRoot = File(app.moduleRootDir, "flutter-assets")
         val localPackage = File(app.moduleRootDir.parentFile, "jugg-shared-package")
@@ -220,20 +222,19 @@ class FileChangesHandlerTest {
         val module = app.copy(externalBuildInfos = listOf(
             ExternalBuildInfo(
                 type = ExternalBuildType.Flutter,
-                sourceDirs = listOf(flutterRoot, localPackage),
+                inputDirs = listOf(flutterRoot, localPackage),
                 taskPath = ":app:compileFlutterBuildDebug",
                 assetsOutputDir = File(app.moduleRootDir, "build/intermediates/flutter/debug"),
                 nativeOutput = File(app.moduleRootDir, "build/intermediates/flutter/debug/native.jar"),
-                inputFiles = listOf(assetFile, localPackageDart),
                 configFiles = listOf(pubspec),
             ),
         ))
         handler.init(context.copy(modules = context.modules + (module.name to module)))
 
-        // A png is not a Flutter source extension, only the confirmed task input can recognize it.
         assertChangedFileFile(assetFile)
         assertChangedFileFile(localPackageDart)
         assertChangedFileFile(pubspec)
+        assertChangedFileFile(File(flutterRoot, "assets/new-sibling/deep/new.json"))
         assertChangedFile(
             path = "app/flutter-assets/lib/main.dart",
             expectedType = CompileFile.Type.ExternalBuildSource,
@@ -242,7 +243,7 @@ class FileChangesHandlerTest {
     }
 
     @Test
-    fun `detects only new Flutter assets covered by pubspec input declarations`() {
+    fun `detects new Flutter assets recursively below the stable input root`() {
         val app = context.applicationModule
         val flutterRoot = File(app.moduleRootDir, "flutter-new-assets")
         val declaredDirectory = File(flutterRoot, "assets/images").apply { mkdirs() }
@@ -250,16 +251,10 @@ class FileChangesHandlerTest {
         val module = app.copy(externalBuildInfos = listOf(
             ExternalBuildInfo(
                 type = ExternalBuildType.Flutter,
-                sourceDirs = listOf(flutterRoot),
+                inputDirs = listOf(flutterRoot),
                 taskPath = ":app:compileFlutterBuildDebug",
                 assetsOutputDir = File(app.moduleRootDir, "build/intermediates/flutter/debug"),
                 nativeOutput = File(app.moduleRootDir, "build/intermediates/flutter/debug/native.jar"),
-                inputFiles = listOf(
-                    declaredDirectory,
-                    declaredFile,
-                    File(flutterRoot, ".dart_tool/assets"),
-                    File(flutterRoot, "build/assets"),
-                ),
                 excludedDirs = listOf(File(flutterRoot, "build")),
             ),
         ))
@@ -271,12 +266,8 @@ class FileChangesHandlerTest {
             assertChangedFileFile(File(declaredDirectory, "2.0x/logo.png"))
             assertChangedFileFile(declaredFile)
             assertChangedFileFile(File(flutterRoot, "assets/2.0x/splash.png"))
-            withTemporaryFile(File(flutterRoot, "assets/unrelated.png")) {
-                assertTrue(handler.filter(listOf(File(flutterRoot, "assets/unrelated.png"))).isEmpty())
-            }
-            withTemporaryFile(File(declaredDirectory, "nested/unrelated.png")) {
-                assertTrue(handler.filter(listOf(File(declaredDirectory, "nested/unrelated.png"))).isEmpty())
-            }
+            assertChangedFileFile(File(flutterRoot, "assets/unrelated.png"))
+            assertChangedFileFile(File(declaredDirectory, "nested/unrelated.png"))
             listOf(".dart_tool/assets/generated.png", "build/assets/generated.png").forEach { path ->
                 withTemporaryFile(File(flutterRoot, path)) {
                     assertTrue(handler.filter(listOf(File(flutterRoot, path))).isEmpty())
@@ -284,6 +275,41 @@ class FileChangesHandlerTest {
             }
         } finally {
             flutterRoot.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `refreshes external input directories when compile context is updated`() {
+        val app = context.applicationModule
+        val oldRoot = temporaryExternalDirectory("jugg-old-external-root")
+        val newRoot = temporaryExternalDirectory("jugg-new-external-root")
+        try {
+            val oldInfo = ExternalBuildInfo(
+                type = ExternalBuildType.Flutter,
+                inputDirs = listOf(oldRoot),
+                taskPath = ":app:compileFlutterBuildDebug",
+                assetsOutputDir = File(app.moduleRootDir, "build/intermediates/flutter/debug"),
+                nativeOutput = File(app.moduleRootDir, "build/intermediates/flutter/debug/native.jar"),
+            )
+            val initialModule = app.copy(externalBuildInfos = listOf(oldInfo))
+            val updatingContext = UpdatingCompileContext(context, mapOf(initialModule.name to initialModule))
+            val newFile = File(newRoot, "assets/new.png").apply {
+                parentFile.mkdirs()
+                createNewFile()
+            }
+            handler.init(updatingContext)
+
+            assertTrue(handler.filter(listOf(newRoot)).isEmpty())
+
+            val refreshedModule = initialModule.copy(externalBuildInfos = listOf(
+                oldInfo.copy(inputDirs = listOf(newRoot)),
+            ))
+            updatingContext.updateModules(mapOf(refreshedModule.name to refreshedModule))
+
+            assertEquals(newFile, handler.filter(listOf(newRoot)).single().file)
+        } finally {
+            oldRoot.deleteRecursively()
+            newRoot.deleteRecursively()
         }
     }
 
@@ -312,7 +338,7 @@ class FileChangesHandlerTest {
         val module = app.copy(externalBuildInfos = listOf(
             ExternalBuildInfo(
                 type = ExternalBuildType.Flutter,
-                sourceDirs = listOf(app.moduleRootDir),
+                inputDirs = listOf(app.moduleRootDir),
                 taskPath = ":app:compileFlutterBuildDebug",
                 assetsOutputDir = File(app.moduleRootDir, "build/intermediates/flutter/debug"),
                 nativeOutput = File(app.moduleRootDir, "build/intermediates/flutter/debug/native.jar"),
@@ -334,7 +360,7 @@ class FileChangesHandlerTest {
         val module = app.copy(externalBuildInfos = listOf(
             ExternalBuildInfo(
                 type = ExternalBuildType.Flutter,
-                sourceDirs = listOf(flutterRoot),
+                inputDirs = listOf(flutterRoot),
                 taskPath = ":app:compileFlutterBuildDebug",
                 assetsOutputDir = File(app.moduleRootDir, "build/intermediates/flutter/debug"),
                 nativeOutput = File(app.moduleRootDir, "build/intermediates/flutter/debug/native.jar"),
@@ -357,14 +383,14 @@ class FileChangesHandlerTest {
         val module = app.copy(externalBuildInfos = listOf(
             ExternalBuildInfo(
                 type = ExternalBuildType.Flutter,
-                sourceDirs = listOf(app.moduleRootDir),
+                inputDirs = listOf(app.moduleRootDir),
                 taskPath = ":app:compileFlutterBuildDebug",
                 assetsOutputDir = File(app.moduleRootDir, "build/intermediates/flutter/debug"),
                 nativeOutput = File(app.moduleRootDir, "build/intermediates/flutter/debug/native.jar"),
             ),
             ExternalBuildInfo(
                 type = ExternalBuildType.Cpp,
-                sourceDirs = listOf(app.moduleRootDir),
+                inputDirs = listOf(app.moduleRootDir),
                 taskPath = ":app:mergeDebugNativeLibs",
                 assetsOutputDir = null,
                 nativeOutput = File(app.moduleRootDir, "build/intermediates/merged_native_libs/debug/out/lib"),
@@ -397,7 +423,7 @@ class FileChangesHandlerTest {
         val module = app.copy(externalBuildInfos = listOf(
             ExternalBuildInfo(
                 type = ExternalBuildType.Flutter,
-                sourceDirs = listOf(flutterRoot),
+                inputDirs = listOf(flutterRoot),
                 taskPath = null,
                 assetsOutputDir = null,
                 nativeOutput = null,
@@ -593,7 +619,7 @@ class FileChangesHandlerTest {
 
     private fun projectCppBuildInfo(cppRoot: File, moduleRootDir: File) = ExternalBuildInfo(
         type = ExternalBuildType.Cpp,
-        sourceDirs = listOf(cppRoot),
+        inputDirs = listOf(cppRoot),
         taskPath = ":app:mergeDebugNativeLibs",
         assetsOutputDir = null,
         nativeOutput = File(moduleRootDir, "build/intermediates/merged_native_libs/debug/out/lib"),
@@ -607,4 +633,29 @@ class FileChangesHandlerTest {
         }
     }
 
+    private class UpdatingCompileContext(
+        private val delegate: ICompileContext,
+        initialModules: Map<String, com.sickworm.intellij.jugg.project.data.ModuleInfo>,
+    ) : ICompileContext by delegate {
+        private val listeners = mutableListOf<OnContextUpdate>()
+
+        override var modules = initialModules
+            private set
+
+        override val applicationModule
+            get() = modules.values.firstOrNull()
+
+        override fun listenUpdate(listener: OnContextUpdate) {
+            listeners.add(listener)
+        }
+
+        fun updateModules(modules: Map<String, com.sickworm.intellij.jugg.project.data.ModuleInfo>) {
+            this.modules = modules
+            listeners.toList().forEach { it() }
+        }
+    }
+
+    private fun temporaryExternalDirectory(prefix: String): File {
+        return Files.createTempDirectory(prefix).toFile()
+    }
 }

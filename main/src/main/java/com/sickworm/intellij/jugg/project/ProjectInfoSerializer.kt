@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.project
 
 import com.google.gson.GsonBuilder
 import com.google.gson.JsonDeserializer
+import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.google.gson.TypeAdapter
 import com.google.gson.stream.JsonReader
@@ -14,6 +15,9 @@ import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import java.beans.Introspector
 import java.io.File
 import java.lang.reflect.Field
+import java.nio.file.AtomicMoveNotSupportedException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 
 
 /**
@@ -34,7 +38,22 @@ class ProjectInfoSerializer(val dataFile: File, private val logger: Logger) {
             dataFile.parentFile?.mkdirs()
             val juggProjectInfoSerialize = JuggProjectInfoSerialize.serialize(projectInfo)
             val serializeText = gson.toJson(juggProjectInfoSerialize)
-            dataFile.writeText(serializeText)
+            val tempFile = File.createTempFile(dataFile.name + ".", ".tmp", dataFile.absoluteFile.parentFile)
+            try {
+                tempFile.writeText(serializeText)
+                try {
+                    Files.move(
+                        tempFile.toPath(),
+                        dataFile.toPath(),
+                        StandardCopyOption.REPLACE_EXISTING,
+                        StandardCopyOption.ATOMIC_MOVE,
+                    )
+                } catch (_: AtomicMoveNotSupportedException) {
+                    Files.move(tempFile.toPath(), dataFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
+                }
+            } finally {
+                tempFile.delete()
+            }
             memoryCache = projectInfo
         }
 
@@ -44,6 +63,16 @@ class ProjectInfoSerializer(val dataFile: File, private val logger: Logger) {
 
     @Synchronized
     fun load(isSkipVersionCheck: Boolean = false): JuggProjectInfo? {
+        return loadInternal(isSkipVersionCheck, deleteOnFailure = true)
+    }
+
+    /** Loads a snapshot for a targeted merge without deleting the authoritative file on parse failure. */
+    @Synchronized
+    fun loadPreservingFile(isSkipVersionCheck: Boolean = false): JuggProjectInfo? {
+        return loadInternal(isSkipVersionCheck, deleteOnFailure = false)
+    }
+
+    private fun loadInternal(isSkipVersionCheck: Boolean, deleteOnFailure: Boolean): JuggProjectInfo? {
         if (!dataFile.exists()) {
             return null
         }
@@ -62,7 +91,9 @@ class ProjectInfoSerializer(val dataFile: File, private val logger: Logger) {
             return juggProjectInfo
         } catch (e: Exception) {
             logger.debug("Failed to load project info from ${dataFile.absolutePath}, $e")
-            dataFile.delete()
+            if (deleteOnFailure) {
+                dataFile.delete()
+            }
             memoryCache = null
             return null
         }
@@ -139,15 +170,41 @@ class ProjectInfoSerializer(val dataFile: File, private val logger: Logger) {
         }
 
         /**
-         * Snapshots written before the external build input model existed have no input, configuration
-         * or exclusion list. They are restored as empty, so the broad source roots keep working.
+         * Restores the recursive input roots from the previous source-root and exact-input model.
          */
         private fun restoreExternalBuildLists(info: JsonObject) {
-            listOf("inputFiles", "configFiles", "excludedDirs").forEach { name ->
+            if (!info.has("inputDirs")) {
+                val directories = mutableListOf<File>()
+                info.getAsJsonArray("sourceDirs")?.forEach { sourceDir ->
+                    sourceDir.takeIf { it.isJsonPrimitive }?.asString?.let { directories.add(File(it)) }
+                }
+                info.getAsJsonArray("inputFiles")?.forEach { input ->
+                    input.takeIf { it.isJsonPrimitive }?.asString?.let { path ->
+                        File(path).parentFile?.let(directories::add)
+                    }
+                }
+                val inputDirs = JsonArray()
+                compactInputDirs(directories).forEach { inputDirs.add(it.path) }
+                info.add("inputDirs", inputDirs)
+            }
+            listOf("configFiles", "excludedDirs").forEach { name ->
                 if (!info.has(name)) {
-                    info.add(name, com.google.gson.JsonArray())
+                    info.add(name, JsonArray())
                 }
             }
+        }
+
+        private fun compactInputDirs(directories: List<File>): List<File> {
+            val result = mutableListOf<File>()
+            directories.map { it.absoluteFile.normalize() }
+                .distinctBy { it.path }
+                .sortedBy { it.toPath().nameCount }
+                .forEach { directory ->
+                    if (result.none { directory.toPath().startsWith(it.toPath()) }) {
+                        result.add(directory)
+                    }
+                }
+            return result
         }
 
         private fun JsonObject.stringOrNull(name: String): String? {

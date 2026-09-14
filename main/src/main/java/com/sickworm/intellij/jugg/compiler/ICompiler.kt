@@ -12,6 +12,7 @@ import com.sickworm.intellij.jugg.deploy.run.normalizeTargetApkPaths
 import com.sickworm.intellij.jugg.project.JuggInternalException
 import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.data.ExternalBuildInfoUpdate
 import com.sickworm.intellij.jugg.project.data.SigningConfig
 import java.io.File
 
@@ -404,6 +405,10 @@ interface ICompileContext {
 
     val customCompilers: List<ICompiler>
 
+    /** Init script used to collect task-local external build metadata after Gradle execution. */
+    val externalBuildInfoInitScript: File?
+        get() = null
+
     fun getModuleDependencies(moduleInfo: ModuleInfo, task: CompileTask): List<String>
 
     fun getGeneratedSourcePaths(moduleInfo: ModuleInfo): List<File>
@@ -441,6 +446,9 @@ interface ICompileContext {
      * Default no-op keeps existing non-IDE/test contexts source-compatible.
      */
     fun removeChangedFile(files: List<File>) = Unit
+
+    /** Applies task-local external build metadata without rebuilding the active compiler. */
+    fun updateExternalBuildInfos(updates: List<ExternalBuildInfoUpdate>): Boolean = false
 
     /**
      * Scene marks where compile context is built: IDE-run flow or incremental-APK flow.

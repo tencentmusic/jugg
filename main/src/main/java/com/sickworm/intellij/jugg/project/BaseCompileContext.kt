@@ -12,6 +12,7 @@ import com.sickworm.intellij.jugg.compiler.manifest.XmlParser
 import com.sickworm.intellij.jugg.compiler.manifest.get
 import com.sickworm.intellij.jugg.compiler.obfuscation.MinifyInfo
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.data.ExternalBuildInfoUpdate
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.project.data.LibraryDependency
@@ -40,6 +41,7 @@ class BaseCompileContext(
     private val deployFileManager: DeployFileManager,
     private val deployHistoryManager: IDeployHistoryManager,
     private val customCompilerManager: CustomCompilerManager,
+    private val externalBuildInfoUpdater: IExternalBuildInfoUpdater? = null,
     includedBuildModuleRoots: Set<File> = emptySet(),
 ): ICompileContext {
 
@@ -67,6 +69,9 @@ class BaseCompileContext(
         get() = deployHistoryManager.getFullBuildInfo()?.compileCommand
 
     override val customCompilers: List<ICompiler> get() = customCompilerManager.getCustomCompilers()
+
+    override val externalBuildInfoInitScript: File
+        get() = JuggPathManager(projectDir).initGradleFilePath
 
     private val listeners = mutableListOf<OnContextUpdate>()
 
@@ -658,6 +663,18 @@ class BaseCompileContext(
 
     override fun removeChangedFile(files: List<File>) {
         deployFileManager.removeChangedFile(files)
+    }
+
+    override fun updateExternalBuildInfos(updates: List<ExternalBuildInfoUpdate>): Boolean {
+        val updatedModules = if (externalBuildInfoUpdater == null) {
+            mergeExternalBuildInfoUpdates(modules, updates)
+        } else {
+            externalBuildInfoUpdater.update(updates)
+        } ?: return false
+        if (updatedModules != modules) {
+            update(modules = updatedModules)
+        }
+        return true
     }
 
     fun update(
