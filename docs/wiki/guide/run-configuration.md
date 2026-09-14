@@ -28,6 +28,20 @@ If an older configuration still shows \`Unnamed...\`, Jugg creates a readable re
 
 Gradle module names can contain dots, such as \`:zxphone5.0\`. When Jugg generates the \`Compile command\`, it uses the Gradle project path reported by Android Studio directly: dots inside a name remain unchanged, nested modules continue to use colons, and composite builds retain the included build name. As a result, \`:zxphone5.0\`, \`:feature:app\`, and \`:SMCommon:app\` each produce the assemble task for the corresponding module without reconstructing the path from the Jugg configuration name.
 
+## Where configurations come from
+
+Jugg discovers configurations from the ordinary Android Run Configurations reported by Android Studio. When the project opens, existing Jugg configurations take effect immediately; when none exist, Jugg creates them from the runnable targets Android Studio reports and never guesses targets from Gradle project information at startup.
+
+Creation is deduplicated by Gradle task:
+
+- A standard \`assembleVariant\` and the same task with extra arguments such as \`--offline\` describe one target and are not created twice.
+- Custom tasks such as \`deployVariant\` or \`uploadVariant\` are not the standard \`assembleVariant\`, so the standard configuration and the custom one may coexist.
+- Multi-task commands and unsupported formats are compared by the exact command only; Jugg does not infer containment.
+- Existing \`Compile command\`, \`Output APK name\`, and remote fields are never overwritten.
+- On a name clash Jugg uses a unique name, and the name shown in the IDE matches the name saved in the shared configuration.
+
+Jugg only creates a target that parses exactly as a single \`./gradlew :modulePath:assembleVariant\` whose variant matches what Android Studio reports; unparsable targets are skipped instead of receiving a fabricated identity. Missing App modules in the Gradle project information neither invalidate existing configurations nor block creation of standard targets.
+
 ## Follow the Active Build Variant
 
 When the Active Build Variant changes in Android Studio, Jugg looks for the corresponding new build target in the same module.
@@ -40,6 +54,8 @@ Change the Android Studio Build Variant
   -> Create Jugg configurations for missing targets
   -> If a Jugg configuration is selected, switch to the new variant in the same module
 \`\`\`
+
+When the target variant is already owned by a custom target, such as \`deployDebug\`, Jugg keeps the current selection: even a standard configuration created moments earlier does not take over the user's selection or the shared configuration pointer. Select the target configuration manually when you want to switch.
 
 The first run after switching usually requires a Gradle build because the APK, classpath, mapping, and project information belong to a new baseline.
 

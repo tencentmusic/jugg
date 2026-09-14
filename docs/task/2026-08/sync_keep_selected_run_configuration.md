@@ -196,3 +196,12 @@ develop 与 main 都使用 Sync 当下的 Active Build Variant suggestion。deve
 - develop：`39647216` `[bugfix] switch selected run configuration only on a real variant change`
 - main：`f16792e5d` 同上标题（移植到 `trySelectActiveBuildVariantConfiguration`）
 - 第二版 fail-closed：新增 suffix 碰撞、assemble 附加参数、根级自定义 task、自定义目标配置的失败测试；两边均保留标准 assemble variant 切换回归。
+
+## 8. 后续：创建阶段对齐 main suggestion
+
+`docs/task/2026-09/idea_run_configuration_creation_alignment.md` 把 develop 的创建阶段也对齐到 main suggestion 逻辑，本节记录它对本文选择语义的影响：
+
+- **选择语义不变**：第 3 节的三道门禁、第 5 节非目标和第 6 节已决策事项全部继续成立。source、variant、target 的判定条件没有放宽。
+- **创建来源改变**：`reconcileActiveBuildVariants()` 不再"按 application module 生成默认 assemble 配置"，改为按 Android model suggestion 创建标准 `assembleVariant` 配置，因此上文提到的 `matchesConfiguration()` 已删除；去重改由标准化 Gradle task 比较承担（两侧都能唯一识别为单个 task 时按 task 比较，否则只按精确完整 command 比较）。
+- **顺序收紧**：`findOrCreateActiveSettings()` 把"目标 variant 已被自定义 target 占用"的否决提前到稳定 id / 精确目标复用之前。原因是创建阶段现在会为 suggestion 新建标准配置，如果仍在复用之后才否决，刚创建的标准配置就会抢占用户的自定义 target 选择——这正是本文要修的问题类型。被否决时标准配置仍然创建，只有选择和 current pointer 保持不变。
+- **验证 owner**：`IdeaCliRunConfigurationFlowTest` 中 `active variant reconciliation does not select a custom configuration as the active target` 已同时覆盖"标准配置可创建"和"选择与 current pointer 不变"。

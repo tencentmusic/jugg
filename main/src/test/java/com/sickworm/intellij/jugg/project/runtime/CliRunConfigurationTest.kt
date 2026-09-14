@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.project.runtime
 
+import com.google.gson.JsonParser
 import com.sickworm.intellij.jugg.compiler.BuildTarget
 import com.sickworm.intellij.jugg.project.info.JuggProjectInfo
 import com.sickworm.intellij.jugg.project.info.ModuleBuildPathInfo
@@ -222,6 +223,98 @@ class CliRunConfigurationTest {
         assertEquals(second, store.loadCurrent())
         assertTrue(pathManager.runConfigurationsDir.resolve("${first.id}.json").isFile)
         assertTrue(pathManager.currentRunConfigurationFile.isFile)
+    }
+
+    @Test
+    fun `customized remote sync exclude patterns survive compile option round trip`() {
+        val pathManager = JuggPathManager(temporaryFolder.newFolder("exclude_patterns_round_trip"))
+        val projectDir = pathManager.projectDir
+        val projectInfo = projectInfo(applicationModule(projectDir, "app", "debug"))
+        val shared = configuration(id = "014f6d67-28c7-4a25-bd8d-7bd467cb9a84", moduleName = "app", variant = "debug")
+            .copy(
+                remoteSyncExcludePatterns = "local-temp/**;**/*.keystore",
+                isRemoteSyncExcludePatternsCustomized = true,
+            )
+
+        val options = shared.toCompileOptions(pathManager)
+
+        assertEquals(listOf("local-temp/**", "**/*.keystore"), options.remoteSyncExcludePatterns)
+        assertTrue(options.isRemoteSyncExcludePatternsCustomized)
+        val restored = CliRunConfigurationGenerator.fromCompileOptions(shared, options, projectInfo, generatedAt = 20L)
+        assertEquals(shared.remoteSyncExcludePatterns, restored.remoteSyncExcludePatterns)
+        assertTrue(restored.isRemoteSyncExcludePatternsCustomized)
+    }
+
+    @Test
+    fun `customized empty remote sync exclude patterns stay empty instead of falling back to defaults`() {
+        val pathManager = JuggPathManager(temporaryFolder.newFolder("exclude_patterns_empty"))
+        val shared = configuration(id = "2d257e92-3d76-4c41-a792-93ac08a6d73f", moduleName = "app", variant = "debug")
+            .copy(remoteSyncExcludePatterns = "", isRemoteSyncExcludePatternsCustomized = true)
+
+        val options = shared.toCompileOptions(pathManager)
+
+        assertTrue(options.isRemoteSyncExcludePatternsCustomized)
+        assertTrue(options.effectiveRemoteSyncExcludePatterns.isEmpty())
+        assertTrue(options.copy(isRemoteSyncExcludePatternsCustomized = false).effectiveRemoteSyncExcludePatterns.isNotEmpty())
+    }
+
+    @Test
+    fun `schema version 1 json without customized flag keeps patterns and reads as default`() {
+        val pathManager = JuggPathManager(temporaryFolder.newFolder("legacy_exclude_json"))
+        val store = CliRunConfigurationStore(pathManager)
+        val id = "014f6d67-28c7-4a25-bd8d-7bd467cb9a84"
+        val json = JsonParser.parseString(CliRunConfigurationSerializer().serialize(
+            configuration(id = id, moduleName = "app", variant = "debug").copy(remoteSyncExcludePatterns = "legacy/**"),
+        )).asJsonObject.apply { remove("isRemoteSyncExcludePatternsCustomized") }.toString()
+        pathManager.runConfigurationsDir.mkdirs()
+        File(pathManager.runConfigurationsDir, "$id.json").writeText(json)
+
+        val loaded = store.load(id)!!
+
+        assertEquals("legacy/**", loaded.remoteSyncExcludePatterns)
+        assertFalse(loaded.isRemoteSyncExcludePatternsCustomized)
+    }
+
+    @Test
+    fun `build identity prefers the generated command over project info`() {
+        val projectDir = temporaryFolder.newFolder("identity_order")
+        val projectInfo = projectInfo(applicationModule(projectDir, "app", "debug"))
+
+        assertEquals(
+            "paid" to "paidRelease",
+            CliRunConfigurationGenerator.resolveBuildIdentity(projectInfo, "./gradlew :paid:assemblePaidRelease"),
+        )
+        assertEquals(
+            "app" to "debug",
+            CliRunConfigurationGenerator.resolveBuildIdentity(projectInfo, "./gradlew :app:assembleDebug"),
+        )
+    }
+
+    @Test
+    fun `build identity falls back to the confirmed identity and never fabricates one`() {
+        val projectDir = temporaryFolder.newFolder("identity_without_application")
+        val unknownModule = ModuleInfo.virtualModule.copy(
+            name = "app",
+            moduleType = ModuleInfo.Type.Unknown,
+            projectRootDir = projectDir,
+            moduleRootDir = File(projectDir, "app"),
+            buildVariant = "debug",
+        )
+        val projectInfo = projectInfo(unknownModule)
+
+        assertEquals(
+            "app" to "debug",
+            CliRunConfigurationGenerator.resolveBuildIdentity(projectInfo, "./gradlew :app:assembleDebug"),
+        )
+        assertEquals(
+            "app" to "debug",
+            CliRunConfigurationGenerator.resolveBuildIdentity(
+                projectInfo,
+                "./gradlew :app:deployDebug",
+                "app" to "debug",
+            ),
+        )
+        assertNull(CliRunConfigurationGenerator.resolveBuildIdentity(projectInfo, "./gradlew :app:deployDebug"))
     }
 
     @Test

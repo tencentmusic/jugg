@@ -44,6 +44,8 @@ data class CliRunConfiguration(
     val syncMode: String = SyncMode.IFT.modeName,
     val environmentVariables: String = "",
     val remoteSyncExcludePatterns: String = "",
+    /** Whether [remoteSyncExcludePatterns] replaces the default exclude patterns. */
+    val isRemoteSyncExcludePatternsCustomized: Boolean = false,
 ) {
 
     override fun toString(): String {
@@ -124,11 +126,11 @@ object CliRunConfigurationGenerator {
         projectInfo: JuggProjectInfo,
         generatedAt: Long = System.currentTimeMillis(),
     ): CliRunConfiguration {
-        val identity = resolveBuildIdentity(projectInfo, options.compileCommand)
+        val identity = resolveBuildIdentity(projectInfo, options.compileCommand, base.moduleName to base.variant)
         return base.copy(
             generatedAt = generatedAt,
-            moduleName = identity.first,
-            variant = identity.second,
+            moduleName = identity?.first ?: base.moduleName,
+            variant = identity?.second ?: base.variant,
             buildTarget = options.buildTarget,
             compileCommand = options.compileCommand,
             outputApkName = options.outputApkName,
@@ -148,18 +150,44 @@ object CliRunConfigurationGenerator {
             syncMode = options.syncMode.modeName,
             environmentVariables = options.environmentVariables,
             remoteSyncExcludePatterns = options.remoteSyncExcludePatterns.joinToString(";"),
+            isRemoteSyncExcludePatternsCustomized = options.isRemoteSyncExcludePatternsCustomized,
         )
     }
 
-    fun resolveBuildIdentity(projectInfo: JuggProjectInfo, compileCommand: String): Pair<String, String> {
+    /**
+     * Resolves the build identity of a command without fabricating one: an exact generated command wins,
+     * then [knownIdentity] from a current or historical shared profile, then the Gradle project info.
+     * Returns null when no source can confirm the identity.
+     */
+    fun resolveBuildIdentity(
+        projectInfo: JuggProjectInfo,
+        compileCommand: String,
+        knownIdentity: Pair<String, String>? = null,
+    ): Pair<String, String>? {
+        generatedIdentity(compileCommand)?.let { return it }
+        knownIdentity?.let { return it }
         val applicationModules = projectInfo.applicationModules()
         applicationModules.forEach { module ->
             encodedBuildVariant(compileCommand, module)?.let { variant ->
                 return module.name to variant
             }
         }
+        if (applicationModules.isEmpty()) {
+            return null
+        }
         val fallback = selectApplicationModule(projectInfo)
         return fallback.name to fallback.buildVariant.ifBlank { ModuleInfo.DEFAULT_BUILD_VARIANT }
+    }
+
+    /** Parses an exact single-task `./gradlew :modulePath:assembleVariant` command into its identity. */
+    private fun generatedIdentity(compileCommand: String): Pair<String, String>? {
+        val match = Regex("^\\./gradlew\\s+(:[^\\s:]+(?::[^\\s:]+)*):assemble([A-Z][A-Za-z0-9]*)$")
+            .matchEntire(compileCommand.trim()) ?: return null
+        val moduleName = match.groupValues[1].trim(':').replace(':', '.')
+        if (moduleName.isEmpty()) {
+            return null
+        }
+        return moduleName to match.groupValues[2].replaceFirstChar { if (it.isUpperCase()) it.lowercase() else it.toString() }
     }
 
     fun matchesBuildIdentity(compileCommand: String, module: ModuleInfo, variant: String): Boolean {
@@ -377,5 +405,6 @@ fun CliRunConfiguration.toCompileOptions(pathManager: JuggPathManager): JuggGrad
         environmentVariables = environmentVariables,
         buildTarget = buildTarget,
         remoteSyncExcludePatterns = remoteSyncExcludePatterns.split(';').map { it.trim() }.filter { it.isNotEmpty() },
+        isRemoteSyncExcludePatternsCustomized = isRemoteSyncExcludePatternsCustomized,
     )
 }

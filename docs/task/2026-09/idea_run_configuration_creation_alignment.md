@@ -123,43 +123,85 @@ ProjectInfo fallback 只解决“Android Studio 没有 suggestion，但 Gradle �
 
 ### suggestion 创建和去重
 
-移植 main 已验证的 Gradle task 语义：
+创建阶段按以下规则处理：
 
-- suggestions 先按标准化 Gradle task 去重。
-- 已有配置包含相同 Gradle task 时不重复创建。
+- suggestions 先按“可唯一识别的单个 Gradle task”去重；无法唯一识别时按精确完整 command 去重。
+- 已有配置与 suggestion 都能唯一识别为单个 Gradle task 时，只按标准化 task 比较。
 - `./gradlew :app:assembleDebug --offline` 与 suggestion `:app:assembleDebug` 视为同一目标。
 - `:app:deployDebug`、`:app:uploadDebug` 不等于 `:app:assembleDebug`，仍允许创建标准 suggestion 配置。
-- 多 task、无法唯一识别 task 或格式不受支持时只按精确 command 去重，不扩大推断。
+- 任一侧为多 task、无法唯一识别 task 或格式不受支持时，退化为精确完整 command 比较，不做包含式推断。
 - 不删除、不覆盖已有配置的 command、APK output 或远端字段。
 
-新建配置继续使用 `CliRunConfigurationGenerator.generateForModuleIdentity()` 产生稳定 ID 和 develop 命名。配置名冲突时使用 RunManager 的唯一名称能力，并把最终名称写入共享配置。
+**与 main 的差异（有意收紧）**：main 的 `matchesCompileTarget()` 使用 `suggestedTask in gradleTaskTokens(existingCommand)`，因此当已有多 task command 只要**包含** suggestion task 就会被判为重复。本方案不宣称与该语义完全等价：develop 只在两侧都能唯一识别为单个 task 时才按 task 去重，其余情况一律只按精确完整 command 去重。这是基于 main 语义的有意收紧，避免把 `:app:assembleDebug :app:assembleRelease` 之类的多 task 命令误判为与标准 suggestion 等价。
+
+标准化 task 的识别规则（与 main 的 `gradleTaskTokens()` 对齐）：按空白切分，去掉引号，排除可执行文件名（`gradle` / `gradlew` / `gradle.bat` / `gradlew.bat`，允许带路径前缀）、`-` 开头的参数和含 `=` 的参数，剩余 token 去掉前导 `:` 后必须恰好一个。
+
+#### 稳定 ID 冲突必须在创建阶段处理
+
+suggestion 生成的稳定 ID 可能已经被现有 IDEA 配置占用：
+
+- 现有配置的 command 恰好等于该 suggestion 的精确标准 command 时，属于同一目标，直接复用，不重复创建。
+- 现有配置的 command **不是**精确标准 command（例如同 ID 下是 `deployVariant` 自定义 target）时，不得再创建同 ID 配置。
+- 冲突时跳过创建，保留现有配置和共享 Store 原值，使用 debug 日志记录降级原因；IDEA 侧保持可运行，Active Build Variant 继续 fail-closed。
+- 该规则用于防止 `CliRunConfigurationStore.save()` 按相同 ID 覆盖用户自定义 profile。
+
+#### 名称与 Store 一致性
+
+新建配置使用 `CliRunConfigurationGenerator.generateForModuleIdentity()` 产生稳定 ID 和 develop 命名（`moduleName variant`）作为首选名称。名称冲突时使用 `RunManager.suggestUniqueName()` 得到最终实际名称，并以该最终名称创建 IDEA 配置；写入共享 Store 的 `CliRunConfiguration.name` 必须使用同一个最终名称，避免 IDEA 名称与共享 Store 名称不一致。
+
+### suggestion 身份解析边界
+
+`SuggestRunConfiguration` 没有独立 modulePath 字段，完整 Gradle module path 只能来自 compile command。因此只有同时满足以下条件的 suggestion 才允许创建稳定配置、参与身份导入或 Active Build Variant 选择：
+
+- compile command 能精确解析为受支持的单个 `./gradlew :modulePath:assembleVariant` task；
+- module path 合法（每段非空，不带 URL 之外的杂散字符）；
+- command 中的 variant 归一化后与非空 `variantName` 一致。
+
+无法解析、多 task、variant 不一致或 `variantName` 为空的 suggestion 不得伪造稳定身份：跳过该条 suggestion 的创建与选择参与，按已有配置、ProjectInfo fallback 或有限重试降级。
 
 ### Active Build Variant 选择
 
-保留当前 fail-closed 规则：
+保留当前 fail-closed 规则，并把否决顺序固定在复用之前：
 
 - 当前选中项必须是 Jugg 配置。
 - source 和 target 都必须是精确标准生成命令。
 - suggestion 的 command、module path 和 `variantName` 必须一致且唯一。
 - 自定义 command、附加参数、多 task、歧义 suggestion 或稳定 ID 冲突时保持当前选择。
 
-创建阶段先补齐 suggestion 配置，选择阶段只查找目标，不再通过遍历 ProjectInfo Application 模块决定是否创建目标。稳定 ID 唯一且 command 精确时优先使用稳定 ID；否则仅兼容唯一精确匹配 suggestion command 与 APK output 的旧配置。
+创建阶段先补齐 suggestion 配置，选择阶段只查找目标，不再通过遍历 ProjectInfo Application 模块决定是否创建目标。
+
+**自定义 target 优先否决**：选择阶段在复用稳定 ID 或精确匹配目标之前，先检查目标 variant 是否已经被自定义 target 占用。自定义 target 指“目标 module + 目标 variant 存在配置，但该配置的 command 不是该目标的标准生成 command”。命中时直接保持当前选择，即使标准 suggestion 配置刚刚在创建阶段新建，也不能抢占当前选择。该规则不改变既有对照用例的结论：选择项本身已是标准目标、或目标 variant 只有标准配置时，仍按原逻辑复用或创建。
+
+稳定 ID 唯一且 command 精确时优先使用稳定 ID；否则仅兼容唯一精确匹配 suggestion command 与 APK output 的旧配置。
 
 ### 已有配置的 Best-effort 导入
 
-`ensureConfiguration()` 和 Sync 对账必须先以 RunManager 中是否存在非默认 Jugg 配置判断 IDEA 是否可用，再独立执行共享导入。
+`ensureConfiguration()` 和 Sync 对账必须先以 RunManager 中是否存在非默认 Jugg 配置判断 IDEA 是否可用，再独立执行共享导入。“非默认”沿用现有 `SuggestRunConfiguration.isDefaultRunConfigName()` 口径。
 
-每条配置的身份按以下顺序解析：
+每条配置的身份按以下顺序解析，任何一步都不能抛出：
 
-1. 精确匹配当前 suggestion 的 Gradle task，使用 suggestion 的 moduleName 和 variant。
-2. 精确解析标准 `./gradlew :modulePath:assembleVariant` 命令。
+1. 本轮成功构建的精确标准 command：`./gradlew :modulePath:assembleVariant` 单 task，moduleName 由 modulePath 按 `:` 转 `.` 得到，variant 由 task 后缀归一化得到。
+2. 当前或历史共享配置中已经确认的身份：同 `cliRunConfigurationId` 的历史共享配置，或 `fromCompileOptions()` 的 `base`。
 3. 使用可用 ProjectInfo 解析已知 module/variant。
-4. 使用相同 `cliRunConfigurationId` 的历史共享配置身份。
-5. 仍无法确定时暂不写入共享 Store，但保留 IDEA 配置和可运行状态。
+4. 仍无法确定时暂不写入共享 Store，但保留 IDEA 配置和可运行状态。
+
+第 1 步优先的第二个原因是 Report `7ec4603f` 的等价输入：ProjectInfo 全部 `moduleType=Unknown` 时，只要 command 本身是标准 command，就必须能确定身份，不能依赖 ProjectInfo。
+
+`ProjectInfo` 不再作为身份解析的必选前提，`resolveBuildIdentity()` 改为可返回空。禁止为无法确认的自定义 command 伪造 module 或 variant：无法解析的配置跳过共享导入，其他配置继续。
 
 已知的“身份暂不可用”使用 debug 日志记录降级原因；文件写入、序列化等非预期异常使用 warn，并保留最终异常。处理必须逐条隔离，一条失败不能阻止其他配置保存或阻止 suggestion 创建。
 
-当后续 Sync、配置修改事件或成功 Gradle build 获得足够身份信息时，再完成该配置的共享导入。禁止为无法确认的自定义 command 伪造 module 或 variant。
+当后续 Sync、配置修改事件或成功 Gradle build 获得足够身份信息时，再完成该配置的共享导入。
+
+### 成功 Gradle build 的回写与导入
+
+`updateAfterSuccessfulGradleBuild()` 与 `CliRunConfigurationGenerator.fromCompileOptions()` 必须能在 ProjectInfo 没有 Application 模块时完成回写：
+
+- 回写基准按 `store.loadCurrent()`、当前选中配置、ProjectInfo 单配置 fallback 的顺序获取；三者都无法形成基准时跳过本轮回写并记录 debug，不抛异常、不伪造身份。
+- 身份解析按上一节的顺序执行，标准 command 直接给出 module/variant。
+- 实际 command、APK output、远端字段（含 `isRemoteSyncExcludePatternsCustomized`）和 current pointer 必须完整保存。
+
+Report 等价输入（全部 `moduleType=Unknown`）下，suggestion 创建配置后执行一次成功 Gradle build，必须保存上述字段且不抛异常。
 
 ### 重试与 Tool Window
 
@@ -184,14 +226,28 @@ Sync 必须实际进入 `isSyncFinished = true` 的创建路径。重试条件�
 val isRemoteSyncExcludePatternsCustomized: Boolean = false
 ```
 
-同步以下转换边界：
+同步以下四个转换边界：
 
-- IDEA `JuggRunConfigurationOptions` -> `CliRunConfiguration`
+- IDEA `JuggRunConfigurationOptions` -> `CliRunConfiguration`（`IdeaCliRunConfigurationManager.toCliConfiguration()`）
 - `CliRunConfiguration.applyTo(JuggRunConfigurationOptions)`
 - `CliRunConfigurationGenerator.fromCompileOptions()`
 - `CliRunConfiguration.toCompileOptions()`
 
 这是 additive 字段。旧 schema version 1 JSON 缺失字段时按 `false` 读取，不提升 schema version，不失效旧配置，不要求迁移或完整重建。
+
+回归必须覆盖全部转换边界和语义丢失场景，不能只验证 JSON 往返：
+
+| 场景 | 断言 |
+|---|---|
+| 旧 schema version 1 JSON 缺字段 | 反序列化得到 `false`，patterns 原样保留 |
+| JSON 往返 | patterns 与 customized 标志完整保留 |
+| IDEA options -> `CliRunConfiguration` | customized 标志随 patterns 一起进入共享配置 |
+| `CliRunConfiguration.applyTo(options)` | 写回 IDEA options 的 customized 标志与共享配置一致 |
+| `fromCompileOptions()` | `JuggGradleCompileOptions.isRemoteSyncExcludePatternsCustomized` 写入共享配置 |
+| `toCompileOptions()` | 共享配置的 customized 标志回到 `JuggGradleCompileOptions` |
+| `customized=true` 且 patterns 为空 | `effectiveRemoteSyncExcludePatterns` 仍为空集合，不回落内置默认规则 |
+
+验证边界：`CliRunConfiguration.applyTo(JuggRunConfigurationOptions)` 只在创建新配置时调用，而当前所有创建来源（suggestion、ProjectInfo fallback）产生的 target 都使用默认远程字段。因此 `customized=true` 的 `applyTo` 分支在生产路径上不可达，自动化只能覆盖 `applyTo` 的字段级一致性（新建配置的 IDEA options 与共享 profile 相同），不为它新增测试专用 seam。`customized=true` 的语义由 IDEA options -> `CliRunConfiguration`、`fromCompileOptions()`、`toCompileOptions()` 和 JSON 边界共同保护。
 
 ## 代码修改范围
 
@@ -206,13 +262,14 @@ val isRemoteSyncExcludePatternsCustomized: Boolean = false
 
 ### `IdeaCliRunConfigurationManager.kt`
 
-- suggestion 直接生成配置，不再先构造 ProjectInfo fallback。
-- 提取 suggestion 创建与 main 等价的 task 去重逻辑。
+- suggestion 直接生成配置，不再先构造 ProjectInfo fallback；启动阶段没有 suggestion 时不创建任何配置。
+- 提取 suggestion 创建与 task 去重逻辑（按本节的有意收紧规则），并校验 suggestion 身份可解析。
 - 删除 Sync 中“遍历全部 ProjectInfo Application 模块创建配置”的行为。
 - ProjectInfo fallback 仅在 Sync 后、没有 suggestion 且没有非默认 Jugg 配置时创建一个。
 - 已有配置逐条 Best-effort 导入；导入结果不决定 IDEA 配置是否可用。
-- Active Build Variant 选择改为消费创建后的 IDEA settings 和 suggestions，不以 ProjectInfo Application 列表作为创建前提。
-- 不新增接口、repository、provider 或测试专用 seam。
+- 身份解析改为可空，按标准 command、当前/历史共享配置、ProjectInfo 的顺序降级。
+- Active Build Variant 选择改为消费创建后的 IDEA settings 和 suggestions，不以 ProjectInfo Application 列表作为创建前提；自定义 target 否决先于稳定 ID/精确目标复用。
+- 只删除因本次改动而失效的重复入口（`syncExistingConfigurations()`、`matchesConfiguration()`、`findSuggestedConfiguration()`），不新增接口、repository、provider 或测试专用 seam。
 
 ### `CliRunConfiguration.kt`
 
@@ -247,27 +304,35 @@ val isRemoteSyncExcludePatternsCustomized: Boolean = false
 | 层级 | 测试 owner | 场景 | 修改前预期 | 修改后预期 |
 |---|---|---|---|---|
 | L2 | `IdeaCliRunConfigurationFlowTest` | ProjectInfo 无 Application，suggestion 为 `app/debug` | `ensureConfiguration()` 抛异常 | 创建 IDEA 配置并写入共享 Store |
-| L2 | `IdeaCliRunConfigurationFlowTest` | ProjectInfo 无 Application，已有标准 Jugg 配置 | 初始化/导入失败 | IDEA 配置立即可用，并从 command 或 suggestion 完成共享导入 |
+| L2 | `IdeaCliRunConfigurationFlowTest` | ProjectInfo 无 Application，已有标准 Jugg 配置 | 初始化/导入失败 | IDEA 配置立即可用，并从 command 完成共享导入 |
 | L2 | `IdeaCliRunConfigurationFlowTest` | 一条自定义配置身份不可解析，另一条可解析 | 整批导入中止 | 仅跳过不可解析配置，其他配置保存成功 |
 | L2 | `IdeaCliRunConfigurationFlowTest` | 两条 suggestion 指向同一 Gradle task | 依赖 ProjectInfo 或重复处理 | 只创建一个配置 |
 | L2 | `IdeaCliRunConfigurationFlowTest` | 已有 `assembleDebug --offline` | 可能创建稳定默认配置 | 不重复创建，保留原字段 |
-| L2 | `IdeaCliRunConfigurationFlowTest` | 已有 `deployDebug`，suggestion 为 `assembleDebug` | ProjectInfo identity 可能阻止标准配置 | 创建标准 suggestion 配置，但不抢占自定义选择 |
+| L2 | `IdeaCliRunConfigurationFlowTest` | 已有 `deployRelease`，suggestion 为 `app/release` | ProjectInfo identity 可能阻止标准配置 | 创建标准 suggestion 配置，但不抢占自定义选择和 current pointer |
+| L2 | `IdeaCliRunConfigurationFlowTest` | 稳定 ID 被 `deployRelease` 自定义 target 占用 | 可能创建同 ID 配置并覆盖共享 profile | 不创建重复 ID、不覆盖共享 Store、不改变选择 |
+| L2 | `IdeaCliRunConfigurationFlowTest` | 首选名称与已有 Jugg 配置名称冲突 | IDEA 名称与共享 Store 名称可能不一致 | IDEA 与共享 Store 使用同一最终唯一名称 |
+| L2 | `IdeaCliRunConfigurationFlowTest` | suggestion 多 task / variant 与 command 不一致 / `variantName` 为空 | 可能伪造稳定身份 | 跳过该 suggestion，不创建、不参与选择 |
+| L2 | `IdeaCliRunConfigurationFlowTest` | ProjectInfo 无 Application，成功 Gradle build 回写 | `resolveBuildIdentity()` 抛异常 | 保存实际 command、APK output、远端字段和 current pointer |
 | L2 | develop 版 `JuggManagerRunConfigurationSyncTest` | 启动无 suggestion，Sync 后 suggestion 可用 | Sync 不进入创建重试 | Sync 创建配置并恢复 Tool Window |
 | L2 | 同上 | 首次 Sync suggestion 为空，后续重试可用 | 重试入口不可达 | 有限重试读取新 suggestion 后成功，且不重复创建 |
-| L2 | 同上 | 并发 Sync/重试 | 历史上存在锁顺序风险 | 项目写锁串行，无重复配置、无死锁 |
-| L1 | `CliRunConfigurationTest` | 自定义远程排除规则 JSON 往返 | customized 标志丢失 | patterns 与 customized 标志完整保留 |
+| L2 | 同上 | 连续两次 Sync 且 suggestion 不变 | 缺少去重保护 | 只创建一个配置，选择保持不变 |
+| L1 | `CliRunConfigurationTest` | 自定义远程排除规则：旧 JSON、JSON 往返、`fromCompileOptions()`、`toCompileOptions()`、空 patterns | customized 标志丢失 | patterns 与 customized 标志完整保留，空 patterns 不回落默认规则 |
+| L2 | `IdeaCliRunConfigurationFlowTest` | 自定义远程排除规则：IDEA options -> `CliRunConfiguration`、`applyTo()` | customized 标志丢失 | 两侧标志与 patterns 一致（`applyTo()` 的非默认分支当前只有默认值可观察，见"验证边界"） |
+| L1 | `CliRunConfigurationTest` | 标准 command / 已知身份 / 未知 command 的身份解析 | 无 ProjectInfo 时抛异常 | 依次降级，未知 command 不伪造身份 |
 | L1/L2 | 现有 active variant owner | 标准 variant 切换及自定义 command | 可能受创建重构影响 | 现有 fail-closed 行为不变 |
 
-不整体复制 main 的 1122 行旧测试文件。只将上述缺失行为移植到 develop 现有 owner；若 JuggManager 生命周期没有合适 owner，则恢复一个聚焦的 `JuggManagerRunConfigurationSyncTest`，只覆盖 Sync、重试、Tool Window 和并发边界。
+不整体复制 main 的 1122 行旧测试文件。只将上述缺失行为移植到 develop 现有 owner；JuggManager 生命周期没有合适 owner，因此恢复一个聚焦的 `JuggManagerRunConfigurationSyncTest`，只覆盖 Sync 入口、有限重试、Tool Window 与重复 Sync 去重。锁串行语义由现有 `TaskRunnerManagerTest` / `ProjectExecutionLockTest` 负责，不在该文件重复验证并发。
+
+该文件通过 `onSyncEvent(SyncEvent.SUCCEEDED)` 这一真实 Sync 入口驱动，用 `TestCoroutineScheduler` 推进重试延迟，并为外部依赖 `GradleProjectInfoLocalFetchManager` 提供真实实例（预置 `gradle_project_infos.json`，命中其"无需更新"早退分支），避免 mock 带默认参数的 Kotlin 方法。
 
 ## 实施顺序
 
-1. 在 `IdeaCliRunConfigurationFlowTest` 增加“无 Application + 有 suggestion”和“已有配置不依赖 ProjectInfo”的失败测试，确认因当前 fallback/导入行为失败。
-2. 增加 suggestion 去重、自定义 task 和单配置失败隔离测试。
-3. 调整 `IdeaCliRunConfigurationManager`：suggestion 直接创建、逐条导入、取消全部 Application 模块遍历。
-4. 增加 JuggManager Sync、重试和 Tool Window 失败测试。
-5. 调整 `JuggManager` 生命周期接线，恢复 Sync 后有限重试和统一成功出口。
-6. 在 `CliRunConfigurationTest` 增加 customized flag 往返失败测试，再补共享字段和转换边界。
+1. 在 `CliRunConfigurationTest` 增加 customized flag 四个转换边界、旧 JSON、空 patterns 失败测试，和身份解析降级失败测试；补共享字段与 `resolveBuildIdentity()` 可空签名。
+2. 在 `IdeaCliRunConfigurationFlowTest` 增加“无 Application + 有 suggestion”和“已有配置不依赖 ProjectInfo”的失败测试，确认因当前 fallback/导入行为失败。
+3. 增加 suggestion 去重、任务语义收紧、自定义 task、稳定 ID 冲突、名称一致性和单配置失败隔离测试。
+4. 调整 `IdeaCliRunConfigurationManager`：suggestion 直接创建、身份解析降级、逐条导入、取消全部 Application 模块遍历、把自定义 target 否决提前到复用之前。
+5. 增加 JuggManager Sync、重试和 Tool Window 失败测试。
+6. 调整 `JuggManager` 生命周期接线，恢复 Sync 后有限重试和统一成功出口。
 7. 执行现有 Active Build Variant 回归，确认自定义 command 和非 Jugg selection 行为不变。
 8. 同步知识库、设计记录和 Wiki。
 9. 执行定向测试、编译验证和 diff 检查。
@@ -300,8 +365,10 @@ git diff --check
 ## 完成标准
 
 - Report `7ec4603f` 的等价输入下，即使 Jugg ProjectInfo 全部为 `Unknown`，Sync 后仍能根据 Android Studio `app/debug` suggestion 创建配置。
-- Android Studio suggestion 存在时，IDEA 创建范围和 Gradle task 去重语义与 main 一致。
-- 已有 Jugg 配置不因 ProjectInfo 缺少 Application 而失效。
+- Android Studio suggestion 存在时，IDEA 创建范围与 main 对齐；Gradle task 去重按本节定义的有意收紧规则执行，多 task 命令只按精确 command 去重。
+- 已有 Jugg 配置不因 ProjectInfo 缺少 Application 而失效；成功 Gradle build 在 ProjectInfo 无 Application 时仍能完成回写与导入。
+- 稳定 ID 被自定义 target 占用时不创建重复配置、不覆盖共享 Store、不改变当前选择。
+- 标准 suggestion 配置可以创建，但目标 variant 已有自定义 target 时不得抢占当前选择和 current pointer。
 - Sync 后 suggestion 暂不可用时会执行有限重试，恢复后只创建一次配置。
 - Sync 或重试创建成功后 Jugg Tool Window 可用。
 - Standalone 仍可在无 IDEA 环境下从共享 Store 或 Gradle ProjectInfo 初始化和运行。

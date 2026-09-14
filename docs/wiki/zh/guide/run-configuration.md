@@ -28,6 +28,20 @@ jugg:app:paidRelease
 
 Gradle 模块名可以包含点号，例如 \`:zxphone5.0\`。Jugg 自动生成 \`Compile command\` 时直接使用 Android Studio 提供的 Gradle project path：名称内的点号保持不变，多层模块继续使用冒号分隔，组合构建则保留 included build 名称。因此 \`:zxphone5.0\`、\`:feature:app\` 和 \`:SMCommon:app\` 会分别生成对应模块的 assemble task，不会根据 Jugg 配置名反向猜测路径。
 
+## 配置从哪来
+
+Jugg 以 Android Studio 报告的普通 Android Run Configuration 作为配置发现来源。项目打开时，已有 Jugg 配置立即生效；没有配置时，Jugg 按 Android Studio 报告的可运行目标创建，启动阶段不会用 Gradle 工程信息猜测目标。
+
+创建时按 Gradle task 去重：
+
+- 标准 \`assembleVariant\` 与带 \`--offline\` 等附加参数的同一 task 视为同一目标，不重复创建。
+- \`deployVariant\`、\`uploadVariant\` 等自定义 task 不等于标准 \`assembleVariant\`，允许标准配置与自定义配置同时存在。
+- 多 task 或格式不受支持的命令只按完整命令比较，Jugg 不做包含式推断。
+- 已有配置的 \`Compile command\`、\`Output APK name\` 和远端字段不会被覆盖。
+- 名称冲突时使用唯一名称，界面显示的名称与共享配置保存的名称一致。
+
+只有能精确解析为单个 \`./gradlew :modulePath:assembleVariant\`、且命令中的 variant 与 Android Studio 报告一致的目标才会被创建；解析不出的目标会被跳过，不会伪造身份。Gradle 工程信息缺少 App 模块不会让已有配置失效，也不会阻止标准目标创建。
+
 ## 跟随 Active Build Variant
 
 当 Android Studio 的 Active Build Variant 改变时，Jugg 会查找同一模块对应的新构建目标。
@@ -40,6 +54,8 @@ Gradle 模块名可以包含点号，例如 \`:zxphone5.0\`。Jugg 自动生成 
   -> 为缺失目标创建 Jugg 配置
   -> 当前已选 Jugg 配置时切到同模块新 variant
 \`\`\`
+
+目标 variant 已经有自定义 target（例如 \`deployDebug\`）时，Jugg 优先保留当前选择：即使标准配置刚刚创建，也不会抢占用户的选择和共享配置指针。需要切换时手动选择目标配置即可。
 
 切换后第一次运行通常需要 Gradle 构建，因为 APK、classpath、mapping 和工程信息都属于新的基线。
 

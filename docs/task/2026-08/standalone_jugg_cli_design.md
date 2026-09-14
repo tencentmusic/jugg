@@ -645,7 +645,7 @@ Quail `makeDebuggerRedefiners()` 当前为空映射，Standalone 不实现 IDEA 
 
 ### 7.1 配置来源与导入
 
-`SuggestRunConfiguration` 已废弃，本方案不再复用。CLI Run Configuration 是项目级配置集合，模拟 IDEA 的 Jugg Run Configuration 行为；不提供 `.local` 用户覆盖层。
+`SuggestRunConfiguration` 不进入共享层：它属于 IDE Host 信息，`main` 与 Standalone 都不感知，因此 Standalone 的配置来源只有共享 Store 和 Gradle ProjectInfo。**修正**：共享 CLI Run Configuration 架构落地时曾把 `SuggestRunConfiguration` 记为"已废弃"，该结论不成立——IDEA Host 仍然使用它作为 Android Studio Android Run Configuration 的配置发现来源，只是不再经过 ProjectInfo fallback 中转（见 `docs/task/2026-09/idea_run_configuration_creation_alignment.md`）。CLI Run Configuration 是项目级配置集合，模拟 IDEA 的 Jugg Run Configuration 行为；不提供 `.local` 用户覆盖层。
 
 新版 IDEA 首次访问项目配置集合时，仅导入现有 Jugg Run Configuration，并以 IDE 当前选中的 Jugg 配置更新当前指针；普通 Android Run Configuration 不导入。之后 IDEA 选择的 Jugg 配置持续更新指针，standalone 始终按指针读取当前配置。
 
@@ -659,7 +659,7 @@ Quail `makeDebuggerRedefiners()` 当前为空映射，Standalone 不实现 IDEA 
 
 生成结果必须记录推断来源，不能静默把 fallback 结果描述为 IDE 配置。
 
-Gradle Sync 完成后，IDEA 先刷新 effective `JuggProjectInfo`，再为每个 application module reconcile 当前 `buildVariant`。同 module + variant 已存在时保留全部用户字段，只在缺失时确定性创建。当前选择是 Jugg 配置时切换到同 module 的 active variant；当前选择不是 Jugg 时不改变 IDEA 选择和 CLI current pointer。该流程不恢复 `SuggestRunConfiguration`，也不导入普通 Android Run Configuration。
+Gradle Sync 完成后，IDEA 先刷新 effective `JuggProjectInfo`，再读取 Android model suggestion 并完成导入、创建和 Active Build Variant 选择。**修正**：这里不再"为每个 application module reconcile"——该行为会让 ProjectInfo 决定配置发现范围，漏掉或降级 Application 时不创建，也可能创建出 Android Studio 未提供的配置。当前创建来源是 suggestion：同 Gradle task 已存在时保留全部用户字段，只补齐缺失的标准 `assembleVariant` 配置；目标 variant 已被自定义 target 占用时优先否决自动切换；当前选择不是 Jugg 时不改变 IDEA 选择和 CLI current pointer。ProjectInfo 只在 suggestion 全不可用、没有任何非默认 Jugg 配置且能确定 application module 时生成一个确定性 fallback。普通 Android Run Configuration 仍不导入共享 profile。
 
 ### 7.2 JSON 配置集合
 
@@ -1107,9 +1107,9 @@ Loader 创建 hot-update classloader 前只通过 `JuggHotUpdateBootstrap` 读�
 
 实现状态：已完成。新增共享 `CliRunConfiguration`、`CliRunConfigurationGenerator`、`CliRunConfigurationSerializer` 与 `CliRunConfigurationStore`，配置分别保存到 `build/jugg/config/run_configurations/<id>.json`，当前指针保存到 `current_run_configuration.json`。配置文件使用临时文件和原子替换，POSIX 平台限制为当前用户读写；配置 id 为 UUID，Gradle project info 默认配置使用 module path + variant 生成确定性 UUID，IDEA 配置将 id 持久化到 `JuggRunConfigurationOptions`，重命名不改变 id。
 
-默认配置不再使用 `SuggestRunConfiguration`。生成顺序为最近成功配置、名为 `app` 的 application module、其余 application module 稳定排序；variant 优先当前 `buildVariant`，缺失时使用 `debug`。`debug/release` flavor variant 的 APK 路径按 `<flavor>/<buildType>` 生成。IDEA 首次发现未绑定的 Jugg Run Configuration 时导入全部 Jugg 配置，普通 Android Run Configuration 不导入；选择、增加或修改 Jugg 配置时在项目锁内更新配置或指针，并忽略已经过期的异步选择事件。IDEA Runtime 的 MCP/CLI Gradle 调用优先当前选中的 Jugg 配置，不再固定执行列表第一个配置。
+默认配置只在 `SuggestRunConfiguration` 不可用时生成（**修正**：见 §7.1，IDEA Host 仍使用 suggestion 作为配置发现来源，只有 Standalone 始终走 ProjectInfo）。ProjectInfo fallback 生成顺序为最近成功配置、名为 `app` 的 application module、其余 application module 稳定排序；variant 优先当前 `buildVariant`，缺失时使用 `debug`。`debug/release` flavor variant 的 APK 路径按 `<flavor>/<buildType>` 生成。IDEA 首次发现未绑定的 Jugg Run Configuration 时导入全部 Jugg 配置，普通 Android Run Configuration 不导入；选择、增加或修改 Jugg 配置时在项目锁内更新配置或指针，并忽略已经过期的异步选择事件。IDEA Runtime 的 MCP/CLI Gradle 调用优先当前选中的 Jugg 配置，不再固定执行列表第一个配置。
 
-Active Build Variant 同步已改为基于 effective `JuggProjectInfo` 的 reconcile：Sync 更新模型后，为每个 application module 生成当前 variant 候选，复用同 module + variant 的已有配置并保留自定义字段，只补齐缺失配置；仅在当前选择为 Jugg 时切换同 module variant。文件扫描使用 Runtime 实例内锁串行，不占用 project lock，因此不会阻塞该 Sync 写事务。
+Active Build Variant 同步已改为消费 Sync 当下的 Android model suggestion：Sync 更新模型后按 suggestion 补齐缺失的标准 `assembleVariant` 配置（**修正**：不再为每个 application module 生成候选），复用同 Gradle task 的已有配置并保留自定义字段；目标 variant 已有自定义 target 时保持当前选择，仅在当前选择为 Jugg 时才切换同 module 的 active variant。文件扫描使用 Runtime 实例内锁串行，不占用 project lock，因此不会阻塞该 Sync 写事务。
 
 Gradle build 成功且 APK 已确认后，当前配置会回写本轮实际 `compileCommand`、APK pattern、module、variant、build target 与远端编译字段。远端密码保留在配置文件中，但配置 `toString()` 与 `JuggGradleCompileOptions.toSafeString()` 不输出密码、Gradle command 或环境变量。
 

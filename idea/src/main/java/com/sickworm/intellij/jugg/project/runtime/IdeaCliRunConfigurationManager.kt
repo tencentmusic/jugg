@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.project.runtime
 
 import com.intellij.execution.RunManager
 import com.intellij.execution.RunnerAndConfigurationSettings
+import com.intellij.execution.configurations.ConfigurationFactory
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.BuildTarget
 import com.sickworm.intellij.jugg.compiler.context.CompileContextManager
@@ -24,59 +25,22 @@ class IdeaCliRunConfigurationManager(
     private val logger: Logger,
 ) {
 
+    /** Imports existing profiles and creates suggestion targets without a Gradle project-info fallback. */
     fun ensureConfiguration(suggestions: List<SuggestRunConfiguration> = emptyList()): Boolean {
         val existingSettings = runManager.getConfigurationSettingsList(JuggConfigurationType::class.java)
-        if (existingSettings.isNotEmpty()) {
-            ensureImportedConfigurations(existingSettings)
+        if (hasUsableConfiguration(existingSettings)) {
+            importConfigurations(existingSettings)
             return true
         }
-        val projectInfo = compileContextManager.getProjectInfo()
-        val fallback = CliRunConfigurationGenerator.generate(projectInfo)
-        val configuration = findSuggestedConfiguration(fallback, suggestions) ?: fallback
-        val factory = JuggConfigurationType.getInstance().configurationFactories[0]
-        val settings = runManager.createConfiguration(configuration.name, factory)
-        val ideaConfiguration = settings.configuration as? JuggRunConfiguration ?: return false
-        configuration.applyTo(ideaConfiguration.state ?: return false)
-        settings.isActivateToolWindowBeforeRun = false
-        runManager.addConfiguration(settings)
-        runManager.selectedConfiguration = settings
-        store.save(configuration)
-        store.select(configuration.id)
-        return true
-    }
-
-    private fun findSuggestedConfiguration(
-        fallback: CliRunConfiguration,
-        suggestions: List<SuggestRunConfiguration>,
-    ): CliRunConfiguration? {
-        val match = suggestions.mapNotNull { suggestion ->
-            if (suggestion.moduleName != fallback.moduleName) return@mapNotNull null
-            val command = generatedCommand(suggestion.compileCommand) ?: return@mapNotNull null
-            val suggestedVariant = suggestion.variantName?.let(::normalizeVariantName)
-            if (command.variant != fallback.variant || suggestedVariant != null && command.variant != suggestedVariant) {
-                return@mapNotNull null
-            }
-            suggestion to command
-        }.singleOrNull() ?: return null
-        return CliRunConfigurationGenerator.generateForModuleIdentity(
-            modulePath = match.second.modulePath,
-            moduleName = match.first.moduleName,
-            variant = match.second.variant,
-            outputApkName = match.first.outputApkPath,
-            generatedAt = fallback.generatedAt,
+        val created = createMissingConfigurations(
+            suggestions.mapNotNull(::toSuggestedConfiguration),
+            existingSettings,
+            defaultFactory(),
         )
-    }
-
-    fun syncExistingConfigurations(): List<CliRunConfiguration> {
-        val projectInfo = compileContextManager.getProjectInfo()
-        val configurations = runManager.getConfigurationSettingsList(JuggConfigurationType::class.java)
-            .mapNotNull { toCliConfiguration(it, projectInfo) }
-        configurations.forEach(store::save)
-        val selected = runManager.selectedConfiguration
-            ?.takeIf { it.configuration is JuggRunConfiguration }
-            ?.let { selectedSettings -> configurations.firstOrNull { it.id == (selectedSettings.configuration as JuggRunConfiguration).state?.cliRunConfigurationId } }
-        selected?.let { store.select(it.id) }
-        return configurations
+        val selected = created.firstOrNull() ?: return false
+        runManager.selectedConfiguration = selected.first
+        store.select(selected.second.id)
+        return true
     }
 
     /** Reconciles profiles and follows IDEA active variants only when source and target are exact generated configs. */
@@ -85,36 +49,114 @@ class IdeaCliRunConfigurationManager(
         val settings = runManager.getConfigurationSettingsList(JuggConfigurationType::class.java).toMutableList()
         val configurations = settings.mapNotNull { toCliConfiguration(it, projectInfo) }.toMutableList()
         configurations.forEach(store::save)
-        val factory = (settings.firstOrNull()?.configuration as? JuggRunConfiguration)?.factory
-            ?: JuggConfigurationType.getInstance().configurationFactories[0]
-        projectInfo.modules.values
-            .filter { it.moduleType == ModuleInfo.Type.Application && !it.isAndroidTestModule }
-            .forEach { module ->
-                val expected = CliRunConfigurationGenerator.generateForModule(module)
-                if (configurations.none { matchesConfiguration(it, expected, module, projectInfo) }) {
-                    createConfiguration(expected, factory)?.let { (createdSettings, createdConfiguration) ->
-                        settings += createdSettings
-                        configurations += createdConfiguration
-                    }
-                }
+        val factory = (settings.firstOrNull()?.configuration as? JuggRunConfiguration)?.factory ?: defaultFactory()
+        createMissingConfigurations(suggestions.mapNotNull(::toSuggestedConfiguration), settings, factory)
+            .forEach { (createdSettings, createdConfiguration) ->
+                settings += createdSettings
+                configurations += createdConfiguration
             }
         selectActiveVariant(settings, configurations, projectInfo, factory, suggestions)
         return configurations
     }
 
-    private fun matchesConfiguration(
-        existing: CliRunConfiguration,
-        expected: CliRunConfiguration,
-        module: ModuleInfo,
-        projectInfo: JuggProjectInfo,
-    ): Boolean {
-        if (existing.id == expected.id) return true
-        if (existing.variant != expected.variant) return false
-        if (CliRunConfigurationGenerator.matchesBuildIdentity(existing.compileCommand, module, expected.variant)) return true
-        val matchingNames = projectInfo.modules.values.count {
-            it.moduleType == ModuleInfo.Type.Application && it.name == module.name
+    /** Creates one deterministic Gradle project-info profile when no usable Jugg configuration exists. */
+    fun ensureFallbackConfiguration(): Boolean {
+        val existingSettings = runManager.getConfigurationSettingsList(JuggConfigurationType::class.java)
+        if (hasUsableConfiguration(existingSettings)) {
+            return false
         }
-        return matchingNames == 1 && existing.moduleName == expected.moduleName
+        val configuration = runCatching { CliRunConfigurationGenerator.generate(compileContextManager.getProjectInfo()) }
+            .getOrElse {
+                logger.debug("Skip ProjectInfo run configuration fallback because no application module is available")
+                return false
+            }
+        val created = createMissingConfigurations(listOf(configuration), existingSettings, defaultFactory())
+        val selected = created.firstOrNull() ?: return false
+        runManager.selectedConfiguration = selected.first
+        store.select(selected.second.id)
+        return true
+    }
+
+    private fun defaultFactory(): ConfigurationFactory {
+        return JuggConfigurationType.getInstance().configurationFactories[0]
+    }
+
+    /** True when the RunManager already exposes a Jugg configuration the user can run. */
+    private fun hasUsableConfiguration(settings: List<RunnerAndConfigurationSettings>): Boolean {
+        return settings.any { !SuggestRunConfiguration.isDefaultRunConfigName(it.name) }
+    }
+
+    /** Resolves a suggestion into a stable profile only when its exact Gradle identity is unambiguous. */
+    private fun toSuggestedConfiguration(suggestion: SuggestRunConfiguration): CliRunConfiguration? {
+        val command = generatedCommand(suggestion.compileCommand) ?: return null
+        val variant = suggestion.variantName?.let(::normalizeVariantName)?.takeIf { it.isNotBlank() } ?: return null
+        if (command.variant != variant) {
+            return null
+        }
+        return CliRunConfigurationGenerator.generateForModuleIdentity(
+            modulePath = command.modulePath,
+            moduleName = suggestion.moduleName,
+            variant = variant,
+            outputApkName = suggestion.outputApkPath,
+        )
+    }
+
+    /** Creates the targets no existing command already covers and persists each one under its final name. */
+    private fun createMissingConfigurations(
+        targets: List<CliRunConfiguration>,
+        existingSettings: List<RunnerAndConfigurationSettings>,
+        factory: ConfigurationFactory,
+    ): List<Pair<RunnerAndConfigurationSettings, CliRunConfiguration>> {
+        val usedNames = existingSettings.map { it.name }.toMutableList()
+        val existingCommands = existingSettings.map { it.compileCommand().orEmpty() }
+        val created = mutableListOf<Pair<RunnerAndConfigurationSettings, CliRunConfiguration>>()
+        targets
+            .distinctBy { singleGradleTask(it.compileCommand) ?: it.compileCommand.trim() }
+            .filterNot { target -> existingCommands.any { matchesCompileTarget(it, target.compileCommand) } }
+            .filterNot { target -> ownsStableId(existingSettings, target) }
+            .forEach { target -> createConfiguration(target, usedNames, factory)?.let { created += it } }
+        return created
+    }
+
+    /** True when the stable id already belongs to a target whose command is not the exact generated one. */
+    private fun ownsStableId(
+        existingSettings: List<RunnerAndConfigurationSettings>,
+        target: CliRunConfiguration,
+    ): Boolean {
+        val owned = existingSettings.any { setting ->
+            setting.cliRunConfigurationId() == target.id && setting.compileCommand()?.trim() != target.compileCommand
+        }
+        if (owned) {
+            logger.debug("Skip run configuration ${target.name} because its stable id already belongs to a custom target")
+        }
+        return owned
+    }
+
+    /** True when both commands resolve to the same unique Gradle task, otherwise compares the exact commands. */
+    private fun matchesCompileTarget(existingCommand: String, targetCommand: String): Boolean {
+        val existingTask = singleGradleTask(existingCommand)
+        val targetTask = singleGradleTask(targetCommand)
+        if (existingTask != null && targetTask != null) {
+            return existingTask == targetTask
+        }
+        return existingCommand.trim() == targetCommand.trim()
+    }
+
+    /** Returns the unique Gradle task of a command, or null when it is not a single supported task. */
+    private fun singleGradleTask(compileCommand: String): String? {
+        val executableNames = setOf("gradle", "gradlew", "gradle.bat", "gradlew.bat")
+        return compileCommand.split(Regex("\\s+"))
+            .asSequence()
+            .map { it.trim('\'', '"') }
+            .filter {
+                it.isNotEmpty() &&
+                    it.substringAfterLast('/').substringAfterLast('\\') !in executableNames &&
+                    !it.startsWith("-") &&
+                    !it.contains("=")
+            }
+            .map { it.trimStart(':') }
+            .toList()
+            .singleOrNull()
     }
 
     fun onRunConfigurationSelected(settings: RunnerAndConfigurationSettings?) {
@@ -139,7 +181,11 @@ class IdeaCliRunConfigurationManager(
     fun updateAfterSuccessfulGradleBuild(options: JuggGradleCompileOptions) {
         val projectInfo = compileContextManager.getProjectInfo()
         val current = store.loadCurrent() ?: selectedConfiguration(projectInfo)
-            ?: CliRunConfigurationGenerator.generate(projectInfo)
+            ?: runCatching { CliRunConfigurationGenerator.generate(projectInfo) }.getOrNull()
+            ?: run {
+                logger.debug("Skip CLI run configuration update because no build identity is confirmed yet")
+                return
+            }
         val updated = CliRunConfigurationGenerator.fromCompileOptions(current, options, projectInfo)
         store.save(updated)
         store.select(updated.id)
@@ -150,12 +196,17 @@ class IdeaCliRunConfigurationManager(
         return toCliConfiguration(settings, projectInfo)
     }
 
+    /** Creates the IDEA configuration under its final unique name and persists the same name to the shared store. */
     private fun createConfiguration(
-        configuration: CliRunConfiguration,
-        factory: com.intellij.execution.configurations.ConfigurationFactory,
+        target: CliRunConfiguration,
+        usedNames: MutableList<String>,
+        factory: ConfigurationFactory,
     ): Pair<RunnerAndConfigurationSettings, CliRunConfiguration>? {
-        val settings = runManager.createConfiguration(configuration.name, factory)
+        val name = RunManager.suggestUniqueName(target.name, usedNames)
+        usedNames += name
+        val settings = runManager.createConfiguration(name, factory)
         val ideaConfiguration = settings.configuration as? JuggRunConfiguration ?: return null
+        val configuration = target.copy(name = name)
         configuration.applyTo(ideaConfiguration.state ?: return null)
         settings.isActivateToolWindowBeforeRun = false
         runManager.addConfiguration(settings)
@@ -167,7 +218,7 @@ class IdeaCliRunConfigurationManager(
         settings: MutableList<RunnerAndConfigurationSettings>,
         configurations: MutableList<CliRunConfiguration>,
         projectInfo: JuggProjectInfo,
-        factory: com.intellij.execution.configurations.ConfigurationFactory,
+        factory: ConfigurationFactory,
         suggestions: List<SuggestRunConfiguration>,
     ) {
         val selectedSettings = runManager.selectedConfiguration ?: return
@@ -207,7 +258,7 @@ class IdeaCliRunConfigurationManager(
         settings: MutableList<RunnerAndConfigurationSettings>,
         configurations: MutableList<CliRunConfiguration>,
         projectInfo: JuggProjectInfo,
-        factory: com.intellij.execution.configurations.ConfigurationFactory,
+        factory: ConfigurationFactory,
         selected: CliRunConfiguration,
         suggestion: SuggestRunConfiguration,
         activeCommand: GeneratedCommand,
@@ -246,36 +297,34 @@ class IdeaCliRunConfigurationManager(
         settings: MutableList<RunnerAndConfigurationSettings>,
         configurations: MutableList<CliRunConfiguration>,
         projectInfo: JuggProjectInfo,
-        factory: com.intellij.execution.configurations.ConfigurationFactory,
+        factory: ConfigurationFactory,
         suggestion: SuggestRunConfiguration,
         expected: CliRunConfiguration,
         activeVariant: String,
     ): RunnerAndConfigurationSettings? {
-        val stableIdTargets = settings.filter { setting ->
-            val state = (setting.configuration as? JuggRunConfiguration)?.state ?: return@filter false
-            state.cliRunConfigurationId == expected.id
+        if (hasCustomActiveTarget(configurations, projectInfo, expected, activeVariant)) {
+            return null
         }
-        val exactTargets = settings.filter { setting ->
-            val state = (setting.configuration as? JuggRunConfiguration)?.state ?: return@filter false
-            state.compileCommand?.trim() == suggestion.compileCommand.trim() &&
-                state.outputApkName == suggestion.outputApkPath
+        val stableIdTargets = settings.filter { it.cliRunConfigurationId() == expected.id }
+        val exactTargets = settings.filter {
+            it.compileCommand()?.trim() == suggestion.compileCommand.trim() &&
+                it.outputApkName() == suggestion.outputApkPath
         }
         return when {
             stableIdTargets.size > 1 -> null
-            stableIdTargets.size == 1 -> stableIdTargets.single().takeIf { setting ->
-                (setting.configuration as? JuggRunConfiguration)?.state?.compileCommand?.trim() ==
-                    expected.compileCommand
-            }
+            stableIdTargets.size == 1 -> stableIdTargets.single()
+                .takeIf { it.compileCommand()?.trim() == expected.compileCommand }
             exactTargets.size > 1 -> null
             exactTargets.size == 1 -> exactTargets.single()
-            hasCustomActiveTarget(configurations, projectInfo, expected, activeVariant) -> null
-            else -> createConfiguration(expected, factory)?.also { (createdSettings, createdConfiguration) ->
-                settings += createdSettings
-                configurations += createdConfiguration
-            }?.first
+            else -> createConfiguration(expected, settings.map { it.name }.toMutableList(), factory)
+                ?.also { (createdSettings, createdConfiguration) ->
+                    settings += createdSettings
+                    configurations += createdConfiguration
+                }?.first
         }
     }
 
+    /** True when the active variant is owned by a target whose command is not the exact generated one. */
     private fun hasCustomActiveTarget(
         configurations: List<CliRunConfiguration>,
         projectInfo: JuggProjectInfo,
@@ -287,8 +336,9 @@ class IdeaCliRunConfigurationManager(
                 CliRunConfigurationGenerator.generateForModule(candidate.copy(buildVariant = activeVariant))
                     .compileCommand == expected.compileCommand
         } ?: return false
-        return configurations.any {
-            CliRunConfigurationGenerator.matchesBuildIdentity(it.compileCommand, module, activeVariant)
+        return configurations.any { configuration ->
+            configuration.compileCommand.trim() != expected.compileCommand &&
+                CliRunConfigurationGenerator.matchesBuildIdentity(configuration.compileCommand, module, activeVariant)
         }
     }
 
@@ -308,25 +358,32 @@ class IdeaCliRunConfigurationManager(
         }
     }
 
-    private fun ensureImportedConfigurations(settings: List<RunnerAndConfigurationSettings>) {
+    /** Imports every configuration whose build identity is confirmed and keeps the shared pointer consistent. */
+    private fun importConfigurations(settings: List<RunnerAndConfigurationSettings>) {
         val projectInfo = compileContextManager.getProjectInfo()
         val configurations = settings.mapNotNull { toCliConfiguration(it, projectInfo) }
         configurations.forEach(store::save)
-        val selectedId = (runManager.selectedConfiguration?.configuration as? JuggRunConfiguration)
-            ?.state
-            ?.cliRunConfigurationId
+        val selectedId = runManager.selectedConfiguration?.cliRunConfigurationId()
         if (selectedId != null && configurations.any { it.id == selectedId }) {
             store.select(selectedId)
         }
     }
 
+    /** Resolves the shared profile of an IDEA configuration, or null when no source confirms its identity. */
     private fun toCliConfiguration(settings: RunnerAndConfigurationSettings, projectInfo: JuggProjectInfo): CliRunConfiguration? {
         val ideaConfiguration = settings.configuration as? JuggRunConfiguration ?: return null
         val options = ideaConfiguration.state ?: return null
         val id = options.cliRunConfigurationId?.takeIf(::isUuid) ?: UUID.randomUUID().toString().also {
             options.cliRunConfigurationId = it
         }
-        val identity = CliRunConfigurationGenerator.resolveBuildIdentity(projectInfo, options.compileCommand.orEmpty())
+        val identity = CliRunConfigurationGenerator.resolveBuildIdentity(
+            projectInfo,
+            options.compileCommand.orEmpty(),
+            store.load(id)?.let { it.moduleName to it.variant },
+        ) ?: run {
+            logger.debug("Skip importing Jugg configuration ${settings.name} because its build identity is unknown")
+            return null
+        }
         return CliRunConfiguration(
             id = id,
             name = settings.name,
@@ -353,7 +410,20 @@ class IdeaCliRunConfigurationManager(
             syncMode = options.syncMode.orEmpty(),
             environmentVariables = options.environmentVariables.orEmpty(),
             remoteSyncExcludePatterns = options.remoteSyncExcludePatterns.orEmpty(),
+            isRemoteSyncExcludePatternsCustomized = options.isRemoteSyncExcludePatternsCustomized,
         )
+    }
+
+    private fun RunnerAndConfigurationSettings.compileCommand(): String? {
+        return (configuration as? JuggRunConfiguration)?.state?.compileCommand
+    }
+
+    private fun RunnerAndConfigurationSettings.outputApkName(): String? {
+        return (configuration as? JuggRunConfiguration)?.state?.outputApkName
+    }
+
+    private fun RunnerAndConfigurationSettings.cliRunConfigurationId(): String? {
+        return (configuration as? JuggRunConfiguration)?.state?.cliRunConfigurationId
     }
 
     private fun CliRunConfiguration.applyTo(options: JuggRunConfigurationOptions) {
@@ -377,6 +447,7 @@ class IdeaCliRunConfigurationManager(
         options.environmentVariables = environmentVariables
         options.enableAndroidTest = buildTarget == BuildTarget.ANDROID_TEST
         options.remoteSyncExcludePatterns = remoteSyncExcludePatterns
+        options.isRemoteSyncExcludePatternsCustomized = isRemoteSyncExcludePatternsCustomized
     }
 
     private fun isUuid(value: String): Boolean {

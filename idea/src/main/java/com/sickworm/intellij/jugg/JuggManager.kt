@@ -314,10 +314,7 @@ class JuggManager @TestOnly constructor(
 
     private fun updateProjectInfoAndRunConfigurations(isAfterSync: Boolean) {
         updateProjectInfo(isAfterSync)
-        val suggestions = getRunConfigurationSuggestions()
-        taskRunnerManager.runProjectWriteLocked("Reconcile CLI run configurations") {
-            ideaCliRunConfigurationManager.reconcileActiveBuildVariants(suggestions)
-        }
+        tryCreateRunConfigurations(isSyncFinished = true)
     }
 
     /** Reads the fresh Android model after Sync without changing the shared compile context. */
@@ -343,8 +340,14 @@ class JuggManager @TestOnly constructor(
         val isReady = try {
             val suggestions = getRunConfigurationSuggestions()
             taskRunnerManager.runProjectWriteLocked("Initialize CLI run configuration") {
-                ideaCliRunConfigurationManager.ensureConfiguration(suggestions)
+                if (isSyncFinished) {
+                    ideaCliRunConfigurationManager.reconcileActiveBuildVariants(suggestions)
+                    ideaCliRunConfigurationManager.ensureFallbackConfiguration()
+                } else {
+                    ideaCliRunConfigurationManager.ensureConfiguration(suggestions)
+                }
             }
+            hasUsableRunConfiguration()
         } catch (e: Throwable) {
             logger.warn("Initialize CLI run configuration failed", e)
             if (TestModeManager.isTestMode) {
@@ -370,6 +373,12 @@ class JuggManager @TestOnly constructor(
                 tryCreateRunConfigurations(isSyncFinished = true, maxRetryCount = maxRetryCount - 1)
             }
         }
+    }
+
+    /** True when RunManager already exposes a Jugg configuration the user can run. */
+    private fun hasUsableRunConfiguration(): Boolean {
+        return runManager.getConfigurationSettingsList(JuggConfigurationType::class.java)
+            .any { !SuggestRunConfiguration.isDefaultRunConfigName(it.name) }
     }
 
     @TestOnly
