@@ -313,7 +313,11 @@ class JuggManager @TestOnly constructor(
     }
 
     private fun updateProjectInfoAndRunConfigurations(isAfterSync: Boolean) {
-        updateProjectInfo(isAfterSync)
+        try {
+            updateProjectInfo(isAfterSync)
+        } catch (e: Throwable) {
+            logger.warn("Update project info before run configuration reconciliation failed", e)
+        }
         tryCreateRunConfigurations(isSyncFinished = true)
     }
 

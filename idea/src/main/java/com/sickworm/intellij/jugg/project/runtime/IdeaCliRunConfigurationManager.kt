@@ -39,7 +39,7 @@ class IdeaCliRunConfigurationManager(
         )
         val selected = created.firstOrNull() ?: return false
         runManager.selectedConfiguration = selected.first
-        store.select(selected.second.id)
+        selectConfiguration(selected.second.id)
         return true
     }
 
@@ -48,7 +48,7 @@ class IdeaCliRunConfigurationManager(
         val projectInfo = compileContextManager.getProjectInfo()
         val settings = runManager.getConfigurationSettingsList(JuggConfigurationType::class.java).toMutableList()
         val configurations = settings.mapNotNull { toCliConfiguration(it, projectInfo) }.toMutableList()
-        configurations.forEach(store::save)
+        configurations.forEach(::saveConfiguration)
         val factory = (settings.firstOrNull()?.configuration as? JuggRunConfiguration)?.factory ?: defaultFactory()
         createMissingConfigurations(suggestions.mapNotNull(::toSuggestedConfiguration), settings, factory)
             .forEach { (createdSettings, createdConfiguration) ->
@@ -73,7 +73,7 @@ class IdeaCliRunConfigurationManager(
         val created = createMissingConfigurations(listOf(configuration), existingSettings, defaultFactory())
         val selected = created.firstOrNull() ?: return false
         runManager.selectedConfiguration = selected.first
-        store.select(selected.second.id)
+        selectConfiguration(selected.second.id)
         return true
     }
 
@@ -165,16 +165,16 @@ class IdeaCliRunConfigurationManager(
             return
         }
         val cliConfiguration = toCliConfiguration(settings, compileContextManager.getProjectInfo()) ?: return
-        store.save(cliConfiguration)
-        store.select(cliConfiguration.id)
+        saveConfiguration(cliConfiguration)
+        selectConfiguration(cliConfiguration.id)
     }
 
     fun onRunConfigurationChanged(settings: RunnerAndConfigurationSettings) {
         val configuration = toCliConfiguration(settings, compileContextManager.getProjectInfo()) ?: return
-        store.save(configuration)
+        saveConfiguration(configuration)
         val selectedId = (runManager.selectedConfiguration?.configuration as? JuggRunConfiguration)?.state?.cliRunConfigurationId
         if (selectedId == configuration.id) {
-            store.select(configuration.id)
+            selectConfiguration(configuration.id)
         }
     }
 
@@ -185,10 +185,10 @@ class IdeaCliRunConfigurationManager(
             ?: run {
                 logger.debug("Skip CLI run configuration update because no build identity is confirmed yet")
                 return
-            }
+        }
         val updated = CliRunConfigurationGenerator.fromCompileOptions(current, options, projectInfo)
-        store.save(updated)
-        store.select(updated.id)
+        saveConfiguration(updated)
+        selectConfiguration(updated.id)
     }
 
     private fun selectedConfiguration(projectInfo: JuggProjectInfo): CliRunConfiguration? {
@@ -210,7 +210,7 @@ class IdeaCliRunConfigurationManager(
         configuration.applyTo(ideaConfiguration.state ?: return null)
         settings.isActivateToolWindowBeforeRun = false
         runManager.addConfiguration(settings)
-        store.save(configuration)
+        saveConfiguration(configuration)
         return settings to configuration
     }
 
@@ -228,7 +228,7 @@ class IdeaCliRunConfigurationManager(
         if (selectedCommand == null) {
             logger.debug("Keep selected Jugg configuration because its command is custom, " +
                     "configuration=${selectedSettings.name}")
-            store.select(selected.id)
+            selectConfiguration(selected.id)
             return
         }
         val activeSuggestions = suggestions.filter { suggestion ->
@@ -240,13 +240,13 @@ class IdeaCliRunConfigurationManager(
         if (activeSuggestions.size != 1) {
             logger.debug("Keep selected Jugg configuration because active variant suggestion is not unique, " +
                     "modulePath=${selectedCommand.modulePath}, count=${activeSuggestions.size}")
-            store.select(selected.id)
+            selectConfiguration(selected.id)
             return
         }
         val activeSuggestion = activeSuggestions.single()
         val activeCommand = generatedCommand(activeSuggestion.compileCommand) ?: return
         if (selectedCommand.variant == activeCommand.variant) {
-            store.select(selected.id)
+            selectConfiguration(selected.id)
             return
         }
         selectOrCreateActiveConfiguration(
@@ -275,7 +275,7 @@ class IdeaCliRunConfigurationManager(
         if (activeSettings == null) {
             logger.debug("Keep selected Jugg configuration because active target is missing or ambiguous, " +
                     "modulePath=${activeCommand.modulePath}, variant=${activeCommand.variant}")
-            store.select(selected.id)
+            selectConfiguration(selected.id)
             return
         }
         val activeId = (activeSettings.configuration as? JuggRunConfiguration)?.state?.cliRunConfigurationId
@@ -283,13 +283,13 @@ class IdeaCliRunConfigurationManager(
             moduleName = suggestion.moduleName,
             variant = activeCommand.variant,
         ) ?: run {
-            store.select(selected.id)
+            selectConfiguration(selected.id)
             return
         }
         logger.info("Active Build Variant changed, select ${activeSettings.name} configuration.")
         runManager.selectedConfiguration = activeSettings
-        store.save(active)
-        store.select(active.id)
+        saveConfiguration(active)
+        selectConfiguration(active.id)
     }
 
     /** Resolves a unique generated target and creates it only when no custom target already owns the variant. */
@@ -362,10 +362,26 @@ class IdeaCliRunConfigurationManager(
     private fun importConfigurations(settings: List<RunnerAndConfigurationSettings>) {
         val projectInfo = compileContextManager.getProjectInfo()
         val configurations = settings.mapNotNull { toCliConfiguration(it, projectInfo) }
-        configurations.forEach(store::save)
+        configurations.forEach(::saveConfiguration)
         val selectedId = runManager.selectedConfiguration?.cliRunConfigurationId()
         if (selectedId != null && configurations.any { it.id == selectedId }) {
-            store.select(selectedId)
+            selectConfiguration(selectedId)
+        }
+    }
+
+    private fun saveConfiguration(configuration: CliRunConfiguration) {
+        try {
+            store.save(configuration)
+        } catch (e: Throwable) {
+            logger.warn("Save CLI run configuration failed, configuration=${configuration.name}", e)
+        }
+    }
+
+    private fun selectConfiguration(id: String) {
+        try {
+            store.select(id)
+        } catch (e: Throwable) {
+            logger.warn("Select CLI run configuration failed, id=$id", e)
         }
     }
 
