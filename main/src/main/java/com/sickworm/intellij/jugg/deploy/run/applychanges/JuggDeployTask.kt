@@ -18,8 +18,6 @@ package com.sickworm.intellij.jugg.deploy.run.applychanges
 import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.apk.ApkInfo
-import com.sickworm.intellij.jugg.deploy.run.IApplyChangesExecutor
-import com.sickworm.intellij.jugg.deploy.run.IDeployDebugger
 import com.sickworm.intellij.jugg.deploy.run.IJuggDeployerDeploymentService
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.deploy.run.JuggClassRedefiner
@@ -61,6 +59,7 @@ class JuggDeployTask(
         )
         val idsSkippedInstall: MutableList<String> = ArrayList()
         val overlayIds = mutableMapOf<String, String>()
+        var needsRestartApp = false
 
         // Only the deployer transport receives APK-scoped data. Lifecycle state is still committed
         // by JuggDeployerHelper with the original full JuggDeployData after the whole deploy succeeds.
@@ -79,8 +78,7 @@ class JuggDeployTask(
                 val effectiveType = decision.effectiveType
                 logPackageScope(applicationId, apkInfos, scopedData, effectiveType, logger)
                 val result = perform(
-                    device, deployer, applicationId, apkFiles, scopedData,
-                    applyChangesExecutor, deployDebugger, effectiveType,
+                    device, deployer, applicationId, apkFiles, scopedData, launchContext, effectiveType,
                 )
                 if (result.skippedInstall) {
                     idsSkippedInstall.add(applicationId)
@@ -88,6 +86,7 @@ class JuggDeployTask(
                 if (result.needsRestart) {
                     launchContext.killBeforeLaunch = true
                     launchContext.launchApp = true
+                    needsRestartApp = true
                 }
                 overlayIds[applicationId] = result.overlayId ?: ""
             } catch (e: JuggDeployerException) {
@@ -107,7 +106,9 @@ class JuggDeployTask(
             )
             logger.info("%s. %s", title, content)
         }
-        return LaunchResult(true, 0, null, overlayIds)
+        return LaunchResult(true, 0, null, overlayIds).also {
+            it.needsRestartApp = needsRestartApp
+        }
     }
 
     private fun shouldTaskLaunchApp() = when(type) {
@@ -119,14 +120,20 @@ class JuggDeployTask(
     @Throws(JuggDeployerException::class)
     private fun perform(
         device: IDevice, deployer: JuggDeployer, applicationId: String, files: List<File>,
-        scopedData: JuggDeployData, applyChangesExecutor: IApplyChangesExecutor,
-        deployDebugger: IDeployDebugger, effectiveType: AndroidDeployType = type,
+        scopedData: JuggDeployData, launchContext: LaunchContext,
+        effectiveType: AndroidDeployType = type,
     ): JuggDeployer.Result {
         when (effectiveType) {
             AndroidDeployType.INSTALL -> {
                 logger.debug("Installing application $applicationId...")
-                val installMode = applyChangesExecutor.getInstallMode()
-                return deployer.install(applicationId, getPathsToInstall(files), installMode)
+                val installMode = launchContext.applyChangesExecutor.getInstallMode()
+                val isApp = scopedData.apks.isNotEmpty() && scopedData.apks.none { it.isTestApk }
+                return deployer.install(
+                    applicationId,
+                    getPathsToInstall(files),
+                    installMode,
+                    useCustomInstallScript = isApp && launchContext.customApkInstallScript.isNotBlank(),
+                )
             }
             AndroidDeployType.APPLY_CHANGES_AND_RESTART_ACTIVITY -> {
                 logger.debug("Applying changes to application $applicationId...")
@@ -141,7 +148,7 @@ class JuggDeployTask(
                     // reduce chance of error "R+ Device should have FULL debugger swap support" on some devices
                     // which is occurred in: com.android.tools.deployer.OptimisticApkSwapper.optimisticSwap.
                     // because we don't need debuggerRedefiners on restart case
-                    debuggerRedefiners = deployDebugger.makeDebuggerRedefiners(
+                    debuggerRedefiners = launchContext.deployDebugger.makeDebuggerRedefiners(
                         device, fastRerunOnSwapFailure && deployer.supportsNewPipeline())
                 }
                 return deployer.codeSwap(getPathsToInstall(files), debuggerRedefiners, scopedData)

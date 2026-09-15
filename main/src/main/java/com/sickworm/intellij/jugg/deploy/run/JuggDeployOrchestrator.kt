@@ -9,12 +9,15 @@ import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.compiler.context.CompileContextManager
 import com.sickworm.intellij.jugg.compiler.jarDexFileName
 import com.sickworm.intellij.jugg.deploy.AdbCmdHelper
+import com.sickworm.intellij.jugg.deploy.AppAbiCache
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.JuggJvmtiAgentManagerHelper
 import com.sickworm.intellij.jugg.deploy.SliceDeployHelper
 import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlaySwapTransport
+import com.sickworm.intellij.jugg.deploy.flutter.FlutterJitCacheInvalidator
+import com.sickworm.intellij.jugg.deploy.hotreload.DirectAppSandboxDeployTransport
 import com.sickworm.intellij.jugg.deploy.run.applychanges.AndroidDeployType
 import com.sickworm.intellij.jugg.deploy.run.applychanges.JuggDeployTask
 import com.sickworm.intellij.jugg.deploy.run.flow.DeployRetryHandler
@@ -35,6 +38,7 @@ class JuggDeployOrchestrator(
     private val logger: Logger,
 ) {
     private var isRunning = false
+    private val appAbiCache = AppAbiCache()
 
     /** Executes one device deployment while serializing the shared deployer state. */
     fun execute(request: JuggDeployRunTaskRequest): LaunchResult = synchronized(runTaskLock) {
@@ -54,29 +58,50 @@ class JuggDeployOrchestrator(
             deployTargetManager.stopApp(device)
         }
 
-        val detectJob = taskRunnerManager.runAsyncSafe("isNeedPushAgentAfterDeploy") {
-            val adb = environment.createDeviceAdb(device, logger)
-            JuggJvmtiAgentManagerHelper(logger).isNeedPushAgentAfterDeploy(adb, data)
-        }
         if (!data.isInstall && dependencyChangeManager.changeStatus == IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE) {
             removeLibraryDexFiles(data, device)
         }
 
-        val baseLaunchContext = LaunchContextFactory(environment, logger).create(
+        val baseLaunchContext = LaunchContextFactory(environment, logger, appAbiCache).create(
             device, deployHistoryManager.lastDeployOverlayIds, request.isSkipExceptOverlayCheck, compileUiHandler,
             request.isDeviceReadyDeploy, request.isAllowDirectOverlayDeploy, request.forceDirectOverlayDeploy,
+            request.customApkInstallScript,
         )
-        val isDirectOverlayCandidate = DirectOverlaySwapTransport(baseLaunchContext, logger).canTry(data)
-        val dataList = if (isDirectOverlayCandidate) {
+        val detectJob = taskRunnerManager.runAsyncSafe("isNeedPushAgentAfterDeploy") {
+            JuggJvmtiAgentManagerHelper(logger).isNeedPushAgentAfterDeploy(
+                adb = baseLaunchContext.deviceAdb,
+                data = data,
+                sandboxProvider = { packageName ->
+                    baseLaunchContext.getAppSandboxExecutor(packageName, logger)
+                },
+            )
+        }
+        val sandboxTransport = DirectAppSandboxDeployTransport(baseLaunchContext, logger)
+        val isDirectDeployCandidate = DirectOverlaySwapTransport(baseLaunchContext, logger).canTry(data) ||
+            (!data.isInstall && !data.isEmpty && data.apks.any { sandboxTransport.canTry(it.applicationId) })
+        val dataList = if (isDirectDeployCandidate) {
             listOf(data)
         } else {
             val (firstSliceSize, sliceSize) = SliceDeployHelper(logger).get(baseLaunchContext.deviceAdb)
             data.splitData(firstSliceSize, sliceSize)
         }
         val launchResult = deploySlices(request, androidDeployType, baseLaunchContext, dataList)
+        invalidateFlutterJitCaches(baseLaunchContext, data)
         val isNeedPushAgentAfterDeploy = pushAgentAfterDeploy(device, data, detectJob, launchResult)
-        val isNeedRestartApp = resolveRestartApp(device, data, compileUiHandler, isNeedPushAgentAfterDeploy)
-        launchAfterDeploy(request, androidDeployType, launchResult, isNeedRestartApp)?.let { return it }
+        val isNeedRestartApp = resolveRestartApp(
+            device, data, compileUiHandler, isNeedPushAgentAfterDeploy, launchResult.needsRestartApp,
+        )
+        val composeResourceRestartHelper = ComposeResourceRestartHelper(logger)
+        val isNeedSecondComposeResourceRestart = composeResourceRestartHelper.isRequired(
+            data = data,
+            isDirectDeployCandidate = isDirectDeployCandidate,
+            isFirstDeploy = compileContextManager.compileContext.deployedFiles.isEmpty(),
+            hasRelaunchActivityIssues = environment.hasRelaunchActivityIssues(baseLaunchContext.deviceAdb, logger),
+        )
+        launchAfterDeploy(
+            request, androidDeployType, launchResult, isNeedRestartApp,
+            baseLaunchContext, composeResourceRestartHelper, isNeedSecondComposeResourceRestart,
+        )?.let { return it }
         checkJvmti(device, data, launchResult, isNeedPushAgentAfterDeploy, isNeedRestartApp)
         logger.debug("runTask end")
         isRunning = false
@@ -133,8 +158,9 @@ class JuggDeployOrchestrator(
     private fun resolveRestartApp(
         device: IDevice, data: JuggDeployData,
         compileUiHandler: CompileUiHandler, isNeedPushAgentAfterDeploy: Boolean,
+        deployResultNeedsRestart: Boolean,
     ): Boolean {
-        var isNeedRestartApp = data.isNeedRestartApp
+        var isNeedRestartApp = data.isNeedRestartApp || deployResultNeedsRestart
         if (compileUiHandler.isDebugRun && !isNeedRestartApp) {
             logger.info("Debug run requires app restart before attaching debugger.")
             isNeedRestartApp = true
@@ -159,6 +185,9 @@ class JuggDeployOrchestrator(
     private fun launchAfterDeploy(
         request: JuggDeployRunTaskRequest, androidDeployType: AndroidDeployType,
         launchResult: LaunchResult, isNeedRestartApp: Boolean,
+        launchContext: LaunchContext,
+        composeResourceRestartHelper: ComposeResourceRestartHelper,
+        isNeedSecondComposeResourceRestart: Boolean,
     ): LaunchResult? {
         if (request.androidTestRunSpec != null) return environment.launchAndroidTest(request, request.data, launchResult)
         if (request.deferPostDeployLaunch) {
@@ -169,6 +198,18 @@ class JuggDeployOrchestrator(
                 deployTargetManager.restartAppForDebug(request.device)
             } else {
                 deployTargetManager.restartApp(request.device)
+            }
+            if (isNeedSecondComposeResourceRestart) {
+                composeResourceRestartHelper.waitUntilTransformCacheReady(
+                    launchContext.getAppSandboxExecutor(deployTargetManager.getPackageName(), logger),
+                )
+                logger.info("Restart app again to apply the first Compose resource overlay on Android 15 " +
+                        "below Android Studio Meerkat.")
+                if (request.compileUiHandler.isDebugRun) {
+                    deployTargetManager.restartAppForDebug(request.device)
+                } else {
+                    deployTargetManager.restartApp(request.device)
+                }
             }
         } else if (!deployTargetManager.isAppForeground(request.device)) {
             logger.debug("Starting app...")
@@ -210,8 +251,28 @@ class JuggDeployOrchestrator(
         val adb = environment.createDeviceAdb(device, logger)
         applicationIds.forEach { applicationId ->
             logger.warn("Split deploy failed after partial success; clearing partial overlay for $applicationId.")
-            runCatching { adb.execAdbShellCmd("run-as $applicationId rm -rf code_cache/.overlay") }
+            runCatching {
+                com.sickworm.intellij.jugg.deploy.AppSandboxExecutor(adb, applicationId, logger).exec(
+                    "rm -rf code_cache/.overlay",
+                    repairCodeCache = true,
+                )
+            }
                 .onFailure { logger.warn("Failed to clear partial overlay for $applicationId.", it) }
+        }
+    }
+
+    /** Invalidates Flutter's extracted JIT assets only after all overlay slices are committed. */
+    private fun invalidateFlutterJitCaches(launchContext: LaunchContext, data: JuggDeployData) {
+        if (data.flutterJitRuntimeFiles.isEmpty()) return
+        data.apks.forEach { apkInfo ->
+            val apkPaths = apkInfo.files.map { it.apkFile.path }
+            if (!data.flutterJitRuntimeFiles.any { it.belongsToAny(apkPaths) }) return@forEach
+            val applicationId = apkInfo.applicationId
+            logger.info("Flutter JIT runtime changed, invalidating the Flutter extraction cache for $applicationId.")
+            FlutterJitCacheInvalidator(
+                launchContext.getAppSandboxExecutor(applicationId, logger),
+                logger,
+            ).invalidate()
         }
     }
 

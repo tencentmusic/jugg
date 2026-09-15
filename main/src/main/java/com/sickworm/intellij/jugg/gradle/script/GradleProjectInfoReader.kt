@@ -9,6 +9,7 @@ import org.gradle.api.artifacts.component.ProjectComponentIdentifier
 import org.gradle.api.artifacts.result.ResolvedArtifactResult
 import org.gradle.api.attributes.*
 import org.gradle.api.file.FileCollection
+import org.gradle.api.tasks.bundling.Jar
 import org.gradle.internal.component.local.model.OpaqueComponentArtifactIdentifier
 import java.io.File
 
@@ -27,11 +28,13 @@ class GradleProjectInfoReader(
     private var totalReadArtifacts = 0
     private var resolveArtifacts = 0
     private var printResolveDetail = false
-    private val taskGraphGroup: Map<Project, Set<String>> = rootProject.gradle.taskGraph.allTasks
-        .groupBy { it.project }
-        .mapValues { (_, task) ->
-            task.map { it.name }.toSet()
-        }
+    private val taskGraphGroup: Map<Project, Set<String>> = try {
+        rootProject.gradle.taskGraph.allTasks
+            .groupBy { it.project }
+            .mapValues { (_, task) -> task.map { it.name }.toSet() }
+    } catch (_: IllegalStateException) {
+        emptyMap()
+    }
 
     private var modulesNames = setOf<String>()
 
@@ -350,7 +353,10 @@ class GradleProjectInfoReader(
         }
         TraceLogger.end("getDep")
 
-        moduleInfo = moduleInfo.copy(composeResourceInfo = getComposeResourceInfo(project, moduleInfo))
+        moduleInfo = moduleInfo.copy(
+            composeResourceInfo = getComposeResourceInfo(project, moduleInfo),
+            externalBuildInfos = getExternalBuildInfos(project, moduleInfo),
+        )
 
         TraceLogger.end("getModule:${project.standardModuleName}")
         return moduleInfo
@@ -756,6 +762,365 @@ class GradleProjectInfoReader(
             ?: findTaskByNameWithRetry(project, kotlinTaskNameKmm)
     }
 
+    /**
+     * Reads the external build scope and outputs for one module without resolving full project data.
+     */
+    fun getExternalBuildInfos(project: Project, moduleInfo: ModuleInfo): List<ExternalBuildInfo> {
+        val variantCapital = moduleInfo.buildVariant.camelCompat
+        val result = mutableListOf<ExternalBuildInfo>()
+        val flutterTask = findTaskByNameWithRetry(project, "compileFlutterBuild$variantCapital") as? Task
+        val flutterSourceDir = readConfiguredSourceRoots(readProperty(flutterTask, "sourceDir")).firstOrNull()
+            ?: readProjectFile(project, readProperty(project.extensions.findByName("flutter"), "source"))
+        if (flutterSourceDir != null) {
+            val assetsOutputDir = readConfiguredSourceRoots(readProperty(flutterTask, "outputDirectory")).firstOrNull()
+                ?: readConfiguredSourceRoots(readProperty(flutterTask, "intermediateDir")).firstOrNull()
+            val nativeOutput = readFlutterNativeOutput(project, variantCapital, flutterTask)
+            val reason = when {
+                flutterTask == null -> "Flutter compile task for $variantCapital was not found"
+                assetsOutputDir == null -> "Flutter task ${flutterTask.path} output directory was not found"
+                else -> nativeOutput.reason
+            }
+            val flutterInputs = readFlutterInputs(project, moduleInfo, flutterTask, flutterSourceDir)
+            result.add(ExternalBuildInfo(
+                type = ExternalBuildType.Flutter,
+                inputDirs = compactInputDirs(
+                    listOf(flutterSourceDir.absoluteFile.normalize()) + flutterInputs.inputDirs,
+                ),
+                taskPath = nativeOutput.task?.path,
+                assetsOutputDir = assetsOutputDir?.absoluteFile?.normalize(),
+                nativeOutput = nativeOutput.output?.absoluteFile?.normalize(),
+                unsupportedReason = reason,
+                configFiles = flutterInputs.configFiles,
+                excludedDirs = flutterInputs.excludedDirs,
+            ))
+        }
+
+        val nativeTask = findTaskByNameWithRetry(project, "merge${variantCapital}NativeLibs") as? Task
+        val cppConfig = readCppBuildConfig(project)
+        if (cppConfig.sourceDirs.isNotEmpty()) {
+            val nativeOutput = readConfiguredSourceRoots(readProperty(nativeTask, "outputDir")).firstOrNull()
+                ?: readConfiguredSourceRoots(readProperty(nativeTask, "outputDirectory")).firstOrNull()
+            val reason = when {
+                nativeTask == null -> "Native merge task for $variantCapital was not found"
+                nativeOutput == null -> "Native task ${nativeTask.path} output directory was not found"
+                else -> null
+            }
+            val nativeInputs = readNativeInputs(cppConfig, moduleInfo)
+            result.add(ExternalBuildInfo(
+                type = ExternalBuildType.Cpp,
+                inputDirs = compactInputDirs(
+                    cppConfig.sourceDirs + nativeInputs.includeDirs +
+                            nativeInputs.sourceFiles.mapNotNull { it.parentFile },
+                ),
+                taskPath = nativeTask?.path,
+                assetsOutputDir = null,
+                nativeOutput = nativeOutput?.absoluteFile?.normalize(),
+                unsupportedReason = reason,
+                configFiles = cppConfig.configFiles,
+                excludedDirs = nativeInputs.excludedDirs,
+            ))
+        }
+        return result
+    }
+
+    /**
+     * Reads local package roots from Flutter task inputs. The Flutter root itself is always watched
+     * recursively, so new assets and source directories do not depend on a refreshed exact file list.
+     */
+    private fun readFlutterInputs(
+        project: Project,
+        moduleInfo: ModuleInfo,
+        flutterTask: Task?,
+        flutterSourceDir: File,
+    ): FlutterBuildInputs {
+        val excludedDirs = readFlutterExcludedDirs(project, moduleInfo, flutterSourceDir)
+        val configFiles = linkedSetOf<File>()
+        val inputDirs = linkedSetOf<File>()
+        val taskInputs = runCatching {
+            readInputFiles(readProperty(flutterTask, "sourceFiles"))
+        }.getOrDefault(emptyList())
+        taskInputs.map { it.absoluteFile.normalize() }.forEach { file ->
+            if (excludedDirs.any { file.isUnderPath(it) }) return@forEach
+            val inputDir = if (file.isDirectory) file else file.parentFile
+            inputDir?.let(inputDirs::add)
+            if (file.name == "pubspec.yaml" || file.name == "pubspec.lock") {
+                configFiles.add(file)
+                return@forEach
+            }
+            if (file.extension == "dart") {
+                val packageRoot = findPubPackageRoot(file, excludedDirs) ?: return@forEach
+                inputDirs.add(packageRoot)
+            }
+        }
+        // Pubspec is this build's configuration even before the task model lists it.
+        listOf("pubspec.yaml", "pubspec.lock").forEach { name ->
+            val file = File(flutterSourceDir, name)
+            if (!file.isFile) return@forEach
+            val normalizedFile = file.absoluteFile.normalize()
+            configFiles.add(normalizedFile)
+        }
+        if (taskInputs.isEmpty()) {
+            println("Jugg: Flutter task inputs are unavailable for $flutterSourceDir, " +
+                    "only the source root is watched")
+        }
+        return FlutterBuildInputs(configFiles.toList(), inputDirs.toList(), excludedDirs)
+    }
+
+    /** Generated output and cache roots of one Flutter build; the Flutter SDK and pub cache included. */
+    private fun readFlutterExcludedDirs(
+        project: Project,
+        moduleInfo: ModuleInfo,
+        flutterSourceDir: File,
+    ): List<File> {
+        val result = linkedSetOf<File>()
+        result.add(File(flutterSourceDir, ".dart_tool"))
+        result.add(File(moduleInfo.moduleRootDir, "build"))
+        result.add(moduleInfo.buildPathInfo.buildDir)
+        readFlutterSdkRoot(project)?.let { result.add(it) }
+        readPubCacheRoot()?.let { result.add(it) }
+        return result.map { it.absoluteFile.normalize() }.toList()
+    }
+
+    private fun readFlutterSdkRoot(project: Project): File? {
+        val flutterExtension = project.extensions.findByName("flutter")
+        val values = listOf(
+            readProperty(flutterExtension, "sdk"),
+            readProperty(flutterExtension, "flutterRoot"),
+            project.findProperty("flutter.sdk"),
+            readLocalProperty(project, "flutter.sdk"),
+            System.getenv("FLUTTER_ROOT"),
+        )
+        return values.mapNotNull { readProjectFile(project, it) }
+            .firstOrNull { it.isDirectory }
+    }
+
+    private fun readPubCacheRoot(): File? {
+        val fromEnv = System.getenv("PUB_CACHE")
+        if (fromEnv != null && fromEnv.isNotEmpty()) {
+            return File(fromEnv)
+        }
+        val home = System.getProperty("user.home") ?: return null
+        return File(home, ".pub-cache")
+    }
+
+    private fun readLocalProperty(project: Project, key: String): String? {
+        val candidates = listOf(project.rootProject.file("local.properties"), project.file("local.properties"))
+        candidates.forEach { file ->
+            if (!file.isFile) return@forEach
+            try {
+                val properties = java.util.Properties()
+                file.inputStream().use { properties.load(it) }
+                val value = properties.getProperty(key)
+                if (value != null && value.isNotEmpty()) return value
+            } catch (e: Throwable) {
+                println("Jugg: read $file failed: $e")
+            }
+        }
+        return null
+    }
+
+    /** Walks up to the pub package owning one out-of-project Dart file, or null when there is none. */
+    private fun findPubPackageRoot(file: File, excludedDirs: List<File>): File? {
+        var directory = file.parentFile
+        var depth = 0
+        while (directory != null && depth < 10) {
+            if (excludedDirs.any { directory.isUnderPath(it) }) return null
+            if (File(directory, "pubspec.yaml").isFile) return directory.absoluteFile.normalize()
+            directory = directory.parentFile
+            depth++
+        }
+        return null
+    }
+
+    /** Native configuration inputs and structured native metadata inputs of one module. */
+    private fun readCppBuildConfig(project: Project): CppBuildConfig {
+        val empty = CppBuildConfig(emptyList(), emptyList(), emptyList())
+        val androidExt = try {
+            reflector(project.extensions.getByName("android"))
+        } catch (_: Throwable) {
+            return empty
+        }
+        val externalNativeBuild = androidExt["externalNativeBuild"] ?: return empty
+        val sourceDirs = linkedSetOf<File>()
+        val configFiles = linkedSetOf<File>()
+        val stagingDirs = linkedSetOf<File>()
+        listOf("cmake", "ndkBuild").forEach { builder ->
+            val options = externalNativeBuild[builder] ?: return@forEach
+            val buildFile = readProjectFile(project, options["path"]?.value) ?: return@forEach
+            val buildDir = buildFile.parentFile ?: return@forEach
+            sourceDirs.add(buildDir.absoluteFile.normalize())
+            configFiles.add(buildFile.absoluteFile.normalize())
+            if (builder == "cmake") {
+                configFiles.addAll(readCmakeIncludes(buildDir))
+            } else {
+                val applicationMk = File(buildDir, "Application.mk")
+                if (applicationMk.isFile) configFiles.add(applicationMk.absoluteFile.normalize())
+            }
+            readProjectFile(project, options["buildStagingDirectory"]?.value)
+                ?.let { stagingDirs.add(it.absoluteFile.normalize()) }
+        }
+        return CppBuildConfig(sourceDirs.toList(), configFiles.toList(), stagingDirs.toList())
+    }
+
+    /** Project CMake modules included from the CMakeLists directory, never parsed as a language. */
+    private fun readCmakeIncludes(cmakeDir: File): List<File> {
+        val skippedDirectoryNames = setOf(".git", ".cxx", ".externalNativeBuild", ".dart_tool", "build", "node_modules")
+        val result = mutableListOf<File>()
+        fun visit(directory: File, depth: Int) {
+            if (depth > 4) return
+            directory.listFiles()?.forEach { child ->
+                when {
+                    child.isDirectory && child.name !in skippedDirectoryNames -> visit(child, depth + 1)
+                    child.isFile && child.name.endsWith(".cmake") -> result.add(child.absoluteFile.normalize())
+                }
+            }
+        }
+        visit(cmakeDir, 0)
+        return result
+    }
+
+    /**
+     * Reads target sources and include roots from the native metadata CMake File API and AGP generate.
+     * The toolchain staging directories are located by capability detection and the broad source roots
+     * are kept when no metadata is available.
+     */
+    private fun readNativeInputs(cppConfig: CppBuildConfig, moduleInfo: ModuleInfo): NativeInputs {
+        val searchRoots = linkedSetOf<File>()
+        searchRoots.addAll(cppConfig.stagingDirs)
+        // Fixed toolchain staging directory names; variant and ABI directories stay discovered, not hardcoded.
+        searchRoots.add(File(moduleInfo.moduleRootDir, ".cxx"))
+        searchRoots.add(File(moduleInfo.moduleRootDir, ".externalNativeBuild"))
+        searchRoots.add(File(moduleInfo.buildPathInfo.buildDir, "intermediates/cxx"))
+        val excludedDirs = linkedSetOf<File>()
+        excludedDirs.add(File(moduleInfo.moduleRootDir, "build"))
+        excludedDirs.add(moduleInfo.buildPathInfo.buildDir)
+        excludedDirs.add(File(moduleInfo.moduleRootDir, ".cxx"))
+        excludedDirs.add(File(moduleInfo.moduleRootDir, ".externalNativeBuild"))
+        cppConfig.stagingDirs.forEach { excludedDirs.add(it) }
+        val inputs = NativeBuildMetadataReader.read(moduleInfo.buildVariant, searchRoots.toList())
+        val excluded = excludedDirs.map { it.absoluteFile.normalize() }
+        return NativeInputs(
+            inputs.sourceFiles.filter { file -> !excluded.any { file.isUnderPath(it) } },
+            inputs.includeDirs.filter { file -> !excluded.any { file.isUnderPath(it) } },
+            excluded,
+        )
+    }
+
+    private fun readInputFiles(value: Any?, depth: Int = 0): List<File> {
+        if (value == null || depth >= 5) return emptyList()
+        if (value is org.gradle.api.file.FileCollection) return value.files.toList()
+        if (value is File) return if (value.isDirectory) value.listFiles()?.toList().orEmpty() else listOf(value)
+        if (value is org.gradle.api.provider.Provider<*>) return readInputFiles(value.orNull, depth + 1)
+        if (value is java.util.concurrent.Callable<*>) return readInputFiles(value.call(), depth + 1)
+        if (value is Collection<*>) return value.flatMap { readInputFiles(it, depth + 1) }
+        return emptyList()
+    }
+
+    private fun File.isUnderPath(directory: File): Boolean {
+        val dirPath = directory.absoluteFile.normalize().path
+        val filePath = absoluteFile.normalize().path
+        if (filePath == dirPath) return true
+        return if (dirPath.endsWith(File.separator)) {
+            filePath.startsWith(dirPath)
+        } else {
+            filePath.startsWith(dirPath + File.separator)
+        }
+    }
+
+    /** Removes duplicate descendants while keeping the broadest known task input roots. */
+    private fun compactInputDirs(directories: List<File>): List<File> {
+        val result = mutableListOf<File>()
+        directories.map { it.absoluteFile.normalize() }
+            .distinctBy { it.path }
+            .sortedBy { it.toPath().nameCount }
+            .forEach { directory ->
+                if (result.none { directory.isUnderPath(it) }) {
+                    result.add(directory)
+                }
+            }
+        return result
+    }
+
+    /** Flutter inputs confirmed by the task model plus the roots and exclusions they imply. */
+    private class FlutterBuildInputs(
+        val configFiles: List<File>,
+        val inputDirs: List<File>,
+        val excludedDirs: List<File>,
+    )
+
+    /** Native inputs of one module: structured metadata results plus the roots never watched. */
+    private class NativeInputs(
+        val sourceFiles: List<File>,
+        val includeDirs: List<File>,
+        val excludedDirs: List<File>,
+    )
+
+    /** Native build configuration read from the Android extension. */
+    private class CppBuildConfig(
+        val sourceDirs: List<File>,
+        val configFiles: List<File>,
+        val stagingDirs: List<File>,
+    )
+
+    /**
+     * Reads the native artifacts of the current Flutter variant from its real Gradle task.
+     * Legacy Flutter packages them into a Jar archive, Flutter 3.x stages them into a jniLibs directory.
+     */
+    private fun readFlutterNativeOutput(project: Project, variantCapital: String, flutterTask: Task?): FlutterNativeOutput {
+        if (flutterTask == null) {
+            return FlutterNativeOutput(null, null, "Flutter native task for $variantCapital was not found")
+        }
+        val packTasks = listOf(
+            "packJniLibsflutterBuild$variantCapital",
+            "packLibsflutterBuild$variantCapital",
+        ).mapNotNull { findTaskByNameWithRetry(project, it) as? Task }
+            .filter { it is Jar && it.dependsOnTask(flutterTask) }
+        if (packTasks.size > 1) {
+            return FlutterNativeOutput(null, null, "Multiple Flutter native tasks were found for $variantCapital")
+        }
+        val packTask = packTasks.singleOrNull()
+        if (packTask != null) {
+            val archive = readFileValue(readProperty(packTask, "archiveFile"))
+                ?: readFileValue(readProperty(packTask, "archivePath"))
+                ?: return FlutterNativeOutput(null, null, "Flutter task ${packTask.path} native output was not found")
+            return FlutterNativeOutput(packTask, archive, null)
+        }
+
+        val copyTask = findTaskByNameWithRetry(project, "copyJniLibsflutterBuild$variantCapital") as? Task
+        if (copyTask == null || !copyTask.dependsOnTask(flutterTask)) {
+            return FlutterNativeOutput(null, null, "Flutter native task for $variantCapital was not found")
+        }
+        val nativeDir = readFileValue(readProperty(copyTask, "destinationDir"))
+            ?: return FlutterNativeOutput(null, null, "Flutter task ${copyTask.path} native output was not found")
+        return FlutterNativeOutput(copyTask, nativeDir, null)
+    }
+
+    /** Reads the task dependency without failing when the graph is not resolvable yet. */
+    private fun Task.dependsOnTask(other: Task): Boolean {
+        return runCatching { taskDependencies.getDependencies(this).contains(other) }.getOrDefault(false)
+    }
+
+    /** Native output of one Flutter variant, expressed as an archive or a directory. */
+    private data class FlutterNativeOutput(
+        val task: Task?,
+        val output: File?,
+        val reason: String?,
+    )
+
+    private fun readProjectFile(project: Project, value: Any?): File? {
+        return if (value is String) project.file(value) else readFileValue(value)
+    }
+
+    private fun readFileValue(value: Any?, depth: Int = 0): File? {
+        if (value == null || depth >= 5) return null
+        if (value is File) return value
+        if (value is org.gradle.api.file.FileSystemLocation) return value.asFile
+        if (value is org.gradle.api.provider.Provider<*>) return readFileValue(value.orNull, depth + 1)
+        val asFile = readProperty(value, "asFile") as? File
+        if (asFile != null) return asFile
+        return readFileValue(invokeNoArg(value, "getOrNull") ?: invokeNoArg(value, "get"), depth + 1)
+    }
+
     /** Reads configured common roots without relying on source-set directory names. */
     private fun readKotlinCommonSourceDirs(kotlinTask: Any): List<File> {
         return try {
@@ -898,9 +1263,16 @@ class GradleProjectInfoReader(
     private fun readKotlinFreeCompilerArgs(kotlinTask: Any?, legacyOptions: Reflector?): List<String> {
         val compilerOptions = readProperty(kotlinTask, "compilerOptions")
         val args = readKotlinOptionValue(compilerOptions, "freeCompilerArgs") as? Collection<*>
-        return args?.map { it.toString() }
+        val freeArgs = args?.map { it.toString() }
             ?: (legacyOptions["freeCompilerArgs"]?.value as? Collection<*>)?.map { it.toString() }
             ?: emptyList()
+        // Kotlin 2.x keeps opt-in markers in the typed compilerOptions.optIn instead of freeCompilerArgs.
+        val optInArgs = (readKotlinOptionValue(compilerOptions, "optIn") as? Collection<*>)
+            ?.map { "-opt-in=$it" } ?: emptyList()
+        val mergedArgs = freeArgs.toMutableList()
+        val existingArgs = freeArgs.toMutableSet()
+        optInArgs.forEach { if (existingArgs.add(it)) mergedArgs.add(it) }
+        return mergedArgs
     }
 
     /** Reads resolved subplugin arguments across Kotlin Gradle Plugin getter name changes. */

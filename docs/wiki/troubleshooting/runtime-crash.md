@@ -31,7 +31,7 @@ Simply restarting the app usually cannot repair an inconsistency in the class st
 
 ## Q: What should I do after an `AssetManager` native crash following resource deployment?
 
-Some device systems have compatibility problems with resource deployment through Apply Changes, especially Oppo and Vivo devices running Android 11.
+Some Android 11 OEM systems have compatibility problems with resource deployment through Apply Changes.
 
 1. Connect the affected device.
 2. Enable compatibility mode for that device in Jugg More Options.

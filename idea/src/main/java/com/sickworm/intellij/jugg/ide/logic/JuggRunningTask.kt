@@ -416,6 +416,9 @@ class JuggRunningTask(
                 progress = DeployProgress { text -> indicator.text = text },
                 isInstall = compileTaskResult.isGradleCompile,
                 compileUiHandler = compileUiHandler,
+                customApkInstallScript = options.customApkInstallScript.takeIf {
+                    options.enableCustomApkInstallScript
+                }.orEmpty(),
                 androidTestRunSpec = androidTestRunSpec,
                 androidTestResultModel = if (androidTestRunSpec != null) androidTestResultModel else null,
             )
@@ -639,6 +642,13 @@ internal fun buildDeploySuccessLogLines(
             DeploySuccessLogLines(
                 headline = "\nJugg INSTALL SUCCESSFUL in ${totalSeconds}s.",
                 followUp = "App launched.",
+            )
+        }
+        deployType == JuggDeployData.DeployType.HOT_FIX ||
+            deployType == JuggDeployData.DeployType.COMPAT_HOT_FIX -> {
+            DeploySuccessLogLines(
+                headline = "\nJugg $deployType SUCCESSFUL in ${totalSeconds}s.",
+                followUp = "App restarted.",
             )
         }
         else -> {

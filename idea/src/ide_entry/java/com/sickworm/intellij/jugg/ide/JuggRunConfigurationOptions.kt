@@ -43,6 +43,12 @@ class JuggRunConfigurationOptions: RunConfigurationOptions() {
     /** Stable id of the shared project-level CLI run configuration. */
     var cliRunConfigurationId by string()
 
+    /** Whether Jugg should replace the default app APK installer with a project script. */
+    var enableCustomApkInstallScript by property(false)
+
+    /** Project-local shell script used for app APK install and reinstall operations. */
+    var customApkInstallScript by string()
+
     // new options must add to the end because property persist is in order
 
 }

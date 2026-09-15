@@ -13,12 +13,13 @@ Jugg 是腾讯音乐技术团队开源的 Android 秒级增量编译与部署工
 Jugg 仅需安装 IDE 插件，不修改 Gradle 脚本，也不要求工程接入 SDK。Jugg Run Configuration 与原生 App Run Configuration 同时保留：选择 Jugg 配置时使用增量编译与部署；需要原来的 Android Studio / Gradle 构建、安装和启动流程时，随时切回原生 App 配置即可，Jugg 不会接管该次 Run。重新选择 Jugg 配置即可恢复增量流程；当工程变化超出增量路径的处理范围时，Jugg 自身也会回退 Gradle 构建并重新建立基线。
 
 - [下载最新稳定版](https://github.com/tencentmusic/jugg/releases/latest)
-- [Jugg Wiki](https://tencentmusic.github.io/jugg/zh/)
+- [技术方案介绍](https://juejin.cn/post/7680996030843125796)
 - [观看演示视频](https://www.bilibili.com/video/BV1W3411C7PU/)
+- [Jugg Wiki](https://tencentmusic.github.io/jugg/zh/)
 
 ## 社区交流
 
-加入 Jugg 微信交流群，交流使用经验和问题排查。
+加入 Jugg 微信交流群，交流使用经验和问题排查。（一群已满 200 人）
 
 <p align="center">
   <img src="./docs/images/wechat-group.jpg" alt="Jugg 微信交流群二维码" width="360">
@@ -129,10 +130,20 @@ CLI 调用的是 IDE 内的本地 Jugg 插件运行时，因此目标工程必�
 ```shell
 # 构建插件，产物位于 idea/build/distributions
 ./gradlew buildPlugin
+```
 
+## 安全
+
+若发现 Jugg 的安全漏洞，请按 [SECURITY.zh-CN.md](SECURITY.zh-CN.md) 私下报告，不要提交公开 Issue。
+
+## 开发
+
+```shell
 # 启动用于开发和调试的 IDE
 ./gradlew runIde
 ```
+
+如何反馈问题、搭建环境和提交 Pull Request，见 [CONTRIBUTING.zh-CN.md](CONTRIBUTING.zh-CN.md)。
 
 ## License
 

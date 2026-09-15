@@ -1,6 +1,6 @@
 # 部署系统：端到端流程（Run 到设备）
 
-> 最后核对：2026-08-06
+> 最后核对：2026-09-06
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -21,6 +21,7 @@
 | `JuggCompilerHelper` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/JuggCompilerHelper.kt` | 产出 `CompileTaskResult`，决定本轮是增量编译还是 Gradle 编译。 |
 | `JuggDeployerHelper` / `JuggDeployOrchestrator` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployerHelper.kt`, `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployOrchestrator.kt` | Helper 选择 install / embedded / incremental；orchestrator 执行共享单设备 lifecycle。 |
 | `DeployOptions` / `DeployTaskResult` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployHelperBean.kt` | Run 编排与 deploy helper 之间的请求/结果契约。 |
+| `LaunchContext.customApkInstallScript` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/LaunchContext.kt` | 当前 Run Configuration 的可选安装脚本；经 `DeployOptions`、deploy/recover 请求与 `LaunchContextFactory` 注入，最终由 IDEA Host 执行。 |
 | `JuggDeployData` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployData.kt` | 部署 payload 与最终 deploy type 来源。 |
 | `DeployStateManager` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/DeployStateManager.kt` | 单设备当前是否可增量部署、是否需要 recover 的状态来源。 |
 | `DeployHistoryManager` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/DeployHistoryManager.kt` | 记录上次部署 checkpoint，install / incremental 成功后推进。 |
@@ -67,13 +68,14 @@ Run 层只决定“是否进入部署、是否整体 fallback、如何汇总 UI 
 deployDevice()
   -> 根据 CompileTaskResult.isGradleCompile 设置 DeployOptions.isInstall
   -> JuggDeployerHelper.deploy()
+  -> install/reinstall 时按 applicationId 分组；普通 App 可执行自定义 APK 安装脚本，androidTest 使用默认 installer
   -> 写入 deploy_failed_reason / deploy_type / device 信息到上报 detail
   -> 成功时按 deploy type 弹出用户可见提示
 ```
 
 Gradle 编译对应 `isInstall=true`；增量编译对应 `isInstall=false`。这个分界决定后续进入 `deployInstall()` 还是 `deployIncrementalChanges()`。
 
-增量部署还有一层 Android Studio transport 类型：当前非 warm-up、非空且不需要重启 App 的 payload 会设置 `isNeedRestartActivity=true`，映射为 `APPLY_CHANGES_AND_RESTART_ACTIVITY` 并执行 Full Swap，所以 Activity 会重建并重新执行 `onCreate()`。只有 `isNeedRestartActivity=false` 时才使用不重建 Activity 的 `APPLY_CHANGES`。这里不要用最终上报的 `HOT_RELOAD` 名称推断 Activity 生命周期。
+增量部署还有一层 transport 类型：当前非 warm-up、非空且不需要重启 App 的 payload 会设置 `isNeedRestartActivity=true`，映射为 `APPLY_CHANGES_AND_RESTART_ACTIVITY`。Android Studio transport 执行 Full Swap；Direct app sandbox transport 在类重定义成功后执行独立 Activity relaunch。两者都会保留进程并让 `onCreate()` 再次执行。只有 `isNeedRestartActivity=false` 时才保持不重建 Activity 的 `APPLY_CHANGES` 语义。这里不要用最终上报的 `HOT_RELOAD` 名称推断 Activity 生命周期。
 
 ### 4.3 多设备汇总与 fallback
 
@@ -100,6 +102,7 @@ selected and running devices snapshot
 - Run 主链路只读取一次设备快照，避免 `hasDevice` 与实际部署之间选择状态变化。
 - 多设备只在最后一台成功部署后推进部分全局状态；部署核心细节见 `03_deploy_core.md`。
 - Run 层拿到的是 `DeployTaskResult.isCanFallback`，具体哪些失败可 fallback 由 `DeployRetryHandler` / deploy core 决定。
+- 自定义 APK 安装脚本属于 Run Configuration，经部署请求传入 `LaunchContext`，覆盖当前 Run 的普通 App install/reinstall；远程编译只改变产物来源，脚本仍在连接设备的本地 IDE 主机执行。
 - `juggServer.report(action="compile"/"deploy")` 是观测侧上报；不要把上报成功当作编译或部署成功。
 
 ---

@@ -438,41 +438,54 @@ class JuggCompileForDataBindingTest {
             assetsAndroidModifySourceDir,
             "app/src/main/java/com/sickworm/jugg/demo/testcase/databinding/IncrementalBindingAdapters.kt",
         )
-        val secondLayout = File(
-            assetsAndroidModifySourceDir,
-            "app/src/main/res/layout/activity_data_binding_incremental_setter_store_second.xml",
-        )
         val baselineLayout = File(
             assetsAndroidDir,
             "app/src/main/res/layout/activity_data_binding_boolean_visibility_demo.xml",
         )
-        val module = context.modules.values.first()
-        val firstResult = juggCompiler.compile(
-            CompileTask(
-                files = listOf(CompileFile(
-                    CompileFile.Type.Kotlin,
-                    adapterFile,
-                    File(assetsAndroidModifySourceDir, "app/src/main/java"),
-                    module,
-                )),
-                outputDir = CompileHelper.outputDir,
-            ),
+        val secondLayout = File(
+            assetsAndroidModifySourceDir,
+            "app/src/main/res/layout/activity_data_binding_incremental_setter_store_second.xml",
         )
-        firstResult.printCompileErrors()
-        assertTrue(firstResult.isAllSuccess, "Adapter-only compile should generate the setter store")
+        // A newly added layout shares the resource root of the layouts it is compiled with; a layout
+        // from another resource root would restart the DataBinding layout info of this root.
+        val baselineLayoutInModifySource = File(
+            assetsAndroidModifySourceDir,
+            "app/src/main/res/layout/${baselineLayout.name}",
+        )
+        baselineLayoutInModifySource.writeText(baselineLayout.readText())
+        try {
+            val module = context.modules.values.first()
+            val firstResult = juggCompiler.compile(
+                CompileTask(
+                    files = listOf(CompileFile(
+                        CompileFile.Type.Kotlin,
+                        adapterFile,
+                        File(assetsAndroidModifySourceDir, "app/src/main/java"),
+                        module,
+                    )),
+                    outputDir = CompileHelper.outputDir,
+                ),
+            )
+            firstResult.printCompileErrors()
+            assertTrue(firstResult.isAllSuccess, "Adapter-only compile should generate the setter store")
 
-        val secondResult = juggCompiler.compile(CompileHelper.makeTask(secondLayout, baselineLayout))
+            val secondResult = juggCompiler.compile(
+                CompileHelper.makeTask(secondLayout, baselineLayoutInModifySource),
+            )
 
-        secondResult.printCompileErrors()
-        assertTrue(secondResult.isAllSuccess, "The next incremental compile should reuse the generated setter store")
-        CompileHelper.checkOutputFiles(secondResult, listOf(
-            "com/example/myapplication/databinding/ActivityDataBindingIncrementalSetterStoreSecondBinding.dex",
-            "com/example/myapplication/databinding/ActivityDataBindingIncrementalSetterStoreSecondBindingImpl.dex",
-            "com/example/myapplication/databinding/ActivityDataBindingBooleanVisibilityDemoBindingImpl.dex",
-            "res/layout/activity_data_binding_incremental_setter_store_second.xml",
-            "res/layout/activity_data_binding_boolean_visibility_demo.xml",
-            "resources.arsc",
-        ))
+            secondResult.printCompileErrors()
+            assertTrue(secondResult.isAllSuccess, "The next incremental compile should reuse the generated setter store")
+            CompileHelper.checkOutputFiles(secondResult, listOf(
+                "com/example/myapplication/databinding/ActivityDataBindingIncrementalSetterStoreSecondBinding.dex",
+                "com/example/myapplication/databinding/ActivityDataBindingIncrementalSetterStoreSecondBindingImpl.dex",
+                "com/example/myapplication/databinding/ActivityDataBindingBooleanVisibilityDemoBindingImpl.dex",
+                "res/layout/activity_data_binding_incremental_setter_store_second.xml",
+                "res/layout/activity_data_binding_boolean_visibility_demo.xml",
+                "resources.arsc",
+            ))
+        } finally {
+            baselineLayoutInModifySource.delete()
+        }
     }
 
     @Test

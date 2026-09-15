@@ -62,7 +62,7 @@ data class IdeDeployState(
 
         val appNotRunningOrNotDebuggable = IdeDeployState(
             State.NO_DEPLOYABLE_APP,
-            "app not running or not debuggable",
+            "Android Studio deployable client unavailable",
         )
 
         val updateInterrupted = IdeDeployState(

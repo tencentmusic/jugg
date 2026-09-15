@@ -14,6 +14,7 @@ import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestApkSelector
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestResultModel
 import com.sickworm.intellij.jugg.deploy.run.instrument.TestLauncher
+import com.sickworm.intellij.jugg.deploy.run.applychanges.CustomApkInstallScriptRunner
 import com.sickworm.intellij.jugg.deploy.run.utils.CopyEmbeddedDistributionPaths
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.ide.logic.JuggRunningTask
@@ -104,5 +105,14 @@ class IdeaDeployEnvironment(
             it.allowVerbose(true)
         }
         IdeaDeviceAdbClient(device, adbLogger).uninstall(packageName)
+    }
+
+    override fun runCustomApkInstall(
+        script: String,
+        applicationId: String,
+        launchContext: LaunchContext,
+        logger: Logger,
+    ) {
+        CustomApkInstallScriptRunner(project, script, launchContext, logger).run(applicationId)
     }
 }

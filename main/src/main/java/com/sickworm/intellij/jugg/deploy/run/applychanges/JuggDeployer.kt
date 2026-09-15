@@ -5,11 +5,14 @@ import com.sickworm.intellij.jugg.deploy.api.AndroidVersion
 import com.sickworm.intellij.jugg.deploy.api.Deploy
 import com.sickworm.intellij.jugg.deploy.api.Apk
 import com.sickworm.intellij.jugg.apk.ApkInfoReader
+import com.sickworm.intellij.jugg.deploy.AppAbiResolver
+import com.sickworm.intellij.jugg.deploy.AppSandboxExecutor
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.deploy.run.utils.AdbTransientOffline
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlayDeployFailedException
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlayDirtyException
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlaySwapTransport
+import com.sickworm.intellij.jugg.deploy.hotreload.DirectAppSandboxDeployTransport
 import com.sickworm.intellij.jugg.deploy.run.IApplyChangesExecutor
 import com.sickworm.intellij.jugg.deploy.run.IJuggDeployerDeploymentService
 import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentCacheEntry
@@ -52,19 +55,34 @@ class JuggDeployer(
      */
     @Throws(JuggDeployerException::class)
     fun install(
-        packageName: String, apks: List<String>, argInstallMode: JuggInstallSession.Mode
+        packageName: String,
+        apks: List<String>,
+        argInstallMode: JuggInstallSession.Mode,
+        useCustomInstallScript: Boolean = false,
     ): Result {
         val result = Result()
         try {
-            var installMode = argInstallMode
-            if (installMode == JuggInstallSession.Mode.DELTA) {
-                installMode = JuggInstallSession.Mode.DELTA_NO_SKIP
+            if (useCustomInstallScript) {
+                logger.info("going to install apks with custom script: $apks")
+                launchContext.runCustomApkInstall(packageName, logger.logger)
+            } else {
+                var installMode = argInstallMode
+                if (installMode == JuggInstallSession.Mode.DELTA) {
+                    installMode = JuggInstallSession.Mode.DELTA_NO_SKIP
+                }
+                logger.info("going to install apks: $apks")
+                result.skippedInstall = !invokeInstallWithTransientRetry(
+                    packageName, apks, installMode,
+                )
             }
-            logger.info("going to install apks: $apks")
-            result.skippedInstall = !invokeInstallWithTransientRetry(
-                packageName, apks, installMode,
-            )
             val apkList = applyChangesExecutor.parseApks(apks)
+            if (useCustomInstallScript) {
+                val actualApks = runWithOfflineRetry("verify custom APK install", deviceAdb, logger) {
+                    applyChangesExecutor.dumpApks(installSession, apkList)
+                }
+                verifyApksMatch(apkList, actualApks, applyChangesExecutor, logger)
+                clearOverlayAfterCustomInstall(packageName)
+            }
             // Update the database
             val appId = applyChangesExecutor.getPackageName(apkList)
             val oid = applyChangesExecutor.createBaseOverlayId(apkList)
@@ -74,6 +92,15 @@ class JuggDeployer(
             result.overlayId = oid.sha
             return result
         } catch (e: Exception) {
+            if (useCustomInstallScript) {
+                val detail = e.message ?: e.toString()
+                val message = if (detail.startsWith("Custom APK install script")) {
+                    detail
+                } else {
+                    "Custom APK install script flow failed: $detail"
+                }
+                throw CustomApkInstallScriptException(message, e)
+            }
             val realErrorMessage = logger.realErrorMessage
             logger.info("Install failed, error: \"${realErrorMessage}\".", e)
             if (realErrorMessage != null) {
@@ -81,6 +108,21 @@ class JuggDeployer(
             } else {
                 throw applyChangesExecutor.wrapDeployerException(e) ?: e
             }
+        }
+    }
+
+    private fun clearOverlayAfterCustomInstall(packageName: String) {
+        val sandbox = launchContext.getAppSandboxExecutor(packageName, logger.logger)
+        if (sandbox.mode == AppSandboxExecutor.Mode.UNAVAILABLE) {
+            logger.info("Skip Direct Overlay reset after custom install: ${sandbox.unavailableReason}")
+            return
+        }
+        val output = sandbox.exec(
+            "rm -rf code_cache/.overlay && echo success",
+            repairCodeCache = true,
+        )
+        check(output.trim() == "success") {
+            "Failed to reset Direct Overlay after custom APK install: $output"
         }
     }
 
@@ -154,19 +196,43 @@ class JuggDeployer(
             logger.info("getPids exception: $e")
             emptyList()
         }
-        var arch = deviceAdb.getDeployArch(packageName)
-        logger.info("packageName: $packageName, pids: $pids, arch: $arch")
-        if (arch == Deploy.Arch.ARCH_UNKNOWN) {
-            // if arch is unknown, installer will use 32-bit agent, which may apply failed.
-            try {
-                val archInApks = ApkInfoReader(logger.logger).getArch(newFiles)
-                arch = Deploy.Arch.valueOf(archInApks)
-                logger.info("set arch from unknown to $arch")
-            } catch (e: IllegalArgumentException) {
-                logger.info("get arch from apks failed, set to ARCH_64_BIT")
-                arch = Deploy.Arch.ARCH_64_BIT
+        val processArch = deviceAdb.getDeployArch(packageName)
+        val resolveAbiStartNanos = System.nanoTime()
+        val appAbiCache = launchContext.appAbiCache
+        val cacheKey = appAbiCache.createKey(deviceSerial, packageName, argPaths)
+        val cachedArch = if (processArch == Deploy.Arch.ARCH_UNKNOWN) appAbiCache.get(cacheKey) else null
+        val resolution = if (processArch != Deploy.Arch.ARCH_UNKNOWN) {
+            AppAbiResolver(deviceAdb, logger.logger).resolveDetailed(
+                packageName = packageName,
+                processArch = processArch,
+                apkArch = Deploy.Arch.ARCH_UNKNOWN.name,
+                use32BitAbi = false,
+                deviceAbi = launchContext.deviceAbi,
+            ).also {
+                appAbiCache.put(cacheKey, it.arch)
+            }
+        } else if (cachedArch != null) {
+            AppAbiResolver.Resolution(cachedArch, "cache", true)
+        } else {
+            val apkInfoReader = ApkInfoReader(logger.logger)
+            AppAbiResolver(deviceAdb, logger.logger).resolveDetailed(
+                packageName = packageName,
+                processArch = processArch,
+                apkArch = apkInfoReader.getArch(newFiles),
+                use32BitAbi = apkInfoReader.isUse32BitAbi(newFiles),
+                deviceAbi = launchContext.deviceAbi,
+            ).also {
+                if (it.cacheable) {
+                    appAbiCache.put(cacheKey, it.arch)
+                }
             }
         }
+        val arch = resolution.arch
+        logger.logger.debug("Resolve app ABI: packageName=$packageName, arch=$arch" +
+                ", source=${resolution.source}, cacheHit=${cachedArch != null}" +
+                ", cost=${(System.nanoTime() - resolveAbiStartNanos) / 1_000_000}ms")
+        logger.info("packageName: $packageName, ideClientPids: $pids, processArch: $processArch" +
+                ", arch: $arch")
 
         // Get the list of files from the installed app assuming deployment cache is correct.
         val speculativeDump: JuggDeploymentCacheEntry? = deploymentService.loadEntry(
@@ -189,12 +255,25 @@ class JuggDeployer(
         }
 
         val startTime = System.currentTimeMillis()
+        tryDirectAppSandboxDeploy(packageName, data, speculativeDump, pids, arch)?.let { directResult ->
+            val costTime = System.currentTimeMillis() - startTime
+            logger.info("after direct app sandbox deploy, cost: ${costTime}ms, " +
+                    "overlay id: ${directResult.overlayId.sha}, needsRestart: ${directResult.needsRestart}")
+            deploymentService.storeEntry(
+                deviceSerial, packageName, newFiles, directResult.overlayId, applyChangesExecutor, logger,
+            )
+            return Result().also {
+                it.overlayId = directResult.overlayId.sha
+                it.needsRestart = directResult.needsRestart
+            }
+        }
         tryDirectOverlaySwap(packageName, data, speculativeDump, arch)?.let { overlayId ->
             val costTime = System.currentTimeMillis() - startTime
             logger.info("after direct overlay deploy, cost: ${costTime}ms, overlay id: ${overlayId.sha}, is base install: ${overlayId.isBaseInstall}, isPushOverlayOnly: ${data.isPushOverlayOnly}")
             deploymentService.storeEntry(deviceSerial, packageName, newFiles, overlayId, applyChangesExecutor, logger)
             return Result().also {
                 it.overlayId = overlayId.sha
+                it.needsRestart = true
             }
         }
 
@@ -232,6 +311,21 @@ class JuggDeployer(
             }
         }
     }
+
+    private fun tryDirectAppSandboxDeploy(
+        packageName: String,
+        data: JuggDeployData,
+        speculativeDump: JuggDeploymentCacheEntry?,
+        pids: List<Int>,
+        appArch: Deploy.Arch,
+    ) = DirectAppSandboxDeployTransport(launchContext, logger.logger).tryDeploy(
+            packageName = packageName,
+            data = data,
+            overlayUpdate = speculativeDump?.let { OverlayUpdateBuilder(applyChangesExecutor).build(it, data) },
+            applyChangesExecutor = applyChangesExecutor,
+            pids = pids,
+            appArch = appArch,
+        )
 
     private fun tryDirectOverlaySwap(
         packageName: String,
@@ -293,6 +387,17 @@ class JuggDeployer(
             val actualResults = runWithOfflineRetry("verify cache", adb, logger) {
                 applyChangesExecutor.dumpApks(installSession, entry.apks)
             }
+            verifyApksMatch(cachedResults, actualResults, applyChangesExecutor, logger)
+            logger.info("verifyCache success")
+            return entry
+        }
+
+        private fun verifyApksMatch(
+            cachedResults: List<Apk>,
+            actualResults: List<Apk>,
+            applyChangesExecutor: IApplyChangesExecutor,
+            logger: AdbLogWrapper,
+        ) {
             if (cachedResults.size != actualResults.size) {
                 logger.info("throw overlayIdMismatch: cached size: ${cachedResults.size}, actual size: ${actualResults.size}")
                 throw applyChangesExecutor.overlayIdMismatch()
@@ -314,8 +419,6 @@ class JuggDeployer(
                 }
                 i++
             }
-            logger.info("verifyCache success")
-            return entry
         }
 
         private fun <T> runWithOfflineRetry(

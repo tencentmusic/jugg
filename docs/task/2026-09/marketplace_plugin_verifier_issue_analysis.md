@@ -91,6 +91,19 @@ Jugg 已直接使用 `JavaSdk`、`JavaTestLocator`、SM Test Runner 等 Java 插
 
 如果继续支持 IntelliJ IDEA，应补充真实依赖。该变更不会损失现有功能，但会阻止插件在缺少 Java 插件能力的环境中错误加载。
 
+#### 3.1.6 Gradle Sync listener 跨版本静态链接
+
+位置：
+
+- `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/JuggGradleSyncListener.kt`
+- `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/JuggGradleSyncWithRootListener.kt`
+- `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/JuggProjectManagerListener.kt`
+- `idea/src/ide_entry/resources/META-INF/plugin.xml`
+
+Android Studio 211 不包含 `GradleSyncListenerWithRoot`，但已提供三参数 `GradleSyncState.subscribe(Project, GradleSyncListener, Disposable)`；221 及后续版本会通过内部 adapter 将旧 listener 语义转发到 root-aware topic。原实现同时在 `plugin.xml` 注册两个 topic，并让发布字节码静态实现 `GradleSyncListenerWithRoot`，因此 IntelliJ IDEA 缺少该类型时会产生 unresolved class。
+
+`GradleSyncState` 自身还从 211 的 class 变为高版本 interface。即使三参数静态方法签名保持不变，直接编译调用也会把 owner 形态写入字节码，存在 `IncompatibleClassChangeError` 风险。本次改为项目打开后按类名和方法签名反射调用三参数静态入口，只订阅一次 `JuggGradleSyncListener` 并绑定 project disposable；同时删除 root-aware listener 类和两个 Sync topic 注册。`com.intellij.modules.androidstudio` 继续保持 optional，不缩小 IntelliJ IDEA 支持范围。
+
 ### 3.2 必须解决：保留内部更新能力的兼容修正
 
 #### 3.2.1 `PluginInstaller.installAfterRestart()` Internal API
@@ -228,6 +241,7 @@ Marketplace 报告中已有 1 个 Internal API 使用被 Verifier 自动忽略�
 5. `plugin.xml` 与 Gradle IntelliJ 配置显式声明 Java 插件依赖。
 6. `PluginInstaller.installAfterRestart()` 保留自动安装行为，但只通过反射处理两个已知签名，移除静态字节码引用。
 7. 发布前仍需对官方最低、稳定和最新 EAP 产品矩阵复核，并根据剩余报告决定是否回复 JetBrains。
+8. Gradle Sync 改为在项目打开时反射调用三参数 `GradleSyncState.subscribe`；删除 `GradleSyncListenerWithRoot` 实现和 `plugin.xml` 双 topic 注册，保留旧 listener 的事件语义与 IntelliJ IDEA optional dependency。
 
 ## 6. 验证结果
 
@@ -237,6 +251,9 @@ Marketplace 报告中已有 1 个 Internal API 使用被 Verifier 自动忽略�
 - Plugin Verifier 1.410 对本机 Android Studio 2022.1（AI-221）验证后为 0 个 compatibility problem、0 个 Internal API，仅保留 1 个既有打包 warning 和 5 个 Deprecated API 使用。
 - Plugin Verifier 1.410 对本机 Android Studio 2026.2 Preview（AI-262）未再报告本次处理的 Internal API；该本地 Preview 相比 `3.4.0-release` 已包含后续 androidTest 代码，Verifier 另报 18 个 test framework API 兼容问题，属于后续功能的独立兼容任务，不纳入本次补丁。
 - 仓库 `runPluginVerifier` 矩阵中的 AI-2022.3 下载因 Google 镜像 SSL 错误失败；已使用本机 AI-221 安装目录完成最低版本替代验证。Marketplace 的 IU-2026.3 EAP 仍需在正式上传前复核。
+- 对实际 AI-211 与 IC-223 Android plugin JAR 执行 `javap`，确认两边均存在相同的三参数静态 `subscribe`：211 的 `GradleSyncState` 是 class 且没有 `GradleSyncListenerWithRoot`，223 的 `GradleSyncState` 是 interface 并通过 `GradleSyncListenerAdapter` 转发。
+- `:idea:compileKotlin`、`:idea:buildPlugin` 通过；最终 `jugg-3.4.2-HEAD-SNAPSHOT.zip` 中保留 Android Studio optional dependency，`GradleSyncState` 仅剩反射字符串，未包含 `GradleSyncListenerWithRoot` 或已删除 listener class。
+- Plugin Verifier 1.409 对 AI-211 与 IC-223 均未报告 Gradle Sync 相关兼容问题；AI-211 仍有 4 个与本次无关的既有兼容问题，IC-223 为 0 个 compatibility problem。仓库双目标任务仍因 AI-223 下载的 Google 镜像 SSL 错误退出。
 
 ## 7. 参考资料
 

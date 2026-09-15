@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.project.info
 
 import com.google.gson.GsonBuilder
 import com.google.gson.JsonDeserializer
+import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.google.gson.TypeAdapter
 import com.google.gson.stream.JsonReader
@@ -10,6 +11,9 @@ import com.intellij.openapi.diagnostic.Logger
 import java.beans.Introspector
 import java.io.File
 import java.lang.reflect.Field
+import java.nio.file.AtomicMoveNotSupportedException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 
 
 /**
@@ -30,7 +34,22 @@ class ProjectInfoSerializer(val dataFile: File, private val logger: Logger) {
             dataFile.parentFile?.mkdirs()
             val juggProjectInfoSerialize = JuggProjectInfoSerialize.serialize(projectInfo)
             val serializeText = gson.toJson(juggProjectInfoSerialize)
-            dataFile.writeText(serializeText)
+            val tempFile = File.createTempFile(dataFile.name + ".", ".tmp", dataFile.absoluteFile.parentFile)
+            try {
+                tempFile.writeText(serializeText)
+                try {
+                    Files.move(
+                        tempFile.toPath(),
+                        dataFile.toPath(),
+                        StandardCopyOption.REPLACE_EXISTING,
+                        StandardCopyOption.ATOMIC_MOVE,
+                    )
+                } catch (_: AtomicMoveNotSupportedException) {
+                    Files.move(tempFile.toPath(), dataFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
+                }
+            } finally {
+                tempFile.delete()
+            }
             memoryCache = projectInfo
         }
 
@@ -40,6 +59,16 @@ class ProjectInfoSerializer(val dataFile: File, private val logger: Logger) {
 
     @Synchronized
     fun load(isSkipVersionCheck: Boolean = false): JuggProjectInfo? {
+        return loadInternal(isSkipVersionCheck, deleteOnFailure = true)
+    }
+
+    /** Loads a snapshot for a targeted merge without deleting the authoritative file on parse failure. */
+    @Synchronized
+    fun loadPreservingFile(isSkipVersionCheck: Boolean = false): JuggProjectInfo? {
+        return loadInternal(isSkipVersionCheck, deleteOnFailure = false)
+    }
+
+    private fun loadInternal(isSkipVersionCheck: Boolean, deleteOnFailure: Boolean): JuggProjectInfo? {
         if (!dataFile.exists()) {
             return null
         }
@@ -58,7 +87,9 @@ class ProjectInfoSerializer(val dataFile: File, private val logger: Logger) {
             return juggProjectInfo
         } catch (e: Exception) {
             logger.debug("Failed to load project info from ${dataFile.absolutePath}, $e")
-            dataFile.delete()
+            if (deleteOnFailure) {
+                dataFile.delete()
+            }
             memoryCache = null
             return null
         }
@@ -91,6 +122,7 @@ class ProjectInfoSerializer(val dataFile: File, private val logger: Logger) {
             .registerTypeAdapter(ModuleInfo::class.java, JsonDeserializer { json, _, _ ->
                 val obj = json.asJsonObject
                 copyGroovyBooleanIsPropertyAliases(obj)
+                restoreExternalBuildOutputs(obj)
                 moduleInfoGson.fromJson(obj, ModuleInfo::class.java)
             })
             .create()
@@ -104,6 +136,76 @@ class ProjectInfoSerializer(val dataFile: File, private val logger: Logger) {
                 return false
             }
             return field.type == java.lang.Boolean::class.java || field.type == java.lang.Boolean.TYPE
+        }
+
+        /**
+         * Restores the unified external build outputs from snapshots written before they were unified:
+         * legacy Flutter kept the assets directory in `outputDir` and the native output in
+         * `nativeLibsArchive` (a Jar) or `nativeLibsDir` (a jniLibs directory); legacy C++ kept its
+         * native output in `outputDir`.
+         */
+        private fun restoreExternalBuildOutputs(moduleObj: JsonObject) {
+            val buildInfos = moduleObj.getAsJsonArray("externalBuildInfos") ?: return
+            buildInfos.forEach { element ->
+                val info = element.asJsonObject
+                restoreExternalBuildLists(info)
+                val isFlutter = info.stringOrNull("type") == ExternalBuildType.Flutter.name
+                if (!info.has("assetsOutputDir") && isFlutter) {
+                    info.stringOrNull("outputDir")?.let { info.addProperty("assetsOutputDir", it) }
+                }
+                if (info.has("nativeOutput")) {
+                    return@forEach
+                }
+                val nativeOutput = if (isFlutter) {
+                    info.stringOrNull("nativeLibsArchive") ?: info.stringOrNull("nativeLibsDir")
+                } else {
+                    info.stringOrNull("outputDir")
+                }
+                nativeOutput?.let { info.addProperty("nativeOutput", it) }
+            }
+        }
+
+        /**
+         * Restores the recursive input roots from the previous source-root and exact-input model.
+         */
+        private fun restoreExternalBuildLists(info: JsonObject) {
+            if (!info.has("inputDirs")) {
+                val directories = mutableListOf<File>()
+                info.getAsJsonArray("sourceDirs")?.forEach { sourceDir ->
+                    sourceDir.takeIf { it.isJsonPrimitive }?.asString?.let { directories.add(File(it)) }
+                }
+                info.getAsJsonArray("inputFiles")?.forEach { input ->
+                    input.takeIf { it.isJsonPrimitive }?.asString?.let { path ->
+                        File(path).parentFile?.let(directories::add)
+                    }
+                }
+                val inputDirs = JsonArray()
+                compactInputDirs(directories).forEach { inputDirs.add(it.path) }
+                info.add("inputDirs", inputDirs)
+            }
+            listOf("configFiles", "excludedDirs").forEach { name ->
+                if (!info.has(name)) {
+                    info.add(name, JsonArray())
+                }
+            }
+        }
+
+        private fun compactInputDirs(directories: List<File>): List<File> {
+            val result = mutableListOf<File>()
+            directories.map { it.absoluteFile.normalize() }
+                .distinctBy { it.path }
+                .sortedBy { it.toPath().nameCount }
+                .forEach { directory ->
+                    if (result.none { directory.toPath().startsWith(it.toPath()) }) {
+                        result.add(directory)
+                    }
+                }
+            return result
+        }
+
+        private fun JsonObject.stringOrNull(name: String): String? {
+            val value = get(name) ?: return null
+            return if (value.isJsonPrimitive) value.asString else null
         }
 
         private fun copyGroovyBooleanIsPropertyAliases(obj: JsonObject) {

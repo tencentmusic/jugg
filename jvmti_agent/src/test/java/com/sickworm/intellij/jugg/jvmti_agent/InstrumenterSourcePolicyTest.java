@@ -58,6 +58,49 @@ public class InstrumenterSourcePolicyTest {
     }
 
     @Test
+    public void assetManagerExitShouldSkipOverlayFixInCompatMode() throws Exception {
+        String source = read("src/main/java/com/sickworm/intellij/jugg/instrument/InstrumentationHooks.java");
+        int methodStart = source.indexOf("public static AssetManager createAssetManagerExit");
+        String method = source.substring(
+                methodStart,
+                source.indexOf("private static final ThreadLocal<Boolean>", methodStart));
+
+        assertTrue(method.contains("if (isEnableHotfix())"));
+        assertTrue(method.contains("return assetManager;"));
+    }
+
+    @Test
+    public void flutterEngineAssetManagerShouldComeFromThePackageContextHook() throws Exception {
+        String instrumenter = read("src/main/cpp/instrumenter.cc");
+        String hooks = read("src/main/java/com/sickworm/intellij/jugg/instrument/InstrumentationHooks.java");
+
+        // FlutterEngine captures the AssetManager of the package context it creates, and Flutter is
+        // an app class that the startup agent cannot hook, so the overlay is added at this boundary.
+        assertTrue(instrumenter.contains("\"android/app/ContextImpl\""));
+        assertTrue(instrumenter.contains("\"createPackageContext\""));
+        assertTrue(instrumenter.contains("\"(Ljava/lang/String;I)Landroid/content/Context;\""));
+        assertTrue(instrumenter.contains("\"handleCreatePackageContextExit\""));
+        assertTrue(instrumenter.contains("&contextImpl"));
+        assertFalse(instrumenter.contains("io/flutter/embedding/engine/FlutterJNI"));
+        assertTrue(hooks.contains("public static Context handleCreatePackageContextExit(Context context)"));
+    }
+
+    @Test
+    public void packageContextHookShouldSkipFlutterRefreshInCompatMode() throws Exception {
+        String source = read("src/main/java/com/sickworm/intellij/jugg/instrument/InstrumentationHooks.java");
+        int methodStart = source.indexOf("public static Context handleCreatePackageContextExit");
+        String method = source.substring(
+                methodStart,
+                source.indexOf("public static void sendMessageEnter", methodStart));
+
+        assertTrue(method.contains("isEnableHotfix()"));
+        assertTrue(method.indexOf("isEnableHotfix()")
+                < method.indexOf("FlutterAssetRefresh.prepareHostPackageContext(context)"));
+        assertTrue(method.indexOf("FlutterAssetRefresh.shouldPrepareHostPackageContext(context)")
+                < method.indexOf("FlutterAssetRefresh.prepareHostPackageContext(context)"));
+    }
+
+    @Test
     public void setupScriptShouldNotCreateLegacyDexPathFixFlag() throws Exception {
         String source = read("src/main/script/jugg_agent_setup.sh");
 

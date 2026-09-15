@@ -20,7 +20,7 @@ Clean Reinstall re-establishes a trustworthy baseline for the app on the device.
 | The target app is not installed on the device | Supported | Uses install instead of incremental deployment |
 | The Clean Reinstall option is enabled | Supported | Clears app data before installing the APK |
 | Overlay or cache state does not match | Supported | Reinstalls after recovery fails |
-| APK installation reports a recoverable exception | Limited retry supported | Uninstalls the current applicationId and reinstalls when needed |
+| The default APK installer reports a recoverable exception | Limited retry supported | Uninstalls the current applicationId and reinstalls when needed; custom scripts are not retried automatically |
 | Multi-APK app | Supported | Groups base, split, or test APKs by applicationId for installation |
 
 > [!NOTE]
@@ -38,7 +38,7 @@ Installation is required
   -> Reset staging / deployed file state
 ```
 
-Jugg stops the app before installation so users do not see the app get stopped immediately after a successful install. After installation succeeds, Jugg records the current APK and overlay ID as the new deployment checkpoint. A reinstall triggered by recovery also clears old deployed data, resource APKs, and staging state.
+Jugg stops the app before installation so users do not see the app get stopped immediately after a successful install. When a custom APK install script is enabled, the project script performs this step for ordinary apps; Android test APKs continue to use the default installer. After installation succeeds and APK verification passes, Jugg records the current APK and overlay ID as the new deployment checkpoint. A reinstall triggered by recovery also clears old deployed data, resource APKs, and staging state.
 
 ## Relationship to incremental deployment
 
@@ -53,6 +53,7 @@ After a successful reinstall, later changes still attempt incremental deployment
 ## Related pages
 
 - [Clear data](../../guide/clean-data.md)
+- [Custom APK install script](./custom-apk-install-script.md)
 - [Deployment state and recovery](../../concepts/deploy-state-recover.md)
 - [Recover and Retry](./recover-and-retry.md)
 - [Deployment history and cache](./deploy-history-cache.md)

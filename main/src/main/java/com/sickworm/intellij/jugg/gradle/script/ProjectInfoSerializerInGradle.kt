@@ -74,6 +74,7 @@ class ProjectInfoSerializerInGradle(private val dataFile: File) {
                             },
                         instrumentationTargetPackage = module["instrumentationTargetPackage"] as? String,
                         composeResourceInfo = parseComposeResourceInfo(module["composeResourceInfo"]),
+                        externalBuildInfos = parseExternalBuildInfos(module["externalBuildInfos"]),
                     )
                     ModuleInfoSerialize(
                         moduleInfo,
@@ -116,6 +117,43 @@ class ProjectInfoSerializerInGradle(private val dataFile: File) {
     }
 
     @Suppress("UNCHECKED_CAST")
+    private fun parseExternalBuildInfos(value: Any?): List<ExternalBuildInfo> {
+        return (value as? List<Map<String, Any>>).orEmpty().mapNotNull { info ->
+            val type = (info["type"] as? String)?.let {
+                runCatching { ExternalBuildType.valueOf(it) }.getOrNull()
+            } ?: return@mapNotNull null
+            val inputDirs = (info["inputDirs"] as? List<String>).orEmpty().map(::File).ifEmpty {
+                compactExternalBuildInputDirs(
+                    (info["sourceDirs"] as? List<String>).orEmpty().map(::File) +
+                            (info["inputFiles"] as? List<String>).orEmpty().mapNotNull { File(it).parentFile },
+                )
+            }
+            if (inputDirs.isEmpty()) return@mapNotNull null
+            // Snapshots written before the outputs were unified are restored here: legacy Flutter kept
+            // the assets directory in outputDir and the native output in nativeLibsArchive (a Jar) or
+            // nativeLibsDir (a jniLibs directory); legacy C++ kept its native output in outputDir.
+            val legacyOutputDir = (info["outputDir"] as? String)?.let(::File)
+            val isFlutter = type == ExternalBuildType.Flutter
+            ExternalBuildInfo(
+                type = type,
+                inputDirs = inputDirs,
+                taskPath = info["taskPath"] as? String,
+                assetsOutputDir = (info["assetsOutputDir"] as? String)?.let(::File)
+                    ?: legacyOutputDir?.takeIf { isFlutter },
+                nativeOutput = (info["nativeOutput"] as? String)?.let(::File) ?: if (isFlutter) {
+                    (info["nativeLibsArchive"] as? String)?.let(::File)
+                        ?: (info["nativeLibsDir"] as? String)?.let(::File)
+                } else {
+                    legacyOutputDir
+                },
+                unsupportedReason = info["unsupportedReason"] as? String,
+                configFiles = (info["configFiles"] as? List<String>).orEmpty().map(::File),
+                excludedDirs = (info["excludedDirs"] as? List<String>).orEmpty().map(::File),
+            )
+        }
+    }
+
+    @Suppress("UNCHECKED_CAST")
     private fun parseComposeResourceInfo(value: Any?): ComposeResourceInfo? {
         val composeInfo = value as? Map<String, Any> ?: return null
         val classpath = (composeInfo["generatorClasspath"] as? List<String>)?.map(::File) ?: return null
@@ -139,6 +177,19 @@ class ProjectInfoSerializerInGradle(private val dataFile: File) {
                 ?: ComposeResourceSupportStatus.Supported,
             unsupportedReason = composeInfo["unsupportedReason"] as? String
         )
+    }
+
+    private fun compactExternalBuildInputDirs(directories: List<File>): List<File> {
+        val result = mutableListOf<File>()
+        directories.map { it.absoluteFile.normalize() }
+            .distinctBy { it.path }
+            .sortedBy { it.toPath().nameCount }
+            .forEach { directory ->
+                if (result.none { directory.toPath().startsWith(it.toPath()) }) {
+                    result.add(directory)
+                }
+            }
+        return result
     }
 
     companion object {

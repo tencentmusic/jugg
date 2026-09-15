@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.deploy.run
 
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
+import com.sickworm.intellij.jugg.deploy.AppAbiCache
 import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.sickworm.intellij.jugg.deploy.direct.InstallerDeviceAbiResolver
 import com.sickworm.intellij.jugg.deploy.run.utils.AdbLogWrapper
@@ -9,12 +10,17 @@ import com.sickworm.intellij.jugg.deploy.run.utils.AdbLogWrapper
 /**
  * Creates a host-neutral deploy launch context and delegates real host differences to the environment.
  */
-class LaunchContextFactory(private val environment: IDeployHost, private val logger: Logger) {
+class LaunchContextFactory(
+    private val environment: IDeployHost,
+    private val logger: Logger,
+    private val appAbiCache: AppAbiCache,
+) {
 
     fun create(
         device: IDevice, exceptOverlayIds: Map<String, String>, isSkipExceptOverlayCheck: Boolean,
         compileUiHandler: CompileUiHandler, isDeviceReadyDeploy: Boolean, isAllowDirectOverlayDeploy: Boolean,
         forceDirectOverlayDeploy: Boolean = false,
+        customApkInstallScript: String = "",
     ): LaunchContext {
         val deviceAdb = environment.createDeviceAdb(device, logger)
         val installersRoot = environment.installersRoot()
@@ -33,6 +39,9 @@ class LaunchContextFactory(private val environment: IDeployHost, private val log
             isDirectOverlaySettingsEnabled = environment.isDirectOverlayEnabled, isDeviceReadyDeploy = isDeviceReadyDeploy,
             isAllowDirectOverlayDeploy = isAllowDirectOverlayDeploy,
             forceDirectOverlayDeploy = forceDirectOverlayDeploy,
+            customApkInstallScript = customApkInstallScript,
+            deployHost = environment,
+            appAbiCache = appAbiCache,
         )
     }
 }

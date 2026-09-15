@@ -8,6 +8,7 @@ import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.compiler.IncrementalDeployHelper
 import com.sickworm.intellij.jugg.compiler.context.CompileContextManager
 import com.sickworm.intellij.jugg.deploy.*
+import com.sickworm.intellij.jugg.deploy.run.applychanges.CustomApkInstallScriptException
 import com.sickworm.intellij.jugg.deploy.run.flow.DeployRetryHandler
 import com.sickworm.intellij.jugg.deploy.run.flow.DeployStateRecover
 import com.sickworm.intellij.jugg.deploy.run.flow.IJuggDeployHelperRunHost
@@ -90,12 +91,14 @@ class JuggDeployerHelper(
         compileUiHandler: CompileUiHandler,
         deferPostDeployLaunch: Boolean,
         isAllowDirectOverlayDeploy: Boolean,
+        customApkInstallScript: String,
     ) {
         val launchResult = runTask(
             JuggDeployRunTaskRequest(
                 device = device,
                 data = data,
                 compileUiHandler = compileUiHandler,
+                customApkInstallScript = customApkInstallScript,
                 isSkipExceptOverlayCheck = isSkipExceptOverlayCheck,
                 deferPostDeployLaunch = deferPostDeployLaunch,
                 isAllowDirectOverlayDeploy = isAllowDirectOverlayDeploy,
@@ -113,7 +116,7 @@ class JuggDeployerHelper(
     private fun runTask(request: JuggDeployRunTaskRequest): LaunchResult = deployRunTaskExecutor.execute(request)
 
     fun deploy(deployOptions: DeployOptions): DeployTaskResult {
-        logger.debug("deploy start, deployOptions: $deployOptions")
+        logger.debug("deploy start, deployOptions: ${deployOptions.toSafeString()}")
         fun costTime(): Long { return System.currentTimeMillis() - deployOptions.startTime }
 
         if (deployOptions.processHandler?.isCanceled == true) {
@@ -161,9 +164,11 @@ class JuggDeployerHelper(
             }
             val reason = e.message ?: e.cause?.message ?: e.toString()
             val retryReason = deployOptions.retryReason
-            val canRetry = (retryReason != DO_NOT_RETRY) && (retryReason == null || retryReason != reason)
+            val isCustomInstallScriptFailure = e is CustomApkInstallScriptException
+            val canRetry = !isCustomInstallScriptFailure &&
+                (retryReason != DO_NOT_RETRY) && (retryReason == null || retryReason != reason)
             if (canRetry) {
-                logger.debug("try retry deploy..., deployOptions: $deployOptions")
+                logger.debug("try retry deploy..., deployOptions: ${deployOptions.toSafeString()}")
                 if (deployOptions.isInstall) {
                     val retryResult = tryRetryInstall(deployOptions, deployData, reason)
                     if (retryResult != null) {
@@ -185,7 +190,8 @@ class JuggDeployerHelper(
                 logger.debug(e)
             }
 
-            val isCanFallback = deployRetryHandler.isCanFallbackOnException(reason, deployOptions.isInstall)
+            val isCanFallback = !isCustomInstallScriptFailure &&
+                deployRetryHandler.isCanFallbackOnException(reason, deployOptions.isInstall)
             DeployTaskResult(isSuccess = false, deployType = deployData.deployType, isCanFallback = isCanFallback, costTime = costTime(), failedReason = reason)
         }
     }
@@ -304,6 +310,15 @@ class JuggDeployerHelper(
         if (isProjectSwitchedThisRun) {
             logger.debug("Project switched since last run, force recover deploy state.")
         }
+        if (deployStateManager.getDeployState(device).ideDeployState.state == IdeDeployState.State.NO_DEPLOYABLE_APP &&
+            deployOptions.isAllowDirectOverlayDeploy && JuggSettings.isEnableDirectOverlayDeploy) {
+            if (deployTargetManager.isAppForeground(device)) {
+                logger.info("App is running but not deployable by Android Studio. " +
+                        "Direct Deploy will restart the app after deployment.")
+            } else {
+                logger.info("Android Studio deployable client unavailable, try Best-effort Direct Deploy fallback.")
+            }
+        }
         if (isNeedReinstallApk || !deployStateManager.getDeployState(device).isReadyDeploy || isProjectSwitchedThisRun) {
             if (deployStateManager.getDeployState(device).isReadyIncCompile) {
                 val (isSuccess, isReinstalled) = deployStateRecover.recoverDeployState(
@@ -314,6 +329,7 @@ class JuggDeployerHelper(
                     isSkipExceptOverlayCheck = deployOptions.isSkipExceptOverlayCheck,
                     compileUiHandler = deployOptions.compileUiHandler,
                     allowDirectOverlayRecover = deployOptions.isAllowDirectOverlayDeploy,
+                    customApkInstallScript = deployOptions.customApkInstallScript,
                 )
                 if (!isSuccess) {
                     logger.info("Try recover deploy state failed.")
@@ -391,6 +407,13 @@ class JuggDeployerHelper(
             )
         }
 
+        val actualDeployType = if (launchResult.needsRestartApp &&
+            deployData.deployType == JuggDeployData.DeployType.HOT_RELOAD) {
+            JuggDeployData.DeployType.HOT_FIX
+        } else {
+            deployData.deployType
+        }
+
         if (deployOptions.isLastDevice) {
             logger.debug("Deploying finished, update info after deploy.")
             updateInfoAfterIncDeploy(launchResult, deployData)
@@ -400,7 +423,7 @@ class JuggDeployerHelper(
             DeployTaskResult(
                 isSuccess = true,
                 costTime = costTime(),
-                deployType = deployData.deployType,
+                deployType = actualDeployType,
                 costTimeExceptCheck = costTime() - launchResult.checkJvmtiCostTime,
                 hasDeployChanges = !deployData.isEmpty,
             ),
@@ -537,7 +560,18 @@ class JuggDeployerHelper(
     private fun isNeedPushResourceApk(device: IDevice, data: JuggDeployData): Boolean {
         logger.trace("[PERF] CompatDeployHelper.isEnableCompatDeploy start, thread=${Thread.currentThread().name}")
         val compatStart = System.currentTimeMillis()
-        val isEnableCompatDeploy = CompatDeployHelper(logger).isEnableCompatDeploy(environment.createDeviceAdb(device, logger), data)
+        val adb = environment.createDeviceAdb(device, logger)
+        val isDirectAppSandboxClassDeploy = !data.isInstall && data.hasClassChanges &&
+            data.overlays.isEmpty() && data.updateApkFiles.isEmpty() &&
+            data.apks.filter { !it.isOtherTargetingTestApk }.any {
+                AppSandboxExecutor.probeApplyChangesCapability(adb, it.applicationId) ==
+                    AppSandboxExecutor.ApplyChangesCapability.INCOMPATIBLE
+            }
+        if (isDirectAppSandboxClassDeploy) {
+            logger.debug("Skip compat payload conversion for Direct app sandbox class deploy.")
+            return false
+        }
+        val isEnableCompatDeploy = CompatDeployHelper(logger).isEnableCompatDeploy(adb, data)
         logger.trace("[PERF] CompatDeployHelper.isEnableCompatDeploy end, cost=${System.currentTimeMillis() - compatStart}ms, thread=${Thread.currentThread().name}")
         logger.debug("isNeedPushResourceApk: " +
                 "isEnableCompatDeploy: $isEnableCompatDeploy, " +

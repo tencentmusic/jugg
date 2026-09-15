@@ -160,17 +160,25 @@ class GradleProjectInfoLocalFetchManager(
         if (!shouldWait) {
             return true
         }
+        return waitForLatestUpdate("remote compile")
+    }
 
+    /** Waits until the active project info refresh and any queued replacement refresh finish. */
+    fun waitForCurrentUpdate() {
+        waitForLatestUpdate("current")
+    }
+
+    private fun waitForLatestUpdate(reason: String): Boolean {
         while (true) {
             val completion = updateCompletion
             if (completion.count > 0) {
-                logger.debug("waiting for remote compile project info update")
+                logger.debug("waiting for $reason project info update")
             }
             try {
                 completion.await()
             } catch (e: InterruptedException) {
                 Thread.currentThread().interrupt()
-                logger.debug("wait for remote compile project info update interrupted", e)
+                logger.debug("wait for $reason project info update interrupted", e)
                 return false
             }
             synchronized(this) {

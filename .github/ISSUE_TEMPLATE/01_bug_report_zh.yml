@@ -7,6 +7,8 @@ body:
       value: |
         感谢你反馈有关 Jugg 的问题。请提供以下信息，帮助我们复现和定位问题。
 
+        请勿在此报告安全漏洞。请参阅[安全策略](https://github.com/tencentmusic/jugg/security/policy)。
+
   - type: dropdown
     id: problem_type
     attributes:

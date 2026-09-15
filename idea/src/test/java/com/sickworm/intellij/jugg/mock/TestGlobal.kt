@@ -40,6 +40,9 @@ import java.io.File
 import javax.swing.JComponent
 import javax.swing.JPanel
 
+/** The demo project sets `layout.buildDirectory` to `<project root>/build/<module name>`. */
+const val DEMO_APP_BUILD_DIR_RELATIVE_PATH = "build/app"
+
 object TestGlobal {
 
     val logger = StdLogger("JuggTest")
@@ -76,11 +79,12 @@ object TestGlobal {
         buildVariant = ModuleInfo.DEFAULT_BUILD_VARIANT,
         compileVersion = null,
         buildToolsVersion = null,
+        // Mirror the Gradle read build paths so fixtures share the real module output layout.
         buildPathInfo = ModuleBuildPathInfo(
             projectInfo.projectRoot,
             appModuleDir,
             ModuleInfo.DEFAULT_BUILD_VARIANT,
-            buildDirRelativePath = "",
+            buildDirRelativePath = DEMO_APP_BUILD_DIR_RELATIVE_PATH,
         ),
         kotlinJvmTarget = "1.8",
         kotlinFreeCompilerArgs = emptyList(),
@@ -92,6 +96,8 @@ object TestGlobal {
         runtimeLibraryDependencies = emptyList(),
         annotationProcessorDependencies = emptyList(),
         kaptDependencies = emptyList(),
+        kotlinPluginOptions = emptyList(),
+        externalBuildInfos = emptyList(),
     )
 
     init {

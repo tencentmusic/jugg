@@ -12,4 +12,5 @@ class LaunchResult(
 
     var pushingAgentCostTime: Long = 0
     var checkJvmtiCostTime: Long = 0
+    var needsRestartApp: Boolean = false
 }

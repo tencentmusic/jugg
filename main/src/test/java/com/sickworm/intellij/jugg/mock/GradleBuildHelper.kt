@@ -7,7 +7,7 @@ object GradleBuildHelper {
     private val gradlew = if (isWindows) "cmd.exe /c gradlew" else "./gradlew"
 
     fun clean() {
-        val process = Runtime.getRuntime().exec("$gradlew clean", null, TestGlobal.projectRootDir)
+        val process = Runtime.getRuntime().exec("$gradlew clean --no-daemon", null, TestGlobal.projectRootDir)
         println("\n----------- clean start -----------\n")
         println(String(process.inputStream.readBytes()))
         println()
@@ -21,7 +21,7 @@ object GradleBuildHelper {
 
     fun appAssembleDebug(initScriptPath: String? = AssembleAndroidProjectOnce.scriptFile.absolutePath) {
         val initArg = if (initScriptPath == null) "" else "-I $initScriptPath"
-        val process = Runtime.getRuntime().exec("$gradlew :app:assembleDebug $initArg", null, TestGlobal.projectRootDir)
+        val process = Runtime.getRuntime().exec("$gradlew :app:assembleDebug --no-daemon $initArg", null, TestGlobal.projectRootDir)
         println("\n----------- assembleDebug start -----------\n")
         println(String(process.inputStream.readBytes()))
         println()
@@ -39,7 +39,7 @@ object GradleBuildHelper {
     ) {
         val initArg = if (initScriptPath == null) "" else "-I $initScriptPath"
         val forceArg = if (forceRebuild) "--rerun-tasks" else ""
-        val process = Runtime.getRuntime().exec("$gradlew :app:assembleRelease $initArg $forceArg", null, TestGlobal.projectRootDir)
+        val process = Runtime.getRuntime().exec("$gradlew :app:assembleRelease --no-daemon $initArg $forceArg", null, TestGlobal.projectRootDir)
         println("\n----------- assembleRelease start -----------\n")
         println(String(process.inputStream.readBytes()))
         println()
@@ -53,7 +53,7 @@ object GradleBuildHelper {
 
     fun appBundleReleaseToApk(initScriptPath: String? = AssembleAndroidProjectOnce.scriptFile.absolutePath) {
         val initArg = if (initScriptPath == null) "" else "-I $initScriptPath"
-        val process = Runtime.getRuntime().exec("$gradlew :app:bundleReleaseToApk $initArg", null, TestGlobal.projectRootDir)
+        val process = Runtime.getRuntime().exec("$gradlew :app:bundleReleaseToApk --no-daemon $initArg", null, TestGlobal.projectRootDir)
         println("\n----------- assembleRelease start -----------\n")
         println(String(process.inputStream.readBytes()))
         println()

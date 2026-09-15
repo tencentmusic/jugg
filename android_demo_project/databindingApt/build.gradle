@@ -1,5 +1,12 @@
 apply plugin: 'com.android.library'
-apply plugin: 'kotlin-android'
+
+// AGP 9 rejects 'org.jetbrains.kotlin.android' because Kotlin support is built in. This fixture only
+// contains Java APT sources, so the plugin is kept for older AGP and skipped from AGP 9 on.
+def agpMajorVersion = (project.findProperty('agpVersion') ?: '0').toString().tokenize('.')[0] as int
+def isKotlinPluginRequired = agpMajorVersion < 9
+if (isKotlinPluginRequired) {
+    apply plugin: 'kotlin-android'
+}
 
 android {
     namespace 'com.example.databindingapt'
@@ -18,8 +25,10 @@ android {
         dataBinding true
     }
 
-    kotlinOptions {
-        jvmTarget = "1.8"
+    if (isKotlinPluginRequired) {
+        kotlinOptions {
+            jvmTarget = "1.8"
+        }
     }
 }
 

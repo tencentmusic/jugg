@@ -1,6 +1,6 @@
 # 测试与验证策略（权威细则）
 
-> 最后核对：2026-09-08
+> 最后核对：2026-09-11
 > 一致性规则：文档与代码冲突时，以代码为准。
 > **与 AGENTS.md / CLAUDE.md 关系**：顶层规则只保留不可绕过的约束；**本页是验证证据、测试价值、分层、TDD、落点和存量治理的唯一权威细则**。其他 `docs/task/YYYY-MM/*` 若与本页冲突，以本页为准。
 
@@ -352,6 +352,8 @@ fun clearBuild() {
 ---
 
 ## 10. 运行测试与验证
+
+本仓库与 `android_demo_project` 使用 `org.gradle.daemon=false`，并把 idle timeout 设为 10 秒。命令行测试结束后不保留 Gradle daemon；IDE / Tooling API 仍可能拉起 daemon，闲置约 10 秒后退出。测试夹具里的 `./gradlew` 额外带 `--no-daemon`，避免用户级 `~/.gradle/gradle.properties` 覆盖项目设置。
 
 禁止无 `--tests` 的全量 `:main:test` / `:idea:test`。
 

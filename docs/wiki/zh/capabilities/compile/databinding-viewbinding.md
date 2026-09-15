@@ -41,6 +41,7 @@ DataBinding / ViewBinding layout 变化
 ## 关键边界
 
 - 普通 layout 不会因为开启 ViewBinding 就一定进入 DataBinding mapper。
+- 已安装 APK 里没有 `androidx.viewbinding.ViewBindings` 时（例如 AGP 4.2.2 默认的 `viewbinding:4.2.2`），Jugg 会生成 `findViewById` 风格，与官方 Gradle 产物对齐。
 - DataBinding mapper 依赖上次 Gradle 产出的 layout info 和 BR 基线；缺失时需要 Gradle 重建。
 - 直接工程依赖中的 BindingAdapter 需要依赖模块已生成 setter store；首次加入该依赖或基线缺失时，需要先执行 Gradle 构建或 Sync。
 - stripped XML 既是资源产物，也是源码阶段判断 mapper 的输入之一，不能只看 Java 输出判断是否成功。

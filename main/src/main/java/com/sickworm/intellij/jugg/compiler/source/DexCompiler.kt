@@ -170,14 +170,17 @@ class DexCompiler(
         val tempOutput = File(context.tempCompileDir, "output")
         tempOutput.clearDir()
 
+        val preparation = ClassPreparation.analyze(files)
+        val transformedPreparation = TransformerCompiler(context, logger).transform(task, module, preparation)
+
         // must call first to extract classpath to classpathDir
         val classpathDir = File(context.tempCompileDir, "classpath")
         classpathDir.mkdirs()
         classpathDir.clearDir()
-        val desugarInfo = context.getDesugarInfo(files, module, classpathDir)
+        val desugarInfo = context.getDesugarInfo(transformedPreparation, module, classpathDir)
         logger.debug("desugarInfo = $desugarInfo")
 
-        dexFileMaker.dex(tempOutput, files.map { it.file }, listOf(classpathDir.absolutePath),
+        dexFileMaker.dex(tempOutput, transformedPreparation.files.map { it.file }, listOf(classpathDir.absolutePath),
             context.androidJar, minApi, isFilePerClass, desugarInfo.desugaredLibraryConfiguration,
             context.agpR8Classpath)
         val dexFiles: List<File>

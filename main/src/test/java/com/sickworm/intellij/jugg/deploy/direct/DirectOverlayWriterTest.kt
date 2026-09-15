@@ -46,10 +46,10 @@ class DirectOverlayWriterTest {
         assertTrue(adb.lastScript.contains("overlay_dir=code_cache/.overlay"))
         assertTrue(adb.lastScript.contains("\$overlay_dir/id"))
         assertTrue(adb.lastScript.contains("__JUGG_DIRECT_OVERLAY__ HEARTBEAT"))
-        assertTrue(adb.lastScript.contains("heartbeat_pid=\$!"))
-        assertTrue(adb.lastScript.contains("trap \"kill \$heartbeat_pid 2>/dev/null || true\" EXIT"))
+        assertTrue(adb.lastScript.contains("sleep 1 </dev/null >/dev/null 2>&1 || break"))
+        assertTrue(adb.lastScript.contains("trap \"kill -KILL \$heartbeat_pid 2>/dev/null || true\" EXIT"))
         assertTrue(adb.lastScript.contains("unzip -oq"))
-        assertTrue(adb.lastScript.contains("find \"\$overlay_dir\" -type f -name '*.dex' -exec chmod 0444 {} +"))
+        assertTrue(adb.lastScript.contains("-exec chmod 0444 {} +"))
         assertTrue(adb.commands.contains("mkdir -p /data/local/tmp/jugg"))
         assertTrue(adb.commands.contains("rm -f /data/local/tmp/jugg/direct-overlay-*.zip"))
     }
@@ -138,6 +138,10 @@ class DirectOverlayWriterTest {
         assertEquals(DirectOverlayWriteResult.SUCCESS, writer.write(request))
 
         val script = adb.lastScript
+        assertTrue(script.contains("__JUGG_DIRECT_OVERLAY__ HEARTBEAT"))
+        assertTrue(script.contains("heartbeat_pid=\$!"))
+        assertTrue(script.contains("sleep 1 </dev/null >/dev/null 2>&1 || break"))
+        assertTrue(script.contains("trap \"kill -KILL \$heartbeat_pid 2>/dev/null || true\" EXIT"))
         val removeDexIndex = script.indexOf("rm -f \"\$overlay_dir\"/\"com.example.Foo.dex\"")
         val unzipIndex = script.indexOf("unzip -oq")
         assertTrue(removeDexIndex >= 0)
@@ -174,6 +178,22 @@ class DirectOverlayWriterTest {
         assertFalse(script.contains("rm -f \"\$overlay_dir\"/\"base.apk/resources.arsc\""))
         assertFalse(script.contains("rm -f \"\$overlay_dir\"/\"base.apk/res/layout/main.xml\""))
         assertFalse(script.contains("rm -f \"\$overlay_dir\"/\"com.example.Foo.dex\""))
+    }
+
+    @Test
+    fun `write should commit overlay checkpoint when payload is empty`() {
+        val adb = RecordingAdb("__JUGG_DIRECT_OVERLAY__ OK", rejectEmptyArchive = true)
+        val writer = DirectOverlayWriter(adb, Mockito.mock(Logger::class.java))
+        val request = DirectOverlayWriteRequest(
+            packageName = "com.example.app",
+            expectedOverlayId = "",
+            overlayId = "new-id",
+            files = emptyList(),
+            skipPayloadCleanup = true,
+        )
+
+        assertEquals(DirectOverlayWriteResult.SUCCESS, writer.write(request))
+        assertTrue(adb.pushedZipEntries.single().isEmpty())
     }
 
     @Test
@@ -267,7 +287,11 @@ class DirectOverlayWriterTest {
             trackActive {
                 Thread.sleep(50)
             }
-            return "__JUGG_DIRECT_OVERLAY__ OK"
+            return if (cmd.contains("__JUGG_RUN_AS_OK__")) {
+                "__JUGG_RUN_AS_OK__:10001\n__JUGG_RUN_AS_CONTEXT__:ctx|ctx"
+            } else {
+                "__JUGG_DIRECT_OVERLAY__ OK"
+            }
         }
 
         override fun push(from: File, to: String): Boolean {
@@ -293,7 +317,10 @@ class DirectOverlayWriterTest {
         }
     }
 
-    private class RecordingAdb(private val scriptOutput: String) : IDeviceAdb {
+    private class RecordingAdb(
+        private val scriptOutput: String,
+        private val rejectEmptyArchive: Boolean = false,
+    ) : IDeviceAdb {
         val pushedZipEntries = mutableListOf<List<String>>()
         val commands = mutableListOf<String>()
         var lastScript: String = ""
@@ -311,7 +338,14 @@ class DirectOverlayWriterTest {
 
         override fun execAdbShellScript(cmd: String): String {
             lastScript = cmd
-            return scriptOutput
+            return if (cmd.contains("__JUGG_RUN_AS_OK__")) {
+                "__JUGG_RUN_AS_OK__:10001\n__JUGG_RUN_AS_CONTEXT__:ctx|ctx"
+            } else if (rejectEmptyArchive && pushedZipEntries.lastOrNull()?.isEmpty() == true &&
+                cmd.contains("unzip -oq")) {
+                "__JUGG_DIRECT_OVERLAY__ APPLYING\nunzip: Empty archive"
+            } else {
+                scriptOutput
+            }
         }
 
         override fun execAdbShellScriptNoFallback(cmd: String): String {

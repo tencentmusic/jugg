@@ -36,6 +36,8 @@ Full Swap 仍然属于增量部署。它的重点不是重新安装 APK，而是
 
 当前实现对普通、非空且不要求重启 App 的增量数据使用 Full Swap。因此方法体修改虽然可以在线替换 class，Activity 通常仍会重建；App 进程和进程内状态继续保留。
 
+当目标 App 的 `run-as` 不兼容、部署转入 Direct app sandbox transport 时，Jugg 不会重新调用 Android Studio Full Swap。Direct JVMTI 请求会在 class 替换成功后独立调度 Activity 重建，保持相同的“保留进程、重新执行当前界面生命周期”结果。
+
 ## 与 Code Swap 的区别
 
 | 策略 | 用户感知 | 适合场景 |

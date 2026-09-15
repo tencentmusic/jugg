@@ -363,6 +363,8 @@ class IdeaProjectModelSource(
                 buildToolsVersion = info.buildToolsVersion,
                 kotlinJvmTarget = info.kotlinJvmTarget,
                 kotlinFreeCompilerArgs = info.kotlinFreeCompilerArgs ?: emptyList(),
+                kotlinPluginOptions = emptyList(),
+                externalBuildInfos = emptyList(),
                 javaSourceCompatibility = info.javaSourceCompatibility,
                 javaTargetCompatibility = info.javaTargetCompatibility,
                 buildPathInfo = moduleBuildPathInfo,

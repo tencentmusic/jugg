@@ -3,6 +3,25 @@
 <ol>
     <li>[feature] Run Jugg compile and deploy workflows from a standalone cross-platform CLI without Android Studio</li>
 </ol>
+<h2>3.5.0 (2026.09.12)</h2>
+<ol>
+    <li>[feature] Support Flutter and C++ source changes: run Gradle tasks to generate native libraries, then continue with Jugg incremental builds</li>
+    <li>[feature] Support incremental updates for system apps</li>
+    <li>[feature] Support Hilt: preserve injection during incremental source updates to avoid crashes</li>
+    <li>[feature] Support custom APK install scripts</li>
+    <li>[optimize] Show a concise warning when Dex compilation falls back</li>
+    <li>[optimize] Reduce latency on the self-built deploy channel</li>
+    <li>[bugfix] Restore Bumblebee run configuration lookup and naming</li>
+    <li>[bugfix] Fix Marketplace listing issues by removing incompatible APIs and updating Gradle sync handling</li>
+    <li>[bugfix] Prevent profile builds from using debug task metadata</li>
+    <li>[bugfix] Support calling ROM hidden APIs by retrying with a postponed android.jar when Kotlin incremental compile fails</li>
+    <li>[bugfix] Fix rare clean failures after Java compilation on Windows</li>
+    <li>[bugfix] Fix compile failure on AGP 8.8.0</li>
+    <li>[bugfix] Fix rare Android Studio Quail cases where resource deploy does not take effect and a restart is required</li>
+    <li>[bugfix] Fix incremental ViewBinding failure on AGP 4.2.2 runtimes</li>
+    <li>[bugfix] Fix missing Kotlin opt-in arguments when KMP common sources use @HiddenFromObjC</li>
+    <li>[bugfix] Fix KMP Compose resource changes requiring two restarts to take effect on the first compile with Android 15+, Android Studio older than Meerkat, and Kotlin 2.1+🤣</li>
+</ol>
 <h2>3.4.3 (2026.09.09)</h2>
 <ol>
     <li>[feature] Change the plugin ID to support Marketplace listing</li>

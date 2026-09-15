@@ -7,6 +7,8 @@ import android.content.ContextWrapper;
 import android.content.res.ApkAssets;
 import android.content.res.AssetManager;
 import android.content.res.ResourcesKey;
+import android.content.res.Resources;
+import android.os.Build;
 import com.sickworm.intellij.jugg.hotfix.HotfixLoader;
 import com.sickworm.intellij.jugg.hotfix.LogUtils;
 import com.sickworm.intellij.jugg.hotfix.ReflectUtil;
@@ -28,6 +30,34 @@ public class InstrumentationHooks {
     private static final AtomicBoolean classpathResourceHookEntered = new AtomicBoolean();
     private static volatile ClassLoader classpathResourceHostClassLoader;
     private static volatile File classpathResourceOverlayRoot;
+
+    public static void initializeDirectResourceOverlays(String dataDir) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            ResourceOverlays.initialize(dataDir);
+        }
+    }
+
+    public static void prepareResourceOverlays(LoadedApk loadedApk) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            return;
+        }
+        try {
+            ResourceOverlays.prepare(loadedApk.getApplicationInfo());
+        } catch (Exception e) {
+            LogUtils.w(TAG, "Could not prepare Direct resource overlays: " + e);
+        }
+    }
+
+    public static Resources addResourceOverlays(Resources resources) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            try {
+                ResourceOverlays.addResourceOverlays(resources);
+            } catch (Exception e) {
+                LogUtils.w(TAG, "Could not load Direct resource overlays: " + e);
+            }
+        }
+        return resources;
+    }
 
     public static void handleAttachBaseContextEntry(ContextWrapper contextWrapper, Context base)
         throws Exception {
@@ -146,43 +176,59 @@ public class InstrumentationHooks {
         }
     }
 
-    private static boolean isNeedFixThisAssetManager = false;
+    // One decision is taken per call. Android 14+ has both createAssetManager signatures and the
+    // old one delegates to the new one, so the enter/exit pairs nest, and ResourcesManager can run
+    // on any thread, so a single static field could hand one call's decision to another call.
+    private static final ThreadLocal<Boolean> isNeedFixThisAssetManagerPerThread = new ThreadLocal<>();
 
     public static void createAssetManagerEnter(ResourcesManager assetManager, ResourcesKey resourcesKey) {
         if (isEnableHotfix()) {
             return;
         }
         String resDir = resourcesKey.mResDir;
-        isNeedFixThisAssetManager = isNeedFixThisAssetManager(resourcesKey);
-        logAssetManagerDecisionOnce("createAssetManager", resDir, isNeedFixThisAssetManager);
+        boolean isNeedFix = isNeedFixThisAssetManager(resourcesKey);
+        isNeedFixThisAssetManagerPerThread.set(isNeedFix);
+        logAssetManagerDecisionOnce("createAssetManager", resDir, isNeedFix);
     }
 
     public static AssetManager createAssetManagerExit(AssetManager assetManager) {
+        boolean isNeedFix = Boolean.TRUE.equals(isNeedFixThisAssetManagerPerThread.get());
+        isNeedFixThisAssetManagerPerThread.remove();
         if (isEnableHotfix()) {
             return assetManager;
         }
-        if (isNeedFixThisAssetManager) {
+        if (isNeedFix) {
             tryFixOutSideApk(assetManager);
+        } else if (FlutterAssetRefresh.shouldScheduleRefresh()) {
+            // The host AssetManager is recreated by Apply Changes; running Flutter engines need it.
+            FlutterAssetRefresh.scheduleRefresh();
         }
         return assetManager;
     }
 
-    private static boolean isNeedFixThisAssetManagerNew = false;
+    private static final ThreadLocal<Boolean> isNeedFixThisAssetManagerNewPerThread = new ThreadLocal<>();
 
     public static void createAssetManagerNewEnter(ResourcesManager assetManager, ResourcesKey resourcesKey, ResourcesManager.ApkAssetsSupplier apkAssetsSupplier) {
         if (isEnableHotfix()) {
             return;
         }
         String resDir = resourcesKey.mResDir;
-        isNeedFixThisAssetManagerNew = isNeedFixThisAssetManager(resourcesKey);
-        logAssetManagerDecisionOnce("createAssetManagerNew", resDir, isNeedFixThisAssetManagerNew);
+        boolean isNeedFix = isNeedFixThisAssetManager(resourcesKey);
+        isNeedFixThisAssetManagerNewPerThread.set(isNeedFix);
+        logAssetManagerDecisionOnce("createAssetManagerNew", resDir, isNeedFix);
     }
 
     public static AssetManager createAssetManagerNewExit(AssetManager assetManager) {
+        boolean isNeedFix = Boolean.TRUE.equals(isNeedFixThisAssetManagerNewPerThread.get());
+        isNeedFixThisAssetManagerNewPerThread.remove();
         if (isEnableHotfix()) {
             return assetManager;
         }
-        if (!isNeedFixThisAssetManagerNew) {
+        if (!isNeedFix) {
+            // The host AssetManager is recreated by Apply Changes; running Flutter engines need it.
+            if (FlutterAssetRefresh.shouldScheduleRefresh()) {
+                FlutterAssetRefresh.scheduleRefresh();
+            }
             return assetManager;
         }
 
@@ -200,8 +246,11 @@ public class InstrumentationHooks {
         return ApplyChangesOverlayPolicy.shouldRemoveApplyChangesOverlay(resourcesKey);
     }
 
+    /** Path fragment shared by Apply Changes overlays and Jugg Direct overlays. */
+    static final String APPLY_CHANGES_OVERLAY_MARKER = "/code_cache/.overlay/";
+
     private static boolean isApplyChangesOverlay(String path) {
-        return path.contains("/code_cache/.overlay/");
+        return path.contains(APPLY_CHANGES_OVERLAY_MARKER);
     }
 
     private static synchronized void logAssetManagerDecisionOnce(String hookName, String resDir, boolean shouldFix) {
@@ -250,6 +299,21 @@ public class InstrumentationHooks {
         } catch (Throwable e) {
             LogUtils.e(TAG, "tryFixOutSideApk failed", e);
         }
+    }
+
+    /**
+     * Exit hook of ContextImpl.createPackageContext(). A FlutterEngine captures the AssetManager of
+     * exactly such a package context, and that context does not inherit the overlay loaders of the
+     * live Resources, so it is fixed here before anyone keeps the native handle of it.
+     */
+    public static Context handleCreatePackageContextExit(Context context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R || isEnableHotfix()) {
+            return context;
+        }
+        if (FlutterAssetRefresh.shouldPrepareHostPackageContext(context)) {
+            FlutterAssetRefresh.prepareHostPackageContext(context);
+        }
+        return context;
     }
 
     public static void sendMessageEnter(ActivityThread activityThread, int what, Object obj, int arg1, int arg2, boolean async) {

@@ -1,6 +1,6 @@
 # 编译系统：DataBinding / ViewBinding
 
-> 最后核对：2026-09-07
+> 最后核对：2026-09-11
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -26,6 +26,7 @@
 | `SourceDataBindingProcessor` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/source/SourceDataBindingProcessor.kt` | 在源码编译前协调 DataBinding mapper 生成和失败重试 |
 | `DataBindingArgsManager` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/databinding/DataBindingArgsManager.kt` | 统一维护 DataBinding/ViewBinding 的临时目录、Gradle 中间产物路径、触发源和 mapper/BR 路径 |
 | `DataBindingGenBaseClassesCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/databinding/DataBindingGenBaseClassesCompiler.kt` | 资源阶段：split layout XML，生成 ViewBinding base classes 或 DataBinding trigger file |
+| `LegacyViewBindingLookup` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/databinding/LegacyViewBindingLookup.kt` | APK 基线没有 `ViewBindings` 时，把 7.4.2 生成的 `findChildViewById` 改写成 `findViewById` |
 | `DataBindingGenMapperCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/databinding/DataBindingGenMapperCompiler.kt` | 源码阶段：Mapper 使用 APT；Kotlin adapter 变化时先用隔离 KAPT 生成 current-module store，adapter class 成功后提交 merged store cache |
 | `DataBindingSetterStoreCache` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/databinding/DataBindingSetterStoreCache.kt` | 将官方 processor 生成的 current-module store 合入 Gradle baseline/上一版 merged store并原子发布 |
 | `LayoutIncludeAnalyzer` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/databinding/LayoutIncludeAnalyzer.kt` | 找到当前变更 layout 通过 `<include>` 影响到的 layout info |
@@ -126,6 +127,7 @@ SourceCompiler.prepareSourceCompile()
 - `mergeLibraryBr()` / `mergeAppBr()` 要求 Gradle 上一次生成的 BR 文件存在；不存在时会抛异常，而不是新建一个空 BR。
 - include 关系不是靠扫描当前 XML 文本直接编译所有引用方，而是基于 layout info 文件补齐到 `tempDataBindingLayoutXmlDir`。
 - AGP 7.2.2 和 AGP 8.4 的中间产物路径不同，`DataBindingArgsManager` 通过候选目录匹配；路径问题优先看这里，不要先改编译器参数。
+- ViewBinding/DataBinding base class 生成器固定是插件内的 7.4.2（Java 11 字节码，可在 Electric Eel 等 Java 11 IDE 加载）。它默认会写出 `ViewBindings.findChildViewById`。该类从 `viewbinding:7.0.0` 才存在。判定不看 AGP 版本或 Gradle 声明，只问 `ICompileContext.containsApkClass()` 是否返回 `Landroidx/viewbinding/ViewBindings;` 的 `ClassNode`；空列表则把生成源改写成 `rootView.findViewById`，与 AGP 4.2.2 官方产物对齐。
 - mapper / BR 基线按文件匹配：优先 `generated/source/kapt/<variant>`，没有对应文件时再看 Java APT 的 `generated/ap_generated_sources/<variant>/out`。无 KAPT 的 DataBinding 工程走后一条；两条都不存在时仍回落到 kapt 路径，错误信息保持原样。
 - DataBinding trigger file 只是为了触发 annotation processor；真实 mapper 和 BR 仍来自 processor 输出。
 - setter store cache 以 Gradle module store 内容 hash 作为 baseline 身份；baseline 变化时旧 generation 不再命中。
@@ -139,6 +141,7 @@ SourceCompiler.prepareSourceCompile()
 |------|----------|
 | 明明启用了 DataBinding 但未进入 mapper 阶段 | `DataBindingArgsManager.isUseDataBinding()` 与 module `packageName`；若 layout info 已存在仍报 `data binding is not enabled`，先查 `ProjectInfoSerializer` 对 Groovy `useDataBinding` 的回读 |
 | ViewBinding class 未生成 | `DataBindingGenBaseClassesCompiler.splitLayoutXml()` / `generateBaseClasses()` |
+| 增量编译报找不到 `androidx.viewbinding.ViewBindings` | `ICompileContext.containsApkClass()` 与 `LegacyViewBindingLookup`；确认 APK database 返回的 `ClassNode` 是否含该类，以及生成源是否已改写成 `findViewById` |
 | DataBinding mapper 生成失败 | `DataBindingGenMapperCompiler.runAnnotationProcessor()`，重点看 `runAnnotationProcessor apt output` 日志；若 `FileNotFoundException` 指向 kapt `DataBinderMapperImpl.java`，同时核对 Java APT 的 `ap_generated_sources` |
 | 自定义属性提示找不到 setter 或参数类型不匹配 | 先检查 `DataBindingClasspathHelper` 是否收集当前模块、直接工程依赖的有效 merged/Gradle store，再检查 `DataBindingGenMapperCompiler` 是否从 `dataBindingAarOutDir` 取得 current-module store 并发布 cache |
 | adapter-only 后下一轮 layout 找不到属性 | 检查 `SourceDataBindingProcessor` 是否因 adapter declaration 触发 processor，以及 setter store cache 的 baseline hash 是否命中 |

@@ -1,6 +1,6 @@
 # AI 使用指引（任务路由版）
 
-> 最后核对：2026-08-27
+> 最后核对：2026-09-11
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -33,6 +33,7 @@
 | 资源/Manifest/DataBinding 异常 | `98_code_map.md`, `02_compile_resource.md`, `02_compile_manifest.md`, `02_compile_databinding.md` | `compiler/overlay`, `compiler/manifest`, `compiler/databinding` |
 | 自定义编译器/编译交互协议 | `98_code_map.md`, `02_compile_custom_ui.md` | `compiler/custom/*`, `compiler/ui/*` |
 | 部署失败/热更策略 | `98_code_map.md`, `03_deploy_core.md`, `03_deploy_complete.md`, `06_testing.md` §7.1 | `main/.../JuggDeployerHelper.kt`, `idea/.../manager/TopLevelFlowTest` |
+| **系统应用 / priv-app / FLAG_SYSTEM / 平台签名 / 自定义 APK 安装脚本 / 首次装到 /system** | `03_deploy_system_app.md`, `03_deploy_core.md` | `CustomApkInstallScriptRunner`, `JuggDeployer.install()`, `DirectOverlayWriter` |
 | 常量变化重编译异常（const ref） | `98_code_map.md`, `03_deploy_const_ref.md`, `02_compile_core.md` | `main/.../compiler/constref/*`, `deploy/DeployFileManager.kt`, `deploy/data/DeployDataGenerator.kt` |
 | 影响分析/类变更传播 | `98_code_map.md`, `03_deploy_data_generator.md` | `deploy/data/DeployDataGenerator.kt` |
 | **EffectedType 类型/merge 优先级/minify 移除检测** | `03_deploy_data_generator.md` §5.4-§5.7 | `EffectedClassNode.kt`, `DeployDataGenerator.kt`, `DeployDataDatabaseSqLiteHelper.kt`, `CompileEffectAnalyzer.kt` |
@@ -52,6 +53,7 @@
 | 工具类能力（apk/git/logger/server） | `98_code_map.md`, `05_utilities.md` | `main/.../apk`, `main/.../git`, `main/.../logger`, `main/.../server` |
 | **release 增量编译后注解/反射/类引用 crash** | `98_code_map.md`, `02_compile_obfuscation.md` | `DexObfuscator.kt`, `DexMinifyCompiler.kt` |
 | **插件运行时排查**（IDE 卡顿 / 启动期卡死 / 编译异常 / DB 问题） | `09_plugin_runtime_debug.md`，再按症状路由读取专题 | `JuggPathManager`, `DeployFileManager`, `TaskRunnerManager`, `ConstRefEngine` |
+| **Kotlin IR lowering / `copyValueParametersToStatic` / `Dispatch receiver type` / clean 后恢复** | `09_plugin_runtime_debug.md` §4.4, `02_compile_source.md` | 先区分真实继承错误、远端同步输入与 Kotlin/Gradle 增量状态 |
 | 知识库维护 / 专题文档重整 | `97_maintenance_manual.md`, `99_index.md`, `98_code_map.md` | `docs/ai_knowledge/*` |
 | Wiki 架构 / 本地运行 / 发布 | `10_wiki_architecture.md`, `97_maintenance_manual.md` | `docs/wiki/package.json`, `docs/wiki/.vitepress/config.mts` |
 | Wiki 文章写作 / Markdown 元素 | `10_wiki_authoring.md`, `97_maintenance_manual.md` | `docs/wiki/**/*.md` |
@@ -75,6 +77,7 @@
 | `03_deploy_const_ref.md` | 常量引用影响分析与常量重编译排查手册 |
 | `03_deploy_data_generator.md` | 影响分析与部署数据生成 |
 | `03_deploy_complete.md` | 从 Run 到部署完成的端到端流程 |
+| `03_deploy_system_app.md` | 系统应用/特权应用：默认 installer 与自定义 APK 安装脚本的边界，路径、白名单、平台证书与排查入口 |
 | `03_runtime_jvmti.md` | JVMTI agent 与部署协同 |
 | `04_engineering_project.md` | 项目模型与 Gradle 信息读取 |
 | `04_engineering_ide.md` | IDE 生命周期、运行配置、任务调度 |

@@ -207,6 +207,15 @@ class CmdLineContextManager(
                         },
                     )
                 },
+                externalBuildInfos = baseModule.externalBuildInfos.map { buildInfo ->
+                    buildInfo.copy(
+                        inputDirs = buildInfo.inputDirs.convertSourceBaseDir(),
+                        assetsOutputDir = buildInfo.assetsOutputDir?.convertSourceBaseDir(),
+                        nativeOutput = buildInfo.nativeOutput?.convertSourceBaseDir(),
+                        configFiles = buildInfo.configFiles.convertSourceBaseDir(),
+                        excludedDirs = buildInfo.excludedDirs.convertSourceBaseDir(),
+                    )
+                },
             )
         }
 

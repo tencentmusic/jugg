@@ -45,6 +45,7 @@ class BuildGradleBaseCommand(private val params: Params) {
         null,
         logger,
     )
+    private val compileCommand = "./gradlew ${params.gradleCompileTask}"
 
     fun run(): Boolean {
         try {
@@ -88,8 +89,6 @@ class BuildGradleBaseCommand(private val params: Params) {
             throw BaseBuildException("ANDROID_HOME not found.")
         }
         logger.info("ANDROID_HOME: $androidHome")
-
-        val compileCommand = "./gradlew ${params.gradleCompileTask}"
 
         val compileOptions = JuggGradleCompileOptions(
             projectRootPath = pathManager.projectDir.absolutePath,
@@ -201,7 +200,7 @@ class BuildGradleBaseCommand(private val params: Params) {
         val startCompileTime = System.currentTimeMillis()
         deployHistoryManager.checkProjectDirChanged()
         deployHistoryManager.reInitAfterFullCompiled(
-            FullBuildInfo(params.gradleCompileTask, BuildTarget.APP, System.currentTimeMillis()),
+            FullBuildInfo(compileCommand, BuildTarget.APP, System.currentTimeMillis()),
             apkInfos,
             gradleProjectInfo.modules,
             startCompileTime,

@@ -278,7 +278,10 @@ class DeployDataGeneratorTest {
 
     private fun assertDesugarClasspath(className: String, vararg expected: String) {
         val classFile = getClassFile(className)
-        val classpath = generator.getDesugarInfo(listOf(classFile), context.apkFile).allInterfacesWithDefaultMethod
+        val classpath = generator.getDesugarInfo(
+            ClassFileParser(listOf(classFile.file)).parse(),
+            context.apkFile,
+        ).allInterfacesWithDefaultMethod
         assertContentEquals(expected.sorted(), classpath.sorted())
     }
 
@@ -882,7 +885,7 @@ class DeployDataGeneratorTest {
                     File(assetsAndroidModifySourceDir, "app/src/main/java"),
                     context.tempModule,
                     dependencyPaths = listOf(
-                        File(assetsAndroidDir, "app/build/intermediates/javac/debug/classes").path,
+                        mockModule.buildPathInfo.javaClassPath.path,
                     ),
                 )
             ),

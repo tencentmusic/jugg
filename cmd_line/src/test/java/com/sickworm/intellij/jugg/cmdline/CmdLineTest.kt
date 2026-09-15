@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.cmdline
 import com.sickworm.intellij.jugg.gradle.compile.CmdExecutor
 import com.sickworm.intellij.jugg.gradle.compile.SimpleSshCommand
 import com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager
+import com.sickworm.intellij.jugg.project.info.ModuleBuildPathInfo
 import java.io.File
 import java.nio.file.Files
 import kotlin.test.Test
@@ -11,6 +12,17 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class CmdLineTest {
+
+    private val demoProjectDir = File("../android_demo_project").absoluteFile.normalize()
+
+    // The demo project sets `layout.buildDirectory` to `<project root>/build/<module name>`,
+    // so the Gradle produced APK lives under build/app instead of the default app/build.
+    private val gradleOutputApkPath = ModuleBuildPathInfo(
+        demoProjectDir,
+        File(demoProjectDir, "app"),
+        "debug",
+        buildDirRelativePath = "build/app",
+    ).buildDir.relativeTo(demoProjectDir).path.replace('\\', '/') + "/outputs/apk/debug/*.apk"
 
     @Test
     fun buildBase() {
@@ -24,7 +36,7 @@ class CmdLineTest {
             "cmd=${CmdLine.Command.BUILD_GRADLE_BASE.value}",
             "baseBuildProjectDir=../android_demo_project",
             "gradleCompileTask=assembleDebug",
-            "gradleOutputApkPath=app/build/outputs/apk/debug/*.apk",
+            "gradleOutputApkPath=$gradleOutputApkPath",
             "logLevel=debug",
             "outputApkDir=$outputDir",
         )

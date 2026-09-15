@@ -1,6 +1,6 @@
 # 部署系统：核心部署机制
 
-> 最后核对：2026-08-06
+> 最后核对：2026-09-12
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -13,7 +13,7 @@
 - **主链路怎么走**：把跨类调用链和状态机写清楚，减少逐层 Go to Definition。
 - **代码不显眼的约束是什么**：overlay id、Direct Overlay、multi APK、retry/recover 的设计边界。
 
-不展开编译产物如何生成；影响分析看 `03_deploy_data_generator.md`，端到端 Run 链路看 `03_deploy_complete.md`，JVMTI 细节看 `03_runtime_jvmti.md`。
+不展开编译产物如何生成；影响分析看 `03_deploy_data_generator.md`，端到端 Run 链路看 `03_deploy_complete.md`，JVMTI 细节看 `03_runtime_jvmti.md`，系统应用首次落入 `/system` 的约束看 `03_deploy_system_app.md`。
 
 ---
 
@@ -29,11 +29,15 @@
 | `DeployRetryHandler` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/flow/DeployRetryHandler.kt` | 根据失败原因选择 retry、fallback HOT_FIX、compat deploy、recover 后 redeploy 或停止。 |
 | `JuggDeployTask` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/applychanges/JuggDeployTask.kt` | 单设备单轮 deploy task。按 `applicationId` 分组，把全量 `JuggDeployData` 裁成 APK-scoped data 后调用 `JuggDeployer`。 |
 | `JuggDeployer` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/applychanges/JuggDeployer.kt` | 通过 `IApplyChangesExecutor` 封装 install、code swap、full swap、deployment cache、overlay id 和 Direct Overlay transport。 |
+| `CustomApkInstallScriptRunner` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/applychanges/CustomApkInstallScriptRunner.kt` | 在本地工程根目录执行当前 Run Configuration 的自定义普通 App APK 安装脚本，转发输出、响应取消并校验包与 APK checksum。 |
 | `DeployFileManager` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/DeployFileManager.kt` | 部署文件 facade。维护 changed/compiled/staging/deployed 状态，生成 `JuggDeployData`，reinstall 后 reset。 |
 | `DeployDataPlanner` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/DeployDataPlanner.kt` | 从 staging + history 规划部署数据，处理 dex merge 与 compat deploy 组装。 |
-| `JuggDeployData` / `DeployItem` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployData.kt` | 最终下发设备的部署数据模型，包含 deploy type、APK 归属、restart 判断、split/filter。 |
+| `JuggDeployData` / `DeployItem` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployData.kt` | 最终下发设备的部署数据模型，包含 deploy type、APK 归属、restart 判断、split/filter，以及本轮 Flutter JIT runtime 变化（`flutterJitRuntimeFiles`）。 |
+| `FlutterJitCacheInvalidator` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/flutter/FlutterJitCacheInvalidator.kt` | 通过 `AppSandboxExecutor` 删除目标应用 `app_flutter` 直属的 `res_timestamp-*`，让 Flutter 下次启动重新从 overlay 解压 `flutter_assets`。 |
 | `DirectOverlaySwapTransport` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/direct/DirectOverlaySwapTransport.kt` | Direct Overlay swap transport。只替换 Apply Changes 的 overlay update 动作，不接管部署生命周期。 |
-| `DirectOverlayWriter` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/direct/DirectOverlayWriter.kt` | 通过 `run-as` 原子写入设备 `code_cache/.overlay`，新 overlay id 最后提交。 |
+| `AppSandboxExecutor` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/AppSandboxExecutor.kt` | 统一 app 私有目录命令；严格探测 Apply Changes 的 `run-as`、UID 与 SELinux label 前提，并在不兼容时固定普通 shell、root adbd 或非交互 `su` 模式与真实 `dataDir`。 |
+| `DirectOverlayWriter` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/direct/DirectOverlayWriter.kt` | 通过 app sandbox 原子写入设备 `code_cache/.overlay`，新 overlay id 最后提交。 |
+| `DirectAppSandboxDeployTransport` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/hotreload/DirectAppSandboxDeployTransport.kt` | 在 AS deployer 前接管 `run-as` 不兼容应用的增量 overlay payload，组合 Direct Overlay、Jugg JVMTI redefine 与重启降级。 |
 | `DirectOverlayStateChecker` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/direct/DirectOverlayStateChecker.kt` | recover 校验 history/cache/device 三路一致；swap 前只校验 device overlay。 |
 | `DeployHistoryManager` / `JuggDeploymentService` / `JuggDeploymentCacheStore` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/DeployHistoryManager.kt`, `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeploymentService.kt`, `main/src/main/java/com/sickworm/intellij/jugg/deploy/cache/JuggDeploymentCacheStore.kt` | 两套 checkpoint 来源：Jugg 自有部署历史与项目级 deployment cache。Service 根据 runtime owner、磁盘 generation 或 bound executor 变化失效 Runtime 内存对象，并用当前 Apply Changes executor 从 snapshot 恢复。 |
 
@@ -52,13 +56,17 @@
 | `isNeedRestartApp` | `HOT_FIX` | 需要重启 App 生效。 |
 | 其他 | `HOT_RELOAD` | 在线 Apply Changes，尽量不重启 App。 |
 
-`isNeedRestartApp` 由 hot-fix classes、非空 `isPushOverlayOnly`、APK 根目录 overlay、非空的本轮 Compose resource compile，或 reinstall recover 后的 follow-up replay 决定；`isNeedRestartActivity` 只在非 warm-up、非空、且不需要重启 App 时成立。
+`isNeedRestartApp` 由 hot-fix classes、非空 `isPushOverlayOnly`、APK 根目录 overlay、非空的本轮 Compose resource compile、非空的本轮 Flutter JIT runtime 变化，或 reinstall recover 后的 follow-up replay 决定；`isNeedRestartActivity` 只在非 warm-up、非空、且不需要重启 App 时成立。
+
+Flutter JIT runtime 变化指本轮真实编译并部署的 `assets/flutter_assets/kernel_blob.bin`、`vm_snapshot_data`、`isolate_snapshot_data`。`DeployDataPlanner` 从本轮 staging 产物识别：产物类型为 `Asset`、来源模块含 `ExternalBuildType.Flutter`、标准化部署路径命中上述三个文件之一。识别必须发生在 `DeployDataGenerator` 首次 full-resource overlay 扩展之前，否则 APK 基线带入 overlay 的旧 kernel 会被误判为本轮变化。命中结果写入瞬态字段 `flutterJitRuntimeFiles`（`List<DeployItem>`，随 `filterForApks()` 一起裁剪，不持久化、不进部署历史），warm-up 与 install 数据保持为空。
+
+Flutter Android embedding 把 JIT runtime 文件解压到应用私有目录 `app_flutter`，并以 `app_flutter/res_timestamp-<versionCode>-<lastUpdateTime>` 判断是否需要重新解压。overlay 更新不改变 APK 的 `lastUpdateTime`，所以必须显式删除该 timestamp，App 才能在重启后从已生效的 overlay 重新解压。
 
 正常部署由 `DeployDataPlanner` 从 `DeployFileStateTracker.getCompiledFiles()` 识别 `CompileFile.Type.ComposeResource`，写入瞬态 `isComposeResourceCompiled`。该状态在 commit 前保留，能覆盖正常部署与 retry；不需要从已经丢失来源信息的 `CompileOutput.Type.Asset` 或历史 staging 路径恢复 Compose 身份。Compose 标记只对非空 payload 生效，避免编译成功但最终无产物时空重启。
 
 APK 根目录 overlay 使用最终部署路径判断：`res/**`、`assets/**`、`resources.arsc` 之外的 overlay 都要求重启进程，例如 legacy Compose resource 的 `values/strings.xml` 和 Java SPI 的 `META-INF/services/**`。这个规则不依赖编译阶段类型，因此历史恢复后的部署数据也能得到相同行为。它允许少量无害 false positive；如果 Classpath resource 刻意使用 Android 专属路径名，则存在 false negative。
 
-当前实现对所有满足 `isNeedRestartActivity` 的非空增量部署使用 Android Studio 的 `APPLY_CHANGES_AND_RESTART_ACTIVITY`，即 Full Swap / Apply Changes and Restart Activity，并调用 `JuggDeployer.fullSwap()`。Activity 会重建，`onCreate()` 会再次执行；这与 `Always restart app after deployment` 不同，后者用于额外重启整个 App 进程。`JuggDeployData.deployType=HOT_RELOAD` 是 Jugg 的结果分类，不表示 transport 一定使用不重启 Activity 的 `APPLY_CHANGES`。
+当前实现对所有满足 `isNeedRestartActivity` 的非空增量部署使用 `APPLY_CHANGES_AND_RESTART_ACTIVITY` 语义。Android Studio transport 调用 `JuggDeployer.fullSwap()`；`run-as` 不兼容的 Direct app sandbox transport 在 class redefine 成功后使用请求级 relaunch 标志重建 Activity，不重新进入 `fullSwap/overlaySwap`。两条路径都保留 App 进程并让 `onCreate()` 再次执行；这与 `Always restart app after deployment` 不同，后者用于额外重启整个 App 进程。`JuggDeployData.deployType=HOT_RELOAD` 是 Jugg 的结果分类，不表示 transport 一定使用不重建 Activity 的 `APPLY_CHANGES`。
 
 ### 3.2 文件状态流转
 
@@ -97,7 +105,11 @@ JuggDeployerHelper.deploy(isInstall=true)
   -> JuggDeployTask.run()
   -> groupByApplicationId()
   -> JuggDeployer.install()
-  -> AsDeployerCompat.install()
+  -> 普通 App 且启用自定义脚本: CustomApkInstallScriptRunner.run()
+      -> 继承 IDE/Gradle 环境，并把 Android SDK platform-tools 加入 PATH
+      -> 脚本成功后等待 ADB、确认包存在、dump APK 校验 checksum
+      -> app sandbox 可用时清理 code_cache/.overlay，避免重装保留旧 checkpoint
+  -> 其他情况: AsDeployerCompat.install()
   -> JuggDeploymentService.storeEntry()
   -> deployHistoryManager.lastDeployOverlayIds = launchResult.overlayIds
 ```
@@ -105,6 +117,9 @@ JuggDeployerHelper.deploy(isInstall=true)
 deployment cache 固定保存到 `<projectDir>/build/jugg/deploy_cache/.deploy_cache.db`。`JuggDeploymentService` 是项目 Runtime 实例，不再使用 `~/.jugg` 全局 singleton；同一 Runtime 优先读取 `memoryCache`，写入同步更新内存和磁盘 checkpoint。磁盘读写由项目事务串行，不同 Runtime 由 Project Runtime lease 互斥；写入先落临时文件并 flush，再原子替换目标文件。
 
 install 前会先 stop app，避免用户看到“安装后又被停止”的错觉。安装与增量部署失败时优先透出 `AdbLogWrapper.realErrorMessage`，不要先改高层错误文案；`run-as: package not debuggable` 等设备侧明确原因必须覆盖 deployer 的通用失败信息。
+脚本配置从 Run Configuration 经 `DeployOptions`、deploy/recover 请求和 `LaunchContextFactory` 写入 `LaunchContext`。`JuggDeployTask` 仅在 INSTALL 分支为普通 App 启用自定义安装；`JuggDeployer` 通过 `IDeployHost` 调用 IDEA 侧 `CustomApkInstallScriptRunner`，test APK 继续使用默认 installer。脚本沿用每台设备、每个 applicationId 的安装粒度，校验和 cache 更新仍由 `JuggDeployer` 统一负责。
+
+install 前会先 stop app，避免用户看到“安装后又被停止”的错觉。自定义脚本对 Gradle install、embedded install、APK 更新 recover 和 reinstall recover 使用同一入口；androidTest APK 不执行脚本。脚本非零退出、取消、ADB 未恢复、包未安装或设备 APK 与输入 APK checksum 不一致都会明确失败，且不会触发默认 installer 的 transient retry、deploy retry 或 Gradle fallback。脚本校验成功后，Jugg 会在 app sandbox 可用时清理 `code_cache/.overlay`，再写入新 base deployment cache；sandbox 不可用时只跳过该增强清理。安装与增量部署失败时优先透出 `AdbLogWrapper.realErrorMessage`，不要先改高层错误文案。
 
 ### 4.2 incremental deploy 链路
 
@@ -137,14 +152,18 @@ runTask()
   -> 异步判断是否需要 push JVMTI agent
   -> 删除回滚后的 library dex
   -> LaunchContextFactory 创建本轮基础 LaunchContext
-  -> 前置判断 Direct Overlay 是否可尝试
-  -> Direct Overlay 可尝试时跳过 SliceDeployHelper；否则按阈值切片
+  -> 复用本轮 sandbox 能力，前置判断普通 Direct Overlay 或 Direct app sandbox 是否可尝试
+  -> 任一 Direct 通道可尝试时整批部署；否则按原阈值切片
   -> 每个 deploy data 派生 slice LaunchContext + JuggDeployTask
+  -> 全部 slice 成功后：按 applicationId 失效 Flutter JIT 解压缓存
   -> 必要时 push agent / restart app / start app / run androidTest
   -> 必要时检查 JVMTI compat issue
 ```
 
-`LaunchContextFactory` 统一创建 deviceAdb、install session、installer metadata、Direct Overlay lifecycle facts，以及 deploy prompt/message 回调。IDE compat 门面的所有能力都保留已知 API 链接错误 fallback；session 记录实际成功的 executor，`LaunchContext` 后续直接使用同一 executor 和由它创建的 debugger，不再通过门面分发有状态调用，避免 installer、overlay、cache 与 redefiner 跨 deployer ABI。Direct Overlay 的可尝试判断在切片前完成，判断条件与 transport `canTry()` 保持一致：开关开启、调用方允许、设备当前不是 ready deploy、非 install、deploy data 非空。命中后本轮不再进入 `SliceDeployHelper`；`JuggDeployTask` 只消费完整 `LaunchContext`，不再二次拼装 Direct Overlay 参数。
+`LaunchContextFactory` 统一创建 deviceAdb、install session、installer metadata、Direct Overlay lifecycle facts，以及 deploy prompt/message 回调。IDE compat 门面的所有能力都保留已知 API 链接错误 fallback；session 记录实际成功的 executor，`LaunchContext` 后续直接使用同一 executor 和由它创建的 debugger，不再通过门面分发有状态调用，避免 installer、overlay、cache 与 redefiner 跨 deployer ABI。
+Flutter 缓存失效只在 `data.flutterJitRuntimeFiles` 非空时执行，位于全部 overlay slice 之后、`push_agent` 与最终 restart 之前：切片中途失败不破坏当前缓存；`AppSandboxExecutor` 不可用或删除后校验仍有残留 timestamp 时明确抛错，本轮部署失败且不重启。成功时本轮结果为 `HOT_FIX`，走既有 `restartApp` / `restartAppForDebug` 完整重启进程，不做 Activity-only restart。
+
+切片前复用两种 transport 的 `canTry()`：普通 Direct Overlay 沿用开关、调用方许可和 ready/force 条件；Direct app sandbox 在 Android 8+ 复用本轮 `LaunchContext` 缓存的 sandbox 能力判断，目标 APK 中任一应用与 Apply Changes 不兼容时也整批部署，不受普通 Direct 开关限制。非 install、非空 payload 命中任一 Direct 通道后不再进入 `SliceDeployHelper`；官方 Apply Changes 保留现有切片。Direct 不新增分片或分片结果汇总。`JuggDeployTask` 仍按 applicationId 分组处理整批数据。
 
 切片后只有第一个 slice 保留 except overlay check；后续 slice 会跳过，否则同一轮部署中 overlay id 已变化会导致自我冲突。
 
@@ -197,7 +216,7 @@ reinstall recover 不恢复历史资源类型：重装已经停止或替换了�
 | agent no response | 先检测 JVMTI compat；必要时 compat deploy；JVMTI 可用且调用方允许 direct overlay 时，强制重试一次 direct overlay，避免依赖 agent responses。 |
 | deploy timeout | 先检测 JVMTI compat；必要时 compat deploy；timeout 规则继续按下方计数策略处理。 |
 | overlay id mismatch / class not found / direct deploy failed | recover deploy state 后 redeploy。direct deploy failed 时 recover 禁用 direct overlay（legacy + `isAllowDirectOverlayDeploy=false`）。 |
-| install `INSTALL_FAILED_INVALID_APK` | uninstall 当前 applicationId 集合后重新 install。 |
+| 默认 installer 的 `INSTALL_FAILED_INVALID_APK` | uninstall 当前 applicationId 集合后重新 install；普通 App 已成功执行的自定义脚本也会再次执行。 |
 | 用户限制、设备丢失、APK install 失败、embedded APK 冲突 | 停止 fallback，向上暴露失败。 |
 
 timeout 规则：overlay 数超过首片阈值时先降低 slice size；否则前两次等待后重试，第三次尝试 reinstall，超过次数停止。
@@ -206,11 +225,35 @@ timeout 规则：overlay 数超过首片阈值时先降低 slice size；否则�
 
 ## 6. Direct Overlay 旁路
 
+### 6.0 run-as 不兼容应用的 Direct transport
+
+`JuggDeployerHelper` 先用可回滚写入和唯一成功标记判断 Android Studio Deployer 的 `run-as` 前提；只有 UID 位于 `10000..19999`，且 `run-as` 新建探针的 SELinux context 与既有 `code_cache` context 一致，才视为兼容。无成功标记、UID 越界或 context 不一致时，`JuggDeployer.optimisticSwap()` 在普通 Direct Overlay 和 AS deployer 之前进入 `DirectAppSandboxDeployTransport`。该路径不受“设备是否 ready”或 Direct Overlay 用户开关限制，因为它是 Apply Changes 前提不成立时的 增量 overlay 替代通道。
+
+同一轮部署从 `LaunchContext` 取得并复用一个已解析的 `AppSandboxExecutor`。它在 PackageManager 的真实 `dataDir` 依次探测普通 shell、最多一次 adb root 并等待同一 serial 重连、非交互 `su 0`/`su -c`/`su sh -c`；选定后 Direct Overlay、startup agent 与 Hot Reload 不再重新判断模式。transport 先准备 Jugg startup agent 并提交 Direct Overlay。新增 class 按官方 Apply Changes 语义将本轮 DEX 转为 in-memory dex elements 并追加到 Application ClassLoader，纯方法体变化对已加载 class 执行 redefine；Android 11+ 的普通资源/asset 或代码与资源混合变化使用同一 dynamic 请求刷新宿主 Resources，并按上层语义重建 Activity。请求成功时保留进程，attach、资源刷新或其他可恢复失败通过 `Result.needsRestart` 让 `JuggDeployerHelper` 重启应用。结构变化、APK 根目录 overlay、兼容部署和 APK 更新保持原有重启或安装路径。
+
+Direct 权限模式创建的文件可能只有静态 `app_data_file:s0`，不能直接复用 `restorecon -RF code_cache`：它会丢失应用目录的动态 MCS categories，并使 `platform_app` 无法执行 JVMTI agent。executor 先把普通 overlay/request 文件修正为既有 `code_cache` 的完整 context，再把其中的 `.so` 标记为 Android appdomain 允许执行的 `apk_data_file:s0`；修复脚本输出通过内部边界标记与业务命令结果隔离，避免 `restorecon`/`chcon` 的成功诊断污染 `success` 协议。
+
+Direct transport 不再以 class-only 白名单拒绝 overlay，`data.isFullRes` 原样传递到 `DirectOverlayWriteRequestBuilder`。Manifest/native library 的 APK 改写、重签和 reinstall 仍由上游部署流程负责，随后可重放 overlay。Direct 权限不可用或 deployment cache 缺失时提前失败，不回落到必然失败的 AS deployer；ADB transport/offline 异常继续按原有 transient 语义传播。
+
+空 payload 仍完整执行 device overlay ID 校验和 Direct Overlay checkpoint 提交；运行中主进程随后发送空 runtime 请求并取得明确终态，不创建 class redefine，也不触发 Activity 或 App 重启。主进程未运行时在 checkpoint 提交后直接成功。
+
+准备 Jugg startup agent 后，Direct transport 写入 `code_cache/.jugg_direct_resource_overlay` 标记。Android 11+ 的 startup agent 通过 `LoadedApk.getResources()` hook 和迁移的 `ResourceOverlays` 加载 `.overlay/*.apk` 下的 `resources.arsc`、`res/`、`assets/`；资源 loader 只加入真实宿主 APK 对应的 Resources，不污染 WebView 等非宿主资源。运行中提交资源后，dynamic agent 更新 loader providers、补挂现存宿主 Resources，再重建 Activity；连续资源更新不会复用旧 provider。兼容部署标记存在时保持原资源 APK 路径，Android 8～10 继续通过进程重启生效。
+
 ### 6.1 触发条件
 
 `LaunchContext.isDirectOverlayEnabled = settingsEnabled && isAllowedByCaller && (!isDeviceReadyDeploy || forceDirectOverlayDeploy)`。
 
 Direct Overlay 是离线/非 ready 场景下的 overlay 写入旁路，不替代在线 HOT_RELOAD。外层在切片前判断是否可尝试 Direct Overlay；真正进入 swap 前仍要求 Android O 及以上、deployment cache 存在、startup agent 元数据可用或允许跳过、设备当前 overlay id 与预期一致。
+
+普通 `DirectOverlaySwapTransport` 只把 overlay 文件写入 App sandbox，不负责对正在运行的进程执行资源刷新、class redefine 或 Activity recreate。因此普通 Direct Overlay 一旦写入成功，`JuggDeployer.Result.needsRestart=true` 是固定契约，`JuggDeployerHelper` 必须重启 App；即使 `isAppForeground=true` 也不能跳过。`DirectAppSandboxDeployTransport` 不适用该固定规则：它拥有 runtime apply 能力，并根据 attach、redefine 和资源刷新结果独立返回 `needsRestart`，成功时可以保留当前进程。
+
+`isDeviceReadyDeploy=false` 只表示 Android Studio 当前没有可用于 Apply Changes 的 deployable client，不足以证明 App 未运行或 APK 的 `debuggable=false`。例如旧版 Android Studio 的 DDMLib 在新 Android 版本上可能无法识别已经启动的进程，但 `run-as`、设备进程和 sandbox 写入仍然正常。Jugg 此时按 Best-effort 原则保留 Direct Overlay：由该通道独立校验 deployment cache、`run-as` 和设备 overlay checkpoint；校验通过则继续部署，备用通道也失败时才向上返回失败。
+
+旧链路曾隐式依赖“App 未运行导致 `NO_DEPLOYABLE_APP`，Direct Overlay 写入后再由 lifecycle 启动 App”。Android Studio Eel 等旧版 IDE 在 Android 15 及以上可能出现 App 已在前台、但仍报告 `NO_DEPLOYABLE_APP` 的组合；此时 Direct Overlay 的选择条件与“是否需要启动 App”的 lifecycle 条件不再一致。若不显式传播 `needsRestart=true`，overlay 虽然写入成功，当前进程仍会继续使用旧代码或资源，直到用户手动重启。
+
+相关日志中 `ideClientPids` 只来自 Android Studio/DDMLib client 列表，不等同于设备真实进程列表。命中 `NO_DEPLOYABLE_APP` 且 App 在前台、Direct Overlay 已启用时，选择旁路前打印 `App is running but not deployable by Android Studio. Direct Deploy will restart the app after deployment.`；App 不在前台时打印 `Android Studio deployable client unavailable, try Best-effort Direct Deploy fallback.`。Direct Overlay 实际提交成功后继续打印 `IDE deployment unavailable, Direct Overlay fallback succeeded.`，生命周期随后应出现 `Restarting app...`。排查时应结合 `adb shell pidof <packageName>`、`run-as <packageName>` 和同一时间窗的 IDE `idea.log` 判断真实运行与权限状态。
+
+当输入部署类型为 `HOT_RELOAD`、但本轮实际需要重启 App 时，最终结果提升为 `HOT_FIX`，用户侧显示 `Jugg HOT_FIX SUCCESSFUL ...` 和 `App restarted.`；只有进程未重启的真实 HOT_RELOAD 才显示 `App deployed.`。`needsRestartApp` 表示本轮实际重启需求，不是 Direct Overlay 的来源标记，因此路径专属提示必须在选择 Direct Overlay 时打印，不能在 finish 阶段仅凭 `needsRestartApp` 反推部署路径。
 
 `isAllowedByCaller` 来自外层 lifecycle；默认主部署链路允许，特殊调用方可显式关闭。Direct Overlay 只替换 overlay update transport，后续 start/restart/androidTest 仍由 `JuggDeployerHelper.runTask()` 收口。
 
@@ -230,13 +273,13 @@ JuggDeployer.optimisticSwap()
       -> DirectOverlayWriter.write()
           -> zip overlay files
           -> push /data/local/tmp/jugg/direct-overlay-*.zip
-          -> 以 no-fallback shell 执行 run-as package sh -c apply script，避免非幂等脚本被 ADB fallback 重入
+          -> 以 no-fallback shell 经 AppSandboxExecutor 执行 apply script，避免非幂等脚本被 ADB fallback 重入
           -> 删除旧 id
-          -> 启动 heartbeat，避免 full push 长时间无输出触发 ADB inactive timeout
+          -> 启动 heartbeat，避免长时间无输出触发 ADB inactive timeout
           -> 删除本次 payload 覆盖的旧文件
-          -> full resource push 不清理 base.apk 目录，避免切片部署删除前序 slice；直接 unzip 当前 slice 内容
+          -> full resource push 跳过 base.apk 下逐文件删除，直接 unzip 整批资源；保留先前 Dex 与其他未更新 overlay
           -> base install 空 overlay id 场景跳过 payload cleanup，避免清数据/NO_DIR 首次 full push 生成大量无效 rm 命令
-          -> unzip files
+          -> 有 payload 文件时 unzip；空 payload 跳过解压并继续提交 checkpoint，避免设备将空 ZIP 判为错误
           -> chmod *.dex 0444
           -> 最后写新 id
       -> JuggDeploymentService.storeEntry()
@@ -252,6 +295,28 @@ base install cache 对应的 expected device overlay id 为空字符串；非 ba
 - writer 在修改 overlay 目录前失败：返回 `SKIPPED`，允许 fallback 旧 Apply Changes。
 - writer 已开始修改 overlay 目录后失败，或脚本重入时发现 overlay id 已缺失：返回 `FAILED_DIRTY` 并抛 `DirectOverlayDirtyException`，不再继续旧 Apply Changes，避免半提交状态上做伪回退。
 
+Direct Overlay 写入脚本定期输出 heartbeat，并通过 `execAdbShellScriptNoFallback()` → `invokeAdbShellCmd()` 使用带 `5 SECONDS` 连续无输出超时参数的 ADB 调用。heartbeat 会延续仍有连接的长写入，但不屏蔽断连和传输错误，也不提供独立的总执行时长上限。heartbeat 的 `sleep` 子进程不继承 ADB 输入输出，脚本结束时立即终止 heartbeat shell，避免继续占用 ADB 输出管道和产生固定退出耗时。Direct 权限模式在命令退出时递归修复整个 `code_cache`，这是随文件量增长的性能检查项，不改变本轮整批部署或失败契约。
+
+### 6.4 Direct app sandbox 与官方 Apply Changes 的能力边界
+
+Direct app sandbox 是 Android Studio Apply Changes 的 app sandbox 前提不成立时的最小替代通道，不是官方 Deployer 的完整复刻。Android 平台仍具备 JVMTI 和资源加载能力，但官方通道会先拒绝不满足 `run-as`、普通 UID 或 SELinux context 契约的应用；Direct 因此自行完成 overlay 写入、dynamic agent 请求、资源刷新和 Activity 重建。影响通过 `applyChangesCapability == INCOMPATIBLE` 的入口门禁隔离：兼容应用继续进入官方 Apply Changes，普通 Direct Overlay 也保持独立 transport。
+
+当前已覆盖纯方法体、普通资源/asset、方法体与资源混合变化，以及提交后冷启动继续生效。以下差异是当前实现边界，不能仅因常用验收场景通过就认为两条通道完全等价：
+
+| 维度 | Direct app sandbox 当前边界 | 结果或回退 |
+|---|---|---|
+| Android 版本 | 运行中普通资源刷新依赖 Android 11+ `ResourcesLoader`。 | Android 8～10 提交 overlay 后重启进程，由 startup agent 加载。 |
+| 进程范围 | `pidof <package>` 选择主进程的一个 PID，并与本轮已知 PID 交叉确认；单次 dynamic 请求只附加该进程。 | 独立进程不会在同一轮获得在线 class/resource 刷新，需要相应进程重新启动。 |
+| Activity 范围 | 遍历主进程 `ActivityThread.mActivities`，重建全部存活 Activity；反射读取失败时从窗口关联 Activity 回退。 | 覆盖同进程的后台 Activity、其他 task 和多窗口实例；独立进程仍需在对应进程重启后加载 overlay。 |
+| class payload | `newClasses` 按官方语义追加 in-memory dex elements；`hotReloadModifiedClasses` 通过 JVMTI redefine，且每份 modified Dex 必须能唯一映射到一个 class descriptor。 | 新类可在当前主进程加载；结构变化、不可修改类或不能唯一映射的 modified Dex 进入 overlay + 进程重启。官方通道仍拥有更完整的 PID/redefiner 与 Dex 元数据编排。 |
+| 资源类型 | 在线刷新只覆盖 `res/**`、`assets/**` 和 `resources.arsc` 表示的普通宿主资源。 | APK 根目录、legacy/现代 Compose 等依赖 ClassLoader 或进程内缓存的资源仍要求重启进程。 |
+| 批次模型 | 普通 Direct 与 Direct app sandbox 都整批部署，不进入 `SliceDeployHelper`。 | 没有官方 Apply Changes 的切片进度、分片重试和分片结果汇总；大 payload 的失败粒度更粗。 |
+| 状态前提 | 必须已有 deployment cache，且预期 overlay id 与设备状态匹配。 | cache 缺失、状态不匹配或 Direct 权限不可用时明确失败并进入既有 recover/reinstall，不能在 Direct transport 内重建基线。 |
+| 协议与诊断 | 使用精简的 V4 文本请求/结果协议，显式区分 `NEW` / `MODIFIED` 并允许空请求；Host 轮询结果，JNI 失败保留异常类型和消息，主线程资源应用也有独立超时。 | phase 诊断和调试器协同少于官方 Deployer；heartbeat 不取消 ADB 超时，超时、断连和无结果仍按失败处理。 |
+| 平台适配 | 资源刷新依赖 `ResourcesManager` 内部引用、宿主 APK 路径过滤和 `ResourcesLoader`。 | OEM 或 framework 差异导致刷新失败时降级为进程重启，不承诺覆盖官方 Agent 的全部版本适配。 |
+
+Manifest、native library 等 `updateApkFiles` 继续由 APK 改写、重签和安装链路处理，不属于 Direct dynamic agent 需要补齐的能力。Direct 当前的设计目标是让官方 app sandbox 通道不可用的应用获得常用增量部署结果，同时保留原有 lifecycle、recover 和安装边界。
+
 ---
 
 ## 7. 隐形约束
@@ -266,10 +331,12 @@ base install cache 对应的 expected device overlay id 为空字符串；非 ba
 - compat deploy 会去掉原 res/asset overlays，追加 enable flag，并按资源 overlay 生成 resource APK deploy item。
 - APK 根目录 overlay 必须重启进程；Activity restart 无法可靠清除 ClassLoader、legacy Compose resource 或 `JarURLConnection` 缓存。
 - 现代 Compose resource 即使最终路径位于 `assets/**` 也必须重启进程；`AssetManager` / Compose runtime 缓存不能依赖 Activity restart 清理。
+- Flutter JIT 的 overlay 更新只改 overlay 目录，Flutter 仍会复用 `app_flutter` 里已解压的旧 `kernel_blob.bin`；只有删除 `app_flutter/res_timestamp-*` 才会触发重新解压。失效命令只允许删除 `app_flutter` 直属、`res_timestamp-` 前缀的普通文件，不触碰 `flutter_assets`、kernel、overlay 和应用其它数据；timestamp 不存在视为幂等成功。
+- 失效与 overlay 提交不构成同一文件系统事务：失效失败必须让本轮部署失败（不提交成功历史），设备 overlay 可能已更新，由下一轮现有 overlay-id mismatch/recover 流程对齐。Flutter Profile/Release AOT 走 `libapp.so` 的 APK 更新链路，不进入该失效流程。
 - `CompatDeployHelper` 对 API < 30、设备兼容记录以及所有 HarmonyOS 设备返回 true；HarmonyOS 通过非空的 `hw_sc.build.platform.version` 属性识别，不持久化为手动 Force 记录。
 - dex merge 阈值是 `DeployDataPlanner.MAX_DEPLOYED_DEX_COUNT = 1000`；超过阈值时把 staging dex + 未 staging 的历史 dex merge，失败则保留原数据继续部署。
 - transient offline 的设计目标是在失败点附近恢复：shell/deployer 层原地等待并重试一次，编排层只处理已经冒泡的 offline 失败。
-- install 路径遇到 transient failure 可能从 DELTA 升级为 FULL install；不是所有 install 失败都应该进入 incremental fallback。
+- 默认 install 路径遇到 transient failure 可能从 DELTA 升级为 FULL install；自定义脚本自身失败不自动重试，脚本成功后的其它失败仍按原策略处理。不是所有 install 失败都应该进入 incremental fallback。
 
 ---
 
@@ -282,6 +349,7 @@ base install cache 对应的 expected device overlay id 为空字符串；非 ba
 | Direct Overlay 未触发 | `LaunchContext.logDirectOverlayEnabled()`、`DirectOverlaySwapTransport.canTry()` |
 | Direct Overlay 后不能 fallback | `DirectOverlayWriter.write()` |
 | 部署后总是重启 App | `JuggDeployData.isNeedRestartApp`、`JuggDeployerHelper.runTask()` |
+| Flutter Debug 改了 Dart 但 App 仍跑旧代码 | `DeployDataPlanner.buildDeployData()` 的 `flutterJitRuntimeFiles`、`JuggDeployOrchestrator`、`FlutterJitCacheInvalidator` |
 | library dex 回滚后仍生效 | `JuggDeployerHelper.removeLibraryDexFiles()` |
 | androidTest 部署到错误 APK | `JuggDeployData.groupByApplicationId()`、`filterForApks()`、`LibraryTestApkBackfillHelper` |
 | install 错误信息太泛 | `AdbLogWrapper.realErrorMessage`、`JuggDeployer.install()` |

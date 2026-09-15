@@ -1,9 +1,12 @@
 package com.sickworm.intellij.jugg.gradle.script
 
+import com.google.gson.JsonParser
 import com.sickworm.intellij.jugg.mock.StdLogger
 import com.sickworm.intellij.jugg.project.info.ComposeResourceDirectory
 import com.sickworm.intellij.jugg.project.info.ComposeResourceInfo
 import com.sickworm.intellij.jugg.project.info.ComposeResourceSupportStatus
+import com.sickworm.intellij.jugg.project.info.ExternalBuildInfo
+import com.sickworm.intellij.jugg.project.info.ExternalBuildType
 import com.sickworm.intellij.jugg.project.info.JuggProjectInfo
 import com.sickworm.intellij.jugg.project.info.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.project.info.ModuleDependency
@@ -169,6 +172,128 @@ class ProjectInfoSerializerInGradleAndroidTestTest {
     }
 
     @Test
+    fun `save and load round-trip preserves external build metadata`() {
+        val tmpFile = Files.createTempFile("jugg_test_", ".json").toFile()
+        val buildInfos = listOf(
+            ExternalBuildInfo(
+                type = ExternalBuildType.Cpp,
+                inputDirs = listOf(File("/project/native")),
+                taskPath = ":native:mergeDebugNativeLibs",
+                assetsOutputDir = null,
+                nativeOutput = File("/project/native/build/intermediates/merged_native_libs/debug/out"),
+            ),
+            ExternalBuildInfo(
+                type = ExternalBuildType.Flutter,
+                inputDirs = listOf(File("/project/flutter")),
+                taskPath = null,
+                assetsOutputDir = null,
+                nativeOutput = null,
+                unsupportedReason = "Flutter task not found",
+            ),
+            ExternalBuildInfo(
+                type = ExternalBuildType.Flutter,
+                inputDirs = listOf(File("/project/flutter")),
+                taskPath = ":flutter:copyJniLibsflutterBuildDebug",
+                assetsOutputDir = File("/project/flutter/build/intermediates/flutter/debug"),
+                nativeOutput = File("/project/flutter/build/generated/jniLibs/copyJniLibsflutterBuildDebug"),
+            ),
+            ExternalBuildInfo(
+                type = ExternalBuildType.Flutter,
+                inputDirs = listOf(File("/project/flutter")),
+                taskPath = ":flutter:packJniLibsflutterBuildDebug",
+                assetsOutputDir = File("/project/flutter/build/intermediates/flutter/debug"),
+                nativeOutput = File("/project/flutter/build/archive/flutter-native.jar"),
+            ),
+        )
+        try {
+            val serializer = ProjectInfoSerializerInGradle(tmpFile)
+            serializer.save(projectInfoWithoutAgpR8(mapOf(
+                "native" to ModuleInfo.virtualModule.copy(
+                    name = "native",
+                    externalBuildInfos = buildInfos,
+                )
+            )))
+
+            val loaded = serializer.load()
+
+            assertEquals(buildInfos, loaded?.modules?.single()?.moduleInfoExceptLibraries?.externalBuildInfos)
+        } finally {
+            tmpFile.delete()
+        }
+    }
+
+    @Test
+    fun `load restores snapshots written before the external build outputs were unified`() {
+        val tmpFile = Files.createTempFile("jugg_test_", ".json").toFile()
+        val original = projectInfoWithoutAgpR8(mapOf(
+            "native" to ModuleInfo.virtualModule.copy(
+                name = "native",
+                externalBuildInfos = listOf(
+                    ExternalBuildInfo(
+                        type = ExternalBuildType.Cpp,
+                        inputDirs = listOf(File("/project/native")),
+                        taskPath = ":native:mergeDebugNativeLibs",
+                        assetsOutputDir = null,
+                        nativeOutput = File("/project/native/build/merged_native_libs"),
+                    ),
+                    ExternalBuildInfo(
+                        type = ExternalBuildType.Flutter,
+                        inputDirs = listOf(File("/project/flutter")),
+                        taskPath = ":flutter:packJniLibsflutterBuildDebug",
+                        assetsOutputDir = File("/project/flutter/build/intermediates/flutter/debug"),
+                        nativeOutput = File("/project/flutter/build/archive/flutter-native.jar"),
+                    ),
+                ),
+            )
+        ))
+        try {
+            ProjectInfoSerializerInGradle(tmpFile).save(original)
+            tmpFile.rewriteExternalBuildInfosToLegacyFormat()
+
+            val loaded = ProjectInfoSerializerInGradle(tmpFile).load()
+
+            assertEquals(
+                original.modules["native"]?.externalBuildInfos,
+                loaded?.modules?.single()?.moduleInfoExceptLibraries?.externalBuildInfos,
+            )
+        } finally {
+            tmpFile.delete()
+        }
+    }
+
+    @Test
+    fun `gson load restores snapshots written before the external build outputs were unified`() {
+        val tmpFile = Files.createTempFile("jugg_test_", ".json").toFile()
+        val original = projectInfoWithoutAgpR8(mapOf(
+            "native" to ModuleInfo.virtualModule.copy(
+                name = "native",
+                externalBuildInfos = listOf(
+                    ExternalBuildInfo(
+                        type = ExternalBuildType.Flutter,
+                        inputDirs = listOf(File("/project/flutter")),
+                        taskPath = ":flutter:copyJniLibsflutterBuildDebug",
+                        assetsOutputDir = File("/project/flutter/build/intermediates/flutter/debug"),
+                        nativeOutput = File("/project/flutter/build/generated/jniLibs/copyJniLibsflutterBuildDebug"),
+                    ),
+                ),
+            )
+        ))
+        try {
+            ProjectInfoSerializerInGradle(tmpFile).save(original)
+            tmpFile.rewriteExternalBuildInfosToLegacyFormat()
+
+            val loaded = ProjectInfoSerializer(tmpFile, StdLogger("ProjectInfoSerializer")).load()
+
+            assertEquals(
+                original.modules["native"]?.externalBuildInfos,
+                loaded?.modules?.get("native")?.externalBuildInfos,
+            )
+        } finally {
+            tmpFile.delete()
+        }
+    }
+
+    @Test
     fun `gson load of groovy snapshot preserves DataBinding setting`() {
         val tmpFile = Files.createTempFile("jugg_test_", ".json").toFile()
         try {
@@ -205,5 +330,106 @@ class ProjectInfoSerializerInGradleAndroidTestTest {
         } finally {
             tmpFile.delete()
         }
+    }
+
+    @Test
+    fun `save and load round-trip preserves external build inputs`() {
+        val tmpFile = Files.createTempFile("jugg_test_", ".json").toFile()
+        val buildInfos = listOf(
+            ExternalBuildInfo(
+                type = ExternalBuildType.Flutter,
+                inputDirs = listOf(File("/project/flutter"), File("/project/shared-package")),
+                taskPath = ":flutter:copyJniLibsflutterBuildDebug",
+                assetsOutputDir = File("/project/flutter/build/intermediates/flutter/debug"),
+                nativeOutput = File("/project/flutter/build/generated/jniLibs/copyJniLibsflutterBuildDebug"),
+                configFiles = listOf(File("/project/flutter/pubspec.yaml")),
+                excludedDirs = listOf(File("/project/flutter/.dart_tool")),
+            ),
+            ExternalBuildInfo(
+                type = ExternalBuildType.Cpp,
+                inputDirs = listOf(File("/project/native/src/main/cpp"), File("/project/shared")),
+                taskPath = ":native:mergeDebugNativeLibs",
+                assetsOutputDir = null,
+                nativeOutput = File("/project/native/build/merged_native_libs"),
+                configFiles = listOf(File("/project/native/src/main/cpp/CMakeLists.txt")),
+                excludedDirs = listOf(File("/project/native/.cxx")),
+            ),
+        )
+        try {
+            ProjectInfoSerializerInGradle(tmpFile).save(projectInfoWithoutAgpR8(mapOf(
+                "native" to ModuleInfo.virtualModule.copy(name = "native", externalBuildInfos = buildInfos),
+            )))
+
+            val loaded = ProjectInfoSerializerInGradle(tmpFile).load()
+
+            assertEquals(buildInfos, loaded?.modules?.single()?.moduleInfoExceptLibraries?.externalBuildInfos)
+        } finally {
+            tmpFile.delete()
+        }
+    }
+
+    @Test
+    fun `load restores snapshots written before the external build input model existed`() {
+        val tmpFile = Files.createTempFile("jugg_test_", ".json").toFile()
+        val buildInfos = listOf(
+            ExternalBuildInfo(
+                type = ExternalBuildType.Flutter,
+                inputDirs = listOf(File("/project/flutter")),
+                taskPath = ":flutter:copyJniLibsflutterBuildDebug",
+                assetsOutputDir = File("/project/flutter/build/intermediates/flutter/debug"),
+                nativeOutput = File("/project/flutter/build/generated/jniLibs/copyJniLibsflutterBuildDebug"),
+                configFiles = listOf(File("/project/flutter/pubspec.yaml")),
+                excludedDirs = listOf(File("/project/flutter/.dart_tool")),
+            ),
+        )
+        try {
+            ProjectInfoSerializerInGradle(tmpFile).save(projectInfoWithoutAgpR8(mapOf(
+                "native" to ModuleInfo.virtualModule.copy(name = "native", externalBuildInfos = buildInfos),
+            )))
+            tmpFile.removeExternalBuildInputKeys()
+
+            val loaded = ProjectInfoSerializerInGradle(tmpFile).load()
+
+            val restored = loaded?.modules?.single()?.moduleInfoExceptLibraries?.externalBuildInfos?.single()
+            assertEquals(emptyList<File>(), restored?.configFiles)
+            assertEquals(emptyList<File>(), restored?.excludedDirs)
+            assertEquals(buildInfos.single().inputDirs, restored?.inputDirs)
+        } finally {
+            tmpFile.delete()
+        }
+    }
+
+    /** Drops the external build input keys, reproducing a snapshot written before they existed. */
+    private fun File.removeExternalBuildInputKeys() {
+        val root = JsonParser.parseString(readText()).asJsonObject
+        root.getAsJsonArray("modules").forEach { module ->
+            val buildInfos = module.asJsonObject.getAsJsonObject("moduleInfoExceptLibraries")
+                .getAsJsonArray("externalBuildInfos") ?: return@forEach
+            buildInfos.forEach { element ->
+                val info = element.asJsonObject
+                info.add("sourceDirs", info.remove("inputDirs"))
+                listOf("configFiles", "excludedDirs").forEach { info.remove(it) }
+            }
+        }
+        writeText(root.toString())
+    }
+
+    /** Rewrites the unified external build keys back to the fields older Jugg versions persisted. */
+    private fun File.rewriteExternalBuildInfosToLegacyFormat() {
+        val root = JsonParser.parseString(readText()).asJsonObject
+        root.getAsJsonArray("modules").forEach { module ->
+            val buildInfos = module.asJsonObject.getAsJsonObject("moduleInfoExceptLibraries")
+                .getAsJsonArray("externalBuildInfos") ?: return@forEach
+            buildInfos.forEach { element ->
+                val info = element.asJsonObject
+                if (info.get("type").asString == ExternalBuildType.Cpp.name) {
+                    info.add("outputDir", info.remove("nativeOutput"))
+                } else {
+                    info.add("outputDir", info.remove("assetsOutputDir"))
+                    info.add("nativeLibsArchive", info.remove("nativeOutput"))
+                }
+            }
+        }
+        writeText(root.toString())
     }
 }

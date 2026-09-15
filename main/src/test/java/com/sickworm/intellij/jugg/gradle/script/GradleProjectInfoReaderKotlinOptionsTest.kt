@@ -2,7 +2,9 @@ package com.sickworm.intellij.jugg.gradle.script
 
 import org.gradle.api.Project
 import org.gradle.api.Task
+import org.gradle.api.artifacts.Configuration
 import org.gradle.api.artifacts.ConfigurationContainer
+import org.gradle.api.artifacts.DependencySet
 import org.gradle.api.execution.TaskExecutionGraph
 import org.gradle.api.file.Directory
 import org.gradle.api.file.DirectoryProperty
@@ -63,6 +65,63 @@ class GradleProjectInfoReaderKotlinOptionsTest {
     }
 
     @Test
+    fun `typed compiler options optIn becomes opt-in free compiler arg for KMP`() {
+        val jvmTarget = mock<Provider<JvmTargetValue>>()
+        whenever(jvmTarget.orNull).thenReturn(JvmTargetValue("17"))
+        val freeCompilerArgs = mock<Provider<List<String>>>()
+        whenever(freeCompilerArgs.orNull).thenReturn(emptyList())
+        val optIn = mock<Provider<List<String>>>()
+        whenever(optIn.orNull).thenReturn(listOf("kotlin.experimental.ExperimentalObjCRefinement"))
+
+        val module = createReader(
+            kotlinTask = kotlinTask(CompilerOptions(jvmTarget, freeCompilerArgs, optIn)),
+            kotlinTaskName = "compileAndroidMain",
+            hasLegacyKotlinPlugin = true,
+            isAndroidApplication = false,
+            isAndroidKmp = true,
+        ).getProjectInfo(false).modules.getValue("app")
+
+        assertEquals(
+            listOf("-opt-in=kotlin.experimental.ExperimentalObjCRefinement"),
+            module.kotlinFreeCompilerArgs,
+        )
+    }
+
+    @Test
+    fun `typed compiler options optIn does not duplicate an existing free compiler arg`() {
+        val jvmTarget = mock<Provider<JvmTargetValue>>()
+        whenever(jvmTarget.orNull).thenReturn(JvmTargetValue("11"))
+        val freeCompilerArgs = mock<Provider<List<String>>>()
+        whenever(freeCompilerArgs.orNull).thenReturn(
+            listOf(
+                "-Xexpect-actual-classes",
+                "-opt-in=kotlin.experimental.ExperimentalObjCRefinement",
+            )
+        )
+        val optIn = mock<Provider<List<String>>>()
+        whenever(optIn.orNull).thenReturn(
+            listOf("kotlin.experimental.ExperimentalObjCRefinement", "kotlin.RequiresOptIn")
+        )
+
+        val module = createReader(
+            kotlinTask = kotlinTask(CompilerOptions(jvmTarget, freeCompilerArgs, optIn)),
+            kotlinTaskName = "compileAndroidMain",
+            hasLegacyKotlinPlugin = true,
+            isAndroidApplication = false,
+            isAndroidKmp = true,
+        ).getProjectInfo(false).modules.getValue("app")
+
+        assertEquals(
+            listOf(
+                "-Xexpect-actual-classes",
+                "-opt-in=kotlin.experimental.ExperimentalObjCRefinement",
+                "-opt-in=kotlin.RequiresOptIn",
+            ),
+            module.kotlinFreeCompilerArgs,
+        )
+    }
+
+    @Test
     fun `legacy Kotlin options remain supported`() {
         val kotlinTask = kotlinTask(legacyOptions = LegacyKotlinOptions("1.8", listOf("-Xlegacy")))
 
@@ -118,7 +177,13 @@ class GradleProjectInfoReaderKotlinOptionsTest {
         whenever(tasks.findByName(kotlinTaskName)).thenReturn(kotlinTask)
         whenever(tasks.iterator()).thenReturn(mutableListOf<Task>().iterator())
         val configurations = mock<ConfigurationContainer>()
-        whenever(configurations.names).thenReturn(sortedSetOf())
+        // Application modules must expose a variant runtime classpath, like real Gradle.
+        whenever(configurations.names).thenReturn(sortedSetOf("debugRuntimeClasspath"))
+        val runtimeDependencies = mock<DependencySet>()
+        whenever(runtimeDependencies.isEmpty()).thenReturn(true)
+        val runtimeClasspath = mock<Configuration>()
+        whenever(runtimeClasspath.allDependencies).thenReturn(runtimeDependencies)
+        whenever(configurations.findByName("debugRuntimeClasspath")).thenReturn(runtimeClasspath)
         val extensions = mock<ExtensionContainer>()
         whenever(extensions.getByName("android")).thenReturn(AndroidExtension())
         whenever(extensions.findByName("kapt")).thenReturn(null)
@@ -197,10 +262,13 @@ class GradleProjectInfoReaderKotlinOptionsTest {
     class CompilerOptions(
         private val jvmTarget: Provider<JvmTargetValue>,
         private val freeCompilerArgs: Provider<List<String>>,
+        private val optIn: Provider<List<String>>? = null,
     ) {
         fun getJvmTarget(): Provider<JvmTargetValue> = jvmTarget
 
         fun getFreeCompilerArgs(): Provider<List<String>> = freeCompilerArgs
+
+        fun getOptIn(): Provider<List<String>>? = optIn
     }
 
     class JvmTargetValue(private val target: String) {

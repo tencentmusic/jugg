@@ -13,3 +13,4 @@
 .externalNativeBuild
 .cxx
 .kotlin-version-backup
+.kotlin/

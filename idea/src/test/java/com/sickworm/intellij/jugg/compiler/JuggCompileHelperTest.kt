@@ -30,6 +30,8 @@ import com.sickworm.intellij.jugg.project.change.GitFileChangesDetector
 import com.sickworm.intellij.jugg.project.change.IFileChangesHandler
 import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
+import com.sickworm.intellij.jugg.project.info.ExternalBuildInfo
+import com.sickworm.intellij.jugg.project.info.ExternalBuildType
 import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import com.sickworm.intellij.jugg.project.dependency.GradleProjectInfoLocalFetchManager
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
@@ -45,6 +47,7 @@ import org.junit.rules.TemporaryFolder
 import org.mockito.kotlin.any
 import org.mockito.kotlin.anyOrNull
 import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.inOrder
 import org.mockito.kotlin.mock
@@ -74,7 +77,7 @@ class JuggCompileHelperTest {
         @JvmStatic
         fun initTestEnv() {
             TestGlobal.init()
-            JuggLogger.register("/tmp/jugg-test", TestGlobal.projectInfo.projectRoot)
+            JuggLogger.register("/tmp/jugg-test", JuggPathManager(TestGlobal.projectInfo.projectRoot).logDir)
         }
     }
 
@@ -472,6 +475,215 @@ class JuggCompileHelperTest {
 
         assertTrue(result!!.isCanFallback)
         assertEquals("Compile command changed", result.failedReason)
+    }
+
+    @Test
+    fun preprocessIncrementalCompile_unsupportedExternalBuild_forcesGradleFallback() {
+        val fixture = createFixture()
+        val flutterRoot = temporaryFolder.newFolder("flutter")
+        val dartFile = File(flutterRoot, "lib/main.dart").apply {
+            parentFile.mkdirs()
+            writeText("void main() {}")
+        }
+        val module = ModuleInfo.virtualModule.copy(externalBuildInfos = listOf(
+            ExternalBuildInfo(
+                type = ExternalBuildType.Flutter,
+                inputDirs = listOf(flutterRoot),
+                taskPath = null,
+                assetsOutputDir = null,
+                nativeOutput = null,
+                unsupportedReason = "Flutter task not found",
+            ),
+        ))
+        whenever(fixture.deployFileManager.getUncompiledFiles()).thenReturn(listOf(
+            ChangedFile(CompileFile.Type.ExternalBuildSource, dartFile, flutterRoot, module),
+        ))
+
+        val result = invokePreprocessIncrementalCompile(fixture.helper, fixture.options, fixture.uiHandler)
+
+        assertTrue(result!!.isCanFallback)
+        assertEquals("Flutter task not found", result.failedReason)
+    }
+
+    @Test
+    fun preprocessIncrementalCompile_partiallyResolvedExternalBuilds_forcesGradleFallback() {
+        val fixture = createFixture()
+        val flutterRoot = temporaryFolder.newFolder("flutter-mixed")
+        val dartFile = File(flutterRoot, "lib/main.dart").apply {
+            parentFile.mkdirs()
+            writeText("void main() {}")
+        }
+        val unresolvedFile = File(flutterRoot, "lib/unresolved.dart").apply { writeText("void main() {}") }
+        val module = ModuleInfo.virtualModule.copy(
+            name = "app",
+            externalBuildInfos = listOf(
+                ExternalBuildInfo(
+                    type = ExternalBuildType.Flutter,
+                    inputDirs = listOf(File(flutterRoot, "lib")),
+                    taskPath = ":flutter:copyJniLibsflutterBuildDebug",
+                    assetsOutputDir = File(flutterRoot, "build/flutter"),
+                    nativeOutput = File(flutterRoot, "build/jniLibs"),
+                ),
+            ),
+        )
+        // The second input belongs to a module that configures no external build at all.
+        val unresolvedModule = module.copy(name = "other", externalBuildInfos = emptyList())
+        val context = mock<ICompileContext>()
+        whenever(context.modules).thenReturn(mapOf(module.name to module, unresolvedModule.name to unresolvedModule))
+        whenever(fixture.compileContextManager.compileContext).thenReturn(context)
+        whenever(fixture.options.compileCommand).thenReturn("./gradlew :app:assembleDebug")
+        whenever(fixture.deployHistoryManager.getFullBuildInfo()).thenReturn(
+            FullBuildInfo("./gradlew :app:assembleDebug", BuildTarget.APP, 1L),
+        )
+        whenever(fixture.deployFileManager.getUncompiledFiles()).thenReturn(listOf(
+            ChangedFile(CompileFile.Type.ExternalBuildSource, dartFile, File(flutterRoot, "lib"), module),
+            ChangedFile(CompileFile.Type.ExternalBuildSource, unresolvedFile, File(flutterRoot, "lib"), unresolvedModule),
+        ))
+
+        val result = invokePreprocessIncrementalCompile(fixture.helper, fixture.options, fixture.uiHandler)
+
+        assertTrue(result!!.isCanFallback)
+        assertEquals("External build metadata not found", result.failedReason)
+    }
+
+    @Test
+    fun preprocessIncrementalCompile_removedExternalSource_forcesGradleFallback() {
+        val fixture = createFixture()
+        val flutterRoot = temporaryFolder.newFolder("flutter-removed-source")
+        val removedDart = File(File(flutterRoot, "lib"), "removed.dart")
+        val module = ModuleInfo.virtualModule.copy(
+            name = "app",
+            externalBuildInfos = listOf(
+                ExternalBuildInfo(
+                    type = ExternalBuildType.Flutter,
+                    inputDirs = listOf(flutterRoot),
+                    taskPath = ":flutter:copyJniLibsflutterBuildDebug",
+                    assetsOutputDir = File(flutterRoot, "build/flutter"),
+                    nativeOutput = File(flutterRoot, "build/jniLibs"),
+                ),
+            ),
+        )
+        val context = mock<ICompileContext>()
+        whenever(context.modules).thenReturn(mapOf(module.name to module))
+        whenever(fixture.compileContextManager.compileContext).thenReturn(context)
+        whenever(fixture.options.compileCommand).thenReturn("./gradlew :app:assembleDebug")
+        whenever(fixture.deployHistoryManager.getFullBuildInfo()).thenReturn(
+            FullBuildInfo("./gradlew :app:assembleDebug", BuildTarget.APP, 1L),
+        )
+        whenever(fixture.deployFileManager.getUncompiledFiles()).thenReturn(listOf(
+            ChangedFile(CompileFile.Type.ExternalBuildSource, removedDart, flutterRoot, module),
+        ))
+
+        val result = invokePreprocessIncrementalCompile(fixture.helper, fixture.options, fixture.uiHandler)
+
+        assertTrue(result!!.isCanFallback)
+        assertEquals("External build source was removed, full Gradle compile required", result.failedReason)
+    }
+
+    @Test
+    fun preprocessIncrementalCompile_externalConfigInput_doesNotFetchFullProjectInfo() {
+        val fixture = createFixture()
+        val nativeRoot = temporaryFolder.newFolder("native-config")
+        val cmakeLists = File(nativeRoot, "CMakeLists.txt").apply { writeText("cmake_minimum_required(VERSION 3.22)") }
+        val module = ModuleInfo.virtualModule.copy(
+            name = "app",
+            externalBuildInfos = listOf(
+                ExternalBuildInfo(
+                    type = ExternalBuildType.Cpp,
+                    inputDirs = listOf(nativeRoot),
+                    taskPath = ":app:mergeDebugNativeLibs",
+                    assetsOutputDir = null,
+                    nativeOutput = File(nativeRoot, "build/merged"),
+                    configFiles = listOf(cmakeLists),
+                ),
+            ),
+        )
+        val context = mock<ICompileContext>()
+        whenever(context.modules).thenReturn(mapOf(module.name to module))
+        whenever(fixture.compileContextManager.compileContext).thenReturn(context)
+        whenever(fixture.options.compileCommand).thenReturn("./gradlew :app:assembleDebug")
+        whenever(fixture.deployHistoryManager.getFullBuildInfo()).thenReturn(
+            FullBuildInfo("./gradlew :app:assembleDebug", BuildTarget.APP, 1L),
+        )
+        whenever(fixture.deployFileManager.getUncompiledFiles()).thenReturn(listOf(
+            ChangedFile(CompileFile.Type.ExternalBuildSource, cmakeLists, nativeRoot, module),
+        ))
+
+        val result = invokePreprocessIncrementalCompile(fixture.helper, fixture.options, fixture.uiHandler)
+
+        assertEquals(null, result)
+        verify(fixture.gradleProjectInfoLocalFetchManager, never()).waitForCurrentUpdate()
+    }
+
+    @Test
+    fun preprocessIncrementalCompile_legacyFlutterMetadata_fallsBackWithoutFetchingProjectInfo() {
+        val fixture = createFixture()
+        val flutterRoot = temporaryFolder.newFolder("legacy-flutter")
+        val dartFile = File(flutterRoot, "lib/main.dart").apply {
+            parentFile.mkdirs()
+            writeText("void main() {}")
+        }
+        val legacyModule = ModuleInfo.virtualModule.copy(
+            name = "app",
+            externalBuildInfos = listOf(ExternalBuildInfo(
+                type = ExternalBuildType.Flutter,
+                inputDirs = listOf(flutterRoot),
+                taskPath = ":app:compileFlutterBuildDebug",
+                assetsOutputDir = File(flutterRoot, "build/flutter"),
+                nativeOutput = null,
+            )),
+        )
+        val context = mock<ICompileContext>()
+        whenever(context.modules).thenReturn(mapOf(legacyModule.name to legacyModule))
+        whenever(fixture.compileContextManager.compileContext).thenReturn(context)
+        whenever(fixture.options.compileCommand).thenReturn("./gradlew :app:assembleDebug")
+        whenever(fixture.deployHistoryManager.getFullBuildInfo()).thenReturn(
+            FullBuildInfo("./gradlew :app:assembleDebug", BuildTarget.APP, 1L),
+        )
+        whenever(fixture.deployFileManager.getUncompiledFiles()).thenReturn(listOf(
+            ChangedFile(CompileFile.Type.ExternalBuildSource, dartFile, flutterRoot, legacyModule),
+        ))
+
+        val result = invokePreprocessIncrementalCompile(fixture.helper, fixture.options, fixture.uiHandler)
+
+        assertTrue(result!!.isCanFallback)
+        assertEquals("External build is not supported", result.failedReason)
+        verify(fixture.gradleProjectInfoLocalFetchManager, never()).waitForCurrentUpdate()
+    }
+
+    @Test
+    fun preprocessIncrementalCompile_flutterNativeDirMetadata_keepsIncrementalCompile() {
+        val fixture = createFixture()
+        val flutterRoot = temporaryFolder.newFolder("flutter-native-dir")
+        val dartFile = File(flutterRoot, "lib/main.dart").apply {
+            parentFile.mkdirs()
+            writeText("void main() {}")
+        }
+        val module = ModuleInfo.virtualModule.copy(
+            name = "app",
+            externalBuildInfos = listOf(ExternalBuildInfo(
+                type = ExternalBuildType.Flutter,
+                inputDirs = listOf(flutterRoot),
+                taskPath = ":flutter:copyJniLibsflutterBuildDebug",
+                assetsOutputDir = File(flutterRoot, "build/flutter"),
+                nativeOutput = File(flutterRoot, "build/jniLibs"),
+            )),
+        )
+        val context = mock<ICompileContext>()
+        whenever(context.modules).thenReturn(mapOf(module.name to module))
+        whenever(fixture.compileContextManager.compileContext).thenReturn(context)
+        whenever(fixture.options.compileCommand).thenReturn("./gradlew :app:assembleDebug")
+        whenever(fixture.deployHistoryManager.getFullBuildInfo()).thenReturn(
+            FullBuildInfo("./gradlew :app:assembleDebug", BuildTarget.APP, 1L),
+        )
+        whenever(fixture.deployFileManager.getUncompiledFiles()).thenReturn(listOf(
+            ChangedFile(CompileFile.Type.ExternalBuildSource, dartFile, flutterRoot, module),
+        ))
+
+        val result = invokePreprocessIncrementalCompile(fixture.helper, fixture.options, fixture.uiHandler)
+
+        assertEquals(null, result)
+        verify(fixture.gradleProjectInfoLocalFetchManager, never()).waitForCurrentUpdate()
     }
 
     @Test
@@ -994,6 +1206,7 @@ class JuggCompileHelperTest {
             deployStateManager = deployStateManager,
             deployFileManager = deployFileManager,
             deployHistoryManager = deployHistoryManager,
+            compileContextManager = compileContextManager,
             dependencyChangeManager = dependencyChangeManager,
             gradleProjectInfoLocalFetchManager = gradleProjectInfoLocalFetchManager,
             gitChangeChecker = gitChangeChecker,
@@ -1092,6 +1305,7 @@ class JuggCompileHelperTest {
         val deployStateManager: DeployStateManager,
         val deployFileManager: DeployFileManager,
         val deployHistoryManager: IDeployHistoryManager,
+        val compileContextManager: CompileContextManager,
         val deployTargetManager: IDeployTargetManager,
         val dependencyChangeManager: IDependencyChangeManager,
         val gradleProjectInfoLocalFetchManager: GradleProjectInfoLocalFetchManager,

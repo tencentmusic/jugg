@@ -42,6 +42,12 @@ Use an explicit fallback when:
 
 After Gradle succeeds, Jugg reloads the APK, classpath, mapping, and resource baseline. Subsequent small changes can still use Jugg Run.
 
+## Cancel an ongoing Gradle build
+
+If the confirmation dialog is still open, select `No` or close the dialog to cancel the current run.
+
+If Gradle has already started, click Stop in the Run tool window. Stopping affects only the current build. The next Jugg Run evaluates incremental compilation again. An incomplete Gradle result is not used as the new full-build baseline, so Jugg runs Gradle again later when a complete baseline is required.
+
 ## The build-file change dialog
 
 After you modify `build.gradle`, `settings.gradle`, or dependency declarations, Jugg may display a dependency-change dialog. If the same run also contains too many source changes, Jugg first asks whether to continue the large incremental compilation. The build-file changes appear only after you select `Continue Incremental Compile`.

@@ -12,6 +12,7 @@ import com.sickworm.intellij.jugg.compiler.custom.CustomCompilerManager
 import com.sickworm.intellij.jugg.compiler.manifest.XmlParser
 import com.sickworm.intellij.jugg.compiler.manifest.get
 import com.sickworm.intellij.jugg.compiler.obfuscation.MinifyInfo
+import com.sickworm.intellij.jugg.project.info.ExternalBuildInfoUpdate
 import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
@@ -19,6 +20,9 @@ import com.sickworm.intellij.jugg.project.info.LibraryDependency
 import com.sickworm.intellij.jugg.project.info.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.project.info.SigningConfig
 import com.sickworm.intellij.jugg.project.change.ChangedFile
+import com.sickworm.intellij.jugg.project.IExternalBuildInfoUpdater
+import com.sickworm.intellij.jugg.project.mergeExternalBuildInfoUpdates
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import java.io.File
 import java.util.zip.ZipFile
 
@@ -42,6 +46,7 @@ class BaseCompileContext(
     private val deployFileManager: DeployFileManager,
     private val deployHistoryManager: IDeployHistoryManager,
     private val customCompilerManager: CustomCompilerManager,
+    private val externalBuildInfoUpdater: IExternalBuildInfoUpdater? = null,
     includedBuildModuleRoots: Set<File> = emptySet(),
 ): ICompileContext {
 
@@ -65,7 +70,13 @@ class BaseCompileContext(
 
     override val deployedFiles: List<CompileOutput> get() = deployFileManager.getDeployedFiles()
 
+    override val fullBuildGradleCommand: String?
+        get() = deployHistoryManager.getFullBuildInfo()?.compileCommand
+
     override val customCompilers: List<ICompiler> get() = customCompilerManager.getCustomCompilers()
+
+    override val externalBuildInfoInitScript: File
+        get() = JuggPathManager(projectDir).initGradleFilePath
 
     private val listeners = mutableListOf<OnContextUpdate>()
 
@@ -76,6 +87,7 @@ class BaseCompileContext(
         return modules.mapNotNull { module ->
             val moduleInfo = module.value
             logRFileCandidates(moduleInfo)
+            logModuleCompileRFileCandidates(moduleInfo)
             val rFile = moduleInfo.buildPathInfo.rFilePath
             if (rFile.exists()) {
                 rFile.absolutePath
@@ -98,6 +110,20 @@ class BaseCompileContext(
             "  - path=${it.absolutePath}, lastModified=${it.lastModified()}, size=${it.length()}"
         }
         logger.debug("R.jar candidates found in module ${moduleInfo.name}, selected=${selectedRFile.absolutePath}\n$candidateText")
+    }
+
+    private fun logModuleCompileRFileCandidates(moduleInfo: ModuleInfo) {
+        val candidates = moduleInfo.buildPathInfo.moduleCompileRFileCandidates
+        if (candidates.size <= 1) {
+            return
+        }
+
+        val selectedRFile = moduleInfo.buildPathInfo.moduleCompileRFile
+        val candidateText = candidates.joinToString(separator = "\n") {
+            "  - path=${it.absolutePath}, lastModified=${it.lastModified()}, size=${it.length()}"
+        }
+        logger.debug("module compile R.jar candidates found in module ${moduleInfo.name} " +
+                "(type=${moduleInfo.moduleType}), selected=${selectedRFile?.absolutePath}\n$candidateText")
     }
 
     private fun logJavaClassPathCandidates(moduleInfo: ModuleInfo) {
@@ -243,6 +269,10 @@ class BaseCompileContext(
         deployFileManager.isEnableDesugared()
     }
 
+    override fun containsApkClass(classDescriptors: List<String>): List<ClassNode> {
+        return deployFileManager.containsApkClass(classDescriptors)
+    }
+
     override var modulesWithOrder: List<ModuleInfo> = ModuleCompileOrderUtils.getModuleCompileOrders(modules, tempModule, logger)
 
     override var moduleBelongsApkMap: ModuleApkBelongs = ModuleApkBelongsUtils.getModuleApkBelongs(applicationModule, apkInfos, modules, tempModule, logger)
@@ -260,22 +290,14 @@ class BaseCompileContext(
             .map { it.file.absolutePath }
         tempDependencies = tempDependencies + tempLibraryDependency
 
-        val classpathDependencies = moduleInfo.buildPathInfo.allClassPath.filter { file ->
-            file.exists()
-        }.map { file ->
-            file.absolutePath
-        }
+        val classpathDependencies = getModuleClassPath(moduleInfo)
 
         val moduleDependencies: List<String> = moduleInfo.moduleDependencies.flatMap {
             val dependencyModuleInfo = modules[it.moduleName] ?: run {
                 logger.warn("module ${it.moduleName} not found in ${moduleInfo.name}'s dependencies, maybe sync gradle again helps.")
                 return@flatMap emptyList()
             }
-            dependencyModuleInfo.buildPathInfo.allClassPath.filter { file ->
-                file.exists()
-            }.map { file ->
-                file.absolutePath
-            }
+            getModuleClassPath(dependencyModuleInfo)
         }
         val libraryDependency = moduleInfo.getLibraryDependencyPaths()
 
@@ -310,6 +332,55 @@ class BaseCompileContext(
         }
 
         return dependencies
+    }
+
+    /** Source compile classpath of one module: normal Gradle outputs plus its single Gradle R.jar. */
+    private fun getModuleClassPath(moduleInfo: ModuleInfo): List<String> {
+        val classPath = moduleInfo.buildPathInfo.allClassPath.filter { file ->
+            file.exists()
+        }.map { file ->
+            file.absolutePath
+        }
+        return classPath + getGradleRFilePaths(moduleInfo)
+    }
+
+    /**
+     * Resolves the only Gradle R.jar allowed to join [moduleInfo]'s source compile classpath.
+     *
+     * Application, dynamic feature, and androidTest keep the aggregate R.jar that also feeds
+     * styleable and runtime resource ids. Other modules use the module compile R.jar, which AGP
+     * renamed to compile_r_class_jar; a module without any resolved R provider contributes nothing
+     * and keeps the existing best-effort classpath. A module never contributes both layouts,
+     * otherwise the stale one shadows the current R class.
+     */
+    private fun getGradleRFilePaths(moduleInfo: ModuleInfo): List<String> {
+        val buildPathInfo = moduleInfo.buildPathInfo
+        if (moduleInfo.isAndroidTestModule || moduleInfo.isApkOwnerModule()) {
+            return listOfNotNull(buildPathInfo.rFilePath.takeIf(File::exists)).map { it.absolutePath }
+        }
+        if (moduleInfo.moduleType == ModuleInfo.Type.JavaLibrary) {
+            return emptyList()
+        }
+        return listOfNotNull(buildPathInfo.moduleCompileRFile).map { it.absolutePath }
+    }
+
+    /**
+     * Returns true when this module owns the aggregate R.jar of an APK.
+     *
+     * An [ModuleInfo.Type.Unknown] module only counts as an owner when this context already resolved
+     * it as the application or a dynamic feature module. Its own artifact directories are not used
+     * as proof: a dirty workspace can leave an aggregate R.jar in a module that is not the APK owner.
+     */
+    private fun ModuleInfo.isApkOwnerModule(): Boolean {
+        if (moduleType == ModuleInfo.Type.Application || moduleType == ModuleInfo.Type.DynamicFeature) {
+            return true
+        }
+        if (moduleType != ModuleInfo.Type.Unknown) {
+            return false
+        }
+        val modulePath = moduleRootDir.normalizedPath
+        return applicationModule?.moduleRootDir?.normalizedPath == modulePath ||
+                dynamicFeatureModules.any { it.moduleRootDir.normalizedPath == modulePath }
     }
 
     private fun findIncludedBuildTargetRFiles(moduleInfo: ModuleInfo): List<File> {
@@ -447,9 +518,9 @@ class BaseCompileContext(
 
     private var desugaredLibraryConfigurationCache: MutableMap<String, String?> = mutableMapOf()
 
-    override fun getDesugarInfo(compileFiles: List<CompileFile>, moduleInfo: ModuleInfo, toDir: File): DesugarInfo {
+    override fun getDesugarInfo(preparation: ClassPreparation, moduleInfo: ModuleInfo, toDir: File): DesugarInfo {
         val apkFile = moduleBelongsApkMap.getBelongsApk(moduleInfo)!!.apkFile // should not be null
-        val incompleteInfo = deployFileManager.getDesugarInfo(compileFiles, moduleInfo, toDir, apkFile)
+        val incompleteInfo = deployFileManager.getDesugarInfo(preparation, moduleInfo, toDir, apkFile)
 
         return if (incompleteInfo.isNeedRewriteCoreLibrary) {
             incompleteInfo.copy(desugaredLibraryConfiguration = findDesugaredLibraryConfigurationWithCache(moduleInfo))
@@ -597,6 +668,18 @@ class BaseCompileContext(
 
     override fun removeChangedFile(files: List<File>) {
         deployFileManager.removeChangedFile(files)
+    }
+
+    override fun updateExternalBuildInfos(updates: List<ExternalBuildInfoUpdate>): Boolean {
+        val updatedModules = if (externalBuildInfoUpdater == null) {
+            mergeExternalBuildInfoUpdates(modules, updates)
+        } else {
+            externalBuildInfoUpdater.update(updates)
+        } ?: return false
+        if (updatedModules != modules) {
+            update(modules = updatedModules)
+        }
+        return true
     }
 
     fun update(

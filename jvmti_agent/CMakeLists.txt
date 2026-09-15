@@ -51,6 +51,7 @@ add_library( # Sets the name of the library.
 
         # Provides a relative path to your source file(s).
         src/main/cpp/native-lib.cpp
+        src/main/cpp/class_redefiner.cc
         src/main/cpp/instrumenter.cc
         src/main/cpp/native_callbacks.cc
 )

@@ -31,7 +31,7 @@ tags:
 
 ## Q：部署资源后出现 `AssetManager` native crash 怎么办？
 
-部分设备系统与 Apply Changes 的资源部署存在兼容性问题，尤其是 Android 11 的 Oppo/Vivo 设备。
+部分 Android 11 OEM 系统与 Apply Changes 的资源部署存在兼容性问题。
 
 1. 连接问题设备。
 2. 在 Jugg More Options 中为该设备开启兼容模式。

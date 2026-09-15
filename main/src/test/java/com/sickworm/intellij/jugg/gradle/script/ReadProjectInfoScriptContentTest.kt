@@ -101,6 +101,17 @@ class ReadProjectInfoScriptContentTest {
     }
 
     @Test
+    fun generatedScript_shouldCollectExternalBuildInfoWithoutFullProjectRefresh() {
+        val scriptText = javaClass.getResource("/gradle/readProjectInfo.gradle.kts")?.readText()
+        assertNotNull(scriptText)
+
+        assertTrue(scriptText.contains("juggCollectExternalBuildInfo"))
+        assertTrue(scriptText.contains("outputs.upToDateWhen { false }"))
+        assertTrue(scriptText.contains("configureExternalBuildInfoCollector()"))
+        assertTrue(scriptText.contains("skip full project info read during external build collection"))
+    }
+
+    @Test
     fun sourceFiles_shouldKeepReadableCompanionEntries() {
         val injectorText = readSource("src/main/java/com/sickworm/intellij/jugg/gradle/script/GradleApplicationInjector.kt")
         assertTrue(injectorText.contains("companion object"))

@@ -1,6 +1,6 @@
 # 插件运行时问题排查手册
 
-> 最后核对：2026-08-31
+> 最后核对：2026-09-13
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -179,6 +179,24 @@ idea/.../runtime/HostTaskExecutor.kt          # ApplicationManager.isDispatchThr
 - `DeployFileManager` 可直接创建 `ConstRefEngine`，但 `ConstRefEngine` 构造不应初始化 SQLite runtime；`JuggManager.<init>` 不应因 ConstRef DB 异常失败。
 - `ConstRefCacheDatabase` 初始化或运行期 DB 操作遇到损坏库时会重建 `~/.jugg/const_ref/const_ref_shared.db` 及其 WAL/SHM；运行期只重试触发损坏的原操作一次。
 - 若 DB 重建或 `RepoSharedFingerprintStore` 初始化仍失败，日志应出现 `fallback to no-op const-ref`，后续编译/部署按无 ConstRef 继续。
+| 排查目标 | 搜索关键词 |
+|----------|------------|
+| 编译开始 | `Jugg compile started` |
+| 增量/全量判断 | `preprocessIncrementalCompile` |
+| 文件变化与全量回退 | `confirmFallbackWhenNoFileChanges` / `No file changes` / `fallback` |
+| EDT 与锁竞争 | `dispatching to background` / `waitCost=` / `TaskRunnerManager lock` |
+| 编译后 Git 补检 | `Git check after compile is still running` / `Git recovery CRC summary` |
+| APK DB 初始化 | `initAfterInstall parsed apk start` / `database all init finish` |
+| 编译或部署失败 | `incremental compile error` / `SEVERE` / `deploy start` |
+| R 类存在但资源字段缺失 | `module compile R.jar candidates found in module` / `R.jar candidates found in module` / `compile_r_class_jar` / `compile_only_not_namespaced_r_class_jar` |
+| IDE 无法识别可部署进程 | `NO_DEPLOYABLE_APP` / `deployable client unavailable` / `ideClientPids` / `Unexpected cmdline file for PID` |
+| Kotlin IR lowering 内部错误 | `BackendException` / `Exception during IR lowering` / `copyValueParametersToStatic` / `Dispatch receiver type` / `SyntheticAccessorGenerator` |
+| UI freeze | `uiFreezeStarted` / `InvocationEvent has timed out` |
+| ConstRef 启动与扫描 | `defer initial full scan` / `io throttle enabled` / `full scan progress` |
+| ConstRef 降级 | `fallback to no-op const-ref` |
+| IDE 启动链 | `InitialVfsRefresh` / `postInit` / `clangd` |
+| release 重混淆 | `Obfuscated:` / `mapping.txt` / `NoClassDefFoundError` / `NoSuchMethodError` / `AbstractMethodError` |
+| Jugg Debug attach | `Jugg Debug attach:` / `waitForClientReadyForDebug` / `Connected to the target VM` |
 
 ---
 
@@ -192,7 +210,9 @@ idea/.../runtime/HostTaskExecutor.kt          # ApplicationManager.isDispatchThr
 | 启动后长时间卡死 | 同时收集 Jugg 日志、`idea.log`、freeze dump、现场 `jcmd`；按 ConstRef、IDE startup、EDT 锁竞争分桶 | `04_engineering_ide.md`、`03_deploy_const_ref.md` |
 | ConstRef SQLite corrupt | 检查损坏重建和 `fallback to no-op const-ref`；DB 异常不应扩大为 Run/compile/deploy 失败 | `ConstRefCacheDatabase`、`ConstRefEngine`；`03_deploy_const_ref.md` |
 | Jugg Debug 断点不可用 | 同一时间窗确认 WAITING、`Connected to the target VM` 与最终 session 创建；“等待 debugger”不等于 VM 已连接 | `04_engineering_debug_attach.md` |
-| 有改动却回退全量 Gradle | 核对 changed files、IDE 文件事件、Git 补检和 deploy history；不要先删除 history 破坏现场 | `JuggCompileHelper`、`DeployFileManager`；`02_compile_core.md` |
+| 有改动却回退全量 Gradle | 核对 changed files、IDE 文件事件、Git 补检和 deploy history；不要先删除 history 破坏现场 | `JuggCompilerHelper`、`DeployFileManager`；`02_compile_core.md` |
+| 增量编译报找不到资源字段（`找不到符号: 变量 xxx`），但 R 类存在、资源也没删 | 先确认不是资源缺失：错误位置是 `R$xxx` 内部缺少字段，属 classpath shadow。按顺序核对：javac/kotlinc 实际 `-classpath` 中第一个同名 `R$xxx` 来自哪个 jar；该 module 目录下 `compile_r_class_jar` 与 `compile_only_not_namespaced_r_class_jar` 的 lastModified；`module compile R.jar candidates found in module` debug 日志的 selected 路径。修复后一个 module 只贡献一个 Gradle R.jar，若仍看到两个 R 布局同时进入 classpath，按 `BaseCompileContext.getGradleRFilePaths()` 回归处理 | `BaseCompileContext.getGradleRFilePaths()`、`ModuleBuildPathInfo.moduleCompileRFileCandidates`；`02_compile_source.md`、`04_engineering_project.md` |
+| 新增 Flutter asset 没有触发编译 | 先查 `Detect file changed (before filter)`、Git `no-record` 与后续 `ChangedFile[ExternalBuildSource]`；若停在分类前，再对照 `gradle_project_infos.json` 的 Flutter `inputFiles`、当前 pubspec asset 文件/目录声明和 `excludedDirs`。未声明的新文件应继续忽略，不能按任意 assets 目录推断归属 | `FileChangesHandler`、`resolveExternalBuild`、`GradleProjectInfoReader.readFlutterInputs`；`02_compile_core.md`、`04_engineering_project.md` |
 | 升级后 `not gradle compile yet` | 查 `complete_flag`、`module_builds.json` 版本及恢复日志；缺失 flag 不应手工伪造 | `CompileContextDb`、`BuildPathInfoSerializer`；`04_engineering_project.md` |
 | `Git check after compile is still running` | 该 debug 只表示本轮不等待异步补检，不代表编译失败；持续出现才检查 Git 查询规模与历史 | `GitChangesCompileChecker`；`02_compile_core.md` |
 | APK DB 初始化慢 | 对齐 APK 大小、隔离解析信号、数据库体积和实际耗时 | APK parser / database；`05_utilities.md` |
@@ -201,9 +221,14 @@ idea/.../runtime/HostTaskExecutor.kt          # ApplicationManager.isDispatchThr
 | release 增量后 runtime crash | 先确认 mapping 加载与 `Obfuscated:`，再对比 staging DEX 和 APK DEX；异常名不能单独决定映射缺口 | `DexObfuscator`、`DexMinifyCompiler`；`02_compile_obfuscation.md` |
 | Kotlin `INTERNAL_ERROR` 且栈含 shaded `JavaVersion` | recreate compiler 同样失败只能增强“宿主环境”推断；继续核对宿主 JDK、项目 Kotlin 版本和兼容日志 | `KotlinCompilerHostCompat`；`02_compile_source.md` |
 | Kotlin `INTERNAL_ERROR` 且栈含 `DelegatingFileSystem.close`、`DescriptorLoadingContext.close` | 确认同一异常块还包含 `UnsupportedOperationException`；命中后预热只缓存当前 compiler classpath 状态，真实源码应出现独立 JVM 重试日志。子进程只接收一个 Kotlin argfile 参数；不同 toolchain 不应同步降级 | `KotlinCompilerOutputParser`、`KotlinCompilerInvoker`、`KotlinCompilerProcessRunner`；`02_compile_source.md` |
+| Kotlin `cannot access ... which is a supertype of ...` / `unresolved supertypes:`，常见于 ROM、车机系统应用引用 hidden API | 先看 `kotlin compile: kotlinc` 的 `-cp` 里 SDK `android.jar` 是否排在同名 framework/HideAPI jar 之前；这不是 HideAPI 路径缺失。命中后应出现后置重试日志，日志中 `-cp` 顺序与默认不同属预期 | `AndroidJarClasspathRetry`、`KotlinCompilerInvoker`；`02_compile_source.md` |
 | Kotlin `required plugin option not present` | 对比 `gradle_project_infos.json` 的 `kotlinPluginOptions` 与 `kotlin compile: kotlinc` 中的 `-P plugin:`；参数已存在仍失败时检查 plugin/Kotlin 版本，参数缺失时检查 `KotlinCompilerPluginData` 读取。兜底禁用必须按 `CommandLineProcessor` 声明的 plugin id 精确命中，不能禁用全部插件 | `GradleProjectInfoReader`、`KotlinCompilerInvoker`；`02_compile_source.md` |
 | Kotlin `unsupported plugin option` | 先确认错误参数是否来自 `kotlinPluginOptions`；Jugg 只会为 Gradle-resolved 参数移除同 plugin id 的整组参数并重试一次，用户 `kotlinFreeCompilerArgs` 不会自动修改。重复出现时检查 compiler toolchain、插件 JAR 与 Gradle task 是否属于同一 compilation | `KotlinCompiler`、`KotlinCompilerInvoker`；`02_compile_source.md` |
+| Kotlin `BackendException: Exception during IR lowering`，根因含 `copyValueParametersToStatic` 和 `Dispatch receiver type ... is not a subtype of ...` | 先核对真实继承链、失败是否来自 Gradle/Kotlin 增量编译、clean 后是否恢复。继承链合法且 clean 可恢复时，优先按 Kotlin compiler 的间歇性 IR synthetic accessor 缺陷调查，不要直接归因于源码类型错误或 Jugg 漏跟编 | 本节 4.4；`02_compile_source.md` |
 | Windows 命令中文乱码 | 保留原始字节链路；出现 `�` 表示可能已发生不可逆解码损失 | `ProcessOutputReader`；`04_engineering_compat.md` |
+| 系统应用装不上、无 `FLAG_SYSTEM`、或特权权限被拒 | 先看 `codePath` 是否在 `/system/`，以及本次是否只走了 `pm install` / `JuggDeployer.install`；不要先当普通部署失败修 | `JuggDeployer.install`；`03_deploy_system_app.md` |
+| 系统应用 Run 提示无法 update / 签名不一致 | 对比 `/system` 基线 APK 与本次安装 APK 的 cert；debug keystore 不能更新 platform 签名的系统包 | `03_deploy_system_app.md` |
+| App 已运行但日志显示 `NO_DEPLOYABLE_APP` | 对齐 Jugg 日志与 `idea.log`，再用 `pidof`、`run-as` 区分 IDE Client 缺失和真实不可调试；Direct Overlay 成功属于 Best-effort 降级，不应仅凭该状态判失败 | `DeployStateManager`、`DirectOverlaySwapTransport`；本节 4.5、`03_deploy_core.md` |
 
 ### 4.1 IDE freeze 的最小证据集
 
@@ -296,6 +321,85 @@ main/.../deploy/data/SourceFileDatabaseSqLiteHelper.kt
 main/.../deploy/data/SourceFileManager.kt
 main/.../deploy/data/SourceFileDatabaseSqLiteHelper.kt
 ```
+
+### 4.4 Kotlin IR lowering 中间歇性的 dispatch receiver 类型断言
+
+**典型信号**：
+
+```text
+org.jetbrains.kotlin.backend.common.BackendException: Exception during IR lowering
+java.lang.AssertionError: Dispatch receiver type A is not a subtype of B
+org.jetbrains.kotlin.ir.util.IrUtilsKt.copyValueParametersToStatic
+org.jetbrains.kotlin.backend.common.lower.inline.SyntheticAccessorGenerator
+```
+
+JOOX Android 的 `jugg_scene_JOOX_Android_ext_20260911_144438` 报告确认过一次完整案例：
+
+- 现场使用 Kotlin 2.0.21，失败发生在远程 Gradle 的 `:wemusic:compileDebugKotlin`，调用栈进入 `IncrementalJvmCompilerRunner`。
+- 报错声称 `PlayerGeneralSongInfoFragment` 不是 `AbsPlayerFragment` 的子类型，但 APK/Dex 中的实际继承链为 `PlayerGeneralSongInfoFragment -> AbsPlayerPagerSubCellFragment -> AbsPlayerFragment`，继承关系合法。
+- 前一轮 Jugg 增量编译在修改 `AbsPlayerFragment.kt` 后，已正确级联编译中间类和 `PlayerGeneralSongInfoFragment.kt` 并成功，现有证据不支持稳定的影响分析漏编。
+- 失败的 Gradle 构建有大量 task 处于 `UP-TO-DATE`；执行 clean 后再次运行同一 Gradle 配置成功，现有证据不支持稳定的源码语义错误。
+- `PlayerGeneralSongInfoFragment` 的 Kotlin SMAP 包含来自 `AbsPlayerFragment.kt` 的内联代码映射，与异常栈中的 synthetic accessor lowering 边界一致。
+
+**当前结论**：
+
+- 高置信度根因是 Kotlin JVM IR compiler 的间歇性内部缺陷。公开问题 [KT-73245](https://youtrack.jetbrains.com/issue/KT-73245) 与现场异常、Kotlin 版本和间歇性表现高度一致，并被归并到 [KT-51944](https://youtrack.jetbrains.com/issue/KT-51944)。
+- 中高置信度触发因素是 Gradle/Kotlin 增量编译状态。远程源码同步排除普通 `build` 目录，远端 Gradle/Kotlin 编译产物会跨构建保留；基类、间接子类及内联访问连续变化时，可能更容易暴露该 compiler 缺陷。
+- 报告未包含失败瞬间的远端 Kotlin cache，无法确认具体损坏的 cache 条目，也无法区分确定性的脏增量状态与非确定性的 compiler race。
+- 现场未发现 `-Xbackend-threads`，不能直接认定启用了 parallel IR backend。KT-51944 仍未关闭，升级 Kotlin 只能作为候选验证，不能宣称必然修复。
+
+**反证边界**：
+
+- 若 clean 后仍能稳定复现，应重新检查源码、compiler plugin 和固定 toolchain 兼容问题，降低增量状态假设的权重。
+- 若 Dex/源码继承链确实不满足断言中的父子关系，则属于真实类型或混合版本输入问题，不能套用本案例。
+- 若日志显示相关基类或中间类未同步到远端，应优先调查同步输入，不把同步缺失解释为 compiler bug。
+
+**下次复现时的最小保全与区分步骤**：
+
+1. clean 前保存完整 Jugg 报告，并备份远端模块的 `build/kotlin/compileDebugKotlin`、`build/tmp/kotlin-classes`、项目 `.gradle/kotlin` 和 `.kotlin/errors`；路径不存在时记录未生成，不伪造缺失原因。
+2. 不修改源码，原命令直接重试一次；无修改即恢复会增强非确定性 compiler bug 或 race 判断。
+3. 尝试定向执行 `./gradlew :<module>:compileDebugKotlin -Pkotlin.incremental=false`；仅关闭 Kotlin incremental 后恢复会增强增量状态判断。
+4. 再尝试模块级 `:<module>:clean`，判断是否无需清理整个工程。
+5. 保存 `--info` 输出或实际 Kotlin compiler 参数，确认 dirty sources、classpath、compiler plugin 和 `-Xbackend-threads`。
+
+在没有上述复现证据前，不建议仅凭该异常自动执行全工程 clean。若后续需要 Jugg 侧降级，应只精确匹配该异常链，并优先评估一次模块级 clean 或关闭 Kotlin incremental 的有界重试，避免掩盖其它 IR lowering 错误。
+
+### 4.5 App 已运行但 Android Studio 显示 `NO_DEPLOYABLE_APP`
+
+**典型信号**：
+
+- Jugg 日志出现 `IdeDeployState(state=NO_DEPLOYABLE_APP, message=Android Studio deployable client unavailable)` 或旧版本文案 `app not running or not debuggable`。
+- 部署日志中的 `ideClientPids=[]`，但 `adb shell pidof <packageName>` 仍返回进程。
+- Android Studio `idea.log` 同一时间窗可能出现 `Unexpected cmdline file for PID` 等 DDMLib 进程识别异常。
+- 较新 Android Studio 能看到同一设备上的 App，旧版 Android Studio 看不到。
+- Android 15 及以上配合 Android Studio Meerkat 之前的版本时，首次资源部署可能因 JVMTI 兼容处理重启 App；重启后 App 明明在前台，下一次部署仍继续得到 `NO_DEPLOYABLE_APP`。
+
+**解释边界**：
+
+- `NO_DEPLOYABLE_APP` 是 Android Studio Apply Changes client 的观测结果，不是 APK `debuggable` 属性或设备进程状态的直接证据。
+- `ideClientPids` 来自 Android Studio/DDMLib client 列表，不等同于 `pidof` 返回的设备真实进程。
+- `run-as <packageName>` 成功能够证明普通 Direct Overlay 具备 sandbox 访问前提；不能仅凭 Android Studio Client 缺失认定 Direct Overlay 不可用。
+- 普通 Direct Overlay 独立校验 deployment cache 和设备 overlay checkpoint，但只提交 sandbox 文件，不会刷新正在运行的进程。日志出现 `Direct Overlay fallback succeeded` 时，说明 Best-effort 备用写入通道已经提交成功；该路径必须向部署生命周期传播重启需求，即使 App 当前在前台也必须重启。
+- 不要把普通 Direct Overlay 与 `DirectAppSandboxDeployTransport` 混为一谈。后者会尝试对运行中进程执行 runtime apply，并按实际结果决定是否重启；前者成功后固定需要重启。
+
+**当前正确行为**：
+
+1. `NO_DEPLOYABLE_APP`、App 在前台且 Direct Overlay 已启用时，先输出 `App is running but not deployable by Android Studio. Direct Deploy will restart the app after deployment.`，让用户在写入前知道本轮会重启。
+2. 普通 Direct Overlay 成功后应依次看到 `Direct Overlay fallback succeeded`、`after direct overlay deploy`、`Restarting app...` 和对应的 `am start -S`；不应出现 `App foreground, no need to restart app.`。
+3. 原始部署类型即使是 `HOT_RELOAD`，只要本轮实际重启，最终用户结果也应为 `Jugg HOT_FIX SUCCESSFUL ...` 和 `App restarted.`，不能继续显示 `Jugg HOT_RELOAD SUCCESSFUL ...` / `App deployed.`。
+
+`needsRestartApp` 只描述本轮实际是否需要重启，不携带部署路径来源。Direct Overlay 专属提示应在确认 `NO_DEPLOYABLE_APP`、App 前台和 Direct 开关的选择点输出，不能在 finish 阶段根据 `needsRestartApp && deployType == HOT_RELOAD` 反推“一定是 Direct Deploy”。
+
+**排查步骤**：
+
+1. 从 `compile_*.log` 记录 `NO_DEPLOYABLE_APP`、`ideClientPids`、App foreground、Direct Overlay enable/canTry、overlay checkpoint 和最终 fallback 结果。
+2. 对齐 Android Studio `idea.log` 的同一毫秒时间窗，搜索 `Unexpected cmdline file for PID`、DDMLib、JDWP 和 client 相关日志。
+3. 不重启现场，执行 `adb shell pidof <packageName>`，确认设备真实进程是否存在。
+4. 执行只读 `adb shell run-as <packageName> pwd` 验证 sandbox 能力；失败时保留原始错误，不把它解释为单纯 IDE 观测问题。
+5. 若 Direct Overlay checkpoint 匹配并成功提交，继续确认旧进程已通过 `am start -S` 重启，并核对最终结果为 `HOT_FIX` / `App restarted.`；若只有 `HOT_RELOAD` / `App deployed.`，或进程未变更，则说明 overlay 仅落盘、生命周期未兑现重启契约。
+6. 若 `run-as`、cache 或 checkpoint 也失败，再进入 recover/reinstall 或明确返回失败。
+
+现场结论必须限定 Android Studio、Android API、插件版本和时间窗。旧版 Android Studio 的观测缺陷不能外推为所有 IDE 版本或所有 `NO_DEPLOYABLE_APP` 都可安全忽略。
 
 ---
 

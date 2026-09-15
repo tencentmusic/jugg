@@ -11,6 +11,7 @@ import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.deploy.run.normalizeTargetApkPaths
 import com.sickworm.intellij.jugg.JuggInternalException
 import com.sickworm.intellij.jugg.project.change.ChangedFile
+import com.sickworm.intellij.jugg.project.info.ExternalBuildInfoUpdate
 import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import com.sickworm.intellij.jugg.project.info.SigningConfig
 import java.io.File
@@ -118,6 +119,7 @@ data class CompileFile(
         NativeLib,
         Resource,
         ComposeResource,
+        ExternalBuildSource,
         Flat,
         BuildFile,
         AndroidManifest,
@@ -349,6 +351,8 @@ interface ICompileContext {
     val projectDir: File
     /** Classpath entry containing the R8 distribution loaded by the selected Android Gradle Plugin. */
     val agpR8Classpath: File? get() = null
+    /** Gradle command recorded by the full build that produced the deployed baseline APK. */
+    val fullBuildGradleCommand: String? get() = null
     /** all deployed files */
     val deployedFiles: List<CompileOutput>
     /** APK singing config */
@@ -384,6 +388,13 @@ interface ICompileContext {
      */
     val isEnableDesugared: Boolean
 
+    /**
+     * Query class structures from the deployed APK baseline.
+     * [classDescriptors] use dex form, for example `Landroidx/viewbinding/ViewBindings;`.
+     * Missing database, empty input, or query failure must return an empty list.
+     */
+    fun containsApkClass(classDescriptors: List<String>): List<ClassNode> = emptyList()
+
     val modulesWithOrder: List<ModuleInfo>
 
     val moduleBelongsApkMap: ModuleApkBelongs
@@ -394,11 +405,21 @@ interface ICompileContext {
 
     val customCompilers: List<ICompiler>
 
+    /** Init script used to collect task-local external build metadata after Gradle execution. */
+    val externalBuildInfoInitScript: File?
+        get() = null
+
     fun getModuleDependencies(moduleInfo: ModuleInfo, task: CompileTask): List<String>
 
     fun getGeneratedSourcePaths(moduleInfo: ModuleInfo): List<File>
 
-    fun getDesugarInfo(compileFiles: List<CompileFile>, moduleInfo: ModuleInfo, toDir: File): DesugarInfo
+    /** Kept for binary compatibility with custom compilers built against Jugg 3.4.x. */
+    @Deprecated("Use getDesugarInfo(ClassPreparation, ModuleInfo, File)")
+    fun getDesugarInfo(compileFiles: List<CompileFile>, moduleInfo: ModuleInfo, toDir: File): DesugarInfo {
+        return getDesugarInfo(ClassPreparation.analyze(compileFiles), moduleInfo, toDir)
+    }
+
+    fun getDesugarInfo(preparation: ClassPreparation, moduleInfo: ModuleInfo, toDir: File): DesugarInfo
 
     fun getMinifyInfo(compileFiles: List<CompileFile>): com.sickworm.intellij.jugg.compiler.obfuscation.MinifyInfo?
 
@@ -425,6 +446,9 @@ interface ICompileContext {
      * Default no-op keeps existing non-IDE/test contexts source-compatible.
      */
     fun removeChangedFile(files: List<File>) = Unit
+
+    /** Applies task-local external build metadata without rebuilding the active compiler. */
+    fun updateExternalBuildInfos(updates: List<ExternalBuildInfoUpdate>): Boolean = false
 
     /**
      * Scene marks where compile context is built: IDE-run flow or incremental-APK flow.

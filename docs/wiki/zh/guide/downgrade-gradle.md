@@ -42,6 +42,12 @@ jugg gradle-build
 
 Gradle 成功后，Jugg 会重新读取 APK、classpath、mapping 和资源基线。后续小改动仍然可以继续 Jugg Run。
 
+## 取消已经开始的 Gradle 编译
+
+如果确认弹窗还没有关闭，选择 `No` 或直接关闭弹窗即可取消本轮运行。
+
+如果 Gradle 已经开始，在 Run tool window 中点击 Stop。停止操作只影响本轮构建；下次点击 Jugg Run 时，Jugg 仍会重新判断能否增量。未完成的 Gradle 产物不会作为新的完整构建基线，后续需要时会再次执行 Gradle 构建。
+
 ## build 文件变化弹窗
 
 修改 `build.gradle`、`settings.gradle` 或依赖声明后，Jugg 可能展示依赖变化确认框。如果同时有过多源码变化，Jugg 会先询问是否继续大规模增量；只有选择 `Continue Incremental Compile` 后，才继续展示 build 文件变化。

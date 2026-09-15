@@ -47,6 +47,7 @@ android {
         buildConfigField("String", "JVMTI_AVAILABLE_FLAG_FILE", "AAA_JUGG_FLAG_FILE_PREFIX + \"jvmti_available\"")
         buildConfigField("String", "JVMTI_NOT_AVAILABLE_FLAG_FILE", "AAA_JUGG_FLAG_FILE_PREFIX + \"jvmti_not_available\"")
         buildConfigField("String", "ENABLE_COMPAT_DEPLOY_FLAG_FILE", "AAA_JUGG_FLAG_FILE_PREFIX + \"compat_deploy_enable\"")
+        buildConfigField("String", "DIRECT_RESOURCE_OVERLAY_FLAG_FILE", "AAA_JUGG_FLAG_FILE_PREFIX + \"direct_resource_overlay\"")
     }
 }
 

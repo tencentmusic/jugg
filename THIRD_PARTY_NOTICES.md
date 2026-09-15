@@ -182,7 +182,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - License/source reference: https://dl.google.com/dl/android/maven2/androidx/databinding/databinding-compiler/7.4.2/databinding-compiler-7.4.2.pom
 - Download/source: https://dl.google.com/dl/android/maven2/androidx/databinding/databinding-compiler/7.4.2/databinding-compiler-7.4.2.jar
 - Modified by Jugg: 否
-- Notes: 作为 compiler、compiler-common、common 和 baseLibrary 多个 JAR 随 cmd_line 独立发行物分发。
+- Notes: 作为 compiler、compiler-common、common 和 baseLibrary 多个 JAR 随插件与 cmd_line 发行。使用 7.4.2 而非 8.7.3，因为后者是 class file 61.0，无法在 Java 11 IDE 中加载。
 
 ## 21. Android Data Binding compiler suite 8.7.3
 
@@ -191,7 +191,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - License/source reference: https://dl.google.com/dl/android/maven2/androidx/databinding/databinding-compiler/8.7.3/databinding-compiler-8.7.3.pom
 - Download/source: https://dl.google.com/dl/android/maven2/androidx/databinding/databinding-compiler/8.7.3/databinding-compiler-8.7.3.jar
 - Modified by Jugg: 否
-- Notes: 作为 compiler、compiler-common、common 和 baseLibrary 多个 JAR 随插件发行；内嵌 ANTLR Runtime 另行列示。
+- Notes: 当前发行物已改为 7.4.2，见第 20 节。8.7.3 为 Java 17 字节码，无法在 Electric Eel 等 Java 11 IDE 中加载 `XMLParser$ElementContext`。
 
 ## 22. Android Tools Annotations 30.4.2
 
@@ -704,7 +704,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - License/source reference: https://github.com/antlr/antlr4/blob/4.5.3/LICENSE.txt
 - Download/source: https://repo1.maven.org/maven2/org/antlr/antlr4-runtime/4.5.3/antlr4-runtime-4.5.3.jar
 - Modified by Jugg: 否
-- Notes: 重定位代码内嵌于 Data Binding compiler-common 8.7.3 并随其发行；由上游 Data Binding 打包。
+- Notes: 重定位代码内嵌于 Data Binding compiler-common 7.4.2 并随其发行；由上游 Data Binding 打包。
 
 ## 79. ASM 9.6
 

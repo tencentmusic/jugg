@@ -66,14 +66,20 @@ Remote Gradle does not change Jugg's incremental-compilation decisions. When a f
 
 ## Synchronize multiple projects
 
-When the development directory contains multiple related projects, common strategies are:
+With iFT or full `rsync`, enable this option under Remote Compile Options:
+
+```text
+Enable multiple projects mode (sync and fetch all projects in [Local to remote sync path])
+```
+
+Jugg then synchronizes and fetches multiple projects within `Local to remote sync path`. Use this for included builds, dependency source, and other cross-project build relationships. Common directory strategies are:
 
 | Approach | When to use it |
 |---|---|
 | Synchronize every file under the iFT directory | The iFT directory contains only a small number of projects |
 | Place the projects to synchronize under one subdirectory | The iFT directory contains many projects, but only one group matters for the current work |
 
-Avoid overly simplified synchronization for multiple projects. Otherwise, included builds, dependency source, or cross-project classpaths may be missing.
+`rsync_simple` synchronizes only the current project root, so the multiple-project option is hidden in that mode. To synchronize related projects, use iFT or full `rsync` and place them inside one synchronization scope. Otherwise, included builds, dependency source, or cross-project classpaths may be missing.
 
 ## Generated code appears unresolved
 
@@ -104,3 +110,4 @@ When a Library Test APK is first missing, a remote Gradle build also generates t
 - [Project model](../concepts/project-model.md)
 - [Android Test](./android-test.md)
 - [Log files](../reference/log-files.md)
+- [Remote compilation failed](../troubleshooting/remote-build-failed.md)

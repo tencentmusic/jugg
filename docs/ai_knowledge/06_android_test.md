@@ -128,6 +128,8 @@ androidTest 使用 **独立 synthetic ModuleInfo**，不合入 owner module：
 - `BuildTarget.ANDROID_TEST`：纳入 `.androidTest` module。
 - `.test` / `.unitTest` 在两种 target 下都继续过滤。
 
+androidTest 源码编译优先使用 synthetic module 自身 test variant 的 aggregate R.jar，再加入 owner module 及其他依赖。该顺序保证 self-targeting Library Android Test 能读取完整构建基线中已有的 test resource 字段，而不会被同 namespace 的 Library 主 variant R 遮蔽；这只提供既有 test resource 的源码 classpath，不改变“androidTest resource 增量编译暂不覆盖”的边界。
+
 androidTest 重跑不复用普通 app run 的 no-changes fallback 语义。下一次 androidTest 运行如果没有新的文件变更、且没有 uncompiled 文件，`JuggCompilerHelper` 会直接返回增量成功进入部署：存在 compiled/staging pending outputs 时复用这批产物；不存在 pending outputs 时直接进入空部署 / instrumentation，不重新执行 Kotlin / D8，也不把测试重跑误判为 Gradle fallback。
 
 `ModuleApkBelongsUtils` 返回 `ModuleApkBelongs` 封装类，默认通过 `getBelongsApk()` 保留现有单 APK 语义，同时用 `getAllBelongsApk()` 暴露多 APK 归属视图。androidTest module 按 runtime classloader 归属路由：app-style other-targeting androidTest 运行在 `instrumentationTargetPackage` 对应的 main APK 进程内，因此归属 main APK；self-targeting / library-style androidTest 的 `applicationId == instrumentationTargetPackage`，归属匹配的 Test APK。普通 library module 在存在 self-targeting library Test APK 时，`getAllBelongsApk()` 会同时包含 base APK 与 library Test APK。

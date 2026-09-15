@@ -32,9 +32,18 @@ After you modify startup logic, `static` declarations, `companion object` declar
 
 Run [Fallback to Gradle compilation](../guide/downgrade-gradle.md) once to refresh the result with a full Gradle build.
 
+## Generated code was not updated after an annotation change
+
+Jugg runs incremental generation only for annotation processors with a dedicated adapter. An APT, KAPT, or KSP processor outside the supported list does not run automatically during Jugg incremental compilation, so its generated source may remain stale.
+
+1. Check [Annotation processors](../capabilities/compile/annotation-processors.md) to confirm whether the processor is supported.
+2. If it is not supported, run [Fallback to Gradle compilation](../guide/downgrade-gradle.md) once to generate the complete result.
+3. If Gradle works but a supported processor still reproducibly remains stale with Jugg, [report the issue](../guide/report-issue.md).
+
 ## Related pages
 
 - [Restart the app](../guide/restart-app.md)
 - [Fallback to Gradle compilation](../guide/downgrade-gradle.md)
 - [DataBinding/ViewBinding](../capabilities/compile/databinding-viewbinding.md)
 - [Resource compilation](../capabilities/compile/resource-compile.md)
+- [Annotation processors](../capabilities/compile/annotation-processors.md)

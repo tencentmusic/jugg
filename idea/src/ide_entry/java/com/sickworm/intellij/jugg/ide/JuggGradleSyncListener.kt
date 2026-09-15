@@ -5,16 +5,14 @@ import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.loader.JuggInitializer
 
-
 /**
- * won't call back after Android Studio Giraffe
+ * Forwards Gradle sync events without depending on the root-aware listener API.
  */
 class JuggGradleSyncListener : GradleSyncListener {
 
     private val ideaLogger = Logger.getInstance("JuggGradleSyncListener")
 
     override fun syncStarted(project: Project) {
-        disableRootListener()
         ideaLogger.info("syncStarted $project")
         JuggInitializer.onSyncEvent(project, SyncEvent.STARTED)
     }
@@ -25,23 +23,12 @@ class JuggGradleSyncListener : GradleSyncListener {
     }
 
     override fun syncSkipped(project: Project) {
-        disableRootListener()
         ideaLogger.info("syncSkipped $project")
         JuggInitializer.onSyncEvent(project, SyncEvent.SKIPPED)
     }
 
     override fun syncFailed(project: Project, errorMessage: String) {
-        disableRootListener()
         ideaLogger.info("syncFailed $project $errorMessage")
         JuggInitializer.onSyncEvent(project, SyncEvent.FAILED)
-    }
-
-    private fun disableRootListener() {
-        try {
-            JuggGradleSyncWithRootListener.isEnabled = false
-        } catch (e: Throwable) {
-            // Cannot load class com.android.tools.idea.gradle.project.sync.GradleSyncListenerWithRoot
-            // ok with that
-        }
     }
 }

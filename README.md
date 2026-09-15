@@ -13,8 +13,9 @@ Jugg is an open-source incremental build and deployment tool from the Tencent Mu
 Jugg only requires an IDE plugin. It does not modify Gradle scripts or require an SDK integration. A Jugg Run Configuration coexists with the native App Run Configuration: select Jugg for incremental compilation and deployment, or switch back to the native App configuration at any time to use the original Android Studio / Gradle build, installation, and launch flow. Jugg does not take over that native Run. Select the Jugg configuration again to resume the incremental flow; when a project change falls outside the incremental path, Jugg itself can also fall back to Gradle and establish a new baseline.
 
 - [Download the latest stable release](https://github.com/tencentmusic/jugg/releases/latest)
-- [Jugg Wiki](https://tencentmusic.github.io/jugg/)
+- [Technical overview](https://juejin.cn/post/7680996030843125796)
 - [Watch the demo](https://www.bilibili.com/video/BV1W3411C7PU/)
+- [Jugg Wiki](https://tencentmusic.github.io/jugg/)
 
 ## Community
 
@@ -129,10 +130,20 @@ Issue reports collect only privacy-redacted diagnostic files from an explicit al
 ```shell
 # Build the plugin. Output: idea/build/distributions
 ./gradlew buildPlugin
+```
 
+## Security
+
+To report a vulnerability in Jugg, see [SECURITY.md](SECURITY.md). Do not open a public issue.
+
+## Development
+
+```shell
 # Start an IDE instance for development and debugging
 ./gradlew runIde
 ```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how to report issues, set up the project, and send pull requests.
 
 ## License
 

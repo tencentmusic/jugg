@@ -46,6 +46,11 @@ public final class ApplyChangesOverlayPolicy {
         return !hostApkPaths.contains(resDir);
     }
 
+    /** Returns whether the given path belongs to the host APK of the running app. */
+    static synchronized boolean isHostApkPath(String path) {
+        return path != null && hostApkPaths.contains(path);
+    }
+
     static synchronized void clearHostApplicationInfo() {
         hostApkPaths.clear();
     }

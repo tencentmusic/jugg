@@ -1,6 +1,6 @@
 # 部署系统：影响分析与部署数据生成
 
-> 最后核对：2026-08-28
+> 最后核对：2026-09-10
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -26,7 +26,7 @@
 | `InlineMethodDetector` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/data/InlineMethodDetector.kt` | release/minify 场景从 mapping 里找 R8 inline 调用方，补齐字节码补偿类 |
 | `EffectedClassNode` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/data/EffectedClassNode.kt` | 受影响类模型，区分源码重编译、inline 补偿、minify 移除补偿 |
 | `ConstRefEffectProvider` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/data/ConstRefEffectProvider.kt` | 常量引用影响分析入口；结果走 `constRefEffectedSourcePaths`，不混入 `effectedClassNodes` |
-| `ClassFileParser` / `CompileEffectAnalyzer` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/` | 收集默认接口与外部父类依赖，为增量 class 构造完整 D8 desugar classpath |
+| `ClassFileParser` / `CompileEffectAnalyzer` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/` | 复用 pre-D8 program class 分析，收集默认接口、外部父类与 Transformer 必要依赖，为增量 class 构造完整 D8 classpath |
 
 ---
 
@@ -96,9 +96,9 @@
 
 ### 4.1 D8 desugar classpath
 
-受影响源码重新编译时，`DeployDataGenerator.getDesugarInfo()` 只负责识别含默认方法的接口及其接口继承链；`CompileEffectAnalyzer.getDesugarInfo()` 再通过 `ClassFileParser` 收集本轮 class 引用的外部直接父类，并递归补齐完整父类层级。默认接口和父类 class 会一起复制到 D8 classpath。
+受影响源码重新编译时，`DexCompiler` 单次读取 program class，并用 `ClassFileParser` 建立显式 `ClassPreparation`。`TransformerCompiler` 消费并更新该 preparation，`DeployDataGenerator.getDesugarInfo()` 直接使用其中的 batch analysis 识别含默认方法的接口及其接口继承链；`CompileEffectAnalyzer.getDesugarInfo()` 使用其中的外部直接父类，并以 header-only 读取递归补齐完整父类层级。正常链路和兼容调用均不再通过 `CompileFile.extraInfo` 隐式传递或分别 fallback 完整解析 program class。
 
-父类层级不能省略：若子类同时继承父类实现、实现带默认方法的接口，而 D8 只能看到接口却看不到父类，D8 可能在子类中生成调用接口默认实现的 synthetic bridge，绕过父类中的真实 override。当前 program input 内已有的父类无需重复复制，Android boot classpath 类型也会过滤。
+父类层级不能省略：若子类同时继承父类实现、实现带默认方法的接口，而 D8 只能看到接口却看不到父类，D8 可能在子类中生成调用接口默认实现的 synthetic bridge，绕过父类中的真实 override。当前 program input 内已有的父类无需重复复制，Android boot classpath 类型也会过滤。Hilt 转换读取到的 `Hilt_*` 生成父类通过同一 preparation 进入必要 classpath，即使本轮没有 default interface 也会复制，避免转换阶段和 D8 preparation 重复查找。
 
 ### 4.2 APK 基线索引与解析边界
 

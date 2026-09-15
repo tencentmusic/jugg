@@ -2,6 +2,9 @@ package com.sickworm.intellij.jugg.deploy
 
 import com.sickworm.intellij.jugg.apk.ApkFileUnit
 import com.sickworm.intellij.jugg.apk.ApkInfo
+import com.sickworm.intellij.jugg.compiler.CompileOutput
+import com.sickworm.intellij.jugg.deploy.run.ClassDeployItem
+import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.mock.logger
 import org.junit.Test
@@ -30,6 +33,7 @@ class JuggJvmtiAgentManagerHelperFilterTest {
     /** Fake adb that records queried packages and returns controlled agent states. */
     private class RecordingAdb(
         private val agentStates: Map<String, String>,
+        private val rootPackages: Set<String> = emptySet(),
     ) : IDeviceAdb {
         val queriedPackages = mutableListOf<String>()
 
@@ -43,6 +47,18 @@ class JuggJvmtiAgentManagerHelperFilterTest {
 
         override fun execAdbShellCmd(cmd: String): String {
             extractPackageName(cmd)?.let { queriedPackages.add(it) }
+            val rootPackage = rootPackages.firstOrNull { cmd.contains(it) }
+            if (cmd.contains("__JUGG_RUN_AS_OK__")) {
+                val uid = if (rootPackage != null) 1000 else 10001
+                return "__JUGG_RUN_AS_OK__:$uid\n__JUGG_RUN_AS_CONTEXT__:ctx|ctx"
+            }
+            if (rootPackage != null && cmd.contains("__JUGG_DIRECT_SANDBOX_OK__")) {
+                return "__JUGG_DIRECT_SANDBOX_OK__"
+            }
+            if (cmd == "id -u") return "0"
+            if (rootPackage != null && cmd.startsWith("dumpsys package ")) {
+                return "dataDir=/data/user/0/$rootPackage"
+            }
             val matchingPkg = agentStates.keys.firstOrNull { cmd.contains(it) }
             if (matchingPkg != null) {
                 return agentStates[matchingPkg]!!
@@ -96,6 +112,23 @@ class JuggJvmtiAgentManagerHelperFilterTest {
 
         assertTrue(result)
         assertFalse(adb.queriedPackages.contains(appTestApk.applicationId))
+    }
+
+    @Test
+    fun `direct app sandbox deploy owns startup agent preparation`() {
+        val adb = RecordingAdb(
+            agentStates = mapOf(appApk.applicationId to ""),
+            rootPackages = setOf(appApk.applicationId),
+        )
+        val classItem = ClassDeployItem(
+            DeployItem("com.example.Foo", CompileOutput.Type.Dex, 1, byteArrayOf(1), DeployItem.FLAG_CLASS),
+            emptyList(),
+        )
+        val data = JuggDeployData.forDryDeploy(listOf(appApk)).copy(
+            hotReloadModifiedClasses = listOf(classItem),
+        )
+
+        assertFalse(JuggJvmtiAgentManagerHelper(logger).isNeedPushAgentAfterDeploy(adb, data))
     }
 
     @Test

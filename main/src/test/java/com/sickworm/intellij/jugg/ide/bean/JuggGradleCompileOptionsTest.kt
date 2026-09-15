@@ -87,6 +87,43 @@ class JuggGradleCompileOptionsTest {
     }
 
     @Test
+    fun customInstallScript_shouldBeRequiredWhenEnabled() {
+        val parentDir = Files.createTempDirectory("jugg_custom_install_parent").toFile()
+        val projectDir = File(parentDir, "demo").apply { mkdirs() }
+        try {
+            val options = makeOptions(projectDir, parentDir).copy(
+                enableCustomApkInstallScript = true,
+                customApkInstallScript = "",
+            )
+
+            assertFailsWith<JuggException> { options.checkConfig() }
+        } finally {
+            parentDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun toSafeString_shouldHideCustomInstallScript() {
+        val parentDir = Files.createTempDirectory("jugg_custom_install_safe_string").toFile()
+        val projectDir = File(parentDir, "demo").apply { mkdirs() }
+        try {
+            val secretScript = "./install.sh --token secret-token remoteSshPassword=secret"
+            val safeString = makeOptions(projectDir, parentDir).copy(
+                remoteSshPassword = "secret",
+                enableCustomApkInstallScript = true,
+                customApkInstallScript = secretScript,
+            ).toSafeString()
+
+            assertEquals(false, safeString.contains(secretScript))
+            assertEquals(false, safeString.contains("secret-token"))
+            assertEquals(true, safeString.contains("remoteSshPassword=(has_password)"))
+            assertEquals(true, safeString.contains("customApkInstallScript=(configured)"))
+        } finally {
+            parentDir.deleteRecursively()
+        }
+    }
+
+    @Test
     fun copy_keepsLibraryTestApkHistoryOptions() {
         val parentDir = Files.createTempDirectory("jugg_compile_options_history").toFile()
         val projectDir = File(parentDir, "demo").apply { mkdirs() }

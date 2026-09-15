@@ -20,7 +20,7 @@ Clean Reinstall 用于重新建立 App 在设备上的可信基线。Jugg 会安
 | 设备未安装目标 App | 支持 | install 替代增量部署 |
 | clean reinstall 选项开启 | 支持 | 先清理 App 数据，再安装 APK |
 | overlay 或 cache 状态不匹配 | 支持 | recover 失败后重新安装 |
-| APK install 遇到可恢复异常 | 支持有限重试 | 必要时卸载当前 applicationId 后重新安装 |
+| 默认 APK installer 遇到可恢复异常 | 支持有限重试 | 必要时卸载当前 applicationId 后重新安装；自定义脚本不自动重试 |
 | 多 APK 应用 | 支持 | 按 applicationId 分组安装 base、split 或 test APK |
 
 > [!NOTE]
@@ -38,7 +38,7 @@ Clean Reinstall 用于重新建立 App 在设备上的可信基线。Jugg 会安
   -> reset staging / deployed 文件状态
 ```
 
-安装前先停止 App，避免用户看到“安装成功后又被停止”的体验。安装成功后，Jugg 会把当前 APK 与 overlay id 作为新的部署 checkpoint；如果是 recover 触发的 reinstall，还会清空旧的 deployed data、resource APK 和 staging 状态。
+安装前先停止 App，避免用户看到“安装成功后又被停止”的体验。启用自定义 APK 安装脚本时，普通 App 的这一步由项目脚本完成；androidTest APK 仍使用默认 installer。安装成功并通过 APK 校验后，Jugg 会把当前 APK 与 overlay id 作为新的部署 checkpoint；如果是 recover 触发的 reinstall，还会清空旧的 deployed data、resource APK 和 staging 状态。
 
 ## 与增量部署的关系
 
@@ -53,6 +53,7 @@ Clean Reinstall 通常出现在以下边界：
 ## 相关页面
 
 - [清理数据](../../guide/clean-data.md)
+- [自定义 APK 安装脚本](./custom-apk-install-script.md)
 - [部署状态与恢复](../../concepts/deploy-state-recover.md)
 - [Recover 与 Retry](./recover-and-retry.md)
 - [部署历史与缓存](./deploy-history-cache.md)

@@ -104,7 +104,7 @@ class AsStartupAgentPusherTest {
 
         pusher.pushApplyChangesStartupAgent("com.example.app", "arm64-v8a", Deploy.Arch.ARCH_64_BIT)
 
-        val script = adb.shellScripts.single()
+        val script = adb.shellScripts.last { it.contains("__JUGG_AS_AGENT__") }
         assertFalse("backslash breaks sh -c single-quoted scripts on device", script.contains("&& \\"))
         assertTrue(script.contains("if [ -d code_cache/startup_agents ]"))
     }
@@ -193,6 +193,19 @@ class AsStartupAgentPusherTest {
 
         override fun execAdbShellScript(cmd: String): String {
             shellScripts += cmd
+            // AppSandboxExecutor probes run-as before any app-private command; report a debuggable
+            // app whose code_cache SELinux context matches so the pusher reaches its own script.
+            if (cmd.contains(RUN_AS_PROBE_MARKER)) {
+                return "$RUN_AS_PROBE_MARKER:10123\n" +
+                    "$RUN_AS_CONTEXT_MARKER:u:object_r:app_data_file:s0|u:object_r:app_data_file:s0"
+            }
+            if (cmd.contains("ls -1 code_cache/startup_agents")) {
+                return if (startupAgents.isEmpty()) {
+                    "No such file or directory"
+                } else {
+                    startupAgents.joinToString("\n")
+                }
+            }
             return if (failRunAsCopy) {
                 "__JUGG_AS_AGENT__ FAILED"
             } else {
@@ -215,5 +228,10 @@ class AsStartupAgentPusherTest {
         override fun getDefaultLaunchActivity(apkFile: File): String? = null
         override fun getArch(packageName: String): String = "ARCH_UNKNOWN"
         override fun getProperty(name: String): String? = null
+
+        companion object {
+            private const val RUN_AS_PROBE_MARKER = "__JUGG_RUN_AS_OK__"
+            private const val RUN_AS_CONTEXT_MARKER = "__JUGG_RUN_AS_CONTEXT__"
+        }
     }
 }

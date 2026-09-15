@@ -64,6 +64,33 @@ data class SimpleCompileContext(
         }
     }
 
+    /** Mirrors BaseCompileContext: one Gradle R.jar per module, never two AGP module compile layouts. */
+    private fun getModuleClassPath(moduleInfo: ModuleInfo): List<String> {
+        val classPath = moduleInfo.buildPathInfo.allClassPath.filter { file ->
+            file.exists()
+        }.map { file ->
+            file.absolutePath
+        }
+        return classPath + getGradleRFilePaths(moduleInfo)
+    }
+
+    /** Simplified R provider rule of BaseCompileContext; the mock has no dynamic feature module. */
+    private fun getGradleRFilePaths(moduleInfo: ModuleInfo): List<String> {
+        val buildPathInfo = moduleInfo.buildPathInfo
+        val usesAggregateR = moduleInfo.isAndroidTestModule ||
+                moduleInfo.moduleType == ModuleInfo.Type.Application ||
+                moduleInfo.moduleType == ModuleInfo.Type.DynamicFeature ||
+                (moduleInfo.moduleType == ModuleInfo.Type.Unknown &&
+                        moduleInfo.moduleRootDir.absolutePath == applicationModule.moduleRootDir.absolutePath)
+        if (usesAggregateR) {
+            return listOfNotNull(buildPathInfo.rFilePath.takeIf(File::exists)).map { it.absolutePath }
+        }
+        if (moduleInfo.moduleType == ModuleInfo.Type.JavaLibrary) {
+            return emptyList()
+        }
+        return listOfNotNull(buildPathInfo.moduleCompileRFile).map { it.absolutePath }
+    }
+
     private fun getAndroidJarPath(moduleInfo: ModuleInfo): String {
         if (moduleInfo.compileVersion != null) {
             val androidJar = File(androidHome, "platforms/android-${moduleInfo.compileVersion}/android.jar")
@@ -103,22 +130,14 @@ data class SimpleCompileContext(
             .map { it.file.absolutePath }
         tempDependencies = tempDependencies + tempLibraryDependency
 
-        val classpathDependencies = moduleInfo.buildPathInfo.allClassPath.filter { file ->
-            file.exists()
-        }.map { file ->
-            file.absolutePath
-        }
+        val classpathDependencies = getModuleClassPath(moduleInfo)
 
         val moduleDependencies: List<String> = moduleInfo.moduleDependencies.flatMap {
             val dependencyModuleInfo = modules[it.moduleName] ?: run {
                 logger.warn("module ${it.moduleName} not found in ${moduleInfo.name}'s dependencies, maybe sync gradle again helps.")
                 return@flatMap emptyList()
             }
-            dependencyModuleInfo.buildPathInfo.allClassPath.filter { file ->
-                file.exists()
-            }.map { file ->
-                file.absolutePath
-            }
+            getModuleClassPath(dependencyModuleInfo)
         }
         val libraryDependency = moduleInfo.getLibraryDependencyPaths()
 
@@ -204,7 +223,7 @@ data class SimpleCompileContext(
 
     var desugarInfo = DesugarInfo.EMPTY
 
-    override fun getDesugarInfo(compileFiles: List<CompileFile>, moduleInfo: ModuleInfo, toDir: File): DesugarInfo {
+    override fun getDesugarInfo(preparation: ClassPreparation, moduleInfo: ModuleInfo, toDir: File): DesugarInfo {
         return desugarInfo
     }
 

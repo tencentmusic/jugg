@@ -10,6 +10,8 @@ import com.sickworm.intellij.jugg.compiler.ui.BuildChangesConfirmResult
 import com.sickworm.intellij.jugg.compiler.context.CompileContextManager
 import com.sickworm.intellij.jugg.compiler.context.ICompileEnvironmentSource
 import com.sickworm.intellij.jugg.compiler.ui.TooManyChangesConfirmResult
+import com.sickworm.intellij.jugg.compiler.external.deriveExternalBuildCommand
+import com.sickworm.intellij.jugg.compiler.external.resolveExternalBuild
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.sickworm.intellij.jugg.deploy.instrument.LibraryTestApkBuildHistory
@@ -25,6 +27,8 @@ import com.sickworm.intellij.jugg.project.change.ChangedFile
 import com.sickworm.intellij.jugg.project.change.IFileChangesHandler
 import com.sickworm.intellij.jugg.project.change.GitFileChangesDetector
 import com.sickworm.intellij.jugg.project.info.ClasspathBackupHelper
+import com.sickworm.intellij.jugg.project.info.ExternalBuildInfo
+import com.sickworm.intellij.jugg.project.info.ExternalBuildType
 import com.sickworm.intellij.jugg.project.info.JuggProjectInfo
 import com.sickworm.intellij.jugg.project.info.ProjectInfoSerializer
 import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
@@ -414,6 +418,15 @@ class JuggCompilerHelper(
             return CompileTaskResult.incrementalFailed(true, "Force fallback")
         }
 
+        val externalBuildSources = deployFileManager.getUncompiledFiles().filter {
+            it.type == CompileFile.Type.ExternalBuildSource
+        }
+        val hasExternalBuildSources = externalBuildSources.isNotEmpty()
+        if (hasExternalBuildSources && options.isRemoteCompile) {
+            logger.info("External source changes require local build outputs, forcing remote Gradle full compile.")
+            return CompileTaskResult.incrementalFailed(true, "External build output is unavailable locally")
+        }
+
         // Build target switch (APP <-> ANDROID_TEST) requires a full Gradle compile to produce correct APKs.
         if (deployHistoryManager.isBuildTargetChanged(options)) {
             logger.info("Build target changed to ${options.buildTarget}, forcing Gradle full compile.")
@@ -425,6 +438,20 @@ class JuggCompilerHelper(
             logger.info("Compile command changed, forcing Gradle full compile. " +
                     "last=$lastCompileCommand current=${options.compileCommand}")
             return CompileTaskResult.incrementalFailed(true, "Compile command changed")
+        }
+
+        findExternalBuildFallbackReason(externalBuildSources)?.let { reason ->
+            logger.info("$reason, forcing Gradle full compile.")
+            return CompileTaskResult.incrementalFailed(true, reason)
+        }
+        if (hasExternalBuildSources) {
+            val taskPaths = externalBuildSources.mapNotNull(::resolveExternalBuildInfo)
+                .mapNotNull { it.taskPath }
+                .distinct()
+            if (lastCompileCommand == null || deriveExternalBuildCommand(lastCompileCommand, taskPaths) == null) {
+                logger.info("External source changes require a derivable Gradle command, forcing Gradle full compile.")
+                return CompileTaskResult.incrementalFailed(true, "External build command cannot be derived")
+            }
         }
 
         getInitialFullCompileReason()?.let {
@@ -493,6 +520,31 @@ class JuggCompilerHelper(
                 IdeDeployState(IdeDeployState.State.INVALID_DEVICE, "device is not online"),
             )
         return deployStateManager.updateDeployState(targetDevice)
+    }
+
+    /**
+     * Resolves every external input before the incremental compile starts. Any input without usable
+     * metadata, task or artifact contract, and any removed input, forces a full Gradle build instead
+     * of a partial external build.
+     */
+    private fun findExternalBuildFallbackReason(files: List<ChangedFile>): String? {
+        files.forEach { file ->
+            if (!file.file.exists()) {
+                return "External build source was removed, full Gradle compile required"
+            }
+            val buildInfo = resolveExternalBuildInfo(file)
+                ?: return "External build metadata not found"
+            if (!buildInfo.isSupported) {
+                return buildInfo.unsupportedReason ?: "External build is not supported"
+            }
+        }
+        return null
+    }
+
+    private fun resolveExternalBuildInfo(file: ChangedFile): ExternalBuildInfo? {
+        val module = runCatching { compileContextManager.compileContext.modules[file.module.name] }
+            .getOrNull() ?: file.module
+        return resolveExternalBuild(module, file.file)
     }
 
     private fun isCompileCommandChanged(options: JuggGradleCompileOptions): Boolean {

@@ -43,6 +43,67 @@ data class ComposeResourceDirectory(
     val directory: File,
 )
 
+/** External Gradle build discovered for sources that Jugg cannot compile directly. */
+data class ExternalBuildInfo(
+    val type: ExternalBuildType,
+    /** Recursive trigger roots: any non-excluded file below them belongs to this external build. */
+    val inputDirs: List<File>,
+    /** Task producing the final native artifacts: a Flutter pack/copy task or a C++ merge task. */
+    val taskPath: String?,
+    /** Directory holding Flutter `flutter_assets`; null for external builds without assets output. */
+    val assetsOutputDir: File?,
+    /** Final deployable native output holding `<abi>` native libraries: one archive or one directory. */
+    val nativeOutput: File?,
+    val unsupportedReason: String? = null,
+    /**
+     * Configuration inputs of this external build. Changing one reruns the external task, which
+     * rewrites this metadata; it does not by itself require a full Gradle build.
+     */
+    val configFiles: List<File> = emptyList(),
+    /** Generated output and cache roots owned by the toolchain; never watched as sources. */
+    val excludedDirs: List<File> = emptyList(),
+) {
+    val isSupported: Boolean
+        get() = taskPath != null && nativeOutput != null && unsupportedReason == null &&
+                (type != ExternalBuildType.Flutter || assetsOutputDir != null)
+}
+
+/** Supported external source toolchains. */
+enum class ExternalBuildType {
+    Flutter,
+    Cpp,
+}
+
+/** One external build whose metadata must be refreshed after its Gradle task finishes. */
+data class ExternalBuildInfoRequestItem(
+    val moduleName: String,
+    val moduleRootDir: File,
+    val buildVariant: String,
+    val taskPath: String,
+    val type: ExternalBuildType,
+)
+
+/** Invocation-scoped request consumed by the Gradle init script collector. */
+data class ExternalBuildInfoRequest(
+    val invocationId: String,
+    val items: List<ExternalBuildInfoRequestItem>,
+)
+
+/** Targeted project-info patch produced after one external Gradle task. */
+data class ExternalBuildInfoUpdate(
+    val moduleName: String,
+    val moduleRootDir: File,
+    val buildVariant: String,
+    val previousTaskPath: String,
+    val externalBuildInfo: ExternalBuildInfo,
+)
+
+/** One build-root collector result. Multiple files may form one composite-build invocation. */
+data class ExternalBuildInfoUpdateResult(
+    val invocationId: String,
+    val updates: List<ExternalBuildInfoUpdate>,
+)
+
 /**
  * Gradle module snapshot used to resolve sources, manifests, classpaths, and dependencies.
  */
@@ -96,7 +157,8 @@ data class ModuleInfo(
     val instrumentationTargetPackage: String? = null,
     val composeResourceInfo: ComposeResourceInfo? = null,
     /** Effective options declared by Kotlin compiler subplugins for this module. */
-    val kotlinPluginOptions: List<String> = emptyList(),
+    val kotlinPluginOptions: List<String>,
+    val externalBuildInfos: List<ExternalBuildInfo>,
 ) {
     // do not add unnecessary content before ") {", for kotlin 1.3 compat: buildReadProjectInfoScript.gradle
     // if adds new fields, also updates:
@@ -157,6 +219,8 @@ data class ModuleInfo(
             runtimeLibraryDependencies = emptyList(),
             annotationProcessorDependencies = emptyList(),
             kaptDependencies = emptyList(),
+            kotlinPluginOptions = emptyList(),
+            externalBuildInfos = emptyList(),
         )
     }
 }
@@ -224,6 +288,22 @@ data class ModuleBuildPathInfo(
     val libraryRFilePathInLowAgp get() = File(libraryRFileDirInLowAgp, "generate${buildVariant.camelCompat}RFile/R.jar").takeIf(File::exists) // AGP 3.4.3
         ?: File(libraryRFileDirInLowAgp, "R.jar") // AGP 3.5.4
 
+    // AGP 7.4+ writes the module compile-time R.jar of libraries here (compile_r_class_jar)
+    private val moduleCompileRFileDir get() = File(buildDir, "intermediates/compile_r_class_jar/$buildVariant")
+
+    /**
+     * Module compile R.jar candidates. A dirty workspace keeps the pre-AGP-7 output layout
+     * (compile_only_not_namespaced_r_class_jar) next to the current compile_r_class_jar, so both
+     * layouts are one semantic set and the newest one wins. Application aggregate R.jar lives in
+     * another set and must never be compared with these.
+     */
+    val moduleCompileRFileCandidates get() = (moduleCompileRFileDir.listFilesRecursively().filter { it.name == "R.jar" } +
+        libraryRFileDirInLowAgp.listFilesRecursively().filter { it.name == "R.jar" })
+        .distinctByAbsolutePath()
+
+    /** Module compile R.jar selected from the newest candidate; null when this module writes none. */
+    val moduleCompileRFile get() = moduleCompileRFileCandidates.newestFile()
+
     private val legacyKotlinClassPath get() = File(buildDir, "tmp/kotlin-classes/$buildVariant")
 
     /** AGP 9 Built-in Kotlin compiler output. */
@@ -284,11 +364,16 @@ data class ModuleBuildPathInfo(
 
     val syncToLocalPathList get() = customSyncFiles + listOf(generatedSourcePath)
 
-    val allClassPath get() = customClasspathFiles + listOf(kotlinClassPath, javaClassPath, rFilePath, kotlinClassPathForJavaLibrary, javaClassPathForJavaLibrary, libraryRFilePathInLowAgp)
+    /**
+     * Normal Gradle outputs of this module. Gradle R.jars are excluded on purpose: the compile
+     * context picks one R provider per module type and appends it, so a stale R.jar of another
+     * layout can never shadow the selected one.
+     */
+    val allClassPath get() = customClasspathFiles + listOf(kotlinClassPath, javaClassPath, kotlinClassPathForJavaLibrary, javaClassPathForJavaLibrary)
 
     // use to fetch all class path after full build
     val allBuildPaths get() = listOf(legacyKotlinClassPath, builtInKotlinClassPath, kmpAndroidKotlinClassPath,
-        javaClassPathNew, javaClassPathOld, rFilePathDir,
+        javaClassPathNew, javaClassPathOld, rFilePathDir, moduleCompileRFileDir,
         kotlinClassPathForJavaLibrary, javaClassPathForJavaLibrary, generatedSourcePath,
         oldLibraryMergedManifestDir, libraryMergedManifestDir, applicationMergedManifestDir, libraryRFileDirInLowAgp,
         dataBindingInfoDir, dataBindingDependencyInfoDir, dataBindingArtifactDir,

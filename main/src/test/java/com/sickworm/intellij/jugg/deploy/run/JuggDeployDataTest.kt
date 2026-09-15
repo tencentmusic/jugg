@@ -190,6 +190,44 @@ class JuggDeployDataTest {
     }
 
     @Test
+    fun `flutter jit runtime files require app restart`() {
+        val data = deployData(
+            overlays = listOf(
+                deployItem("assets/flutter_assets/kernel_blob.bin", CompileOutput.Type.Asset, basePath, listOf(basePath)),
+            ),
+            flutterJitRuntimeFiles = listOf(
+                deployItem("assets/flutter_assets/kernel_blob.bin", CompileOutput.Type.Asset, basePath, listOf(basePath)),
+            ),
+        )
+
+        assertTrue(data.isNeedRestartApp)
+        assertFalse(data.isNeedRestartActivity)
+        assertEquals(JuggDeployData.DeployType.HOT_FIX, data.deployType)
+    }
+
+    @Test
+    fun `filterForApks filters flutter jit runtime files`() {
+        val data = deployData(
+            overlays = listOf(
+                deployItem("assets/flutter_assets/kernel_blob.bin", CompileOutput.Type.Asset, basePath, listOf(basePath)),
+                deployItem("flutter_assets/kernel_blob.bin", CompileOutput.Type.Asset, testPath, listOf(testPath)),
+            ),
+            flutterJitRuntimeFiles = listOf(
+                deployItem("assets/flutter_assets/kernel_blob.bin", CompileOutput.Type.Asset, basePath, listOf(basePath)),
+                deployItem("flutter_assets/kernel_blob.bin", CompileOutput.Type.Asset, testPath, listOf(testPath)),
+            ),
+        )
+
+        val baseScoped = data.filterForApks(listOf(baseApk))
+        val testScoped = data.filterForApks(listOf(testApk))
+
+        assertEquals(listOf("assets/flutter_assets/kernel_blob.bin"), baseScoped.flutterJitRuntimeFiles.map { it.name })
+        assertTrue(baseScoped.isNeedRestartApp)
+        assertEquals(listOf("flutter_assets/kernel_blob.bin"), testScoped.flutterJitRuntimeFiles.map { it.name })
+        assertTrue(testScoped.isNeedRestartApp)
+    }
+
+    @Test
     fun `empty replay after reinstall requires app restart`() {
         val data = deployData(isRecoverReplayAfterReinstall = true)
 
@@ -215,6 +253,7 @@ class JuggDeployDataTest {
         isFullRes: Boolean = false,
         isComposeResourceCompiled: Boolean = false,
         isRecoverReplayAfterReinstall: Boolean = false,
+        flutterJitRuntimeFiles: List<DeployItem> = emptyList(),
     ): JuggDeployData {
         return JuggDeployData(
             apks = listOf(baseApk, testApk),
@@ -230,6 +269,7 @@ class JuggDeployDataTest {
             constRefEffectedSourcePaths = constRefEffectedSourcePaths,
             isComposeResourceCompiled = isComposeResourceCompiled,
             isRecoverReplayAfterReinstall = isRecoverReplayAfterReinstall,
+            flutterJitRuntimeFiles = flutterJitRuntimeFiles,
         )
     }
 

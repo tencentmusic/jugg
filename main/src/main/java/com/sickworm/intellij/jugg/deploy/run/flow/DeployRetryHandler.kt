@@ -50,7 +50,7 @@ class DeployRetryHandler(
         // through we can detect it in some way, but it's more simple and good enough to fall back to HOT_FIX.
         val isUnmodifiableClass = reason.contains("JVMTI_ERROR_UNMODIFIABLE_CLASS")
         // something wrong with DeployDataGenerator... fall back too
-        val isRequiresAppRestart = reason.contains("app restart")
+        val isRequiresAppRestart = reason.contains("app restart") || reason.contains("application restart")
         // seems like a bug of some devices e.g. OPPO Reno.
         val isRedifinerError = reason.contains("R+ Device should have FULL debugger swap support")
         // seems like a bug of deploy service, just retry
@@ -93,7 +93,7 @@ class DeployRetryHandler(
         val isClassNotFoundException = reason.contains("Class not found")
         // logical error in JuggDeployer, thrown by DeployerException.overlayIdMismatch()
         val isOverlayIdNotMatch = reason.contains("The target app on the device is in a state unknown to Studio")
-        val isDirectDeployFailed = reason.contains("Direct overlay")
+        val isDirectDeployFailed = reason.contains("Direct overlay") || reason.contains("Direct app sandbox")
 
         val reinstallWhenTimeout = deployOptions.timeOutRetryTimes == 2 // try to reinstall apk at the third time
         val stopRetryWhenTimeout = deployOptions.timeOutRetryTimes >= 3
@@ -158,6 +158,7 @@ class DeployRetryHandler(
                     deployOptions.isSkipExceptOverlayCheck,
                     compileUiHandler = deployOptions.compileUiHandler,
                     allowDirectOverlayRecover = allowDirectOverlayRecover,
+                    customApkInstallScript = deployOptions.customApkInstallScript,
                 )
                 if (!isSuccess) {
                     logger.warn("Try recover deploy state failed on retry.")

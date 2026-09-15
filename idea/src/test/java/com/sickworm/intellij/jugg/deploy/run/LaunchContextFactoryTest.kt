@@ -5,6 +5,7 @@ import com.android.tools.deployer.Installer
 import com.sickworm.intellij.jugg.deploy.api.ILogger
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
+import com.sickworm.intellij.jugg.deploy.AppAbiCache
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.mock.TestGlobal
@@ -114,6 +115,7 @@ class LaunchContextFactoryTest {
         return LaunchContextFactory(
             environment = TestDeployEnvironment(asDeployerCompat, adb, isDirectOverlayEnabled = JuggSettings.isEnableDirectOverlayDeploy),
             logger = logger,
+            appAbiCache = AppAbiCache(),
         )
     }
 

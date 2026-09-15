@@ -16,6 +16,9 @@ import java.io.File
 
 typealias OutputFileMapper = (CompileFile) -> List<CompileOutput>
 
+/** The demo project sets `layout.buildDirectory` to `<project root>/build/<module name>`. */
+const val DEMO_APP_BUILD_DIR_RELATIVE_PATH = "build/app"
+
 object TestGlobal {
 
     private val rootDir = File("../").absoluteFile.normalize()
@@ -76,11 +79,13 @@ object TestGlobal {
         buildVariant = ModuleInfo.DEFAULT_BUILD_VARIANT,
         compileVersion = null,
         buildToolsVersion = null,
+        // The demo project redirects every module build directory to <root>/build/<module>,
+        // so the fixture must use the same relative path as the Gradle read project info.
         buildPathInfo = ModuleBuildPathInfo(
             projectRootDir,
             appModuleDir,
             ModuleInfo.DEFAULT_BUILD_VARIANT,
-            buildDirRelativePath = "",
+            buildDirRelativePath = DEMO_APP_BUILD_DIR_RELATIVE_PATH,
         ),
         kotlinJvmTarget = "1.8",
         kotlinFreeCompilerArgs = emptyList(),
@@ -92,6 +97,8 @@ object TestGlobal {
         runtimeLibraryDependencies = emptyList(),
         annotationProcessorDependencies = emptyList(),
         kaptDependencies = emptyList(),
+        kotlinPluginOptions = emptyList(),
+        externalBuildInfos = emptyList(),
     )
 
     val projectInfo = try {

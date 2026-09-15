@@ -194,6 +194,32 @@ class DeployRetryHandlerTest {
     }
 
     @Test
+    fun `tryRetry should redeploy with hot fix fallback when resource requires application restart`() {
+        val device = Mockito.mock(IDevice::class.java)
+        val deployOptions = DeployOptions(device = device, isLastDevice = true)
+        val deployData = JuggDeployData.forInstall(emptyList())
+        val reason = "Adding or renaming a resource requires an application restart."
+
+        val deployRunHost = RecordingDeployRunHost(DeployTaskResult(isSuccess = true, costTime = 3L))
+        val handler = createHandler(
+            deployRunHost = deployRunHost,
+            deployTargetManager = foregroundAwareTargetManager(device, isForeground = false),
+        )
+
+        val result = handler.tryRetry(
+            deployOptions,
+            finalIsFallbackAllHotFix = false,
+            deployData = deployData,
+            reason = reason,
+        )
+
+        assertEquals(deployRunHost.lastResult, result)
+        assertEquals(deployData.toFallbackToHotFixData(), deployRunHost.lastRedeployOptions?.retryDeployData)
+        assertEquals(reason, deployRunHost.lastRedeployOptions?.retryReason)
+        assertEquals(true, deployRunHost.lastRedeployOptions?.isSkipExceptOverlayCheck)
+    }
+
+    @Test
     fun `tryRetry should prefer direct overlay retry when legacy jvmti compat issue is detected`() {
         val device = Mockito.mock(IDevice::class.java)
         val deployOptions = DeployOptions(device = device, isLastDevice = true)
@@ -484,6 +510,52 @@ class DeployRetryHandlerTest {
     }
 
     @Test
+    fun `tryRetry should dry recover deploy state on direct app sandbox mismatch`() {
+        val device = Mockito.mock(IDevice::class.java)
+        val deployOptions = DeployOptions(device = device, isLastDevice = true)
+        val deployData = JuggDeployData.forInstall(emptyList())
+
+        val deployStateRecover = Mockito.mock(DeployStateRecover::class.java)
+        Mockito.`when`(
+            deployStateRecover.recoverDeployState(
+                device,
+                deployOptions.progress,
+                true,
+                deployOptions.isSkipExceptOverlayCheck,
+                false,
+                deployOptions.compileUiHandler,
+                false,
+            ),
+        ).thenReturn(true to false)
+
+        val deployRunHost = RecordingDeployRunHost(DeployTaskResult(isSuccess = true, costTime = 6L))
+        val handler = createHandler(
+            deployStateRecover = deployStateRecover,
+            deployRunHost = deployRunHost,
+            deployTargetManager = foregroundAwareTargetManager(device, isForeground = false),
+        )
+
+        handler.tryRetry(
+            deployOptions,
+            finalIsFallbackAllHotFix = false,
+            deployData = deployData,
+            reason = "Direct app sandbox overlay state mismatch: MISMATCHED",
+        )
+
+        assertFalse(deployRunHost.lastRedeployOptions!!.isAllowDirectOverlayDeploy)
+        assertFalse(deployRunHost.lastRedeployOptions!!.forceDirectOverlayDeploy)
+        Mockito.verify(deployStateRecover).recoverDeployState(
+            device,
+            deployOptions.progress,
+            true,
+            deployOptions.isSkipExceptOverlayCheck,
+            false,
+            deployOptions.compileUiHandler,
+            false,
+        )
+    }
+
+    @Test
     fun `tryRetry should return failure when recover deploy state fails on retry`() {
         val device = Mockito.mock(IDevice::class.java)
         val deployOptions = DeployOptions(device = device, isLastDevice = true, startTime = System.currentTimeMillis())
@@ -580,6 +652,7 @@ class DeployRetryHandlerTest {
             compileUiHandler: CompileUiHandler,
             deferPostDeployLaunch: Boolean,
             isAllowDirectOverlayDeploy: Boolean,
+            customApkInstallScript: String,
         ) = Unit
 
         override fun redeploy(deployOptions: DeployOptions): DeployTaskResult {

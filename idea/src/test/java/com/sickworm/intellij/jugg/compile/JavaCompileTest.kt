@@ -79,7 +79,7 @@ class JavaCompileTest {
     val activityTask = CompileTask.singleJavaFile(File(assetsJavaDir, "com/example/myapplication/MainActivity2.java"),
         stagingDir,
         dependencies = listOf(androidJar.absolutePath)
-                + "$assetsAndroidDir/app/build/intermediates/javac/debug/classes"
+                + mockModule.buildPathInfo.javaClassPath.absolutePath
                 + LibraryParser().loadInTest()!!
     )
     @Test
@@ -104,7 +104,7 @@ class JavaCompileTest {
                     File(assetsAndroidDir, "app/src/main/java"),
                     mockModule,
                     dependencyPaths = listOf(androidJar.absolutePath)
-                            + "$assetsAndroidDir/app/build/intermediates/javac/debug/classes"
+                            + mockModule.buildPathInfo.javaClassPath.absolutePath
                             + LibraryParser().loadInTest()!!
                 )
             ),

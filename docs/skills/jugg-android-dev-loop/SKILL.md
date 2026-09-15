@@ -88,7 +88,7 @@ python3 {SKILL_DIR}/scripts/jugg.py help <subcommand>
 
 ### Build & Deploy Commands
 
-All build commands **block** until completion; no polling needed.
+All build commands **block** until completion. Run compile-class commands (`compile`, `deploy`, `gradle-build`, and `instrument`) as a single foreground CLI call, wait for that process to exit, then parse its output once. These commands may trigger Gradle internally; do not start them in the background or poll `status`, processes, logs, files, or Git state to infer progress. Process exit is the only completion signal.
 Completion means the compile/deploy job reached a terminal state; CLI does not add an extra app-ready wait.
 
 | Command | Purpose | When to Use |

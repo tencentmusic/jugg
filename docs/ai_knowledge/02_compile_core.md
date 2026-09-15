@@ -1,6 +1,6 @@
 # 编译系统：核心架构
 
-> 最后核对：2026-09-03
+> 最后核对：2026-09-14
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -23,7 +23,8 @@
 |--------|------|------|
 | `JuggCompilerHelper` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/JuggCompilerHelper.kt` | 共享 compile 入口，等待初始化/文件处理，决定增量或 Gradle，处理 Git 补检和回退提示 |
 | `IncrementalCompilerHelper` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/IncrementalCompilerHelper.kt` | 单轮增量循环，更新 undeployed/staging 状态，驱动影响传播重编译和一次性失败重试 |
-| `JuggCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/JuggCompiler.kt` | 组合 Compose resource/asset/resource/R.dex/source/dex/minify 等子阶段，按阶段失败快速收口 |
+| `JuggCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/JuggCompiler.kt` | 组合 Flutter/C++ 外部构建、Compose resource、asset/resource/R.dex/source/dex/minify 等子阶段，按阶段失败快速收口 |
+| `ExternalBuildCompiler` / `ExternalBuildTaskRunner` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/external/` | 对 Dart/C/C++ 变化执行当前 variant 的 Flutter/native Gradle task，并把新 assets/`.so` 转为既有增量产物 |
 | `ComposeResourceCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/compose/ComposeResourceCompiler.kt` | 为受支持的 Compose Multiplatform 资源准备 CVR/asset、生成 accessor Kotlin 并编译 generated expect/actual |
 | `BaseCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/BaseCompiler.kt` | 所有编译器的模板方法：类型检查、模块/AndroidTest 分组、APK 分流、自定义编译器 hook |
 | `CompileOrder` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/CompileOrder.kt` | 自定义编译器插入点的顺序范围，不直接代表所有内置阶段的调度代码 |
@@ -36,7 +37,7 @@
 
 | 对象 | 生命周期 | 关键语义 |
 |------|----------|----------|
-| `CompileTask` | 每次子编译阶段新建 | `parentTask` 传递取消状态与已编译通知；`outputDir` 按阶段切到 staging/classes/overlays/tmp 目录 |
+| `CompileTask` | 每次子编译阶段新建 | `parentTask` 传递取消状态、已编译通知与当前 Gradle command；`outputDir` 按阶段切到 staging/classes/overlays/tmp 目录 |
 | `CompileResult.details` | 子阶段返回后向上合并 | 记录输入文件成功/失败；失败时 `quickFailedOthers()` 会把未执行文件标为跳过失败 |
 | `CompileResult.outputs` | 子阶段产物集合 | 后续写入 `DeployFileManager.addStagingFiles()`，部署只消费 staging 中的有效产物 |
 | `CompileOutput.apkPath` | 产物归属锚点 | 兼容旧单 APK 语义；真实 APK 产物会至少包含自身 |
@@ -58,16 +59,17 @@ JuggCompilerHelper.compile(options, uiHandler)
      -> 异步启动 Git 漏文件检查；它不决定本轮 Gradle 回退
      -> 按固定优先级判断：
         1. Force Gradle Compile
-        2. BuildTarget 切换（APP <-> ANDROID_TEST）
-        3. compile command 与 full-build 基线不一致
-        4. 未建立 full-build 基线（`not gradle compile yet`）
-        5. 等待已存在 full-build 基线的 project-info 重建，再检查 project info 是否可用
-        6. INVALID_DEVICE
-        7. 上次 Gradle 编译失败时直接要求 full compile
-        8. 回滚内容未变的文件
-        9. 变更文件过多的确认；选择 Continue 才继续后续判断
-        10. 检查 build file / dependency 变化并完成用户确认
-        11. build file 确认结果要求 rebuild 时返回 full compile
+        2. 外部源码变化但当前使用远程编译、非标准 Gradle command，或存在未解析/已删除的 external 输入
+        3. BuildTarget 切换（APP <-> ANDROID_TEST）
+        4. compile command 与 full-build 基线不一致
+        5. 未建立 full-build 基线（`not gradle compile yet`）
+        6. 等待已存在 full-build 基线的 project-info 重建，再检查 project info 是否可用
+        7. INVALID_DEVICE
+        8. 上次 Gradle 编译失败时直接要求 full compile
+        9. 回滚内容未变的文件
+        10. 变更文件过多的确认；选择 Continue 才继续后续判断
+        11. 检查 build file / dependency 变化并完成用户确认
+        12. build file 确认结果要求 rebuild 时返回 full compile
      -> 用户在“变更过多”确认中选择 Continue 仅影响本轮；选择 Gradle 或任一强制条件都返回可回退结果
      -> 返回 null 才进入 incrementalCompile()
   -> 增量成功：直接返回
@@ -103,13 +105,16 @@ JuggCompiler.doCompile(task)
   -> ComposeResourceCompiler：先准备 Compose resource、生成并编译 accessor Kotlin
      -> changed Compose asset 交给 AssetOverlayCompiler
      -> generated class 交给后续 SourceCompiler/DexCompiler
-  -> AssetOverlayCompiler：asset/native lib（含 Compose asset）进入 overlays
+  -> ExternalBuildCompiler：Dart/C/C++ 变化执行 Flutter/native Gradle task
+     -> Flutter assets 与 Flutter/C++ .so 转为 Asset/NativeLib
+  -> AssetOverlayCompiler：asset/native lib（含 Compose 与外部构建产物）进入 overlays
   -> ResourceOverlayCompiler：resource/manifest 先编译到 tmp_resource
      -> overlay res 移到 overlays
      -> R.java 交给 SourceCompiler 编译
      -> DataBinding/ViewBinding 生成源暂存为下一步 source 输入
   -> RDexForSubmoduleCompiler：必要时把 R.class 生成 R.dex
   -> SourceCompiler：Kotlin/Java/DataBinding mapper/JuggApt/class -> dex/minify
+     -> DexCompiler 内部先执行通用 pre-D8 class preparation；当前只接入 Hilt Android 入口转换
   -> 任一阶段失败或取消：停止后续阶段，并把剩余输入收口为失败/取消结果
 ```
 
@@ -125,6 +130,8 @@ JuggCompiler.doCompile(task)
 - `dex`
 
 `JuggCompiler.doCompile()` 显式编排 Compose resource/asset/resource/source；Compose 阶段必须先完成，生成的 asset 才能进入 `AssetOverlayCompiler`，生成的 class 才能并入 source/dex 链。source 内部再处理 DataBinding mapper、JuggApt、Kotlin、Java、Dex、Minify。`CompileOrder` 主要服务自定义编译器插入点。
+
+pre-D8 class preparation 是 `DexCompiler` 的内部步骤，不是新的 `BaseCompiler` sibling，也不占用 `CompileOrder` 扩展点。`DexCompiler` 在实际 D8 输入确定后统一读取并分析 program class，通过显式 `ClassPreparation` 把同一份结果依次交给 `TransformerCompiler`、`getDesugarInfo` 和 D8；Transformer 只替换命中 Hilt Android 入口的 class，不再承担 program class 解析。第二个真实转换需求出现前不建立 Transformer SPI 或 registry。
 
 ### 5.2 自定义编译器插入点
 
@@ -146,7 +153,12 @@ JuggCompiler.doCompile(task)
 - `splitApkAndCompile()` 是 APK scoped 的产物分流；子类在 `doApkCompile()` 输出时必须保留当前 APK 归属，否则多 APK 场景部署会丢失目标。
 - `RDexForSubmoduleCompiler` 生成的模块 `R.dex` 必须携带 `ModuleApkBelongs` 给出的 `apkPath` / `targetApkPaths`。Dynamic Feature 场景若遗漏该归属，产物会退化为通用 class dex 并扩散到所有 APK，使同包名但资源集合不同的 R 类相互覆盖。
 - `JuggCompiler` 中资源阶段产生的 DataBinding/ViewBinding 源不会立即作为最终产物结束，而是转成下一步 `SourceCompiler` 输入。
+- Dart/C/C++ 源码（含 Flutter assets、同工程或工程外 local path package、`.cmake`/汇编等由 task metadata 确认的输入）命中模块的 `externalBuildInfos` 后进入 `ExternalBuildSource`。归属判定由 `resolveExternalBuild()` 单点给出：`inputDirs` 下任意非排除文件都可触发，`configFiles` 额外精确命中，`excludedDirs` 与工具链缓存目录（`.dart_tool`/`.cxx`/`.externalNativeBuild`）始终排除。`inputDirs` 来自 Flutter 根、task input 父目录、本地 package 根，以及 native 配置根/include root/metadata source 父目录；采集后删除已有祖先目录覆盖的子目录。该模型允许少量误触发，由 Gradle 自己的 up-to-date 判断决定实际工作，但不再依赖旧 depfile 或解析 `pubspec.yaml` 的 asset 声明来发现新文件。
+- 每次 external 变化都会执行对应 Gradle task；产物 CRC 只用于跳过重复部署，不用于跳过 Flutter/C++ 编译。派生命令同时挂载 Jugg init script、显式追加始终执行的 `juggCollectExternalBuildInfo`，并通过 invocation 参数只重读本轮 module/variant/type 的 external metadata。collector 原子写入临时结果目录，不触发完整 project-info local fetch；IDE 在 task 成功后把定向 patch 合入最新 Gradle 快照、重新执行既有 project-info merge，再通过 `ICompileContext` 更新活动 modules。`FileChangesHandler` 监听 context 更新并原子替换扫描范围，因此新增 input directory 在本轮结束后立即生效。collector 结果缺失、不完整或持久化失败时本轮失败，禁止以旧监控范围继续伪造成功。
+- Jugg 只记录一个 native 输出位置，收集时按 file/directory 分派：Flutter 的 native task 是 `compileFlutterBuild<Variant>` 依赖的 `packJniLibsflutterBuild<Variant>` / `packLibsflutterBuild<Variant>`（归档）或 `copyJniLibsflutterBuild<Variant>`（目录），前者只读 archive 的 `lib/<abi>/*.so`，后者只读真实 `destinationDir` 的 `<abi>/*.so`，都不递归扫描 Flutter 中间目录；`flutter_assets` 单独从 assets 输出目录进入 asset overlay。C++ 从 `merge<Variant>NativeLibs` 输出目录收集 `.so`。项目快照保留已识别但缺少 task、assets 输出或 native 输出的不支持状态，Run 预检命中后回退完整 Gradle；外部 task 执行失败、输出路径缺失或不可读、native 归档损坏或包含不安全/重复条目时本轮明确失败。`ExternalBuildCompiler` 会将具体原因同时写入 `CompileError` 并打印 `warn` 日志，不依赖统一出口补打。任务成功且约定输出路径可访问时，即使本轮没有 assets/`.so` 或产物集合缩小也视为成功且不生成对应部署产物；既有 APK 或 overlay 中的旧内容保留到下一次完整 Gradle 构建。
+- `AssetOverlayCompiler` 输出保留来源模块（`CompileOutput.relativeModule`）。Flutter 外部构建产出的 `flutter_assets` 与 Compose asset 都经它进入 staging；部署阶段需要据此区分“本轮真实编译的 Flutter JIT runtime 资产”和 APK 基线里的同名旧文件。`CompileFile` -> `CompileOutput` 的转换只在该编译器内发生，其它子编译器不受影响。
 - `FileChangesHandler` 统一排除所有模块的实际 Gradle build directory 与传统 `${moduleRootDir}/build`。文件监听、Git 补检、恢复事件和源码影响传播经过该入口时，Gradle generated source、resource、asset、manifest、native lib 或 build file 都不会进入变更列表；目录事件会在递归前剪枝。该规则不影响编译器在本轮内直接登记和交接的 JuggApt/Resource/Compose generated source。
+- 外部源码根可位于 Android 模块目录之外，因此会额外加入文件扫描根；`.dart_tool`、`.cxx`、`.externalNativeBuild`、模块 build directory，以及 metadata 声明的 `excludedDirs`（Flutter SDK 根、pub cache 根等）始终排除，避免把生成文件或依赖缓存重新识别为源码变化。已识别的 Dart/C/C++ 源码或配置输入被删除时可保留为变更项，交由预检回退完整 Gradle；Flutter asset 删除沿用普通删除语义，不形成删除产物或回退原因。
 - 删除事件只按路径移除此前登记的待编译项；已不存在的文件不会转成 `ChangedFile`，也不会生成 class、resource、asset 或 Manifest 的移除数据。删除本身因此不会让增量编译失败或自动回退，设备继续保留已安装 APK 和既有 overlay 中的旧内容。重命名会被拆成旧路径删除和新路径新增/修改，只有新路径能够进入编译。需要让旧内容真正消失时，才通过完整 Gradle build 刷新 APK 基线。
 - Compose resource 按项目 Gradle task 暴露的 generator API 结构识别支持能力，不使用 Compose 或 Kotlin 精确版本白名单。项目快照会保留“已检测但不支持”的状态、已配置资源根和用户可见原因；资源变化仍进入编译并失败，随后复用现有下一次运行 Gradle fallback 语义，不会因 `composeResourceInfo=null` 静默过滤。
 - Compose resource 文件删除同样不会形成编译输入；当前没有 deletion 图、generated source/cache 复用或完整 source-set 依赖图，旧 generated class 和已部署资源会继续保留到完整 Gradle build 刷新基线。
@@ -160,7 +172,7 @@ JuggCompiler.doCompile(task)
 
 Run 前判断的完整优先级见 §4.1。可回退条件分为三类：
 
-- 用户或基线强制：Force Gradle、BuildTarget 切换、compile command 变化、project info 不可用。
+- 用户或基线强制：Force Gradle、BuildTarget 切换、compile command 变化、project info 不可用；外部源码变化遇到远程编译、无法安全派生 task 的非标准 Gradle command、任一 external 输入缺少 metadata/task/产物契约、metadata 标记不支持，或 Dart/C/C++ 源码或配置输入被删除。Flutter asset 删除和外部构建产物集合缩小不触发回退。
 - 状态强制：未建立基线或上次 Gradle 失败时直接要求 full compile，避免用户看到无效确认框；build file 是否要求 rebuild 则在大改动确认之后由用户选择决定。
 - 性能策略：Java/Kotlin 文件点数或模块数超过阈值时，IDE 默认 Gradle，允许用户只在本轮选择 Continue；选择 Continue 后才检查 build file / dependency 变化。MCP/CLI 与 `checkFallback()` 不弹窗，直接报告回退。
 
@@ -176,6 +188,7 @@ Run 前判断的完整优先级见 §4.1。可回退条件分为三类：
 - 当前 chain 顺序：
   1. `GitChangesRetryResolver`（`idea` 层）：检测 `unresolved reference / cannot find symbol` 类错误 → 触发 `GitFileChangesDetector.updateChangedFiles()` → 若发现新文件则重试一次。
   2. `IncrementalCompileRetryResolver`：检测依赖缺失关键词 → 更新 compile context → 有变化则重试一次。
+- 语言编译器内部的降级不在本 chain：metadata、plugin option、IDE filesystem 冲突、recreate compiler 与 SDK `android.jar` 后置（`AndroidJarClasspathRetry`）都由 `KotlinCompilerInvoker` 自己在一次 invocation 内处理，共享同一次自动重试预算，不经过 `IIncrementalCompileRetryResolver`。
 - 影响传播重编译：基于 `DeployFileManager.getRecompileFiles(...)`；`IncrementalCompilerHelper` continue compile 过滤两层：（1）排除**上一轮**已编译源文件（`lastRoundCompiledPaths`），但 `RecompileFiles.topLevelFacadeEffectedSourcePaths` 标记的 Kotlin top-level file facade 调用方可突破该过滤；（2）排除本 session 内已按相同影响触发键跟编过的源文件（`ContinueCompileEffectFilter.resolveUncompiledEffectedFiles`：派发跟编前 `schedulePendingEffectTriggers` 写入 `pendingEffectTriggerKeys`，子帧在过滤前先消费 pending 写入 `satisfiedEffectTriggers`；键为 `effectedPath + effectedByClasses` 或首轮 const-ref 批次）。更早轮次若出现**新的**触发方（如定义方 B 结构变化后首次要求重编调用方 A）仍会进入下一轮；同一 `CrashDataSource -> SafeMode` 键不会乒乓重复跟编。递归跟编轮次只做 class/dex 结构影响传播，不再把这些跟编源码作为 `ConstRefEngine` 的新 changed source 输入。
 - 编译成功后的 Git 补检（`GitChangesCompileChecker`）：仅当 Git 刷新后出现**新的待编译**文件（`!hasCompiledOnce`）才触发二次增量编译；已在当轮编译完成、仅因 undeployed 集合成员变化的文件（如 Kuikly 改写 `KuiklyCoreEntry.kt` 且快照未变）不触发。编译结束后 `getAsyncResultIfCompleted()` 只消费已经完成的异步任务，不等待仍在运行的 Git 查询；未完成时记录 debug 并继续当前流程，迟到结果不会被后续 Run 误读。已完成结果仍会按路径用当前 `DeployFileManager` 状态再校验一次，避免缓存的 `ChangedFile` 仍显示 `compiledTimes=0` 而误触发 `compile again`。
 

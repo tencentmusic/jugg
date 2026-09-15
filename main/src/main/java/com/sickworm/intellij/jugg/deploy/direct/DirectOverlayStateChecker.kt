@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.deploy.direct
 
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.deploy.AppSandboxExecutor
 import com.sickworm.intellij.jugg.deploy.CachedOverlayId
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
@@ -15,6 +16,8 @@ class DirectOverlayStateChecker(
     private val logger: Logger,
     private val deployHistoryManager: IDeployHistoryManager? = null,
     private val deploymentService: IJuggDeploymentService? = null,
+    private val sandboxExecutor: AppSandboxExecutor? = null,
+    private val propagateFailure: Boolean = false,
 ) {
 
     /**
@@ -55,22 +58,23 @@ class DirectOverlayStateChecker(
      */
     fun checkDevice(packageName: String, expectedDeviceOverlayId: String): DirectOverlayStateCheckResult {
         val output = try {
-            adb.execAdbShellScript(buildCheckScript(packageName))
+            (sandboxExecutor ?: AppSandboxExecutor(adb, packageName, logger)).exec(buildCheckScript())
         } catch (e: Exception) {
+            if (propagateFailure) {
+                throw e
+            }
             logger.debug("Direct overlay state check failed.", e)
             return DirectOverlayStateCheckResult.UNKNOWN
         }
         return parseOutput(output.trim(), expectedDeviceOverlayId)
     }
 
-    private fun buildCheckScript(packageName: String): String {
-        return "run-as $packageName sh -c '" +
-            "if [ -d code_cache/.overlay ]; then " +
+    private fun buildCheckScript(): String {
+        return "if [ -d code_cache/.overlay ]; then " +
             "if [ -f code_cache/.overlay/id ]; then " +
             "printf \"$MARKER ID \"; cat code_cache/.overlay/id; " +
             "else echo \"$MARKER MISSING_ID\"; fi; " +
-            "else echo \"$MARKER NO_DIR\"; fi" +
-            "'"
+            "else echo \"$MARKER NO_DIR\"; fi"
     }
 
     private fun parseOutput(output: String, expectedDeviceOverlayId: String): DirectOverlayStateCheckResult {
@@ -104,7 +108,7 @@ class DirectOverlayStateChecker(
 }
 
 /**
- * DirectOverlayStateCheckResult is tri-state because adb/run-as failures must fall back to the legacy dry deploy.
+ * DirectOverlayStateCheckResult is tri-state because app sandbox failures must fall back to the legacy dry deploy.
  */
 enum class DirectOverlayStateCheckResult {
     MATCHED,

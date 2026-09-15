@@ -13,12 +13,17 @@ import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.project.info.JuggProjectInfo
+import com.sickworm.intellij.jugg.project.info.ExternalBuildInfoUpdate
 import com.sickworm.intellij.jugg.project.info.LibraryDependency
 import com.sickworm.intellij.jugg.project.info.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import com.sickworm.intellij.jugg.project.info.IProjectModelSource
 import com.sickworm.intellij.jugg.project.info.ProjectModelLoadReason
 import com.sickworm.intellij.jugg.project.info.ProjectModelResult
+import com.sickworm.intellij.jugg.project.info.ProjectInfoSerializer
+import com.sickworm.intellij.jugg.project.info.createGradleProjectInfoSerializers
+import com.sickworm.intellij.jugg.project.IExternalBuildInfoUpdater
+import com.sickworm.intellij.jugg.project.mergeExternalBuildInfoUpdates
 import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import com.sickworm.intellij.jugg.server.protocols.ModuleCustomConfig
 import java.io.File
@@ -267,6 +272,11 @@ class CompileContextManager(
             deployFileManager = deployFileManager,
             deployHistoryManager = deployHistoryManager,
             customCompilerManager = customCompilerManager,
+            externalBuildInfoUpdater = object : IExternalBuildInfoUpdater {
+                override fun update(updates: List<ExternalBuildInfoUpdate>): Map<String, ModuleInfo>? {
+                    return updateExternalBuildInfos(updates)
+                }
+            },
             incrementalDataDir = File(pathManager.compileRootDir, "incremental"),
             cmdCompileEnv = compileEnvironmentSource.buildCompileEnv(logger),
             scene = scene,
@@ -274,6 +284,34 @@ class CompileContextManager(
         )
         TimeLogger.end("createCompileContext", logger)
         return context
+    }
+
+    /** Persists task-local external build metadata and reloads the effective project model. */
+    @Synchronized
+    private fun updateExternalBuildInfos(updates: List<ExternalBuildInfoUpdate>): Map<String, ModuleInfo>? {
+        ensureInitProjectInfo()
+        val remaining = updates.toMutableList()
+        createGradleProjectInfoSerializers(pathManager, logger).forEach { serializer ->
+            val freshSerializer = ProjectInfoSerializer(serializer.dataFile, logger)
+            val projectInfo = freshSerializer.loadPreservingFile() ?: return@forEach
+            val matching = remaining.filter { update ->
+                projectInfo.modules.values.any { module ->
+                    module.moduleRootDir.absoluteFile.normalize() == update.moduleRootDir.absoluteFile.normalize() &&
+                        module.buildVariant == update.buildVariant
+                }
+            }
+            if (matching.isEmpty()) return@forEach
+            val modules = mergeExternalBuildInfoUpdates(projectInfo.modules, matching) ?: return null
+            freshSerializer.save(projectInfo.copy(modules = modules))
+            remaining.removeAll(matching)
+        }
+        if (remaining.isNotEmpty()) {
+            logger.warn("External build info update target was not found: ${remaining.map { it.moduleRootDir }}")
+            return null
+        }
+        val result = loadProjectInfo(ProjectModelLoadReason.GRADLE_FETCH)
+        val updatedProjectInfo = result.projectInfo ?: return null
+        return buildEffectiveModules(updatedProjectInfo.modules)
     }
 
     private fun <T, R : Any> Iterable<T>.firstNotNullOfOrNull(transform: (T) -> R?): R? {

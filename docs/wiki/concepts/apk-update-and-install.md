@@ -47,6 +47,8 @@ generate incremental Manifest or native library artifacts
 
 Installation replaces the old process and overlay baseline. Jugg clears deployment file state that can no longer be reused and reorganizes the remaining data from the current compilation result. This lets Manifest or native library changes take effect in the same Run as ordinary classes and resources.
 
+When the current Run Configuration enables a custom APK install script, the project script performs the "install the updated APK" step for ordinary apps. Jugg still requires the script to install the APK supplied by the current run and rebuilds the deployment cache only after checksum verification passes. Android test APKs do not use this script.
+
 ## Difference between APK update and Gradle fallback
 
 Both paths install an APK, but they regenerate different scopes.
@@ -67,3 +69,4 @@ A reinstall triggered by recovery is also not a Gradle fallback. It usually inst
 - [Deployment state and recovery](./deploy-state-recover.md)
 - [Gradle fallback and baseline rebuild](./gradle-fallback-baseline.md)
 - [Clean Reinstall capability](../capabilities/deploy/clean-reinstall.md)
+- [Custom APK install script](../capabilities/deploy/custom-apk-install-script.md)

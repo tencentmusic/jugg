@@ -3,6 +3,8 @@ package com.sickworm.intellij.jugg.deploy.run
 import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
+import com.sickworm.intellij.jugg.deploy.AppAbiCache
+import com.sickworm.intellij.jugg.deploy.AppSandboxExecutor
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 
 /**
@@ -22,6 +24,11 @@ class LaunchContext(
     val isDeviceReadyDeploy: Boolean,
     val isAllowDirectOverlayDeploy: Boolean,
     val forceDirectOverlayDeploy: Boolean = false,
+    /** Non-blank when ordinary app APK installation uses a project script. */
+    val customApkInstallScript: String = "",
+    private val deployHost: IDeployHost? = null,
+    private val appSandboxExecutors: MutableMap<String, AppSandboxExecutor> = mutableMapOf(),
+    internal val appAbiCache: AppAbiCache = AppAbiCache(),
 ) {
     val applyChangesExecutor: IApplyChangesExecutor
         get() = installSession.applyChangesExecutor
@@ -33,6 +40,20 @@ class LaunchContext(
 
     var launchApp: Boolean = false
     var killBeforeLaunch: Boolean = false
+
+    fun getAppSandboxExecutor(packageName: String, logger: Logger): AppSandboxExecutor {
+        return synchronized(appSandboxExecutors) {
+            appSandboxExecutors.getOrPut(packageName) {
+                AppSandboxExecutor(deviceAdb, packageName, logger)
+            }
+        }
+    }
+
+    fun runCustomApkInstall(applicationId: String, logger: Logger) {
+        val host = deployHost
+            ?: throw UnsupportedOperationException("Custom APK install scripts require a deploy host")
+        host.runCustomApkInstall(customApkInstallScript, applicationId, this, logger)
+    }
 
     fun logDirectOverlayEnabled(logger: Logger) {
         logger.debug(
@@ -59,6 +80,10 @@ class LaunchContext(
             isDeviceReadyDeploy = isDeviceReadyDeploy,
             isAllowDirectOverlayDeploy = isAllowDirectOverlayDeploy,
             forceDirectOverlayDeploy = forceDirectOverlayDeploy,
+            customApkInstallScript = customApkInstallScript,
+            deployHost = deployHost,
+            appSandboxExecutors = appSandboxExecutors,
+            appAbiCache = appAbiCache,
         )
     }
 }

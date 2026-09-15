@@ -18,12 +18,14 @@ import org.junit.Test
 import org.mockito.Mockito
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.doNothing
 import org.mockito.kotlin.isNull
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.io.File
 import java.nio.file.Files
@@ -153,15 +155,19 @@ class IncrementalCompilerHelperTest {
         whenever(pathManager.stagingDir).thenReturn(File(tempDir, "staging"))
         whenever(compiler.compile(any())).thenReturn(compileResult)
         whenever(fileChangesHandler.filter(any())).thenReturn(emptyList())
-        whenever(
-            deployFileManager.getRecompileFiles(false, false, null)
-        ).thenReturn(
+        // The const ref analysis is pre-warmed from a coroutine, so it can also be entered after the
+        // synchronous join. Record that it was awaited and check the ordering when detection runs.
+        val constRefAwaited = AtomicBoolean(false)
+        doAnswer { constRefAwaited.set(true) }
+            .`when`(deployFileManager).awaitConstRefAnalysis(listOf(sourceFile.absolutePath))
+        doAnswer {
+            assertTrue(constRefAwaited.get(), "recompile detection ran before const ref analysis was awaited")
             RecompileFiles(
                 effectedSourceFiles = emptyList(),
                 redexClasses = emptyList(),
                 juggDeployData = juggDeployData,
             )
-        )
+        }.`when`(deployFileManager).getRecompileFiles(false, false, null)
 
         val helper = IncrementalCompilerHelper(
             compiler = compiler,
@@ -180,10 +186,7 @@ class IncrementalCompilerHelperTest {
         )
         assertTrue(result.isSuccess)
 
-        val inOrder = Mockito.inOrder(compiler, deployFileManager)
-        inOrder.verify(compiler).compile(any())
-        inOrder.verify(deployFileManager, Mockito.atLeastOnce()).awaitConstRefAnalysis(listOf(sourceFile.absolutePath))
-        inOrder.verify(deployFileManager).getRecompileFiles(false, false, null)
+        verify(deployFileManager, Mockito.atLeastOnce()).awaitConstRefAnalysis(listOf(sourceFile.absolutePath))
     }
 
     @Test

@@ -1,6 +1,6 @@
 # 工程化：兼容层与命令行模块
 
-> 最后核对：2026-08-27
+> 最后核对：2026-09-08
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -74,7 +74,9 @@ IDE 部署主路径（例如 `JuggDeployerHelper` / `JuggDeployTask` / `JuggDepl
 
 共享调用中的 `IDevice`、`Apk`、`ApkEntry`、`DexClass`、`ByteString`、`DexComparator.ChangedClasses`、`Deploy.Arch` 与 `ILogger` 均来自 `com.sickworm.intellij.jugg.deploy.api`。类名和已依赖成员保持不变，使业务迁移主要表现为 import 变化。`IRuntimeDevice` 表达设备属于当前 host runtime，而不是某个 deployer compat；Legacy、Quail 和 IDEA ADB 边界都从同一 handle 解包真实 ddmlib device。`Apk.runtimeObject` 是只在当前进程有效且不参与序列化的 raw APK attachment，避免 owned APK 依赖 converter 实例私有 origin map。共享 API 仍禁止静态暴露 ddmlib、deployer model、deploy proto、shaded protobuf 或 Android logger 类型。
 
-Run Configuration 的 Gradle module identity 与 task module path 分开解析。两者都通过反射调用 `GradleProjectPathKt.getGradleProjectPath(Module)` 获取 project path 与 build root，并结合 external project id 区分 composite build；identity 用于 Jugg Configuration 命名，task path 原样保留 Gradle project path 的 segment 和其中的点号，例如 `:zxphone5.0`，禁止再从 identity 通过 `.` → `:` 反向还原。该调用是可选增强，必须整体捕获 `Throwable`；类、方法或返回数据不符合预期时回退到原有 `module.name` 解析，禁止让 module identity 增强影响旧版 Android Studio 的 Configuration 创建流程。
+Run Configuration 的 Gradle module identity 与 task module path 分开解析。两者优先通过反射调用 `GradleProjectPathKt.getGradleProjectPath(Module)` 获取 project path 与 build root，并结合 external project id 区分 composite build；两者在该 API 不可用时都继续尝试 Bumblebee 的 `AndroidGradleUtil.getModuleGradleProjectPath(Module)`，两种 API 都不可用时才回退到原有 `module.name` 解析。identity 用于 Jugg Configuration 命名，因此 Bumblebee 根工程的 `:app` 同样生成 `jugg:app`，不受 IDE 模块名前缀影响。task path 原样保留 Gradle project path 的 segment 和其中的点号，例如 `:zxphone5.0`，禁止再从 identity 通过 `.` → `:` 反向还原。反射调用是可选增强，必须整体捕获 `Throwable`，禁止让 module identity 增强影响旧版 Android Studio 的 Configuration 创建流程。
+
+Gradle Sync 监听统一使用三参数 `GradleSyncState.subscribe(Project, GradleSyncListener, Disposable)`。该静态入口在 211 与高版本均存在，但 `GradleSyncState` 从 class 变为 interface，直接编译调用会让发布字节码绑定其中一种 owner 形态并产生 `IncompatibleClassChangeError` 风险，因此 IDE 稳定入口必须按类名和方法签名反射调用。订阅仍传入旧 `GradleSyncListener`；221 及后续版本由 Android Studio 内部 adapter 转发到 `GradleSyncListenerWithRoot`。`plugin.xml` 不得再同时注册两个 Sync topic，发布字节码也不得引用 `GradleSyncListenerWithRoot`。
 
 部署主路径也不应直接 import 或字段访问 `StudioFlags`。例如 install mode 通过 `IAsDeployerCompat.getInstallMode()` 获取；legacy compat 可读取旧 `StudioFlags.DELTA_INSTALL`，Quail compat 则提供不依赖该已移除 flag 的实现，避免新版 Android Studio 在 `JuggDeployTask` 触发 `NoSuchFieldError`。
 

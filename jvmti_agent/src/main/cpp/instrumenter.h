@@ -51,7 +51,10 @@ const std::string ToJniFormat(const std::string& class_name) {
 }  // namespace
 
 bool InstrumentApplication(jvmtiEnv* jvmti, JNIEnv* jni,
-                           const std::string& package_name, bool overlay_swap);
+                           const std::string& app_data_dir, bool overlay_swap);
+
+bool LoadInstrumentationJarForApp(jvmtiEnv* jvmti, JNIEnv* jni,
+                                  const std::string& app_data_dir);
 
 // Probably should be in a utility header, but also only used here.
 class JvmtiAllocator : public dex::Writer::Allocator {

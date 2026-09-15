@@ -34,6 +34,7 @@ class DeployFlowRecoverRunHost(
         compileUiHandler: CompileUiHandler,
         deferPostDeployLaunch: Boolean,
         isAllowDirectOverlayDeploy: Boolean,
+        customApkInstallScript: String,
     ) {
         recoverTaskInvokeCount++
         if (data.isInstall) {
@@ -46,6 +47,7 @@ class DeployFlowRecoverRunHost(
             compileUiHandler,
             deferPostDeployLaunch,
             isAllowDirectOverlayDeploy,
+            customApkInstallScript,
         )
         if (data.isInstall) {
             onAfterInstallRecoverTask?.run()

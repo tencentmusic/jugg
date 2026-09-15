@@ -1,6 +1,6 @@
 ---
 title: Updating .so files
-description: Explains incremental native library and .so updates in Jugg and how they take effect through APK re-signing.
+description: Explains how Jugg handles existing .so files, C/C++ source, and Flutter native artifacts, then makes updates take effect by re-signing the APK.
 status: active
 tags:
   - capability
@@ -11,33 +11,63 @@ tags:
 
 # Updating .so files
 
-Jugg can update already generated native library / `.so` files. It writes them into the APK, re-signs the APK, and installs it for the change to take effect.
+Jugg can update already generated native library / `.so` files. For C/C++ modules managed by Gradle, a source change first runs the native build task for the current variant. Native libraries produced by a Flutter add-to-app project enter the same APK update flow. Jugg then writes the libraries into the target APK, re-signs it, and installs it.
 
 ## Supported scope
 
 | Scenario | Current support | User-visible result |
 |---|---|---|
 | Update an existing `.so` under an ABI directory in the project | Supported | Updates the target APK, re-signs it, and installs it |
+| Change C/C++ source managed by Gradle | Supported | Runs the native build task for the current variant, then updates the generated `.so` |
+| Flutter Profile/Release produces `app.so` or native assets | Supported | Runs the Flutter native output task for the current variant, reads native libraries for the target ABI from that task's own output, then updates the APK |
+| Flutter Debug produces assets only, without native libraries | Supported | Updates `flutter_assets` only and does not require native output; an empty native directory still lets the compilation succeed, and no APK is repackaged, re-signed, or installed |
 | Update native libraries for multiple ABIs in the same run | Supported according to target APK ownership | Each target APK receives only its own native libraries |
 | Delete an `.so` | Does not produce a removal result | The installed APK continues containing the old native library |
-| Change C/C++ source, CMake, NDK, ABI, or packaging configuration | Not compiled incrementally directly | Uses a Gradle/NDK build to refresh the APK baseline |
+| Change `CMakeLists.txt`, project `*.cmake`, `Android.mk`, or `Application.mk` | Supported | Runs the native task for the current variant and updates that module's external build information before the same Gradle invocation finishes; new `.so` files update the APK through the existing flow |
+| Change NDK, ABI, native source sets, or packaging rules | Not treated as a source incremental input | Uses a complete Gradle build to refresh the project model and APK baseline |
 
 ## Trigger and result
 
 ```text
-An existing .so in the project directory changes
+C/C++ source changes
+  -> Run the native Gradle task for the current variant
+  -> Collect new .so files from the intermediate output directory
+
+Flutter Dart source changes
+  -> Run the Flutter native output task for the current variant
+  -> Collect .so files under <abi> from that task's own native output, an archive or a directory
+
+An existing .so in the project changes
   -> Determine the target path from its ABI and APK ownership
   -> Write it to the target APK's lib/<abi> directory
   -> Re-sign the APK
   -> Install the updated APK
 ```
 
-After installation, the app uses the native library from the updated APK. Jugg only organizes and deploys already generated `.so` files. Gradle, CMake, and NDK remain responsible for producing `.so` files from C/C++ source.
+After installation, the app uses the native library from the updated APK. Gradle, CMake, and NDK remain responsible for producing `.so` files from C/C++ source. Jugg starts the corresponding task after detecting a source change and passes the new artifacts into the existing native library deployment flow.
+
+## How Debug Dart code takes effect
+
+Flutter Debug/JIT Dart code is not a native library but an asset such as `assets/flutter_assets/kernel_blob.bin`. Jugg delivers it as an asset overlay and never writes it back into the APK, so changing Dart in Debug never repackages, re-signs, or installs an APK.
+
+The Flutter Android embedding extracts `flutter_assets` into the app private directory `app_flutter` and uses `app_flutter/res_timestamp-<versionCode>-<lastUpdateTime>` to decide whether it has to extract again. An overlay update does not change the APK `lastUpdateTime`, so after all overlay slices succeed Jugg deletes that timestamp and fully restarts the app, letting Flutter re-extract from the overlay that already took effect. The deployment type for such a run is Hot Fix.
+
+After the overlay takes effect, the Jugg runtime also refreshes the `AssetManager` retained by Flutter engines so subsequent asset reads use the current overlay. See [Assets and native library internals](../../concepts/incremental-compile/assets-native.md) for the mechanism.
+
+Profile/Release use the AOT artifact `libapp.so`, which is a native library and keeps using the APK update, re-sign, and install path described above.
 
 ## Boundaries
 
 - The direct file-change entry point recognizes only existing `.so` files under the project directory whose parent directory is `armeabi`, `armeabi-v7a`, `arm64-v8a`, `x86`, or `x86_64`.
-- The Gradle `build` directory is not treated as direct incremental input. After changing C/C++ source or native build configuration, run the corresponding Gradle build to refresh the APK. Complete Sync first when the project model changes as well.
+- The C/C++ source entry requires Android Gradle configuration with a CMake or ndk-build file and a discoverable native task for the current variant. Jugg does not watch generated files under `.cxx`, `.externalNativeBuild`, or Gradle `build` directories.
+- Each detected C/C++ source change runs the native task. Artifact content checks only avoid writing identical output back to the APK; they do not skip native compilation.
+- Each detected Dart source change runs the Flutter native output task for the current variant. Jugg reads only the native output that task declares and resolves the `.so` files under each ABI from it, whichever form that output takes. It does not recursively guess native output from Flutter intermediate directories, and it does not assemble artifact locations from fixed paths.
+- If Jugg recognizes a Flutter source root but cannot find the compile task, the assets output directory, or native output metadata, it falls back to a full Gradle build. If the native output cannot be read, or an archive contains unsafe or duplicate native entries, the current compilation fails. A build mode that legitimately produces no native library, such as Debug, succeeds as long as the assets output is valid.
+- If Jugg recognizes a C/C++ source root but cannot find its task or output metadata, it falls back to a full Gradle build. The current compilation fails if the external task fails or the declared output directory is missing or unreadable. If the task succeeds and the output directory is accessible but contains no valid `.so`, the round succeeds without native deployment output.
+- CMake and ndk-build configuration files inside the project (`CMakeLists.txt`, `*.cmake`, `Android.mk`, `Application.mk`) are configuration inputs of the current variant's native build. After you change them, Jugg runs the existing native task and collects and merges only that module's latest external build information in the same Gradle invocation instead of asynchronously refreshing the full project model. Newly added out-of-project shared sources, assembly files, and include roots immediately enter the subsequent watch scope. Configuration the task cannot cover, such as NDK, ABI, native source sets, or packaging rules, still needs a full Gradle build to refresh the APK baseline.
+- C/C++ inputs trigger recursively by directory. Configuration roots, parent directories of metadata sources, and include roots are merged into the smallest practical set of watched directories. Non-excluded files in those directories may cause a small number of false triggers, but Gradle's up-to-date check decides whether native work actually runs. `.cxx`, `.externalNativeBuild`, and build outputs remain excluded.
+- When a recognized C/C++ source or native configuration file is deleted, Jugg falls back to a full Gradle build. If a native artifact collected in the previous round is no longer produced after an external build succeeds, the round still succeeds without a removal result, and the old `.so` remains until a full Gradle build refreshes the APK baseline.
+- When not all external inputs in one round can be resolved, such as a multi-module project where only one module configures a native build, the whole round falls back to a full Gradle build instead of building only the recognizable part.
 - Deleting an `.so` does not produce data that removes the file from the APK and does not fail incremental compilation by itself. The installed APK continues containing the old native library. Run a full Gradle build only when the deletion must actually take effect.
 - Multi-APK projects update native libraries according to target APK ownership instead of writing the same native library into every APK by default.
 - If signing configuration is missing or invalid, the incremental APK update fails. Use a Gradle build to restore an installable APK baseline.

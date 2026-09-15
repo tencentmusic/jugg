@@ -21,6 +21,7 @@ import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
 import com.sickworm.intellij.jugg.deploy.run.TestDeployEnvironment
+import com.sickworm.intellij.jugg.deploy.run.applychanges.CustomApkInstallScriptRunner
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.mock.TestGlobal
 import com.sickworm.intellij.jugg.mock.context
@@ -124,6 +125,7 @@ internal object DeployFlowTestSupport {
 
         val compileContext = Mockito.mock(ICompileContext::class.java)
         Mockito.`when`(compileContext.isDebuggable).thenReturn(true)
+        Mockito.`when`(compileContext.deployedFiles).thenAnswer { deployFileManager.getDeployedFiles() }
         val compileContextManager = Mockito.mock(CompileContextManager::class.java)
         Mockito.`when`(compileContextManager.compileContext).thenReturn(compileContext)
 
@@ -158,7 +160,10 @@ internal object DeployFlowTestSupport {
             logger = ideaLogger,
             deploymentService = DeployFlowMockBackend.deploymentService,
             environment = TestDeployEnvironment(asDeployerCompat, installersRoot = installPathProvider.compute(),
-                isDirectOverlayEnabled = JuggSettings.isEnableDirectOverlayDeploy, adbFactory = deviceAdbFactory),
+                isDirectOverlayEnabled = JuggSettings.isEnableDirectOverlayDeploy, adbFactory = deviceAdbFactory,
+                customApkInstaller = { script, applicationId, launchContext, logger ->
+                    CustomApkInstallScriptRunner(project, script, launchContext, logger).run(applicationId)
+                }),
             stateRecover = deployStateRecover,
         )
         recoverRunHost.bind(helper)

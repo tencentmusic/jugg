@@ -59,7 +59,8 @@ open class JuggControlPanelController(
                     CompileFile.Type.Kotlin -> JuggEvent.ChangedFileCategory.KOTLIN
                     CompileFile.Type.Java -> JuggEvent.ChangedFileCategory.JAVA
                     CompileFile.Type.AndroidManifest -> JuggEvent.ChangedFileCategory.MANIFEST
-                    CompileFile.Type.NativeLib -> JuggEvent.ChangedFileCategory.SO
+                    CompileFile.Type.NativeLib,
+                    CompileFile.Type.ExternalBuildSource -> JuggEvent.ChangedFileCategory.SO
                     CompileFile.Type.Resource -> JuggEvent.ChangedFileCategory.XML
                     else -> JuggEvent.ChangedFileCategory.OTHER
                 },

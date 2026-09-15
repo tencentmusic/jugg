@@ -117,18 +117,21 @@ private class AgpD8Runtime(private val classpath: File) {
             runMethod.invoke(null, command)
             true
         } catch (e: InvocationTargetException) {
-            logger.warn("AGP D8 $version compile failed (classpath: ${classpath.absolutePath}), " +
-                    "use bundled R8 instead", e.targetException)
+            logFallback("AGP D8 $version compile failed", e.targetException, logger)
             false
         } catch (e: Exception) {
-            logger.warn("Run AGP D8 $version failed (classpath: ${classpath.absolutePath}), " +
-                    "use bundled R8 instead", e)
+            logFallback("Run AGP D8 $version failed", e, logger)
             false
         } catch (e: LinkageError) {
-            logger.warn("Link AGP D8 $version failed (classpath: ${classpath.absolutePath}), " +
-                    "use bundled R8 instead", e)
+            logFallback("Link AGP D8 $version failed", e, logger)
             false
         }
+    }
+
+    private fun logFallback(message: String, throwable: Throwable, logger: Logger) {
+        logger.warn("$message, use bundled R8 instead.", null)
+        logger.debug("$message (classpath: ${classpath.absolutePath}), " +
+                "use bundled R8 instead", throwable)
     }
 }
 

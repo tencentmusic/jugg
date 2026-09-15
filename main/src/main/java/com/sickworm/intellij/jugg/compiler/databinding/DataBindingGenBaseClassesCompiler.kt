@@ -25,6 +25,10 @@ class DataBindingGenBaseClassesCompiler(context: ICompileContext, parent: Dispos
 
     override val supportedTypes: List<CompileFile.Type> = listOf(CompileFile.Type.Resource)
 
+    val isLegacyViewBindingUnder70 by lazy {
+        context.containsApkClass(listOf(LegacyViewBindingLookup.VIEW_BINDINGS_DESCRIPTOR)).isEmpty()
+    }
+
     init {
         DataBindingArgsManager.isKaAptRetryAptSuccess = false
         DataBindingArgsManager.isLastFallbackAptFailed = false
@@ -106,6 +110,10 @@ class DataBindingGenBaseClassesCompiler(context: ICompileContext, parent: Dispos
 
         val gradleFileWriter = DataBindingBuilder.GradleFileWriter(argsManager.dataBindingSourcesOutputDir.path)
         baseDataBinder.generateAll(gradleFileWriter)
+        if (isLegacyViewBindingUnder70) {
+            logger.debug("APK baseline has no ViewBindings, rewrite generated lookup to findViewById")
+            LegacyViewBindingLookup.rewriteGeneratedJava(argsManager.dataBindingSourcesOutputDir)
+        }
 
         TimeLogger.end("generateBaseClasses", logger)
     }

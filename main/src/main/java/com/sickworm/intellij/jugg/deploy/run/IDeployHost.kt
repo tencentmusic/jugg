@@ -23,4 +23,13 @@ interface IDeployHost {
     ): LaunchResult?
     fun onDeployTimeout(device: IDevice, logger: Logger)
     fun uninstall(device: IDevice, packageName: String, logger: Logger)
+
+    fun runCustomApkInstall(
+        script: String,
+        applicationId: String,
+        launchContext: LaunchContext,
+        logger: Logger,
+    ) {
+        throw UnsupportedOperationException("Custom APK install scripts are not supported by this deploy host")
+    }
 }
