@@ -26,7 +26,7 @@
 | `JuggDeployCompatTypes` | `deploy_compat/interface/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployCompatTypes.kt` | 运行时中立 wrapper；`JuggInstallSession` 同时记录成功创建它的 executor，使 installer、overlay、cache 和 redefiner 留在同一 Apply Changes runtime |
 | `StandaloneApplyChangesExecutor` / `StandaloneDeployerResources` | `deploy_compat/standalone_deployer/src/main/java/com/sickworm/intellij/jugg/deploy/run/` | Java 11 standalone install/session/cache/optimistic swap 实现，以及固定 Quail installer/protocol 资源预检 |
 | `JuggResourceManager` | `main/src/main/java/com/sickworm/intellij/jugg/project/runtime/JuggResourceManager.kt` | 将 classpath 资源固定映射到全局 `resources` 目录，并在全局写锁内通过临时文件原子刷新 |
-| `JuggDeploymentCacheStore` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/cache/JuggDeploymentCacheStore.kt` | 项目级 deployment 磁盘 checkpoint；在项目锁内持久化 APK path 与 overlay snapshot，使用临时文件原子替换，不依赖 AS deployer runtime 类型；IDEA Service 另保留 Runtime 本地 memoryCache |
+| `JuggDeploymentCacheStore` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/cache/JuggDeploymentCacheStore.kt` | 项目级 deployment 磁盘 checkpoint（`build/jugg/database/deploy_cache.db`）；在项目锁内持久化 APK path 与 overlay snapshot，使用临时文件原子替换，不依赖 AS deployer runtime 类型；IDEA Service 另保留 Runtime 本地 memoryCache |
 | `*AsDeployerCompat` | `deploy_compat/v_*/src/main/java/com/sickworm/intellij/jugg/deploy/run/` | 各 Android Studio 版本的具体 API 适配实现 |
 | `StubApiGenerator` | `tools/stub_api_generator/` | 从 compat 编译产物引用闭包和显式 Android Studio JAR 目录生成版本化编译 Stub API |
 | `IdeVersion` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/AsDeployerCompat.kt` | 用 `ApplicationInfo` 的 product code / API version 选择兼容实现 |

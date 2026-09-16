@@ -33,6 +33,8 @@ class JuggDeploymentCacheStoreTest {
         assertEquals(entry, createStore(firstPathManager).load("device", "package"))
         assertNull(createStore(secondPathManager).load("device", "package"))
         assertTrue(firstPathManager.deploymentCacheDbFile.exists())
+        assertEquals(firstPathManager.databaseDir, firstPathManager.deploymentCacheDbFile.parentFile)
+        assertEquals("deploy_cache.db", firstPathManager.deploymentCacheDbFile.name)
         assertFalse(firstPathManager.deploymentCacheTempFile.exists())
     }
 

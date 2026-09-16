@@ -440,12 +440,12 @@ CLI 原有 `--if-compiling wait|interrupt` 继续保留：
 `JuggDeploymentCacheStore` 改为项目级存储：
 
 ```text
-<projectDir>/build/jugg/deploy_cache/.deploy_cache.db
+<projectDir>/build/jugg/database/deploy_cache.db
 ```
 
 IDEA 与 standalone 对同一项目共享该 cache，不同项目不再读写同一个全局文件，因此不增加全局 deployment cache 锁。`JuggDeploymentService` 必须改为项目级 Runtime 服务，不能再是全局 singleton。
 
-cache 读写受项目锁保护，写入采用临时文件、flush 后原子替换。旧 `~/.jugg/deploy_cache` 无法可靠归属到项目，不迁移；首次读取按 cache miss 进入现有 recover 流程。
+cache 读写受项目锁保护，写入采用临时文件、flush 后原子替换。旧 `~/.jugg/deploy_cache` 与 `build/jugg/deploy_cache/` 无法可靠归属或迁移时按 cache miss 进入现有 recover 流程；工程目录变更清除 `database/` 时一并丢弃该文件。
 
 首期不增加设备/package 锁；若后续增加，锁顺序固定为：
 

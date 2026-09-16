@@ -27,6 +27,14 @@ class JuggPathManagerTest {
                 File(projectDir, ".gradle/jugg/jugg-runtime.jar").absolutePath,
                 pathManager.runtimeJarFilePath.absolutePath,
             )
+            assertEquals(
+                File(projectDir, "build/jugg/database/deploy_cache.db").absolutePath,
+                pathManager.deploymentCacheDbFile.absolutePath,
+            )
+            assertEquals(
+                File(projectDir, "build/jugg/database/deploy_cache.db.tmp").absolutePath,
+                pathManager.deploymentCacheTempFile.absolutePath,
+            )
             // TODO: initGradleFileRelativePath field was removed; re-enable once re-added
             // assertEquals(
             //     File(projectDir, ".gradle/jugg/readProjectInfo.gradle.kts").relativeTo(projectDir).path,

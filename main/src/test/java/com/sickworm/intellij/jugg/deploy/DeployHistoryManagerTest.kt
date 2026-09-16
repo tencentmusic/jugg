@@ -218,6 +218,31 @@ class DeployHistoryManagerTest {
     }
 
     @Test
+    fun checkProjectDirChanged_clearsDeploymentCacheWithDatabase() {
+        val projectDir = Files.createTempDirectory("jugg-deploy-cache-clear").toFile()
+        try {
+            val tempPathManager = JuggPathManager(projectDir)
+            val tempFileChangesHandler = FileChangesHandler(
+                tempPathManager.projectDir, tempPathManager.juggRootDir, logger,
+            )
+            val historyManager = DeployHistoryManager(tempPathManager, tempFileChangesHandler, logger)
+
+            historyManager.checkProjectDirChanged()
+            tempPathManager.deploymentCacheDbFile.parentFile.mkdirs()
+            tempPathManager.deploymentCacheDbFile.writeText("stale-cache")
+            assertTrue(tempPathManager.deploymentCacheDbFile.exists())
+
+            tempPathManager.historyProjectDirFile.writeText("/other/project")
+            historyManager.checkProjectDirChanged()
+
+            assertFalse(tempPathManager.deploymentCacheDbFile.exists())
+            assertEquals(projectDir.canonicalFile, historyManager.historyProjectDir?.canonicalFile)
+        } finally {
+            projectDir.deleteRecursively()
+        }
+    }
+
+    @Test
     fun testFilterUnchangedFiles() {
         gitManager.init() // we need init first after GitManager can search parent directory
         val historyManager = DeployHistoryManager(pathManager, fileChangesHandler, logger)

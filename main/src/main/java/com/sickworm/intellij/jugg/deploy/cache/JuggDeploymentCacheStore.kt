@@ -16,7 +16,7 @@ import java.security.MessageDigest
 import java.util.LinkedHashMap
 
 /**
- * Persists the deployment snapshot for one project under its build/jugg directory.
+ * Persists the deployment snapshot for one project under build/jugg/database.
  * All reads and writes use the shared project lock, and writes replace the database atomically.
  */
 class JuggDeploymentCacheStore(

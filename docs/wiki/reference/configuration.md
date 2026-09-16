@@ -65,6 +65,7 @@ All paths are relative to the project root by default.
 | `build/jugg/database/project_infos.db/` | IDE / Gradle project information snapshots. |
 | `build/jugg/database/compile_context.db/` | Classpath, module information, and full build information. |
 | `build/jugg/database/deploy_history.db/` | Deployment history and recovery information. |
+| `build/jugg/database/deploy_cache.db` | Apply Changes–style deployment snapshot (incremental-chain checkpoint). |
 | `build/jugg/classpath/` | Classpath, APK, library backup, and embedded APK caches. |
 | `build/jugg/config/custom_compilers/` | Custom compiler configuration directory. |
 | `build/jugg/mcp_fetch/` | Artifact cache for MCP tools. |

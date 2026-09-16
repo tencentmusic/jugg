@@ -114,7 +114,7 @@ JuggDeployerHelper.deploy(isInstall=true)
   -> deployHistoryManager.lastDeployOverlayIds = launchResult.overlayIds
 ```
 
-deployment cache 固定保存到 `<projectDir>/build/jugg/deploy_cache/.deploy_cache.db`。`JuggDeploymentService` 是项目 Runtime 实例，不再使用 `~/.jugg` 全局 singleton；同一 Runtime 优先读取 `memoryCache`，写入同步更新内存和磁盘 checkpoint。磁盘读写由项目事务串行，不同 Runtime 由 Project Runtime lease 互斥；写入先落临时文件并 flush，再原子替换目标文件。
+deployment cache 固定保存到 `<projectDir>/build/jugg/database/deploy_cache.db`（与 `source_files.db` 同级的单文件）。它只服务「上次成功 Jugg install 之后」的增量链；工程目录变更时随 `database/` 一并清除，Gradle install / recover reinstall 会写入新的 base。旧 `build/jugg/deploy_cache/` 与 `~/.jugg/deploy_cache` 不迁移，缺失时按 cache miss 进入 recover。`JuggDeploymentService` 是项目 Runtime 实例，不再使用 `~/.jugg` 全局 singleton；同一 Runtime 优先读取 `memoryCache`，写入同步更新内存和磁盘 checkpoint。磁盘读写由项目事务串行，不同 Runtime 由 Project Runtime lease 互斥；写入先落临时文件并 flush，再原子替换目标文件。
 
 install 前会先 stop app，避免用户看到“安装后又被停止”的错觉。安装与增量部署失败时优先透出 `AdbLogWrapper.realErrorMessage`，不要先改高层错误文案；`run-as: package not debuggable` 等设备侧明确原因必须覆盖 deployer 的通用失败信息。
 脚本配置从 Run Configuration 经 `DeployOptions`、deploy/recover 请求和 `LaunchContextFactory` 写入 `LaunchContext`。`JuggDeployTask` 仅在 INSTALL 分支为普通 App 启用自定义安装；`JuggDeployer` 通过 `IDeployHost` 调用 IDEA 侧 `CustomApkInstallScriptRunner`，test APK 继续使用默认 installer。脚本沿用每台设备、每个 applicationId 的安装粒度，校验和 cache 更新仍由 `JuggDeployer` 统一负责。

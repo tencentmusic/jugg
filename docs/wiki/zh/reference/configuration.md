@@ -65,6 +65,7 @@ CLI 和 MCP 的调用参数只影响本次调用，不等同于永久修改 IDE 
 | `build/jugg/database/project_infos.db/` | IDE / Gradle project info 快照。 |
 | `build/jugg/database/compile_context.db/` | classpath、模块信息和 full build 信息。 |
 | `build/jugg/database/deploy_history.db/` | 部署历史和恢复信息。 |
+| `build/jugg/database/deploy_cache.db` | Apply Changes 风格的部署快照（增量链 checkpoint）。 |
 | `build/jugg/classpath/` | classpath、APK、library backup、embedded APK 缓存。 |
 | `build/jugg/config/custom_compilers/` | 自定义编译器配置目录。 |
 | `build/jugg/mcp_fetch/` | MCP 工具产物缓存。 |
