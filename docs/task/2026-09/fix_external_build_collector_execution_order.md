@@ -76,7 +76,7 @@ fun configureExternalBuildInfoCollector() {
 在本地构造相同依赖关系的最小工程复现：
 - **`COD=false` + `projectsEvaluated`**：顺序为 `buildCMakeDebug` $\rightarrow$ `mergeDebugNativeLibs` $\rightarrow$ `collector`（正常）。
 - **`COD=true` + `projectsEvaluated`**：顺序为 `buildCMakeDebug` $\rightarrow$ `collector` $\rightarrow$ `mergeDebugNativeLibs`（**100% 复现线上抢跑 Bug**）。
-- **`COD=true` + 在 `gradle.rootProject` 中使用 taskPath 路径声明 `mustRunAfter`**：顺序为 `buildCMakeDebug` $\rightarrow$ `mergeDebugNativeLibs` $\rightarrow$ `collector`（恢复正常）。
+- **`COD=true` + 在 `gradle.rootProject` 中使用 taskPath 路径声明 `mustRunAfter`**：最小工程顺序恢复正常，但报告 `807b4f46` 证明复杂工程中的延迟任务注册与并行执行仍可让 collector 抢跑，因此该软顺序不能作为最终修复。
 
 ---
 
@@ -84,9 +84,9 @@ fun configureExternalBuildInfoCollector() {
 
 ### 3.1 核心思路
 打破原有的“必须等待项目评估完毕才能获取 Task 对象”的假象：
-- Gradle 的 `Task.mustRunAfter(...)`（以及 `dependsOn`）原生支持接受**任务路径字符串**（如 `":mp:appcommon:mergeDebugNativeLibs"`）。
+- Gradle 的 `Task.dependsOn(...)` 原生支持接受**任务路径字符串**（如 `":mp:appcommon:mergeDebugNativeLibs"`）。
 - 在 Gradle 中，字符串形式的任务路径是在 Task Graph 计算期间延迟解析的，不依赖子工程是否已经预先执行完毕 `build.gradle`。
-- 因此，我们可以直接在 `gradle.rootProject` 创建 `juggCollectExternalBuildInfo` 收集任务的同时，立刻将 `mustRunAfter(localTaskPaths)` 声明给收集任务。
+- 因此，直接在 `gradle.rootProject` 创建 `juggCollectExternalBuildInfo` 的同时声明 `dependsOn(localTaskPaths)`，让 Gradle execution plan 用真实依赖边保证 external task 完成后才执行 collector。
 
 ### 3.2 最小代码改动点
 
@@ -105,7 +105,7 @@ fun configureExternalBuildInfoCollector() {
         if (matchesLocalProject) request.taskPath else null
     }.distinct()
     if (localTaskPaths.isNotEmpty()) {
-        collector.mustRunAfter(localTaskPaths)
+        collector.dependsOn(localTaskPaths)
     }
     includeBuildProjects.forEach { includedBuild ->
         collector.dependsOn(includedBuild.task(COLLECT_EXTERNAL_BUILD_INFO_TASK_PATH))
@@ -143,25 +143,24 @@ gradle.rootProject {
 ## 4. 验证计划
 
 1. **单元测试回归**：
-   - 运行现有的 `GradleProjectInfoReaderManagerNativeStripTest`，确保既有关于 `collector.mustRunAfter` 的断言全部通过。
-2. **新增针对 Task Path 字符串排序的单元测试**：
-   - 验证 `configureExternalBuildInfoCollector()` 在子工程 Task 尚未在容器中解析时，依然能正确将 taskPath 绑定到 `collector.mustRunAfter`。
+   - 运行现有的 `GradleProjectInfoReaderManagerNativeStripTest`，确保 collector 对本轮 module task 建立真实依赖。
+2. **新增针对 Task Path 字符串依赖的单元测试**：
+   - 验证 `configureExternalBuildInfoCollector()` 在子工程 Task 尚未在容器中解析时，依然能正确将 taskPath 绑定到 `collector.dependsOn`。
 3. **全量构建/资源编译验证**：
    - 执行 `./gradlew :main:compileKotlin` 及 `:main:test` 相关测试，确保 `readProjectInfo.gradle.kts` 正确重新生成且无语法或编译错误。
 
 ---
 
-## 5. 实施补充：绑定与执行双层门禁
+## 5. 实施补充：使用真实任务依赖
 
-仅依赖正确声明 `mustRunAfter` 仍可能在未来改动中被静默破坏，因此 collector 增加两层低成本校验：
+报告 `807b4f46` 证明 `mustRunAfter` 与执行期 `TaskState` 门禁仍可能在 Configuration on Demand、延迟任务注册和并行 native build 下失效：collector 已完成旧产物剥离后，C++ 编译与 `mergeDebugNativeLibs` 才实际结束。
 
-1. Task Graph 就绪时，仅筛选本轮 request 中实际进入任务图的 task，确认它们都属于已绑定本地顺序约束的 task path；未绑定时在任何 task action 执行前失败。
-2. collector 的 `doFirst` 中确认上述 task 的 `TaskState.executed` 均为 `true`；若 collector 仍发生抢跑，则在读取或剥离旧 native 产物前失败。
+collector 改为通过 `dependsOn` 绑定本轮 local request 的 module task。真实依赖边由 Gradle execution plan 保证完成顺序，不再使用 task path 归类和 `TaskState.executed` 观察模拟同步。APK owner 的 strip task 仍只读取配置，不进入依赖图。
 
-两层检测均只遍历本轮 request 和任务图中的 task，不执行文件扫描、产物读取或额外 Gradle task，耗时相对 CMake/merge 可忽略。
+生产侧派生命令原本就显式请求全部 external task 与 collector，因此该依赖不会扩大正常 invocation 的执行范围，只会消除并行调度歧义。
 
 验证覆盖：
 
-- 构造 module root 不匹配但 request task 已进入任务图的场景，确认第一层在 task action 开始前快速报错。
-- 在真实 AGP + NDK fixture 中修改 C++ 源码并启用并行构建，确认顺序为 native build/merge 后再 collector，且 collector 输出与当前 AGP strip 结果逐字节一致。
+- 验证已注册和延迟注册的 module task 均进入 collector 的 task dependencies。
+- 在真实 AGP + NDK fixture 中修改 C++ 源码后只请求 collector，确认其先执行 native build/merge，再生成与当前 AGP strip 结果逐字节一致的输出。
 - 保留 native strip 单元回归与 Kotlin 编译验证，确保未改变既有 collector/strip 契约。

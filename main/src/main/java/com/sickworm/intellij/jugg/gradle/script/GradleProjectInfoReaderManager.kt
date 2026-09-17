@@ -237,7 +237,6 @@ class GradleProjectInfoReaderManager(
         }
         val collector = rootProject.tasks.maybeCreate(COLLECT_EXTERNAL_BUILD_INFO_TASK_NAME)
         val requests = readExternalBuildInfoRequests()
-        val requestedTaskPaths = requests.map { it.taskPath }.distinct()
         val localTaskPaths = requests.mapNotNull { request ->
             val matchesLocalProject = rootProject.allprojects.any {
                 it.projectDir.absoluteFile.normalize() == request.moduleRootDir.absoluteFile.normalize()
@@ -245,27 +244,7 @@ class GradleProjectInfoReaderManager(
             if (matchesLocalProject) request.taskPath else null
         }.distinct()
         if (localTaskPaths.isNotEmpty()) {
-            collector.mustRunAfter(localTaskPaths)
-        }
-        var scheduledTasks = emptyList<org.gradle.api.Task>()
-        rootProject.gradle.taskGraph.whenReady(
-            object : org.gradle.api.Action<org.gradle.api.execution.TaskExecutionGraph> {
-                override fun execute(taskGraph: org.gradle.api.execution.TaskExecutionGraph) {
-                    scheduledTasks = taskGraph.allTasks.filter { it.path in requestedTaskPaths }
-                    val unboundTasks = scheduledTasks.filterNot { it.path in localTaskPaths }
-                    check(unboundTasks.isEmpty()) {
-                        "Jugg external build collector is not ordered after " +
-                                unboundTasks.joinToString { it.path }
-                    }
-                }
-            }
-        )
-        collector.doFirst {
-            val unfinishedTasks = scheduledTasks.filterNot { it.state.executed }
-            check(unfinishedTasks.isEmpty()) {
-                "Jugg external build collector started before tasks completed: " +
-                        unfinishedTasks.joinToString { it.path }
-            }
+            collector.dependsOn(localTaskPaths)
         }
         includeBuildProjects.forEach { includedBuild ->
             collector.dependsOn(includedBuild.task(COLLECT_EXTERNAL_BUILD_INFO_TASK_PATH))

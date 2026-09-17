@@ -157,7 +157,7 @@ class GradleProjectInfoReaderManagerNativeStripTest {
     }
 
     @Test
-    fun `runs the collector after the selected module tasks without depending on them`() {
+    fun `depends on the selected module tasks before collecting native output`() {
         val root = temporaryFolder.newFolder("collector-graph")
         val moduleMerge = File(root, "module-merge").apply { mkdirs() }
         val request = """{"invocationId":"invocation-1","items":[{"moduleName":"app",""" +
@@ -188,12 +188,12 @@ class GradleProjectInfoReaderManagerNativeStripTest {
         val collector = rootProject.tasks.getByName(GradleProjectInfoReaderManager.COLLECT_EXTERNAL_BUILD_INFO_TASK_NAME)
         assertEquals(
             setOf(moduleMergeTask),
-            collector.mustRunAfter.getDependencies(collector),
-            "the collector must only be ordered after the selected module tasks",
+            collector.taskDependencies.getDependencies(collector),
+            "the collector must depend on the selected module tasks so parallel builds cannot collect stale output",
         )
         assertTrue(
-            collector.taskDependencies.getDependencies(collector).none { it == stripTask || it == moduleMergeTask },
-            "the collector must not depend on the app strip or the module merge task",
+            collector.taskDependencies.getDependencies(collector).none { it == stripTask },
+            "the collector must not execute the app strip task",
         )
     }
 
@@ -228,8 +228,8 @@ class GradleProjectInfoReaderManagerNativeStripTest {
         val collector = rootProject.tasks.getByName(GradleProjectInfoReaderManager.COLLECT_EXTERNAL_BUILD_INFO_TASK_NAME)
         assertEquals(
             setOf(moduleMergeTask),
-            collector.mustRunAfter.getDependencies(collector),
-            "the collector must be ordered after the selected module tasks even when tasks are registered later",
+            collector.taskDependencies.getDependencies(collector),
+            "the collector must depend on selected module tasks even when tasks are registered later",
         )
     }
 

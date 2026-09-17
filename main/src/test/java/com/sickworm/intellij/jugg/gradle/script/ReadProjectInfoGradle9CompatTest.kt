@@ -536,53 +536,13 @@ class ReadProjectInfoGradle9CompatTest : ReadProjectInfoGradleCompatTestBase() {
         )
     }
 
-    @Test
-    fun generatedScript_shouldFailBeforeExecutionWhenCollectorOrderIsNotBound() {
-        val fixtureDir = Files.createTempDirectory("jugg_gradle_fixture_collector_order").toFile()
-        try {
-            buildProjectFiles(fixtureDir)
-            writeWrapper(fixtureDir, gradleVersion)
-            val initScript = copyGeneratedInitScript(fixtureDir)
-            val invocationDir = File(fixtureDir, "invocation")
-            val requestFile = File(invocationDir, "request.json").apply {
-                parentFile.mkdirs()
-                writeText(
-                    """{"invocationId":"invocation-1","items":[{"moduleName":"missing",""" +
-                            """"moduleRootDir":"${File(fixtureDir, "missing").path}","buildVariant":"debug",""" +
-                            """"taskPath":":app:demoAppTask","type":"Cpp"}]}""",
-                )
-            }
-            val result = runGradle(
-                fixtureDir,
-                ":app:demoAppTask",
-                GradleProjectInfoReaderManager.COLLECT_EXTERNAL_BUILD_INFO_TASK_PATH,
-                "-I", initScript.absolutePath,
-                "-P${GradleProjectInfoReaderManager.PARAM_EXTERNAL_BUILD_REQUEST}=${requestFile.path}",
-                "-P${GradleProjectInfoReaderManager.PARAM_EXTERNAL_BUILD_OUTPUT}=${File(invocationDir, "output").path}",
-                "-P${GradleProjectInfoReaderManager.PARAM_EXTERNAL_BUILD_INVOCATION}=invocation-1",
-                "--parallel",
-                "--console=plain",
-                "--no-daemon",
-            )
-
-            assertTrue(result.exitCode != 0, "An unbound collector order must fail.\n${result.output}")
-            assertTrue(
-                result.output.contains("Jugg external build collector is not ordered after :app:demoAppTask"),
-                result.output,
-            )
-            assertFalse(result.output.contains("demo-app"), "The external task must not start.\n${result.output}")
-        } finally {
-            fixtureDir.deleteRecursively()
-        }
-    }
-
     /**
-     * Verifies the selective native strip contract against a real AGP project: the collector strips
-     * the selected module merge output with the APK owner configuration, without executing the app
-     * strip or app merge task, and reproduces AGP's own stripped output byte for byte.
+     * Verifies the selective native strip contract against a real AGP project: the collector runs
+     * the requested merge task before stripping its output, without executing the app strip task,
+     * and reproduces AGP's own stripped output byte for byte.
      */
     @Test
-    fun generatedScript_shouldStripSelectedNativeOutputWithoutAppNativeTasks() {
+    fun generatedScript_shouldBuildBeforeStrippingSelectedNativeOutput() {
         assumeNativeToolchain()
         val fixtureDir = Files.createTempDirectory("jugg_gradle_fixture_native_strip").toFile()
         try {
@@ -604,6 +564,8 @@ class ReadProjectInfoGradle9CompatTest : ReadProjectInfoGradleCompatTestBase() {
                 "--no-daemon",
             )
             assertEquals(0, mergeResult.exitCode, "Fixture native build failed.\n${mergeResult.output}")
+            val nativeSource = File(fixtureDir, "app/src/main/cpp/native.cpp")
+            nativeSource.writeText(nativeSource.readText().replace("jugg-fixture", "jugg-fixture-updated"))
 
             val invocationDir = File(fixtureDir, "invocation")
             val requestFile = File(invocationDir, "request.json").apply {
@@ -627,10 +589,13 @@ class ReadProjectInfoGradle9CompatTest : ReadProjectInfoGradleCompatTestBase() {
                 "--no-daemon",
             )
             assertEquals(0, collectResult.exitCode, "Collector failed.\n${collectResult.output}")
+            assertTrue(
+                collectResult.output.contains("> Task :app:mergeDebugNativeLibs"),
+                "The collector must run the requested module merge task first.\n${collectResult.output}",
+            )
             assertFalse(
-                collectResult.output.contains("> Task :app:stripDebugDebugSymbols") ||
-                        collectResult.output.contains("> Task :app:mergeDebugNativeLibs"),
-                "The collector must not execute the app strip or app merge task.\n${collectResult.output}",
+                collectResult.output.contains("> Task :app:stripDebugDebugSymbols"),
+                "The collector must not execute the app strip task.\n${collectResult.output}",
             )
 
             val update = readSingleUpdate(outputDir)

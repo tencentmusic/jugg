@@ -285,12 +285,12 @@ task 缺失或关键属性无法读取时，输出明确的 unsupported reason �
 
 | 层级 | owner | 覆盖 |
 |---|---|---|
-| L1 | `GradleProjectInfoReaderManagerNativeStripTest`（11 例） | fake AGP strip task 的 keep pattern 与 ABI 工具表读取；旧 `Abi` key 与 String key 归一化；keep/工具缺失/工具失败语义与「不重试」；缺 APK owner、缺 strip task、能力不可读明确失败；超限拒绝；collector 只 `mustRunAfter` 本模块 task、不 `dependsOn` app strip/app merge |
+| L1 | `GradleProjectInfoReaderManagerNativeStripTest` | fake AGP strip task 的 keep pattern 与 ABI 工具表读取；旧 `Abi` key 与 String key 归一化；keep/工具缺失/工具失败语义与「不重试」；缺 APK owner、缺 strip task、能力不可读明确失败；超限拒绝；collector `dependsOn` 本轮 module task，但不依赖 APK owner strip task |
 | L2/Internal Flow | `ExternalBuildFlowTest`（17 例） | C++ 只部署 stripped 输出、不回退 unstripped；缺 stripped 输出整轮失败；派生命令只含 selected module merge + collector，不含 app strip/app merge；Flutter 路径不变 |
 | L1 | `ExternalBuildTaskRunnerTest`（8 例） | request JSON 用 JsonSlurper 可读到 APK owner 字段；旧 result JSON 的 `strippedNativeOutput` 解析为 null |
 | L1 | `DeployFilePathExtTest`（5 例） | 超限在 `readBytes()` 之前失败 |
 | L1/生成物 | `ReadProjectInfoScriptContentTest` + Gradle 5/6/7/9 compat tests（20 例） | 生成 init script 在 Kotlin 1.3/1.5/2.x 上可编译可运行 |
-| L3 等价 Flow | `ReadProjectInfoGradle9CompatTest#generatedScript_shouldStripSelectedNativeOutputWithoutAppNativeTasks` | 真实 AGP 8.7.2 + NDK 27 + CMake：collector 单独执行（不执行 app strip/app merge），Jugg stripped 输出与 AGP `:app:stripDebugDebugSymbols` 输出 SHA-256 完全一致 |
+| L3 等价 Flow | `ReadProjectInfoGradle9CompatTest#generatedScript_shouldBuildBeforeStrippingSelectedNativeOutput` | 真实 AGP 8.7.2 + NDK 27 + CMake：修改 C++ 后单独请求 collector，先执行选中的 app merge、但不执行 app strip；Jugg stripped 输出与 AGP `:app:stripDebugDebugSymbols` 输出 SHA-256 完全一致 |
 
 手工等价验证（同一 fixture，AGP 8.7.2）：设置 `packaging.jniLibs.keepDebugSymbols += '**/libjuggfixture.so'` 后，Jugg 输出与 AGP 的 keep 语义输出同样 SHA-256 一致（24032 bytes 原样保留）。
 

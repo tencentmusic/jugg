@@ -64,7 +64,7 @@ Profile/Release 使用 AOT 产物 `libapp.so`，属于 native lib，继续按上
 - 直接文件变化入口只识别项目目录中已经存在、父目录为 `armeabi`、`armeabi-v7a`、`arm64-v8a`、`x86` 或 `x86_64` 的 `.so`。
 - C/C++ 源码入口要求 Android Gradle 配置提供 CMake 或 ndk-build 文件，并能够找到当前变体的 native task。Jugg 不监听 `.cxx`、`.externalNativeBuild` 或 Gradle `build` 目录中的生成文件。
 - 每次检测到 C/C++ 源码变化都会执行 native task；产物内容校验只避免重复写入 APK，不跳过 native 编译。
-- 部署的是按 app 打包语义 strip 过的 `.so`，而不是 module 中间产物目录里的未 strip 文件。Jugg 在 collector 进程内读取 APK owner（base app 或 dynamic feature）的 `strip<Variant>DebugSymbols` 配置并复现 AGP 的单文件 strip 行为，不执行该任务、也不把 app 的 `merge<Variant>NativeLibs` 带入本轮任务图。strip 工具缺失或返回非 0 时按 AGP 语义原样打包该文件；保留下来的文件仍超过部署数据上限时本轮明确失败，不用提高 IDE 堆内存掩盖。
+- 部署的是按 app 打包语义 strip 过的 `.so`，而不是 module 中间产物目录里的未 strip 文件。Jugg 在 collector 进程内读取 APK owner（base app 或 dynamic feature）的 `strip<Variant>DebugSymbols` 配置并复现 AGP 的单文件 strip 行为，不执行该 strip task。本轮只执行因 C/C++ 变化被选中的 module merge task，不会额外执行 APK owner 的其他 native merge task。strip 工具缺失或返回非 0 时按 AGP 语义原样打包该文件；保留下来的文件仍超过部署数据上限时本轮明确失败，不用提高 IDE 堆内存掩盖。
 - native library module 可以在 APK owner 未被配置的情况下构建，例如工程开启 Gradle Configuration on Demand 时本轮读不到 owner 的 strip task。因此完整 Gradle 构建会把 owner 的 strip 配置和每个 strip 工具副本缓存到 `build/jugg/classpath/native_strip`，collector 优先使用该缓存。缓存按模块根与变体精确匹配，且只有记录的工具仍可执行时才会复用；缓存缺失、损坏或工具不可用时只降级为一次实时读取，owner 未配置且没有可用缓存时本轮失败并提示执行完整 Gradle 构建，不会部署未 strip 的库。工具副本随缓存一起保存，所以基线复制到 NDK 路径不同的另一台 Worker 后仍可使用；复制基线时需要保存整个 `native_strip` 目录。
 - 同一个物理 source 匹配多个 Native 模块时，所有匹配 task 必须全部支持并执行成功，各模块输出也必须全部可收集；否则该 source 整体回退或失败，不会把部分成功结果标记为已编译。
 - 每次检测到 Dart 源码变化都会执行当前变体的 Flutter native 输出 task。Jugg 只读取该 task 自己声明的 native 输出，并按它是归档还是目录解析出 ABI 下的 `.so`；不从 Flutter 中间目录递归猜测 native 输出，也不按固定路径拼接产物位置。
