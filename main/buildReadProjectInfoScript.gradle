@@ -257,14 +257,16 @@ gradle.allprojects {
 }
 
 gradle.rootProject {
+    val projectInfoReaderManager = gradleProjectInfoReaderManager(rootProject, gradle.includedBuilds)
     tasks.maybeCreate(GradleProjectInfoReaderManager.COLLECT_EXTERNAL_BUILD_INFO_TASK_NAME).apply {
         group = "jugg"
         description = "Writes refreshed external build info for this build"
         outputs.upToDateWhen { false }
         doLast {
-            gradleProjectInfoReaderManager(rootProject, gradle.includedBuilds).collectExternalBuildInfo()
+            projectInfoReaderManager.collectExternalBuildInfo()
         }
     }
+    projectInfoReaderManager.configureExternalBuildInfoCollector()
     if (gradle.parent != null) {
         tasks.maybeCreate(GradleProjectInfoReaderManager.READ_PROJECT_INFO_TASK_NAME).apply {
             group = "jugg"
@@ -276,7 +278,6 @@ gradle.rootProject {
 gradle.projectsEvaluated {
     val projectInfoReaderManager = gradleProjectInfoReaderManager(rootProject, gradle.includedBuilds)
     projectInfoReaderManager.injectAndroidTestTaskIfNeeded()
-    projectInfoReaderManager.configureExternalBuildInfoCollector()
     if (gradle.includedBuilds.isNotEmpty()) {
         projectInfoReaderManager.injectIncludedBuildProjectInfoTasks()
     }

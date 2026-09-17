@@ -198,6 +198,42 @@ class GradleProjectInfoReaderManagerNativeStripTest {
     }
 
     @Test
+    fun `orders collector after module tasks even when module tasks are registered after collector configuration`() {
+        val root = temporaryFolder.newFolder("collector-graph-lazy")
+        val moduleMerge = File(root, "module-merge").apply { mkdirs() }
+        val request = """{"invocationId":"invocation-1","items":[{"moduleName":"app",""" +
+                """"moduleRootDir":"${root.path}","buildVariant":"debug",""" +
+                """"taskPath":":app:mergeDebugNativeLibs","type":"Cpp"}]}"""
+        val requestFile = File(root, "request.json").apply { writeText(request) }
+        val rootProject = ProjectBuilder.builder().withProjectDir(root).build()
+        val invocationProperties = rootProject.extensions.extraProperties
+        invocationProperties.set(
+            GradleProjectInfoReaderManager.PARAM_EXTERNAL_BUILD_REQUEST, requestFile.path,
+        )
+        invocationProperties.set(
+            GradleProjectInfoReaderManager.PARAM_EXTERNAL_BUILD_OUTPUT, File(root, "output").path,
+        )
+        invocationProperties.set(
+            GradleProjectInfoReaderManager.PARAM_EXTERNAL_BUILD_INVOCATION, "invocation-1",
+        )
+        val appProject = ProjectBuilder.builder().withName("app").withParent(rootProject)
+            .withProjectDir(root).build()
+
+        // Configure collector before the module task is registered (simulating Configuration on Demand)
+        GradleProjectInfoReaderManager(rootProject, emptyList()).configureExternalBuildInfoCollector()
+
+        val moduleMergeTask = appProject.tasks.create("mergeDebugNativeLibs", TestNativeMergeTask::class.java)
+            .apply { outputDir = moduleMerge }
+
+        val collector = rootProject.tasks.getByName(GradleProjectInfoReaderManager.COLLECT_EXTERNAL_BUILD_INFO_TASK_NAME)
+        assertEquals(
+            setOf(moduleMergeTask),
+            collector.mustRunAfter.getDependencies(collector),
+            "the collector must be ordered after the selected module tasks even when tasks are registered later",
+        )
+    }
+
+    @Test
     fun `strips with the cached owner configuration when the owner strip task is unavailable`() {
         val project = createProject(registerStripTask = false)
         val mergeOutput = writeLib(project.root, "lib/arm64-v8a/libapp.so", "with-debug-symbols")
