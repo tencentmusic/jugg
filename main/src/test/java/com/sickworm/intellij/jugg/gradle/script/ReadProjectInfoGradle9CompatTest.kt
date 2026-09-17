@@ -535,6 +535,47 @@ class ReadProjectInfoGradle9CompatTest : ReadProjectInfoGradleCompatTestBase() {
             "Expected manifest replacement log not found.\n${result.output}",
         )
     }
+
+    @Test
+    fun generatedScript_shouldFailBeforeExecutionWhenCollectorOrderIsNotBound() {
+        val fixtureDir = Files.createTempDirectory("jugg_gradle_fixture_collector_order").toFile()
+        try {
+            buildProjectFiles(fixtureDir)
+            writeWrapper(fixtureDir, gradleVersion)
+            val initScript = copyGeneratedInitScript(fixtureDir)
+            val invocationDir = File(fixtureDir, "invocation")
+            val requestFile = File(invocationDir, "request.json").apply {
+                parentFile.mkdirs()
+                writeText(
+                    """{"invocationId":"invocation-1","items":[{"moduleName":"missing",""" +
+                            """"moduleRootDir":"${File(fixtureDir, "missing").path}","buildVariant":"debug",""" +
+                            """"taskPath":":app:demoAppTask","type":"Cpp"}]}""",
+                )
+            }
+            val result = runGradle(
+                fixtureDir,
+                ":app:demoAppTask",
+                GradleProjectInfoReaderManager.COLLECT_EXTERNAL_BUILD_INFO_TASK_PATH,
+                "-I", initScript.absolutePath,
+                "-P${GradleProjectInfoReaderManager.PARAM_EXTERNAL_BUILD_REQUEST}=${requestFile.path}",
+                "-P${GradleProjectInfoReaderManager.PARAM_EXTERNAL_BUILD_OUTPUT}=${File(invocationDir, "output").path}",
+                "-P${GradleProjectInfoReaderManager.PARAM_EXTERNAL_BUILD_INVOCATION}=invocation-1",
+                "--parallel",
+                "--console=plain",
+                "--no-daemon",
+            )
+
+            assertTrue(result.exitCode != 0, "An unbound collector order must fail.\n${result.output}")
+            assertTrue(
+                result.output.contains("Jugg external build collector is not ordered after :app:demoAppTask"),
+                result.output,
+            )
+            assertFalse(result.output.contains("demo-app"), "The external task must not start.\n${result.output}")
+        } finally {
+            fixtureDir.deleteRecursively()
+        }
+    }
+
     /**
      * Verifies the selective native strip contract against a real AGP project: the collector strips
      * the selected module merge output with the APK owner configuration, without executing the app
@@ -619,7 +660,8 @@ class ReadProjectInfoGradle9CompatTest : ReadProjectInfoGradleCompatTestBase() {
     }
 
     /**
-     * Verifies the configuration-on-demand regression of report 75046b19 against a real AGP project:
+     * Verifies the configuration-on-demand regressions of reports 75046b19 and 584a6a17 against a
+     * real AGP project:
      * the native build lives in a library module, the APK owner `:app` is not part of the external
      * invocation, and the collector still strips the library output from the configuration a previous
      * full Gradle build cached.
@@ -652,6 +694,14 @@ class ReadProjectInfoGradle9CompatTest : ReadProjectInfoGradleCompatTestBase() {
                 File(cacheDir, "config.json").isFile,
                 "A full Gradle build must cache the APK owner strip configuration.\n${fullBuild.output}",
             )
+            // Force the requested native merge task to produce a different library for this invocation.
+            val nativeSource = File(fixtureDir, "nativelib/src/main/cpp/native.cpp")
+            nativeSource.writeText(
+                nativeSource.readText().replace(
+                    "jugg-ondemand-fixture",
+                    "jugg-ondemand-fixture-updated",
+                ),
+            )
 
             val invocationDir = File(fixtureDir, "invocation")
             val requestFile = File(invocationDir, "request.json").apply {
@@ -672,6 +722,7 @@ class ReadProjectInfoGradle9CompatTest : ReadProjectInfoGradleCompatTestBase() {
                 "-P${GradleProjectInfoReaderManager.PARAM_EXTERNAL_BUILD_REQUEST}=${requestFile.path}",
                 "-P${GradleProjectInfoReaderManager.PARAM_EXTERNAL_BUILD_OUTPUT}=${outputDir.path}",
                 "-P${GradleProjectInfoReaderManager.PARAM_EXTERNAL_BUILD_INVOCATION}=invocation-1",
+                "--parallel",
                 "--console=plain",
                 "--no-daemon",
             )
@@ -691,14 +742,24 @@ class ReadProjectInfoGradle9CompatTest : ReadProjectInfoGradleCompatTestBase() {
             val strippedLibs = strippedRoot.walkTopDown().filter { it.extension == "so" }.toList()
             assertEquals(1, strippedLibs.size, "stripped libs: $strippedLibs")
             assertEquals("arm64-v8a", strippedLibs.single().parentFile.name, "compiled output layout changed")
-            // The full build already stripped the library output as part of the APK owner strip task.
+            val agpStripResult = runGradle(
+                fixtureDir,
+                ":app:stripDebugDebugSymbols",
+                "--rerun-tasks",
+                "--console=plain",
+                "--no-daemon",
+            )
+            assertEquals(0, agpStripResult.exitCode, "AGP strip failed.\n${agpStripResult.output}")
             val agpStripped = File(fixtureDir, "app/build/intermediates/stripped_native_libs")
                 .walkTopDown()
                 .single { it.isFile && it.name == strippedLibs.single().name }
-            assertEquals(
-                agpStripped.readBytes().toList(),
-                strippedLibs.single().readBytes().toList(),
-                "Jugg stripped output must match the AGP strip output of the full build",
+            val expectedBytes = agpStripped.readBytes()
+            val actualBytes = strippedLibs.single().readBytes()
+            assertTrue(
+                expectedBytes.contentEquals(actualBytes),
+                "Jugg stripped output must match the current AGP strip output: " +
+                        "expected=${expectedBytes.size}/${expectedBytes.contentHashCode()}, " +
+                        "actual=${actualBytes.size}/${actualBytes.contentHashCode()}\n${collectResult.output}",
             )
         } finally {
             fixtureDir.deleteRecursively()

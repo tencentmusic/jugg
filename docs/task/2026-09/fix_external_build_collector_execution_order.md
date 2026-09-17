@@ -1,6 +1,6 @@
 # 修复 Configuration on Demand 下 C++ 增量收集任务提前执行方案
 
-创建日期：2026-09-17。状态：待实施。
+创建日期：2026-09-17。状态：已实施。
 
 ---
 
@@ -148,3 +148,20 @@ gradle.rootProject {
    - 验证 `configureExternalBuildInfoCollector()` 在子工程 Task 尚未在容器中解析时，依然能正确将 taskPath 绑定到 `collector.mustRunAfter`。
 3. **全量构建/资源编译验证**：
    - 执行 `./gradlew :main:compileKotlin` 及 `:main:test` 相关测试，确保 `readProjectInfo.gradle.kts` 正确重新生成且无语法或编译错误。
+
+---
+
+## 5. 实施补充：绑定与执行双层门禁
+
+仅依赖正确声明 `mustRunAfter` 仍可能在未来改动中被静默破坏，因此 collector 增加两层低成本校验：
+
+1. Task Graph 就绪时，仅筛选本轮 request 中实际进入任务图的 task，确认它们都属于已绑定本地顺序约束的 task path；未绑定时在任何 task action 执行前失败。
+2. collector 的 `doFirst` 中确认上述 task 的 `TaskState.executed` 均为 `true`；若 collector 仍发生抢跑，则在读取或剥离旧 native 产物前失败。
+
+两层检测均只遍历本轮 request 和任务图中的 task，不执行文件扫描、产物读取或额外 Gradle task，耗时相对 CMake/merge 可忽略。
+
+验证覆盖：
+
+- 构造 module root 不匹配但 request task 已进入任务图的场景，确认第一层在 task action 开始前快速报错。
+- 在真实 AGP + NDK fixture 中修改 C++ 源码并启用并行构建，确认顺序为 native build/merge 后再 collector，且 collector 输出与当前 AGP strip 结果逐字节一致。
+- 保留 native strip 单元回归与 Kotlin 编译验证，确保未改变既有 collector/strip 契约。
