@@ -11,6 +11,7 @@ import android.content.res.Resources;
 import android.os.Build;
 import com.sickworm.intellij.jugg.hotfix.HotfixLoader;
 import com.sickworm.intellij.jugg.hotfix.LogUtils;
+import com.sickworm.intellij.jugg.hotfix.NativeLibraryPathInstaller;
 import com.sickworm.intellij.jugg.hotfix.ReflectUtil;
 import com.sickworm.intellij.jugg.jvmti_agent.BuildConfig;
 
@@ -69,11 +70,12 @@ public class InstrumentationHooks {
             ApplyChangesOverlayPolicy.recordHostApplicationInfo(base.getApplicationInfo());
             boolean isNeedFix = DexPathListFixer.isNeedFix(base);
             LogUtils.i(TAG, "handleAttachBaseContextEntry isNeedFix: " + isNeedFix);
+            HotfixLoader.init(base);
             if (isNeedFix) {
-                HotfixLoader.init(base);
                 HotfixLoader.installDex(base);
                 LogUtils.i(TAG, "handleAttachBaseContextEntry fix finished");
             }
+            NativeLibraryPathInstaller.install(base);
         } catch (Exception e) {
             LogUtils.e(TAG, "handleAttachBaseContextEntry", e);
             throw e;
@@ -89,12 +91,13 @@ public class InstrumentationHooks {
             ApplyChangesOverlayPolicy.recordHostApplicationInfo(base.getApplicationInfo());
             boolean isNeedFix = DexPathListFixer.isNeedFix(base);
             LogUtils.i(TAG, "handleAttachBaseContextEntry isNeedFix: " + isNeedFix);
+            HotfixLoader.init(base);
             if (isNeedFix) {
-                HotfixLoader.init(base);
                 HotfixLoader.installDex(base);
                 InstrumentationHooks.base = base;
                 LogUtils.i(TAG, "handleAttachBaseContextEntry fix finished");
             }
+            NativeLibraryPathInstaller.install(base);
         } catch (Exception e) {
             LogUtils.e(TAG, "handleAttachBaseContextEntry", e);
             throw new RuntimeException(e);
@@ -107,12 +110,13 @@ public class InstrumentationHooks {
             ApplyChangesOverlayPolicy.recordHostApplicationInfo(base.getApplicationInfo());
             boolean isNeedFix = DexPathListFixer.isNeedFix(base);
             LogUtils.i(TAG, "handleAttachBaseContextEntry2 isNeedFix: " + isNeedFix);
+            HotfixLoader.init(base);
             if (isNeedFix) {
-                HotfixLoader.init(base);
                 HotfixLoader.install(base);
                 InstrumentationHooks.base = base;
                 LogUtils.i(TAG, "handleAttachBaseContextEntry2 fix finished");
             }
+            NativeLibraryPathInstaller.install(base);
         } catch (Exception e) {
             LogUtils.e(TAG, "handleAttachBaseContextEntry2", e);
             throw new RuntimeException(e);

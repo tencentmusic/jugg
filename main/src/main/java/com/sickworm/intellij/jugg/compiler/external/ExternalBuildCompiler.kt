@@ -10,7 +10,9 @@ import com.sickworm.intellij.jugg.compiler.ICompileContext
 import com.sickworm.intellij.jugg.compiler.Result
 import com.sickworm.intellij.jugg.compiler.resolveApkOwnerModule
 import com.sickworm.intellij.jugg.compiler.toCancelResult
+import com.sickworm.intellij.jugg.gradle.compile.GradleScriptWriter
 import com.sickworm.intellij.jugg.gradle.compile.crc32
+import com.sickworm.intellij.jugg.project.JuggPathManager
 import com.sickworm.intellij.jugg.project.data.ExternalBuildInfo
 import com.sickworm.intellij.jugg.project.data.ExternalBuildInfoRequestItem
 import com.sickworm.intellij.jugg.project.data.ExternalBuildType
@@ -79,6 +81,7 @@ class ExternalBuildCompiler(
         } catch (_: AbstractMethodError) {
             null
         }
+        refreshCanonicalInitScript(initScript)
         val runResult = runner.run(
             gradleCommand,
             requests,
@@ -372,6 +375,18 @@ class ExternalBuildCompiler(
     private fun String.containsGradleExecutable(): Boolean {
         return Regex("(^|\\s)([^\\s/\\\\]+[/\\\\])?(gradle|gradlew|gradle\\.bat|gradlew\\.bat)(\\s|$)")
             .containsMatchIn(this)
+    }
+
+    /** Incremental C++/Flutter Gradle does not go through gradleCompile(), so refresh the disk script. */
+    private fun refreshCanonicalInitScript(initScript: File?) {
+        if (initScript == null) {
+            return
+        }
+        val pathManager = JuggPathManager(context.projectDir)
+        if (initScript.canonicalFile != pathManager.initGradleFilePath.canonicalFile) {
+            return
+        }
+        GradleScriptWriter(pathManager, logger).writeInitGradleFile()
     }
 
     private data class CollectedArtifacts(

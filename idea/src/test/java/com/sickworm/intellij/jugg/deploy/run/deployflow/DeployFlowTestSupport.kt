@@ -119,6 +119,35 @@ internal object DeployFlowTestSupport {
         )
     }
 
+    fun nativeLibOnlyDeployData(
+        apkInfos: List<ApkInfo> = context.apkInfos,
+        nativeLibName: String = "lib/arm64-v8a/libdtmp.so",
+    ): JuggDeployData {
+        val apkPath = apkInfos.first().files.first().apkFile.path
+        return JuggDeployData(
+            apks = apkInfos,
+            newClasses = emptyList(),
+            hotFixModifiedClasses = emptyList(),
+            hotReloadModifiedClasses = emptyList(),
+            effectedClassNodes = emptyList(),
+            overlays = emptyList(),
+            parsedDex = ParsedDex.EMPTY,
+            isFullRes = false,
+            isWarmUp = false,
+            isPushOverlayOnly = false,
+            updateApkFiles = listOf(
+                DeployItem(
+                    name = nativeLibName,
+                    type = CompileOutput.Type.NativeLib,
+                    checksum = 1L,
+                    content = byteArrayOf(1, 2, 3),
+                    apkPath = apkPath,
+                    targetApkPaths = listOf(apkPath),
+                ),
+            ),
+        )
+    }
+
     fun emptyDeployData(apkInfos: List<ApkInfo> = context.apkInfos): JuggDeployData {
         return JuggDeployData(
             apks = apkInfos,

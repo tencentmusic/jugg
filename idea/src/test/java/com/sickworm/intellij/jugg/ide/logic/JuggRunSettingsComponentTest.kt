@@ -25,6 +25,7 @@ import com.sickworm.intellij.jugg.ide.JuggSettingsEditor
 import com.sickworm.intellij.jugg.ide.JuggRunSettingsComponentWrapper
 import com.sickworm.intellij.jugg.ide.JuggControlPanelHost
 import com.sickworm.intellij.jugg.ide.bean.SyncMode
+import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.ide.controlpanel.JuggControlPanelModel
 import com.sickworm.intellij.jugg.ide.controlpanel.JuggEvent
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
@@ -155,8 +156,9 @@ class JuggRunSettingsComponentTest {
         val settingRows = settingGroupNames.flatMap { groupName ->
             descendants(findNamedComponent<JPanel>(panel, groupName)!!).mapNotNull { it.name }.toList()
         }
-        assertEquals(7, settingCheckboxes)
+        assertEquals(8, settingCheckboxes)
         assertTrue(settingRows.containsAll(listOf(
+            "SO hot update Push changed .so files into the app and restart, skipping APK re-sign and reinstall.",
             "Install CLI and agent skills Install the Jugg CLI, agent skills, hooks, and required permissions.",
             "Check Jugg updates Check whether a newer Jugg plugin is available.",
             "Set custom server URL Configure the server used by Jugg services.",
@@ -316,6 +318,7 @@ class JuggRunSettingsComponentTest {
         assertFalse(findSettingRow(panel, "Embed changes into APK").isVisible)
         assertFalse(findSettingRow(panel, "Use project Kotlin compiler").isVisible)
         assertFalse(findSettingRow(panel, "Backup classpath").isVisible)
+        assertTrue(findSettingRow(panel, "SO hot update").isVisible)
 
         model.updateSettings(JuggControlPanelModel.Settings(
             isInjectGradleCompileEnabled = true,
@@ -440,6 +443,53 @@ class JuggRunSettingsComponentTest {
         assertEquals("Setting changed", event.title)
         assertEquals("Quick deploy: enabled", event.detail)
         assertEquals(listOf("[UserAction] Setting changed: Quick deploy: enabled"), logs)
+    }
+
+    @Test
+    fun `so hot update setting change should persist and be recorded as a user action`() {
+        TestGlobal.init()
+        val previous = JuggSettings.isEnableNativeSandboxDeploy
+        val previousClear = JuggSettings.isNeedSyncNativeSandboxRuntime
+        val logs = mutableListOf<String>()
+        val controller = createController(CapturingLogger("root", logs))
+        try {
+            controller.updateSetting(JuggControlPanelController.Setting.SO_HOT_UPDATE, true)
+
+            val event = controller.model.snapshot().recentEvents.single()
+            assertEquals(JuggEventCategory.USER_ACTION, event.category)
+            assertEquals("Setting changed", event.title)
+            assertEquals("SO hot update: enabled", event.detail)
+            assertEquals(listOf("[UserAction] Setting changed: SO hot update: enabled"), logs)
+            assertTrue(JuggSettings.isEnableNativeSandboxDeploy)
+            assertTrue(JuggSettings.isNeedSyncNativeSandboxRuntime)
+            assertTrue(controller.model.snapshot().settings.nativeSandboxDeploy)
+        } finally {
+            JuggSettings.isEnableNativeSandboxDeploy = previous
+            JuggSettings.isNeedSyncNativeSandboxRuntime = previousClear
+        }
+    }
+
+    @Test
+    fun `disabling so hot update keeps leftover patches and syncs the runtime flag later`() {
+        TestGlobal.init()
+        val previous = JuggSettings.isEnableNativeSandboxDeploy
+        val previousClear = JuggSettings.isNeedSyncNativeSandboxRuntime
+        val logs = mutableListOf<String>()
+        val controller = createController(CapturingLogger("root", logs))
+        try {
+            JuggSettings.isEnableNativeSandboxDeploy = true
+            JuggSettings.isNeedSyncNativeSandboxRuntime = false
+
+            controller.updateSetting(JuggControlPanelController.Setting.SO_HOT_UPDATE, false)
+
+            assertFalse(JuggSettings.isEnableNativeSandboxDeploy)
+            assertTrue(JuggSettings.isNeedSyncNativeSandboxRuntime)
+            assertFalse(controller.model.snapshot().settings.nativeSandboxDeploy)
+            assertEquals(listOf("[UserAction] Setting changed: SO hot update: disabled"), logs)
+        } finally {
+            JuggSettings.isEnableNativeSandboxDeploy = previous
+            JuggSettings.isNeedSyncNativeSandboxRuntime = previousClear
+        }
     }
 
     @Test

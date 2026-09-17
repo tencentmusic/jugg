@@ -100,6 +100,64 @@ class AppAbiResolverTest {
     }
 
     @Test
+    fun `cache hit skips APK facts and installed package query`() {
+        val adb = FakeAdb("primaryCpuAbi=armeabi-v7a")
+        val cache = AppAbiCache()
+        val apk = Files.createTempFile("jugg-abi-cache-", ".apk").toFile()
+        var apkFactsCalls = 0
+        try {
+            apk.writeBytes(byteArrayOf(1))
+            cache.put(cache.createKey("serial", PACKAGE_NAME, listOf(apk.path)), Deploy.Arch.ARCH_32_BIT)
+
+            val resolution = AppAbiResolver(adb, Mockito.mock(Logger::class.java)).resolveWithCache(
+                cache = cache,
+                deviceSerial = "serial",
+                packageName = PACKAGE_NAME,
+                apkPaths = listOf(apk.path),
+                processArch = Deploy.Arch.ARCH_UNKNOWN,
+                deviceAbi = "arm64-v8a",
+                apkFacts = {
+                    apkFactsCalls++
+                    AppAbiResolver.ApkFacts(Deploy.Arch.ARCH_64_BIT.name, false)
+                },
+            )
+
+            assertEquals(Deploy.Arch.ARCH_32_BIT, resolution.arch)
+            assertEquals("cache", resolution.source)
+            assertEquals(0, apkFactsCalls)
+            assertEquals(0, adb.shellCommandCount)
+        } finally {
+            apk.delete()
+        }
+    }
+
+    @Test
+    fun `stopped process uses APK native libraries before installed package`() {
+        val adb = FakeAdb("primaryCpuAbi=arm64-v8a")
+        val cache = AppAbiCache()
+        val apk = Files.createTempFile("jugg-abi-apk-", ".apk").toFile()
+        try {
+            apk.writeBytes(byteArrayOf(1))
+            val resolution = AppAbiResolver(adb, Mockito.mock(Logger::class.java)).resolveWithCache(
+                cache = cache,
+                deviceSerial = "serial",
+                packageName = PACKAGE_NAME,
+                apkPaths = listOf(apk.path),
+                processArch = Deploy.Arch.ARCH_UNKNOWN,
+                deviceAbi = "arm64-v8a",
+                apkFacts = { AppAbiResolver.ApkFacts(Deploy.Arch.ARCH_32_BIT.name, false) },
+            )
+
+            assertEquals(Deploy.Arch.ARCH_32_BIT, resolution.arch)
+            assertEquals("apk_native_libraries", resolution.source)
+            assertEquals(0, adb.shellCommandCount)
+            assertEquals(Deploy.Arch.ARCH_32_BIT, cache.get(cache.createKey("serial", PACKAGE_NAME, listOf(apk.path))))
+        } finally {
+            apk.delete()
+        }
+    }
+
+    @Test
     fun `transient installed package query failure is not cacheable`() {
         val adb = Mockito.mock(IDeviceAdb::class.java)
         Mockito.`when`(adb.execAdbShellCmd(Mockito.anyString())).thenThrow(IllegalStateException("device offline"))

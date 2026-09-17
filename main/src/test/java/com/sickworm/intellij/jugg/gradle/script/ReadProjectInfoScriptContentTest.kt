@@ -111,6 +111,7 @@ class ReadProjectInfoScriptContentTest {
         assertTrue(scriptText.contains("juggCollectExternalBuildInfo"))
         assertTrue(scriptText.contains("outputs.upToDateWhen { false }"))
         assertTrue(scriptText.contains("configureExternalBuildInfoCollector()"))
+        assertTrue(scriptText.contains("collector.dependsOn(localTaskPaths)"))
         assertTrue(scriptText.contains("skip full project info read during external build collection"))
     }
 

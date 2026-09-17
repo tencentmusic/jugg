@@ -6,11 +6,13 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.sickworm.intellij.jugg.JuggManager
 import com.sickworm.intellij.jugg.compiler.CompileFile
+import com.sickworm.intellij.jugg.deploy.AppSandboxExecutor
 import com.sickworm.intellij.jugg.deploy.CompatDeployHelper
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.deploy.IdeaDeviceAdb
+import com.sickworm.intellij.jugg.deploy.nativesandbox.NativeSandboxWriter
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.ide.JuggControlPanelHost
 import com.sickworm.intellij.jugg.ide.SyncEvent
@@ -95,6 +97,7 @@ open class JuggControlPanelController(
             Setting.CONFIRM_FALLBACK -> JuggSettings.isConfirmFallbackWhenNoFileChanges = enabled
             Setting.ALWAYS_RESTART -> JuggSettings.isAlwaysRestartAppAfterDeployment = enabled
             Setting.QUICK_DEPLOY -> JuggSettings.isEnableDirectOverlayDeploy = enabled
+            Setting.SO_HOT_UPDATE -> return updateNativeSandboxDeploy(enabled)
             Setting.AUTO_FALLBACK -> JuggSettings.isAutoFallbackToGradleWhenDeployError = enabled
             Setting.EMBED_APK -> return updateEmbeddedToApk(enabled)
             Setting.PROJECT_KOTLIN -> JuggSettings.isUseProjectKotlinCompiler = enabled
@@ -156,6 +159,51 @@ open class JuggControlPanelController(
         deployHistoryManager.deleteDeployHistory()
         model.updateSettings(currentSettings())
         recordSettingChanged(Setting.BACKUP_CLASSPATH.displayName, enabled)
+    }
+
+    private fun updateNativeSandboxDeploy(enabled: Boolean) {
+        JuggSettings.isEnableNativeSandboxDeploy = enabled
+        JuggSettings.isNeedSyncNativeSandboxRuntime = true
+        if (syncNativeSandboxRuntimeOnConnectedDevices(enabled)) {
+            JuggSettings.isNeedSyncNativeSandboxRuntime = false
+        }
+        model.updateSettings(currentSettings())
+        recordSettingChanged(Setting.SO_HOT_UPDATE.displayName, enabled)
+    }
+
+    private fun syncNativeSandboxRuntimeOnConnectedDevices(enabled: Boolean): Boolean {
+        val packageName = deployTargetManager.getPackageNameOrNull()
+        if (packageName.isNullOrBlank()) {
+            logger.debug("SO sandbox runtime flag sync skipped: package name unavailable")
+            return false
+        }
+        val devices = try {
+            deployTargetManager.getConnectedDevices()
+        } catch (e: Exception) {
+            logger.warn("SO sandbox runtime flag sync skipped: list devices failed", e)
+            return false
+        }
+        if (devices.isEmpty()) {
+            logger.debug("SO sandbox runtime flag sync skipped: no connected device")
+            return false
+        }
+        var allSucceeded = true
+        devices.forEach { device ->
+            try {
+                val adb = IdeaDeviceAdb(device, logger)
+                val sandbox = AppSandboxExecutor(adb, packageName, logger)
+                if (!NativeSandboxWriter(adb, sandbox, logger).bestEffortSetEnabled(enabled)) {
+                    allSucceeded = false
+                }
+            } catch (e: Exception) {
+                allSucceeded = false
+                logger.warn("SO sandbox runtime flag sync failed", e)
+            }
+        }
+        if (allSucceeded) {
+            logger.info("SO sandbox runtime flag updated: enabled=$enabled")
+        }
+        return allSucceeded
     }
 
     private fun recordSettingChanged(name: String, enabled: Boolean) {
@@ -269,6 +317,7 @@ open class JuggControlPanelController(
             confirmFallbackWhenNoFileChanges = JuggSettings.isConfirmFallbackWhenNoFileChanges,
             alwaysRestartAppAfterDeployment = JuggSettings.isAlwaysRestartAppAfterDeployment,
             quickDeploy = JuggSettings.isEnableDirectOverlayDeploy,
+            nativeSandboxDeploy = JuggSettings.isEnableNativeSandboxDeploy,
             autoFallbackAfterDeployFailure = JuggSettings.isAutoFallbackToGradleWhenDeployError,
             embedChangesIntoApk = JuggSettings.isEmbeddedToApk,
             useProjectKotlinCompiler = JuggSettings.isUseProjectKotlinCompiler,
@@ -350,6 +399,7 @@ open class JuggControlPanelController(
         CONFIRM_FALLBACK("Confirm fallback"),
         ALWAYS_RESTART("Always restart app"),
         QUICK_DEPLOY("Quick deploy"),
+        SO_HOT_UPDATE("SO hot update"),
         AUTO_FALLBACK("Auto fallback"),
         EMBED_APK("Embed changes into APK"),
         PROJECT_KOTLIN("Project Kotlin compiler"),

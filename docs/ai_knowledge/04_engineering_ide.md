@@ -1,6 +1,6 @@
 # 工程化：IDE 插件层
 
-> 最后核对：2026-09-15
+> 最后核对：2026-09-17
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -144,7 +144,7 @@ Debug executor 仅支持普通 Jugg RunConfiguration，不接管 androidTest。D
 - Overview 作为编译驾驶舱，固定展示 Run Status、Changed Files、按 Build / Device / Jugg Plugin 分组的 Quick Actions、This Session 和 Recent Runs。预处理确定真实编译路径后，`JuggCompilerHelper` 通过 `CompileUiHandler.onCompileStarted()` 发出领域通知，`JuggRunningTask` 再投影为 Control Panel 事件并捕获 undeployed 输入快照；不再记录无业务信息的 `Jugg task started`。terminal 后任务才进入 Recent Runs；原始 compile mode、deploy type、terminal category、fallback 与各阶段耗时由结构化事件传递，Panel 只负责展示映射。编译事件固定区分 `Incremental compile` 与 `Gradle compile` 的 started/completed/failed/canceled；增量无实际编译时显示 `No compile needed`。Recent Runs 每行固定展示编译模式、最终结果、总耗时和状态，其中 compile-only、编译失败、部署失败与无设备分别使用明确结果文本，成功部署展示实际 deploy type；选中后再展示 Compile / Deploy / Total 分阶段详情。Changed Files 与 Recent Runs 使用 IDE 原生可选列表，Changed Files 双击打开文件；运行耗时由 Swing Timer 每秒刷新且不写回 Model。
 - Logs 只展示 sync、compile、deploy、app、user action、CLI/MCP 等结构化核心事件，不读取或轮询 `compile_latest.log`；来源筛选默认 `ALL` 展示所有事件，`IDE` 只保留 `source=IDE`，`CLI / MCP` 保持 CLI/MCP 来源或分类过滤。级别下拉框、当前任务与 Follow 复选框及搜索框继续叠加过滤，日志列表支持多选和平台复制快捷键。
 - MCP lifecycle 固定记录 `MCP request` / `MCP response`：request detail 保留去除 `projectDir` 后的具体参数，response detail 保留 status/message/data/artifacts/errorCode；面板内容统一递归移除 `projectDir`、脱敏敏感字段并限制最大长度。
-- Model 保留 Run Configuration、selected devices、package、changed files、baseline 与 deploy history 等 Context/Health 数据，Overview 不展示 context 摘要；Settings 使用原生分组、复选框和文字 action。Quick deploy、Embed APK、Project Kotlin 与按设备 compat 只在 Gradle 注入能力开启时展示，Backup classpath 只在当前环境可用时展示；Embed APK 与 Backup classpath 保留确认流程，后者切换成功后删除 deploy history。
+- Model 保留 Run Configuration、selected devices、package、changed files、baseline 与 deploy history 等 Context/Health 数据，Overview 不展示 context 摘要；Settings 使用原生分组、复选框和文字 action。Quick deploy、Embed APK、Project Kotlin 与按设备 compat 只在 Gradle 注入能力开启时展示，Backup classpath 只在当前环境可用时展示；SO hot update 始终展示且默认关闭，开关变化时同步设备上的 `.jugg_native/.enabled` 运行时标记、不删补丁 `.so`，连不上设备则下次部署再同步；Embed APK 与 Backup classpath 保留确认流程，后者切换成功后删除 deploy history。
 - Settings 的 Deployment 按已连接设备动态展示强制 compat deploy，每次进入或再次打开 Settings 时刷新设备列表；Integrations 提供 custom server URL，Advanced 保留 mark synced / mark Gradle compiled 两个测试操作；这些入口直接复用项目级 Manager 与 Controller，不再维护独立菜单状态。
 - Overview Quick Actions 按 Build、Device、Jugg Plugin 分组；Jugg 业务点击（Quick Actions、菜单/工具栏、Settings 文字动作与开关）以及编译确认框会记为 User Action。同一条文案同时写入 `compile_latest.log`（前缀 `[UserAction]`）和 Panel Logs；不占用当前 compile/deploy task。Tab、日志筛选、列表选择和打开 Panel 本身不记录。Run/Debug 仍走 compile/deploy 事件。MCP/CLI 自动确认路径不记。自动或强制 Gradle 回退会把 `Fallback to gradle compile. Reason: ...` 同时写入 `compile_latest.log`、Run 窗口和 Panel Logs（当前 compile task）。`Clear app data` 复用通用确认弹窗，确认后才执行清除 App 数据、完整 Gradle 构建和重装。`Clear Jugg Build` 保留既有清理 Jugg 项目构建数据并重新初始化项目的行为。
 - Build Quick Actions 最下方的 `Exec remote CMD` 只接受当前选中的远程 Jugg Configuration，不使用 full build history 或首个配置兜底。对话框固定展示 SSH target 与 `remoteProjectPath`，命令为空时只禁用 Run，不显示校验错误；支持从该目标最近 10 条命令中选择并回填，历史由 `JuggSettings` 按 `user + host + port + remoteProjectPath` 隔离。执行创建独立 `Jugg Remote Command` Run Content、专用 ProcessHandler 与 SSH client，不进入 `JuggConfigurationRunner` / `JuggRunningTask`；Stop 只取消本次命令，并在后台确认取消后以非零状态结束 Run Content。

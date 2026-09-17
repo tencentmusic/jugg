@@ -75,6 +75,17 @@ object JuggSettings {
      */
     var isEnableDirectOverlayDeploy: Boolean by propertiesComponent.delegate(defaultValue = true)
 
+    /**
+     * Pushes changed .so files into the app private directory and restarts,
+     * skipping APK re-sign and reinstall. Disabled by default.
+     */
+    var isEnableNativeSandboxDeploy: Boolean by propertiesComponent.delegate(defaultValue = false)
+
+    /**
+     * True after SO hot update is toggled until the device runtime flag is synced.
+     */
+    var isNeedSyncNativeSandboxRuntime: Boolean by propertiesComponent.delegate(defaultValue = false)
+
     var isUseProjectKotlinCompiler: Boolean by propertiesComponent.delegate(keyName = "isUseProjectKotlinCompiler_v3", defaultValue = true)
 
     /** limit max source modules to compile for better performance */

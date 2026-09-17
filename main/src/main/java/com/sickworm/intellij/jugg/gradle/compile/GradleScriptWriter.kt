@@ -18,20 +18,19 @@ class GradleScriptWriter(
     @Synchronized
     fun writeInitGradleFile() {
         val initGradleFile = pathManager.initGradleFilePath
-        if (hasWrote && initGradleFile.exists()) {
+        val bundled = GradleScriptWriter::class.java.getResource("/gradle/readProjectInfo.gradle.kts")!!
+            .openStream().use { it.reader().readText() }
+        val current = if (initGradleFile.exists()) initGradleFile.readText() else null
+        val runtimeJar = pathManager.runtimeJarFilePath
+        if (hasWrote && current == bundled && runtimeJar.exists()) {
             return
         }
         TimeLogger.start("writeInitGradleFile")
         initGradleFile.parentFile.mkdirs()
-        GradleScriptWriter::class.java.getResource("/gradle/readProjectInfo.gradle.kts")!!.openStream().use { ins ->
-            val text = ins.reader().readText()
-            initGradleFile.writeText(text)
-        }
-
+        initGradleFile.writeText(bundled)
         GradleScriptWriter::class.java.getResource(BuildConfig.RUNTIME_JAR_PATH)!!.openStream().use { ins ->
-            pathManager.runtimeJarFilePath.writeBytes(ins.readAllBytes())
+            runtimeJar.writeBytes(ins.readAllBytes())
         }
-
         hasWrote = true
         TimeLogger.end("writeInitGradleFile", logger)
     }

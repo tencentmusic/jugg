@@ -1,6 +1,6 @@
 # 部署系统：核心部署机制
 
-> 最后核对：2026-09-15
+> 最后核对：2026-09-17
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -31,7 +31,8 @@
 | `ApkFileModifier` | `main/src/main/java/com/sickworm/intellij/jugg/apk/ApkFileModifier.kt` | 在 APK 同目录临时副本上插入文件、zipalign、签名、`apksigner verify`，全部成功后才原子替换原 APK。 |
 | `DeployFileManager` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/DeployFileManager.kt` | 部署文件 facade。维护 changed/compiled/staging/deployed 状态，生成 `JuggDeployData`，reinstall 后 reset。 |
 | `DeployDataPlanner` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/DeployDataPlanner.kt` | 从 staging + history 规划部署数据，处理 dex merge 与 compat deploy 组装。 |
-| `JuggDeployData` / `DeployItem` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployData.kt` | 最终下发设备的部署数据模型，包含 deploy type、APK 归属、restart 判断、split/filter，以及本轮 Flutter JIT runtime 变化（`flutterJitRuntimeFiles`）。 |
+| `JuggDeployData` / `DeployItem` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployData.kt` | 最终下发设备的部署数据模型，包含 deploy type、APK 归属、restart 判断、split/filter，本轮 Flutter JIT runtime 变化（`flutterJitRuntimeFiles`），以及本轮 sandbox 下发的 native lib（`nativeSandboxFiles`）。 |
+| `NativeSandboxDeployPlanner` / `NativeSandboxWriter` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/nativesandbox/` | 仅 NativeLib 时决定是否跳过 APK 重签/重装；两步 push 到 `code_cache/.jugg_native/<abi>/`。失败整轮回退 `updateApk`；若 copy 已发生，只删除本轮 `.so`，不清整个 ABI 目录。写入成功时创建 `.jugg_native/.enabled`；关闭 SO hot update 只撤这个运行时标记，不删补丁 `.so`。 |
 | `FlutterJitCacheInvalidator` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/flutter/FlutterJitCacheInvalidator.kt` | 通过 `AppSandboxExecutor` 删除目标应用 `app_flutter` 直属的 `res_timestamp-*`，让 Flutter 下次启动重新从 overlay 解压 `flutter_assets`。 |
 | `DirectOverlaySwapTransport` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/direct/DirectOverlaySwapTransport.kt` | Direct Overlay swap transport。只替换 Apply Changes 的 overlay update 动作，不接管部署生命周期。 |
 | `AppSandboxExecutor` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/AppSandboxExecutor.kt` | 统一 app 私有目录命令；严格探测 Apply Changes 的 `run-as`、UID 与 SELinux label 前提，并在不兼容时固定普通 shell、root adbd 或非交互 `su` 模式与真实 `dataDir`。 |
@@ -58,7 +59,7 @@
 | `isNeedRestartApp` | `HOT_FIX` | 需要重启 App 生效。 |
 | 其他 | `HOT_RELOAD` | 在线 Apply Changes，尽量不重启 App。 |
 
-`isNeedRestartApp` 由 hot-fix classes、非空 `isPushOverlayOnly`、APK 根目录 overlay、非空的本轮 Compose resource compile、非空的本轮 Flutter JIT runtime 变化，或 reinstall recover 后的 follow-up replay 决定；`isNeedRestartActivity` 只在非 warm-up、非空、且不需要重启 App 时成立。
+`isNeedRestartApp` 由 hot-fix classes、非空 `isPushOverlayOnly`、APK 根目录 overlay、非空的本轮 Compose resource compile、非空的本轮 Flutter JIT runtime 变化、非空的本轮 `nativeSandboxFiles`，或 reinstall recover 后的 follow-up replay 决定；`isNeedRestartActivity` 只在非 warm-up、非空、且不需要重启 App 时成立。`isEmpty` 仍只看 class/overlay，native-only sandbox 部署可以 overlay 为空，但必须重启进程。摘要日志在存在 `nativeSandboxFiles` 时打印 `native sandbox: [...]`，不再附加 `[nothing to deploy]`；部署结果 `hasDeployChanges` 把 `nativeSandboxFiles` 算作有变更。
 
 Flutter JIT runtime 变化指本轮真实编译并部署的 `assets/flutter_assets/kernel_blob.bin`、`vm_snapshot_data`、`isolate_snapshot_data`。`DeployDataPlanner` 从本轮 staging 产物识别：产物类型为 `Asset`、来源模块含 `ExternalBuildType.Flutter`、标准化部署路径命中上述三个文件之一。识别必须发生在 `DeployDataGenerator` 首次 full-resource overlay 扩展之前，否则 APK 基线带入 overlay 的旧 kernel 会被误判为本轮变化。命中结果写入瞬态字段 `flutterJitRuntimeFiles`（`List<DeployItem>`，随 `filterForApks()` 一起裁剪，不持久化、不进部署历史），warm-up 与 install 数据保持为空。
 
@@ -110,7 +111,7 @@ JuggDeployerHelper.deploy(isInstall=true)
   -> 普通 App 且启用自定义脚本: CustomApkInstallScriptRunner.run()
       -> 继承 IDE/Gradle 环境，并把 Android SDK platform-tools 加入 PATH
       -> 脚本成功后等待 ADB、确认包存在、dump APK 校验 checksum
-      -> app sandbox 可用时清理 code_cache/.overlay，避免重装保留旧 checkpoint
+      -> app sandbox 可用时清理 code_cache/.overlay 与 code_cache/.jugg_native，避免重装保留旧 checkpoint 或 native 补丁
   -> 其他情况: AsDeployerCompat.install()
   -> JuggDeploymentService.storeEntry()
   -> deployHistoryManager.lastDeployOverlayIds = launchResult.overlayIds
@@ -118,7 +119,7 @@ JuggDeployerHelper.deploy(isInstall=true)
 
 脚本配置从 Run Configuration 经 `DeployOptions`、deploy/recover 请求和 `LaunchContextFactory` 写入 `LaunchContext`。`JuggDeployTask` 仅在 INSTALL 分支为普通 App 创建 `CustomApkInstallScriptRunner`，作为当前 `JuggDeployer.install()` 的可空参数；test APK 传空，使用默认 installer。脚本沿用每台设备、每个 applicationId 的安装粒度，校验和 cache 更新仍由 `JuggDeployer` 统一负责。
 
-install 前会先 stop app，避免用户看到“安装后又被停止”的错觉。自定义脚本对 Gradle install、embedded install、APK 更新 recover 和 reinstall recover 使用同一入口；androidTest APK 不执行脚本。脚本非零退出、取消、ADB 未恢复、包未安装或设备 APK 与输入 APK checksum 不一致都会明确失败，且不会触发默认 installer 的 transient retry、deploy retry 或 Gradle fallback。脚本校验成功后，Jugg 会在 app sandbox 可用时清理 `code_cache/.overlay`，再写入新 base deployment cache；这是因为系统应用的 `adb uninstall` 只移除更新层，可能保留旧 app data 和 Direct Overlay checkpoint。sandbox 不可用时只跳过该增强清理，不影响原有自定义安装能力。脚本成功后发生其它部署失败时，沿用原有 retry/fallback 策略，包括 test APK 安装失败后的 `INSTALL_FAILED_INVALID_APK` 卸载重试；由业务脚本负责重复执行的语义和副作用处理。安装与增量部署失败时优先透出 `AdbLogWrapper.realErrorMessage`，不要先改高层错误文案；`run-as: package not debuggable` 等设备侧明确原因必须覆盖 deployer 的通用失败信息。
+install 前会先 stop app，避免用户看到“安装后又被停止”的错觉。自定义脚本对 Gradle install、embedded install、APK 更新 recover 和 reinstall recover 使用同一入口；androidTest APK 不执行脚本。脚本非零退出、取消、ADB 未恢复、包未安装或设备 APK 与输入 APK checksum 不一致都会明确失败，且不会触发默认 installer 的 transient retry、deploy retry 或 Gradle fallback。脚本校验成功后，Jugg 会在 app sandbox 可用时清理 `code_cache/.overlay` 和 `code_cache/.jugg_native`，再写入新 base deployment cache；这是因为系统应用的 `adb uninstall` 只移除更新层，可能保留旧 app data 和 Direct Overlay checkpoint。sandbox 不可用时只跳过该增强清理，不影响原有自定义安装能力。脚本成功后发生其它部署失败时，沿用原有 retry/fallback 策略，包括 test APK 安装失败后的 `INSTALL_FAILED_INVALID_APK` 卸载重试；由业务脚本负责重复执行的语义和副作用处理。安装与增量部署失败时优先透出 `AdbLogWrapper.realErrorMessage`，不要先改高层错误文案；`run-as: package not debuggable` 等设备侧明确原因必须覆盖 deployer 的通用失败信息。
 
 ### 4.2 incremental deploy 链路
 
@@ -127,7 +128,9 @@ JuggDeployerHelper.deploy(isInstall=false)
   -> deployIncrementalChanges()
   -> DeployFileManager.getDeployData(isWarmUp, isNeedPushResourceApk)
   -> LibraryTestApkBackfillHelper.backfillIfNeeded()
-  -> 需要更新 APK: IncrementalDeployHelper.updateApk() + recoverDeployState()
+  -> 切换 SO hot update 后待同步运行时标记: NativeSandboxWriter 写入或删除 code_cache/.jugg_native/.enabled，不删补丁 .so
+  -> 仅 NativeLib、Settings 已开启 SO hot update、设备 API ≥ 26 且 sandbox 可用: NativeSandboxWriter 写入 code_cache/.jugg_native，跳过 resign/reinstall
+  -> 其他 APK 更新或 sandbox 失败: IncrementalDeployHelper.updateApk() + recoverDeployState()
   -> 设备 not ready 或 **跨工程切换**（`LastCompileProjectRegistry` + `isProjectSwitchedThisRun`）: DeployStateRecover.recoverDeployState()
   -> 可选 quick fallback: JuggDeployData.toFallbackToHotFixData()
   -> runTask()
@@ -136,7 +139,7 @@ JuggDeployerHelper.deploy(isInstall=false)
   -> updateInfoAfterIncDeploy()
 ```
 
-APK 更新统一走 `IncrementalDeployHelper.updateApk()`：`JuggDeployerHelper` 在普通 APK 更新和 Embedded APK 更新两处调用，并把 `DeployOptions.customApkSignScript` 与当前 `CompileUiHandler` 传入。`updateApk()` 只在未配置自定义脚本时才要求 `context.signingConfig` 有效；配置了脚本时本地 keystore 缺失不构成失败。
+APK 更新统一走 `IncrementalDeployHelper.updateApk()`：`JuggDeployerHelper` 在普通 APK 更新和 Embedded APK 更新两处调用，并把 `DeployOptions.customApkSignScript` 与当前 `CompileUiHandler` 传入。`updateApk()` 只在未配置自定义脚本时才要求 `context.signingConfig` 有效；配置了脚本时本地 keystore 缺失不构成失败。`DeployDataGenerator` 仍把 NativeLib 放进 `updateApkFiles`；`JuggDeployerHelper` 在 resign 前先看 `canTryNativeSandbox`：`JuggSettings.isEnableNativeSandboxDeploy` 默认关闭，Control Panel Settings → Deployment「SO hot update」打开且设备 `apiLevel ≥ 26`（Android 8.0 / `VERSION_CODES.O`）后才调用 `tryDeliverNativeSandbox`。开启后用 `NativeSandboxDeployPlanner` 分流：本轮只有 NativeLib、sandbox 可用且能解析目标 ABI 时，`NativeSandboxWriter` 把 `.so` 推到 `/data/local/tmp/jugg/nativeLib/` 再拷入 `code_cache/.jugg_native/<abi>/`，成功后清空 `updateApkFiles` 并写入瞬态 `nativeSandboxFiles`，跳过重签和重装，仍强制重启进程。目标 ABI 与 Apply Changes 共用 `AppAbiResolver.resolveWithCache` 和 Helper 持有的 `AppAbiCache`，进程不在时不能把 `ARCH_UNKNOWN` 当成 64 位。开关关闭、API < 26、同轮还有 Manifest 等非 NativeLib、sandbox 不可用、ABI 对不上、或任一步失败时，整批回到原来的 `updateApk → resign → reinstall`。copy/SELinux 失败时只 `rm -f` 本轮写入的 `.so`；push 尚未拷入 sandbox 时不动已有补丁目录。关闭 SO hot update 会置 `isNeedSyncNativeSandboxRuntime`：已连接设备立刻写入或删除 `code_cache/.jugg_native/.enabled`，不删补丁 `.so`；当时没有设备或同步失败时，下次增量部署再同步。默认关闭且无待同步标记时不会每轮探测 sandbox。`NativeLibraryPathInstaller` 只在 `.enabled` 存在时注入路径。sandbox 路径只覆盖 `System.loadLibrary` / `findLibrary`，不覆盖绝对路径 `dlopen`。
 
 ```text
 IncrementalDeployHelper.updateApk(apkInfos, deployItems, customApkSignScript, compileUiHandler)
@@ -351,7 +354,7 @@ Direct app sandbox 是 Android Studio Apply Changes 的 app sandbox 前提不成
 | 协议与诊断 | 使用精简的 V4 文本请求/结果协议，显式区分 `NEW` / `MODIFIED` 并允许空请求；Host 轮询结果，JNI 失败保留异常类型和消息，主线程资源应用也有独立超时。 | phase 诊断和调试器协同少于官方 Deployer；heartbeat 不取消 ADB 超时，超时、断连和无结果仍按失败处理。 |
 | 平台适配 | 资源刷新依赖 `ResourcesManager` 内部引用、宿主 APK 路径过滤和 `ResourcesLoader`。 | OEM 或 framework 差异导致刷新失败时降级为进程重启，不承诺覆盖官方 Agent 的全部版本适配。 |
 
-Manifest、native library 等 `updateApkFiles` 继续由 APK 改写、重签和安装链路处理，不属于 Direct dynamic agent 需要补齐的能力。Direct 当前的设计目标是让官方 app sandbox 通道不可用的应用获得常用增量部署结果，同时保留原有 lifecycle、recover 和安装边界。
+Manifest 等必须改包的 `updateApkFiles` 继续由 APK 改写、重签和安装链路处理。仅 NativeLib、Settings 已开启 SO hot update、设备 API ≥ 26 且 sandbox 可用时由 `NativeSandboxWriter` 走 `code_cache/.jugg_native` 快路径，不属于 Direct dynamic agent 需要补齐的能力。Direct 当前的设计目标是让官方 app sandbox 通道不可用的应用获得常用增量部署结果，同时保留原有 lifecycle、recover 和安装边界。
 
 ---
 
@@ -368,7 +371,7 @@ Manifest、native library 等 `updateApkFiles` 继续由 APK 改写、重签和�
 - APK 根目录 overlay 必须重启进程；Activity restart 无法可靠清除 ClassLoader、legacy Compose resource 或 `JarURLConnection` 缓存。
 - 现代 Compose resource 即使最终路径位于 `assets/**` 也必须重启进程；`AssetManager` / Compose runtime 缓存不能依赖 Activity restart 清理。
 - Flutter JIT 的 overlay 更新只改 overlay 目录，Flutter 仍会复用 `app_flutter` 里已解压的旧 `kernel_blob.bin`；只有删除 `app_flutter/res_timestamp-*` 才会触发重新解压。失效命令只允许删除 `app_flutter` 直属、`res_timestamp-` 前缀的普通文件，不触碰 `flutter_assets`、kernel、overlay 和应用其它数据；timestamp 不存在视为幂等成功。
-- 失效与 overlay 提交不构成同一文件系统事务：失效失败必须让本轮部署失败（不提交成功历史），设备 overlay 可能已更新，由下一轮现有 overlay-id mismatch/recover 流程对齐。Flutter Profile/Release AOT 走 `libapp.so` 的 APK 更新链路，不进入该失效流程。
+- 失效与 overlay 提交不构成同一文件系统事务：失效失败必须让本轮部署失败（不提交成功历史），设备 overlay 可能已更新，由下一轮现有 overlay-id mismatch/recover 流程对齐。Flutter Profile/Release AOT 走 `libapp.so` 的 native 部署路径，不进入该失效流程。
 - `CompatDeployHelper` 对 API < 30、设备兼容记录以及所有 HarmonyOS 设备返回 true；HarmonyOS 通过非空的 `hw_sc.build.platform.version` 属性识别，不持久化为手动 Force 记录。
 - dex merge 阈值是 `DeployDataPlanner.MAX_DEPLOYED_DEX_COUNT = 1000`；超过阈值时把 staging dex + 未 staging 的历史 dex merge，失败则保留原数据继续部署。
 - transient offline 的设计目标是在失败点附近恢复：shell/deployer 层原地等待并重试一次，编排层只处理已经冒泡的 offline 失败。

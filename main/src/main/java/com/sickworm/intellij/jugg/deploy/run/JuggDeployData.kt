@@ -55,6 +55,11 @@ data class JuggDeployData(
      * APK `lastUpdateTime` changes, so these files also require invalidating the Flutter cache.
      */
     val flutterJitRuntimeFiles: List<DeployItem> = emptyList(),
+    /**
+     * Native libraries delivered through the sandbox path in this round.
+     * Transient: filtered with APK scope, not persisted into deploy history.
+     */
+    val nativeSandboxFiles: List<DeployItem> = emptyList(),
 ) {
 
     val isEmpty get() = newClasses.isEmpty() &&
@@ -84,6 +89,7 @@ data class JuggDeployData(
             || (isComposeResourceCompiled && !isEmpty)
             || isRecoverReplayAfterReinstall
             || flutterJitRuntimeFiles.isNotEmpty()
+            || nativeSandboxFiles.isNotEmpty()
 
     /** is need update files in APK and resign, e.g. AndroidManifest.xml lib/arm64-v8a/xxx.so */
     val isNeedUpdateApk: Boolean = updateApkFiles.isNotEmpty()
@@ -119,6 +125,7 @@ data class JuggDeployData(
             overlays = overlays.filter { it.belongsToAny(apkPaths) },
             updateApkFiles = updateApkFiles.filter { it.belongsToAny(apkPaths) },
             flutterJitRuntimeFiles = flutterJitRuntimeFiles.filter { it.belongsToAny(apkPaths) },
+            nativeSandboxFiles = nativeSandboxFiles.filter { it.belongsToAny(apkPaths) },
         )
     }
 
@@ -140,6 +147,9 @@ data class JuggDeployData(
     private fun toString(isFull: Boolean): String {
         val builder = StringBuilder()
         builder.append("JuggDeployData ($deployType): ")
+        if (nativeSandboxFiles.isNotEmpty()) {
+            builder.append("native sandbox: ${nativeSandboxFiles.map { it.name }}\n")
+        }
         if (isFull) {
             builder.append("isFullRes: $isFullRes, isWarmUp: $isWarmUp, isInstall: $isInstall, isPushOverlayOnly: $isPushOverlayOnly, isComposeResourceCompiled: $isComposeResourceCompiled, isRecoverReplayAfterReinstall: $isRecoverReplayAfterReinstall, isNeedRestartApp: $isNeedRestartApp, isCompatDeploy: $isCompatDeploy, isNeedRestartActivity:$isNeedRestartActivity\n")
             if (flutterJitRuntimeFiles.isNotEmpty()) {
@@ -150,7 +160,9 @@ data class JuggDeployData(
             }
         }
         if (isEmpty) {
-            builder.append("[nothing to deploy]")
+            if (nativeSandboxFiles.isEmpty()) {
+                builder.append("[nothing to deploy]")
+            }
             return builder.toString()
         }
         builder.append("[\n")

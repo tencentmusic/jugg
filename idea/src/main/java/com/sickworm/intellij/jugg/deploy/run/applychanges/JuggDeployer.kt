@@ -17,6 +17,7 @@ import com.sickworm.intellij.jugg.deploy.direct.DirectOverlayDirtyException
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlaySwapTransport
 import com.sickworm.intellij.jugg.deploy.hotreload.DirectAppSandboxDeployTransport
 import com.sickworm.intellij.jugg.deploy.hotreload.RootlessCompatPending
+import com.sickworm.intellij.jugg.deploy.nativesandbox.NativeSandboxWriter
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.IJuggDeployerDeploymentService
@@ -126,7 +127,7 @@ class JuggDeployer(
             return
         }
         val output = sandbox.exec(
-            "rm -rf code_cache/.overlay && echo success",
+            "rm -rf code_cache/.overlay ${NativeSandboxWriter.SANDBOX_DIR} && echo success",
             repairCodeCache = true,
         )
         check(output.trim() == "success") {
@@ -207,38 +208,24 @@ class JuggDeployer(
         }
         val processArch = adbClient.getArch(pids)
         val resolveAbiStartNanos = System.nanoTime()
-        val appAbiCache = launchContext.appAbiCache
-        val cacheKey = appAbiCache.createKey(deviceSerial, packageName, argPaths)
-        val cachedArch = if (processArch == Deploy.Arch.ARCH_UNKNOWN) appAbiCache.get(cacheKey) else null
-        val resolution = if (processArch != Deploy.Arch.ARCH_UNKNOWN) {
-            AppAbiResolver(deviceAdb, logger.logger).resolveDetailed(
-                packageName = packageName,
-                processArch = processArch,
-                apkArch = Deploy.Arch.ARCH_UNKNOWN.name,
-                use32BitAbi = false,
-                deviceAbi = launchContext.deviceAbi,
-            ).also {
-                appAbiCache.put(cacheKey, it.arch)
-            }
-        } else if (cachedArch != null) {
-            AppAbiResolver.Resolution(cachedArch, "cache", true)
-        } else {
-            val apkInfoReader = ApkInfoReader(logger.logger)
-            AppAbiResolver(deviceAdb, logger.logger).resolveDetailed(
-                packageName = packageName,
-                processArch = processArch,
-                apkArch = apkInfoReader.getArch(newFiles),
-                use32BitAbi = apkInfoReader.isUse32BitAbi(newFiles),
-                deviceAbi = launchContext.deviceAbi,
-            ).also {
-                if (it.cacheable) {
-                    appAbiCache.put(cacheKey, it.arch)
-                }
-            }
-        }
+        val resolution = AppAbiResolver(deviceAdb, logger.logger).resolveWithCache(
+            cache = launchContext.appAbiCache,
+            deviceSerial = deviceSerial,
+            packageName = packageName,
+            apkPaths = argPaths,
+            processArch = processArch,
+            deviceAbi = launchContext.deviceAbi,
+            apkFacts = {
+                val apkInfoReader = ApkInfoReader(logger.logger)
+                AppAbiResolver.ApkFacts(
+                    apkArch = apkInfoReader.getArch(newFiles),
+                    use32BitAbi = apkInfoReader.isUse32BitAbi(newFiles),
+                )
+            },
+        )
         val arch = resolution.arch
         logger.logger.debug("Resolve app ABI: packageName=$packageName, arch=$arch" +
-                ", source=${resolution.source}, cacheHit=${cachedArch != null}" +
+                ", source=${resolution.source}, cacheHit=${resolution.source == "cache"}" +
                 ", cost=${(System.nanoTime() - resolveAbiStartNanos) / 1_000_000}ms")
         logger.info("packageName: $packageName, ideClientPids: $pids, processArch: $processArch" +
                 ", arch: $arch")

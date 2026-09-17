@@ -1,23 +1,33 @@
 package com.sickworm.intellij.jugg.deploy.run
 
 import com.android.ddmlib.IDevice
+import com.android.tools.deploy.proto.Deploy
 import com.android.tools.idea.log.LogWrapper
 import com.google.gson.Gson
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Computable
+import com.sickworm.intellij.jugg.apk.ApkInfoReader
 import com.sickworm.intellij.jugg.compiler.CompileFile
+import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.compiler.IncrementalDeployHelper
 import com.sickworm.intellij.jugg.compiler.jarDexFileName
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlaySwapTransport
+import com.sickworm.intellij.jugg.deploy.direct.InstallerDeviceAbiResolver
 import com.sickworm.intellij.jugg.deploy.flutter.FlutterJitCacheInvalidator
 import com.sickworm.intellij.jugg.deploy.direct.RootlessCompatDeployArchive
 import com.sickworm.intellij.jugg.deploy.hotreload.DirectAppSandboxDeployTransport
 import com.sickworm.intellij.jugg.deploy.hotreload.RootlessCompatImportConfirmer
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestApkSelector
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestResultModel
+import com.sickworm.intellij.jugg.deploy.nativesandbox.NativeSandboxDeployException
+import com.sickworm.intellij.jugg.deploy.nativesandbox.NativeSandboxDeployPlanner
+import com.sickworm.intellij.jugg.deploy.nativesandbox.NativeSandboxDeployStep
+import com.sickworm.intellij.jugg.deploy.nativesandbox.NativeSandboxPlan
+import com.sickworm.intellij.jugg.deploy.nativesandbox.NativeSandboxWriteRequest
+import com.sickworm.intellij.jugg.deploy.nativesandbox.NativeSandboxWriter
 import com.sickworm.intellij.jugg.deploy.run.applychanges.AndroidDeployType
 import com.sickworm.intellij.jugg.deploy.run.applychanges.CustomApkInstallScriptException
 import com.sickworm.intellij.jugg.deploy.run.applychanges.JuggDeployTask
@@ -720,28 +730,37 @@ class JuggDeployerHelper(
             },
         )
         publishDeployState(deployData)
+        syncNativeSandboxRuntimeIfNeeded(device, deployData)
 
         var isNeedReinstallApk = false
         val isRetry = deployOptions.retryReason != null // retry means we have already resigned the apk
         if (deployData.isNeedUpdateApk && !isRetry) {
-            logger.info("Need resign APK to update files: ${deployData.updateApkFiles}.")
-            logger.info("Resigning APK...")
-            TimeLogger.start("insertFileAndResignApk")
-            val (isSuccess, failedReason) = IncrementalDeployHelper(compileContextManager.compileContext, logger)
-                .updateApk(
-                    deployData.apks,
-                    deployData.updateApkFiles,
-                    deployOptions.customApkSignScript,
-                    deployOptions.compileUiHandler,
-                )
-            if (!isSuccess) {
-                return ChangesDeployOutcome(
-                    DeployTaskResult(isSuccess = false, isCanFallback = true, costTime = costTime(), failedReason = failedReason),
-                    deployData,
-                )
+            val nativeOutcome = if (canTryNativeSandbox(device)) {
+                tryDeliverNativeSandbox(device, deployData)
+            } else {
+                NativeSandboxOutcome(deployData, skipApkUpdate = false)
             }
-            logger.info("Resign APK file finished, cost ${TimeLogger.getCostTime("insertFileAndResignApk")}ms.\n")
-            isNeedReinstallApk = true
+            deployData = nativeOutcome.deployData
+            if (!nativeOutcome.skipApkUpdate) {
+                logger.info("Need resign APK to update files: ${deployData.updateApkFiles}.")
+                logger.info("Resigning APK...")
+                TimeLogger.start("insertFileAndResignApk")
+                val (isSuccess, failedReason) = IncrementalDeployHelper(compileContextManager.compileContext, logger)
+                    .updateApk(
+                        deployData.apks,
+                        deployData.updateApkFiles,
+                        deployOptions.customApkSignScript,
+                        deployOptions.compileUiHandler,
+                    )
+                if (!isSuccess) {
+                    return ChangesDeployOutcome(
+                        DeployTaskResult(isSuccess = false, isCanFallback = true, costTime = costTime(), failedReason = failedReason),
+                        deployData,
+                    )
+                }
+                logger.info("Resign APK file finished, cost ${TimeLogger.getCostTime("insertFileAndResignApk")}ms.\n")
+                isNeedReinstallApk = true
+            }
         }
 
         var isRecoverWithReinstall = false
@@ -869,7 +888,7 @@ class JuggDeployerHelper(
                 costTime = costTime(),
                 deployType = actualDeployType,
                 costTimeExceptCheck = costTime() - launchResult.checkJvmtiCostTime,
-                hasDeployChanges = !deployData.isEmpty,
+                hasDeployChanges = !deployData.isEmpty || deployData.nativeSandboxFiles.isNotEmpty(),
             ),
             deployData,
             finalIsFallbackAllHotFix,
@@ -1040,6 +1059,147 @@ class JuggDeployerHelper(
         }
         return false
     }
+
+    private fun canTryNativeSandbox(device: IDevice): Boolean {
+        if (!JuggSettings.isEnableNativeSandboxDeploy) {
+            logger.debug("SO sandbox deploy skipped: disabled by settings")
+            return false
+        }
+        val api = device.version.apiLevel
+        if (api < NativeSandboxDeployPlanner.MIN_API) {
+            logger.debug("SO sandbox deploy skipped: api $api < ${NativeSandboxDeployPlanner.MIN_API}")
+            return false
+        }
+        return true
+    }
+
+    private fun syncNativeSandboxRuntimeIfNeeded(device: IDevice, deployData: JuggDeployData) {
+        if (!JuggSettings.isNeedSyncNativeSandboxRuntime) {
+            return
+        }
+        val packageName = deployData.apks.firstOrNull { !it.isOtherTargetingTestApk }?.applicationId
+        if (packageName.isNullOrBlank()) {
+            logger.debug("SO sandbox runtime flag sync skipped: package name unavailable")
+            return
+        }
+        val enabled = JuggSettings.isEnableNativeSandboxDeploy
+        try {
+            val adb = deviceAdbFactory(device, logger)
+            val sandbox = AppSandboxExecutor(adb, packageName, logger)
+            if (NativeSandboxWriter(adb, sandbox, logger).bestEffortSetEnabled(enabled)) {
+                JuggSettings.isNeedSyncNativeSandboxRuntime = false
+                logger.info("SO sandbox runtime flag updated: enabled=$enabled")
+            }
+        } catch (e: Exception) {
+            logger.warn("SO sandbox runtime flag sync failed", e)
+        }
+    }
+
+    private fun tryDeliverNativeSandbox(device: IDevice, deployData: JuggDeployData): NativeSandboxOutcome {
+        if (deployData.updateApkFiles.none { it.type == CompileOutput.Type.NativeLib }) {
+            return NativeSandboxOutcome(deployData, skipApkUpdate = false)
+        }
+        // LaunchContext is created later in runTask; this probe is required before resign.
+        val packageName = deployData.apks.firstOrNull { !it.isOtherTargetingTestApk }?.applicationId
+            ?: return NativeSandboxOutcome(deployData, skipApkUpdate = false)
+        val adb = deviceAdbFactory(device, logger)
+        val sandbox = AppSandboxExecutor(adb, packageName, logger)
+        val plan = NativeSandboxDeployPlanner.plan(
+            updateApkFiles = deployData.updateApkFiles,
+            arch = resolveNativeSandboxArch(adb, packageName, deployData),
+            api = adb.api,
+            sandboxMode = sandbox.mode,
+        )
+        if (plan is NativeSandboxPlan.Skip) {
+            logger.debug("SO sandbox deploy skipped: ${plan.reason}")
+            return NativeSandboxOutcome(deployData, skipApkUpdate = false)
+        }
+        return deliverNativeSandbox(packageName, adb, sandbox, plan as NativeSandboxPlan.Attempt, deployData)
+    }
+
+    private fun deliverNativeSandbox(
+        packageName: String,
+        adb: IDeviceAdb,
+        sandbox: AppSandboxExecutor,
+        attempt: NativeSandboxPlan.Attempt,
+        deployData: JuggDeployData,
+    ): NativeSandboxOutcome {
+        logger.info("SO hot update enabled, deploy changed .so")
+        val writer = NativeSandboxWriter(adb, sandbox, logger)
+        return try {
+            writer.write(
+                NativeSandboxWriteRequest(
+                    packageName = packageName,
+                    sessionId = System.currentTimeMillis().toString(),
+                    abiDirs = attempt.abiDirs,
+                ),
+            )
+            logger.info("SO sandbox deploy succeeded, skip APK package/resign/reinstall: ${attempt.nativeFiles}")
+            NativeSandboxOutcome(
+                deployData.copy(
+                    updateApkFiles = attempt.otherApkFiles,
+                    nativeSandboxFiles = attempt.nativeFiles,
+                ),
+                skipApkUpdate = true,
+            )
+        } catch (e: NativeSandboxDeployException) {
+            logger.info("SO sandbox deploy failed (${e.step}), fallback to APK update/resign/reinstall")
+            if (e.step == NativeSandboxDeployStep.COPY || e.step == NativeSandboxDeployStep.SELINUX) {
+                writer.bestEffortRemovePatchFiles(attempt.abiDirs)
+            }
+            NativeSandboxOutcome(deployData, skipApkUpdate = false)
+        }
+    }
+
+    private fun resolveNativeSandboxArch(
+        adb: IDeviceAdb,
+        packageName: String,
+        deployData: JuggDeployData,
+    ): NativeSandboxDeployPlanner.Arch {
+        val apkPaths = deployData.apks
+            .filter { it.applicationId == packageName }
+            .flatMap { apk -> apk.files.map { it.apkFile.path } }
+        val resolution = AppAbiResolver(adb, logger).resolveWithCache(
+            cache = appAbiCache,
+            deviceSerial = adb.serial,
+            packageName = packageName,
+            apkPaths = apkPaths,
+            processArch = parseProcessArch(adb.getArch(packageName)),
+            deviceAbi = InstallerDeviceAbiResolver.resolve(adb),
+            apkFacts = { readNativeSandboxApkFacts(apkPaths) },
+        )
+        logger.debug("SO sandbox ABI: packageName=$packageName, arch=${resolution.arch}" +
+                ", source=${resolution.source}")
+        return if (resolution.arch == Deploy.Arch.ARCH_32_BIT) {
+            NativeSandboxDeployPlanner.Arch.BIT_32
+        } else {
+            NativeSandboxDeployPlanner.Arch.BIT_64
+        }
+    }
+
+    private fun parseProcessArch(arch: String): Deploy.Arch {
+        return when (arch) {
+            Deploy.Arch.ARCH_32_BIT.name -> Deploy.Arch.ARCH_32_BIT
+            Deploy.Arch.ARCH_64_BIT.name -> Deploy.Arch.ARCH_64_BIT
+            else -> Deploy.Arch.ARCH_UNKNOWN
+        }
+    }
+
+    private fun readNativeSandboxApkFacts(apkPaths: List<String>): AppAbiResolver.ApkFacts {
+        return try {
+            val parsed = asDeployerCompat.parseApks(apkPaths)
+            val reader = ApkInfoReader(logger)
+            AppAbiResolver.ApkFacts(reader.getArch(parsed), reader.isUse32BitAbi(parsed))
+        } catch (e: Exception) {
+            logger.debug("Read APK ABI facts for SO sandbox failed", e)
+            AppAbiResolver.ApkFacts(Deploy.Arch.ARCH_UNKNOWN.name, false)
+        }
+    }
+
+    private data class NativeSandboxOutcome(
+        val deployData: JuggDeployData,
+        val skipApkUpdate: Boolean,
+    )
 
     private data class InstallDeployOutcome(
         val result: DeployTaskResult,

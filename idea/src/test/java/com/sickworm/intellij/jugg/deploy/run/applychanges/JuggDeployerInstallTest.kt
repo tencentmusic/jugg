@@ -210,7 +210,10 @@ class JuggDeployerInstallTest {
 
             val sandbox = sandboxes.constructed().single()
             val order = Mockito.inOrder(sandbox, fixture.deploymentService)
-            order.verify(sandbox).exec("rm -rf code_cache/.overlay && echo success", repairCodeCache = true)
+            order.verify(sandbox).exec(
+                "rm -rf code_cache/.overlay code_cache/.jugg_native && echo success",
+                repairCodeCache = true,
+            )
             order.verify(fixture.deploymentService).storeEntry(
                 "emulator-5554",
                 PACKAGE_NAME,

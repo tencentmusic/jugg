@@ -28,6 +28,47 @@ class AppAbiResolver(
         deviceAbi = deviceAbi,
     ).arch
 
+    /**
+     * Reuses [AppAbiCache] with the same evidence order as Apply Changes:
+     * running process, then cache, then Manifest/APK/installed package/device.
+     */
+    internal fun resolveWithCache(
+        cache: AppAbiCache,
+        deviceSerial: String,
+        packageName: String,
+        apkPaths: List<String>,
+        processArch: Deploy.Arch,
+        deviceAbi: String,
+        apkFacts: () -> ApkFacts,
+    ): Resolution {
+        val cacheKey = cache.createKey(deviceSerial, packageName, apkPaths)
+        val cachedArch = if (processArch == Deploy.Arch.ARCH_UNKNOWN) cache.get(cacheKey) else null
+        if (processArch != Deploy.Arch.ARCH_UNKNOWN) {
+            return resolveDetailed(
+                packageName = packageName,
+                processArch = processArch,
+                apkArch = Deploy.Arch.ARCH_UNKNOWN.name,
+                use32BitAbi = false,
+                deviceAbi = deviceAbi,
+            ).also { cache.put(cacheKey, it.arch) }
+        }
+        if (cachedArch != null) {
+            return Resolution(cachedArch, "cache", true)
+        }
+        val facts = apkFacts()
+        return resolveDetailed(
+            packageName = packageName,
+            processArch = processArch,
+            apkArch = facts.apkArch,
+            use32BitAbi = facts.use32BitAbi,
+            deviceAbi = deviceAbi,
+        ).also { resolution ->
+            if (resolution.cacheable) {
+                cache.put(cacheKey, resolution.arch)
+            }
+        }
+    }
+
     /** Resolves the ABI and marks whether the result is safe to persist after package-query failures. */
     internal fun resolveDetailed(
         packageName: String,
@@ -93,6 +134,11 @@ class AppAbiResolver(
     }
 
     private fun elapsedMillis(startNanos: Long): Long = (System.nanoTime() - startNanos) / 1_000_000
+
+    data class ApkFacts(
+        val apkArch: String,
+        val use32BitAbi: Boolean,
+    )
 
     internal data class Resolution(
         val arch: Deploy.Arch,

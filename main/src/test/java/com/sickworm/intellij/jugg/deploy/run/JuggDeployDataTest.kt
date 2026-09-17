@@ -228,6 +228,41 @@ class JuggDeployDataTest {
     }
 
     @Test
+    fun `native sandbox files require app restart without apk update`() {
+        val data = deployData(
+            nativeSandboxFiles = listOf(
+                deployItem("lib/arm64-v8a/libdtmp.so", CompileOutput.Type.NativeLib, basePath, listOf(basePath)),
+            ),
+        )
+
+        assertTrue(data.isNeedRestartApp)
+        assertFalse(data.isNeedUpdateApk)
+        assertTrue(data.isEmpty)
+        assertEquals(JuggDeployData.DeployType.HOT_FIX, data.deployType)
+        val desc = data.toDescString()
+        assertTrue(desc.contains("native sandbox: [lib/arm64-v8a/libdtmp.so]"))
+        assertFalse(desc.contains("[nothing to deploy]"))
+    }
+
+    @Test
+    fun `filterForApks filters native sandbox files`() {
+        val data = deployData(
+            nativeSandboxFiles = listOf(
+                deployItem("lib/arm64-v8a/libbase.so", CompileOutput.Type.NativeLib, basePath, listOf(basePath)),
+                deployItem("lib/arm64-v8a/libtest.so", CompileOutput.Type.NativeLib, testPath, listOf(testPath)),
+            ),
+        )
+
+        val baseScoped = data.filterForApks(listOf(baseApk))
+        val testScoped = data.filterForApks(listOf(testApk))
+
+        assertEquals(listOf("lib/arm64-v8a/libbase.so"), baseScoped.nativeSandboxFiles.map { it.name })
+        assertTrue(baseScoped.isNeedRestartApp)
+        assertEquals(listOf("lib/arm64-v8a/libtest.so"), testScoped.nativeSandboxFiles.map { it.name })
+        assertTrue(testScoped.isNeedRestartApp)
+    }
+
+    @Test
     fun `empty replay after reinstall requires app restart`() {
         val data = deployData(isRecoverReplayAfterReinstall = true)
 
@@ -254,6 +289,7 @@ class JuggDeployDataTest {
         isComposeResourceCompiled: Boolean = false,
         isRecoverReplayAfterReinstall: Boolean = false,
         flutterJitRuntimeFiles: List<DeployItem> = emptyList(),
+        nativeSandboxFiles: List<DeployItem> = emptyList(),
     ): JuggDeployData {
         return JuggDeployData(
             apks = listOf(baseApk, testApk),
@@ -270,6 +306,7 @@ class JuggDeployDataTest {
             isComposeResourceCompiled = isComposeResourceCompiled,
             isRecoverReplayAfterReinstall = isRecoverReplayAfterReinstall,
             flutterJitRuntimeFiles = flutterJitRuntimeFiles,
+            nativeSandboxFiles = nativeSandboxFiles,
         )
     }
 

@@ -17,6 +17,8 @@ import com.sickworm.intellij.jugg.deploy.run.deployflow.DeployFlowMockBackend
 import com.sickworm.intellij.jugg.deploy.run.deployflow.DeployFlowOverlaySeed
 import com.sickworm.intellij.jugg.deploy.run.deployflow.DeployFlowTestSupport
 import com.sickworm.intellij.jugg.deploy.run.deployflow.VirtualDeployDevice
+import com.sickworm.intellij.jugg.deploy.nativesandbox.NativeSandboxDeployPlanner
+import com.sickworm.intellij.jugg.deploy.nativesandbox.NativeSandboxWriter
 import com.sickworm.intellij.jugg.deploy.run.utils.AdbLogWrapper
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.mock.logger
@@ -549,6 +551,179 @@ class JuggDeployerHelperDeployFlowTest {
     }
 
     @Test
+    fun `native-only sandbox deploy skips apk resign and reinstall`() {
+        withNativeSandboxDeploy(enabled = true) {
+            val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_009)
+            Mockito.`when`(
+                fixture.deployFileManager.getDeployData(Mockito.anyBoolean(), Mockito.anyBoolean()),
+            ).thenReturn(DeployFlowTestSupport.nativeLibOnlyDeployData())
+
+            val result = fixture.helper.deploy(fixture.deployOptions)
+
+            assertTrue("deploy failed: ${result.failedReason}", result.isSuccess)
+            assertEquals(0, fixture.virtualDevice.installInvokeCount)
+            assertTrue(
+                fixture.virtualDevice.shellScripts.any { it.contains("__JUGG_NATIVE_SANDBOX__") },
+            )
+            val soFile = File(
+                fixture.virtualDevice.packageDataDir(),
+                "code_cache/.jugg_native/arm64-v8a/libdtmp.so",
+            )
+            assertTrue(soFile.isFile)
+            assertTrue(
+                File(
+                    fixture.virtualDevice.packageDataDir(),
+                    "code_cache/.jugg_native/.enabled",
+                ).isFile,
+            )
+            assertEquals(listOf<Byte>(1, 2, 3), soFile.readBytes().toList())
+            Mockito.verify(fixture.deployTargetManager).restartApp(fixture.device)
+            assertEquals(JuggDeployData.DeployType.HOT_FIX, result.deployType)
+            assertTrue(result.hasDeployChanges)
+        }
+    }
+
+    @Test
+    fun `native-only deploy updates apk when so hot update is disabled`() {
+        withNativeSandboxDeploy(enabled = false) {
+            val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_009)
+            Mockito.`when`(
+                fixture.deployFileManager.getDeployData(Mockito.anyBoolean(), Mockito.anyBoolean()),
+            ).thenReturn(DeployFlowTestSupport.nativeLibOnlyDeployData())
+
+            val result = fixture.helper.deploy(fixture.deployOptions)
+
+            assertFalse(result.isSuccess)
+            assertTrue(result.isCanFallback)
+            assertTrue(result.failedReason.orEmpty().contains("signing config"))
+            assertFalse(
+                fixture.virtualDevice.shellScripts.any { it.contains("__JUGG_NATIVE_SANDBOX__") },
+            )
+            assertFalse(
+                File(
+                    fixture.virtualDevice.packageDataDir(),
+                    "code_cache/.jugg_native/arm64-v8a/libdtmp.so",
+                ).isFile,
+            )
+            assertEquals(0, fixture.virtualDevice.installInvokeCount)
+        }
+    }
+
+    @Test
+    fun `native-only deploy updates apk when device api is below oreo`() {
+        withNativeSandboxDeploy(enabled = true) {
+            val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_009)
+            fixture.virtualDevice.apiLevel = NativeSandboxDeployPlanner.MIN_API - 1
+            Mockito.`when`(
+                fixture.deployFileManager.getDeployData(Mockito.anyBoolean(), Mockito.anyBoolean()),
+            ).thenReturn(DeployFlowTestSupport.nativeLibOnlyDeployData())
+
+            val result = fixture.helper.deploy(fixture.deployOptions)
+
+            assertFalse(result.isSuccess)
+            assertTrue(result.isCanFallback)
+            assertTrue(result.failedReason.orEmpty().contains("signing config"))
+            assertFalse(
+                fixture.virtualDevice.shellScripts.any { it.contains("__JUGG_NATIVE_SANDBOX__") },
+            )
+            assertFalse(
+                File(
+                    fixture.virtualDevice.packageDataDir(),
+                    "code_cache/.jugg_native/arm64-v8a/libdtmp.so",
+                ).isFile,
+            )
+            assertEquals(0, fixture.virtualDevice.installInvokeCount)
+        }
+    }
+
+    @Test
+    fun `native-only sandbox uses installed package abi when process is stopped`() {
+        withNativeSandboxDeploy(enabled = true) {
+            val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_009)
+            fixture.virtualDevice.processArch = "ARCH_UNKNOWN"
+            fixture.virtualDevice.installedPrimaryCpuAbi = "armeabi-v7a"
+            Mockito.`when`(
+                fixture.deployFileManager.getDeployData(Mockito.anyBoolean(), Mockito.anyBoolean()),
+            ).thenReturn(
+                DeployFlowTestSupport.nativeLibOnlyDeployData(nativeLibName = "lib/armeabi-v7a/libdtmp.so"),
+            )
+
+            val result = fixture.helper.deploy(fixture.deployOptions)
+
+            assertTrue("deploy failed: ${result.failedReason}", result.isSuccess)
+            val soFile = File(
+                fixture.virtualDevice.packageDataDir(),
+                "code_cache/.jugg_native/armeabi-v7a/libdtmp.so",
+            )
+            assertTrue(soFile.isFile)
+            assertEquals(0, fixture.virtualDevice.installInvokeCount)
+            Mockito.verify(fixture.deployTargetManager).restartApp(fixture.device)
+        }
+    }
+
+    @Test
+    fun `disabling so hot update keeps leftover patches and clears the runtime flag on next deploy`() {
+        withNativeSandboxDeploy(enabled = false) {
+            val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_009)
+            val leftover = File(
+                fixture.virtualDevice.packageDataDir(),
+                "code_cache/.jugg_native/arm64-v8a/libdtmp.so",
+            )
+            leftover.parentFile.mkdirs()
+            leftover.writeBytes(byteArrayOf(9, 9, 9))
+            val enabledFlag = File(
+                fixture.virtualDevice.packageDataDir(),
+                "code_cache/.jugg_native/.enabled",
+            )
+            enabledFlag.writeText("")
+            JuggSettings.isNeedSyncNativeSandboxRuntime = true
+
+            val result = fixture.helper.deploy(fixture.deployOptions)
+
+            assertTrue("deploy failed: ${result.failedReason}", result.isSuccess)
+            assertTrue(leftover.isFile)
+            assertFalse(enabledFlag.exists())
+            assertFalse(JuggSettings.isNeedSyncNativeSandboxRuntime)
+        }
+    }
+
+    @Test
+    fun `native sandbox write failure still updates apk`() {
+        withNativeSandboxDeploy(enabled = true) {
+            val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_009)
+            fixture.virtualDevice.failDirectOverlayPush = true
+            val previousSo = File(
+                fixture.virtualDevice.packageDataDir(),
+                "code_cache/.jugg_native/arm64-v8a/libprevious.so",
+            )
+            previousSo.parentFile.mkdirs()
+            previousSo.writeBytes(byteArrayOf(9, 9, 9))
+            Mockito.`when`(
+                fixture.deployFileManager.getDeployData(Mockito.anyBoolean(), Mockito.anyBoolean()),
+            ).thenReturn(DeployFlowTestSupport.nativeLibOnlyDeployData())
+
+            val result = fixture.helper.deploy(fixture.deployOptions)
+
+            assertFalse(result.isSuccess)
+            assertTrue(result.isCanFallback)
+            assertTrue(result.failedReason.orEmpty().contains("signing config"))
+            assertTrue(
+                fixture.virtualDevice.shellCommands.any {
+                    it.contains("push FAILED") && it.contains(NativeSandboxWriter.STAGING_ROOT)
+                },
+            )
+            assertEquals(0, fixture.virtualDevice.installInvokeCount)
+            assertTrue(previousSo.isFile)
+            assertEquals(listOf<Byte>(9, 9, 9), previousSo.readBytes().toList())
+            assertFalse(
+                (fixture.virtualDevice.shellCommands + fixture.virtualDevice.shellScripts).any {
+                    it.contains("rm -rf") && it.contains("code_cache/.jugg_native")
+                },
+            )
+        }
+    }
+
+    @Test
     fun `always restart flag does not restart app after empty deploy when app is foreground`() {
         val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_009)
         val compileUiHandler = object : CompileUiHandler by CompileUiHandler.DEFAULT {
@@ -781,6 +956,19 @@ class JuggDeployerHelperDeployFlowTest {
             block()
         } finally {
             JuggSettings.sliceDeployRecordJson = oldRecordJson
+        }
+    }
+
+    private fun withNativeSandboxDeploy(enabled: Boolean, block: () -> Unit) {
+        val previous = JuggSettings.isEnableNativeSandboxDeploy
+        val previousClear = JuggSettings.isNeedSyncNativeSandboxRuntime
+        JuggSettings.isEnableNativeSandboxDeploy = enabled
+        JuggSettings.isNeedSyncNativeSandboxRuntime = false
+        try {
+            block()
+        } finally {
+            JuggSettings.isEnableNativeSandboxDeploy = previous
+            JuggSettings.isNeedSyncNativeSandboxRuntime = previousClear
         }
     }
 
