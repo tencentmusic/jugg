@@ -133,7 +133,7 @@ compile/deploy/gradle-build/instrument
 
 - MCP 拉取类工具产物落在 `build/jugg/mcp_fetch/<toolName>/`。
 - 项目级 `ExpiredArtifactCleaner` 负责清理超过 30 天的 MCP 拉取产物。
-- compile/deploy 类日志优先看 `build/jugg/log/compile_latest.log`。
+- compile/deploy 类工具通过 `logPath` 返回当前工程在全局日志目录中的 `compile_latest.log` 绝对路径。
 - `wait-logs` 读取 App 日志时会复用 deploy/restart 时间戳作为起点，相关状态由 `LastDeployTimestampRegistry` 记录。
 - Control Panel 为每次 `tools/call` 记录 `MCP request` / `MCP response`。request detail 展示去除 `projectDir` 后的 arguments，response detail 展示 `status/message/data/artifacts/errorCode`；嵌套 `projectDir` 会被移除，password/token/secret/authorization/apiKey/privateKey/credential/environmentVariables 等敏感字段统一显示 `[REDACTED]`，单条内容最多保留 4096 字符。该展示脱敏不改变 MCP 实际请求与响应。
 

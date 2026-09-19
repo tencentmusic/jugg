@@ -6,6 +6,9 @@ import com.sickworm.intellij.jugg.compiler.ui.RunResult
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
 import com.sickworm.intellij.jugg.ide.logic.JuggRunInvocationResult
 import com.sickworm.intellij.jugg.ai.mcp.IMcpRuntime
+import com.sickworm.intellij.jugg.logger.JuggLogger
+import com.sickworm.intellij.jugg.project.JuggPathManager
+import java.io.File
 import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -21,7 +24,6 @@ object CompileJobManager {
     const val POLL_INTERVAL_SUGGESTED_MILLIS = 15_000L
     private const val RUNNING_MESSAGE_TEMPLATE =
         "The task is still running. Please monitor progress via get-compile-status. Job ID is %s."
-    const val COMPILE_LATEST_LOG_PATH: String = "build/jugg/log/compile_latest.log"
 
     @Volatile
     internal var softTimeoutMillisOverrideForTest: Long? = null
@@ -40,6 +42,7 @@ object CompileJobManager {
     ): CompileJobTriggerResult {
         return trigger(
             executionType = runtime.forceGradleCompileHelper.resolveExecutionType(),
+            logPath = compileLogPath(runtime),
             runTask = {
                 val result: GradleCompileExecutionResult = runtime.forceGradleCompileHelper.executeGradleCompileBlocking(
                     autoConfirm = true,
@@ -72,6 +75,7 @@ object CompileJobManager {
     ): CompileJobTriggerResult {
         return trigger(
             executionType = runtime.forceGradleCompileHelper.resolveExecutionType(),
+            logPath = compileLogPath(runtime),
             runTask = {
                 val runResponse = runtime.juggConfigurationRunner.runFirstConfigurationWithSpec(
                     isRpcMode = true,
@@ -156,8 +160,15 @@ object CompileJobManager {
         softTimeoutMillisOverrideForTest = null
     }
 
+    internal fun compileLogPath(runtime: IMcpRuntime): String {
+        JuggLogger.getLogDir(runtime.project)?.let { return File(it, "compile_latest.log").absolutePath }
+        val projectDir = File(checkNotNull(runtime.project.basePath) { "MCP project base path is unavailable" })
+        return File(JuggPathManager(projectDir).logDir, "compile_latest.log").absolutePath
+    }
+
     private fun trigger(
         executionType: String,
+        logPath: String,
         runTask: () -> CompileJobExecutionResult,
     ): CompileJobTriggerResult {
         val jobId = UUID.randomUUID().toString()
@@ -200,7 +211,7 @@ object CompileJobManager {
                 accepted = true,
                 jobId = jobId,
                 executionType = finalState.executionType,
-                logPath = COMPILE_LATEST_LOG_PATH,
+                logPath = logPath,
                 isFinal = true,
                 status = finalState.status,
                 message = finalState.message,
@@ -213,7 +224,7 @@ object CompileJobManager {
                 accepted = true,
                 jobId = jobId,
                 executionType = initial.executionType,
-                logPath = COMPILE_LATEST_LOG_PATH,
+                logPath = logPath,
                 isFinal = false,
                 status = "running",
                 message = RUNNING_MESSAGE_TEMPLATE.format(jobId),
@@ -239,7 +250,7 @@ object CompileJobManager {
                 accepted = true,
                 jobId = jobId,
                 executionType = initial.executionType,
-                logPath = COMPILE_LATEST_LOG_PATH,
+                logPath = logPath,
                 isFinal = true,
                 status = normalizedStatus,
                 message = normalizedResult.message,

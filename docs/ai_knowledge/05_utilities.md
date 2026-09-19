@@ -31,10 +31,11 @@
 
 ```text
 JuggManager 初始化
-  -> JuggPathManager 定义 project-local build/jugg、database、log、tmp、mcp_fetch
+  -> JuggPathManager 定义 project-local build/jugg、database、tmp、mcp_fetch，以及 global project log
   -> JuggLogger.register(project, pathManager.logDir) 建立项目日志分发
+  -> JuggLogger.linkLegacyLogDir(project, pathManager.legacyLogDir) 登记兼容入口
   -> 编译/部署/MCP 共享同一 Logger 与路径对象
-  -> FileLogger 写 compile_*.log，并维护 compile_latest.log / compile_latest-1.log
+  -> FileLogger 写 compile_*.log，并维护 compile_latest*.log 与 build/jugg/log 兼容链接
 ```
 
 ```text
@@ -49,7 +50,7 @@ JuggManager 初始化
   -> JuggGlobalPathManager 优先落到 ~/.jugg
   -> 家目录不可写时回退到 ${java.io.tmpdir}/jugg-<user>
   -> resources / hot_update / deploy_cache / CLI / skills / hooks / test_flag 共用该 root
-  -> 项目级编译缓存、日志、DB 仍由 JuggPathManager 留在 build/jugg
+  -> 日志按 <工程名>_<工程绝对路径 SHA-256 前 8 位> 隔离在 log/，其余项目级编译缓存与 DB 留在 build/jugg
 ```
 
 ---
@@ -57,15 +58,17 @@ JuggManager 初始化
 ## 4. 隐形约束
 
 - `JuggLogger.getInstance(...)` 要求对应 project key 已注册；未注册会 fail fast，排查“拿不到 logger”先看初始化时机，而不是补空 logger。
-- `FileLogger` 的 `compile_latest.log` 是 best-effort 快捷入口；真实滚动文件仍是 `compile_yyyy-MM-dd_HH-mm-ss.%g.log`，日志丢失排查要同时看当前主文件和 `compile_latest-1.log`。
+- `FileLogger` 的 `compile_latest.log` 和 `build/jugg/log` 都是 best-effort 快捷入口；初始化及 `recreateIfDeleted()` 会尝试维护兼容链接。旧 `build/jugg/log` 真实目录会先迁入全局目录，同名文件增加 `.legacy-N` 后缀，迁移或链接失败时恢复旧目录；普通文件不覆盖。真实滚动文件仍是 `compile_yyyy-MM-dd_HH-mm-ss.%g.log`，日志丢失排查要同时看当前主文件和 `compile_latest-1.log`。
 - `TimeLogger.start/end` 以字符串 tag 配对；同一 tag 被跨阶段复用会污染耗时判断，新增高频埋点前先确认 tag 唯一性。
 - `TaskRunnerManager.runTaskSafe` 仅在后台任务失败时上报任务名、耗时与异常信息；成功任务不发送事件。
 - 每次 `JuggServer.report()` 都先 Best-effort 写入全局 `action.db`（默认 `~/.jugg/action.db`）；无服务器或远端失败不影响本地记录，本地写入失败也不阻止远端上报。
 - 普通 `buildPlugin` 不携带 `config/servers.json`；`buildPluginInternal` 才校验并打包本地忽略文件。缺少内置配置时，历史自动选服地址无效，只有用户明确设置的 Custom Server 继续生效。
 - 问题报告不复用 server failover：客户端只上传白名单生成且已脱敏的 zip，并固定请求 `https://jugg.sickworm.com/report_issue`；确认窗口展示固定、单一的 HTTPS 目标地址，不持久化地址且不尝试 fallback。
+- 后台可通过 `autoUploadFailureLogs` 开启最终失败日志自动上传，并用 `autoUploadFailureLogsExcludeRegex` 排除已知错误。排除正则只对本轮最终错误摘要做包含匹配，不扫描日志全文；空正则不过滤，非法正则按 fail-closed 跳过上传。
+- 自动失败诊断包只包含 `JuggPathManager.logDir` 中按修改时间排序的最近两份真实 `compile_*.log` 和 manifest；排除 `compile_latest*` 快捷入口，不包含工程快照、环境摘要、logcat 或 hook 日志。上传异步 Best-effort 执行，失败不重试也不影响 Run 结果。
 - 问题报告把现存的 `project_infos.json`、`gradle_project_infos.json` 和 `gradle_include_builds.txt` 当前记录的 `include_build_*_gradle_project_infos.json` 作为默认勾选、可取消的高敏感度候选项，结构化脱敏副本位于 `diagnostics/project-info/`；`applicationId` 等诊断字段保留，SigningConfig 凭据、keystore、keyAlias、Manifest placeholders、APT/KAPT 参数和通用敏感键的值替换为占位符。JSON 解析失败时只跳过对应快照，目录残留的 included build 文件和其他 `project_infos.db` 文件不进入诊断包。必选 Jugg 日志仍排在最前。
 - MCP 拉取产物保留 30 天，问题诊断临时产物保留 7 天；两者在项目启动后使用独立后台任务调用 `ExpiredArtifactCleaner`，局部失败不会阻断另一类清理。
-- `JuggPathManager` 同时暴露 project-local 与 global root：编译产物、DB、日志优先 project-local；跨项目复用资源、deploy cache、hook / resource 文件优先 `JuggGlobalPathManager`。`~/.jugg` 探测失败时，全局 root 改为 `${java.io.tmpdir}/jugg-<user>`，后续编译不应再因家目录权限失败。
+- `JuggPathManager` 同时暴露 project-local 与 global root：编译产物、DB 优先 project-local；日志按工程隔离在 global `log/`，`build/jugg/log` 仅 best-effort 创建兼容符号链接；跨项目复用资源、deploy cache、hook / resource 文件使用 `JuggGlobalPathManager`。`~/.jugg` 探测失败时，全局 root 改为 `${java.io.tmpdir}/jugg-<user>`，后续编译不应再因家目录权限失败。
 - `PlatformApi.impl` 是 host 注入边界；core 代码不要绕过它直接调用 IDE / Android Studio API，否则 `main` 模块测试和 CLI 场景会失效。
 - `JuggSettings` 的远程命令历史按 `user + host + port + remoteProjectPath` 保存，每个目标只保留最近 10 条并按完整命令去重。读取损坏数据或写入失败时返回空历史，不影响远程命令执行；命令正文不得写入 Jugg 持久日志。`RemoteUserCommand` 将正文编码后交给子 shell，并用每次执行唯一的完成标记解析退出码，避免用户命令中的注释、`exit` 或输出内容干扰协议。
 - APK 修改链路依赖 `PlatformApi.allAvailableJavaHomes()` 寻找可用签名 JDK；每次重试会移除已有的 `JAVA_HOME` 并写入当前候选，即使原环境未设置该变量也能真正切换 JDK。签名失败不要只看 apksigner 输出，也要检查 host Java home 列表。

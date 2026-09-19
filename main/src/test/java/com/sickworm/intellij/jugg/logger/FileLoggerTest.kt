@@ -1,8 +1,12 @@
 package com.sickworm.intellij.jugg.logger
 
 import org.junit.After
+import org.junit.Assume.assumeFalse
+import org.junit.Assume.assumeTrue
 import org.junit.Test
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.attribute.PosixFilePermission
 import java.util.concurrent.BlockingQueue
 import kotlin.io.path.createTempDirectory
 import kotlin.test.assertEquals
@@ -19,11 +23,14 @@ class FileLoggerTest {
     }
 
     private val logDir = createTempDirectory("jugg-file-logger-test").toFile()
+    private val legacyRoot = createTempDirectory("jugg-file-logger-legacy-test").toFile()
+    private val legacyLogDir = legacyRoot.resolve("build/jugg/log")
 
     @After
     fun tearDown() {
         FileLogger.isCreateLastLogLinkFile = true
         logDir.deleteRecursively()
+        legacyRoot.deleteRecursively()
     }
 
     @Test
@@ -120,6 +127,145 @@ class FileLoggerTest {
             val mainLogFile = mainLogFiles().single()
             assertTrue(mainLogFile.readText().contains("after recreate"))
         } finally {
+            fileLogger.dispose()
+        }
+    }
+
+    @Test
+    fun `should create and restore legacy log directory link`() {
+        val fileLogger = FileLogger(logDir)
+
+        try {
+            fileLogger.linkLegacyLogDir(legacyLogDir)
+            assertTrue(Files.isSymbolicLink(legacyLogDir.toPath()))
+            assertEquals(logDir.canonicalFile, legacyLogDir.canonicalFile)
+
+            Files.delete(legacyLogDir.toPath())
+            fileLogger.recreateIfDeleted()
+
+            assertTrue(Files.isSymbolicLink(legacyLogDir.toPath()))
+            assertEquals(logDir.canonicalFile, legacyLogDir.canonicalFile)
+        } finally {
+            fileLogger.dispose()
+        }
+    }
+
+    @Test
+    fun `should migrate existing legacy log directory`() {
+        legacyLogDir.resolve("compile_old.log").apply {
+            parentFile.mkdirs()
+            writeText("old log")
+        }
+        val fileLogger = FileLogger(logDir)
+
+        try {
+            fileLogger.linkLegacyLogDir(legacyLogDir)
+            assertTrue(Files.isSymbolicLink(legacyLogDir.toPath()))
+            assertEquals("old log", logDir.resolve("compile_old.log").readText())
+        } finally {
+            fileLogger.dispose()
+        }
+    }
+
+    @Test
+    fun `should preserve both logs when legacy migration has a name conflict`() {
+        logDir.resolve("compile_old.log").writeText("new log")
+        legacyLogDir.resolve("compile_old.log").apply {
+            parentFile.mkdirs()
+            writeText("old log")
+        }
+        val fileLogger = FileLogger(logDir)
+
+        try {
+            fileLogger.linkLegacyLogDir(legacyLogDir)
+
+            assertEquals("new log", logDir.resolve("compile_old.log").readText())
+            assertEquals("old log", logDir.resolve("compile_old.log.legacy-1").readText())
+        } finally {
+            fileLogger.dispose()
+        }
+    }
+
+    @Test
+    fun `should replace legacy link pointing to another directory`() {
+        val wrongTarget = legacyRoot.resolve("wrong-target").apply { mkdirs() }
+        legacyLogDir.parentFile.mkdirs()
+        Files.createSymbolicLink(legacyLogDir.toPath(), wrongTarget.toPath())
+        val fileLogger = FileLogger(logDir)
+
+        try {
+            fileLogger.linkLegacyLogDir(legacyLogDir)
+
+            assertEquals(logDir.canonicalFile, legacyLogDir.canonicalFile)
+        } finally {
+            fileLogger.dispose()
+        }
+    }
+
+    @Test
+    fun `should recover pending legacy directory backup before linking`() {
+        legacyLogDir.parentFile.mkdirs()
+        legacyLogDir.parentFile.resolve("log.migrating-test").apply {
+            mkdirs()
+            resolve("compile_old.log").writeText("old log")
+        }
+        val fileLogger = FileLogger(logDir)
+
+        try {
+            fileLogger.linkLegacyLogDir(legacyLogDir)
+
+            assertTrue(Files.isSymbolicLink(legacyLogDir.toPath()))
+            assertEquals("old log", logDir.resolve("compile_old.log").readText())
+        } finally {
+            fileLogger.dispose()
+        }
+    }
+
+    @Test
+    fun `should ignore completed legacy migration cleanup residue`() {
+        legacyLogDir.parentFile.resolve("log.migrated-test").apply {
+            mkdirs()
+            resolve("compile_old.log").writeText("old log")
+        }
+        val fileLogger = FileLogger(logDir)
+
+        try {
+            fileLogger.linkLegacyLogDir(legacyLogDir)
+
+            assertTrue(Files.isSymbolicLink(legacyLogDir.toPath()))
+            assertFalse(logDir.resolve("compile_old.log").exists())
+        } finally {
+            fileLogger.dispose()
+        }
+    }
+
+    @Test
+    fun `should restore legacy directory when migration fails`() {
+        assumeTrue(logDir.toPath().fileSystem.supportedFileAttributeViews().contains("posix"))
+        val firstLog = legacyLogDir.resolve("a.log").apply {
+            parentFile.mkdirs()
+            writeText("first log")
+        }
+        val unreadableLog = legacyLogDir.resolve("b.log").apply { writeText("second log") }
+        val fileLogger = FileLogger(logDir)
+        val originalPermissions = Files.getPosixFilePermissions(unreadableLog.toPath())
+        val readOnlyPermissions = originalPermissions - setOf(
+            PosixFilePermission.OWNER_READ,
+            PosixFilePermission.GROUP_READ,
+            PosixFilePermission.OTHERS_READ,
+        )
+
+        try {
+            Files.setPosixFilePermissions(unreadableLog.toPath(), readOnlyPermissions)
+            assumeFalse(Files.isReadable(unreadableLog.toPath()))
+            fileLogger.linkLegacyLogDir(legacyLogDir)
+
+            assertFalse(Files.isSymbolicLink(legacyLogDir.toPath()))
+            assertEquals("first log", firstLog.readText())
+            assertTrue(unreadableLog.exists())
+            assertFalse(logDir.resolve("a.log").exists())
+        } finally {
+            Files.setPosixFilePermissions(unreadableLog.toPath(), originalPermissions)
             fileLogger.dispose()
         }
     }

@@ -20,6 +20,11 @@ class BuildIncrementalApkCommand(private val params: Params) {
     private val pathManager = JuggPathManager(params.sourceProjectDir, params.baseBuildJuggRootDir)
     private val dirtyFlag = File(pathManager.juggRootDir, ".dirty")
     private val logger = CmdLineLogger.init("BuildIncrementalApkCommand", pathManager.logDir, params.logLevel)
+
+    init {
+        CmdLineLogger.linkLegacyLogDir("BuildIncrementalApkCommand", pathManager.legacyLogDir)
+    }
+
     private val contextManager = CmdLineContextManager(pathManager, coroutineScope, logger)
 
     fun run(): Boolean {
