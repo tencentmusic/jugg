@@ -25,6 +25,7 @@ import com.sickworm.intellij.jugg.ide.JuggSettingsEditor
 import com.sickworm.intellij.jugg.ide.JuggRunSettingsComponentWrapper
 import com.sickworm.intellij.jugg.ide.JuggControlPanelHost
 import com.sickworm.intellij.jugg.ide.bean.SyncMode
+import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.ide.controlpanel.JuggControlPanelModel
 import com.sickworm.intellij.jugg.ide.controlpanel.JuggEvent
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
@@ -155,7 +156,7 @@ class JuggRunSettingsComponentTest {
         val settingRows = settingGroupNames.flatMap { groupName ->
             descendants(findNamedComponent<JPanel>(panel, groupName)!!).mapNotNull { it.name }.toList()
         }
-        assertEquals(7, settingCheckboxes)
+        assertEquals(8, settingCheckboxes)
         assertTrue(settingRows.containsAll(listOf(
             "Install CLI and agent skills Install the Jugg CLI, agent skills, hooks, and required permissions.",
             "Check Jugg updates Check whether a newer Jugg plugin is available.",
@@ -440,6 +441,33 @@ class JuggRunSettingsComponentTest {
         assertEquals("Setting changed", event.title)
         assertEquals("Quick deploy: enabled", event.detail)
         assertEquals(listOf("[UserAction] Setting changed: Quick deploy: enabled"), logs)
+    }
+
+    @Test
+    fun `confirm fallback when too many changes toggle updates setting and reflects in UI`() {
+        TestGlobal.init()
+        val logs = mutableListOf<String>()
+        val controller = createController(CapturingLogger("root", logs))
+        val old = JuggSettings.isConfirmFallbackWhenTooManyChanges
+        try {
+            assertTrue(JuggSettings.isConfirmFallbackWhenTooManyChanges)
+            controller.updateSetting(JuggControlPanelController.Setting.CONFIRM_FALLBACK_WHEN_TOO_MANY_CHANGES, false)
+            assertFalse(JuggSettings.isConfirmFallbackWhenTooManyChanges)
+            assertFalse(controller.model.snapshot().settings.confirmFallbackWhenTooManyChanges)
+
+            val event = controller.model.snapshot().recentEvents.single()
+            assertEquals(JuggEventCategory.USER_ACTION, event.category)
+            assertEquals("Setting changed", event.title)
+            assertEquals("Confirm fallback when too many changes: disabled", event.detail)
+
+            val panel = createPanel(model = controller.model, controller = controller)
+            SwingUtilities.invokeAndWait {}
+            val toggle = descendants(panel).filterIsInstance<JBCheckBox>()
+                .first { it.text == "Confirm fallback when too many changes" }
+            assertFalse(toggle.isSelected)
+        } finally {
+            JuggSettings.isConfirmFallbackWhenTooManyChanges = old
+        }
     }
 
     @Test

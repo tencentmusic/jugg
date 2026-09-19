@@ -67,10 +67,10 @@ JuggCompilerHelper.compile(options, uiHandler)
         7. INVALID_DEVICE
         8. 上次 Gradle 编译失败时直接要求 full compile
         9. 回滚内容未变的文件
-        10. 变更文件过多的确认；选择 Continue 才继续后续判断
+        10. 变更文件过多的确认；若关闭确认开关则直接回退 Gradle，默认开启弹窗确认（选择 Continue 才继续后续判断）
         11. 检查 build file / dependency 变化并完成用户确认
         12. build file 确认结果要求 rebuild 时返回 full compile
-     -> 用户在“变更过多”确认中选择 Continue 仅影响本轮；选择 Gradle 或任一强制条件都返回可回退结果
+     -> 用户在“变更过多”确认中选择 Continue 仅影响本轮；关闭确认开关、选择 Gradle 或任一强制条件都返回可回退结果
      -> 返回 null 才进入 incrementalCompile()
   -> 增量成功：直接返回
   -> 增量失败但不可回退：提示下一次直接运行会回退，当前返回失败

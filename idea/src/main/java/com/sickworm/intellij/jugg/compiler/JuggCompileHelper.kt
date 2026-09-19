@@ -559,8 +559,12 @@ class JuggCompilerHelper(
         if (tooManyChanges != null) {
             logger.debug("javaSourceSize: ${tooManyChanges.javaFileCount}, " +
                     "kotlinSourceFiles ${tooManyChanges.kotlinFileCount}")
-            val confirm = uiHandler?.confirmTooManyChanges(tooManyChanges)
-                ?: TooManyChangesConfirmResult.FALLBACK
+            val confirm = if (!JuggSettings.isConfirmFallbackWhenTooManyChanges) {
+                TooManyChangesConfirmResult.FALLBACK
+            } else {
+                uiHandler?.confirmTooManyChanges(tooManyChanges)
+                    ?: TooManyChangesConfirmResult.FALLBACK
+            }
             TooManyChanges.applyUserChoice(
                 info = tooManyChanges,
                 confirm = confirm,

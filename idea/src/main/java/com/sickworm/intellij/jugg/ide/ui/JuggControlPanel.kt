@@ -358,6 +358,7 @@ class JuggControlPanel(
         val groups = listOf(
             settingGroup("Run behavior", "runBehavior",
                 settingToggle("Confirm fallback when no files changed", "Ask before running a full Gradle build.", JuggControlPanelController.Setting.CONFIRM_FALLBACK),
+                settingToggle("Confirm fallback when too many changes", "Ask before running a full Gradle build.", JuggControlPanelController.Setting.CONFIRM_FALLBACK_WHEN_TOO_MANY_CHANGES),
                 settingToggle("Always restart app after deployment", "Disables hot reload to ensure global state is reinitialized.", JuggControlPanelController.Setting.ALWAYS_RESTART)),
             settingGroup("Deployment", "deployment",
                 settingToggle("Quick deploy", "Skip app startup when direct overlay is available.", JuggControlPanelController.Setting.QUICK_DEPLOY),
@@ -722,6 +723,7 @@ class JuggControlPanel(
     private fun renderSettings(settings: JuggPanelSettings) {
         val values = mapOf(
             JuggControlPanelController.Setting.CONFIRM_FALLBACK to settings.confirmFallbackWhenNoFileChanges,
+            JuggControlPanelController.Setting.CONFIRM_FALLBACK_WHEN_TOO_MANY_CHANGES to settings.confirmFallbackWhenTooManyChanges,
             JuggControlPanelController.Setting.ALWAYS_RESTART to settings.alwaysRestartAppAfterDeployment,
             JuggControlPanelController.Setting.QUICK_DEPLOY to settings.quickDeploy,
             JuggControlPanelController.Setting.AUTO_FALLBACK to settings.autoFallbackAfterDeployFailure,

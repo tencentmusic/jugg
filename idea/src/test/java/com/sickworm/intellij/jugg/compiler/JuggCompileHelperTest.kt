@@ -864,6 +864,31 @@ class JuggCompileHelperTest {
     }
 
     @Test
+    fun preprocessIncrementalCompile_tooManySourceFiles_autoFallbackWithoutConfirmWhenDisabled() {
+        val logger = CapturingLogger()
+        val fixture = createFixture(logger)
+        whenever(fixture.deployFileManager.isNoFileChanges()).thenReturn(false)
+        whenever(fixture.deployFileManager.getUncompiledFiles()).thenReturn(
+            listOf(kotlinChangedFile(), buildChangedFile())
+        )
+        val old = JuggSettings.isConfirmFallbackWhenTooManyChanges
+        try {
+            JuggSettings.isConfirmFallbackWhenTooManyChanges = false
+            val result = withLoweredSourceFilePointLimit(2) {
+                invokePreprocessIncrementalCompile(fixture.helper, fixture.options, fixture.uiHandler)
+            }
+
+            assertEquals("Too many changes", result?.failedReason)
+            assertTrue(result!!.isCanFallback)
+            assertTrue(logger.messages.any { it.contains(TOO_MANY_FILES_FALLBACK) })
+            verify(fixture.uiHandler, never()).confirmTooManyChanges(any())
+            verify(fixture.uiHandler, never()).confirmBuildChanges(any(), any())
+        } finally {
+            JuggSettings.isConfirmFallbackWhenTooManyChanges = old
+        }
+    }
+
+    @Test
     fun preprocessIncrementalCompile_tooManySourceFiles_confirmBeforeBuildChanges() {
         val fixture = createFixture()
         val sourceFile = kotlinChangedFile()
