@@ -53,6 +53,118 @@ class CheckUpdatesProgressDialogTest {
     }
 
     @Test
+    fun `public check with marketplace update should display marketplace channel`() {
+        TestGlobal.init()
+        lateinit var dialog: CheckUpdatesProgressDialog
+        SwingUtilities.invokeAndWait {
+            dialog = CheckUpdatesProgressDialog()
+            dialog.setPublicCheckResult(
+                com.sickworm.intellij.jugg.server.PublicCheckResult(
+                    updateInfo = com.sickworm.intellij.jugg.server.PublicUpdateInfo(
+                        channel = com.sickworm.intellij.jugg.server.UpdateChannel.MARKETPLACE,
+                        targetVersion = "3.5.1",
+                        downloadUrl = "https://plugins.jetbrains.com/files/test.zip",
+                        releaseNotes = null,
+                    ),
+                    latestCheckedVersion = "3.5.1",
+                    isAlreadyLatest = false,
+                ),
+            ) {}
+        }
+        SwingUtilities.invokeAndWait {
+            try {
+                assertEquals(
+                    "<html>New version available: <b>3.5.1</b> (from JetBrains Marketplace).<br>Update via IDE Plugins settings?</html>",
+                    dialog.statusText(),
+                )
+            } finally {
+                Disposer.dispose(dialog.disposable)
+            }
+        }
+    }
+
+    @Test
+    fun `public check with github update should display github channel`() {
+        TestGlobal.init()
+        lateinit var dialog: CheckUpdatesProgressDialog
+        SwingUtilities.invokeAndWait {
+            dialog = CheckUpdatesProgressDialog()
+            dialog.setPublicCheckResult(
+                com.sickworm.intellij.jugg.server.PublicCheckResult(
+                    updateInfo = com.sickworm.intellij.jugg.server.PublicUpdateInfo(
+                        channel = com.sickworm.intellij.jugg.server.UpdateChannel.GITHUB,
+                        targetVersion = "3.5.0",
+                        downloadUrl = "https://github.com/tencentmusic/jugg/releases/download/v3.5.0/jugg-3.5.0.zip",
+                        releaseNotes = null,
+                    ),
+                    latestCheckedVersion = "3.5.0",
+                    isAlreadyLatest = false,
+                ),
+            ) {}
+        }
+        SwingUtilities.invokeAndWait {
+            try {
+                assertEquals(
+                    "<html>New version available: <b>3.5.0</b> (from GitHub Releases).<br>Open release page in browser?</html>",
+                    dialog.statusText(),
+                )
+            } finally {
+                Disposer.dispose(dialog.disposable)
+            }
+        }
+    }
+
+    @Test
+    fun `public check already latest should report latest version`() {
+        TestGlobal.init()
+        lateinit var dialog: CheckUpdatesProgressDialog
+        SwingUtilities.invokeAndWait {
+            dialog = CheckUpdatesProgressDialog()
+            dialog.setPublicCheckResult(
+                com.sickworm.intellij.jugg.server.PublicCheckResult(
+                    updateInfo = null,
+                    latestCheckedVersion = "3.5.1",
+                    isAlreadyLatest = true,
+                ),
+            ) {}
+        }
+        SwingUtilities.invokeAndWait {
+            try {
+                assertEquals("Jugg is already the latest version (3.5.1).", dialog.statusText())
+            } finally {
+                Disposer.dispose(dialog.disposable)
+            }
+        }
+    }
+
+    @Test
+    fun `public check failure should report unavailable`() {
+        TestGlobal.init()
+        lateinit var dialog: CheckUpdatesProgressDialog
+        SwingUtilities.invokeAndWait {
+            dialog = CheckUpdatesProgressDialog()
+            dialog.setPublicCheckResult(
+                com.sickworm.intellij.jugg.server.PublicCheckResult(
+                    updateInfo = null,
+                    latestCheckedVersion = null,
+                    isAlreadyLatest = false,
+                    failedReason = "Network timeout",
+                ),
+            ) {}
+        }
+        SwingUtilities.invokeAndWait {
+            try {
+                assertEquals(
+                    "Jugg backend server is unavailable, and failed to fetch updates from Marketplace and GitHub.",
+                    dialog.statusText(),
+                )
+            } finally {
+                Disposer.dispose(dialog.disposable)
+            }
+        }
+    }
+
+    @Test
     fun `reopen action should run after owner dialog closes`() {
         val events = mutableListOf<String>()
         val ownerRootPane = ShowingRootPane().apply {

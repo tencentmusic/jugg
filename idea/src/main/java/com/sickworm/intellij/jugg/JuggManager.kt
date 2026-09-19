@@ -56,6 +56,8 @@ import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import com.sickworm.intellij.jugg.project.dependency.create
 import com.sickworm.intellij.jugg.server.JuggHotUpdateDownloader
 import com.sickworm.intellij.jugg.server.JuggServer
+import com.sickworm.intellij.jugg.server.PublicUpdateChecker
+import com.sickworm.intellij.jugg.server.PublicUpdateInstaller
 import kotlinx.coroutines.*
 import org.jetbrains.annotations.TestOnly
 import java.io.File
@@ -766,29 +768,43 @@ class JuggManager @TestOnly constructor(
         controlPanelController.recordUserAction("Check updates")
         val dialog = CheckUpdatesProgressDialog()
         taskRunnerManager.runBackgroundSafe("Check updates") {
-            val hotUpdateData = juggHotUpdateDownloader.checkHotUpdate(isPositiveCheck = true)
-            dialog.setHotUpdateData(hotUpdateData) {
-                taskRunnerManager.runBackgroundSafe("Download updates") {
-                    try {
-                        juggHotUpdateDownloader.downloadAndInstallUpdate(hotUpdateData!!)
-                        dialog.setResult(hotUpdateData.targetVersion, true, hotUpdateData.isNeedReinstall, null) {
-                            if (hotUpdateData.isNeedReinstall) {
-                                CoroutineScope(Dispatchers.IO).launch {
-                                    ApplicationManager.getApplication().restart()
+            val hotUpdateData = if (juggServer.hasAvailableServer) {
+                juggHotUpdateDownloader.checkHotUpdate(isPositiveCheck = true)
+            } else {
+                null
+            }
+
+            if (hotUpdateData != null) {
+                dialog.setHotUpdateData(hotUpdateData) {
+                    taskRunnerManager.runBackgroundSafe("Download updates") {
+                        try {
+                            juggHotUpdateDownloader.downloadAndInstallUpdate(hotUpdateData)
+                            dialog.setResult(hotUpdateData.targetVersion, true, hotUpdateData.isNeedReinstall, null) {
+                                if (hotUpdateData.isNeedReinstall) {
+                                    CoroutineScope(Dispatchers.IO).launch {
+                                        ApplicationManager.getApplication().restart()
+                                    }
+                                } else {
+                                    JuggInitializer.reopenAllProjectsAsync()
                                 }
-                            } else {
-                                JuggInitializer.reopenAllProjectsAsync()
                             }
+                        } catch (e: Exception) {
+                            logger.warn("Download updates failed: ", e)
+                            dialog.setResult(
+                                hotUpdateData.targetVersion,
+                                isSuccess = false,
+                                isNeedReinstall = false,
+                                failedReason = e.toString(),
+                                onConfirmReopenProject = null,
+                            )
                         }
-                    } catch (e: Exception) {
-                        logger.warn("Download updates failed: ", e)
-                        dialog.setResult(hotUpdateData!!.targetVersion,
-                            isSuccess = false,
-                            isNeedReinstall = false,
-                            failedReason = e.toString(),
-                            onConfirmReopenProject = null
-                        )
                     }
+                }
+            } else {
+                val currentVersion = juggServer.version
+                val publicResult = runBlocking { PublicUpdateChecker().check(currentVersion) }
+                dialog.setPublicCheckResult(publicResult) { updateInfo ->
+                    PublicUpdateInstaller().openUpdate(project, updateInfo)
                 }
             }
         }
