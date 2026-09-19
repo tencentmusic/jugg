@@ -2,20 +2,39 @@
   <a href="./README.md">English</a> | <strong>简体中文</strong>
 </p>
 
-# Jugg
+# Jugg: Android Studio 秒级增量编译与即时热重载插件
+
+<p align="left">
+  <a href="https://github.com/tencentmusic/jugg/releases/latest"><img src="https://img.shields.io/github/v/release/tencentmusic/jugg?label=Release&color=blue" alt="最新版本"></a>
+  <a href="https://github.com/tencentmusic/jugg/stargazers"><img src="https://img.shields.io/github/stars/tencentmusic/jugg?style=flat&color=yellow" alt="GitHub Stars"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License: MIT"></a>
+  <a href="https://tencentmusic.github.io/jugg/zh/reference/compatibility"><img src="https://img.shields.io/badge/Android%20Studio-2021%2B-orange.svg" alt="支持 Android Studio 2021+"></a>
+  <a href="https://tencentmusic.github.io/jugg/zh/reference/compatibility"><img src="https://img.shields.io/badge/Gradle-5.4.1%20至%209.2.1-blue.svg" alt="支持 Gradle 5.4.1 至 9.2.1"></a>
+  <a href="https://tencentmusic.github.io/jugg/zh/reference/compatibility"><img src="https://img.shields.io/badge/Kotlin-1.3%20至%202.2-purple.svg" alt="支持 Kotlin 1.3 至 2.2"></a>
+  <a href="https://tencentmusic.github.io/jugg/zh/"><img src="https://img.shields.io/badge/文档-Wiki-brightgreen.svg" alt="Jugg Wiki"></a>
+</p>
 
 > 大规模 Android 工程，3 秒看到修改效果。
 
 **Life is short, Jugg it! 人生苦短，Jugg 一下。**
 
-Jugg 是腾讯音乐技术团队开源的 Android Studio 插件。它复用最近一次 Gradle 构建，只编译本轮变化及其影响范围，再将结果部署到设备，少量修改通常可以在 3 秒内看到效果。
+**Jugg** 是腾讯音乐技术团队开源的 **Android Studio 插件**，专为 **极速增量编译** 与 **即时热重载（Instant Hot Reload）** 设计。它复用最近一次 Gradle 构建基线，只编译本轮修改及其影响范围，并将结果快速部署到真机或模拟器上，日常小改动通常可以在 **3 秒内** 看到效果——免去日常迭代中漫长且重复的 Gradle 构建等待。
 
-Jugg 仅需安装 IDE 插件，不修改 Gradle 脚本，也不要求工程接入 SDK。Jugg Run Configuration 与原生 App Run Configuration 同时保留：选择 Jugg 配置时使用增量编译与部署；需要原来的 Android Studio 构建流程时，随时切回原生 App 配置即可，两者完全独立运行。当工程变化超出增量路径的处理范围时，Jugg 自身也会回退 Gradle 构建并重新建立基线。
+Jugg 仅需安装 IDE 插件，**不修改任何 Gradle 脚本，也不要求工程接入任何 SDK**。Jugg Run Configuration 与原生 App Run Configuration 同时保留：选择 Jugg 配置时享受秒级增量编译与部署；需要原生的 Android Studio 构建流程时，随时切回原生 App 配置即可，两者完全独立运行、互不影响。当工程改动超出增量处理范围时，Jugg 会自动安全回退到 Gradle 构建并重新建立基线。
 
 - [下载最新稳定版](https://github.com/tencentmusic/jugg/releases/latest)
 - [技术方案介绍](https://juejin.cn/post/7680996030843125796)
 - [观看演示视频](https://www.bilibili.com/video/BV1W3411C7PU/)
-- [Jugg Wiki](https://tencentmusic.github.io/jugg/zh/)
+- [Jugg 官方文档 (Wiki)](https://tencentmusic.github.io/jugg/zh/)
+- [常见问题与排查](https://tencentmusic.github.io/jugg/zh/troubleshooting/compile-failed)
+
+## 核心特性
+
+- ⚡ **3 秒极速增量部署**：日常改动秒级体验“改动代码 -> 手机呈现”，免去重复等待漫长的 Gradle 配置期与任务执行耗时。
+- 🔥 **Apply Changes (JVMTI) 即时热重载**：基于 JVMTI 机制实现免重启热更新，将变更的代码和资源直接注入运行中的应用进程；当热更不适用时，自动安全回退至 Hot Fix（仅重启应用，无需重新安装 APK）。
+- 🔌 **零工程侵入与双配置共存**：不修改项目 Gradle 脚本，不引入任何业务 SDK 依赖。Jugg 运行配置与原生配置无缝共存，随时一键切回原有构建流程。
+- 🧩 **广泛的技术栈支持**：全面兼容 Kotlin、Java、Jetpack Compose、KMP（Compose Multiplatform）、DataBinding、ViewBinding、资源/Assets、AndroidManifest 以及 Native C/C++ 动态库。
+- 🤖 **AI Agent 与 CLI 深度集成**：内置 MCP Server、独立 CLI 以及 Agent Skill（`jugg-android-dev-loop`），为 AI 辅助编程提供“修改 -> 编译 -> 部署 -> 验证”的全自动闭环。
 
 ## 社区交流
 
@@ -33,16 +52,16 @@ Jugg 仅需安装 IDE 插件，不修改 Gradle 脚本，也不要求工程接�
 
 > 你可以在任何时候切换 Jugg / Android Run Configuration 运行，他们之间完全独立，互不干扰。
 
-更多信息见 Jugg Wiki [开始接入](https://tencentmusic.github.io/jugg/zh/onboarding/)。
+更多信息见 Jugg Wiki [开始接入指南](https://tencentmusic.github.io/jugg/zh/onboarding/)。
 
 ## Jugg 方案介绍
 
 Jugg 保留 Gradle 作为可信构建产物来源，同时跳过与日常修改无关的 Gradle 工作：
 
 1. **建立基线**：复用最近一次完整 Gradle 构建。
-2. **识别变化与影响**：分析源码、资源、依赖和类关系。
-3. **只编译必要内容**：调用 Java、Kotlin、D8 和 Jugg 增量资源工具链。
-4. **安全部署**：选择热重载、热修复、增量 APK 或重新安装，必要时回退 Gradle。
+2. **识别变化与影响**：分析源码、资源、依赖和类关系（[影响分析原理](https://tencentmusic.github.io/jugg/zh/concepts/deploy-data-and-impact)）。
+3. **只编译必要内容**：调用 Java、Kotlin、D8 和 Jugg 增量资源工具链（[增量编译架构](https://tencentmusic.github.io/jugg/zh/concepts/incremental-compile/)）。
+4. **安全部署**：选择热重载、热修复、增量 APK 或重新安装（[部署策略](https://tencentmusic.github.io/jugg/zh/concepts/deploy-strategy)），必要时回退 Gradle（[Gradle 回退机制](https://tencentmusic.github.io/jugg/zh/concepts/gradle-fallback-baseline)）。
 
 ## 能力与兼容范围
 
@@ -67,11 +86,11 @@ Jugg 保留 Gradle 作为可信构建产物来源，同时跳过与日常修改�
 | Kotlin | 1.3 至 2.2 |
 | Android | 8 至 16 |
 
-详细详细要求和行为边界见 Jugg Wiki [兼容范围](https://tencentmusic.github.io/jugg/zh/reference/compatibility)，其他未完整验证版本可能会有少量功能问题，如遇到请提 issue 修复。
+详细要求和行为边界见 Jugg Wiki [能力总览](https://tencentmusic.github.io/jugg/zh/capabilities/) 与 [兼容范围](https://tencentmusic.github.io/jugg/zh/reference/compatibility)，其他未完整验证版本可能会有少量功能问题，如遇到请提 issue 修复。
 
 ## AI Agent Skill 与 CLI
 
-`jugg-android-dev-loop` Skill 引导 AI Agent 完成 **修改 -> 编译 -> 部署 -> 验证**；`jugg` CLI 则让终端和脚本调用同一套插件能力。
+The `jugg-android-dev-loop` Skill 引导 AI Agent 完成 **修改 -> 编译 -> 部署 -> 验证**；`jugg` CLI 则让终端和脚本调用同一套插件能力。
 
 安装方式：打开任意工程，在 Search Everywhere 中搜索 `Install Jugg Skills` 即可安装。
 
@@ -90,6 +109,16 @@ Jugg 于 2021 年开始研发，2023 年在腾讯音乐内部发布。开源前�
 - **10+** 个大型 Android 工程
 - **80 万+** 次增量编译
 - **3.6 万+** 小时编译等待节省
+
+## Star 历史
+
+如果 Jugg 帮您节省了宝贵的编译等待时间，请给这个项目点个 ⭐️ 支持我们，也让更多 Android 开发者发现它！
+
+<p align="center">
+  <a href="https://star-history.com/#tencentmusic/jugg&Date">
+    <img src="https://api.star-history.com/svg?repos=tencentmusic/jugg&type=Date" alt="Jugg Star 历史趋势图" width="700">
+  </a>
+</p>
 
 ## 隐私
 
