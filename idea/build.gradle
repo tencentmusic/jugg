@@ -45,6 +45,9 @@ tasks.register('buildPluginInternal') {
 
 tasks.named('buildPlugin').configure {
     mustRunAfter ':main:prepareInternalServers'
+    inputs.property('isInternalBuild', provider {
+        gradle.taskGraph.allTasks.any { it.name == 'prepareInternalServers' || it.name == 'buildPluginInternal' }
+    })
 }
 
 def thirdPartySourcesDir = rootProject.file('third_party/sources')

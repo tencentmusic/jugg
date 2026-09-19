@@ -30,6 +30,8 @@ sourceSets {
     }
 }
 
+def internalServersDir = file("$buildDir/generated/internal-resources")
+
 tasks.register('validateInternalServers') {
     doLast {
         def serversFile = file('src/main/resources/config/servers.json')
@@ -44,19 +46,31 @@ tasks.register('validateInternalServers') {
 }
 
 tasks.register('prepareInternalServers') {
-    dependsOn 'processResources', 'validateInternalServers'
-    outputs.file "$buildDir/resources/main/config/servers.json"
+    dependsOn 'validateInternalServers'
+    outputs.dir internalServersDir
     doLast {
+        delete internalServersDir
         copy {
             from file('src/main/resources/config/servers.json')
-            into file("$buildDir/resources/main/config")
+            into file("$internalServersDir/config")
         }
     }
 }
 
-tasks.named('processResources').configure {
-    doFirst {
-        file("$buildDir/resources/main/config/servers.json").delete()
+tasks.named('jar').configure {
+    mustRunAfter 'prepareInternalServers'
+
+    def isInternal = provider {
+        gradle.taskGraph.allTasks.any { it.name == 'prepareInternalServers' || it.name == 'buildPluginInternal' }
+    }
+    inputs.property('isInternalBuild', isInternal)
+
+    from(internalServersDir) {
+        include 'config/servers.json'
+    }
+
+    exclude { details ->
+        details.path == 'config/servers.json' && !isInternal.get()
     }
 }
 
