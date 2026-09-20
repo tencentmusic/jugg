@@ -28,7 +28,7 @@ Jugg 以 Android Studio 插件形式提供，无需修改工程现有代码或 `
 可以从官方 GitHub Releases 获取插件包（通常为 `.zip` 格式）：
 
 - **[最新稳定版 Releases](https://github.com/tencentmusic/jugg/releases/latest)**：推荐日常团队开发使用。
-- **[develop 最新 Canary 构建](https://github.com/tencentmusic/jugg/releases/download/canary-nightly/jugg-canary-nightly.zip)**：每日或 `develop` 有新 commit 时自动构建，包含最新特性。
+- **[最新 Canary 构建](https://github.com/tencentmusic/jugg/releases/download/canary-nightly/jugg-canary-nightly.zip)**：从触发 Canary workflow 的分支自动构建，包含最新特性。
 
 > [!NOTE]
 > 企业内网或特定团队如果部署了内部私有分发渠道，优先遵循团队内部版本指引。
