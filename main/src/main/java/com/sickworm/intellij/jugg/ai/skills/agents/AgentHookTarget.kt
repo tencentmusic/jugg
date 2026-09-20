@@ -19,6 +19,8 @@ data class AgentHookTarget(
     val stopMatcher: String? = null,
     /** Root config version written when creating a new hooks file (e.g. Cursor hooks.json requires 1). */
     val configVersion: Int? = null,
+    /** Top-level hook name used by clients such as anti-gravity. */
+    val hookName: String? = null,
 )
 
 /**
@@ -27,4 +29,5 @@ data class AgentHookTarget(
 enum class AgentHookConfigStyle {
     NESTED_EVENT_HOOKS,
     FLAT_EVENT_COMMANDS,
+    NAMED_EVENT_HOOKS,
 }

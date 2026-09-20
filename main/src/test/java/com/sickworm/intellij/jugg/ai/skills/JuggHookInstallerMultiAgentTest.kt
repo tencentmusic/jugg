@@ -22,6 +22,7 @@ class JuggHookInstallerMultiAgentTest {
         val userHome = Files.createTempDirectory("jugg-home-hooks-multi").toFile()
         // Pre-create internal dirs so that the installer recognises them and injects hooks
         File(userHome, ".gemini-internal").mkdirs()
+        File(userHome, ".gemini/config").mkdirs()
         File(userHome, ".codex-internal").mkdirs()
         File(userHome, ".claude-internal").mkdirs()
 
@@ -38,7 +39,7 @@ class JuggHookInstallerMultiAgentTest {
             pythonCommand = pythonCommand,
         )
 
-        assertEquals(9, summary.results.size)
+        assertEquals(10, summary.results.size)
         assertTrue(summary.results.all { it.status == "ok" })
 
         assertNestedHookCommands(
@@ -175,6 +176,27 @@ class JuggHookInstallerMultiAgentTest {
             stopCommandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}stop.py",
             clientArgument = "gemini",
         )
+        assertNamedHookCommand(
+            settingsFile = File(userHome, ".gemini/config/hooks.json"),
+            eventName = "PreToolUse",
+            matcher = "run_command",
+            commandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}command.py",
+            clientArgument = "antigravity",
+        )
+        assertNamedHookCommand(
+            settingsFile = File(userHome, ".gemini/config/hooks.json"),
+            eventName = "PreToolUse",
+            matcher = "replace_file_content|write_to_file|write_file|edit_file",
+            commandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}edit.py",
+            clientArgument = "antigravity",
+        )
+        assertNamedHookCommand(
+            settingsFile = File(userHome, ".gemini/config/hooks.json"),
+            eventName = "Stop",
+            matcher = null,
+            commandSuffix = "${File.separator}.jugg${File.separator}skills${File.separator}hooks${File.separator}stop.py",
+            clientArgument = "antigravity",
+        )
         assertFlatHookCommands(
             settingsFile = File(userHome, ".cursor/hooks.json"),
             startEventName = "beforeSubmitPrompt",
@@ -257,6 +279,27 @@ class JuggHookInstallerMultiAgentTest {
         assertEquals(1, summary.results.size)
         assertTrue(summary.results.all { it.status == "ok" })
         assertFalse(File(userHome, ".gemini-internal/hooks.json").exists())
+    }
+
+    @Test
+    fun installForClients_antigravity_whenExistingMatcherIsNotString_shouldPreserveFileAndFail() {
+        for (matcher in listOf("""{"tool_name":"Bash"}""", "1", "true")) {
+            val userHome = Files.createTempDirectory("jugg-home-hooks-antigravity-invalid").toFile()
+            val hooksFile = File(userHome, ".gemini/config/hooks.json")
+            hooksFile.parentFile.mkdirs()
+            val original = """{"hooks":{"PreToolUse":[{"matcher":$matcher,"hooks":[]}]}}"""
+            hooksFile.writeText(original)
+
+            val summary = JuggHookInstaller.installForClients(
+                clients = setOf(InstallClient.GEMINI),
+                userHome = userHome,
+                logger = logger,
+                pythonCommand = pythonCommand,
+            )
+
+            assertEquals("fail", summary.results.single { it.path == hooksFile.path }.status)
+            assertEquals(original, hooksFile.readText())
+        }
     }
 
     @Test
@@ -464,6 +507,35 @@ class JuggHookInstallerMultiAgentTest {
         val stopEvent = hooks.getAsJsonArray(stopEventName)
         assertTrue(findNestedCommand(startEvent, startCommandSuffix, clientArgument))
         assertTrue(findNestedCommand(stopEvent, stopCommandSuffix, clientArgument))
+    }
+
+    private fun assertNamedHookCommand(
+        settingsFile: File,
+        eventName: String,
+        matcher: String?,
+        commandSuffix: String,
+        clientArgument: String,
+    ) {
+        val root = JsonParser.parseString(settingsFile.readText()).asJsonObject
+        val namedHook = root.getAsJsonObject("jugg-android-dev-loop")
+        val event = namedHook.getAsJsonArray(eventName)
+        val normalizedSuffix = commandSuffix.normalizeHookCommandText()
+        for (entry in event) {
+            val entryObject = entry.asJsonObject
+            if (matcher != null && entryObject.get("matcher")?.asString != matcher) {
+                continue
+            }
+            val commands = if (matcher == null) JsonArray().apply { add(entryObject) }
+            else entryObject.getAsJsonArray("hooks")
+            for (commandEntry in commands) {
+                val command = commandEntry.asJsonObject.get("command")?.asString
+                    ?.normalizeHookCommandText() ?: continue
+                if (command.contains(normalizedSuffix) && command.endsWith("--client $clientArgument")) {
+                    return
+                }
+            }
+        }
+        throw AssertionError("missing named hook event=$eventName matcher=$matcher in ${settingsFile.path}")
     }
 
     private fun assertFlatHookCommands(
