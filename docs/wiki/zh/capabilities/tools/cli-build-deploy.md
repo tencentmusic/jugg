@@ -18,7 +18,7 @@ tags:
 |---|---|---|
 | 只验证代码能否通过 Jugg 编译 | 支持 | `jugg compile` |
 | 编译并部署到当前目标设备 | 支持 | `jugg deploy` |
-| 强制走 Gradle 构建并进入后续安装 / 启动链路 | 支持 | `jugg gradle-build` |
+| 强制走 Gradle 构建并刷新 baseline | 支持 | `jugg gradle-build` |
 | 清除 App 数据并重装 APK | 支持 | `jugg clean-reinstall` |
 | 重启目标 App | 支持 | `jugg restart` |
 
@@ -32,7 +32,7 @@ jugg clean-reinstall
 jugg restart
 ```
 
-`compile` 只做编译，不部署。它会读取当前状态来判断应该增量编译还是回退 Gradle，但不会仅因多台设备在线而失败。构建文件变化需要 rebuild、上一次 Gradle 构建失败或其他状态要求完整构建时，`compile` 会自动回退到 Gradle 编译。`deploy` 会编译并部署；`--always-restart-app=false` 允许在满足条件时保留运行态进行 hot reload。`gradle-build` 用于显式回退完整 Gradle 构建，并继续进入安装 / 启动链路。
+`compile` 只做编译，不部署。它会读取当前状态来判断应该增量编译还是回退 Gradle，但不会仅因多台设备在线而失败。构建文件变化需要 rebuild、上一次 Gradle 构建失败或其他状态要求完整构建时，`compile` 会自动回退到 Gradle 编译。`deploy` 会编译并部署；`--always-restart-app=false` 允许在满足条件时保留运行态进行 hot reload。`gradle-build` 用于显式回退完整 Gradle 构建。IDEA Runtime 随后继续安装和启动；standalone Runtime 只建立或刷新 baseline，需要设备部署时再执行 `jugg deploy`。
 
 > [!NOTE]
 > CLI 当前不暴露 MCP 的 `waitAppReadyAfterSuccess` 参数。命令完成表示编译/部署任务到达终态，不代表额外等待了 App ready。
@@ -46,7 +46,7 @@ jugg restart
 - **`detail`**：失败时的诊断摘要，Gradle 长日志会保留头尾预览。
 - **`full log` / `logPath`**：完整日志位置。
 
-`gradle-build` 可能出现编译成功但部署失败，例如设备不可用或启动失败；此时不能只看 `isCompileSuccess`。
+IDEA Runtime 的 `gradle-build` 可能出现编译成功但部署失败，例如设备不可用或启动失败；此时不能只看 `isCompileSuccess`。Standalone Runtime 不执行设备操作，命令成功时 `isDeploySuccess=true` 表示整体命令成功，并不表示已经安装 APK。
 
 ## 回退与重试
 

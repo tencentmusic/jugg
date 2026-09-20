@@ -39,7 +39,7 @@ Camel-case global options such as `--projectDir` and `--ifCompiling` are normali
 | `version` | Displays the CLI version and plugin version. |
 | `compile` | Runs Jugg compilation without deployment. |
 | `deploy` | Compiles and deploys. |
-| `gradle-build` | Forces a Gradle build, followed by the installation and launch flow. |
+| `gradle-build` | Forces a Gradle build. The IDEA Runtime continues with installation/startup; the standalone Runtime only refreshes the baseline. |
 | `clean-reinstall` | Clears app data and reinstalls the APK. |
 | `restart` | Restarts the target app. |
 | `instrument` | Runs tests from an androidTest source file anchor. |
@@ -81,7 +81,7 @@ jugg restart
 | `restart` | None | Restarts the app on all target devices when no serial is specified. |
 
 > [!IMPORTANT]
-> To determine the final state of `deploy` or `gradle-build`, check both `isCompileSuccess` and `isDeploySuccess`. A successful compilation does not mean that deployment succeeded.
+> In the IDEA Runtime, check both `isCompileSuccess` and `isDeploySuccess` for the final state of `deploy` or `gradle-build`. Standalone `gradle-build` does not operate on devices; its successful result uses `isDeploySuccess=true` only to indicate that the command succeeded as a whole. Run `jugg deploy` afterward when installation or incremental deployment is required.
 
 ## Android Test
 

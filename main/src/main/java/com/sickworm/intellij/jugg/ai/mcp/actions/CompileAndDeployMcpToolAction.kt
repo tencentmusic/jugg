@@ -13,6 +13,7 @@ import com.sickworm.intellij.jugg.ai.mcp.McpToolResult
 import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
 import com.sickworm.intellij.jugg.ai.mcp.util.LastDeployTimestampRegistry
 import com.sickworm.intellij.jugg.compiler.BuildTarget
+import com.sickworm.intellij.jugg.compiler.ui.RunResult
 import com.sickworm.intellij.jugg.deploy.LastChangedDeployRegistry
 import com.sickworm.intellij.jugg.deploy.LastChangedDeploySnapshot
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
@@ -81,13 +82,14 @@ class CompileAndDeployMcpToolAction : McpToolAction {
             targetDeviceSerial: String? = null,
         ): McpToolResult {
             val projectDir = runtime.projectDir.takeIf { it.isNotBlank() }
-            val successMessage = buildSuccessMessage(toolName, projectDir, compiledFiles)
             val trigger = CompileJobManager.triggerJuggCompile(
                 runtime = runtime,
                 isSkipDeploy = isSkipDeploy,
-                successMessage = successMessage.takeIf {
-                    toolName == McpToolActionRegistry.ToolNames.COMPILE ||
-                            toolName == McpToolActionRegistry.ToolNames.DEPLOY
+                successMessageProvider = { runResult ->
+                    buildSuccessMessage(toolName, projectDir, compiledFiles, runResult).takeIf {
+                        toolName == McpToolActionRegistry.ToolNames.COMPILE ||
+                                toolName == McpToolActionRegistry.ToolNames.DEPLOY
+                    }
                 },
                 isAlwaysRestartApp = isAlwaysRestartApp,
                 androidTestRunSpec = androidTestRunSpec,
@@ -125,7 +127,7 @@ class CompileAndDeployMcpToolAction : McpToolAction {
             }
             val result = buildRunToolResult(
                 toolName = toolName,
-                successMessage = successMessage,
+                successMessage = trigger.message,
                 runResultObject = JsonParser.parseString(Gson().toJson(runResponse.runResult)) as? JsonObject,
                 detail = runResponse.detail,
                 extraData = jobMetaData,
@@ -141,6 +143,7 @@ class CompileAndDeployMcpToolAction : McpToolAction {
             toolName: String,
             projectDir: String?,
             compiledFiles: List<String>,
+            runResult: RunResult,
         ): String {
             val successMessage = "$toolName executed successfully."
             return when {
@@ -150,7 +153,8 @@ class CompileAndDeployMcpToolAction : McpToolAction {
                 toolName == McpToolActionRegistry.ToolNames.COMPILE -> {
                     "$successMessage No pending file changes."
                 }
-                toolName == McpToolActionRegistry.ToolNames.DEPLOY && projectDir != null -> {
+                toolName == McpToolActionRegistry.ToolNames.DEPLOY &&
+                        runResult.isDeploySuccess && projectDir != null -> {
                     buildNoPendingDeployMessage(projectDir)
                 }
                 else -> "$successMessage  Compiled files (total: 0)"
@@ -159,12 +163,10 @@ class CompileAndDeployMcpToolAction : McpToolAction {
 
         private fun buildNoPendingDeployMessage(projectDir: String): String {
             val snapshot = LastChangedDeployRegistry.INSTANCE.get(projectDir)
-                ?: return "deploy executed successfully. No pending file changes. " +
-                    "All changes currently detected by Jugg are already deployed. " +
-                    "Last deployment details are unavailable in this IDE session."
+                ?: return "deploy executed successfully. No source file changes were compiled. " +
+                    "No previous changed-file deployment details are available in this runtime session."
             return buildString {
-                appendLine("deploy executed successfully. No pending file changes. " +
-                        "All changes currently detected by Jugg are already deployed.")
+                appendLine("deploy executed successfully. No source file changes were compiled.")
                 appendLine()
                 appendLine("Last successful deployment with file changes:")
                 append("  deployedAt: ")

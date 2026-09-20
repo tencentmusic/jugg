@@ -590,9 +590,68 @@ class CompileAndDeployMcpToolActionTest {
         @Suppress("UNCHECKED_CAST")
         val statusData = statusResult.data as Map<String, Any>
         val message = statusData["message"] as String
-        Assert.assertTrue(message.startsWith("deploy executed successfully. No pending file changes."))
+        Assert.assertTrue(message.startsWith("deploy executed successfully. No source file changes were compiled."))
         Assert.assertTrue(message.contains("Last successful deployment with file changes:"))
         Assert.assertTrue(message.contains("files (1): Foo.kt"))
+    }
+
+    @Test
+    fun testDeployWithoutChangedFilesReportsCompletedDeploymentWithoutIdeSession() {
+        val projectDir = "/fake/project/deploy-without-changes"
+        val runtime = runtimeWithResult(
+            JuggRunInvocationResult(
+                isSuccess = true,
+                runResult = RunResult(
+                    isGradleCompile = false,
+                    isCompileSuccess = true,
+                    isDeploySuccess = true,
+                    isCancel = false,
+                ),
+            ),
+            projectDir = projectDir,
+        )
+
+        val result = CompileAndDeployMcpToolAction.deployAction(
+            runtime = runtime,
+            toolName = McpToolActionRegistry.ToolNames.DEPLOY,
+        )
+
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        Assert.assertTrue(result.message.startsWith("deploy executed successfully. No source file changes were compiled."))
+        Assert.assertTrue(result.message.contains("No previous changed-file deployment details are available in this runtime session."))
+        Assert.assertFalse(result.message.contains("already deployed"))
+        Assert.assertFalse(result.message.contains("IDE session"))
+    }
+
+    @Test
+    fun testDeployMessageReadsChangedFileHistoryAfterDeploymentCompletes() {
+        val projectDir = "/fake/project/post-deploy-message"
+        val runtime = runtimeWithRunner(
+            runFirstConfiguration = {
+                LastChangedDeployRegistry.INSTANCE.record(
+                    projectDir = projectDir,
+                    files = listOf(File("$projectDir/app/src/main/java/Foo.kt")),
+                )
+                JuggRunInvocationResult(
+                    isSuccess = true,
+                    runResult = RunResult(
+                        isGradleCompile = false,
+                        isCompileSuccess = true,
+                        isDeploySuccess = true,
+                        isCancel = false,
+                    ),
+                )
+            },
+            projectDir = projectDir,
+        )
+
+        val result = CompileAndDeployMcpToolAction.deployAction(
+            runtime = runtime,
+            toolName = McpToolActionRegistry.ToolNames.DEPLOY,
+        )
+
+        Assert.assertTrue(result.message.contains("Last successful deployment with file changes:"))
+        Assert.assertTrue(result.message.contains("files (1): Foo.kt"))
     }
 
     @Test
@@ -623,7 +682,7 @@ class CompileAndDeployMcpToolActionTest {
         )
 
         Assert.assertEquals(McpToolStatus.OK, result.status)
-        Assert.assertTrue(result.message.contains("All changes currently detected by Jugg are already deployed."))
+        Assert.assertTrue(result.message.contains("No source file changes were compiled."))
         Assert.assertTrue(result.message.contains("Last successful deployment with file changes:"))
         Assert.assertTrue(result.message.contains("deployedAt:"))
         Assert.assertTrue(result.message.contains("ago)"))

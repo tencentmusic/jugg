@@ -50,7 +50,7 @@ There are currently 20 registered public MCP tools.
 | `compile` | `projectDir` | Compiles without deployment. |
 | `deploy` | `projectDir`, `alwaysRestartApp`, `waitAppReadyAfterSuccess` | Compiles and deploys. |
 | `clean-reinstall` | `projectDir`, `waitAppReadyAfterSuccess` | Clears app data and reinstalls the APK. |
-| `gradle-build` | `projectDir`, `waitAppReadyAfterSuccess` | Forces a Gradle build, followed by the installation and launch flow. |
+| `gradle-build` | `projectDir`, `waitAppReadyAfterSuccess` | Forces a Gradle build. The IDEA Runtime continues with installation/startup; the standalone Runtime only refreshes the baseline. |
 | `instrument` | `projectDir`, `sourcePath`, `class`, `method`, `runner`, `extras` | Runs tests from an androidTest source file anchor. |
 | `get-compile-status` | `projectDir`, `jobId`, `waitTimeoutMs` | Queries the status of an asynchronous compilation task. |
 | `ssh-info` | `projectDir`, `reason`, `requestedBy` | Requests remote SSH troubleshooting information. |
@@ -99,6 +99,8 @@ The client should call `get-compile-status` with:
 ```
 
 Continue until `data.status` is `success`, `failed`, `canceled`, or `unknown`. The final state returns `isCompileSuccess` and `isDeploySuccess`. Failures may also include `detail`, `detailLength`, and `detailTruncated`.
+
+When `deploy` succeeds without compiling source files, the message only states that there were no source changes. It does not mean that installation, recovery, or another deployment action was skipped. Details of the latest deployment containing changed files are available only within the current Runtime session.
 
 ## UI tool behavior
 

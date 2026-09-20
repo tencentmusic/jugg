@@ -99,6 +99,8 @@ jugg --console=json <subcommand>
 
 `compile` / `deploy` / `gradle-build` / `instrument` 的长耗时进度提示不进入结果 stdout。`plain` 会在触发前向 stderr 输出一次起始进度（如 `Running Gradle build...`），并在运行中输出无额外前缀的 heartbeat；`rich` 会更新同一行 spinner 文案；`json` 保持 stdout 纯 JSON，默认不输出 heartbeat。
 
+`deploy` 成功且本轮没有编译源码时，结果只说明没有源码变化，不据此推断 APK 或其它部署动作未执行，也不宣称变更此前已经部署。最近一次含文件变化的部署详情只保存在当前 IDEA 或 standalone Runtime 会话中；没有记录时返回 Runtime 中性说明。
+
 用户用 Ctrl-C 中断 compile 类命令时，CLI 输出简短 `Interrupted by user.` 并以 130 退出，不打印 Python traceback。
 
 全局参数由 `jugg.py` 在子命令分发前抽取；示例统一写在子命令前，便于阅读。

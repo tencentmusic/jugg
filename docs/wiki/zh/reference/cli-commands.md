@@ -39,7 +39,7 @@ jugg help <subcommand>
 | `version` | 显示 CLI 版本和插件版本。 |
 | `compile` | 仅执行 Jugg 编译，不部署。 |
 | `deploy` | 编译并部署。 |
-| `gradle-build` | 强制 Gradle 构建，并走后续安装/启动链路。 |
+| `gradle-build` | 强制 Gradle 构建；IDEA Runtime 继续安装/启动，standalone Runtime 只刷新 baseline。 |
 | `clean-reinstall` | 清数据并重装 APK。 |
 | `restart` | 重启目标 App。 |
 | `instrument` | 从 androidTest 源文件锚点运行测试。 |
@@ -81,7 +81,7 @@ jugg restart
 | `restart` | 无 | 重启 App；未指定 serial 时处理全部目标设备。 |
 
 > [!IMPORTANT]
-> `deploy`、`gradle-build` 的终态需要同时看 `isCompileSuccess` 和 `isDeploySuccess`。编译成功不等于部署成功。
+> IDEA Runtime 中，`deploy`、`gradle-build` 的终态需要同时看 `isCompileSuccess` 和 `isDeploySuccess`。Standalone Runtime 的 `gradle-build` 不操作设备，成功时 `isDeploySuccess=true` 仅表示该命令整体成功；需要安装或增量部署时继续执行 `jugg deploy`。
 
 ## Android Test
 

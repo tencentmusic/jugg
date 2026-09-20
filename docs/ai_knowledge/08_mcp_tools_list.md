@@ -430,6 +430,8 @@
 
 `deploy`、`gradle-build` 可能返回 `isFinal=false` + `jobId`。用 `get-compile-status` 轮询，按 `pollIntervalSuggestedMs` 间隔。
 
+`deploy` 的成功消息在任务完成后按实际 `RunResult` 生成。没有源码变化但仍完成 install、recover 或其它部署动作时，只说明本轮未编译源码，不得推断变更此前已经部署；最近一次含文件变化的部署仅在当前 Runtime 会话内可用，缺失时使用 Runtime 中性描述。
+
 终态 data 中返回 `isCompileSuccess`（boolean）和 `isDeploySuccess`（boolean）。失败时如有诊断输出，会返回 `detail` / `detailLength` / `detailTruncated`。compile/gradle-build/deploy/instrument 都可配合 `status` 字段做更细粒度的成功/失败判定。
 
 ### 产物清理

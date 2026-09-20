@@ -18,7 +18,7 @@ Build and deployment commands let an Agent or terminal user trigger Jugg compila
 |---|---|---|
 | Verify only whether code compiles with Jugg | Supported | `jugg compile` |
 | Compile and deploy to the current target device | Supported | `jugg deploy` |
-| Force a Gradle build and continue to installation / startup | Supported | `jugg gradle-build` |
+| Force a Gradle build and refresh the baseline | Supported | `jugg gradle-build` |
 | Clear app data and reinstall the APK | Supported | `jugg clean-reinstall` |
 | Restart the target app | Supported | `jugg restart` |
 
@@ -32,7 +32,7 @@ jugg clean-reinstall
 jugg restart
 ```
 
-`compile` compiles without deploying. It reads the current state to choose incremental compilation or Gradle fallback, but it does not fail merely because multiple devices are online. It falls back to Gradle when a build-file change requires a rebuild, the previous Gradle build failed, or another state requires a full build. `deploy` compiles and deploys; `--always-restart-app=false` preserves runtime state for Hot Reload when conditions permit. `gradle-build` explicitly falls back to a complete Gradle build and continues into the installation / startup flow.
+`compile` compiles without deploying. It reads the current state to choose incremental compilation or Gradle fallback, but it does not fail merely because multiple devices are online. It falls back to Gradle when a build-file change requires a rebuild, the previous Gradle build failed, or another state requires a full build. `deploy` compiles and deploys; `--always-restart-app=false` preserves runtime state for Hot Reload when conditions permit. `gradle-build` explicitly falls back to a complete Gradle build. The IDEA Runtime then continues with installation and startup. The standalone Runtime only creates or refreshes the baseline; run `jugg deploy` afterward when device deployment is required.
 
 > [!NOTE]
 > The CLI does not currently expose the MCP `waitAppReadyAfterSuccess` argument. Command completion means that the compilation/deployment task reached a terminal state, not that it waited additionally for the app to become ready.
@@ -46,7 +46,7 @@ Build-related commands block until a terminal state, so an Agent does not need t
 - **`detail`**: a diagnostic summary on failure; long Gradle logs retain a head-and-tail preview.
 - **`full log` / `logPath`**: the complete log location.
 
-`gradle-build` can compile successfully while deployment fails, for example when the device is unavailable or startup fails. Do not check only `isCompileSuccess`.
+In the IDEA Runtime, `gradle-build` can compile successfully while deployment fails, for example when the device is unavailable or startup fails. Do not check only `isCompileSuccess`. The standalone Runtime does not operate on devices; when the command succeeds, `isDeploySuccess=true` indicates overall command success and does not mean that the APK was installed.
 
 ## Fallback and retry
 
