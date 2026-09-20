@@ -52,7 +52,7 @@ class GetCompileStatusMcpToolAction : McpToolAction {
                             additionalProperties = false,
                         ),
                         "isCompileSuccess" to McpJsonSchemaProperty(type = "boolean", description = "Whether compilation succeeded. Absent when unknown (e.g. job running or not found)."),
-                        "isDeploySuccess" to McpJsonSchemaProperty(type = "boolean", description = "Whether deployment succeeded. Absent when deploy was skipped or not applicable (e.g. compile-only, gradle-build)."),
+                        "isDeploySuccess" to McpJsonSchemaProperty(type = "boolean", description = "Whether deployment succeeded. Absent when deployment was skipped or not applicable (e.g. compile-only)."),
                         "detail" to McpJsonSchemaProperty(type = "string", description = "Preview of compile/deploy diagnostic output when available."),
                         "detailLength" to McpJsonSchemaProperty(type = "number", description = "Original diagnostic output length before preview truncation."),
                         "detailTruncated" to McpJsonSchemaProperty(type = "boolean", description = "Whether detail only contains a tail preview."),

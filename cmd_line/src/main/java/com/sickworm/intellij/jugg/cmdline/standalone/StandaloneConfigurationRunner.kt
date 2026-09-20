@@ -65,7 +65,7 @@ internal class StandaloneConfigurationRunner(
     }
 
     fun executeGradleBuild(targetDeviceSerial: String?): JuggRunInvocationResult {
-        return execute(true, true, false, null, null, targetDeviceSerial, true)
+        return execute(true, false, false, null, null, targetDeviceSerial, true)
     }
 
     private fun execute(
@@ -244,6 +244,7 @@ internal class StandaloneForceGradleCompileHelper(
         val invocation = runner.executeGradleBuild(targetDeviceSerial)
         val runResult = invocation.runResult
         val isCompileSuccess = runResult?.isCompileSuccess == true
+        val isDeploySuccess = runResult?.isDeploySuccess == true
         return GradleCompileExecutionResult(
             status = when {
                 runResult?.isCancel == true -> "canceled"
@@ -252,7 +253,7 @@ internal class StandaloneForceGradleCompileHelper(
             },
             message = invocation.errorMessage ?: if (invocation.isSuccess) "Gradle build finished successfully." else "Gradle build failed.",
             isCompileSuccess = isCompileSuccess,
-            isDeploySuccess = isCompileSuccess,
+            isDeploySuccess = isDeploySuccess,
             detail = invocation.detail,
         )
     }

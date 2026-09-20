@@ -83,7 +83,7 @@ UI/运行时工具的设备解析和 App-ready 检查必须使用同一个 seria
 本次 serial 支持只覆盖 standalone 已公开的能力：
 
 - `deploy`：使用请求 serial 选择设备，解决已运行 daemon 无法读取新 `ANDROID_SERIAL` 的问题。
-- `gradle-build`：接受统一参数；standalone 只建立/刷新 baseline，没有设备安装阶段，因此 serial 不产生设备操作。
+- `gradle-build`：接受统一参数；standalone 在构建后部署，serial 用于选择目标设备。
 - `status`：读取指定设备状态。
 
 以下能力目前仍未在 standalone capability 中开放，本次不扩展：

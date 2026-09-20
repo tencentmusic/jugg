@@ -39,7 +39,7 @@ class ForceGradleCompileMcpToolAction : McpToolAction {
                         "status" to McpJsonSchemaProperty(type = "string", `enum` = listOf("running", "success", "failed", "canceled")),
                         "triggered" to McpJsonSchemaProperty(type = "boolean"),
                         "isCompileSuccess" to McpJsonSchemaProperty(type = "boolean", description = "Whether compilation succeeded. Absent when unknown."),
-                        "isDeploySuccess" to McpJsonSchemaProperty(type = "boolean", description = "Whether deployment succeeded. Absent when deploy was skipped or not applicable (gradle-build has no separate deploy step)."),
+                        "isDeploySuccess" to McpJsonSchemaProperty(type = "boolean", description = "Whether deployment after the Gradle build succeeded."),
                         "detail" to McpJsonSchemaProperty(type = "string", description = "Preview of compile/deploy diagnostic output when available."),
                         "detailLength" to McpJsonSchemaProperty(type = "number", description = "Original diagnostic output length before preview truncation."),
                         "detailTruncated" to McpJsonSchemaProperty(type = "boolean", description = "Whether detail only contains a tail preview."),

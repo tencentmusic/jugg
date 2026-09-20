@@ -50,7 +50,7 @@ tags:
 | `compile` | `projectDir` | 仅编译不部署。 |
 | `deploy` | `projectDir`、`alwaysRestartApp`、`waitAppReadyAfterSuccess` | 编译并部署。 |
 | `clean-reinstall` | `projectDir`、`waitAppReadyAfterSuccess` | 清数据并重装 APK。 |
-| `gradle-build` | `projectDir`、`waitAppReadyAfterSuccess` | 强制 Gradle 构建；IDEA Runtime 继续安装/启动，standalone Runtime 只刷新 baseline。 |
+| `gradle-build` | `projectDir`、`waitAppReadyAfterSuccess` | 强制 Gradle 构建，并继续安装/启动。 |
 | `instrument` | `projectDir`、`sourcePath`、`class`、`method`、`runner`、`extras` | 从 androidTest 源文件锚点运行测试。 |
 | `get-compile-status` | `projectDir`、`jobId`、`waitTimeoutMs` | 查询异步编译任务状态。 |
 | `ssh-info` | `projectDir`、`reason`、`requestedBy` | 申请远端 SSH 排障信息。 |

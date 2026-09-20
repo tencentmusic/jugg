@@ -50,7 +50,7 @@ There are currently 20 registered public MCP tools.
 | `compile` | `projectDir` | Compiles without deployment. |
 | `deploy` | `projectDir`, `alwaysRestartApp`, `waitAppReadyAfterSuccess` | Compiles and deploys. |
 | `clean-reinstall` | `projectDir`, `waitAppReadyAfterSuccess` | Clears app data and reinstalls the APK. |
-| `gradle-build` | `projectDir`, `waitAppReadyAfterSuccess` | Forces a Gradle build. The IDEA Runtime continues with installation/startup; the standalone Runtime only refreshes the baseline. |
+| `gradle-build` | `projectDir`, `waitAppReadyAfterSuccess` | Forces a Gradle build, then continues with installation/startup. |
 | `instrument` | `projectDir`, `sourcePath`, `class`, `method`, `runner`, `extras` | Runs tests from an androidTest source file anchor. |
 | `get-compile-status` | `projectDir`, `jobId`, `waitTimeoutMs` | Queries the status of an asynchronous compilation task. |
 | `ssh-info` | `projectDir`, `reason`, `requestedBy` | Requests remote SSH troubleshooting information. |
