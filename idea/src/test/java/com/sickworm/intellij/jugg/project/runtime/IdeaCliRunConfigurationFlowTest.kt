@@ -169,7 +169,7 @@ class IdeaCliRunConfigurationFlowTest {
         val factory = debug.configuration.factory!!
         whenever(fixture.runManager.getConfigurationSettingsList(com.sickworm.intellij.jugg.ide.JuggConfigurationType::class.java)).thenReturn(listOf(debug))
         whenever(fixture.runManager.selectedConfiguration).thenReturn(debug)
-        whenever(fixture.runManager.createConfiguration("app release", factory)).thenReturn(release)
+        whenever(fixture.runManager.createConfiguration("jugg:app", factory)).thenReturn(release)
 
         val configurations = fixture.manager.reconcileActiveBuildVariants(listOf(suggestion("app", "release")))
 
@@ -190,9 +190,9 @@ class IdeaCliRunConfigurationFlowTest {
         whenever(fixture.runManager.getConfigurationSettingsList(com.sickworm.intellij.jugg.ide.JuggConfigurationType::class.java))
             .thenReturn(listOf(debug))
         whenever(fixture.runManager.selectedConfiguration).thenReturn(debug)
-        whenever(fixture.runManager.createConfiguration("app devRelease", factory)).thenReturn(release)
+        whenever(fixture.runManager.createConfiguration("jugg:app:devRelease", factory)).thenReturn(release)
         val includedStaging = juggSettings("SMCommon.app prodStaging", ideaOptions("", ""))
-        whenever(fixture.runManager.createConfiguration("SMCommon.app prodStaging", factory))
+        whenever(fixture.runManager.createConfiguration("jugg:SMCommon.app", factory))
             .thenReturn(includedStaging)
 
         fixture.manager.reconcileActiveBuildVariants(
@@ -220,7 +220,7 @@ class IdeaCliRunConfigurationFlowTest {
         whenever(fixture.runManager.getConfigurationSettingsList(com.sickworm.intellij.jugg.ide.JuggConfigurationType::class.java))
             .thenReturn(listOf(current))
         whenever(fixture.runManager.selectedConfiguration).thenReturn(current)
-        whenever(fixture.runManager.createConfiguration("app cuxCommonDebug", factory)).thenReturn(active)
+        whenever(fixture.runManager.createConfiguration("jugg:app", factory)).thenReturn(active)
 
         fixture.manager.reconcileActiveBuildVariants(listOf(suggestion("app", "CuxCommonDebug")))
 
@@ -241,9 +241,9 @@ class IdeaCliRunConfigurationFlowTest {
         whenever(fixture.runManager.getConfigurationSettingsList(com.sickworm.intellij.jugg.ide.JuggConfigurationType::class.java))
             .thenReturn(listOf(debug))
         whenever(fixture.runManager.selectedConfiguration).thenReturn(debug)
-        whenever(fixture.runManager.createConfiguration("SMCommon.app prodStaging", factory)).thenReturn(staging)
+        whenever(fixture.runManager.createConfiguration("jugg:SMCommon.app:prodStaging", factory)).thenReturn(staging)
         val rootRelease = juggSettings("app devRelease", ideaOptions("", ""))
-        whenever(fixture.runManager.createConfiguration("app devRelease", factory)).thenReturn(rootRelease)
+        whenever(fixture.runManager.createConfiguration("jugg:app", factory)).thenReturn(rootRelease)
 
         fixture.manager.reconcileActiveBuildVariants(
             listOf(
@@ -435,7 +435,7 @@ class IdeaCliRunConfigurationFlowTest {
         whenever(other.configuration).thenReturn(mock<RunConfiguration>())
         whenever(fixture.runManager.getConfigurationSettingsList(com.sickworm.intellij.jugg.ide.JuggConfigurationType::class.java)).thenReturn(listOf(debug))
         whenever(fixture.runManager.selectedConfiguration).thenReturn(other)
-        whenever(fixture.runManager.createConfiguration("app release", debug.configuration.factory!!)).thenReturn(release)
+        whenever(fixture.runManager.createConfiguration("jugg:app", debug.configuration.factory!!)).thenReturn(release)
 
         fixture.manager.reconcileActiveBuildVariants(listOf(suggestion("app", "release")))
 
@@ -453,11 +453,11 @@ class IdeaCliRunConfigurationFlowTest {
 
         assertTrue(fixture.manager.ensureConfiguration(listOf(suggestion("app", "debug"))))
 
-        verify(fixture.runManager).createConfiguration(eq("app debug"), any<ConfigurationFactory>())
+        verify(fixture.runManager).createConfiguration(eq("jugg:app"), any<ConfigurationFactory>())
         verify(fixture.runManager).addConfiguration(created)
         verify(fixture.runManager).selectedConfiguration = created
         val stored = fixture.store.loadCurrent()!!
-        assertEquals("app debug", stored.name)
+        assertEquals("jugg:app", stored.name)
         assertEquals("app", stored.moduleName)
         assertEquals("debug", stored.variant)
         assertEquals("./gradlew :app:assembleDebug", stored.compileCommand)
@@ -574,8 +574,8 @@ class IdeaCliRunConfigurationFlowTest {
     @Test
     fun `created configuration keeps the same unique name in IDEA and the shared store`() {
         val fixture = fixture("unique_name", appVariant = "release", includePaid = false)
-        val debug = juggSettings("app debug", ideaOptions("./gradlew :app:assembleDebug", "debug.apk"))
-        val occupied = juggSettings("app release", ideaOptions("./gradlew :app:uploadRelease", "artifacts/upload.apk"))
+        val debug = juggSettings("jugg:app", ideaOptions("./gradlew :app:assembleDebug", "debug.apk"))
+        val occupied = juggSettings("jugg:app:release", ideaOptions("./gradlew :app:uploadRelease", "artifacts/upload.apk"))
         val createdOptions = ideaOptions("", "")
         val created = juggSettings("app release", createdOptions)
         whenever(fixture.runManager.getConfigurationSettingsList(com.sickworm.intellij.jugg.ide.JuggConfigurationType::class.java))
@@ -587,8 +587,8 @@ class IdeaCliRunConfigurationFlowTest {
         fixture.manager.reconcileActiveBuildVariants(listOf(suggestion("app", "release")))
 
         val createdName = names.firstValue
-        assertNotEquals("app release", createdName)
-        assertTrue(createdName !in listOf("app debug", "app release"))
+        assertNotEquals("jugg:app:release", createdName)
+        assertTrue(createdName !in listOf("jugg:app", "jugg:app:release"))
         assertEquals(
             createdName,
             fixture.store.loadAll().single { it.compileCommand == "./gradlew :app:assembleRelease" }.name,

@@ -100,7 +100,7 @@ class JuggManagerRunConfigurationSyncTest {
         verify(fixture.toolWindow).setAvailable(true)
         assertEquals(1, fixture.settings.size)
         assertEquals("./gradlew :app:assembleDebug", fixture.settings.single().compileCommand())
-        assertEquals("app debug", fixture.settings.single().name)
+        assertEquals("jugg:app", fixture.settings.single().name)
     }
 
     @Test

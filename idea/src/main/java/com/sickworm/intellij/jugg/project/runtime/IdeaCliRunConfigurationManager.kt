@@ -33,7 +33,7 @@ class IdeaCliRunConfigurationManager(
             return true
         }
         val created = createMissingConfigurations(
-            suggestions.mapNotNull(::toSuggestedConfiguration),
+            suggestions.mapNotNull(::toSuggestedTarget),
             existingSettings,
             defaultFactory(),
         )
@@ -50,7 +50,7 @@ class IdeaCliRunConfigurationManager(
         val configurations = settings.mapNotNull { toCliConfiguration(it, projectInfo) }.toMutableList()
         configurations.forEach(::saveConfiguration)
         val factory = (settings.firstOrNull()?.configuration as? JuggRunConfiguration)?.factory ?: defaultFactory()
-        createMissingConfigurations(suggestions.mapNotNull(::toSuggestedConfiguration), settings, factory)
+        createMissingConfigurations(suggestions.mapNotNull(::toSuggestedTarget), settings, factory)
             .forEach { (createdSettings, createdConfiguration) ->
                 settings += createdSettings
                 configurations += createdConfiguration
@@ -70,7 +70,9 @@ class IdeaCliRunConfigurationManager(
                 logger.debug("Skip ProjectInfo run configuration fallback because no application module is available")
                 return false
             }
-        val created = createMissingConfigurations(listOf(configuration), existingSettings, defaultFactory())
+        val created = createMissingConfigurations(
+            listOf(ConfigurationTarget(configuration)), existingSettings, defaultFactory(),
+        )
         val selected = created.firstOrNull() ?: return false
         runManager.selectedConfiguration = selected.first
         selectConfiguration(selected.second.id)
@@ -87,23 +89,24 @@ class IdeaCliRunConfigurationManager(
     }
 
     /** Resolves a suggestion into a stable profile only when its exact Gradle identity is unambiguous. */
-    private fun toSuggestedConfiguration(suggestion: SuggestRunConfiguration): CliRunConfiguration? {
+    private fun toSuggestedTarget(suggestion: SuggestRunConfiguration): ConfigurationTarget? {
         val command = generatedCommand(suggestion.compileCommand) ?: return null
         val variant = suggestion.variantName?.let(::normalizeVariantName)?.takeIf { it.isNotBlank() } ?: return null
         if (command.variant != variant) {
             return null
         }
-        return CliRunConfigurationGenerator.generateForModuleIdentity(
+        val configuration = CliRunConfigurationGenerator.generateForModuleIdentity(
             modulePath = command.modulePath,
             moduleName = suggestion.moduleName,
             variant = variant,
             outputApkName = suggestion.outputApkPath,
         )
+        return ConfigurationTarget(configuration, suggestion.baseRunConfigName, suggestion.runConfigName)
     }
 
     /** Creates the targets no existing command already covers and persists each one under its final name. */
     private fun createMissingConfigurations(
-        targets: List<CliRunConfiguration>,
+        targets: List<ConfigurationTarget>,
         existingSettings: List<RunnerAndConfigurationSettings>,
         factory: ConfigurationFactory,
     ): List<Pair<RunnerAndConfigurationSettings, CliRunConfiguration>> {
@@ -111,10 +114,19 @@ class IdeaCliRunConfigurationManager(
         val existingCommands = existingSettings.map { it.compileCommand().orEmpty() }
         val created = mutableListOf<Pair<RunnerAndConfigurationSettings, CliRunConfiguration>>()
         targets
-            .distinctBy { singleGradleTask(it.compileCommand) ?: it.compileCommand.trim() }
-            .filterNot { target -> existingCommands.any { matchesCompileTarget(it, target.compileCommand) } }
-            .filterNot { target -> ownsStableId(existingSettings, target) }
-            .forEach { target -> createConfiguration(target, usedNames, factory)?.let { created += it } }
+            .distinctBy { singleGradleTask(it.configuration.compileCommand) ?: it.configuration.compileCommand.trim() }
+            .filterNot { target -> existingCommands.any { matchesCompileTarget(it, target.configuration.compileCommand) } }
+            .filterNot { target -> ownsStableId(existingSettings, target.configuration) }
+            .forEach { target ->
+                val name = when {
+                    target.variantName == null -> target.configuration.name
+                    SuggestRunConfiguration.isDefaultRunConfigName(target.variantName) || target.baseName in usedNames -> {
+                        target.variantName
+                    }
+                    else -> target.baseName ?: target.configuration.name
+                }
+                createConfiguration(target.configuration.copy(name = name), usedNames, factory)?.let { created += it }
+            }
         return created
     }
 
@@ -469,6 +481,12 @@ class IdeaCliRunConfigurationManager(
     private fun isUuid(value: String): Boolean {
         return runCatching { UUID.fromString(value) }.isSuccess
     }
+
+    private data class ConfigurationTarget(
+        val configuration: CliRunConfiguration,
+        val baseName: String? = null,
+        val variantName: String? = null,
+    )
 
     private data class GeneratedCommand(val modulePath: String, val variant: String)
 }
