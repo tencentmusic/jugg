@@ -12,6 +12,8 @@ tags:
 
 Report an issue packages the current Jugg logs and device error logs, then uploads them to a fixed issue-reporting service. Use it when incremental compilation or deployment fails, or when runtime results are unexpected. The upload destination does not change whether or not a Jugg backend or Custom Server is configured.
 
+A team backend can also enable automatic failure-log uploads. Automatic uploads use the same fixed service as the manual flow on this page, but contain less data and do not show a confirmation window.
+
 ## Where to open it
 
 Use either of these entry points:
@@ -51,12 +53,20 @@ Project snapshots include the existing `project_infos.json` and `gradle_project_
 > [!NOTE]
 > Upload failure does not change the local compilation or deployment result. The temporary ZIP remains under `build/jugg/tmp/diagnostics` and can be uploaded again. It is deleted by a cleanup task after project startup once it reaches 7 days old.
 
+## Automatic failure-log uploads
+
+A team backend can distribute `autoUploadFailureLogs=true` so Jugg automatically uploads the two most recent logs after a final compilation failure or an actual deployment failure. User cancellation, skipped deployment, no device before deployment starts, and a successful final result after a Gradle fallback do not trigger an automatic upload. Each Run uploads at most once.
+
+The automatic bundle contains only the two most recent redacted real Jugg logs and the manifest. It does not contain project snapshots, environment summaries, logcat, or hook logs. The backend can also use `autoUploadFailureLogsExcludeRegex` to exclude known errors. When the regex matches the current Run's final error summary, Jugg does not upload. An empty regex applies no filtering, while an invalid regex skips that upload.
+
+Automatic uploads run asynchronously without a dialog or retry. An upload failure does not change the original compilation or deployment result. The destination remains `https://jugg.sickworm.com/report_issue` and does not use Custom Server.
+
 ## Local log location
 
 If uploading is temporarily unavailable, inspect the latest log first:
 
 ```bash
-build/jugg/log/compile_latest.log
+~/.jugg/log/<projectName>_<pathHash>/compile_latest.log
 ```
 
 This file contains the main log for the most recent compilation and deployment. It is usually the first place to check deployment, fallback, and runtime problems.

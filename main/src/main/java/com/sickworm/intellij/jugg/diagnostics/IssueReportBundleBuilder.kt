@@ -37,8 +37,7 @@ class IssueReportBundleBuilder(
         hookDebugLog: File? = null,
         knownSecrets: Set<String> = emptySet(),
     ): List<IssueReportCandidate> {
-        reportId = UUID.randomUUID().toString().substringBefore('-')
-        reportDir = File(outputDir, reportId).apply { mkdirs() }
+        startReport()
         val candidates = mutableListOf<IssueReportCandidate>()
         getProjectInfoFiles(projectInfoDir).forEach { projectInfoFile ->
             val redactedContent = redactProjectInfo(projectInfoFile, knownSecrets) ?: return@forEach
@@ -77,6 +76,27 @@ class IssueReportBundleBuilder(
         }
         preparedCandidates = candidates
         return candidates
+    }
+
+    /** Prepares a minimal diagnostics bundle containing only redacted Jugg logs. */
+    fun prepareLogs(
+        logFiles: List<File>,
+        knownSecrets: Set<String> = emptySet(),
+    ): List<IssueReportCandidate> {
+        startReport()
+        return logFiles.filter { it.isFile }.take(2).map { logFile ->
+            writeTextCandidate(
+                "diagnostics/logs/${logFile.name}",
+                redact(logFile.readText(), knownSecrets),
+                IssueReportSensitivity.MEDIUM,
+                true,
+            )
+        }.also { preparedCandidates = it }
+    }
+
+    private fun startReport() {
+        reportId = UUID.randomUUID().toString().substringBefore('-')
+        reportDir = File(outputDir, reportId).apply { mkdirs() }
     }
 
     private fun getProjectInfoFiles(projectInfoDir: File?): List<File> {

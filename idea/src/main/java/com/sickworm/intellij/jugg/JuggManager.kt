@@ -1054,6 +1054,9 @@ class JuggManager @TestOnly constructor(
         ): IJuggRunningTask {
             logger.debug("Create running task: ${options.toSafeString()}")
 
+            loadCustomConfig()
+            val customConfig = customConfigManager.config
+
             val startCompileTime = System.currentTimeMillis()
             val initIncrementalCompileTask = task@{
                 // do it async
@@ -1066,10 +1069,10 @@ class JuggManager @TestOnly constructor(
                 juggRunningTaskStatusManager, deployHistoryManager, juggCompilerHelper, juggDeployerHelper, initIncrementalCompileTask,
                 compileUiHandler, controlPanelController.model, androidTestRunSpec,
                 controlPanelController = controlPanelController,
+                autoUploadFailureLogs = customConfig?.autoUploadFailureLogs == true,
+                autoUploadFailureLogsExcludeRegex = customConfig?.autoUploadFailureLogsExcludeRegex,
             )
 
-            // try reload custom config if changed
-            loadCustomConfig()
             ProgressManager.getInstance().run(task)
 
             return task

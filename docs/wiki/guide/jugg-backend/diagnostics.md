@@ -10,9 +10,9 @@ tags:
 
 # Jugg backend diagnostics reporting
 
-Backend diagnostics reporting covers usage events only. It does not affect local compilation or deployment results. When reporting fails, the plugin normally records a log and continues the current flow.
+Backend diagnostic configuration covers usage events and the optional automatic failure-log upload switch. It does not affect local compilation or deployment results. When reporting fails, the plugin records a log and continues the current flow.
 
-Log bundles submitted through [Report an issue](../report-issue.md) do not go through a self-hosted backend and do not use a Custom Server.
+Manually submitted and automatically submitted log bundles do not go through a self-hosted backend and do not use a Custom Server. The self-hosted backend only decides whether automatic uploads are enabled and which known errors are excluded through project configuration.
 
 ## Event reporting
 
@@ -34,9 +34,15 @@ A self-hosted backend can return only an event ID or a simple success message. T
 
 Whether or not the server exists or the request succeeds, the plugin writes the same event to the `jugg_event` table in `~/.jugg/action.db`. The local database only retains event history; it is not an automatic compensation queue for remote failures.
 
-## Issue logs do not use the backend
+## Automatic failure-log uploads
 
-The plugin uploads issue logs to the fixed issue-reporting service at `https://jugg.sickworm.com/report_issue`. A self-hosted backend does not need to implement `/report_issue`; implementing that interface also does not change the path users take when they report a problem.
+Set `autoUploadFailureLogs=true` in project configuration to enable automatic uploads after final failures. `autoUploadFailureLogsExcludeRegex` is an optional exclusion regex. It performs a contains match against the current Run's final error summary and suppresses the upload when it matches. An empty field applies no filtering, while an invalid regex skips that upload.
+
+Automatic uploads cover final compilation failures and final failures after deployment has actually started. Cancellation, skipped deployment, no device before deployment starts, and a successful final result after a Gradle fallback do not trigger an upload. The bundle contains only the two most recent redacted Jugg logs and the manifest, and each Run uploads at most once.
+
+## Issue logs do not use the self-hosted backend
+
+The plugin uploads issue logs to the fixed issue-reporting service at `https://jugg.sickworm.com/report_issue`. This applies to both manual uploads and automatic uploads enabled by backend configuration. A self-hosted backend does not need to implement `/report_issue`; implementing that interface also does not change the log-upload path.
 
 For the user-facing flow, diagnostic-bundle contents, and Report ID, see [Report an issue](../report-issue.md).
 

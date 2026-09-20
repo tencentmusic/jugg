@@ -1,14 +1,37 @@
 package com.sickworm.intellij.jugg.ide.logic
 
+import com.intellij.openapi.progress.ProgressIndicator
+import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
+import com.sickworm.intellij.jugg.compiler.CompileTaskResult
+import com.sickworm.intellij.jugg.compiler.JuggCompilerHelper
+import com.sickworm.intellij.jugg.compiler.ui.RunResult
+import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
+import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
+import com.sickworm.intellij.jugg.deploy.JuggRunningTaskStatusManager
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
+import com.sickworm.intellij.jugg.deploy.run.DeployTaskResult
+import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
+import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
+import com.sickworm.intellij.jugg.ide.controlpanel.JuggControlPanelModel
+import com.sickworm.intellij.jugg.logger.JuggLogger
+import com.sickworm.intellij.jugg.project.ILastCompileProjectRegistry
+import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
+import com.sickworm.intellij.jugg.server.JuggServer
+import org.junit.Rule
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import org.mockito.Mockito
+import org.mockito.kotlin.any
+import org.mockito.kotlin.whenever
 
 class JuggRunningTaskTest {
+
+    @get:Rule
+    val temporaryFolder = TemporaryFolder()
 
     @Test
     fun `compile event title should distinguish selected path and no-op compile`() {
@@ -115,5 +138,87 @@ class JuggRunningTaskTest {
     @Test
     fun `canceled run does not detach process again when task stops`() {
         assertFalse(shouldDetachProcessOnTaskStop(isProcessCanceled = true))
+    }
+
+    @Test
+    fun `failure upload requires enabled eligible and unmatched exclusion`() {
+        assertFalse(shouldAutoUploadFailureLogs(false, true, null, "compile failed"))
+        assertFalse(shouldAutoUploadFailureLogs(true, false, null, "compile failed"))
+        assertTrue(shouldAutoUploadFailureLogs(true, true, null, "compile failed"))
+        assertTrue(shouldAutoUploadFailureLogs(true, true, "", "compile failed"))
+        assertTrue(shouldAutoUploadFailureLogs(true, true, "OutOfMemoryError", "compile failed"))
+        assertFalse(shouldAutoUploadFailureLogs(true, true, "(?i)compile failed", "Compile Failed"))
+    }
+
+    @Test
+    fun `invalid exclusion regex disables failure upload`() {
+        assertFalse(shouldAutoUploadFailureLogs(true, true, "[", "compile failed"))
+    }
+
+    @Test
+    fun `failure upload eligibility follows final run boundary`() {
+        val compileFailed = RunResult(false, false, false, false)
+        val deployFailed = RunResult(false, true, false, false)
+        val canceled = RunResult(false, false, false, true)
+        val succeeded = RunResult(false, true, true, false)
+
+        assertTrue(isFailureLogUploadEligible(compileFailed, hasAttemptedDeploy = false))
+        assertTrue(isFailureLogUploadEligible(deployFailed, hasAttemptedDeploy = true))
+        assertFalse(isFailureLogUploadEligible(deployFailed, hasAttemptedDeploy = false))
+        assertFalse(isFailureLogUploadEligible(canceled, hasAttemptedDeploy = true))
+        assertFalse(isFailureLogUploadEligible(succeeded, hasAttemptedDeploy = true))
+    }
+
+    @Test
+    fun `deploy failure reason excludes successful devices`() {
+        val results = listOf(
+            DeployTaskResult(isSuccess = true, costTime = 1),
+            DeployTaskResult(isSuccess = false, costTime = 1, failedReason = "real failure"),
+        )
+
+        assertEquals("real failure", buildDeployFailureReason(results))
+    }
+
+    @Test
+    fun `final compile failure triggers automatic log upload once`() {
+        val project = Mockito.mock(Project::class.java)
+        Mockito.`when`(project.basePath).thenReturn(temporaryFolder.root.absolutePath)
+        JuggLogger.register(project, temporaryFolder.newFolder("logs"))
+        try {
+            val server = Mockito.mock(JuggServer::class.java)
+            val compileHelper = Mockito.mock(JuggCompilerHelper::class.java)
+            whenever(compileHelper.compile(any(), any(), any())).thenReturn(
+                CompileTaskResult.incrementalFailed(false, "compile failed"),
+            )
+            val deployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
+            Mockito.`when`(deployTargetManager.getSelectedDevices()).thenReturn(emptyList())
+            val dependencyChangeManager = Mockito.mock(IDependencyChangeManager::class.java)
+            val lastCompileProjectRegistry = Mockito.mock(ILastCompileProjectRegistry::class.java)
+            val options = Mockito.mock(JuggGradleCompileOptions::class.java)
+            Mockito.`when`(options.projectRootPath).thenReturn(temporaryFolder.root.absolutePath)
+            val task = JuggRunningTask(
+                options = options,
+                project = project,
+                juggServer = server,
+                deployTargetManager = deployTargetManager,
+                dependencyChangeManager = dependencyChangeManager,
+                statusManager = JuggRunningTaskStatusManager(),
+                deployHistoryManager = Mockito.mock(IDeployHistoryManager::class.java),
+                juggCompileHelper = compileHelper,
+                juggDeployHelper = Mockito.mock(JuggDeployerHelper::class.java),
+                initIncrementalCompileTask = {},
+                baseCompileUiHandler = CompileUiHandler.DEFAULT,
+                eventModel = JuggControlPanelModel(),
+                lastCompileProjectRegistry = lastCompileProjectRegistry,
+                logger = JuggLogger.getInstance(project, "JuggRunningTaskTest"),
+                autoUploadFailureLogs = true,
+            )
+
+            task.run(Mockito.mock(ProgressIndicator::class.java))
+
+            Mockito.verify(server, Mockito.times(1)).uploadFailureLogs()
+        } finally {
+            JuggLogger.unregister(project)
+        }
     }
 }

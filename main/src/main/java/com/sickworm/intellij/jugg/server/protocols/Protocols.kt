@@ -47,6 +47,10 @@ data class ProjectCustomConfig(
      * embedded apks in apk
      */
     val embeddedApksSearchRules: List<String>?,
+    /** Enables best-effort upload of recent Jugg logs after eligible final failures. */
+    val autoUploadFailureLogs: Boolean? = null,
+    /** Excludes failures whose final error summary contains a regex match. */
+    val autoUploadFailureLogsExcludeRegex: String? = null,
 )
 
 @Serializable

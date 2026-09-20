@@ -22,8 +22,12 @@ tags:
 | `moduleCustomConfigs` | 为指定模块补充 classpath、同步路径或忽略过滤策略 |
 | `customCompilers` | 给项目下发自定义编译器 jar |
 | `embeddedApksSearchRules` | 配置嵌入式 APK 的搜索规则 |
+| `autoUploadFailureLogs` | 最终编译或实际部署失败后，自动上传最近两份脱敏日志 |
+| `autoUploadFailureLogsExcludeRegex` | 对最终错误摘要做包含匹配，命中时排除本次自动上传 |
 
 旧字段 `buildFileList` 已不建议新增使用；新后台优先维护 `buildFileRules`。
+
+失败日志自动上传只有在 `autoUploadFailureLogs` 明确为 `true` 时启用。排除正则缺失或为空时不过滤；正则非法时插件会跳过本次上传。自动诊断包不经过 Custom Server，具体内容和触发边界见[报告问题](../report-issue.md)。
 
 ## 模块配置
 

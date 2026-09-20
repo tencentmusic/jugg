@@ -102,4 +102,38 @@ class IssueReportBundleBuilderTest {
             assertFalse("key-secret" in gradleProjectInfoText)
         }
     }
+
+    @Test
+    fun `automatic bundle contains only redacted logs and manifest`() {
+        val root = temporaryFolder.newFolder()
+        val projectDir = root.resolve("secret-project").apply { mkdirs() }
+        val userHome = root.resolve("user-home").apply { mkdirs() }
+        val logs = listOf("compile-1.log", "compile-2.log", "compile-3.log").map { name ->
+            root.resolve(name).apply {
+                writeText("project=$projectDir home=$userHome token=secret-token")
+            }
+        }
+        val builder = IssueReportBundleBuilder(root.resolve("output"), projectDir, userHome, mock<Logger>())
+
+        val bundle = builder.prepareLogs(logs).let { builder.build(it.map { candidate -> candidate.path }.toSet()) }
+
+        ZipFile(bundle.file).use { zip ->
+            val entries = zip.entries().asSequence().map { it.name }.toSet()
+            assertEquals(
+                setOf(
+                    "diagnostics/logs/compile-1.log",
+                    "diagnostics/logs/compile-2.log",
+                    "diagnostics/manifest.json",
+                ),
+                entries,
+            )
+            entries.filter { it.startsWith("diagnostics/logs/") }.forEach { path ->
+                val content = zip.getInputStream(zip.getEntry(path)).bufferedReader().readText()
+                assertTrue("\${PROJECT_DIR}" in content)
+                assertTrue("\${USER_HOME}" in content)
+                assertTrue("token=[REDACTED]" in content)
+                assertFalse("secret-token" in content)
+            }
+        }
+    }
 }

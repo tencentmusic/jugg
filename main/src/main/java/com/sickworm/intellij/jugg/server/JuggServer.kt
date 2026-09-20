@@ -4,6 +4,8 @@ import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
+import com.sickworm.intellij.jugg.diagnostics.IssueReportBundleBuilder
+import com.sickworm.intellij.jugg.diagnostics.IssueReportUploader
 import com.sickworm.intellij.jugg.git.GitManager
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.logger.JuggLogger
@@ -201,6 +203,43 @@ class JuggServer(
         juggServerChooser.setCustomServer()
     }
 
+    /** Uploads the two most recent real Jugg logs without affecting the run result. */
+    fun uploadFailureLogs(): Job = launch {
+        try {
+            val logFiles = selectRecentFailureLogs(pathManager.logDir)
+            if (logFiles.isEmpty()) {
+                logger.debug("Auto upload failure logs skipped: no Jugg logs found")
+                return@launch
+            }
+            val builder = IssueReportBundleBuilder(
+                pathManager.diagnosticsDir,
+                pathManager.projectDir,
+                File(System.getProperty("user.home")),
+                logger.getInstance("IssueReportBundleBuilder"),
+            )
+            val compileSettings = JuggSettings.defaultCompileSettings
+            val candidates = builder.prepareLogs(
+                logFiles,
+                knownSecrets = setOfNotNull(
+                    compileSettings.remoteSshPassword,
+                    compileSettings.remoteSshUser,
+                    compileSettings.remoteSshIp,
+                    username,
+                    System.getProperty("user.name"),
+                ),
+            )
+            val bundle = builder.build(candidates.map { it.path }.toSet())
+            val result = IssueReportUploader().upload(bundle, IssueReportUploader.JUGG_REPORT_URL)
+            if (result.isSuccess) {
+                logger.debug("Auto upload failure logs succeeded, reportId=${result.reportId}")
+            } else {
+                logger.debug("Auto upload failure logs failed: ${result.errorMessage}")
+            }
+        } catch (e: Exception) {
+            logger.debug("Auto upload failure logs failed", e)
+        }
+    }
+
     fun checkHotUpdate(isPositiveCheckout: Boolean): HotUpdateData? {
         if (!juggServerChooser.hasAvailableServer()) {
             return null
@@ -271,6 +310,16 @@ class JuggServer(
             }
         }
     }
+}
+
+internal fun selectRecentFailureLogs(logDir: File): List<File> {
+    return logDir.listFiles().orEmpty()
+        .filter { file ->
+            file.isFile && file.name.startsWith("compile_") && file.name.endsWith(".log") &&
+                    !file.name.startsWith("compile_latest")
+        }
+        .sortedByDescending { it.lastModified() }
+        .take(2)
 }
 
 

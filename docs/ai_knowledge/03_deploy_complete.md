@@ -39,6 +39,7 @@
 | `CompileUiHandler.isSkipDeploy` | UI / MCP 调用方 | `JuggRunningTask.doRun()` | 编译成功但显式跳过部署；会 reset hasRun，避免下次误报 no file changes。 |
 | `DeployTaskResult` | `JuggDeployerHelper.deploy()` | `JuggRunningTask.doRun()` | 每台设备的成功状态、deploy type、fallback 资格和失败原因。 |
 | `RunResult` | `JuggRunningTask.doRun()` | `JuggRunningTask.run()` | 最终反馈给 UI、依赖变更管理器和 hasRun 状态。 |
+| 失败日志自动上传 | `ProjectCustomConfig`、`JuggRunningTask.run()` | `JuggServer` | 后台显式开启后，只在整轮最终失败时按排除正则决定是否上传最近两份真实日志。 |
 
 ---
 
@@ -94,6 +95,12 @@ selected and running devices snapshot
 
 多设备时某台设备的失败原因会合并成一条 `failedReason`；fallback 是整轮 Run 级别，不是只重跑失败设备。
 
+### 4.4 最终失败日志自动上传
+
+后台配置 `autoUploadFailureLogs=true` 后，`JuggRunningTask` 在整轮最终结果确定时判断是否自动上传失败日志。编译失败使用 `failedReason` 和 Gradle `errorLog`，部署失败使用所有失败设备的最终原因，顶层异常使用异常类型与 message；`autoUploadFailureLogsExcludeRegex` 对该摘要执行包含匹配，命中时不上传。空正则不过滤，非法正则按 fail-closed 跳过本次上传。
+
+上传只发生在最终失败边界：内部 deploy retry、多设备子任务和触发 Gradle fallback 的中间失败不单独上传；fallback 最终成功时不上传。用户取消、显式跳过部署、未找到设备且没有实际进入部署时同样不上传。一次 Run 最多触发一次，上传异步执行且结果不改变原有 `RunResult`。
+
 ---
 
 ## 5. 隐形约束
@@ -108,6 +115,7 @@ selected and running devices snapshot
 - 自定义 APK 安装脚本属于 Run Configuration，经部署请求传入 `LaunchContext`，覆盖当前 Run 的普通 App install/reinstall；远程编译只改变产物来源，脚本仍在连接设备的本地 IDE 主机执行。
 - 自定义 APK 签名脚本同样属于 Run Configuration，但只替换 Jugg 对增量改写 APK 的重新签名步骤：Gradle 完整构建产物的签名流程不变，CLI `BuildIncrementalApkCommand` 和手工导出增量 APK 也不接受该参数。启用脚本时 `Run Configuration` 校验要求脚本非空，且本地 `SigningConfig` 无效不再是 APK 更新的失败条件；脚本失败后不回退到本地 keystore 签名。
 - `juggServer.report(action="compile"/"deploy")` 是观测侧上报；不要把上报成功当作编译或部署成功。
+- 自动失败日志上传同样是观测侧 Best-effort 行为；固定上传到问题报告服务，不读取 Custom Server，失败时不重试、不覆盖编译部署结果。
 
 ---
 
