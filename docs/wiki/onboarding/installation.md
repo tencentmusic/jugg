@@ -16,7 +16,7 @@ Jugg is installed as an Android Studio plugin. You do not need to change project
 Public builds are available from GitHub:
 
 - [Latest stable release](https://github.com/tencentmusic/jugg/releases/latest)
-- [Latest Canary build from `develop`](https://github.com/tencentmusic/jugg/releases/download/canary-nightly/jugg-canary-nightly.zip): Built automatically when `develop` receives a new commit and may contain changes that have not been fully verified
+- [Latest Canary build](https://github.com/tencentmusic/jugg/releases/download/canary-nightly/jugg-canary-nightly.zip): Built automatically from the branch that triggers the Canary workflow and may contain changes that have not been fully verified
 
 If your team provides an internal download page, follow the team's release and staged-rollout policy.
 

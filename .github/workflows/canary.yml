@@ -19,10 +19,9 @@ jobs:
     timeout-minutes: 60
 
     steps:
-      - name: Check out develop branch
+      - name: Check out build ref
         uses: actions/checkout@v6
         with:
-          ref: develop
           fetch-depth: 1
 
       - name: Check for unpublished commits
@@ -110,7 +109,6 @@ jobs:
         if: steps.check.outputs.should_build == 'true'
         env:
           ASSET_NAME: jugg-canary-nightly.zip
-          BRANCH: develop
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: canary-nightly
           RELEASE_TITLE: Jugg Canary
@@ -119,7 +117,7 @@ jobs:
           commit_sha="$(git rev-parse HEAD)"
           short_sha="${commit_sha:0:7}"
           release_notes="$(printf 'Automatically published from the latest %s branch build. Canary builds may be unstable. However, they include the latest bug fixes and features.\n\n- Version: `%s`\n- Commit: [`%s`](%s/%s/commit/%s)\n- Workflow: [run %s](%s/%s/actions/runs/%s)\n' \
-            "$BRANCH" \
+            "$GITHUB_REF_NAME" \
             '${{ steps.version.outputs.value }}' \
             "$short_sha" \
             "$GITHUB_SERVER_URL" \
