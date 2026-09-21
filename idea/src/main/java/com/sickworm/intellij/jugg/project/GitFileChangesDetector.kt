@@ -9,6 +9,7 @@ import com.sickworm.intellij.jugg.git.IGitManager
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import kotlinx.coroutines.*
 import java.io.File
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * File changes callbacks in IDE may miss some files if large amount of files changes outside IDE
@@ -23,26 +24,32 @@ class GitFileChangesDetector(
     loggerArg: Logger,
 ): IFileChangesDetector {
 
+    enum class GitRefreshResult {
+        NO_HEAD_CHANGE,
+        REFRESHED,
+        FAILED,
+    }
+
     private val logger = loggerArg.getInstance("GitFileChangesDetector")
 
     /** Map<git root dir, git manager> */
-    private var gitManagers = mapOf<String, IGitManager>()
+    @Volatile private var gitManagers = mapOf<String, IGitManager>()
     /** Map<git root dir, git head commit id> */
-    private var gitHeads = mapOf<String, String?>()
-    private var isAvailable: Boolean = false
+    private val gitHeads = AtomicReference<Map<String, String?>>(emptyMap())
+    @Volatile private var isAvailable: Boolean = false
 
     private var listener: FileChangesListener? = null
 
-    private var checkDelayJob: Job? = null
-    private var isWaitingFileChangesEnd = false
+    @Volatile private var checkDelayJob: Job? = null
+    @Volatile private var isWaitingFileChangesEnd = false
 
     @Synchronized
     fun init(projectRooDir: File, modules: Map<String, ModuleInfo>) {
         val allDirectories = modules.map { it.value.moduleRootDir } + listOf(projectRooDir)
         gitManagers = getAllGits(allDirectories)
-        gitHeads = gitManagers.mapValues { it.value.getLastCommitHash() }
+        gitHeads.set(gitManagers.mapValues { it.value.getLastCommitHash() })
         isAvailable = gitManagers.any { it.value.hasInitGit }
-        logger.debug("init isAvailable: $isAvailable, gitHeads: $gitHeads")
+        logger.debug("init isAvailable: $isAvailable, gitHeads: ${gitHeads.get()}")
     }
 
     @Synchronized
@@ -52,7 +59,7 @@ class GitFileChangesDetector(
         }
 
         if (isNeedGetChangedFilesByGit(files)) {
-            if (isGitHeadsUpdate()) {
+            if (hasGitHeadChanged()) {
                 isWaitingFileChangesEnd = true
             }
         }
@@ -62,7 +69,10 @@ class GitFileChangesDetector(
             checkDelayJob?.cancel()
             checkDelayJob = taskRunnerManager.runBackgroundSafe("checkGitFileChanges", waitingFileChangesEndDuration) {
                 isWaitingFileChangesEnd = false
-                taskRunnerManager.runTaskSafe("Checking changed files", ::updateChangedFiles)
+                checkDelayJob = null
+                taskRunnerManager.runTaskSafe("Checking changed files", Runnable {
+                    refreshChangedFilesIfHeadChanged()
+                })
             }
         }
     }
@@ -87,23 +97,50 @@ class GitFileChangesDetector(
         return false
     }
 
-    private fun isGitHeadsUpdate(): Boolean {
+    private fun hasGitHeadChanged(): Boolean {
         val newGitHeads = gitManagers.mapValues { it.value.getLastCommitHash() }
-        if (newGitHeads != gitHeads) {
-            logger.debug("isGitHeadsUpdate=true, oldGitHeads: $gitHeads, newGitHeads: $newGitHeads")
-            gitHeads = newGitHeads
-            return true
+        return newGitHeads != gitHeads.get()
+    }
+
+    /**
+     * Checks every Git root HEAD and synchronously publishes missed file changes when any HEAD moved.
+     * The stored HEAD baseline advances only after the file refresh succeeds.
+     */
+    fun refreshChangedFilesIfHeadChanged(): GitRefreshResult {
+        val checkStart = System.currentTimeMillis()
+        val newGitHeads = try {
+            gitManagers.mapValues { it.value.getLastCommitHash() }
+        } catch (e: Exception) {
+            logger.debug("Git HEAD check result=FAILED, cost=${System.currentTimeMillis() - checkStart}ms", e)
+            return GitRefreshResult.NO_HEAD_CHANGE
         }
-        return false
+        val previousGitHeads = gitHeads.get()
+        val isHeadChanged = newGitHeads != previousGitHeads
+        val checkCost = System.currentTimeMillis() - checkStart
+        logger.debug("Git HEAD check result=${if (isHeadChanged) "CHANGED" else "UNCHANGED"}, cost=${checkCost}ms")
+        if (!isHeadChanged) {
+            return GitRefreshResult.NO_HEAD_CHANGE
+        }
+
+        logger.info("Git HEAD changed, refreshing changed files before compile...")
+        logger.debug("Git HEAD changed details: old=$previousGitHeads, new=$newGitHeads")
+        checkDelayJob?.cancel()
+        checkDelayJob = null
+        isWaitingFileChangesEnd = false
+        if (!updateChangedFiles(emptyList())) {
+            return GitRefreshResult.FAILED
+        }
+        gitHeads.compareAndSet(previousGitHeads, newGitHeads)
+        return GitRefreshResult.REFRESHED
     }
 
-    fun updateChangedFiles() {
-        updateChangedFiles(emptyList())
+    fun updateChangedFiles(): Boolean {
+        return updateChangedFiles(emptyList())
     }
 
-    fun updateChangedFiles(filterFiles: List<File>) {
+    fun updateChangedFiles(filterFiles: List<File>): Boolean {
         logger.debug("updateChangedFiles")
-        val changedFiles = deployHistoryManager.getChangedFilesSinceLastFullCompiled() ?: return
+        val changedFiles = deployHistoryManager.getChangedFilesSinceLastFullCompiled() ?: return false
         val filterFilesSet = filterFiles.map { it.path }.toSet()
         val allChangedFiles = changedFiles.filter { it.path !in filterFilesSet }
         val deletedFiles = collectMissingUndeployedFiles()
@@ -113,6 +150,7 @@ class GitFileChangesDetector(
         )
 
         listener?.onFileChanges(allChangedFiles, deletedFiles)
+        return true
     }
 
     private fun collectMissingUndeployedFiles(): List<File> {
