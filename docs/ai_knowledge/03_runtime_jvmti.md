@@ -115,6 +115,7 @@ DeployRetryHandler.tryRetry()
   -> HandleStartupAgent()
      AddCapabilities
      Direct sandbox 优先加载 app-local jugg-instruments.jar；否则使用 /data/local/tmp 中的全局 JAR
+     扫描 code_cache/.overlay/*/.jugg_compat_deploy_enable；命中时跳过全部 framework transform
      instrument Application / AppComponentFactory / Resources
 ```
 
@@ -176,7 +177,7 @@ Jugg 在 `ResourcesManager#createAssetManager` 的新旧签名中记录当前 `R
   -> resDir 不属于宿主 APK：移除 code_cache/.overlay 中的宿主 overlay
 ```
 
-宿主 APK 路径尚未记录时，策略退回到旧的 `/data/app` 路径判断。该修正只处理非宿主资源环境，不能删除宿主 Activity 正常热更新所需的 overlay；compat deploy 启用时也必须跳过这条普通 Apply Changes overlay 修正。
+宿主 APK 路径尚未记录时，策略退回到旧的 `/data/app` 路径判断。该修正只处理非宿主资源环境，不能删除宿主 Activity 正常热更新所需的 overlay。startup agent 在 compat deploy flag 存在时不会执行任何 framework transform；Java hook 仍保留 compat 判断，以兼容已生成的历史 transform cache。
 
 ### 4.6 Direct sandbox 普通资源 overlay
 
@@ -250,6 +251,8 @@ InstrumentationHooks.classLoaderGetResource(classLoader, name)
 ```
 
 hook 不限制资源名。部署到 `.overlay` 的内容是预期覆盖状态，但 `resource.ap_` 分支必须先确认 ZIP entry，不能只因 ZIP 文件存在就截断原始 fallback。
+
+compat deploy 不执行 framework transform，因此不安装 `ClassLoader#getResource()` hook。compat 模式下的普通 Dex 和 Android 资源仍由 `BootstrapApplication`、`HotfixLoader` 与 `resource.ap_` 处理；依赖 ClassLoader 的 APK 根目录资源不保证增量生效，应回退完整构建或安装。
 
 首次进入 hook 只打印一次 `Classpath resource hook in`；每次命中打印 `Classpath resource overlay hit` 并区分 `file` / `resource_ap_`。`resource.ap_` 读取可能受 `JarURLConnection` 缓存影响，部署 APK 根目录 overlay 成功后必须重启 App 进程。
 
