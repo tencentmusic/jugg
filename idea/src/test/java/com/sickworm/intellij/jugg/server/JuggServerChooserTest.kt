@@ -51,6 +51,17 @@ class JuggServerChooserTest {
     }
 
     @Test
+    fun `forced refresh replaces stale server before first request`() {
+        JuggSettings.serverUrl = "http://127.0.0.1:1"
+        JuggSettings.serverExpireTimeMill = System.currentTimeMillis() + 60_000L
+
+        JuggServerChooser(TestGlobal.getLogger()).updateServerIfExpired(isForce = true)
+
+        assertTrue(!JuggSettings.serverUrl.isNullOrBlank())
+        assertTrue(JuggSettings.serverUrl != "http://127.0.0.1:1")
+    }
+
+    @Test
     fun `custom server is persisted only after remote capability confirmation`() {
         val platformApi = Mockito.mock(IPlatformApi::class.java)
         Mockito.`when`(platformApi.showUserAndPasswordInputDialog(

@@ -69,11 +69,6 @@ class JuggServer(
 
     init {
         logger.debug("init finished, version: $version, projectId: $projectId, userName: $username, requestToken: $requestToken, serverUrl: $serverUrl")
-        if (juggServerChooser.hasAvailableServer()) {
-            launch {
-                juggServerChooser.updateServerIfExpired(isForce = true)
-            }
-        }
     }
 
     fun afterFullCompile() {
@@ -87,6 +82,13 @@ class JuggServer(
     private var reportLock = Mutex() // report only one event in the same time
 
     fun checkUpdate(onComplete: (VersionData) -> Unit): Job = launch {
+        if (serverUrl == null) {
+            juggServerChooser.updateServerIfExpired(isForce = true)
+        } else {
+            launch {
+                juggServerChooser.updateServerIfExpired(isForce = true)
+            }
+        }
         if (!juggServerChooser.hasAvailableServer()) {
             return@launch
         }
