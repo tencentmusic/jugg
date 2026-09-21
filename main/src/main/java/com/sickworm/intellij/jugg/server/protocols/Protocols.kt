@@ -51,6 +51,8 @@ data class ProjectCustomConfig(
     val autoUploadFailureLogs: Boolean? = null,
     /** Excludes failures whose final error summary contains a regex match. */
     val autoUploadFailureLogsExcludeRegex: String? = null,
+    val defaultSettingsVersion: Int? = null,
+    val defaultSettings: Map<String, Any?>? = null,
 )
 
 @Serializable

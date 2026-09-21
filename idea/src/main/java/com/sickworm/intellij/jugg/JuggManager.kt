@@ -159,6 +159,7 @@ class JuggManager @TestOnly constructor(
                 val checkUpdateHandler = CheckUpdateHandler(
                     project, juggServer.version, customConfigManager,
                     JuggLogger.getInstance(project, "CheckUpdateHandler"),
+                    controlPanelController::refreshSettings,
                 )
                 checkUpdateHandler.handle(it)
                 loadCustomConfig()
