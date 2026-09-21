@@ -150,6 +150,7 @@ CI 命令行把构建拆成两个可审计阶段：
 - `buildIncrementalApk` 的 `changedFiles` 是外部契约，不是提示信息。过滤后数量与输入不一致、路径越界或含 build file 都必须明确失败，不能静默跳过后继续产出 APK。
 - `CompileProjectCommand` 注入 Gradle init script、项目目录及切换本地工作目录时，必须把路径作为带引号的独立参数传递，避免 Windows 的 `-I` 参数或 macOS/Linux 的 `cd` 被空格截断。
 - `SyncLocalClasspathCommand` 调用本地 rsync 时必须分别引用可执行文件、源目录和目标目录，保证工程目录或备份目录包含空格时仍作为单个参数传递。
+- macOS 非 ARM64 的 rsync 密码认证使用 Expect；Bash 命令和密码必须通过子进程环境传入，避免 Tcl 提前展开 `$` 等内容。
 - Windows 同一命令管道可能混合 UTF-8 与 GBK。`ProcessOutputReader` 必须先按行保留原始字节，再严格校验 UTF-8，失败时回退 GBK；不能先用固定编码构造字符串，也不能锁定整个进程编码。日志已出现 `�` 时原始字节可能已丢失，切换查看器编码无法恢复。
 
 ---

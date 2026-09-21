@@ -86,6 +86,8 @@ IDE project opened
 
 `FileChangesHandler` 在 `CompileContext` 初始化后，以 IDE 工程目录和所有参与编译模块的根目录作为目录扫描范围。目录事件在调用 `listFiles()` 前先判断是否与该范围存在祖先或子孙关系；无关的全局目录不会递归展开，工程目录外的编译模块仍可沿其父目录分支被发现。每个模块都会用本地 `ModuleInfo.projectRootDir/moduleRootDir` 与 `buildDirRelativePath` 还原实际 build directory，并把它和传统 `${moduleRootDir}/build` 作为统一排除边界；不能直接使用远程 compile context 中可能已映射到 classpath 备份目录的 `buildPathInfo.buildDir`。目录事件在递归前剪枝，普通 changed file 在类型识别前过滤。删除事件只负责移除此前已登记的路径，不重复执行该过滤。该边界不依赖 build directory 是否位于 module root 内，也不会回溯清理当前内存中已有的变化。
 
+每次 Run 在增量预处理开始时都会同步检查所有 Git root 的 HEAD。未变化时只记录 debug 结果与耗时并立即继续；发生变化时以 info 提示，并阻塞调用既有 Git history/diff/CRC 恢复链路，直到 `processFileChanged()` 完成后再判断本轮编译输入。`GitFileChangesDetector.gitHeads` 只在刷新成功后推进，避免 IDE 已观察到 `git pull` 事件但延迟刷新尚未执行时，立即 Run 错过变化。完整异步 Git 扫描仍保留，用于未提交变化和 IDE 漏事件兜底。
+
 ### 4.2 Gradle Sync 到上下文重建
 
 `JuggProjectManagerListener` 在项目打开后调用三参数 `GradleSyncState.subscribe`，只注册一个 `JuggGradleSyncListener`，并将订阅绑定到 project disposable。该静态入口在 211 已存在；221 及后续版本会由 Android Studio 内部 adapter 转发到 root-aware topic，因此不再同时注册两个 topic，也不会重复上报同一事件。由于 `GradleSyncState` 在支持范围内存在 class/interface 形态变化，入口通过反射调用，发布字节码不直接链接该类型。

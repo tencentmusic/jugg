@@ -80,14 +80,28 @@ class JuggCompileHelperTest {
     }
 
     @Test
-    fun preprocessIncrementalCompile_noFileChanges_onlyRunAsyncGitCheck() {
+    fun preprocessIncrementalCompile_noFileChanges_checksGitHeadBeforeAsyncGitCheck() {
         val fixture = createFixture()
         whenever(fixture.deployFileManager.isNoFileChanges()).thenReturn(true)
 
         invokePreprocessIncrementalCompile(fixture.helper, fixture.options, fixture.uiHandler)
 
+        verify(fixture.gitFileChangesDetector).refreshChangedFilesIfHeadChanged()
         verify(fixture.gitChangeChecker).checkUndetectedFilesAsync(any())
         verify(fixture.gitChangeChecker, never()).checkUndetectedFiles(any())
+    }
+
+    @Test
+    fun preprocessIncrementalCompile_gitHeadRefreshFailure_forcesGradleFallback() {
+        val fixture = createFixture()
+        whenever(fixture.gitFileChangesDetector.refreshChangedFilesIfHeadChanged())
+            .thenReturn(GitFileChangesDetector.GitRefreshResult.FAILED)
+
+        val result = invokePreprocessIncrementalCompile(fixture.helper, fixture.options, fixture.uiHandler)
+
+        assertTrue(result!!.isCanFallback)
+        assertEquals("Git HEAD changed but file refresh failed", result.failedReason)
+        verify(fixture.gitChangeChecker, never()).checkUndetectedFilesAsync(any())
     }
 
     @Test
@@ -321,6 +335,7 @@ class JuggCompileHelperTest {
 
         invokePreprocessIncrementalCompile(fixture.helper, fixture.options, fixture.uiHandler)
 
+        verify(fixture.gitFileChangesDetector).refreshChangedFilesIfHeadChanged()
         verify(fixture.gitChangeChecker).checkUndetectedFilesAsync(any())
         verify(fixture.gitChangeChecker, never()).checkUndetectedFiles(any())
     }
@@ -864,6 +879,31 @@ class JuggCompileHelperTest {
     }
 
     @Test
+    fun preprocessIncrementalCompile_tooManySourceFiles_autoFallbackWithoutConfirmWhenDisabled() {
+        val logger = CapturingLogger()
+        val fixture = createFixture(logger)
+        whenever(fixture.deployFileManager.isNoFileChanges()).thenReturn(false)
+        whenever(fixture.deployFileManager.getUncompiledFiles()).thenReturn(
+            listOf(kotlinChangedFile(), buildChangedFile())
+        )
+        val old = JuggSettings.isConfirmFallbackWhenTooManyChanges
+        try {
+            JuggSettings.isConfirmFallbackWhenTooManyChanges = false
+            val result = withLoweredSourceFilePointLimit(2) {
+                invokePreprocessIncrementalCompile(fixture.helper, fixture.options, fixture.uiHandler)
+            }
+
+            assertEquals("Too many changes", result?.failedReason)
+            assertTrue(result!!.isCanFallback)
+            assertTrue(logger.messages.any { it.contains(TOO_MANY_FILES_FALLBACK) })
+            verify(fixture.uiHandler, never()).confirmTooManyChanges(any())
+            verify(fixture.uiHandler, never()).confirmBuildChanges(any(), any())
+        } finally {
+            JuggSettings.isConfirmFallbackWhenTooManyChanges = old
+        }
+    }
+
+    @Test
     fun preprocessIncrementalCompile_tooManySourceFiles_confirmBeforeBuildChanges() {
         val fixture = createFixture()
         val sourceFile = kotlinChangedFile()
@@ -1092,6 +1132,8 @@ class JuggCompileHelperTest {
         whenever(deployFileManager.getUncompiledFiles()).thenReturn(emptyList())
         whenever(deployStateManager.updateDeployState()).thenReturn(JuggDeployState.READY)
         whenever(gradleProjectInfoLocalFetchManager.isIncrementalCompileAvailable).thenReturn(true)
+        whenever(gitFileChangesDetector.refreshChangedFilesIfHeadChanged())
+            .thenReturn(GitFileChangesDetector.GitRefreshResult.NO_HEAD_CHANGE)
 
         val helper = JuggCompilerHelper(
             project = project,
@@ -1122,6 +1164,7 @@ class JuggCompileHelperTest {
             dependencyChangeManager = dependencyChangeManager,
             gradleProjectInfoLocalFetchManager = gradleProjectInfoLocalFetchManager,
             gitChangeChecker = gitChangeChecker,
+            gitFileChangesDetector = gitFileChangesDetector,
             fileChangesHandler = fileChangesHandler,
             uiHandler = uiHandler,
             options = options,
@@ -1222,6 +1265,7 @@ class JuggCompileHelperTest {
         val dependencyChangeManager: IDependencyChangeManager,
         val gradleProjectInfoLocalFetchManager: GradleProjectInfoLocalFetchManager,
         val gitChangeChecker: GitChangesCompileChecker,
+        val gitFileChangesDetector: GitFileChangesDetector,
         val fileChangesHandler: IFileChangesHandler,
         val uiHandler: CompileUiHandler,
         val options: JuggGradleCompileOptions,

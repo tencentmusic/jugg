@@ -24,8 +24,9 @@
 
 | 路径 | 用途 |
 |------|------|
-| `build/jugg/log/compile_*.log` | 主运行日志；按时间选择现场文件 |
-| `build/jugg/log/compile_latest*.log` | 当前/上一份日志的 best-effort 快捷入口，可能不存在 |
+| `~/.jugg/log/<工程名>_<路径 hash>/compile_*.log` | 主运行日志；按时间选择现场文件；全局 root 不可写时回退 `${java.io.tmpdir}/jugg-<user>` |
+| `~/.jugg/log/<工程名>_<路径 hash>/compile_latest*.log` | 当前/上一份日志的 best-effort 快捷入口，可能不存在 |
+| `build/jugg/log` | 指向真实日志目录的 best-effort 兼容符号链接；旧真实目录会先迁移，失败时回滚；`clean` 删除后在下一次 Jugg Run 恢复 |
 | `build/jugg/build/staging/` | 本轮 dex、资源等增量产物 |
 | `build/jugg/database/project_infos.db/` | IDE、Gradle 与 included build 的原始项目快照 |
 | `build/jugg/database/compile_context.db/` | 完整标记、module build path、full build 信息 |
@@ -283,7 +284,7 @@ JOOX Android 的 `jugg_scene_JOOX_Android_ext_20260911_144438` 报告确认过�
 ```bash
 BACKUP=~/Desktop/jugg_debug_$(date +%Y%m%d_%H%M%S)
 mkdir -p "$BACKUP"
-cp -r {projectDir}/build/jugg/log/ "$BACKUP/log/"
+cp -r ~/.jugg/log/<工程名>_<路径 hash>/ "$BACKUP/log/"
 cp -r {projectDir}/build/jugg/database/ "$BACKUP/database/"
 ```
 
@@ -293,7 +294,7 @@ cp -r {projectDir}/build/jugg/database/ "$BACKUP/database/"
 
 | 文件 | 路径/来源 | 适用场景 |
 |------|-----------|----------|
-| Jugg 主日志 | `build/jugg/log/compile_*.log` | 所有问题 |
+| Jugg 主日志 | `~/.jugg/log/<工程名>_<路径 hash>/compile_*.log` | 所有问题 |
 | IDE 主日志 | `idea.log` | freeze、启动、debug attach、IDE 生命周期 |
 | freeze dump / 现场线程栈 | `threadDumps-freeze-*`、`jcmd <pid> Thread.print -l` | 卡顿与死锁 |
 | 项目信息 | `build/jugg/database/project_infos.db/` | 模块、variant、included build、APK 归属 |

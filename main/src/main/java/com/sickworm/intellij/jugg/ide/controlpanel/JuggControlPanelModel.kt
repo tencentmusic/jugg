@@ -256,6 +256,7 @@ class JuggControlPanelModel(
     /** Provides persisted Jugg switches rendered and edited by the control panel. */
     data class Settings(
         val confirmFallbackWhenNoFileChanges: Boolean = true,
+        val confirmFallbackWhenTooManyChanges: Boolean = true,
         val alwaysRestartAppAfterDeployment: Boolean = false,
         val quickDeploy: Boolean = true,
         val nativeSandboxDeploy: Boolean = false,

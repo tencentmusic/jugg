@@ -90,8 +90,23 @@ class RestartAppMcpToolActionTest {
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
     }
 
+    @Test
+    fun testRestartFailurePointsToGlobalProjectLog() {
+        val (runtime, _) = runtimeWithMocks(restartSuccess = false)
+
+        val result = RestartAppMcpToolAction().execute(
+            mapOf("projectDir" to "/tmp/test"),
+            runtime,
+        )
+
+        Assert.assertEquals(McpToolStatus.ERROR, result.status)
+        Assert.assertTrue(result.message.contains(CompileJobManager.compileLogPath(runtime)))
+        Assert.assertFalse(result.message.contains("build/jugg/log"))
+    }
+
     private fun runtimeWithMocks(
         isAppReadyProvider: () -> Boolean = { true },
+        restartSuccess: Boolean = true,
     ): Pair<IMcpRuntime, IDeployTargetManager> {
         val device = Mockito.mock(IDevice::class.java)
         val adb = FakeDeviceAdb()
@@ -101,7 +116,7 @@ class RestartAppMcpToolActionTest {
         Mockito.`when`(deployTargetManager.getSelectedDevices()).thenReturn(listOf(device))
         Mockito.`when`(deployTargetManager.getConnectedDevices()).thenReturn(listOf(device))
         Mockito.`when`(deployTargetManager.getPackageName()).thenReturn("com.example.app")
-        Mockito.`when`(deployTargetManager.restartApp(device)).thenReturn(true)
+        Mockito.`when`(deployTargetManager.restartApp(device)).thenReturn(restartSuccess)
 
         val project = Mockito.mock(Project::class.java)
         Mockito.`when`(project.basePath).thenReturn("/tmp/test")

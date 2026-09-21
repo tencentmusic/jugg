@@ -16,6 +16,7 @@
  */
 
 #include <fcntl.h>
+#include <dirent.h>
 #include <jni.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -50,6 +51,36 @@ const Transform* current_transform = nullptr;
 // Holds the transformed bytes of the last class transformed by
 // Agent_ClassFileLoadHook.
 std::vector<dex::u4> last_class_bytes;
+
+const char* kCompatDeployFlag = ".jugg_compat_deploy_enable";
+
+bool IsCompatHotFix(const std::string& app_data_dir) {
+  const std::string overlay_dir = app_data_dir + "/code_cache/.overlay";
+  DIR* directory = opendir(overlay_dir.c_str());
+  if (directory == nullptr) {
+    return false;
+  }
+
+  bool is_compat_hot_fix = false;
+  dirent* entry;
+  while ((entry = readdir(directory)) != nullptr) {
+    const std::string entry_name = entry->d_name;
+    if (entry_name == "." || entry_name == "..") {
+      continue;
+    }
+    const std::string apk_dir = overlay_dir + "/" + entry_name;
+    struct stat file_stat;
+    if (stat(apk_dir.c_str(), &file_stat) != 0 || !S_ISDIR(file_stat.st_mode)) {
+      continue;
+    }
+    if (access((apk_dir + "/" + kCompatDeployFlag).c_str(), F_OK) == 0) {
+      is_compat_hot_fix = true;
+      break;
+    }
+  }
+  closedir(directory);
+  return is_compat_hot_fix;
+}
 
 }  // namespace
 
@@ -149,7 +180,7 @@ bool ApplyTransforms(jvmtiEnv* jvmti, JNIEnv* jni,
 }
 
 bool Instrument(jvmtiEnv* jvmti, JNIEnv* jni, const std::string& jar,
-                bool overlay_swap) {
+                bool is_compat_hot_fix) {
     // The breadcrumb class stores some checks between runs of the agent.
     // We can't use the class from the FindClass call because it may not have
     // actually found the class.
@@ -173,6 +204,12 @@ bool Instrument(jvmtiEnv* jvmti, JNIEnv* jni, const std::string& jar,
 
     // Check if we need to instrument, or if a previous agent successfully did.
     if (breadcrumb.CallStaticBooleanMethod("isFinishedInstrumenting", "()Z")) {
+        return true;
+    }
+
+    if (is_compat_hot_fix) {
+        breadcrumb.CallStaticVoidMethod("setFinishedInstrumenting", "()V");
+        LogEvent("Compat hot fix enabled, skip all framework transforms");
         return true;
     }
 
@@ -330,7 +367,7 @@ extern "C" void JNICALL Agent_ClassFileLoadHook(
 }
 
 bool InstrumentApplication(jvmtiEnv* jvmti, JNIEnv* jni,
-                           const std::string& app_data_dir, bool overlay_swap) {
+                           const std::string& app_data_dir) {
     jvmtiEventCallbacks callbacks;
     callbacks.ClassFileLoadHook = Agent_ClassFileLoadHook;
 
@@ -347,7 +384,8 @@ bool InstrumentApplication(jvmtiEnv* jvmti, JNIEnv* jni,
         return false;
     }
 
-    if (!Instrument(jvmti, jni, instrument_jar_path, overlay_swap)) {
+    const bool is_compat_hot_fix = IsCompatHotFix(app_data_dir);
+    if (!Instrument(jvmti, jni, instrument_jar_path, is_compat_hot_fix)) {
         ALOGE("Error instrumenting application.");
         return false;
     }

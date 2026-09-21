@@ -92,6 +92,31 @@ class TopLevelFlowWithGitTest {
     }
 
     @Test
+    fun runAfterCommittedSourceChangeWithoutIdeEvent_compilesPulledChange() {
+        val jugg = createInitializedGitJugg()
+        val sourceFile = File(
+            jugg.projectDir,
+            "app/src/main/java/com/example/myapplication/MainActivity.kt",
+        )
+        val originalContent = sourceFile.readText()
+        try {
+            sourceFile.writeText(
+                originalContent.replace(
+                    "[JUGG_BENCH] MAIN_ACTIVITY_READY",
+                    "[JUGG_BENCH] MAIN_ACTIVITY_READY_AFTER_PULL",
+                )
+            )
+            GitManager(jugg.projectDir).addAllAndCommit("simulate pulled source change")
+
+            jugg.deploy()
+
+            assertTrue(jugg.deployFileManager.getDeployedFiles().isNotEmpty())
+        } finally {
+            sourceFile.writeText(originalContent)
+        }
+    }
+
+    @Test
     fun recoveryDeployWithGit() {
         val jugg = createInitializedGitJugg()
 

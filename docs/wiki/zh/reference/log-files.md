@@ -11,18 +11,21 @@ tags:
 
 本页用于在排查或反馈问题时快速定位日志和 artifact。它只列路径、格式和关键词；具体问题的判断步骤见 [常见问题](../troubleshooting/supported-packaging.md)。
 
-Jugg 的主日志位于项目目录下的 `build/jugg/log/`。排查编译、部署、Debug、MCP 和运行时问题时，通常先看 `compile_latest.log`。
+Jugg 的主日志位于 `~/.jugg/log/<工程名>_<路径 hash>/`。日志不在工程的 `build` 目录内，因此 Gradle `clean` 不会删除问题现场。排查编译、部署、Debug、MCP 和运行时问题时，通常先看 `compile_latest.log`。
 
 ## 日志路径
 
 | 路径 | 说明 |
 |---|---|
-| `build/jugg/log/compile_latest.log` | 当前主日志的 best-effort 快捷入口。 |
-| `build/jugg/log/compile_latest-1.log` | 上一份主日志的 best-effort 快捷入口。 |
-| `build/jugg/log/compile_YYYY-MM-DD_HH-mm-ss.0.log` | 实际滚动日志文件。 |
+| `~/.jugg/log/<工程名>_<路径 hash>/compile_latest.log` | 当前主日志的 best-effort 快捷入口。 |
+| `~/.jugg/log/<工程名>_<路径 hash>/compile_latest-1.log` | 上一份主日志的 best-effort 快捷入口。 |
+| `~/.jugg/log/<工程名>_<路径 hash>/compile_YYYY-MM-DD_HH-mm-ss.0.log` | 实际滚动日志文件。 |
+| `build/jugg/log` | 指向真实日志目录的 best-effort 兼容链接。 |
 | `build/jugg/mcp_fetch/<toolName>/` | MCP 拉取类工具生成的 artifact。 |
 | `build/jugg/tmp/diff/` | 远端编译 diff 结果。 |
 | Android Studio `idea.log` | Android Studio 自身日志，用于 Debug attach、IDE freeze、插件加载等问题。 |
+
+目录名使用工程根目录名和工程绝对路径的 8 位 hash，同名但路径不同的工程不会共用日志。`build/jugg/log` 兼容链接可能因平台权限而无法创建，也会被 Gradle `clean` 删除；下一次 Jugg Run 会尝试恢复。排查工具和 MCP 返回的 `logPath` 始终使用真实路径，不依赖该链接。
 
 `compile_latest.log` 是快捷入口，不是唯一真实文件。如果文件看起来没有更新，同时检查滚动日志和 `compile_latest-1.log`。
 

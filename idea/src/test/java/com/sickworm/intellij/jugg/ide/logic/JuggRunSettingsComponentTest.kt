@@ -156,7 +156,7 @@ class JuggRunSettingsComponentTest {
         val settingRows = settingGroupNames.flatMap { groupName ->
             descendants(findNamedComponent<JPanel>(panel, groupName)!!).mapNotNull { it.name }.toList()
         }
-        assertEquals(8, settingCheckboxes)
+        assertEquals(9, settingCheckboxes)
         assertTrue(settingRows.containsAll(listOf(
             "SO hot update Push changed .so files into the app and restart, skipping APK re-sign and reinstall.",
             "Install CLI and agent skills Install the Jugg CLI, agent skills, hooks, and required permissions.",
@@ -489,6 +489,33 @@ class JuggRunSettingsComponentTest {
         } finally {
             JuggSettings.isEnableNativeSandboxDeploy = previous
             JuggSettings.isNeedSyncNativeSandboxRuntime = previousClear
+        }
+    }
+
+    @Test
+    fun `confirm fallback when too many changes toggle updates setting and reflects in UI`() {
+        TestGlobal.init()
+        val logs = mutableListOf<String>()
+        val controller = createController(CapturingLogger("root", logs))
+        val old = JuggSettings.isConfirmFallbackWhenTooManyChanges
+        try {
+            assertTrue(JuggSettings.isConfirmFallbackWhenTooManyChanges)
+            controller.updateSetting(JuggControlPanelController.Setting.CONFIRM_FALLBACK_WHEN_TOO_MANY_CHANGES, false)
+            assertFalse(JuggSettings.isConfirmFallbackWhenTooManyChanges)
+            assertFalse(controller.model.snapshot().settings.confirmFallbackWhenTooManyChanges)
+
+            val event = controller.model.snapshot().recentEvents.single()
+            assertEquals(JuggEventCategory.USER_ACTION, event.category)
+            assertEquals("Setting changed", event.title)
+            assertEquals("Confirm fallback when too many changes: disabled", event.detail)
+
+            val panel = createPanel(model = controller.model, controller = controller)
+            SwingUtilities.invokeAndWait {}
+            val toggle = descendants(panel).filterIsInstance<JBCheckBox>()
+                .first { it.text == "Confirm fallback when too many changes" }
+            assertFalse(toggle.isSelected)
+        } finally {
+            JuggSettings.isConfirmFallbackWhenTooManyChanges = old
         }
     }
 

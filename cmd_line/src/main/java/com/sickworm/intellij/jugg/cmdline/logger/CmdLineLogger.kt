@@ -74,6 +74,10 @@ object CmdLineLogger {
         return JuggLogger.getInstance(instanceKey, name)
     }
 
+    fun linkLegacyLogDir(name: String, legacyLogDir: File) {
+        JuggLogger.linkLegacyLogDir(name, legacyLogDir)
+    }
+
     fun release(name: String) {
         JuggLogger.unregister(name)
     }

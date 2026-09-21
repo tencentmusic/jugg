@@ -36,16 +36,18 @@ class CheckUpdatesProgressDialog : DialogWrapper(true) {
     init {
         title = "Check Updates"
 
+        mainPanel.preferredSize = JBUI.size(440, 85)
+
         val constraints = GridBagConstraints()
         constraints.gridx = 0
         constraints.gridy = 0
         constraints.fill = GridBagConstraints.HORIZONTAL
-        constraints.insets = JBUI.insets(12, 12, 12, 6)
+        constraints.weightx = 1.0
+        constraints.insets = JBUI.insets(12, 16, 6, 16)
         mainPanel.add(textLabel, constraints)
 
-        constraints.gridx = 1
-        constraints.insets = JBUI.insets(12, 6, 12, 12)
-        constraints.weightx = 1.0
+        constraints.gridy = 1
+        constraints.insets = JBUI.insets(0, 16, 12, 16)
         mainPanel.add(progressBar, constraints)
 
         isOKActionEnabled = false
@@ -91,6 +93,47 @@ class CheckUpdatesProgressDialog : DialogWrapper(true) {
                     startDownload(hotUpdateData.targetVersion)
                     onConfirmUpdate()
                 }
+            }
+        }
+    }
+
+    fun setPublicCheckResult(result: com.sickworm.intellij.jugg.server.PublicCheckResult, onConfirmUpdate: (com.sickworm.intellij.jugg.server.PublicUpdateInfo) -> Unit) {
+        progressBar.isVisible = false
+        SwingUtilities.invokeLater {
+            val updateInfo = result.updateInfo
+            if (updateInfo != null) {
+                val actionPrompt = if (updateInfo.channel == com.sickworm.intellij.jugg.server.UpdateChannel.MARKETPLACE) {
+                    "Update via IDE Plugins settings?"
+                } else {
+                    "Open release page in browser?"
+                }
+                textLabel.text = "<html>New version available: <b>${updateInfo.targetVersion}</b> (from ${updateInfo.channel.displayName}).<br>$actionPrompt</html>"
+                val buttonText = if (updateInfo.channel == com.sickworm.intellij.jugg.server.UpdateChannel.MARKETPLACE) {
+                    "Open Plugins"
+                } else {
+                    "Open in Browser"
+                }
+                setOKButtonText(buttonText)
+                okAction.isEnabled = true
+                cancelAction.isEnabled = true
+                setCancelButtonText("Cancel")
+                onOkAction = {
+                    close(OK_EXIT_CODE)
+                    onConfirmUpdate(updateInfo)
+                }
+            } else if (result.isAlreadyLatest) {
+                onOkAction = null
+                val verText = result.latestCheckedVersion?.let { " ($it)" } ?: ""
+                textLabel.text = "Jugg is already the latest version$verText."
+                getButton(okAction)?.isVisible = false
+                getButton(cancelAction)?.isVisible = true
+                setCancelButtonText("Close")
+            } else {
+                onOkAction = null
+                textLabel.text = "Jugg backend server is unavailable, and failed to fetch updates from Marketplace and GitHub."
+                getButton(okAction)?.isVisible = false
+                getButton(cancelAction)?.isVisible = true
+                setCancelButtonText("Close")
             }
         }
     }

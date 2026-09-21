@@ -95,6 +95,7 @@ open class JuggControlPanelController(
     open fun updateSetting(setting: Setting, enabled: Boolean) {
         when (setting) {
             Setting.CONFIRM_FALLBACK -> JuggSettings.isConfirmFallbackWhenNoFileChanges = enabled
+            Setting.CONFIRM_FALLBACK_WHEN_TOO_MANY_CHANGES -> JuggSettings.isConfirmFallbackWhenTooManyChanges = enabled
             Setting.ALWAYS_RESTART -> JuggSettings.isAlwaysRestartAppAfterDeployment = enabled
             Setting.QUICK_DEPLOY -> JuggSettings.isEnableDirectOverlayDeploy = enabled
             Setting.SO_HOT_UPDATE -> return updateNativeSandboxDeploy(enabled)
@@ -324,6 +325,7 @@ open class JuggControlPanelController(
     private fun currentSettings(): JuggControlPanelModel.Settings {
         return JuggControlPanelModel.Settings(
             confirmFallbackWhenNoFileChanges = JuggSettings.isConfirmFallbackWhenNoFileChanges,
+            confirmFallbackWhenTooManyChanges = JuggSettings.isConfirmFallbackWhenTooManyChanges,
             alwaysRestartAppAfterDeployment = JuggSettings.isAlwaysRestartAppAfterDeployment,
             quickDeploy = JuggSettings.isEnableDirectOverlayDeploy,
             nativeSandboxDeploy = JuggSettings.isEnableNativeSandboxDeploy,
@@ -406,6 +408,7 @@ open class JuggControlPanelController(
     /** Identifies the persisted Jugg switch edited by a control panel toggle. */
     enum class Setting(val displayName: String) {
         CONFIRM_FALLBACK("Confirm fallback"),
+        CONFIRM_FALLBACK_WHEN_TOO_MANY_CHANGES("Confirm fallback when too many changes"),
         ALWAYS_RESTART("Always restart app"),
         QUICK_DEPLOY("Quick deploy"),
         SO_HOT_UPDATE("SO hot update"),

@@ -64,14 +64,7 @@ class CmdExecutor(
             if (isWindows) {
                 throw JuggException.rSyncNotSupportsWindows()
             }
-            arrayOf("expect", "-c", """
-                set timeout 36000
-                spawn /bin/bash -c "${commandString.replace("\"", "\\\"")}"
-                expect {
-                    "*yes/no" { send "yes\r"; exp_continue }
-                    "*assword:" { send "$sshLoginPassword\r"; exp_continue }
-                }
-            """.trimIndent())
+            buildExpectCommand(commandString, sshLoginPassword)
         } else if (isWindows) {
             arrayOf("cmd.exe", "/c", commandString)
         } else {
@@ -228,3 +221,21 @@ class CmdExecutor(
         logger.warn(line, e)
     }
 }
+
+internal fun buildExpectCommand(command: String, password: String): Array<String> = arrayOf(
+    "/usr/bin/env",
+    "JUGG_EXPECT_COMMAND=$command",
+    "JUGG_EXPECT_PASSWORD=$password",
+    "expect",
+    "-c",
+    """
+        set timeout 36000
+        set command ${'$'}env(JUGG_EXPECT_COMMAND)
+        set password ${'$'}env(JUGG_EXPECT_PASSWORD)
+        spawn /bin/bash -c ${'$'}command
+        expect {
+            "*yes/no" { send "yes\r"; exp_continue }
+            "*assword:" { send "${'$'}password\r"; exp_continue }
+        }
+    """.trimIndent(),
+)

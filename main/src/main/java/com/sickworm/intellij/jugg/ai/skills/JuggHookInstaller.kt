@@ -146,6 +146,22 @@ object JuggHookInstaller {
                     configVersion = target.configVersion,
                 )
             }
+
+            AgentHookConfigStyle.NAMED_EVENT_HOOKS -> {
+                NamedEventHooksAdapter(
+                    hookName = requireNotNull(target.hookName),
+                    startCommand = startCommand,
+                    stopCommand = stopCommand,
+                    editCommand = editCommand,
+                    commandCommand = commandCommand,
+                    startEventName = target.startEventName,
+                    stopEventName = target.stopEventName,
+                    editEventName = target.editEventName,
+                    commandEventName = target.commandEventName,
+                    editMatcher = target.editMatcher,
+                    commandMatcher = target.commandMatcher,
+                )
+            }
         }
     }
 
@@ -510,6 +526,111 @@ object JuggHookInstaller {
                 }
             }
             eventHooks.add(entry)
+            return true
+        }
+    }
+
+    /** Adapter for anti-gravity's top-level named hook format. */
+    private class NamedEventHooksAdapter(
+        private val hookName: String,
+        private val startCommand: String,
+        private val stopCommand: String,
+        private val editCommand: String,
+        private val commandCommand: String,
+        private val startEventName: String,
+        private val stopEventName: String,
+        private val editEventName: String?,
+        private val commandEventName: String?,
+        private val editMatcher: String?,
+        private val commandMatcher: String?,
+    ) : HookConfigAdapter {
+
+        override fun merge(existingContent: String?): HookMergeResult {
+            val root = parseRootObject(existingContent)
+            validateToolMatchers(root)
+            var changed = false
+            val hook = root.ensureObject(hookName).also { changed = changed || it.second }.first
+            changed = ensureFlatCommand(hook, startEventName, startCommand) || changed
+            changed = ensureFlatCommand(hook, stopEventName, stopCommand) || changed
+            changed = ensureGroupedCommand(hook, editEventName, editMatcher, editCommand) || changed
+            changed = ensureGroupedCommand(hook, commandEventName, commandMatcher, commandCommand) || changed
+            return HookMergeResult(gson.toJson(root), changed)
+        }
+
+        private fun validateToolMatchers(root: JsonObject) {
+            for ((_, hookElement) in root.entrySet()) {
+                if (!hookElement.isJsonObject) continue
+                val hook = hookElement.asJsonObject
+                for (eventName in listOf("PreToolUse", "PostToolUse")) {
+                    val event = hook.get(eventName) ?: continue
+                    if (!event.isJsonArray) throw IOException("${eventName}_must_be_array")
+                    for (entry in event.asJsonArray) {
+                        val matcher = entry.takeIf { it.isJsonObject }?.asJsonObject?.get("matcher")
+                        if (matcher != null && (!matcher.isJsonPrimitive || !matcher.asJsonPrimitive.isString)) {
+                            throw IOException("${eventName}_matcher_must_be_string")
+                        }
+                    }
+                }
+            }
+        }
+
+        private fun ensureFlatCommand(hook: JsonObject, eventName: String, command: String): Boolean {
+            val event = hook.ensureArray(eventName)
+            return ensureCommand(event.first, command) || event.second
+        }
+
+        private fun ensureGroupedCommand(
+            hook: JsonObject,
+            eventName: String?,
+            matcher: String?,
+            command: String,
+        ): Boolean {
+            if (eventName.isNullOrBlank() || matcher.isNullOrBlank()) return false
+            var changed = false
+            val event = hook.ensureArray(eventName).also { changed = changed || it.second }.first
+            var entry = event.firstOrNull { element ->
+                element.isJsonObject && element.asJsonObject.get("matcher")?.asString == matcher
+            }?.asJsonObject
+            if (entry == null) {
+                entry = JsonObject().apply {
+                    addProperty("matcher", matcher)
+                    add("hooks", JsonArray())
+                }
+                event.add(entry)
+                changed = true
+            }
+            val commands = entry.ensureArray("hooks").also { changed = changed || it.second }.first
+            return ensureCommand(commands, command) || changed
+        }
+
+        private fun ensureCommand(commands: JsonArray, command: String): Boolean {
+            var found = false
+            var changed = false
+            var index = 0
+            while (index < commands.size()) {
+                val item = commands[index]
+                val existing = item.takeIf { it.isJsonObject }?.asJsonObject?.get("command")?.asString
+                if (!existing.isManagedJuggCommand()) {
+                    index++
+                    continue
+                }
+                if (!found) {
+                    found = true
+                    if (existing != command) {
+                        item.asJsonObject.addProperty("command", command)
+                        changed = true
+                    }
+                    index++
+                } else {
+                    commands.remove(index)
+                    changed = true
+                }
+            }
+            if (found) return changed
+            commands.add(JsonObject().apply {
+                addProperty("type", "command")
+                addProperty("command", command)
+            })
             return true
         }
     }

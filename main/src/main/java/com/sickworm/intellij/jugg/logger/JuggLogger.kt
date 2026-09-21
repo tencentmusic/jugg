@@ -105,6 +105,16 @@ object JuggLogger {
     }
 
     @Synchronized
+    fun linkLegacyLogDir(project: Project, legacyLogDir: File) {
+        linkLegacyLogDir(project.instanceKey, legacyLogDir)
+    }
+
+    @Synchronized
+    fun linkLegacyLogDir(instanceKey: String, legacyLogDir: File) {
+        ensureKey(instanceKey).fileLogger.linkLegacyLogDir(legacyLogDir)
+    }
+
+    @Synchronized
     fun unregister(project: Project) {
         unregister(project.instanceKey)
     }
@@ -128,6 +138,10 @@ object JuggLogger {
     @Synchronized
     fun resetLatestCompileLog(project: Project) {
         map[project.instanceKey]?.fileLogger?.resetLatestCompileLog()
+    }
+
+    internal fun getLogDir(project: Project): File? {
+        return map[project.instanceKey]?.fileLogger?.dir
     }
 
     private val map = ConcurrentHashMap<String, ProjectLogHolder>()

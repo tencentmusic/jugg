@@ -1,6 +1,8 @@
 package com.sickworm.intellij.jugg.project
 
 import java.io.File
+import java.io.IOException
+import java.security.MessageDigest
 
 /**
  * Declaration of path usage for Jugg.
@@ -19,7 +21,8 @@ class JuggPathManager(
     val compileRootDir = File(juggRootDir, "build")
     val stagingDir = File(compileRootDir, "staging")
     val databaseDir = File(juggRootDir, "database")
-    val logDir = File(juggRootDir, "log")
+    val logDir = File(globalJuggRootDir, "log/${projectDir.name}_${projectPathHash(projectDir)}")
+    val legacyLogDir = File(juggRootDir, "log")
     val mcpFetchDir = File(juggRootDir, "mcp_fetch")
 
     val tmpDir = File(juggRootDir, "tmp")
@@ -58,6 +61,18 @@ class JuggPathManager(
                 "--include='/build/jugg/database/' --include='/build/jugg/database/project_infos.db/' --include='/build/jugg/database/project_infos.db/project_infos.json' " +
                 "--exclude='/build/**'"
         const val RSYNC_FETCH_DIFF_DIR_ARGUMENTS = "--include='build/jugg/tmp/diff/**'"
+
+        private fun projectPathHash(projectDir: File): String {
+            val path = try {
+                projectDir.canonicalPath
+            } catch (_: IOException) {
+                projectDir.absoluteFile.normalize().path
+            }
+            return MessageDigest.getInstance("SHA-256")
+                .digest(path.toByteArray(Charsets.UTF_8))
+                .joinToString("") { "%02x".format(it) }
+                .take(8)
+        }
     }
 }
 

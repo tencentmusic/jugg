@@ -35,6 +35,8 @@ object JuggSettings {
 
     var isConfirmFallbackWhenNoFileChanges: Boolean by propertiesComponent.delegate(defaultValue = true)
 
+    var isConfirmFallbackWhenTooManyChanges: Boolean by propertiesComponent.delegate(defaultValue = true)
+
     var isAlwaysRestartAppAfterDeployment: Boolean by propertiesComponent.delegate(defaultValue = false)
 
     var isAutoFallbackToGradleWhenDeployError: Boolean by propertiesComponent.delegate(defaultValue = false)

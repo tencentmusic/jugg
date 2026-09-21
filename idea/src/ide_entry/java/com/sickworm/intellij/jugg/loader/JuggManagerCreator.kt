@@ -32,6 +32,7 @@ class JuggManagerCreator(
 
         val pathManager = JuggPathManager(projectDir)
         JuggLogger.register(project, pathManager.logDir)
+        JuggLogger.linkLegacyLogDir(project, pathManager.legacyLogDir)
 
         try {
             val logger = JuggLogger.getInstance(project, "JuggManagerCreator")

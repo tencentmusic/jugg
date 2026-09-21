@@ -56,7 +56,11 @@ JuggCompilerHelper.compile(options, uiHandler)
   -> 记录 LastCompileTimestampRegistry，用于 MCP/status/hook 基线
   -> 等待初始化和 pending file processing，避免文件事件未入队就开始判断
   -> preprocessIncrementalCompile()
-     -> 异步启动 Git 漏文件检查；它不决定本轮 Gradle 回退
+     -> 每次 Run 同步检查所有 Git root HEAD，并记录 debug 结果与耗时
+        -> HEAD 未变化：立即继续
+        -> HEAD 变化：以 info 提示并阻塞刷新 Git 变化文件，刷新完成后使用最新文件状态
+        -> 已确认 HEAD 变化但刷新失败：回退 Gradle，禁止误报无文件变化
+     -> 异步启动完整 Git 漏文件检查，继续兜底未提交变化与 IDE 漏事件
      -> 按固定优先级判断：
         1. Force Gradle Compile
         2. 外部源码变化但当前使用远程编译、非标准 Gradle command，或存在未解析/已删除的 external 输入
@@ -67,10 +71,10 @@ JuggCompilerHelper.compile(options, uiHandler)
         7. INVALID_DEVICE
         8. 上次 Gradle 编译失败时直接要求 full compile
         9. 回滚内容未变的文件
-        10. 变更文件过多的确认；选择 Continue 才继续后续判断
+        10. 变更文件过多的确认；若关闭确认开关则直接回退 Gradle，默认开启弹窗确认（选择 Continue 才继续后续判断）
         11. 检查 build file / dependency 变化并完成用户确认
         12. build file 确认结果要求 rebuild 时返回 full compile
-     -> 用户在“变更过多”确认中选择 Continue 仅影响本轮；选择 Gradle 或任一强制条件都返回可回退结果
+     -> 用户在“变更过多”确认中选择 Continue 仅影响本轮；关闭确认开关、选择 Gradle 或任一强制条件都返回可回退结果
      -> 返回 null 才进入 incrementalCompile()
   -> 增量成功：直接返回
   -> 增量失败但不可回退：提示下一次直接运行会回退，当前返回失败
@@ -145,7 +149,7 @@ pre-D8 class preparation 是 `DexCompiler` 的内部步骤，不是新的 `BaseC
 
 - 首轮成功文件会通过 `DeployFileManager.updateUncompiledFiles()` 从待编译集合移除；后续影响传播轮不再更新这组状态，避免把派生重编译误当成用户原始变更。
 - 文件进入待编译状态时会记录 `lastModified + length` 快照。迟到的 IDE/Git 文件事件如果快照未变，会被忽略并保留原编译次数；只有文件内容确实变化时才重新进入待编译状态。成功编译后会刷新快照，避免已编译未部署文件被重复事件重新打开。
-- Git 补检有两层：失败时 resolver 可刷新 Git 发现漏掉的新文件并重试一次；成功后 `GitChangesCompileChecker` 只在出现新的待编译文件时再触发一轮。
+- Git 补检有三层：每次 Run 先同步检查 HEAD，只有 HEAD 变化才阻塞刷新变化文件；失败时 resolver 可刷新 Git 发现漏掉的新文件并重试一次；成功后 `GitChangesCompileChecker` 只在出现新的待编译文件时再触发一轮。同步 HEAD 检查复用已缓存的 Git repository，不扫描工作区；检查结果和耗时使用 debug 日志，命中变化使用 info 日志。
 - Git 补检通过 `IDeployHistoryManager.getChangedFilesSinceLastFullCompiled()` 只读取 Git 变更，不加载或校验 APK、module build path、deployed data。运行期查询失败只跳过本次补检，不得删除 deploy history 或 compile context；只有项目初始化恢复调用 `tryGetContextRecoverInfoFromDb(isOnInit = true)` 时，才允许失效无法恢复的旧历史。
 - 影响传播会排除上一轮已经编译过的文件，但 Kotlin top-level file facade 相关场景会例外：`getRecompileFiles()` 会读取 `.kotlin_module` 的 file facade 列表，若调用方 source 的 `effectedByClasses` 命中这些 facade，则通过 `topLevelFacadeEffectedSourcePaths` 标记允许再编译一次。
 - `BaseCompiler` 是所有子编译器的模板层，负责类型校验、模块/androidTest 分批、APK 分流和 custom compiler hook；单个子编译器内部顺序优先直接读对应实现。
@@ -190,6 +194,7 @@ Run 前判断的完整优先级见 §4.1。可回退条件分为三类：
   2. `IncrementalCompileRetryResolver`：检测依赖缺失关键词 → 更新 compile context → 有变化则重试一次。
 - 语言编译器内部的降级不在本 chain：metadata、plugin option、IDE filesystem 冲突、recreate compiler 与 SDK `android.jar` 后置（`AndroidJarClasspathRetry`）都由 `KotlinCompilerInvoker` 自己在一次 invocation 内处理，共享同一次自动重试预算，不经过 `IIncrementalCompileRetryResolver`。
 - 影响传播重编译：基于 `DeployFileManager.getRecompileFiles(...)`；`IncrementalCompilerHelper` continue compile 过滤两层：（1）排除**上一轮**已编译源文件（`lastRoundCompiledPaths`），但 `RecompileFiles.topLevelFacadeEffectedSourcePaths` 标记的 Kotlin top-level file facade 调用方可突破该过滤；（2）排除本 session 内已按相同影响触发键跟编过的源文件（`ContinueCompileEffectFilter.resolveUncompiledEffectedFiles`：派发跟编前 `schedulePendingEffectTriggers` 写入 `pendingEffectTriggerKeys`，子帧在过滤前先消费 pending 写入 `satisfiedEffectTriggers`；键为 `effectedPath + effectedByClasses` 或首轮 const-ref 批次）。更早轮次若出现**新的**触发方（如定义方 B 结构变化后首次要求重编调用方 A）仍会进入下一轮；同一 `CrashDataSource -> SafeMode` 键不会乒乓重复跟编。递归跟编轮次只做 class/dex 结构影响传播，不再把这些跟编源码作为 `ConstRefEngine` 的新 changed source 输入。
+- Run 前 HEAD 补检由 `GitFileChangesDetector.refreshChangedFilesIfHeadChanged()` 同步执行。`gitHeads` 只表示最后一次成功完成文件刷新的 HEAD；IDE 事件仅发现变化时不会提前推进该基线，因此 `git pull` 后立即 Run 仍能识别“已变更、尚未刷新”的窗口。刷新失败保留旧 HEAD，下一次 Run 可重试。
 - 编译成功后的 Git 补检（`GitChangesCompileChecker`）：仅当 Git 刷新后出现**新的待编译**文件（`!hasCompiledOnce`）才触发二次增量编译；已在当轮编译完成、仅因 undeployed 集合成员变化的文件（如 Kuikly 改写 `KuiklyCoreEntry.kt` 且快照未变）不触发。编译结束后 `getAsyncResultIfCompleted()` 只消费已经完成的异步任务，不等待仍在运行的 Git 查询；未完成时记录 debug 并继续当前流程，迟到结果不会被后续 Run 误读。已完成结果仍会按路径用当前 `DeployFileManager` 状态再校验一次，避免缓存的 `ChangedFile` 仍显示 `compiledTimes=0` 而误触发 `compile again`。
 
 ---
