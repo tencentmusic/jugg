@@ -213,6 +213,8 @@ class IssueReportBundleBuilder(
         return file
     }
 
+    internal fun redactUploadText(content: String, knownSecrets: Set<String>): String = redact(content, knownSecrets)
+
     private fun redact(content: String, knownSecrets: Set<String>): String {
         var redacted = content
             .replace(projectDir.absolutePath, "\${PROJECT_DIR}")

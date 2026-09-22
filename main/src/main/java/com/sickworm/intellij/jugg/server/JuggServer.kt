@@ -5,6 +5,7 @@ import com.google.gson.annotations.SerializedName
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.diagnostics.IssueReportBundleBuilder
+import com.sickworm.intellij.jugg.diagnostics.IssueReportAutoUpload
 import com.sickworm.intellij.jugg.diagnostics.IssueReportUploader
 import com.sickworm.intellij.jugg.git.GitManager
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
@@ -208,7 +209,7 @@ class JuggServer(
     }
 
     /** Uploads the two most recent real Jugg logs without affecting the run result. */
-    fun uploadFailureLogs(): Job = launch {
+    fun uploadFailureLogs(failedReason: String, errorDetail: String?): Job = launch {
         try {
             val logFiles = selectRecentFailureLogs(pathManager.logDir)
             if (logFiles.isEmpty()) {
@@ -222,18 +223,25 @@ class JuggServer(
                 logger.getInstance("IssueReportBundleBuilder"),
             )
             val compileSettings = JuggSettings.defaultCompileSettings
+            val knownSecrets = setOfNotNull(
+                compileSettings.remoteSshPassword,
+                compileSettings.remoteSshUser,
+                compileSettings.remoteSshIp,
+                username,
+                System.getProperty("user.name"),
+            )
             val candidates = builder.prepareLogs(
                 logFiles,
-                knownSecrets = setOfNotNull(
-                    compileSettings.remoteSshPassword,
-                    compileSettings.remoteSshUser,
-                    compileSettings.remoteSshIp,
-                    username,
-                    System.getProperty("user.name"),
-                ),
+                knownSecrets = knownSecrets,
             )
             val bundle = builder.build(candidates.map { it.path }.toSet())
-            val result = IssueReportUploader().upload(bundle, IssueReportUploader.JUGG_REPORT_URL)
+            val result = IssueReportUploader().upload(bundle, IssueReportUploader.JUGG_REPORT_URL, IssueReportAutoUpload(
+                failedReason = builder.redactUploadText(failedReason, knownSecrets),
+                errorDetail = errorDetail?.let { builder.redactUploadText(it, knownSecrets) },
+                projectName = projectName,
+                username = username,
+                pluginVersion = version,
+            ))
             if (result.isSuccess) {
                 logger.debug("Auto upload failure logs succeeded, reportId=${result.reportId}")
             } else {

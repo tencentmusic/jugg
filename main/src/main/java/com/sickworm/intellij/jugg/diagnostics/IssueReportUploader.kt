@@ -14,13 +14,23 @@ import java.net.URI
 class IssueReportUploader(
     private val client: OkHttpClient = OkHttpClient(),
 ) {
-    fun upload(bundle: IssueReportBundle, url: String): IssueReportUploadResult {
+    fun upload(bundle: IssueReportBundle, url: String, autoUpload: IssueReportAutoUpload? = null): IssueReportUploadResult {
         val endpoint = validateUrl(url)
         return try {
             val body = MultipartBody.Builder()
                 .setType(MultipartBody.FORM)
                 .addFormDataPart("file", bundle.file.name, bundle.file.asRequestBody("application/zip".toMediaType()))
-                .build()
+                .apply {
+                    if (autoUpload != null) {
+                        addFormDataPart("is_auto_upload", "true")
+                        addFormDataPart("failed_reason", autoUpload.failedReason)
+                        addFormDataPart("project_name", autoUpload.projectName)
+                        addFormDataPart("username", autoUpload.username)
+                        addFormDataPart("plugin_version", autoUpload.pluginVersion)
+                        addFormDataPart("report_id", bundle.reportId)
+                        autoUpload.errorDetail?.let { addFormDataPart("error_detail", it) }
+                    }
+                }.build()
             val request = Request.Builder().url(endpoint.toURL()).post(body).build()
             client.newCall(request).execute().use { response ->
                 val responseBody = response.body?.string().orEmpty()
@@ -54,3 +64,12 @@ class IssueReportUploader(
         }
     }
 }
+
+/** Metadata supplied only for automatic failure reports. */
+data class IssueReportAutoUpload(
+    val failedReason: String,
+    val errorDetail: String?,
+    val projectName: String,
+    val username: String,
+    val pluginVersion: String,
+)

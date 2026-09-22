@@ -64,7 +64,7 @@ JuggManager 初始化
 - 每次 `JuggServer.report()` 都先 Best-effort 写入全局 `action.db`（默认 `~/.jugg/action.db`）；无服务器或远端失败不影响本地记录，本地写入失败也不阻止远端上报。
 - 普通 `buildPlugin` 不携带 `config/servers.json`；`buildPluginInternal` 才校验并打包本地忽略文件。缺少内置配置时，历史自动选服地址无效，只有用户明确设置的 Custom Server 继续生效。
 - 问题报告不复用 server failover：客户端只上传白名单生成且已脱敏的 zip，并固定请求 `https://jugg.sickworm.com/report_issue`；确认窗口展示固定、单一的 HTTPS 目标地址，不持久化地址且不尝试 fallback。
-- 后台可通过 `autoUploadFailureLogs` 开启最终失败日志自动上传，并用 `autoUploadFailureLogsExcludeRegex` 排除已知错误。排除正则只对本轮最终错误摘要做包含匹配，不扫描日志全文；空正则不过滤，非法正则按 fail-closed 跳过上传。
+- 后台可通过 `autoUploadFailureLogs` 开启最终失败日志自动上传，并用 `autoUploadFailureLogsExcludeRegex` 排除已知错误。排除正则只对本轮最终错误摘要做包含匹配，不扫描日志全文；空正则不过滤，非法正则按 fail-closed 跳过上传。自动上传的 `/report_issue` multipart 除 `file` 外发送 `is_auto_upload=true`、首条非空失败摘要 `failed_reason`、`project_name`、`username`、`plugin_version`、`report_id`，有更长错误内容时发送 `error_detail`；错误文本使用诊断包相同的脱敏规则。手动反馈仍只发送 `file`，不附加自动上传标记。
 - 自动失败诊断包只包含 `JuggPathManager.logDir` 中按修改时间排序的最近两份真实 `compile_*.log` 和 manifest；排除 `compile_latest*` 快捷入口，不包含工程快照、环境摘要、logcat 或 hook 日志。上传异步 Best-effort 执行，失败不重试也不影响 Run 结果。
 - 问题报告把现存的 `project_infos.json`、`gradle_project_infos.json` 和 `gradle_include_builds.txt` 当前记录的 `include_build_*_gradle_project_infos.json` 作为默认勾选、可取消的高敏感度候选项，结构化脱敏副本位于 `diagnostics/project-info/`；`applicationId` 等诊断字段保留，SigningConfig 凭据、keystore、keyAlias、Manifest placeholders、APT/KAPT 参数和通用敏感键的值替换为占位符。JSON 解析失败时只跳过对应快照，目录残留的 included build 文件和其他 `project_infos.db` 文件不进入诊断包。必选 Jugg 日志仍排在最前。
 - MCP 拉取产物保留 30 天，问题诊断临时产物保留 7 天；两者在项目启动后使用独立后台任务调用 `ExpiredArtifactCleaner`，局部失败不会阻断另一类清理。

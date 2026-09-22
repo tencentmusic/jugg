@@ -59,6 +59,8 @@ A team backend can distribute `autoUploadFailureLogs=true` so Jugg automatically
 
 The automatic bundle contains only the two most recent redacted real Jugg logs and the manifest. It does not contain project snapshots, environment summaries, logcat, or hook logs. The backend can also use `autoUploadFailureLogsExcludeRegex` to exclude known errors. When the regex matches the current Run's final error summary, Jugg does not upload. An empty regex applies no filtering, while an invalid regex skips that upload.
 
+An automatic upload includes an automatic-upload marker, a failure summary, and any available detailed error alongside the bundle. It also sends the project name, developer username, plugin version, and Report ID. Error text follows the same redaction rules as the diagnostic logs. Manual reports do not include the automatic-upload marker and remain manual reports.
+
 Automatic uploads run asynchronously without a dialog or retry. An upload failure does not change the original compilation or deployment result. The destination remains `https://jugg.sickworm.com/report_issue` and does not use Custom Server.
 
 ## Local log location

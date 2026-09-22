@@ -151,7 +151,7 @@ class JuggRunningTask(
             dependencyChangeManager.onEndBuilding(isSuccess = false, isCancelled = false)
             finishEvent(JuggEventCategory.COMPILE, JuggEventStatus.FAILED, "Jugg task failed", e.message)
             uploadFailureLogsIfNeeded(
-                RunResult.FAILED.copy(failedReason = listOfNotNull(e::class.java.name, e.message).joinToString("\n")),
+                RunResult.FAILED.copy(failedReason = listOfNotNull(e::class.java.name, e.message).joinToString(": ")),
                 isEligible = !processHandler.isCanceled,
             )
             compileUiHandler.onEnd(RunResult.FAILED)
@@ -496,7 +496,10 @@ class JuggRunningTask(
             )) {
             return
         }
-        juggServer.uploadFailureLogs()
+        val failureLines = failureSummary.lineSequence().map { it.trim() }.filter { it.isNotEmpty() }.toList()
+        val reason = failureLines.firstOrNull()
+            ?: if (result.isCompileSuccess) "Deploy failed" else "Compile failed"
+        juggServer.uploadFailureLogs(reason, failureSummary.takeIf { it.isNotBlank() && it != reason })
     }
 
     private fun recordCompileStarted(isGradleCompile: Boolean, fallbackReason: String?) {
