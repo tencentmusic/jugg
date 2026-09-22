@@ -21,7 +21,7 @@ Self-hosting usually serves two goals: centrally distributing Jugg configuration
 
 If only project configuration distribution is required, `/check_update` can return `isNeedUpgrade=false` and place project configuration in `customConfigJson`. Other interfaces can return success or an empty result.
 
-When a backend is available, manually submitted issue logs request its `/report_issue`. Implement this endpoint to receive manual reports; without an available backend, the plugin uses the public service. Automatic failure-log uploads always use the public service. See [Report an issue](../report-issue.md).
+When a backend is available, both manual reports and automatic failure-log uploads request its `/report_issue`, so the backend must implement this endpoint. Without an available backend, manual reports use the public service while automatic uploads are skipped. See [Report an issue](../report-issue.md).
 
 ## `/check_update` response
 
@@ -44,7 +44,7 @@ When a backend is available, manually submitted issue logs request its `/report_
 | Hot-update download | `/check_hot_update`, `/download_hot_update` | Distribute JAR-level updates |
 | Hot-update status | `/check_hot_update_status` | Operations or staged-rollout diagnostics need to inspect current hot-update state |
 | Custom compiler download | `/download_custom_compiler` | Distribute a custom compiler JAR in project configuration |
-| Manual issue reports | `/report_issue` | Receive diagnostic bundles submitted manually by users |
+| Manual issue reports and automatic failure logs | `/report_issue` | Receive manual diagnostic bundles and automatic failure-log bundles |
 | Remote-machine application | Interactive interfaces such as `/remote_apply` | The team has an internal cloud development machine application system |
 
 ## Predeployment checks

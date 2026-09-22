@@ -27,7 +27,7 @@ tags:
 
 旧字段 `buildFileList` 已不建议新增使用；新后台优先维护 `buildFileRules`。
 
-失败日志自动上传只有在 `autoUploadFailureLogs` 明确为 `true` 时启用。排除正则缺失或为空时不过滤；正则非法时插件会跳过本次上传。自动诊断包不经过 Custom Server，具体内容和触发边界见[报告问题](../report-issue.md)。
+失败日志自动上传只有在 `autoUploadFailureLogs` 明确为 `true` 且存在可用后台时启用。排除正则缺失或为空时不过滤；正则非法时插件会跳过本次上传。自动诊断包只发送到当前可用后台，不回退公共服务；具体内容和触发边界见[报告问题](../report-issue.md)。
 
 ## 模块配置
 

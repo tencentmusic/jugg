@@ -12,7 +12,7 @@ tags:
 
 Backend diagnostic configuration covers usage events and the optional automatic failure-log upload switch. It does not affect local compilation or deployment results. When reporting fails, the plugin records a log and continues the current flow.
 
-When a backend service is available, manually submitted issue logs are uploaded to that server's `/report_issue`. Automatic failure-log uploads still use Jugg's public service. A self-hosted backend can use project configuration to enable automatic uploads and exclude known errors.
+When a backend service is available, manually submitted issue logs are uploaded to that server's `/report_issue`. Automatic failure-log uploads go only to the available backend. A self-hosted backend can use project configuration to enable automatic uploads and exclude known errors.
 
 ## Event reporting
 
@@ -42,7 +42,7 @@ Automatic uploads cover final compilation failures and final failures after depl
 
 ## Destinations for manual and automatic reports
 
-With an available backend, manual reports go to `/report_issue` under that server's root address, so the backend must implement this endpoint. Without an available backend, they use `https://jugg.sickworm.com/report_issue`. The backend may use HTTP or HTTPS; HTTP provides no TLS transport protection. Automatic failure-log uploads always use Jugg's public service and do not request the self-hosted backend.
+With an available backend, manual reports go to `/report_issue` under that server's root address, so the backend must implement this endpoint. Without an available backend, they use `https://jugg.sickworm.com/report_issue`. The backend may use HTTP or HTTPS; HTTP provides no TLS transport protection. Automatic failure-log uploads request only the available backend's `/report_issue`; without one, they are skipped and never fall back to the public service.
 
 For the user-facing flow, diagnostic-bundle contents, and Report ID, see [Report an issue](../report-issue.md).
 

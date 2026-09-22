@@ -21,7 +21,7 @@ tags:
 
 如果只需要项目配置下发，可以让 `/check_update` 返回 `isNeedUpgrade=false`，并在 `customConfigJson` 中放入项目配置。其它接口返回成功或空结果即可。
 
-有可用后台时，用户手工提交的问题日志会请求该后台的 `/report_issue`。若希望接收手工报告，需要实现此接口；没有可用后台时插件使用公共服务。失败日志自动上传始终使用公共服务，见 [报告问题](../report-issue.md)。
+有可用后台时，手工报告和失败日志自动上传都会请求该后台的 `/report_issue`，因此后台需要实现此接口。没有可用后台时，手工报告使用公共服务，自动上传则跳过。见 [报告问题](../report-issue.md)。
 
 ## `/check_update` 返回内容
 
@@ -44,7 +44,7 @@ tags:
 | 热更新下载 | `/check_hot_update`、`/download_hot_update` | 希望下发 jar 级别更新 |
 | 热更新状态 | `/check_hot_update_status` | 运维或灰度排查需要查看当前热更新状态 |
 | 自定义编译器下载 | `/download_custom_compiler` | 项目配置中下发自定义编译器 jar |
-| 手工问题报告 | `/report_issue` | 接收用户手工提交的诊断包 |
+| 手工问题报告与失败日志自动上传 | `/report_issue` | 接收手工诊断包和自动失败日志包 |
 | 远端机器申请 | `/remote_apply` 等交互接口 | 团队有内部云开发机申请系统 |
 
 ## 部署前检查

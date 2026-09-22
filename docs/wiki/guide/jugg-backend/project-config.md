@@ -27,7 +27,7 @@ Project configuration distribution keeps team defaults in one backend. During an
 
 The legacy `buildFileList` field is not recommended for new use. New backends should maintain `buildFileRules` instead.
 
-Automatic failure-log uploads are enabled only when `autoUploadFailureLogs` is explicitly `true`. A missing or empty exclusion regex applies no filtering, while an invalid regex causes the plugin to skip that upload. Automatic diagnostic bundles do not go through Custom Server. See [Report an issue](../report-issue.md) for bundle contents and trigger boundaries.
+Automatic failure-log uploads require both `autoUploadFailureLogs` explicitly set to `true` and an available backend. A missing or empty exclusion regex applies no filtering, while an invalid regex causes the plugin to skip that upload. Automatic diagnostic bundles go only to the currently available backend, never the public service. See [Report an issue](../report-issue.md) for bundle contents and trigger boundaries.
 
 ## Module configuration
 

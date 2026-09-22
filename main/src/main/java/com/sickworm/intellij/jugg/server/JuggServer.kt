@@ -212,6 +212,11 @@ class JuggServer(
     /** Uploads the two most recent real Jugg logs without affecting the run result. */
     fun uploadFailureLogs(failedReason: String, errorDetail: String?): Job = launch {
         try {
+            val backendServerUrl = availableServerUrl
+            if (backendServerUrl == null) {
+                logger.debug("Auto upload failure logs skipped: no available backend server")
+                return@launch
+            }
             val logFiles = selectRecentFailureLogs(pathManager.logDir)
             if (logFiles.isEmpty()) {
                 logger.debug("Auto upload failure logs skipped: no Jugg logs found")
@@ -236,13 +241,13 @@ class JuggServer(
                 knownSecrets = knownSecrets,
             )
             val bundle = builder.build(candidates.map { it.path }.toSet())
-            val result = IssueReportUploader().upload(bundle, IssueReportUploader.JUGG_REPORT_URL, IssueReportAutoUpload(
+            val result = IssueReportUploader().upload(bundle, IssueReportUploader.reportUrl(backendServerUrl), IssueReportAutoUpload(
                 failedReason = builder.redactUploadText(failedReason, knownSecrets),
                 errorDetail = errorDetail?.let { builder.redactUploadText(it, knownSecrets) },
                 projectName = projectName,
                 username = username,
                 pluginVersion = version,
-            ))
+            ), allowHttpForBackend = true)
             if (result.isSuccess) {
                 logger.debug("Auto upload failure logs succeeded, reportId=${result.reportId}")
             } else {

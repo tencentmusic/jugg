@@ -9,7 +9,7 @@ tags:
 
 # Jugg backend
 
-Jugg can connect to an HTTP backend for centralized plugin upgrades, hot updates, project defaults, usage events, and remote-machine applications. A backend is not required to run Jugg. Local features such as incremental compilation, deployment, CLI, and MCP remain available without one. When a backend is available, manually submitted issue logs are uploaded to it; automatic failure-log uploads still use Jugg's public service.
+Jugg can connect to an HTTP backend for centralized plugin upgrades, hot updates, project defaults, usage events, and remote-machine applications. A backend is not required to run Jugg. Local features such as incremental compilation, deployment, CLI, and MCP remain available without one. When a backend is available, both manual reports and automatic failure-log uploads go to it; without one, automatic uploads are skipped.
 
 Public builds do not include a predefined `servers.json`, so they do not connect to a Jugg backend automatically. Internal teams can use `buildPluginInternal` to package local configuration into the plugin. A Custom Server explicitly configured by the user still takes effect when there is no built-in configuration.
 

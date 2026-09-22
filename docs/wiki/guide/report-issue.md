@@ -12,7 +12,7 @@ tags:
 
 Report an issue packages the current Jugg logs and device error logs, then uploads them to an issue-reporting service. Use it when incremental compilation or deployment fails, or when runtime results are unexpected. Manual reports prefer the currently available Jugg backend and use Jugg's public service when no backend is available.
 
-A team backend can also enable automatic failure-log uploads. Automatic uploads always use Jugg's public service, contain less data than manual reports, and do not show a confirmation window.
+A team backend can also enable automatic failure-log uploads. Automatic uploads go only to the currently available backend, contain less data than manual reports, and do not show a confirmation window.
 
 ## Where to open it
 
@@ -63,7 +63,7 @@ The automatic bundle contains only the two most recent redacted real Jugg logs a
 
 An automatic upload includes an automatic-upload marker, a failure summary, and any available detailed error alongside the bundle. It also sends the project name, developer username, plugin version, and Report ID. Error text follows the same redaction rules as the diagnostic logs. Manual reports do not include the automatic-upload marker and remain manual reports.
 
-Automatic uploads run asynchronously without a dialog or retry. An upload failure does not change the original compilation or deployment result. The destination remains `https://jugg.sickworm.com/report_issue` and does not use Custom Server.
+Automatic uploads run asynchronously without a dialog or retry. An upload failure does not change the original compilation or deployment result. Only an available backend receives them at `/report_issue` (HTTP or HTTPS); without one, the upload is skipped and never sent to the public service.
 
 ## Local log location
 
