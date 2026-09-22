@@ -230,6 +230,9 @@ class FileLogger(
 
         private fun createLogger(dir: File, patternName: String, limitBytes: Int, fileCount: Int): Logger {
             dir.mkdirs()
+            if (isCreateLastLogLinkFile) {
+                findLatestMainLogFile(dir)?.let { updateLastLatestLogFile(dir, it) }
+            }
             return Logger.getLogger(dir.absolutePath).also {
                 it.useParentHandlers = false
                 it.level = Level.ALL
@@ -286,6 +289,15 @@ class FileLogger(
 
         private fun updateLatestLogFile(dir: File, targetFile: File) {
             createBestEffortLink(File(dir, LATEST_LOG_NAME), targetFile)
+        }
+
+        private fun findLatestMainLogFile(dir: File): File? {
+            val latestLogFile = File(dir, LATEST_LOG_NAME).takeIf { it.exists() } ?: return null
+            return dir.listFiles()?.firstOrNull { file ->
+                file.isFile && file.name.startsWith("compile_") && file.name.endsWith(".log") &&
+                        file.name != LATEST_LOG_NAME && file.name != LAST_LATEST_LOG_NAME &&
+                        runCatching { Files.isSameFile(file.toPath(), latestLogFile.toPath()) }.getOrDefault(false)
+            }
         }
 
         private fun updateLastLatestLogFile(dir: File, targetFile: File) {
