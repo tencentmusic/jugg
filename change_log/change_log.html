@@ -1,8 +1,11 @@
 <h1>Change Log</h1>
-<h2>3.6.0 (2026.09.18)</h2>
+<h2>3.6.2 (2026.09.22)</h2>
 <ol>
     <li>[feature] Support incremental Native .so hot update: skip APK repackaging and reinstallation when only .so files change (takes effect on restart, disabled by default, can be enabled in Settings under 'SO hot update')</li>
     <li>[feature] Support running declared codegen tasks (such as IDL) before C++ incremental native builds and including generated code in incremental compilation</li>
+    <li>[feature] Support configuring automatic failure log uploads when configuring backend service</li>
+    <li>[feature] Support configuring default settings when configuring backend service</li>
+    <li>[bugfix] Fix project configuration fetch failure before the first full compilation</li>
 </ol>
 <h2>3.5.1 (2026.09.18)</h2>
 <ol>

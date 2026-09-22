@@ -1,3 +1,10 @@
+- version: 3.6.2
+  date: 2026.09.22
+  updates:
+    - "[feature] 设置后台服务时，支持配置自动上传失败日志"
+    - "[feature] 设置后台服务时，支持配置默认设置"
+    - "[bugfix] 修复首次全量编译前获取项目配置失败的问题"
+
 - version: 3.6.0
   date: 2026.09.18
   updates:

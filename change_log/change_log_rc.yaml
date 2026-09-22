@@ -1,3 +1,10 @@
+- version: 3.6.2
+  date: 2026.09.22
+  updates:
+    - "[feature] Support configuring automatic failure log uploads when configuring backend service"
+    - "[feature] Support configuring default settings when configuring backend service"
+    - "[bugfix] Fix project configuration fetch failure before the first full compilation"
+
 - version: 3.6.0
   date: 2026.09.18
   updates:
