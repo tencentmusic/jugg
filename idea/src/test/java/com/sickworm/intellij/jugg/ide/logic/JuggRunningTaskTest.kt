@@ -212,17 +212,18 @@ class JuggRunningTaskTest {
                 lastCompileProjectRegistry = lastCompileProjectRegistry,
                 logger = JuggLogger.getInstance(project, "JuggRunningTaskTest"),
                 autoUploadFailureLogs = true,
+                projectModuleCount = 0,
             )
 
             task.run(Mockito.mock(ProgressIndicator::class.java))
 
-            Mockito.verify(server, Mockito.times(1)).uploadFailureLogs("compile failed", null)
+            Mockito.verify(server, Mockito.times(1)).uploadFailureLogs("compile failed", null, 0)
 
             Mockito.reset(server, compileHelper)
             whenever(compileHelper.compile(any(), any(), any())).thenThrow(IllegalStateException("project state invalid"))
             task.run(Mockito.mock(ProgressIndicator::class.java))
 
-            Mockito.verify(server).uploadFailureLogs("java.lang.IllegalStateException: project state invalid", null)
+            Mockito.verify(server).uploadFailureLogs("java.lang.IllegalStateException: project state invalid", null, 0)
         } finally {
             JuggLogger.unregister(project)
         }

@@ -12,7 +12,7 @@ tags:
 
 Report an issue packages the current Jugg logs and device error logs, then uploads them to an issue-reporting service. Use it when incremental compilation or deployment fails, or when runtime results are unexpected. Manual reports prefer the currently available Jugg backend and use Jugg's public service when no backend is available.
 
-A team backend can also enable automatic failure-log uploads. Automatic uploads go only to the currently available backend, contain less data than manual reports, and do not show a confirmation window.
+A team backend can also enable automatic failure-log uploads. Automatic uploads go only to the currently available backend, omit adb logcat, and do not show a confirmation window.
 
 ## Where to open it
 
@@ -59,7 +59,7 @@ Project snapshots include the existing `project_infos.json` and `gradle_project_
 
 A team backend can distribute `autoUploadFailureLogs=true` so Jugg automatically uploads the two most recent logs after a final compilation failure or an actual deployment failure. User cancellation, skipped deployment, no device before deployment starts, and a successful final result after a Gradle fallback do not trigger an automatic upload. Each Run uploads at most once.
 
-The automatic bundle contains only the two most recent redacted real Jugg logs and the manifest. It does not contain project snapshots, environment summaries, logcat, or hook logs. The backend can also use `autoUploadFailureLogsExcludeRegex` to exclude known errors. When the regex matches the current Run's final error summary, Jugg does not upload. An empty regex applies no filtering, while an invalid regex skips that upload.
+The automatic bundle contains the two most recent redacted real Jugg logs, environment information, a project summary, redacted project snapshots, the hook debug log when present, and the manifest. It does not collect adb logcat. The backend can also use `autoUploadFailureLogsExcludeRegex` to exclude known errors. When the regex matches the current Run's final error summary, Jugg does not upload. An empty regex applies no filtering, while an invalid regex skips that upload.
 
 An automatic upload includes an automatic-upload marker, a failure summary, and any available detailed error alongside the bundle. It also sends the project name, developer username, plugin version, and Report ID. Error text follows the same redaction rules as the diagnostic logs. Manual reports do not include the automatic-upload marker and remain manual reports.
 

@@ -33,6 +33,7 @@ class IssueReportBundleBuilder(
         projectSummary: Map<String, Any?>,
         projectInfoDir: File? = null,
         logFiles: List<File>,
+        logFileLimit: Int,
         logcat: String,
         hookDebugLog: File? = null,
         knownSecrets: Set<String> = emptySet(),
@@ -50,7 +51,7 @@ class IssueReportBundleBuilder(
         }
         candidates += writeJsonCandidate("diagnostics/environment.json", environment, IssueReportSensitivity.LOW)
         candidates += writeJsonCandidate("diagnostics/project-summary.json", projectSummary, IssueReportSensitivity.MEDIUM)
-        logFiles.filter { it.isFile }.forEach { logFile ->
+        logFiles.filter { it.isFile }.take(logFileLimit).forEach { logFile ->
             candidates += writeTextCandidate(
                 "diagnostics/logs/${logFile.name}",
                 redact(logFile.readText(), knownSecrets),
@@ -76,22 +77,6 @@ class IssueReportBundleBuilder(
         }
         preparedCandidates = candidates
         return candidates
-    }
-
-    /** Prepares a minimal diagnostics bundle containing only redacted Jugg logs. */
-    fun prepareLogs(
-        logFiles: List<File>,
-        knownSecrets: Set<String> = emptySet(),
-    ): List<IssueReportCandidate> {
-        startReport()
-        return logFiles.filter { it.isFile }.take(2).map { logFile ->
-            writeTextCandidate(
-                "diagnostics/logs/${logFile.name}",
-                redact(logFile.readText(), knownSecrets),
-                IssueReportSensitivity.MEDIUM,
-                true,
-            )
-        }.also { preparedCandidates = it }
     }
 
     private fun startReport() {

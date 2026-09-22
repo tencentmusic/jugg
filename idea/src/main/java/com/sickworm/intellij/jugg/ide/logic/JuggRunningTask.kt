@@ -72,6 +72,7 @@ class JuggRunningTask(
     private val controlPanelController: JuggControlPanelController? = null,
     private val autoUploadFailureLogs: Boolean = false,
     private val autoUploadFailureLogsExcludeRegex: String? = null,
+    private val projectModuleCount: Int,
 ) : Task.Backgroundable(project, "Running Jugg..."), IJuggRunningTask {
 
     private val compileUiHandler = object : CompileUiHandler by baseCompileUiHandler {
@@ -499,7 +500,7 @@ class JuggRunningTask(
         val failureLines = failureSummary.lineSequence().map { it.trim() }.filter { it.isNotEmpty() }.toList()
         val reason = failureLines.firstOrNull()
             ?: if (result.isCompileSuccess) "Deploy failed" else "Compile failed"
-        juggServer.uploadFailureLogs(reason, failureSummary.takeIf { it.isNotBlank() && it != reason })
+        juggServer.uploadFailureLogs(reason, failureSummary.takeIf { it.isNotBlank() && it != reason }, projectModuleCount)
     }
 
     private fun recordCompileStarted(isGradleCompile: Boolean, fallbackReason: String?) {

@@ -912,6 +912,7 @@ class JuggManager @TestOnly constructor(
                     ),
                     projectInfoDir = pathManager.projectInfosDir,
                     logFiles = logFiles,
+                    logFileLimit = 10,
                     logcat = logcatErrorLog,
                     hookDebugLog = File(JuggGlobalPathManager.rootDir, "skills/hooks/jugg-hook-debug.log"),
                     knownSecrets = knownSecrets,
@@ -1099,6 +1100,7 @@ class JuggManager @TestOnly constructor(
                 controlPanelController = controlPanelController,
                 autoUploadFailureLogs = customConfig?.autoUploadFailureLogs == true,
                 autoUploadFailureLogsExcludeRegex = customConfig?.autoUploadFailureLogsExcludeRegex,
+                projectModuleCount = compileContextManager.compileContext.modules.size,
             )
 
             ProgressManager.getInstance().run(task)

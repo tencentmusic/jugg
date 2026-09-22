@@ -51,6 +51,7 @@ class IssueReportBundleBuilderTest {
             projectSummary = mapOf("moduleCount" to 2),
             projectInfoDir = projectInfoDir,
             logFiles = listOf(log),
+            logFileLimit = 10,
             logcat = "device log",
             hookDebugLog = hookDebugLog,
             knownSecrets = setOf("secret-value"),
@@ -104,7 +105,7 @@ class IssueReportBundleBuilderTest {
     }
 
     @Test
-    fun `automatic bundle contains only redacted logs and manifest`() {
+    fun `automatic bundle includes full diagnostics without logcat and limits logs`() {
         val root = temporaryFolder.newFolder()
         val projectDir = root.resolve("secret-project").apply { mkdirs() }
         val userHome = root.resolve("user-home").apply { mkdirs() }
@@ -113,9 +114,20 @@ class IssueReportBundleBuilderTest {
                 writeText("project=$projectDir home=$userHome token=secret-token")
             }
         }
+        val projectInfoDir = projectDir.resolve("project_infos.db").apply { mkdirs() }
+        projectInfoDir.resolve("project_infos.json").writeText("{\"projectDir\":\"$projectDir\"}")
         val builder = IssueReportBundleBuilder(root.resolve("output"), projectDir, userHome, mock<Logger>())
 
-        val bundle = builder.prepareLogs(logs).let { builder.build(it.map { candidate -> candidate.path }.toSet()) }
+        val candidates = builder.prepare(
+            environment = mapOf("pluginVersion" to "3.6.2"),
+            projectSummary = mapOf("moduleCount" to 2),
+            projectInfoDir = projectInfoDir,
+            logFiles = logs,
+            logFileLimit = 2,
+            logcat = "",
+            hookDebugLog = root.resolve("jugg-hook-debug.log").apply { writeText("hook log") },
+        )
+        val bundle = builder.build(candidates.map { it.path }.toSet())
 
         ZipFile(bundle.file).use { zip ->
             val entries = zip.entries().asSequence().map { it.name }.toSet()
@@ -123,10 +135,15 @@ class IssueReportBundleBuilderTest {
                 setOf(
                     "diagnostics/logs/compile-1.log",
                     "diagnostics/logs/compile-2.log",
+                    "diagnostics/project-info/project_infos.json",
+                    "diagnostics/environment.json",
+                    "diagnostics/project-summary.json",
+                    "diagnostics/cli/hook-debug.log",
                     "diagnostics/manifest.json",
                 ),
                 entries,
             )
+            assertFalse("diagnostics/device/logcat.log" in entries)
             entries.filter { it.startsWith("diagnostics/logs/") }.forEach { path ->
                 val content = zip.getInputStream(zip.getEntry(path)).bufferedReader().readText()
                 assertTrue("\${PROJECT_DIR}" in content)

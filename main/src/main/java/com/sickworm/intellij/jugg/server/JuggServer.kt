@@ -209,8 +209,8 @@ class JuggServer(
         juggServerChooser.setCustomServer()
     }
 
-    /** Uploads the two most recent real Jugg logs without affecting the run result. */
-    fun uploadFailureLogs(failedReason: String, errorDetail: String?): Job = launch {
+    /** Uploads failure diagnostics to the available backend without affecting the run result. */
+    fun uploadFailureLogs(failedReason: String, errorDetail: String?, projectModuleCount: Int): Job = launch {
         try {
             val backendServerUrl = availableServerUrl
             if (backendServerUrl == null) {
@@ -236,8 +236,19 @@ class JuggServer(
                 username,
                 System.getProperty("user.name"),
             )
-            val candidates = builder.prepareLogs(
-                logFiles,
+            val candidates = builder.prepare(
+                environment = mapOf(
+                    "pluginVersion" to version,
+                    "ideVersion" to PlatformApi.getIdeVersion(),
+                    "os" to System.getProperty("os.name"),
+                    "jvm" to System.getProperty("java.version"),
+                ),
+                projectSummary = mapOf("moduleCount" to projectModuleCount),
+                projectInfoDir = pathManager.projectInfosDir,
+                logFiles = logFiles,
+                logFileLimit = 2,
+                logcat = "",
+                hookDebugLog = File(JuggGlobalPathManager.rootDir, "skills/hooks/jugg-hook-debug.log"),
                 knownSecrets = knownSecrets,
             )
             val bundle = builder.build(candidates.map { it.path }.toSet())

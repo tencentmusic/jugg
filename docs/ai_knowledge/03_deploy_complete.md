@@ -39,7 +39,7 @@
 | `CompileUiHandler.isSkipDeploy` | UI / MCP 调用方 | `JuggRunningTask.doRun()` | 编译成功但显式跳过部署；会 reset hasRun，避免下次误报 no file changes。 |
 | `DeployTaskResult` | `JuggDeployerHelper.deploy()` | `JuggRunningTask.doRun()` | 每台设备的成功状态、deploy type、fallback 资格和失败原因。 |
 | `RunResult` | `JuggRunningTask.doRun()` | `JuggRunningTask.run()` | 最终反馈给 UI、依赖变更管理器和 hasRun 状态。 |
-| 失败日志自动上传 | `ProjectCustomConfig`、`JuggRunningTask.run()` | `JuggServer` | 后台显式开启后，只在整轮最终失败时按排除正则决定是否上传最近两份真实日志。 |
+| 失败日志自动上传 | `ProjectCustomConfig`、`JuggRunningTask.run()` | `JuggServer` | 后台显式开启后，只在整轮最终失败时按排除正则决定是否上传完整诊断信息；日志限制为最近两份，不采集 adb logcat。 |
 
 ---
 
