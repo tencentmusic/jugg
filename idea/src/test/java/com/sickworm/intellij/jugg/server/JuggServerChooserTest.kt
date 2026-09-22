@@ -4,6 +4,7 @@ import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.mock.TestGlobal
 import com.sickworm.intellij.jugg.platform.IPlatformApi
 import com.sickworm.intellij.jugg.platform.PlatformApi
+import com.sickworm.intellij.jugg.server.protocols.ServerRule
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -40,6 +41,7 @@ class JuggServerChooserTest {
         JuggSettings.serverExpireTimeMill = -1L
 
         assertTrue(JuggServerChooser(TestGlobal.getLogger()).hasAvailableServer())
+        assertEquals("https://custom.example.com", JuggServerChooser(TestGlobal.getLogger()).availableServerUrl)
     }
 
     @Test
@@ -48,6 +50,21 @@ class JuggServerChooserTest {
         JuggSettings.serverExpireTimeMill = System.currentTimeMillis() + 60_000L
 
         assertFalse(JuggServerChooser(TestGlobal.getLogger()).hasAvailableServer())
+        assertEquals(null, JuggServerChooser(TestGlobal.getLogger()).availableServerUrl)
+    }
+
+    @Test
+    fun `automatically selected backend is available for issue reports`() {
+        JuggSettings.serverUrl = null
+        JuggSettings.serverExpireTimeMill = 0L
+        val chooser = JuggServerChooser(TestGlobal.getLogger())
+
+        chooser.updateServer(listOf(ServerRule("http://backend.example.com:12305", null)))
+
+        assertEquals("http://backend.example.com:12305", chooser.availableServerUrl)
+
+        JuggSettings.serverUrl = "https://previous.example.com"
+        assertEquals(null, chooser.availableServerUrl)
     }
 
     @Test

@@ -9,14 +9,19 @@ import okhttp3.RequestBody.Companion.asRequestBody
 import java.net.URI
 
 /**
- * Uploads one diagnostics bundle to a validated HTTPS endpoint without fallback.
+ * Uploads one diagnostics bundle to a validated endpoint without fallback.
  */
 class IssueReportUploader(
     private val client: OkHttpClient = OkHttpClient(),
 ) {
-    fun upload(bundle: IssueReportBundle, url: String, autoUpload: IssueReportAutoUpload? = null): IssueReportUploadResult {
-        val endpoint = validateUrl(url)
+    fun upload(
+        bundle: IssueReportBundle,
+        url: String,
+        autoUpload: IssueReportAutoUpload? = null,
+        allowHttpForBackend: Boolean = false,
+    ): IssueReportUploadResult {
         return try {
+            val endpoint = validateUrl(url, allowHttpForBackend)
             val body = MultipartBody.Builder()
                 .setType(MultipartBody.FORM)
                 .addFormDataPart("file", bundle.file.name, bundle.file.asRequestBody("application/zip".toMediaType()))
@@ -50,11 +55,15 @@ class IssueReportUploader(
     companion object {
         const val JUGG_REPORT_URL = "https://jugg.sickworm.com/report_issue"
 
-        fun validateUrl(value: String): URI {
+        fun reportUrl(backendServerUrl: String?): String =
+            backendServerUrl?.trimEnd('/')?.plus("/report_issue") ?: JUGG_REPORT_URL
+
+        fun validateUrl(value: String, allowHttpForBackend: Boolean = false): URI {
             val uri = runCatching { URI(value.trim()) }
                 .getOrElse { throw IllegalArgumentException("Upload URL is invalid") }
-            require(uri.isAbsolute && uri.scheme.equals("https", ignoreCase = true)) {
-                "Upload URL must use HTTPS"
+            require(uri.isAbsolute && (uri.scheme.equals("https", ignoreCase = true) ||
+                    allowHttpForBackend && uri.scheme.equals("http", ignoreCase = true))) {
+                "Upload URL must use HTTPS unless targeting a configured backend"
             }
             require(uri.rawUserInfo == null) { "Upload URL must not contain credentials" }
             require(uri.rawQuery == null) { "Upload URL must not contain a query" }

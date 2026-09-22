@@ -875,6 +875,8 @@ class JuggManager @TestOnly constructor(
 
     override fun reportIssue() {
         controlPanelController.recordUserAction("Report Issue")
+        val backendServerUrl = juggServer.availableServerUrl
+        val uploadUrl = IssueReportUploader.reportUrl(backendServerUrl)
         val progressDialog = ReportIssueProgressDialog("Preparing diagnostics...")
         taskRunnerManager.runBackgroundSafe("Prepare issue report") {
             try {
@@ -916,7 +918,16 @@ class JuggManager @TestOnly constructor(
                 )
                 SwingUtilities.invokeLater {
                     progressDialog.close(DialogWrapper.OK_EXIT_CODE)
-                    showReportIssueDialog(builder, candidates, IssueReportUploader.JUGG_REPORT_URL)
+                    if (backendServerUrl == null) {
+                        showReportIssueDialog(builder, candidates, uploadUrl)
+                    } else {
+                        taskRunnerManager.runBackgroundSafe("Create issue report") {
+                            val selectedPaths = candidates.filter {
+                                it.isSelectedByDefault || it.path.startsWith("diagnostics/logs/")
+                            }.map { it.path }.toSet()
+                            uploadIssueReport(builder.build(selectedPaths), uploadUrl, backendServerUrl)
+                        }
+                    }
                 }
             } catch (e: Throwable) {
                 SwingUtilities.invokeLater {
@@ -950,15 +961,15 @@ class JuggManager @TestOnly constructor(
         }
     }
 
-    private fun uploadIssueReport(bundle: IssueReportBundle, uploadUrl: String) {
+    private fun uploadIssueReport(bundle: IssueReportBundle, uploadUrl: String, backendServerUrl: String? = null) {
         SwingUtilities.invokeLater {
             val progressDialog = ReportIssueProgressDialog("Uploading logs...")
             taskRunnerManager.runBackgroundSafe("Upload issue report") {
-                val uploadResult = IssueReportUploader().upload(bundle, uploadUrl)
+                val uploadResult = IssueReportUploader().upload(bundle, uploadUrl, allowHttpForBackend = backendServerUrl != null)
                 SwingUtilities.invokeLater {
                     progressDialog.close(DialogWrapper.OK_EXIT_CODE)
-                    ReportIssueResultDialog(uploadResult) {
-                        uploadIssueReport(bundle, uploadUrl)
+                    ReportIssueResultDialog(uploadResult, backendServerUrl) {
+                        uploadIssueReport(bundle, uploadUrl, backendServerUrl)
                     }.show()
                 }
             }

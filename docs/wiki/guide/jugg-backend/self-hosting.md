@@ -21,7 +21,7 @@ Self-hosting usually serves two goals: centrally distributing Jugg configuration
 
 If only project configuration distribution is required, `/check_update` can return `isNeedUpgrade=false` and place project configuration in `customConfigJson`. Other interfaces can return success or an empty result.
 
-User-submitted issue logs do not request a self-hosted backend. The plugin uploads the diagnostic bundle to a fixed issue-reporting service. See [Report an issue](../report-issue.md).
+When a backend is available, manually submitted issue logs request its `/report_issue`. Implement this endpoint to receive manual reports; without an available backend, the plugin uses the public service. Automatic failure-log uploads always use the public service. See [Report an issue](../report-issue.md).
 
 ## `/check_update` response
 
@@ -44,6 +44,7 @@ User-submitted issue logs do not request a self-hosted backend. The plugin uploa
 | Hot-update download | `/check_hot_update`, `/download_hot_update` | Distribute JAR-level updates |
 | Hot-update status | `/check_hot_update_status` | Operations or staged-rollout diagnostics need to inspect current hot-update state |
 | Custom compiler download | `/download_custom_compiler` | Distribute a custom compiler JAR in project configuration |
+| Manual issue reports | `/report_issue` | Receive diagnostic bundles submitted manually by users |
 | Remote-machine application | Interactive interfaces such as `/remote_apply` | The team has an internal cloud development machine application system |
 
 ## Predeployment checks
@@ -56,7 +57,7 @@ User-submitted issue logs do not request a self-hosted backend. The plugin uploa
 
 ## Relationship to local features
 
-The backend manages configuration, distribution, and usage events; it does not take over local compilation or deployment, and it does not receive user issue logs. Jugg Run, Debug, Android Test, CLI, and MCP still execute in the local Android Studio or command-line environment.
+The backend does not take over local compilation or deployment; when available, it can also receive manual issue reports. Jugg Run, Debug, Android Test, CLI, and MCP still execute in the local Android Studio or command-line environment.
 
 ## Related pages
 

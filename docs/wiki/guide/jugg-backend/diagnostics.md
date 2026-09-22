@@ -12,7 +12,7 @@ tags:
 
 Backend diagnostic configuration covers usage events and the optional automatic failure-log upload switch. It does not affect local compilation or deployment results. When reporting fails, the plugin records a log and continues the current flow.
 
-Manually submitted and automatically submitted log bundles do not go through a self-hosted backend and do not use a Custom Server. The self-hosted backend only decides whether automatic uploads are enabled and which known errors are excluded through project configuration.
+When a backend service is available, manually submitted issue logs are uploaded to that server's `/report_issue`. Automatic failure-log uploads still use Jugg's public service. A self-hosted backend can use project configuration to enable automatic uploads and exclude known errors.
 
 ## Event reporting
 
@@ -40,9 +40,9 @@ Set `autoUploadFailureLogs=true` in project configuration to enable automatic up
 
 Automatic uploads cover final compilation failures and final failures after deployment has actually started. Cancellation, skipped deployment, no device before deployment starts, and a successful final result after a Gradle fallback do not trigger an upload. The bundle contains only the two most recent redacted Jugg logs and the manifest, and each Run uploads at most once.
 
-## Issue logs do not use the self-hosted backend
+## Destinations for manual and automatic reports
 
-The plugin uploads issue logs to the fixed issue-reporting service at `https://jugg.sickworm.com/report_issue`. This applies to both manual uploads and automatic uploads enabled by backend configuration. A self-hosted backend does not need to implement `/report_issue`; implementing that interface also does not change the log-upload path.
+With an available backend, manual reports go to `/report_issue` under that server's root address, so the backend must implement this endpoint. Without an available backend, they use `https://jugg.sickworm.com/report_issue`. The backend may use HTTP or HTTPS; HTTP provides no TLS transport protection. Automatic failure-log uploads always use Jugg's public service and do not request the self-hosted backend.
 
 For the user-facing flow, diagnostic-bundle contents, and Report ID, see [Report an issue](../report-issue.md).
 

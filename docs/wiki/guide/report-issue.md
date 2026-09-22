@@ -10,9 +10,9 @@ tags:
 
 # Report an issue
 
-Report an issue packages the current Jugg logs and device error logs, then uploads them to a fixed issue-reporting service. Use it when incremental compilation or deployment fails, or when runtime results are unexpected. The upload destination does not change whether or not a Jugg backend or Custom Server is configured.
+Report an issue packages the current Jugg logs and device error logs, then uploads them to an issue-reporting service. Use it when incremental compilation or deployment fails, or when runtime results are unexpected. Manual reports prefer the currently available Jugg backend and use Jugg's public service when no backend is available.
 
-A team backend can also enable automatic failure-log uploads. Automatic uploads use the same fixed service as the manual flow on this page, but contain less data and do not show a confirmation window.
+A team backend can also enable automatic failure-log uploads. Automatic uploads always use Jugg's public service, contain less data than manual reports, and do not show a confirmation window.
 
 ## Where to open it
 
@@ -27,15 +27,17 @@ You can also open it from a Jugg Run Configuration:
 2. Select the current Jugg configuration.
 3. Click `Report issues`.
 
-After the report window opens:
+When no backend service is available, after the report window opens:
 
 1. Review and select the diagnostic files. Jugg logs are selected by default and cannot be cleared. Project snapshots are selected by default but can be cleared.
 2. Select `Upload logs`, or select `Save locally without uploading` to create a local diagnostic bundle.
 3. After the upload finishes, copy the Report ID. If the upload fails, click `Retry Upload`, or give the retained ZIP file to the maintainer.
 
-The confirmation window shows the fixed upload address `https://jugg.sickworm.com/report_issue`. The plugin sends the diagnostic bundle only to that HTTPS address. It does not read the Custom Server setting and does not switch servers after failure. When saving locally, the system file manager selects the newly generated ZIP file.
+The confirmation window shows the public upload address `https://jugg.sickworm.com/report_issue`. When saving locally, the system file manager selects the newly generated ZIP file.
 
-After a successful upload, the result window shows an 8-character lowercase hexadecimal Report ID. Send it to the maintainer together with the reproduction steps.
+When a backend service is available, clicking the report entry skips the file and destination confirmation window. Jugg uploads the previously default-selected diagnostic content directly to that server's `/report_issue`. You cannot clear project snapshots or choose local-only saving in this flow. Backend uploads allow HTTP or HTTPS; HTTP does not protect the content with TLS. An invalid destination or failed upload is not forwarded to the public service. The result window still lets you retry the same destination.
+
+After a successful upload, the result window shows an 8-character lowercase hexadecimal Report ID. Send it to the maintainer together with the reproduction steps. A copied backend result also has a `Server Url` line identifying the server that was used.
 
 ## What is uploaded
 

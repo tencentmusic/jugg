@@ -67,6 +67,7 @@ class JuggServer(
     private var sessionSubId: Int = 0
 
     val hasAvailableServer: Boolean get() = juggServerChooser.hasAvailableServer()
+    val availableServerUrl: String? get() = juggServerChooser.availableServerUrl
 
     private val client = OkHttpClient()
 

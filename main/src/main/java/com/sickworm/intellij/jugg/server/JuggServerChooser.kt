@@ -17,6 +17,8 @@ class JuggServerChooser(logger: Logger) {
 
     private val logger: Logger = logger.getInstance("JuggServerChooser")
     private var serverRules: List<ServerRule>? = null
+    @Volatile
+    private var selectedServerUrl: String? = null
 
     fun hasAvailableServer(): Boolean {
         if (isSetCustomServer && !JuggSettings.serverUrl.isNullOrBlank()) {
@@ -37,6 +39,11 @@ class JuggServerChooser(logger: Logger) {
             }
         }
 
+    val availableServerUrl: String?
+        get() = JuggSettings.serverUrl?.takeIf { url ->
+            url.isNotBlank() && (isSetCustomServer || url == selectedServerUrl)
+        }
+
     /**
      * Update server rules and select server on project opened.
      */
@@ -48,6 +55,7 @@ class JuggServerChooser(logger: Logger) {
             return
         }
 
+        selectedServerUrl = null
         val oldServerUrl = JuggSettings.serverUrl
         val newServerUrl = selectServer(this.serverRules)?.url
         if (newServerUrl.isNullOrBlank()) {
@@ -60,6 +68,7 @@ class JuggServerChooser(logger: Logger) {
             logger.debug("Update server from $oldServerUrl to $newServerUrl")
             JuggSettings.serverUrl = newServerUrl
         }
+        selectedServerUrl = newServerUrl
         JuggSettings.serverExpireTimeMill = System.currentTimeMillis() + SERVER_EXPIRE_AFTER_TIME
     }
 
@@ -119,6 +128,7 @@ class JuggServerChooser(logger: Logger) {
         }
 
         forbidUrls.add(forbidUrl)
+        selectedServerUrl = nextServerUrl
         logger.debug("Update server with forbid url: $forbidUrl")
         logger.debug("Update server from $forbidUrl to $nextServerUrl")
         JuggSettings.serverUrl = nextServerUrl

@@ -20,6 +20,7 @@ class IssueReportUploaderTest {
         val client = OkHttpClient.Builder().addInterceptor { chain ->
             val request = chain.request()
             assertEquals("POST", request.method)
+            assertEquals("https://example.com/report_issue", request.url.toString())
             assertTrue(request.body!!.contentType().toString().startsWith("multipart/form-data; boundary="))
             requests += Buffer().also { request.body!!.writeTo(it) }.readUtf8()
             Response.Builder().request(request).protocol(Protocol.HTTP_1_1).code(200)
@@ -36,7 +37,7 @@ class IssueReportUploaderTest {
             username = "developer",
             pluginVersion = "2.2.0-rc10",
         )).isSuccess)
-        assertTrue(uploader.upload(bundle, "https://example.com/report_issue").isSuccess)
+        assertTrue(uploader.upload(bundle, IssueReportUploader.reportUrl("https://example.com")).isSuccess)
 
         assertTrue(requests[0].contains("name=\"file\"; filename=\"a8df5845.zip\""))
         listOf(
@@ -49,6 +50,28 @@ class IssueReportUploaderTest {
             assertTrue(!requests[1].contains("name=\"$name\""), name)
         }
         assertTrue(requests[1].contains("name=\"file\"; filename=\"a8df5845.zip\""))
+    }
+
+    @Test
+    fun `custom report URL appends endpoint once and default stays public`() {
+        assertEquals(IssueReportUploader.JUGG_REPORT_URL, IssueReportUploader.reportUrl(null))
+        assertEquals("https://custom.example.com/api/report_issue", IssueReportUploader.reportUrl("https://custom.example.com/api/"))
+        val file = temp.newFile("report.zip")
+        val result = IssueReportUploader().upload(
+            IssueReportBundle("report", file, emptyList()), IssueReportUploader.reportUrl("http://custom.example.com"),
+        )
+        assertTrue(!result.isSuccess)
+        assertTrue(result.errorMessage!!.contains("HTTPS"))
+        val httpClient = OkHttpClient.Builder().addInterceptor { chain ->
+            assertEquals("http://custom.example.com/report_issue", chain.request().url.toString())
+            Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1).code(200)
+                .message("OK").body(okhttp3.ResponseBody.create(null, "{}")).build()
+        }.build()
+        val backendResult = IssueReportUploader(httpClient).upload(
+            IssueReportBundle("report", file, emptyList()), IssueReportUploader.reportUrl("http://custom.example.com"),
+            allowHttpForBackend = true,
+        )
+        assertTrue(backendResult.isSuccess)
     }
 
     @Test
