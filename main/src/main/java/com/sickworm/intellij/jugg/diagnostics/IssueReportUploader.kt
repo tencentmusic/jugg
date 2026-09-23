@@ -12,18 +12,22 @@ import java.net.URI
  * Uploads one diagnostics bundle to a validated endpoint without fallback.
  */
 class IssueReportUploader(
-    private val client: OkHttpClient = OkHttpClient(),
+    client: OkHttpClient = OkHttpClient(),
 ) {
+    private val uploadClient = client.newBuilder().followRedirects(false).followSslRedirects(false).build()
+
     fun upload(
         bundle: IssueReportBundle,
-        url: String,
         autoUpload: IssueReportAutoUpload? = null,
-        allowHttpForBackend: Boolean = false,
         projectName: String? = null,
         username: String? = null,
     ): IssueReportUploadResult {
         return try {
-            val endpoint = validateUrl(url, allowHttpForBackend)
+            val destination = bundle.destination
+            require(!destination.redactLogs || bundle.entries.none { it.redaction == "none" }) {
+                "Unredacted diagnostics cannot be uploaded to the public service"
+            }
+            val endpoint = validateUrl(destination.uploadUrl, destination.backendServerUrl != null)
             val body = MultipartBody.Builder()
                 .setType(MultipartBody.FORM)
                 .addFormDataPart("file", bundle.file.name, bundle.file.asRequestBody("application/zip".toMediaType()))
@@ -35,11 +39,13 @@ class IssueReportUploader(
                         addFormDataPart("report_id", bundle.reportId)
                         autoUpload.errorDetail?.let { addFormDataPart("error_detail", it) }
                     }
-                    (autoUpload?.projectName ?: projectName)?.let { addFormDataPart("project_name", it) }
-                    (autoUpload?.username ?: username)?.let { addFormDataPart("username", it) }
+                    (autoUpload?.projectName ?: projectName?.takeIf { destination.backendServerUrl != null })
+                        ?.let { addFormDataPart("project_name", it) }
+                    (autoUpload?.username ?: username?.takeIf { destination.backendServerUrl != null })
+                        ?.let { addFormDataPart("username", it) }
                 }.build()
             val request = Request.Builder().url(endpoint.toURL()).post(body).build()
-            client.newCall(request).execute().use { response ->
+            uploadClient.newCall(request).execute().use { response ->
                 val responseBody = response.body?.string().orEmpty()
                 if (!response.isSuccessful) {
                     return IssueReportUploadResult(false, null, "Upload failed: [${response.code}] $responseBody")
@@ -55,11 +61,6 @@ class IssueReportUploader(
     }
 
     companion object {
-        const val JUGG_REPORT_URL = "https://jugg.sickworm.com/report_issue"
-
-        fun reportUrl(backendServerUrl: String?): String =
-            backendServerUrl?.trimEnd('/')?.plus("/report_issue") ?: JUGG_REPORT_URL
-
         fun validateUrl(value: String, allowHttpForBackend: Boolean = false): URI {
             val uri = runCatching { URI(value.trim()) }
                 .getOrElse { throw IllegalArgumentException("Upload URL is invalid") }

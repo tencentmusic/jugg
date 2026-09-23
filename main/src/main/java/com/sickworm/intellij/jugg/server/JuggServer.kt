@@ -5,6 +5,7 @@ import com.google.gson.annotations.SerializedName
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.diagnostics.IssueReportBundleBuilder
+import com.sickworm.intellij.jugg.diagnostics.IssueReportDestination
 import com.sickworm.intellij.jugg.diagnostics.IssueReportAutoUpload
 import com.sickworm.intellij.jugg.diagnostics.IssueReportUploader
 import com.sickworm.intellij.jugg.git.GitManager
@@ -68,7 +69,7 @@ class JuggServer(
 
     val hasAvailableServer: Boolean get() = juggServerChooser.hasAvailableServer()
     val availableServerUrl: String? get() = juggServerChooser.availableServerUrl
-    val isCustomServer: Boolean get() = juggServerChooser.isCustomServer
+    val issueReportDestination: IssueReportDestination get() = juggServerChooser.issueReportDestination
 
     private val client = OkHttpClient()
 
@@ -213,12 +214,11 @@ class JuggServer(
     /** Uploads failure diagnostics to the available backend without affecting the run result. */
     fun uploadFailureLogs(failedReason: String, errorDetail: String?, projectModuleCount: Int): Job = launch {
         try {
-            val backendServerUrl = availableServerUrl
-            if (backendServerUrl == null) {
+            val destination = issueReportDestination
+            if (destination.backendServerUrl == null) {
                 logger.debug("Auto upload failure logs skipped: no available backend server")
                 return@launch
             }
-            val redactLogs = !isCustomServer
             val logFiles = selectRecentFailureLogs(pathManager.logDir)
             if (logFiles.isEmpty()) {
                 logger.debug("Auto upload failure logs skipped: no Jugg logs found")
@@ -229,6 +229,7 @@ class JuggServer(
                 pathManager.projectDir,
                 File(System.getProperty("user.home")),
                 logger.getInstance("IssueReportBundleBuilder"),
+                destination,
             )
             val compileSettings = JuggSettings.defaultCompileSettings
             val knownSecrets = setOfNotNull(
@@ -252,16 +253,15 @@ class JuggServer(
                 logcat = "",
                 hookDebugLog = File(JuggGlobalPathManager.rootDir, "skills/hooks/jugg-hook-debug.log"),
                 knownSecrets = knownSecrets,
-                redactLogs = redactLogs,
             )
             val bundle = builder.build(candidates.map { it.path }.toSet())
-            val result = IssueReportUploader().upload(bundle, IssueReportUploader.reportUrl(backendServerUrl), IssueReportAutoUpload(
-                failedReason = if (redactLogs) builder.redactUploadText(failedReason, knownSecrets) else failedReason,
-                errorDetail = errorDetail?.let { if (redactLogs) builder.redactUploadText(it, knownSecrets) else it },
+            val result = IssueReportUploader().upload(bundle, IssueReportAutoUpload(
+                failedReason = if (destination.redactLogs) builder.redactUploadText(failedReason, knownSecrets) else failedReason,
+                errorDetail = errorDetail?.let { if (destination.redactLogs) builder.redactUploadText(it, knownSecrets) else it },
                 projectName = projectName,
                 username = username,
                 pluginVersion = version,
-            ), allowHttpForBackend = true)
+            ))
             if (result.isSuccess) {
                 logger.debug("Auto upload failure logs succeeded, reportId=${result.reportId}")
             } else {

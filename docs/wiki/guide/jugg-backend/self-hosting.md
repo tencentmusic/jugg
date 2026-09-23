@@ -21,7 +21,7 @@ Self-hosting usually serves two goals: centrally distributing Jugg configuration
 
 If only project configuration distribution is required, `/check_update` can return `isNeedUpgrade=false` and place project configuration in `customConfigJson`. Other interfaces can return success or an empty result.
 
-When a backend is available, both manual reports and automatic failure-log uploads request its `/report_issue`, so the backend must implement this endpoint. Without an available backend, manual reports use the public service while automatic uploads are skipped. See [Report an issue](../report-issue.md).
+When a backend is available, both manual reports and automatic failure-log uploads request its `/report_issue`, so the backend must implement this endpoint. An explicitly configured Custom Server or a backend selected from an internal build's bundled list receives original logs, which may contain project paths, usernames, and other sensitive content. Public builds do not bundle a server list and do not use this path by default. Use a trusted server and prefer HTTPS. Without an available backend, manual reports upload a redacted bundle to the public service while automatic uploads are skipped. See [Report an issue](../report-issue.md).
 
 ## `/check_update` response
 

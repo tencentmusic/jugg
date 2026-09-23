@@ -4,6 +4,7 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
+import com.sickworm.intellij.jugg.diagnostics.IssueReportDestination
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.server.protocols.ServerRule
@@ -39,7 +40,16 @@ class JuggServerChooser(logger: Logger) {
             }
         }
 
-    val isCustomServer: Boolean get() = isSetCustomServer
+    val issueReportDestination: IssueReportDestination
+        get() {
+            val url = JuggSettings.serverUrl
+            val custom = isSetCustomServer
+            return if (url.isNullOrBlank() || !custom && url != selectedServerUrl) {
+                IssueReportDestination.Public
+            } else {
+                IssueReportDestination.backend(url)
+            }
+        }
 
     val availableServerUrl: String?
         get() = JuggSettings.serverUrl?.takeIf { url ->
@@ -209,7 +219,10 @@ class JuggServerChooser(logger: Logger) {
                 title = "Trust Custom Server?",
                 content = "<html>Jugg will connect to:<br><b>$displayUrl</b><br><br>" +
                         "This server can check for Jugg updates, download and install Jugg update JARs, " +
-                        "and download and load custom compiler JARs. Continue only if you control or trust it.</html>",
+                        "and download and load custom compiler JARs. " +
+                        "Manual and automatic issue reports will send unredacted logs to this server, " +
+                        "including project paths, usernames, and possible secrets. " +
+                        "HTTP connections are not encrypted. Continue only if you control or trust it.</html>",
                 okButtonText = "Trust Server",
                 cancelButtonText = "Cancel",
             )

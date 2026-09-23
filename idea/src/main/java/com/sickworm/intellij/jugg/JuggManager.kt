@@ -875,9 +875,7 @@ class JuggManager @TestOnly constructor(
 
     override fun reportIssue() {
         controlPanelController.recordUserAction("Report Issue")
-        val backendServerUrl = juggServer.availableServerUrl
-        val uploadUrl = IssueReportUploader.reportUrl(backendServerUrl)
-        val redactLogs = backendServerUrl == null || !juggServer.isCustomServer
+        val destination = juggServer.issueReportDestination
         val progressDialog = ReportIssueProgressDialog("Preparing diagnostics...")
         taskRunnerManager.runBackgroundSafe("Prepare issue report") {
             try {
@@ -896,6 +894,7 @@ class JuggManager @TestOnly constructor(
                     pathManager.projectDir,
                     File(System.getProperty("user.home")),
                     logger.getInstance("IssueReportBundleBuilder"),
+                    destination,
                 )
                 val logFiles = pathManager.logDir.listFiles().orEmpty()
                     .filter { it.isFile && !it.name.startsWith("compile_latest") && !it.name.endsWith(".lck") }
@@ -917,18 +916,17 @@ class JuggManager @TestOnly constructor(
                     logcat = logcatErrorLog,
                     hookDebugLog = File(JuggGlobalPathManager.rootDir, "skills/hooks/jugg-hook-debug.log"),
                     knownSecrets = knownSecrets,
-                    redactLogs = redactLogs,
                 )
                 SwingUtilities.invokeLater {
                     progressDialog.close(DialogWrapper.OK_EXIT_CODE)
-                    if (backendServerUrl == null) {
-                        showReportIssueDialog(builder, candidates, uploadUrl)
+                    if (destination.backendServerUrl == null) {
+                        showReportIssueDialog(builder, candidates, destination.uploadUrl)
                     } else {
                         taskRunnerManager.runBackgroundSafe("Create issue report") {
                             val selectedPaths = candidates.filter {
                                 it.isSelectedByDefault || it.path.startsWith("diagnostics/logs/")
                             }.map { it.path }.toSet()
-                            uploadIssueReport(builder.build(selectedPaths), uploadUrl, backendServerUrl)
+                            uploadIssueReport(builder.build(selectedPaths))
                         }
                     }
                 }
@@ -959,25 +957,22 @@ class JuggManager @TestOnly constructor(
                     ReportIssueResultDialog(null).show()
                 }
             } else {
-                uploadIssueReport(bundle, uploadUrl)
+                uploadIssueReport(bundle)
             }
         }
     }
 
-    private fun uploadIssueReport(bundle: IssueReportBundle, uploadUrl: String, backendServerUrl: String? = null) {
-        val customServer = backendServerUrl != null && juggServer.isCustomServer
+    private fun uploadIssueReport(bundle: IssueReportBundle) {
         SwingUtilities.invokeLater {
             val progressDialog = ReportIssueProgressDialog("Uploading logs...")
             taskRunnerManager.runBackgroundSafe("Upload issue report") {
                 val uploadResult = IssueReportUploader().upload(
-                    bundle, uploadUrl, allowHttpForBackend = backendServerUrl != null,
-                    projectName = juggServer.projectName.takeIf { customServer },
-                    username = juggServer.username.takeIf { customServer },
+                    bundle, projectName = juggServer.projectName, username = juggServer.username,
                 )
                 SwingUtilities.invokeLater {
                     progressDialog.close(DialogWrapper.OK_EXIT_CODE)
-                    ReportIssueResultDialog(uploadResult, backendServerUrl) {
-                        uploadIssueReport(bundle, uploadUrl, backendServerUrl)
+                    ReportIssueResultDialog(uploadResult, bundle.destination.backendServerUrl) {
+                        uploadIssueReport(bundle)
                     }.show()
                 }
             }

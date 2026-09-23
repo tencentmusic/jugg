@@ -11,7 +11,7 @@ tags:
 
 Jugg can connect to an HTTP backend for centralized plugin upgrades, hot updates, project defaults, usage events, and remote-machine applications. A backend is not required to run Jugg. Local features such as incremental compilation, deployment, CLI, and MCP remain available without one. When a backend is available, both manual reports and automatic failure-log uploads go to it; without one, automatic uploads are skipped.
 
-Public builds do not include a predefined `servers.json`, so they do not connect to a Jugg backend automatically. Internal teams can use `buildPluginInternal` to package local configuration into the plugin. A Custom Server explicitly configured by the user still takes effect when there is no built-in configuration.
+Public builds from GitHub Releases and JetBrains Marketplace do not include a predefined `servers.json`, so they do not select or connect to a Jugg backend automatically, and issue reporting does not upload any data by default. Teams can use `buildPluginInternal` to bundle a server list; only these internal builds can select a backend automatically. A public package can send original logs to a backend only after the user explicitly configures a Custom Server. Without a configured backend, users can still choose to upload a redacted diagnostic bundle to the public service.
 
 These pages are for teams that need to self-host a backend. They explain which backend features the plugin currently supports, which interfaces form a minimal implementation, and which features are optional enhancements.
 
