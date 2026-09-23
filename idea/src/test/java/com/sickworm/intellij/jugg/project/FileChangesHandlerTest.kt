@@ -102,6 +102,51 @@ class FileChangesHandlerTest {
     }
 
     @Test
+    fun `prefers owned Android inputs over another module native directory`() {
+        val app = context.applicationModule
+        val nativeModule = app.copy(
+            name = "appcommon",
+            moduleType = ModuleInfo.Type.Library,
+            moduleRootDir = File(pathManager.projectDir, "mp/appcommon"),
+            sourceDirs = emptyList(),
+            externalBuildInfos = listOf(ExternalBuildInfo(
+                type = ExternalBuildType.Cpp,
+                inputDirs = listOf(inputDir(app.moduleRootDir, NativeDirectory)),
+                taskPath = ":mp:appcommon:mergeDebugNativeLibs",
+                assetsOutputDir = null,
+                nativeOutput = File(pathManager.projectDir, "build/appcommon"),
+            )),
+        )
+        handler.init(context.copy(modules = context.modules + (nativeModule.name to nativeModule)))
+
+        listOf(
+            "src/main/java/com/example/myapplication/MainActivity.kt" to CompileFile.Type.Kotlin,
+            "src/main/java/com/example/myapplication/MainActivity2.java" to CompileFile.Type.Java,
+            "src/main/res/layout/jugg_overlap.xml" to CompileFile.Type.Resource,
+            "src/main/assets/jugg_overlap.json" to CompileFile.Type.Asset,
+        ).forEach { (path, type) ->
+            val file = File(app.moduleRootDir, path)
+            withTemporaryFile(file) {
+                val changed = handler.filter(listOf(file)).single()
+                assertEquals(type, changed.type)
+                assertEquals(app.name, changed.module.name)
+            }
+        }
+        val nativeLib = File(app.moduleRootDir, "src/main/jniLibs/arm64-v8a/libjugg_overlap.so")
+        withTemporaryFile(nativeLib) {
+            assertEquals(CompileFile.Type.NativeLib, handler.filter(listOf(nativeLib)).single().type)
+        }
+        listOf("src/main/java/native.cc", "native/extra.kt").forEach { path ->
+            val file = File(app.moduleRootDir, path)
+            withTemporaryFile(file) {
+                val changed = handler.filter(listOf(file)).single()
+                assertEquals(CompileFile.Type.ExternalBuildSource, changed.type)
+                assertEquals(nativeModule.name, changed.module.name)
+            }
+        }
+    }
+
+    @Test
     fun `does not expand module build directories`() {
         val app = context.applicationModule
         val centralizedBuildDir = File(app.projectRootDir, "build/file-change-directory-test")

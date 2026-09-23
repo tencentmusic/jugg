@@ -53,6 +53,8 @@ C/C++ 变化
 
 外部构建采用“目录触发、Gradle 判定”的策略，每个被监控目录都带有自己接受的文件类型。Flutter package 根只接受 Dart 源码，不会扩大为任意文件；由 `pubspec.yaml` 的 `flutter.assets` 或 `l10n.yaml` 的 `arb-dir` 声明的资源目录，以及 Flutter task 在 package 根之下暴露的目录，接受任意文件。Native 的 externalNativeBuild 配置根接受 C/C++ 源码和头文件，native build metadata 确认的具体源码目录接受任意非隐藏文件，include root 只接受头文件。父子目录各自保留规则，不再由上层目录吞掉子目录；同一目录的多条规则之间是 OR，因此即使更宽的 Native 目录也覆盖某个头文件，它仍会命中对应的 include root。仍允许少量误触发；较宽的共享目录或 include root 也可能同时触发多个 Native 模块，包括产物较大的模块。Gradle 和 Ninja 的 up-to-date 与真实依赖判断仍决定实际执行哪些 native 工作。Jugg 不再依赖旧 depfile 的精确文件列表，所以已监控资源目录中新建的图片、JSON 或嵌套目录文件不会因为上次尚不存在而漏掉。单文件 asset、font 和 shader 仍依赖 Flutter task inputs，而不依赖 `pubspec.yaml` 条目；已删除的文件直接忽略，把旧 native 代码或 asset 从设备上移除需要一次完整 Run。
 
+已归属 Android 模块的 Kotlin / Java 源码、资源、assets，以及 ABI 目录中的 `.so` 会优先按各自类型处理，即使更宽的 Native 目录也覆盖这些文件；未归属这些类型的文件才按外部构建规则判断。
+
 Flutter SDK、全局 pub cache、`.dart_tool`、`.cxx`、`.externalNativeBuild` 和构建输出目录始终不监听。每次外部 task 执行时，Jugg 会在同一 Gradle invocation 结束前只收集本轮相关 module 和 variant 的最新外部构建信息；它不会为了配置文件变化另起一个完整 project-info 刷新。新信息合入项目模型后，文件监控范围立即更新，因此新加入的本地 package、共享 C/C++ 目录或 include root 从下一次文件变化开始即可触发。若定向信息未完整生成或无法合入，当前增量编译会失败并保留完整 Gradle 回退边界，而不会继续使用已知过期的监控范围。
 
 产物 CRC 只决定新输出是否需要再次部署。它不会跳过 Flutter 或 C/C++ 编译，避免源码已经变化但中间产物尚未刷新的情况被误判为无变化。

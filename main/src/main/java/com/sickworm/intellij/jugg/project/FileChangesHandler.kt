@@ -261,14 +261,14 @@ class FileChangesHandler(
         checkComposeResource(file)?.let {
             return it
         }
-        checkExternalBuildSource(file)?.let {
-            return it
-        }
         checkSource(file)?.let {
             return it
         }
         // check after source to exclude files in resource and assets
         checkNativeLib(file)?.let {
+            return it
+        }
+        checkExternalBuildSource(file)?.let {
             return it
         }
 
