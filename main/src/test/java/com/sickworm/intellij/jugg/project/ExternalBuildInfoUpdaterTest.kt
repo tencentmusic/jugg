@@ -1,6 +1,8 @@
 package com.sickworm.intellij.jugg.project
 
 import com.sickworm.intellij.jugg.project.info.ExternalBuildInfo
+import com.sickworm.intellij.jugg.project.info.ExternalBuildInputDir
+import com.sickworm.intellij.jugg.project.info.ExternalBuildInputFilterRule
 import com.sickworm.intellij.jugg.project.info.ExternalBuildInfoUpdate
 import com.sickworm.intellij.jugg.project.info.ExternalBuildType
 import com.sickworm.intellij.jugg.project.info.ModuleInfo
@@ -17,14 +19,14 @@ class ExternalBuildInfoUpdaterTest {
         val moduleRoot = File("/project/app")
         val flutter = ExternalBuildInfo(
             type = ExternalBuildType.Flutter,
-            inputDirs = listOf(File(moduleRoot, "flutter")),
+            inputDirs = listOf(ExternalBuildInputDir(File(moduleRoot, "flutter"), setOf(ExternalBuildInputFilterRule.Dart))),
             taskPath = ":app:oldFlutterTask",
             assetsOutputDir = File(moduleRoot, "build/old-assets"),
             nativeOutput = File(moduleRoot, "build/old-native.jar"),
         )
         val cpp = ExternalBuildInfo(
             type = ExternalBuildType.Cpp,
-            inputDirs = listOf(File(moduleRoot, "src/main/cpp")),
+            inputDirs = listOf(cppInputDir(File(moduleRoot, "src/main/cpp"))),
             taskPath = ":app:mergeDebugNativeLibs",
             assetsOutputDir = null,
             nativeOutput = File(moduleRoot, "build/native"),
@@ -38,7 +40,10 @@ class ExternalBuildInfoUpdaterTest {
         )
         val unrelated = ModuleInfo.virtualModule.copy(name = "library")
         val refreshed = flutter.copy(
-            inputDirs = listOf(File(moduleRoot, "flutter"), File("/project/shared_flutter")),
+            inputDirs = listOf(
+                ExternalBuildInputDir(File(moduleRoot, "flutter"), setOf(ExternalBuildInputFilterRule.Dart)),
+                ExternalBuildInputDir(File("/project/shared_flutter"), setOf(ExternalBuildInputFilterRule.Dart)),
+            ),
             taskPath = ":app:newFlutterTask",
             assetsOutputDir = File(moduleRoot, "build/new-assets"),
         )
@@ -73,7 +78,7 @@ class ExternalBuildInfoUpdaterTest {
                 previousTaskPath = ":app:missingTask",
                 externalBuildInfo = ExternalBuildInfo(
                     type = ExternalBuildType.Cpp,
-                    inputDirs = listOf(module.moduleRootDir),
+                    inputDirs = listOf(cppInputDir(module.moduleRootDir)),
                     taskPath = ":app:newTask",
                     assetsOutputDir = null,
                     nativeOutput = File(module.moduleRootDir, "build/native"),
@@ -83,4 +88,9 @@ class ExternalBuildInfoUpdaterTest {
 
         assertNull(result)
     }
+    private fun cppInputDir(directory: File) = ExternalBuildInputDir(
+        directory,
+        setOf(ExternalBuildInputFilterRule.CppSource, ExternalBuildInputFilterRule.CppHeader),
+    )
+
 }

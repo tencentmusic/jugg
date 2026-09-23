@@ -261,17 +261,72 @@ class JuggDeployerHelperDeployTest {
     }
 
     @Test
+    fun `apk update failure should skip install and keep fallback for custom sign script`() {
+        val device = device(apiLevel = 30)
+        val projectDir = File("/tmp/jugg-deploy-test")
+        val apkInfo = apkInfo(File(projectDir, "app.apk").path)
+        val apkFile = apkInfo.files.first().apkFile
+        val deployData = hotReloadDeployData(apkInfo, "CustomSignScriptTarget").copy(
+            updateApkFiles = listOf(
+                DeployItem(
+                    name = "libcustom.so",
+                    type = CompileOutput.Type.NativeLib,
+                    checksum = 1L,
+                    content = byteArrayOf(1),
+                    apkPath = apkFile.path,
+                    targetApkPaths = listOf(apkFile.path),
+                ),
+            ),
+        )
+        // No local signing config on the compile context, and the APK itself cannot be rewritten.
+        val compileContext = Mockito.mock(ICompileContext::class.java).also {
+            Mockito.`when`(it.projectDir).thenReturn(projectDir)
+            Mockito.`when`(it.androidHome).thenReturn(File(projectDir, "sdk"))
+            Mockito.`when`(it.cmdCompileEnv).thenReturn(emptyList())
+        }
+        val deployRunTaskExecutor = Mockito.mock(IJuggDeployRunTaskExecutor::class.java)
+        Mockito.`when`(deployRunTaskExecutor.execute(any())).thenReturn(LaunchResult(true, 0, null, emptyMap()))
+
+        val result = createHelper(
+            deployTargetManager = readyTargetManager(apkInfo),
+            deployStateManager = readyStateManager(device),
+            compileContext = compileContext,
+            deployRunTaskExecutor = deployRunTaskExecutor,
+        ).deploy(
+            DeployOptions(
+                device = device,
+                isLastDevice = true,
+                retryDeployData = deployData,
+                customApkSignScript = "./scripts/sign-system-apk.sh",
+            ),
+        )
+
+        assertFalse(result.isSuccess)
+        assertTrue(result.isCanFallback)
+        assertFalse(
+            "APK update should not be rejected for the missing local signing config: ${result.failedReason}",
+            result.failedReason.orEmpty().contains("signing config"),
+        )
+        Mockito.verifyNoInteractions(deployRunTaskExecutor)
+    }
+
+    @Test
     fun `deploy diagnostics redact custom installation command`() {
         val script = "./install-app.sh --token=private-value"
+        val signScript = "./sign-app.sh --token=private-sign-value"
         val options = DeployOptions(
             device = device(apiLevel = 30),
             isLastDevice = true,
             customApkInstallScript = script,
+            customApkSignScript = signScript,
         )
 
         assertFalse(options.toSafeString().contains(script))
         assertFalse(options.toSafeString().contains("private-value"))
         assertTrue(options.toSafeString().contains("customApkInstallScript=(configured)"))
+        assertFalse(options.toSafeString().contains(signScript))
+        assertFalse(options.toSafeString().contains("private-sign-value"))
+        assertTrue(options.toSafeString().contains("customApkSignScript=(configured)"))
     }
 
     @Test
@@ -740,14 +795,16 @@ class JuggDeployerHelperDeployTest {
         libraryTestApkBackfillHelper: LibraryTestApkBackfillHelper? = null,
         environment: IDeployHost = TestDeployEnvironment(),
         logger: Logger = TestGlobal.getLogger(),
+        compileContext: ICompileContext? = null,
     ): JuggDeployerHelper {
         val project = Mockito.mock(Project::class.java)
         Mockito.`when`(project.basePath).thenReturn("/tmp/jugg-deploy-test")
 
-        val compileContext = Mockito.mock(ICompileContext::class.java)
-        Mockito.`when`(compileContext.isDebuggable).thenReturn(true)
+        val finalCompileContext = compileContext ?: Mockito.mock(ICompileContext::class.java).also {
+            Mockito.`when`(it.isDebuggable).thenReturn(true)
+        }
         val compileContextManager = Mockito.mock(CompileContextManager::class.java)
-        Mockito.`when`(compileContextManager.compileContext).thenReturn(compileContext)
+        Mockito.`when`(compileContextManager.compileContext).thenReturn(finalCompileContext)
 
         val passthroughBackfillHelper = libraryTestApkBackfillHelper
             ?: Mockito.mock(LibraryTestApkBackfillHelper::class.java).also {

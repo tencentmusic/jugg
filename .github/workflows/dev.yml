@@ -30,6 +30,9 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
+        with:
+          # Default still includes the obsolete `tools` package, which Google no longer serves.
+          packages: platform-tools
 
       - name: Install Android build tools
         run: sdkmanager "platforms;android-33" "ndk;27.0.12077973" "cmake;3.22.1"
@@ -89,7 +92,7 @@ jobs:
         run: |
           commit_sha="$(git rev-parse HEAD)"
           short_sha="${commit_sha:0:7}"
-          release_notes="$(printf 'Manually published from a Build Dev run for build verification. Dev builds are not verified at all and may be broken; they only exist to try out the ref below.\n\n- Version: `%s`\n- Ref: `%s`\n- Commit: [`%s`](%s/%s/commit/%s)\n- Workflow: [run %s](%s/%s/actions/runs/%s)\n' \
+          release_notes="$(printf 'Manually published from a Dev build to verify a quick bug fix and prerelease new features. Dev builds are not verified at all and may be broken.\n\n- Version: `%s`\n- Ref: `%s`\n- Commit: [`%s`](%s/%s/commit/%s)\n- Workflow: [run %s](%s/%s/actions/runs/%s)\n' \
             '${{ steps.version.outputs.value }}' \
             "$GITHUB_REF_NAME" \
             "$short_sha" \

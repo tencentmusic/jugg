@@ -17,6 +17,7 @@ import com.sickworm.intellij.jugg.deploy.run.deployflow.DeployFlowMockBackend
 import com.sickworm.intellij.jugg.deploy.run.deployflow.DeployFlowOverlaySeed
 import com.sickworm.intellij.jugg.deploy.run.deployflow.DeployFlowTestSupport
 import com.sickworm.intellij.jugg.deploy.run.deployflow.VirtualDeployDevice
+import com.sickworm.intellij.jugg.deploy.run.utils.AdbLogWrapper
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.mock.logger
 import com.sickworm.intellij.jugg.platform.IPlatformApi
@@ -30,6 +31,7 @@ import org.junit.Test
 import org.mockito.Mockito
 import org.mockito.kotlin.any
 import org.mockito.kotlin.whenever
+import org.mockito.MockedConstruction
 import java.io.File
 
 /**
@@ -662,6 +664,114 @@ class JuggDeployerHelperDeployFlowTest {
                     assertEquals(1, sandboxes.constructed().size)
                     Mockito.verify(fixture.deployTargetManager).restartApp(fixture.device)
                 }
+            }
+        }
+    }
+
+    @Test
+    fun `DF-L2-013 rootless compat deploy stages payload, restarts once and commits after app import`() {
+        val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_013)
+        val sandbox = unavailableSandbox(fixture)
+
+        sandbox.use {
+            val result = fixture.helper.deploy(fixture.deployOptions)
+
+            assertTrue("deploy failed: ${result.failedReason}", result.isSuccess)
+            assertEquals(JuggDeployData.DeployType.COMPAT_HOT_FIX, result.deployType)
+            // The app owns the commit: one restart, then the confirmed overlay id is committed.
+            Mockito.verify(fixture.deployTargetManager, Mockito.times(1)).restartApp(fixture.device)
+            assertEquals(1, fixture.virtualDevice.rootlessImportCount)
+            val committedOverlayId = fixture.virtualDevice.readOverlayId().orEmpty()
+            assertNotEquals("", committedOverlayId)
+            assertNotEquals(fixture.seededOverlayId, committedOverlayId)
+            assertEquals(
+                committedOverlayId,
+                DeployFlowMockBackend.deploymentService.loadEntry(
+                    fixture.device.serialNumber,
+                    DeployFlowOverlaySeed.packageName(),
+                    fixture.compatBoundary,
+                    AdbLogWrapper(logger),
+                )
+                    ?.overlayId?.sha,
+            )
+            assertEquals(
+                committedOverlayId,
+                fixture.deployHistoryManager.lastDeployOverlayIds[DeployFlowOverlaySeed.packageName()],
+            )
+            Mockito.verify(fixture.deployFileManager).commit(any())
+            // No JVMTI agent, no in-process redefine, and the staged request is cleaned up.
+            assertEquals(0, fixture.virtualDevice.asStartupAgentPushCount)
+            assertTrue(
+                fixture.virtualDevice.shellScripts.toString(),
+                fixture.virtualDevice.shellScripts.none { it.contains("attach-agent") },
+            )
+            assertEquals(0, fixture.compatBoundary.optimisticSwapInvokeCount)
+            assertTrue(fixture.virtualDevice.stagedRootlessRequestDirs().isEmpty())
+        }
+    }
+
+    @Test
+    fun `DF-L2-013 rootless compat import failure keeps deploy state and reports the reason`() {
+        val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_013)
+        val sandbox = unavailableSandbox(fixture)
+        Mockito.doAnswer {
+            fixture.virtualDevice.onAppRestart()
+            fixture.virtualDevice.corruptStagedRootlessPayload()
+            fixture.virtualDevice.runRootlessCompatImport()
+            true
+        }.`when`(fixture.deployTargetManager).restartApp(fixture.device)
+
+        sandbox.use {
+            val result = fixture.helper.deploy(fixture.deployOptions)
+
+            assertFalse("deploy must fail when the app rejects the import", result.isSuccess)
+            assertTrue(
+                "failed reason should explain the missing confirmation: ${result.failedReason}",
+                result.failedReason.orEmpty().contains("Rootless compat deploy was not confirmed"),
+            )
+            assertEquals(1, fixture.virtualDevice.rootlessImportFailureCount)
+            // Nothing advances: device overlay, deployment cache and deploy history stay put.
+            assertEquals(fixture.seededOverlayId, fixture.virtualDevice.readOverlayId())
+            assertEquals(
+                fixture.seededOverlayId,
+                DeployFlowMockBackend.deploymentService.loadEntry(
+                    fixture.device.serialNumber,
+                    DeployFlowOverlaySeed.packageName(),
+                    fixture.compatBoundary,
+                    AdbLogWrapper(logger),
+                )
+                    ?.overlayId?.sha,
+            )
+            assertEquals(
+                fixture.seededOverlayId,
+                fixture.deployHistoryManager.lastDeployOverlayIds[DeployFlowOverlaySeed.packageName()],
+            )
+            Mockito.verify(fixture.deployFileManager, Mockito.never()).commit(any())
+            Mockito.verify(fixture.deployTargetManager, Mockito.times(1)).restartApp(fixture.device)
+        }
+    }
+
+    /**
+     * Models a production user ROM: Apply Changes is incompatible and ordinary shell, adb root and
+     * su all fail to write the app sandbox.
+     */
+    private fun unavailableSandbox(fixture: DeployFlowFixture): MockedConstruction<AppSandboxExecutor> {
+        val adb = fixture.virtualDevice.asIDeviceAdb()
+        return Mockito.mockConstruction(AppSandboxExecutor::class.java) { sandbox, _ ->
+            whenever(sandbox.applyChangesCapability).thenReturn(AppSandboxExecutor.ApplyChangesCapability.INCOMPATIBLE)
+            whenever(sandbox.mode).thenReturn(AppSandboxExecutor.Mode.UNAVAILABLE)
+            whenever(sandbox.unavailableReason).thenReturn("run-as incompatible; shell uid=2000; su unavailable")
+            // Only the write capabilities are unavailable; the pre-deploy recover check still reads
+            // the device overlay directly.
+            whenever(sandbox.exec(any(), any())).thenAnswer {
+                adb.execAdbShellScript(
+                    "run-as ${DeployFlowOverlaySeed.packageName()} sh -c '${it.getArgument<String>(0)}'",
+                )
+            }
+            whenever(sandbox.execNoFallback(any(), any())).thenAnswer {
+                adb.execAdbShellScript(
+                    "run-as ${DeployFlowOverlaySeed.packageName()} sh -c '${it.getArgument<String>(0)}'",
+                )
             }
         }
     }

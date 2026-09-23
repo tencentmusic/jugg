@@ -4,6 +4,22 @@
   updates:
     - 支持 Standalone Jugg CLI，不依赖 Android Studio 执行编译和部署
 
+- version: 3.5.1
+  date: 2026.09.18
+  updates:
+    - "[feature] 支持 Android Studio Rabbit"
+    - "[feature] 支持自定义 APK 签名，适配 system app 远程签名场景"
+    - "[feature] 支持 system app 在无 root 或 run-as 权限时走兼容部署"
+    - "[feature] Running Panel 与日志中增加回退原因及用户操作记录"
+    - "[optimize] 兼容无普通 Launcher Activity 的应用，部署后自动启动 Home Activity 或直接 stop，避免出现不生效的幻觉"
+    - "[optimize] 优化 3.5.0 引入的多模块与 Dynamic Feature 项目读取耗时变长的问题"
+    - "[bugfix] 修复开启 Configuration on Demand 时 C++ 增量修改未生效或找不到 strip 工具的问题"
+    - "[bugfix] 修复 C++ 增量编译后因未剥离调试符号导致部署报 Java heap space 内存溢出的问题"
+    - "[bugfix] 避免 Native 或 Flutter 根目录下的无关文件变更误触发外部构建"
+    - "[bugfix] 修复 CMake 相对路径源码及跨模块共享源码未被正确识别为增量输入/输出的问题"
+    - "[bugfix] 修复变体关闭代码混淆（minify）后因残留 mapping 文件，误识别为需要混淆，导致增量构建运行时崩溃的问题"
+    - "[bugfix] 修复修改模块资源后，外部 AAR 依赖读取新增资源发生 NoSuchFieldError 的问题"
+
 - version: 3.5.0
   date: 2026.09.12
   updates:

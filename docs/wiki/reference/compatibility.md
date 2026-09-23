@@ -15,7 +15,7 @@ Use this page to quickly confirm whether your current development environment an
 
 | Item | Supported range |
 |---|---|
-| Android Studio | Bumblebee through Quail |
+| Android Studio | Bumblebee through Rabbit |
 | IntelliJ IDEA | 2021.1.3 through 2025.1 Beta |
 | AGP | 3.4 through 9.1 |
 | Gradle | 5.4.1 through 9.2.1 |
@@ -23,7 +23,7 @@ Use this page to quickly confirm whether your current development environment an
 | target API | 21 through 36 |
 | Android devices | Android 8 through 16 |
 
-- The current Android Studio compatibility implementations cover Chipmunk through Quail. Bumblebee uses the implementation for older versions.
+- The current Android Studio compatibility implementations cover Chipmunk through Rabbit. Bumblebee uses the implementation for older versions.
 - Verified AGP versions include 3.4.2, 3.5.4, 4.1.3, 4.2.0, 7.2.2, 8.3.0, 8.7.0, 8.13.0, and 9.1.2.
 - Gradle compatibility has been verified with 5.4.1, 6.8, 7.3.3, and 9.2.1. Gradle 8.x is also supported.
 - Android 8 through 10 use compatibility deployment. Android 11 and later support standard incremental deployment.

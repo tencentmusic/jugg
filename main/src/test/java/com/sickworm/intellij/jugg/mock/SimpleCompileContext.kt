@@ -9,6 +9,7 @@ import com.sickworm.intellij.jugg.compiler.manifest.XmlParser
 import com.sickworm.intellij.jugg.compiler.manifest.get
 import com.sickworm.intellij.jugg.compiler.obfuscation.MinifyInfo
 import com.sickworm.intellij.jugg.gradle.compile.isChild
+import com.sickworm.intellij.jugg.project.info.ExternalBuildInfoUpdate
 import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import com.sickworm.intellij.jugg.project.info.SigningConfig
 import com.sickworm.intellij.jugg.project.info.ModuleBuildPathInfo
@@ -28,6 +29,7 @@ data class SimpleCompileContext(
     private val customModuleBelongsApkMap: ModuleApkBelongs? = null,
     override val fullBuildGradleCommand: String? = null,
     override val scene: ICompileContext.Scene = ICompileContext.Scene.IDE,
+    override val externalBuildInfoInitScript: File? = null,
 ) : ICompileContext {
 
     val apkFile: File get() = apkInfos.firstOrNull()?.files?.first()?.apkFile!!
@@ -244,6 +246,12 @@ data class SimpleCompileContext(
 
     override fun listenUpdate(listener: OnContextUpdate) {
     }
+
+    /**
+     * The mock keeps its module map immutable, so the update payload is accepted without merging it;
+     * the external build compiler consumes the update itself when it collects artifacts.
+     */
+    override fun updateExternalBuildInfos(updates: List<ExternalBuildInfoUpdate>): Boolean = true
 
     override fun printClasspathCheck(moduleInfo: ModuleInfo) {
     }

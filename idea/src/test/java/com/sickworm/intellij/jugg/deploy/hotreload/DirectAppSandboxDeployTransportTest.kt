@@ -30,7 +30,10 @@ import com.sickworm.intellij.jugg.deploy.run.LaunchContext
 import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentCacheEntry
 import com.sickworm.intellij.jugg.deploy.run.JuggOverlayId
 import com.sickworm.intellij.jugg.deploy.run.JuggOverlayUpdate
+import com.sickworm.intellij.jugg.deploy.run.flow.DeployRetryHandler
+import com.sickworm.intellij.jugg.jvmti_agent.BuildConfig
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -192,6 +195,73 @@ class DirectAppSandboxDeployTransportTest {
     }
 
     @Test
+    fun `unavailable app sandbox asks for one compat redeploy instead of recovering`() {
+        val error = captureAnyFailure {
+            transport(UnavailableAdb()).tryDeploy(
+                packageName = "com.example.app",
+                data = classData(),
+                overlayUpdate = overlayUpdate(classData()),
+                applyChangesExecutor = Mockito.mock(IApplyChangesExecutor::class.java),
+                pids = emptyList(),
+                appArch = Deploy.Arch.ARCH_64_BIT,
+            )
+        }
+
+        assertEquals(DeployRetryHandler.REDEPLOY_WITH_COMPAT_MESSAGE, error.message)
+    }
+
+    @Test
+    fun `compat payload is staged for the app to import without preparing any agent`() {
+        val adb = UnavailableAdb()
+        val data = compatData()
+        val compat = Mockito.mock(IApplyChangesExecutor::class.java)
+        whenever(compat.buildOverlayId(any(), any())).thenReturn(JuggOverlayId(Any(), "next", false))
+        var constructedAgents = 0
+        var constructedHotReloadWriters = 0
+
+        Mockito.mockConstruction(JuggJvmtiAgentManager::class.java) { _, _ ->
+            constructedAgents++
+        }.use {
+            Mockito.mockConstruction(DirectHotReloadWriter::class.java) { _, _ ->
+                constructedHotReloadWriters++
+            }.use {
+                val result = requireNotNull(
+                    transport(adb).tryDeploy(
+                        packageName = "com.example.app",
+                        data = data,
+                        overlayUpdate = overlayUpdate(data),
+                        applyChangesExecutor = compat,
+                        pids = listOf(123),
+                        appArch = Deploy.Arch.ARCH_64_BIT,
+                    ),
+                )
+
+                val pending = requireNotNull(result.pendingRequest)
+                assertTrue(result.needsRestart)
+                assertEquals("com.example.app", pending.packageName)
+                assertEquals("next", result.overlayId.sha)
+                assertEquals(0, constructedAgents)
+                assertEquals(0, constructedHotReloadWriters)
+                assertEquals(
+                    listOf("payload.zip", "request.properties", "ready"),
+                    adb.pushedPaths.map { it.substringAfterLast('/') },
+                )
+                assertTrue(
+                    adb.pushedPaths.toString(),
+                    adb.pushedPaths.all {
+                        it.startsWith(
+                            "/sdcard/Android/data/com.example.app/files/jugg/rootless-compat/${pending.requestId}/",
+                        )
+                    },
+                )
+                val metadata = requireNotNull(adb.requestMetadata)
+                assertTrue(metadata, metadata.contains("requestId=${pending.requestId}"))
+                assertTrue(metadata, metadata.contains("nextOverlayId=next"))
+            }
+        }
+    }
+
+    @Test
     fun `run-as incompatible class payload should require Direct Deploy cache`() {
         val error = captureFailure {
             transport(DirectAdb()).tryDeploy(
@@ -216,6 +286,57 @@ class DirectAppSandboxDeployTransportTest {
         }
     }
 
+    private fun captureAnyFailure(block: () -> Unit): Exception {
+        return try {
+            block()
+            throw AssertionError("Expected the deploy to fail")
+        } catch (e: Exception) {
+            e
+        }
+    }
+
+    private fun compatData(): JuggDeployData {
+        return JuggDeployData.forDryDeploy(emptyList()).copy(
+            overlays = listOf(
+                DeployItem(
+                    name = BuildConfig.ENABLE_COMPAT_DEPLOY_FLAG_FILE,
+                    type = CompileOutput.Type.Asset,
+                    checksum = 3,
+                    content = byteArrayOf(3),
+                    apkPath = DeployItem.FLAG_BASE_APK,
+                ),
+                DeployItem(
+                    name = "resource.ap_",
+                    type = CompileOutput.Type.Asset,
+                    checksum = 4,
+                    content = byteArrayOf(4, 5),
+                    apkPath = DeployItem.FLAG_BASE_APK,
+                ),
+            ),
+            isCompatDeploy = true,
+            isFullRes = true,
+        )
+    }
+
+    private fun overlayUpdate(
+        data: JuggDeployData,
+        baseId: JuggOverlayId = JuggOverlayId(Any(), "base", false),
+    ): JuggOverlayUpdate {
+        return JuggOverlayUpdate(
+            JuggDeploymentCacheEntry(Any(), emptyList(), baseId),
+            DexComparator.ChangedClasses(
+                (data.newClasses + data.hotFixModifiedClasses).map { it.toIncompleteDexClass() },
+                data.hotReloadModifiedClasses.map { it.toIncompleteDexClass() },
+            ),
+            data.overlays.associate { item ->
+                val entry = Mockito.mock(ApkEntry::class.java)
+                whenever(entry.qualifiedPath).thenReturn("base.apk/${item.name}")
+                entry to ByteString.copyFrom(item.content)
+            },
+            Any(),
+        )
+    }
+
     private fun resourceData() = JuggDeployData.forDryDeploy(emptyList()).copy(
         overlays = listOf(DeployItem("resources.arsc", CompileOutput.Type.Res, 1, byteArrayOf(7), "base.apk")),
         isPushOverlayOnly = false,
@@ -234,19 +355,7 @@ class DirectAppSandboxDeployTransportTest {
         val baseId = JuggOverlayId(Any(), "base", false)
         val nextId = JuggOverlayId(Any(), "next", false)
         whenever(compat.buildOverlayId(any(), any())).thenReturn(nextId)
-        val overlayUpdate = JuggOverlayUpdate(
-            JuggDeploymentCacheEntry(Any(), emptyList(), baseId),
-            DexComparator.ChangedClasses(
-                (data.newClasses + data.hotFixModifiedClasses).map { it.toIncompleteDexClass() },
-                data.hotReloadModifiedClasses.map { it.toIncompleteDexClass() },
-            ),
-            data.overlays.associate { item ->
-                val entry = Mockito.mock(ApkEntry::class.java)
-                whenever(entry.qualifiedPath).thenReturn("base.apk/${item.name}")
-                entry to ByteString.copyFrom(item.content)
-            },
-            Any(),
-        )
+        val overlayUpdate = overlayUpdate(data, baseId)
         var written: DirectOverlayWriteRequest? = null
         var checkedExpectedOverlayId: String? = null
         var pushedAppArch: String? = null
@@ -408,6 +517,34 @@ class DirectAppSandboxDeployTransportTest {
         override fun getDefaultLaunchActivity(apkFile: File): String? = null
         override fun getArch(packageName: String): String = "ARCH_64_BIT"
         override fun getProperty(name: String): String? = null
+    }
+
+    /**
+     * Production user ROM capability model: `run-as` fails, the shell UID is out of the Apply
+     * Changes range, adbd cannot run as root and no non-interactive `su` exists.
+     */
+    private class UnavailableAdb : CompatibleAdb() {
+        val pushedPaths = mutableListOf<String>()
+        var requestMetadata: String? = null
+
+        override fun execAdbShellCmd(cmd: String): String {
+            return when {
+                cmd.startsWith("dumpsys package ") -> "dataDir=/data/user/0/com.example.app"
+                cmd.startsWith("id -u") -> "2000"
+                cmd.startsWith("id -Z") -> "u:r:shell:s0"
+                else -> ""
+            }
+        }
+
+        override fun execAdbShellScript(cmd: String): String = ""
+
+        override fun push(from: File, to: String): Boolean {
+            pushedPaths += to
+            if (to.endsWith("request.properties")) {
+                requestMetadata = from.readText()
+            }
+            return true
+        }
     }
 
     private class DirectAdb : CompatibleAdb() {

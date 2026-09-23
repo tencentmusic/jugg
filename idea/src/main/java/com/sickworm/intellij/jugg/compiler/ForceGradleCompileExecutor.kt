@@ -13,8 +13,10 @@ import com.sickworm.intellij.jugg.ide.JuggConfigurationType
 import com.sickworm.intellij.jugg.ide.JuggRunConfiguration
 import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
 import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
+import com.sickworm.intellij.jugg.ide.controlpanel.JuggEvent
 import com.sickworm.intellij.jugg.ide.logic.IJuggConfigurationRunner
 import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
+import com.sickworm.intellij.jugg.ide.ui.JuggControlPanelController
 import com.sickworm.intellij.jugg.compiler.context.CompileContextManager
 import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
 import kotlinx.coroutines.CoroutineScope
@@ -28,6 +30,7 @@ class IdeaForceGradleCompileHelper(
     private val taskRunnerManager: TaskRunnerManager,
     private val compileContextManager: CompileContextManager,
     private val logger: Logger,
+    private val userActions: JuggControlPanelController? = null,
 ) : ForceGradleCompileHelper() {
 
     override fun executeGradleCompile(
@@ -75,6 +78,7 @@ class IdeaForceGradleCompileHelper(
                     "Run failed", "No Jugg configuration found",
                     okButtonText = "Close"
                 )
+                userActions?.recordUserAction("closed", "Run failed")
                 return
             }
             content = "<html>Jugg is going to compile the project using gradle. Continue? <br>(will run ${runConfiguration.name})</html>"
@@ -95,6 +99,7 @@ class IdeaForceGradleCompileHelper(
             checkBoxText = "clean gradle cache on fallback",
             checkBoxSelectionAction = { isGradleCacheRefreshRequested = it },
         )
+        recordFallbackConfirm(confirmResult)
         when (confirmResult) {
             ConfirmResult.POSITIVE -> {
                 ForceGradleCompileHelper.isForceGradleCompileNextTime = true
@@ -210,6 +215,11 @@ class IdeaForceGradleCompileHelper(
             okButtonText = "Allow",
             cancelButtonText = "Deny",
         )
+        userActions?.recordUserAction(
+            action = if (confirmed) "confirmed" else "canceled",
+            title = "Confirm Remote SSH Info Access",
+            status = if (confirmed) JuggEvent.Status.SUCCEEDED else JuggEvent.Status.CANCELED,
+        )
         if (!confirmed) {
             return RemoteSshInfoResult(
                 approved = false,
@@ -277,6 +287,22 @@ class IdeaForceGradleCompileHelper(
             .map { it.trim() }
             .firstOrNull { it.startsWith("No device found.") }
             ?: "Gradle compile finished with status=$status."
+    }
+
+    private fun recordFallbackConfirm(result: ConfirmResult) {
+        val detail = when (result) {
+            ConfirmResult.POSITIVE -> "confirmed"
+            ConfirmResult.LEFT -> "clean and reinstall"
+            ConfirmResult.LINK_ACTION -> "export incremental apk"
+            ConfirmResult.CANCEL, ConfirmResult.NEGATIVE -> "canceled"
+            else -> result.name.lowercase()
+        }
+        val status = if (result == ConfirmResult.POSITIVE || result == ConfirmResult.LEFT) {
+            JuggEvent.Status.SUCCEEDED
+        } else {
+            JuggEvent.Status.CANCELED
+        }
+        userActions?.recordUserAction(detail, "Confirm fallback", status)
     }
 
 }

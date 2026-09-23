@@ -20,7 +20,7 @@ release 或其他启用 minify 的 APK 中，类名、方法名和字段名已�
 
 ## release 处理插在 D8 之后
 
-release 重新混淆属于源码增量编译的末端阶段。Kotlin 和 Java 编译仍先生成普通 class，D8 也仍先生成使用原始名称的 DEX；只有当前构建基线存在 `mapping.txt` 时，这些 DEX 才会先进入临时未混淆目录，再交给 release 处理：
+release 重新混淆属于源码增量编译的末端阶段。Kotlin 和 Java 编译仍先生成普通 class，D8 也仍先生成使用原始名称的 DEX；只有当前变体开启了 `minifyEnabled` 时，这些 DEX 才会先进入临时未混淆目录，再交给 release 处理：
 
 ```text
 Kotlin / Java 源码
@@ -36,12 +36,14 @@ Kotlin / Java 源码
 
 ## release 增量编译的触发判断
 
-Jugg 不根据 variant 名称决定是否执行 release 增量编译，而是检查当前 application 构建路径下是否存在 `mapping.txt`：
+Jugg 按当前选中变体的真实 `minifyEnabled` 配置判断是否执行 release 增量编译，该配置来自 Gradle 读取的变体信息，不是 variant 名称，也不是产物文件：
 
-- mapping 存在时，D8 先把未混淆 DEX 写入临时目录，再执行 mapping 重放、影响分析和 `_jugg_fix` 补偿。
-- mapping 不存在时，D8 直接把 DEX 写入最终输出目录，不创建重新混淆任务，也不读取 `usage.txt`。
+- 变体开启 minify 时，D8 先把未混淆 DEX 写入临时目录，再执行 mapping 重放、影响分析和 `_jugg_fix` 补偿。
+- 变体关闭 minify 时，D8 直接把 DEX 写入最终输出目录，不创建重新混淆任务，也不读取 `usage.txt`。
 
-普通 debug 构建通常不会生成 mapping，因此自然走第二条路径。这个判断也覆盖自定义变体：名称中包含 `release`、但没有 mapping 的变体不会进入重新混淆；名称是 debug、但确实启用了 minify 并生成 mapping 的变体仍会进入。variant 名称只描述构建用途，不是 release 增量编译的触发条件。
+普通 debug 构建默认不开启 minify，因此自然走第二条路径。这个判断也覆盖自定义变体：名称中包含 `release`、但没有开启 minify 的变体不会进入重新混淆；名称是 debug、但确实开启了 minify 的变体仍会进入。variant 名称只描述构建用途，不是 release 增量编译的触发条件。
+
+判断不依赖 `outputs/mapping/<variant>/mapping.txt` 是否存在。曾经为某个变体开启过 minify、之后又关闭时，这份文件会残留在工程里；按它判断会把未混淆的增量产物当成混淆产物处理。
 
 ## 未混淆 DEX 如何重新混淆
 
@@ -94,7 +96,7 @@ APK 索引返回的类名可能已经混淆，Jugg 会通过同一份 mapping �
 
 ## mapping 基线缺失或失配时
 
-`mapping.txt` 既是重新混淆输入，也是是否进入 release 处理的门禁。文件不存在时，源码编译链会按非 minified 路径直接输出 DEX，不会执行 mapping 重放；这份 DEX 不能可靠部署到已经混淆的 APK。只有完整 Gradle release 构建产出匹配的 mapping 和 APK 基线后，release 增量编译才能继续复用这组结果。
+变体开启 minify 后，`mapping.txt` 是必需的重新混淆输入。文件缺失时 Jugg 不会静默按非 minified 路径输出 DEX，而是打印告警并让本次增量编译失败，因为缺少 mapping 时产物命名空间一定与已安装 APK 不一致，继续部署只会得到一份运行时必然崩溃的产物。此时请执行一次完整 Gradle 构建，重新生成匹配的 mapping 和 APK 基线，然后再继续 release 增量编译。
 
 当前 mapping 与已安装 APK 不匹配时，即使名称转换本身成功，运行时仍可能出现 `NoClassDefFoundError`、`NoSuchMethodError`、`IllegalAccessError`、注解查找失败等问题。遇到这些问题时，请保留日志，提供可复现 Demo 并提交 issue。
 

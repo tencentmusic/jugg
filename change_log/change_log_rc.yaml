@@ -4,6 +4,22 @@
   updates:
     - run Jugg compile and deploy workflows from a standalone cross-platform CLI without Android Studio
 
+- version: 3.5.1
+  date: 2026.09.18
+  updates:
+    - "[feature] Support Android Studio Rabbit"
+    - "[feature] Support custom APK signing for system apps requiring remote signatures"
+    - "[feature] Support rootless compat deploy for system apps without root or run-as permissions"
+    - "[feature] Display fallback reasons and user actions in the Running Panel and logs"
+    - "[optimize] Support apps without a regular launcher activity by starting the home activity or stopping directly after deployment"
+    - "[optimize] Fix slow project info reading for projects with many modules and dynamic features introduced in 3.5.0"
+    - "[bugfix] Fix C++ incremental changes not taking effect or strip tool missing when Configuration on Demand is enabled"
+    - "[bugfix] Fix deploy failing with Java heap space after an incremental C++ build due to unstripped symbols"
+    - "[bugfix] Prevent unrelated file changes under Native or Flutter roots from falsely triggering external builds"
+    - "[bugfix] Fix relative CMake sources and shared native sources not being recognized as incremental inputs or outputs"
+    - "[bugfix] Fix incremental runtime crash when a variant disables minify but stale mapping files cause it to be misidentified as requiring obfuscation"
+    - "[bugfix] Fix NoSuchFieldError when external AAR dependencies access newly added resources after module resource updates"
+
 - version: 3.5.0
   date: 2026.09.12
   updates:

@@ -27,6 +27,7 @@ Manifest diff 见 `02_compile_manifest.md`；release 混淆见 `02_compile_obfus
 | `AndroidManifestCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/manifest/AndroidManifestCompiler.kt` | Manifest 增量合并，产物作为 `ArscCompiler` 输入 |
 | `DataBindingGenBaseClassesCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/databinding/DataBindingGenBaseClassesCompiler.kt` | layout 资源进入 aapt2 前生成 ViewBinding/DataBinding 基础类与 split XML |
 | `RJavaFixer` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/overlay/RJavaFixer.kt` | 修正 aapt2 生成的 `R.java`，供后续源码编译消费 |
+| `RDexForSubmoduleCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/overlay/RDexForSubmoduleCompiler.kt` | 从宿主本轮主 R `*.dex` 派生改包后的 R.dex：普通 module 按 module namespace 生成，临时模块按外部 AAR 的 R namespace 生成 |
 | `StyleableFileGenerator` / `ResGuardMappingFileGenerator` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/overlay/` | 为 `inclink --load` 提供 styleable 与资源混淆映射输入 |
 
 ---
@@ -43,6 +44,8 @@ Manifest diff 见 `02_compile_manifest.md`；release 混淆见 `02_compile_obfus
 | `styleables.txt` | `StyleableFileGenerator` | aapt2 `inclink --load` | `resources.arsc` 不保存 styleable；从目标 APK 相关模块的 R.jar / R.class 补回声明 |
 | `res-guard-mapping.txt` | `ResGuardMappingFileGenerator` | aapt2 `inclink --load` | release/AabResGuard 场景把原始资源名映射到基线 APK 使用的混淆名称；生成失败时 Best-effort 退化为无 mapping 加载 |
 | `resources.arsc` / compiled res / manifest | `ArscCompiler` | 部署数据转换 | `CompileOutput.apkPath` 绑定当前 APK；多 APK 归属不能丢 |
+| 外部 AAR R namespace | `GradleProjectInfoReader` 读取 `android-symbol-with-package-name`，回退 AAR Manifest `package` | `DependencyDiffResultHelper` -> Resource `CompileFile.extraInfo` | symbol 优先；两者都缺失且本轮需要外部 R.dex 时明确失败，不猜测 namespace |
+| 外部 namespace `R*.dex` | `RDexForSubmoduleCompiler` -> `DexPackageRenamer` | 部署数据转换 | 对宿主本轮全部主 R `*.dex` 改包；按 namespace 去重并排除 application 主 R package；沿用 temp module 的 base APK 路由 |
 | `targetApkPaths` | `CompileOutput` / 下游 deploy item | 部署分流 | class/dex 可归属多个 APK；资源/manifest 仍按 APK scoped 输出 |
 | `CompileFile.Type.ComposeResource` | `FileChangesHandler` | `ComposeResourceCompiler` | `baseDir` 是命中的默认或自定义 Compose resource 根目录，不能改成 module root |
 | `CompileFile.Type.ClasspathResource` | `JuggCompiler` | `AssetOverlayCompiler` | 表示必须保持 classpath 相对路径并写入 APK 根目录的 classpath resource；当前用于 legacy Compose resource |
@@ -137,6 +140,8 @@ Compose generated source 路径由 `ModuleBuildPathInfo.composeResourceGenerated
 - `ResourceCompiler` 对文件和目录输入统一按 resource root 分组：文件使用 `CompileFile.baseDir`，目录使用自身路径；每个 root 使用规范化绝对路径 MD5 建子输出目录。这样只编译本轮实际输入，同时避免同一模块多个 `res.srcDirs` 中 `values/strings.xml` 等同名文件生成同一个 flat 并相互覆盖。
 - 全量 Gradle 构建期间新观察到的 asset/resource 变更会按 Jugg 接收事件的时间保留到下一轮增量编译，不依赖文件自身 `lastModified`；复制工具可能保留旧时间戳，而对应 Gradle merge task 已在文件出现前完成。
 - DataBinding mapper 生成不在资源阶段完成；资源阶段只处理 base class / split XML，mapper 交给 `SourceCompiler` 在源码编译前处理。
+- 外部 AAR 的 `classes.jar` 不包含自身的 R class，它由宿主资源构建链路提供。外部 AAR 资源变化时，`RDexForSubmoduleCompiler` 按 `DependencyDiffResultHelper` 写入资源变更的 `r_package_name`，从宿主本轮主 R `*.dex` 派生该 namespace 下的 `R*.dex`；同一 namespace 只生成一组，application 主 R package 不重复生成。namespace 完全无法解析时抛出含 dependency name 的编译异常并提示执行完整 Gradle 构建，禁止猜测或静默成功。
+- 外部 AAR 的 R namespace 只作为依赖元数据（`LibraryDependency.rPackageName`）流转，不进入依赖文件集合、不参与 CRC diff，因此旧 project info 缓存补齐该字段不会被误判为依赖更新。symbol artifact 不可用时回退 AAR Manifest `package`，两者冲突时以 symbol 为准。
 - Compose preparation 由 Jugg 实现，不执行 Gradle Compose resource task；Kotlin 文件生成调用项目 Compose plugin JAR 的官方 generator API。当前兼容 legacy 单任务 API，以及带 converter/accessor/collector 的现代 API；API 缺失时按结构化原因回退 unsupported。
 - legacy Android runtime 通过 classloader 读取 `values/...`、`drawable/...` 等 APK 根目录资源，增量 overlay 必须使用显式的 `CompileFile.Type.ClasspathResource` 保持同名根路径；不能套用普通 Android asset 的 `assets/` 前缀。现代 Compose resource 继续使用 `CompileFile.Type.Asset` 和 Gradle metadata 提供的 asset relative path。
 - Compose resource compile 只在本轮实际存在非空部署数据时触发进程重启；普通 Android asset 不因位于 `assets/**` 自动升级为 App restart。
@@ -146,6 +151,8 @@ Compose generated source 路径由 `ModuleBuildPathInfo.composeResourceGenerated
 ### 5.1 测试落点
 
 - L1：`ComposeValueResourceConverterTest`、`ComposeResourceScannerTest`、`ComposeResourceGeneratorBridgeTest` 验证 CVR/扫描结果、缺失根、diagnostic 回映射、source-set 身份和官方 golden Kotlin 输出。
+- L1（外部 AAR R namespace）：`RDexForSubmoduleCompilerTest` 验证多 namespace 生成、相同 namespace 去重、application namespace 排除、namespace 缺失明确失败与普通 feature/project module 目标 APK 回归；`DependencyDiffResultTest` 验证 symbol 优先、Manifest 回退、两者缺失返回 null 以及 metadata 补全不触发依赖更新。
+- L2（外部 AAR R namespace）：`JuggCompilerTest.external AAR resource update generates library namespace R dex` 覆盖外部 AAR 资源变化后 staging 中出现 namespace 下的 `R.dex` / `R$string.dex`，且 `R$string` 携带本轮新增字段。
 - L2：`FileChangesHandlerTest` 验证默认/自定义/unsupported/首次创建目录映射为 `ComposeResource` 且保留正确 `baseDir`，并覆盖传统/集中式 build directory 的文件与目录事件过滤；`KmpComposeFlowReproTest` 验证 Kotlin 1.9/2.1/2.3 对应 Compose generator 的真实 Gradle metadata、编译、D8、staging 与 generated accessor 回写，并覆盖资源与 Gradle generated accessor 同轮上报时不产生重复 class。Kotlin 1.7 demo profile 保留用于非 Compose Multiplatform 回归，并显式排除 `kmpCompose`。
 - L3：`KmpComposeDeployFlowTest` 通过代表性 Compose profile 的真实 demo full install、基线资源缓存预热、仅资源增量 compile/deploy/run 和 logcat 覆盖进程重启后的 accessor 实际消费、目标 APK 与无增量 Gradle Compose task；多版本产物路径矩阵由 L2 覆盖，不在 L3 重复展开。
 
@@ -172,6 +179,8 @@ Android Studio E2E 应分别验证三层证据：首次 Jugg Run 完成 Gradle b
 | manifest 无变更却触发重打包 | `ResourceOverlayCompiler.filterResources(...)`：确认 `isNeedOutputManifest=false` 时根 manifest 是否被过滤 |
 | layout 相关 generated source 未参与源码编译 | `ResourceCompiler.processViewBinding()` 和 `SourceCompiler.prepareSourceCompile()` |
 | R 引用异常 | `ArscCompiler.incLinkCompile()` 生成的 `R.java` 与 `RJavaFixer.fixIfNeeded()` |
+| 外部 AAR 新增资源后运行时 `NoSuchFieldError` / 连带 `NoClassDefFoundError` | `DependencyDiffResultHelper.resolveRPackageName()` 与 `RDexForSubmoduleCompiler.doTempModuleCompile()`：确认该资源变更是否带 `r_package_name`、宿主主 R.dex 是否本轮更新、外部 namespace 下 `R*.dex` 是否生成且包含新增字段 |
+| 增量编译报 “Can not resolve R package name for external dependencies” | symbol artifact 与 AAR Manifest `package` 都不可用；按提示执行完整 Gradle 构建刷新基线 |
 
 ---
 

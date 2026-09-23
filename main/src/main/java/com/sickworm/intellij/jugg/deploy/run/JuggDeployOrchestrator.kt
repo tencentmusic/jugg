@@ -16,11 +16,14 @@ import com.sickworm.intellij.jugg.deploy.JuggJvmtiAgentManagerHelper
 import com.sickworm.intellij.jugg.deploy.SliceDeployHelper
 import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlaySwapTransport
+import com.sickworm.intellij.jugg.deploy.direct.RootlessCompatDeployArchive
 import com.sickworm.intellij.jugg.deploy.flutter.FlutterJitCacheInvalidator
 import com.sickworm.intellij.jugg.deploy.hotreload.DirectAppSandboxDeployTransport
+import com.sickworm.intellij.jugg.deploy.hotreload.RootlessCompatImportConfirmer
 import com.sickworm.intellij.jugg.deploy.run.applychanges.AndroidDeployType
 import com.sickworm.intellij.jugg.deploy.run.applychanges.JuggDeployTask
 import com.sickworm.intellij.jugg.deploy.run.flow.DeployRetryHandler
+import com.sickworm.intellij.jugg.deploy.run.utils.AdbLogWrapper
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.project.change.ChangedFile
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
@@ -199,6 +202,7 @@ class JuggDeployOrchestrator(
             } else {
                 deployTargetManager.restartApp(request.device)
             }
+            confirmRootlessCompatImports(launchContext)
             if (isNeedSecondComposeResourceRestart) {
                 composeResourceRestartHelper.waitUntilTransformCacheReady(
                     launchContext.getAppSandboxExecutor(deployTargetManager.getPackageName(), logger),
@@ -218,6 +222,43 @@ class JuggDeployOrchestrator(
             logger.debug("App foreground, no need to restart app.")
         }
         return null
+    }
+
+    private fun confirmRootlessCompatImports(launchContext: LaunchContext) {
+        val pendingList = launchContext.rootlessCompatPending
+        if (pendingList.isEmpty()) return
+        val adb = launchContext.deviceAdb
+        val adbLogger = AdbLogWrapper(logger)
+        pendingList.forEach { pending ->
+            logger.debug("Waiting for the app to import rootless compat request ${pending.requestId}.")
+            val result = RootlessCompatImportConfirmer(adb, logger).await(pending.requestId)
+            if (result == null || !result.success) {
+                val detail = result?.let { "${it.stage}: ${it.detail}".trim() }.orEmpty()
+                    .ifEmpty { "the app did not report the import result" }
+                throw IllegalStateException(
+                    "Rootless compat deploy was not confirmed by ${pending.packageName} " +
+                            "(${pending.requestId}): $detail",
+                )
+            }
+            logger.info("Rootless compat deploy confirmed: package=${pending.packageName}, " +
+                    "requestId=${pending.requestId}, overlayId=${pending.overlayId.sha}")
+            deploymentService.storeEntry(
+                adb.serial,
+                pending.packageName,
+                launchContext.applyChangesExecutor.parseApks(pending.apkPaths),
+                pending.overlayId,
+                launchContext.applyChangesExecutor,
+                adbLogger,
+            )
+            runCatching {
+                adb.execAdbShellCmd(
+                    "rm -rf ${RootlessCompatDeployArchive.requestDir(pending.packageName, pending.requestId)}",
+                )
+            }.onFailure {
+                logger.debug("Failed to clean the rootless compat request of ${pending.requestId}", it)
+            }
+        }
+        pendingList.clear()
     }
 
     private fun checkJvmti(

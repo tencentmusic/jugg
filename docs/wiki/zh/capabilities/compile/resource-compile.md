@@ -31,6 +31,7 @@ Jugg 支持增量处理 Android `res/` 和 `assets/`，并衔接 AndroidManifest
 |---|---|---|
 | 编译后资源与 `resources.arsc` | Android `res/` 增量 link | 作为资源 overlay 进入部署 |
 | `R.java`，以及部分 R 引用场景需要的 `R.dex` | 资源 ID 或符号发生变化 | `R.java` 继续进入源码编译，生成的 DEX 随资源产物部署 |
+| 外部 AAR 自身 namespace 的 `R*.dex` | 外部 AAR 的资源发生变化 | 从宿主主 R 派生该 namespace 的 R 声明并部署，使 AAR 已有业务代码能读到新增资源字段 |
 | ViewBinding/DataBinding 生成源码 | 绑定 layout 变化 | 继续进入 Java/Kotlin 源码编译 |
 | asset overlay | `assets/` 变化 | 不经过 `aapt2`，按目标 APK 部署 |
 | 更新后的 Manifest | Manifest 存在真实增量变化 | 写入目标 APK，重签名并安装 |
@@ -58,6 +59,7 @@ assets 变化
 - Manifest 删除节点、删除属性或依赖完整 merge 的 `tools:*` 操作不会产生对应的移除或合并结果，设备仍使用原有 merged manifest 内容。具体表现见 [AndroidManifest 编译](./manifest.md)。
 - 修改 source set、variant、资源目录、资源生成逻辑或资源混淆配置时，工程模型变化应先完成 Gradle Sync，再为目标变体执行完整 Gradle 构建，建立新的 APK 和资源表基线。
 - 新增或修改 styleable 依赖最近一次构建提供的 R 声明，资源混淆依赖与当前 APK 匹配的 mapping；基线缺失或不匹配时使用 Gradle 构建刷新。
+- 外部 AAR 资源变化时，Jugg 会为该依赖的 namespace 额外生成一份 `R*.dex`。namespace 优先取自 Gradle 的 `package-aware-r.txt`，缺失时回退 AAR Manifest 的 `package`；两者都拿不到时不会猜测，本轮增量编译会直接失败并提示执行完整 Gradle 构建。
 - Compose Multiplatform 资源不经过 Android `aapt2`，也不会按本页的 Android `res/` 规则处理。
 - 首次部署资源 overlay 时，Jugg 可能补齐基线中的资源文件，因此部署文件数量可能多于本轮直接修改的文件。
 

@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.deploy
 
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.ide.logic.TestModeManager
 import com.sickworm.intellij.jugg.logger.getInstance
 
 /**
@@ -62,6 +63,9 @@ class AppSandboxExecutor(
 
     val applyChangesCapability: ApplyChangesCapability
         get() {
+            if (TestModeManager.isForceSystemAppRootlessMode()) {
+                return ApplyChangesCapability.INCOMPATIBLE
+            }
             val uid = runAsUid
             return if (uid != null && uid in AS_DEPLOYER_UID_RANGE) {
                 ApplyChangesCapability.COMPATIBLE
@@ -151,6 +155,9 @@ class AppSandboxExecutor(
     }
 
     private fun resolve(): Resolution {
+        if (TestModeManager.isForceSystemAppRootlessMode()) {
+            return unavailable("forced rootless compat E2E")
+        }
         val uid = runAsUid
         if (uid != null && uid in AS_DEPLOYER_UID_RANGE) {
             logger.debug("Apply Changes run-as capability compatible for $packageName: uid=$uid")

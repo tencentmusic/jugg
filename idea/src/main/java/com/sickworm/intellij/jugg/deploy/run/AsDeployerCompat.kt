@@ -25,6 +25,10 @@ object AsDeployerCompat : IAsDeployerCompat {
      */
     private val compatImplList = listOf(
         CompatImpl(
+            IdeVersion("Android Studio Rabbit", "AI", "262.9437.185", "262.9437.185"),
+            lazy { RabbitAsDeployerCompat() }
+        ),
+        CompatImpl(
             IdeVersion("Android Studio Quail", "AI", "261.23567.138", "261.23567.138"),
             lazy { QuailAsDeployerCompat() }
         ),

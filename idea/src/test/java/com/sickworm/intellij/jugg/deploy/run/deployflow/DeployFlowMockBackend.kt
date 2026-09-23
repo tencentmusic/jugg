@@ -48,6 +48,7 @@ object DeployFlowMockBackend : DeployFlowDeviceBackend {
             DeployFlowCaseId.DF_L2_010 -> buildDfL2010()
             DeployFlowCaseId.DF_L2_011 -> buildDfL2011()
             DeployFlowCaseId.DF_L2_012 -> buildDfL2012()
+            DeployFlowCaseId.DF_L2_013 -> buildDfL2013()
         }
     }
 
@@ -348,6 +349,32 @@ object DeployFlowMockBackend : DeployFlowDeviceBackend {
             onInstall = null,
             deployData = DeployFlowTestSupport.fullResourceDeployData(overlayCount = 3),
         )
+    }
+
+    private fun buildDfL2013(): DeployFlowFixture {
+        val fixture = buildMatchedNotDeployableFixture(
+            caseId = DeployFlowCaseId.DF_L2_013,
+            recoverRunHost = null,
+            afterRecoverSuccess = null,
+            optimisticSwapPolicy = DeployFlowAsDeployerCompatBoundary.OptimisticSwapPolicy.FORBIDDEN,
+            onInstall = null,
+        )
+        val normalData = DeployFlowTestSupport.incrementalDeployData()
+        org.mockito.Mockito.`when`(
+            fixture.deployFileManager.getDeployData(org.mockito.Mockito.anyBoolean(), org.mockito.Mockito.anyBoolean()),
+        ).thenReturn(normalData)
+        org.mockito.Mockito.`when`(
+            fixture.deployFileManager.appendCompatDeployFiles(
+                org.mockito.kotlin.any<com.sickworm.intellij.jugg.deploy.run.JuggDeployData>(),
+            ),
+        )
+            .thenAnswer { DeployFlowTestSupport.compatDeployData(it.getArgument(0)) }
+        org.mockito.Mockito.doAnswer {
+            fixture.virtualDevice.onAppRestart()
+            fixture.virtualDevice.runRootlessCompatImport()
+            true
+        }.`when`(fixture.deployTargetManager).restartApp(fixture.device)
+        return fixture
     }
 
     private fun buildDeployableApplyChangesFixture(

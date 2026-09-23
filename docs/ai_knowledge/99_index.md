@@ -34,6 +34,7 @@
 | 自定义编译器/编译交互协议 | `98_code_map.md`, `02_compile_custom_ui.md` | `compiler/custom/*`, `compiler/ui/*` |
 | 部署失败/热更策略 | `98_code_map.md`, `03_deploy_core.md`, `03_deploy_complete.md`, `06_testing.md` §7.1 | `main/.../JuggDeployerHelper.kt`, `idea/.../manager/TopLevelFlowTest` |
 | **系统应用 / priv-app / FLAG_SYSTEM / 平台签名 / 自定义 APK 安装脚本 / 首次装到 /system** | `03_deploy_system_app.md`, `03_deploy_core.md` | `CustomApkInstallScriptRunner`, `JuggDeployer.install()`, `DirectOverlayWriter` |
+| **自定义 APK 签名脚本 / APK 改写后改用服务器签名 / 平台证书签名** | `03_deploy_system_app.md` §4.2, `03_deploy_core.md` §4.2, `05_utilities.md` | `CustomApkSignScriptRunner`, `ApkFileModifier.insertAndResign()`, `IncrementalDeployHelper.updateApk()` |
 | 常量变化重编译异常（const ref） | `98_code_map.md`, `03_deploy_const_ref.md`, `02_compile_core.md` | `main/.../compiler/constref/*`, `deploy/DeployFileManager.kt`, `deploy/data/DeployDataGenerator.kt` |
 | 影响分析/类变更传播 | `98_code_map.md`, `03_deploy_data_generator.md` | `deploy/data/DeployDataGenerator.kt` |
 | **EffectedType 类型/merge 优先级/minify 移除检测** | `03_deploy_data_generator.md` §5.4-§5.7 | `EffectedClassNode.kt`, `DeployDataGenerator.kt`, `DeployDataDatabaseSqLiteHelper.kt`, `CompileEffectAnalyzer.kt` |
@@ -77,7 +78,7 @@
 | `03_deploy_const_ref.md` | 常量引用影响分析与常量重编译排查手册 |
 | `03_deploy_data_generator.md` | 影响分析与部署数据生成 |
 | `03_deploy_complete.md` | 从 Run 到部署完成的端到端流程 |
-| `03_deploy_system_app.md` | 系统应用/特权应用：默认 installer 与自定义 APK 安装脚本的边界，路径、白名单、平台证书与排查入口 |
+| `03_deploy_system_app.md` | 系统应用/特权应用：默认 installer、自定义 APK 安装脚本与自定义 APK 签名脚本的边界，路径、白名单、平台证书与排查入口 |
 | `03_runtime_jvmti.md` | JVMTI agent 与部署协同 |
 | `04_engineering_project.md` | 项目模型与 Gradle 信息读取 |
 | `04_engineering_ide.md` | IDE 生命周期、运行配置、任务调度 |

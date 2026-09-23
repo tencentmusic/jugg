@@ -273,6 +273,8 @@ jugg restart
 
 CLI 当前不暴露 MCP 的 `waitAppReadyAfterSuccess` 参数；省略时按 MCP 默认值 `false`，即只等待 restart 命令执行完成，不额外等待 App ready。
 
+启动目标按 launch Activity、HOME Activity 的顺序降级；所有 APK 都没有 launch/HOME Activity 时只执行 `am force-stop <package>`，不启动其它 Activity。CLI 不等待 App ready，因此该情况仍按成功返回。规则细节见 `03_deploy_core.md` §4.4。
+
 ### `instrument`
 
 ```text

@@ -35,6 +35,8 @@ Start Run
 
 After a successful Gradle build, Jugg uses the new APK, classpath, mapping, and resource artifacts as the starting point for later incremental work. The next small change still attempts incremental compilation first.
 
+Fallback writes `Fallback to gradle compile. Reason: ...` to the Run window, `compile_latest.log`, and Control Panel Logs.
+
 ## Boundaries
 
 - Incremental compilation first performs limited retries for known recoverable input problems. If regular source or resource errors remain after retry, the current run ends and does not use Gradle to hide the original error.

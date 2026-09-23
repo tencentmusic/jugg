@@ -1,6 +1,6 @@
 # 部署系统：核心部署机制
 
-> 最后核对：2026-09-12
+> 最后核对：2026-09-23
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -30,6 +30,7 @@
 | `JuggDeployTask` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/applychanges/JuggDeployTask.kt` | 单设备单轮 deploy task。按 `applicationId` 分组，把全量 `JuggDeployData` 裁成 APK-scoped data 后调用 `JuggDeployer`。 |
 | `JuggDeployer` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/applychanges/JuggDeployer.kt` | 通过 `IApplyChangesExecutor` 封装 install、code swap、full swap、deployment cache、overlay id 和 Direct Overlay transport。 |
 | `CustomApkInstallScriptRunner` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/applychanges/CustomApkInstallScriptRunner.kt` | 在本地工程根目录执行当前 Run Configuration 的自定义普通 App APK 安装脚本，转发输出、响应取消并校验包与 APK checksum。 |
+| `CustomApkSignScriptRunner` | `main/src/main/java/com/sickworm/intellij/jugg/apk/CustomApkSignScriptRunner.kt` | 在本地工程根目录执行当前 Run Configuration 的自定义 APK 签名脚本，把待签名临时 APK 的绝对路径作为最后一个参数传入。 |
 | `DeployFileManager` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/DeployFileManager.kt` | 部署文件 facade。维护 changed/compiled/staging/deployed 状态，生成 `JuggDeployData`，reinstall 后 reset。 |
 | `DeployDataPlanner` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/DeployDataPlanner.kt` | 从 staging + history 规划部署数据，处理 dex merge 与 compat deploy 组装。 |
 | `JuggDeployData` / `DeployItem` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployData.kt` | 最终下发设备的部署数据模型，包含 deploy type、APK 归属、restart 判断、split/filter，以及本轮 Flutter JIT runtime 变化（`flutterJitRuntimeFiles`）。 |
@@ -37,7 +38,10 @@
 | `DirectOverlaySwapTransport` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/direct/DirectOverlaySwapTransport.kt` | Direct Overlay swap transport。只替换 Apply Changes 的 overlay update 动作，不接管部署生命周期。 |
 | `AppSandboxExecutor` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/AppSandboxExecutor.kt` | 统一 app 私有目录命令；严格探测 Apply Changes 的 `run-as`、UID 与 SELinux label 前提，并在不兼容时固定普通 shell、root adbd 或非交互 `su` 模式与真实 `dataDir`。 |
 | `DirectOverlayWriter` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/direct/DirectOverlayWriter.kt` | 通过 app sandbox 原子写入设备 `code_cache/.overlay`，新 overlay id 最后提交。 |
-| `DirectAppSandboxDeployTransport` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/hotreload/DirectAppSandboxDeployTransport.kt` | 在 AS deployer 前接管 `run-as` 不兼容应用的增量 overlay payload，组合 Direct Overlay、Jugg JVMTI redefine 与重启降级。 |
+| `DirectAppSandboxDeployTransport` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/hotreload/DirectAppSandboxDeployTransport.kt` | 在 AS deployer 前接管 `run-as` 不兼容应用的增量 overlay payload，组合 Direct Overlay、Jugg JVMTI redefine 与重启降级；sandbox 完全不可用时请求 compat redeploy 或暂存 rootless 请求。 |
+| `RootlessCompatDeployStaging` / `RootlessCompatImportConfirmer` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/hotreload/RootlessCompatDeployStaging.kt` | 无 sandbox 时暂存兼容 payload 到 App 专属 external files 目录，并按 requestId 等待 App 导入结果。 |
+| `RootlessCompatDeployArchive` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/direct/RootlessCompatDeployArchive.kt` | 定义 rootless pending archive、请求元数据、payload SHA-256 与导入结果协议。 |
+| `RootlessCompatDeployImporter` | `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/hotfix/RootlessCompatDeployImporter.java` | App 启动早期导入暂存请求，私有 staging 后原子提交 `code_cache/.overlay`。 |
 | `DirectOverlayStateChecker` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/direct/DirectOverlayStateChecker.kt` | recover 校验 history/cache/device 三路一致；swap 前只校验 device overlay。 |
 | `DeployHistoryManager` / `JuggDeploymentService` / `JuggDeploymentCacheStore` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/DeployHistoryManager.kt`, `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeploymentService.kt`, `main/src/main/java/com/sickworm/intellij/jugg/deploy/cache/JuggDeploymentCacheStore.kt` | 两套 checkpoint 来源：Jugg 自有部署历史与项目级 deployment cache。Service 根据 runtime owner、磁盘 generation 或 bound executor 变化失效 Runtime 内存对象，并用当前 Apply Changes executor 从 snapshot 恢复。 |
 
@@ -141,6 +145,8 @@ JuggDeployerHelper.deploy(isInstall=false)
 
 兼容部署的 `resource.ap_` 保留 JVM 14+ ZipFS 快速更新，但每次生成或增量修改都在同目录唯一临时文件上完成，ZipFS 关闭成功后才替换正式文件。这样异常后不会再次打开同一个残留 ZipFS URI，也不会把半生成文件发布为缓存。首次生成只在最终返回部署数据时读取一次完整 APK 字节。
 
+APK 更新统一由 `IncrementalDeployHelper.updateApk()` 处理。配置 `DeployOptions.customApkSignScript` 后，`ApkFileModifier` 先在临时副本中插入文件并 zipalign，再由 `CustomApkSignScriptRunner` 调用脚本原地覆盖临时 APK，随后统一执行 `apksigner verify`，成功后才原子替换原 APK。脚本非零退出、取消或校验失败都会终止本次更新且保留原 APK，同一次更新不会回退到本地 keystore 签名。
+
 ### 4.3 runTask 内部决策点
 
 ```text
@@ -230,6 +236,8 @@ timeout 规则：overlay 数超过首片阈值时先降低 slice size；否则�
 `JuggDeployerHelper` 先用可回滚写入和唯一成功标记判断 Android Studio Deployer 的 `run-as` 前提；只有 UID 位于 `10000..19999`，且 `run-as` 新建探针的 SELinux context 与既有 `code_cache` context 一致，才视为兼容。无成功标记、UID 越界或 context 不一致时，`JuggDeployer.optimisticSwap()` 在普通 Direct Overlay 和 AS deployer 之前进入 `DirectAppSandboxDeployTransport`。该路径不受“设备是否 ready”或 Direct Overlay 用户开关限制，因为它是 Apply Changes 前提不成立时的 增量 overlay 替代通道。
 
 同一轮部署从 `LaunchContext` 取得并复用一个已解析的 `AppSandboxExecutor`。它在 PackageManager 的真实 `dataDir` 依次探测普通 shell、最多一次 adb root 并等待同一 serial 重连、非交互 `su 0`/`su -c`/`su sh -c`；选定后 Direct Overlay、startup agent 与 Hot Reload 不再重新判断模式。transport 先准备 Jugg startup agent 并提交 Direct Overlay。新增 class 按官方 Apply Changes 语义将本轮 DEX 转为 in-memory dex elements 并追加到 Application ClassLoader，纯方法体变化对已加载 class 执行 redefine；Android 11+ 的普通资源/asset 或代码与资源混合变化使用同一 dynamic 请求刷新宿主 Resources，并按上层语义重建 Activity。请求成功时保留进程，attach、资源刷新或其他可恢复失败通过 `Result.needsRestart` 让 `JuggDeployerHelper` 重启应用。结构变化、APK 根目录 overlay、兼容部署和 APK 更新保持原有重启或安装路径。
+
+普通 shell、root adbd 和非交互 `su` 全部不可用时，非兼容 payload 请求一次 compat redeploy；兼容 payload 由 `RootlessCompatDeployStaging` 暂存到 `/sdcard/Android/data/<package>/files/jugg/rootless-compat/<requestId>/`。App 在下次启动时由 `RootlessCompatDeployImporter` 从 `Context.getExternalFilesDir(null)` 导入私有 `code_cache/.overlay`，Host 只有收到匹配 requestId 的成功结果后才提交 deployment cache、deploy history 和文件状态。
 
 Direct 权限模式创建的文件可能只有静态 `app_data_file:s0`，不能直接复用 `restorecon -RF code_cache`：它会丢失应用目录的动态 MCS categories，并使 `platform_app` 无法执行 JVMTI agent。executor 先把普通 overlay/request 文件修正为既有 `code_cache` 的完整 context，再把其中的 `.so` 标记为 Android appdomain 允许执行的 `apk_data_file:s0`；修复脚本输出通过内部边界标记与业务命令结果隔离，避免 `restorecon`/`chcon` 的成功诊断污染 `success` 协议。
 

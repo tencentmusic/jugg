@@ -17,9 +17,11 @@ import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
 import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
 import com.sickworm.intellij.jugg.ide.bean.IProcessHandler
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
+import com.sickworm.intellij.jugg.ide.controlpanel.JuggEvent
 import com.sickworm.intellij.jugg.ide.logic.JuggRunningTask
 import com.sickworm.intellij.jugg.ide.ui.BuildChangesConfirmDialog
 import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
+import com.sickworm.intellij.jugg.ide.ui.JuggControlPanelController
 import com.sickworm.intellij.jugg.ide.ui.TooManyChangesConfirmDialog
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.project.dependency.DependencyChangeDialogHelper
@@ -42,6 +44,7 @@ open class JuggCompileUiHandler(
     override val targetDeviceSerial: String? = null,
     isGradleCacheRefreshRequested: Boolean = false,
     private val onEndListener: ((RunResult) -> Unit)? = null,
+    private val userActions: JuggControlPanelController? = null,
 ) : CompileUiHandler {
 
     private val logger = logger.getInstance("JuggCompileUiHandler")
@@ -67,14 +70,17 @@ open class JuggCompileUiHandler(
         if (testEventSinkFactory != null) {
             return ConfirmResult.NEGATIVE
         }
-        return CommonConfirmDialog.showAndGetOrCancel(
-            title = "Confirm Fallback to Gradle",
-            content = "No file changes, do you want to fallback to gradle?",
-            okButtonText = "Fallback to Gradle",
-            negativeButtonText = "Don't fallback",
-            leftButtonText = "Cancel",
-            checkBoxText = "clean gradle cache on fallback",
-            checkBoxSelectionAction = { isGradleCacheRefreshRequested = it },
+        return recordConfirm(
+            "Confirm Fallback to Gradle",
+            CommonConfirmDialog.showAndGetOrCancel(
+                title = "Confirm Fallback to Gradle",
+                content = "No file changes, do you want to fallback to gradle?",
+                okButtonText = "Fallback to Gradle",
+                negativeButtonText = "Don't fallback",
+                leftButtonText = "Cancel",
+                checkBoxText = "clean gradle cache on fallback",
+                checkBoxSelectionAction = { isGradleCacheRefreshRequested = it },
+            ),
         )
     }
 
@@ -82,25 +88,31 @@ open class JuggCompileUiHandler(
         if (isRpcMode) {
             return BuildChangesConfirmResult.FALLBACK
         }
-        return BuildChangesConfirmDialog.showAndGetResult(project, changedBuildFiles)
+        return recordConfirm("Build file changes", BuildChangesConfirmDialog.showAndGetResult(project, changedBuildFiles))
     }
 
     override fun confirmDependencyChanges(runResult: DependencyDiffResultSet?): ConfirmResult {
         if (isRpcMode) {
             return ConfirmResult.POSITIVE
         }
-        return DependencyChangeDialogHelper(logger).showChangeConfirmDialog(runResult?.diffResult, false)
+        return recordConfirm(
+            "Dependency changes",
+            DependencyChangeDialogHelper(logger).showChangeConfirmDialog(runResult?.diffResult, false),
+        )
     }
 
     override fun confirmEmbeddedToApk(): ConfirmResult {
         if (isRpcMode) {
             return ConfirmResult.POSITIVE
         }
-        return CommonConfirmDialog.showAndGetOrCancel(
+        return recordConfirm(
             "Embedded to APK is Enabled",
-            "<html>Embedded to APK is enabled, which will cost more time to deploy.<br>Do you still need it?</html>",
-            okButtonText = "Yes, embed to APK",
-            negativeButtonText = "No, disable embedded mode",
+            CommonConfirmDialog.showAndGetOrCancel(
+                "Embedded to APK is Enabled",
+                "<html>Embedded to APK is enabled, which will cost more time to deploy.<br>Do you still need it?</html>",
+                okButtonText = "Yes, embed to APK",
+                negativeButtonText = "No, disable embedded mode",
+            ),
         )
     }
 
@@ -108,7 +120,7 @@ open class JuggCompileUiHandler(
         if (isRpcMode) {
             return TooManyChangesConfirmResult.FALLBACK
         }
-        return TooManyChangesConfirmDialog.showAndGetResult(info)
+        return recordConfirm("Too many changes", TooManyChangesConfirmDialog.showAndGetResult(info))
     }
 
     override fun updateIndicatorText(text: String) {
@@ -124,7 +136,7 @@ open class JuggCompileUiHandler(
     }
 
     override fun notifyFallbackByBalloon(reason: String) {
-        JuggRunningTask.notifyFallback(project, reason)
+        JuggRunningTask.notifyFallback(project, reason, logger)
     }
 
     override fun ensureRunWindowCreated() {
@@ -185,5 +197,53 @@ open class JuggCompileUiHandler(
 
     override fun cancel() {
         return processHandler.detachProcess()
+    }
+
+    private fun recordConfirm(title: String, result: ConfirmResult): ConfirmResult {
+        val detail = when (result) {
+            ConfirmResult.POSITIVE -> "confirmed"
+            ConfirmResult.NEGATIVE -> "declined"
+            ConfirmResult.CANCEL, ConfirmResult.LEFT -> "canceled"
+            ConfirmResult.LINK_ACTION -> "link action"
+            else -> result.name.lowercase()
+        }
+        val status = if (result.isCanceled || result == ConfirmResult.NEGATIVE) {
+            JuggEvent.Status.CANCELED
+        } else {
+            JuggEvent.Status.SUCCEEDED
+        }
+        userActions?.recordUserAction(detail, title, status)
+        return result
+    }
+
+    private fun recordConfirm(title: String, result: BuildChangesConfirmResult): BuildChangesConfirmResult {
+        val detail = when (result) {
+            BuildChangesConfirmResult.FIND_CHANGE -> "find change"
+            BuildChangesConfirmResult.IGNORE_CHANGE -> "ignore"
+            BuildChangesConfirmResult.FALLBACK -> "fallback"
+            BuildChangesConfirmResult.CANCEL -> "canceled"
+        }
+        val status = if (result == BuildChangesConfirmResult.CANCEL) {
+            JuggEvent.Status.CANCELED
+        } else {
+            JuggEvent.Status.SUCCEEDED
+        }
+        userActions?.recordUserAction(detail, title, status)
+        return result
+    }
+
+    private fun recordConfirm(title: String, result: TooManyChangesConfirmResult): TooManyChangesConfirmResult {
+        val detail = when (result) {
+            TooManyChangesConfirmResult.FALLBACK -> "fallback"
+            TooManyChangesConfirmResult.CONTINUE -> "continue"
+            TooManyChangesConfirmResult.CANCEL -> "canceled"
+        }
+        val status = if (result == TooManyChangesConfirmResult.CANCEL) {
+            JuggEvent.Status.CANCELED
+        } else {
+            JuggEvent.Status.SUCCEEDED
+        }
+        userActions?.recordUserAction(detail, title, status)
+        return result
     }
 }

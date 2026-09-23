@@ -4,6 +4,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.apk.ApkFileModifier
 import com.sickworm.intellij.jugg.apk.ApkFileUnit
 import com.sickworm.intellij.jugg.apk.ApkInfo
+import com.sickworm.intellij.jugg.apk.CustomApkSignScriptRunner
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.deploy.toDeployItem
 import com.sickworm.intellij.jugg.JuggException
@@ -16,9 +17,15 @@ import java.io.File
 class IncrementalDeployHelper(private val context: ICompileContext, private val logger: Logger) {
 
     /**
+     * @param customApkSignScript project command replacing the default keystore signing step, empty to keep the default
      * @return <isSuccess, failedReason>
      */
-    fun updateApk(apkInfos: List<ApkInfo>, allDeployItems: List<DeployItem>): Pair<Boolean, String> {
+    fun updateApk(
+        apkInfos: List<ApkInfo>,
+        allDeployItems: List<DeployItem>,
+        customApkSignScript: String = "",
+        compileUiHandler: CompileUiHandler = CompileUiHandler.DEFAULT,
+    ): Pair<Boolean, String> {
         val baseApk = apkInfos.firstOrNull { it.baseApk != null }?.baseApk?.apkFile
         val allApks = apkInfos.flatMap { it.files }.map { it.apkFile }
         if (baseApk == null) {
@@ -26,13 +33,18 @@ class IncrementalDeployHelper(private val context: ICompileContext, private val 
         }
 
         val signingConfig = context.signingConfig
-        if (signingConfig == null || signingConfig.isInvalid) {
+        val signScriptRunner = customApkSignScript.takeIf { it.isNotBlank() }?.let {
+            CustomApkSignScriptRunner(it, context.projectDir, context.cmdCompileEnv, compileUiHandler, logger)
+        }
+        if (signScriptRunner == null && (signingConfig == null || signingConfig.isInvalid)) {
             return false to "Unable to update APK, signing config not found."
         }
 
         allApks.forEach { apkFile ->
             val isBaseApk = apkFile == baseApk
-            val modifier = ApkFileModifier(apkFile, signingConfig, context.androidHome, logger, context.cmdCompileEnv)
+            val modifier = ApkFileModifier(
+                apkFile, signingConfig, context.androidHome, logger, context.cmdCompileEnv, signScriptRunner,
+            )
             val deployItems = mutableListOf<DeployItem>()
             allDeployItems.forEach {
                 if (it.belongsTo(apkFile.path) || (isBaseApk && it.apkPath == DeployItem.FLAG_BASE_APK)) {

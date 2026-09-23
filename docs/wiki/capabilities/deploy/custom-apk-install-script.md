@@ -65,14 +65,17 @@ Jugg only invokes the script and verifies the installation result. It does not p
 
 - `adb root`, `adb remount`, or writing the system partition.
 - Selecting `/system/app` or `/system/priv-app`.
-- Platform signing, shared UID, or privileged-permission allowlists.
+- Shared UID or privileged-permission allowlists.
 - Rebooting, restarting zygote, or vendor flashing flows.
+
+The install script only ever performs the installation. An APK produced by a full Gradle build is signed by Gradle itself, and the signing step after Jugg rewrites an APK is handled separately by the [Custom APK sign script](./custom-apk-sign-script.md); neither replaces the other.
 
 A successful script alone does not prove that the app became a system app. Continue to use `dumpsys package <applicationId>` to inspect `codePath`, `SYSTEM`, `PRIVILEGED`, and permission grant state.
 
 ## Related pages
 
 - [Clean Reinstall](./clean-reinstall.md)
+- [Custom APK sign script](./custom-apk-sign-script.md)
 - [APK update and installation](../../concepts/apk-update-and-install.md)
 - [Multiple APKs](./multi-apk.md)
 - [Multiple devices](./multi-device.md)

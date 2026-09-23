@@ -37,7 +37,7 @@ class JuggControlPanelHost : JPanel(BorderLayout()) {
     }
 
     companion object {
-        const val TOOL_WINDOW_ID = "Jugg Running Pannel"
+        const val TOOL_WINDOW_ID = "Jugg Running Panel"
 
         fun open(project: Project, page: String = "overview") {
             val toolWindow = ToolWindowManager.getInstance(project).getToolWindow(TOOL_WINDOW_ID) ?: return

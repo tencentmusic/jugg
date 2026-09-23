@@ -23,6 +23,7 @@ import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
 import com.sickworm.intellij.jugg.deploy.run.TestDeployEnvironment
 import com.sickworm.intellij.jugg.deploy.run.applychanges.CustomApkInstallScriptRunner
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
+import com.sickworm.intellij.jugg.jvmti_agent.BuildConfig
 import com.sickworm.intellij.jugg.mock.TestGlobal
 import com.sickworm.intellij.jugg.mock.context
 import com.sickworm.intellij.jugg.logger.JuggLogger
@@ -91,6 +92,33 @@ internal object DeployFlowTestSupport {
             isFullRes = true,
             isWarmUp = false,
             isPushOverlayOnly = false,
+        )
+    }
+
+    /**
+     * Compat payload as `DeployDataPlanner.appendCompatDeployFiles` would produce it: the original
+     * resource overlays are replaced by `resource.ap_` plus the compat enable flag.
+     */
+    fun compatDeployData(data: JuggDeployData): JuggDeployData {
+        return data.copy(
+            isCompatDeploy = true,
+            isPushOverlayOnly = true,
+            overlays = listOf(
+                DeployItem(
+                    name = BuildConfig.ENABLE_COMPAT_DEPLOY_FLAG_FILE,
+                    type = CompileOutput.Type.Asset,
+                    checksum = 1L,
+                    content = ByteArray(0),
+                    apkPath = DeployItem.FLAG_BASE_APK,
+                ),
+                DeployItem(
+                    name = BuildConfig.RESOURCE_APK_NAME,
+                    type = CompileOutput.Type.Asset,
+                    checksum = 2L,
+                    content = byteArrayOf(1, 2, 3),
+                    apkPath = DeployItem.FLAG_BASE_APK,
+                ),
+            ),
         )
     }
 

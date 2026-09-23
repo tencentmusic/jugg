@@ -62,7 +62,7 @@
         <notificationGroup id="Jugg Notification"
                            displayType="BALLOON"
                            key="notification.group.name"/>
-        <toolWindow id="Jugg Running Pannel"
+        <toolWindow id="Jugg Running Panel"
                     anchor="right"
                     icon="/res/icons/run_configuration.svg"
                     factoryClass="com.sickworm.intellij.jugg.ide.ui.JuggToolWindowFactory"/>

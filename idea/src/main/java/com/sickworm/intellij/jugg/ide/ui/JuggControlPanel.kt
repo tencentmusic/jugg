@@ -358,7 +358,7 @@ class JuggControlPanel(
         val groups = listOf(
             settingGroup("Run behavior", "runBehavior",
                 settingToggle("Confirm fallback when no files changed", "Ask before running a full Gradle build.", JuggControlPanelController.Setting.CONFIRM_FALLBACK),
-                settingToggle("Always restart app after deployment", "Disables hot reload when a restart is safer.", JuggControlPanelController.Setting.ALWAYS_RESTART)),
+                settingToggle("Always restart app after deployment", "Disables hot reload to ensure global state is reinitialized.", JuggControlPanelController.Setting.ALWAYS_RESTART)),
             settingGroup("Deployment", "deployment",
                 settingToggle("Quick deploy", "Skip app startup when direct overlay is available.", JuggControlPanelController.Setting.QUICK_DEPLOY),
                 settingToggle("Auto fallback after deploy failure", "Recover with a full Gradle build.", JuggControlPanelController.Setting.AUTO_FALLBACK),
@@ -420,10 +420,7 @@ class JuggControlPanel(
     }
 
     private fun settingAction(label: String, help: String, text: String, action: () -> Unit): JComponent {
-        return settingRow(label, help, ActionLink(text) {
-            controller.recordUserAction(label)
-            action()
-        })
+        return settingRow(label, help, ActionLink(text) { action() })
     }
 
     private fun settingRow(label: String, help: String, control: JComponent): JComponent {
@@ -520,10 +517,7 @@ class JuggControlPanel(
         actions.forEach(::add)
     }
 
-    private fun actionLink(text: String, action: () -> Unit): ActionLink = ActionLink(text) {
-        controller.recordUserAction(text)
-        action()
-    }
+    private fun actionLink(text: String, action: () -> Unit): ActionLink = ActionLink(text) { action() }
         .also(quickActions::add)
 
     private fun verticalGap(size: Int): Component = Box.createVerticalStrut(JBUI.scale(size))
@@ -872,7 +866,7 @@ class JuggControlPanel(
     }
 
     companion object {
-        const val TOOL_WINDOW_ID = "Jugg Running Pannel"
+        const val TOOL_WINDOW_ID = "Jugg Running Panel"
         private const val CHANGED_FILES_VISIBLE_ROWS = 5
         private const val RECENT_RUNS_VISIBLE_ROWS = 5
         private const val SETTING_SEARCH_TEXT = "JuggControlPanel.settingSearchText"

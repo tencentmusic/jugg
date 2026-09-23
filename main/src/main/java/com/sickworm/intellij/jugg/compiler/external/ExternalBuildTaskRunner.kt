@@ -15,7 +15,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 
 /**
- * Replaces the original Gradle tasks with external build tasks while preserving validated Gradle arguments.
+ * Replaces the original Gradle tasks with selected external tasks and appends their collector when requested.
  */
 fun deriveExternalBuildCommand(
     compileCommand: String,

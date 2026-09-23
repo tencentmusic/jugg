@@ -73,6 +73,11 @@ interface IDeviceAdb {
     fun getDefaultLaunchActivity(apkFile: File): String?
 
     /**
+     * Returns the HOME activity declared by [apkFile], or null when the APK has no startable one.
+     */
+    fun getHomeActivity(apkFile: File): String? = null
+
+    /**
      * @return ARCH_UNKNOWN / ARCH_32_BIT / ARCH_64_BIT
      * @see [com.android.tools.deploy.proto.Deploy.Arch]
      */

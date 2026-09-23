@@ -254,14 +254,16 @@ gradle.allprojects {
 }
 
 gradle.rootProject {
+    val projectInfoReaderManager = gradleProjectInfoReaderManager(rootProject, gradle.includedBuilds)
     tasks.maybeCreate(GradleProjectInfoReaderManager.COLLECT_EXTERNAL_BUILD_INFO_TASK_NAME).apply {
         group = "jugg"
         description = "Writes refreshed external build info for this build"
         outputs.upToDateWhen { false }
         doLast {
-            gradleProjectInfoReaderManager(rootProject, gradle.includedBuilds).collectExternalBuildInfo()
+            projectInfoReaderManager.collectExternalBuildInfo()
         }
     }
+    projectInfoReaderManager.configureExternalBuildInfoCollector()
     if (gradle.parent != null) {
         tasks.maybeCreate(GradleProjectInfoReaderManager.READ_PROJECT_INFO_TASK_NAME).apply {
             group = "jugg"
@@ -273,7 +275,6 @@ gradle.rootProject {
 gradle.projectsEvaluated {
     val projectInfoReaderManager = gradleProjectInfoReaderManager(rootProject, gradle.includedBuilds)
     projectInfoReaderManager.injectAndroidTestTaskIfNeeded()
-    projectInfoReaderManager.configureExternalBuildInfoCollector()
     if (gradle.includedBuilds.isNotEmpty()) {
         projectInfoReaderManager.injectIncludedBuildProjectInfoTasks()
     }
@@ -371,6 +372,7 @@ fun juggPathManager(projectDir: File) = JuggPathManager(projectDir)
 fun moduleBuildPathInfo(projectRootDir: File, moduleRootDir: File, buildVariant: String, buildDirRelativePath: String) = ModuleBuildPathInfo(projectRootDir, moduleRootDir, buildVariant, buildDirRelativePath = buildDirRelativePath)
 fun libraryDependency(name: String, file: File) = LibraryDependency(name, file)
 fun libraryDependency(name: String, file: File, lastModifiedTime: Long, crc32: Long) = LibraryDependency(name, file, lastModifiedTime, crc32)
+fun libraryDependency(name: String, file: File, lastModifiedTime: Long, crc32: Long, rPackageName: String?) = LibraryDependency(name, file, lastModifiedTime, crc32, rPackageName)
 fun gradleApplicationInjector(rootProject: Project) = GradleApplicationInjector(rootProject)
 fun gradleProjectInfoReaderManager(rootProject: Project, includedBuilds: Collection<IncludedBuild>) = GradleProjectInfoReaderManager(rootProject, includedBuilds)
 """

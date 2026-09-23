@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.project.dependency
 
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.*
+import com.sickworm.intellij.jugg.compiler.manifest.XmlAndroidManifestInfo
 import com.sickworm.intellij.jugg.project.change.ChangedFile
 import com.sickworm.intellij.jugg.project.info.LibraryDependency
 import com.sickworm.intellij.jugg.project.info.ModuleInfo
@@ -19,6 +20,10 @@ class DependencyDiffResultHelper(
 
     fun getNewLibraryFiles(): List<ChangedFile> {
         logger.debug("get new libraries: ${diffResult.newLibraryDependencies}")
+
+        val rPackageNames = diffResult.newLibraryDependencies
+            .groupBy { it.name }
+            .mapValues { (_, libraries) -> resolveRPackageName(libraries) }
 
         // relative path to old jar file
         // diff with full build dependencies, because library dex are in one file, which can not incremental update
@@ -100,6 +105,7 @@ class DependencyDiffResultHelper(
                     module = tempModule,
                 ).withDependencyName(it.name)
                     .withOldRes(relativeOldFiles[it.file.absolutePath])
+                    .withRPackageName(rPackageNames[it.name])
             } else if (it.isJar) {
                 return@mapNotNull ChangedFile(
                     type = CompileFile.Type.Class,
@@ -194,5 +200,18 @@ class DependencyDiffResultHelper(
 
         logger.debug("revert libraryFiles: $revertLibraries")
         return revertLibraries
+    }
+
+    private fun resolveRPackageName(libraries: List<LibraryDependency>): String? {
+        val symbolPackageName = libraries.firstNotNullOfOrNull { it.rPackageName?.takeIf(String::isNotEmpty) }
+        val manifestPackageName = libraries.find { it.isAndroidManifest }
+            ?.takeIf { it.file.exists() }
+            ?.let { XmlAndroidManifestInfo.parse(it.file).packageName }
+            ?.takeIf(String::isNotEmpty)
+        if (symbolPackageName != null && manifestPackageName != null && symbolPackageName != manifestPackageName) {
+            logger.debug("R package name conflict for ${libraries.first().name}: symbol is $symbolPackageName" +
+                    ", manifest is $manifestPackageName, use the symbol one.")
+        }
+        return symbolPackageName ?: manifestPackageName
     }
 }

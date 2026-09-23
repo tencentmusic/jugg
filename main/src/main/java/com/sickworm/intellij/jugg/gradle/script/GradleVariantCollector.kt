@@ -11,9 +11,17 @@ fun registerAndroidComponentsVariants(rootProject: Project, project: Project) {
     val registered = invokeOnVariantsCompat(androidComponents) { variant ->
         val variantInfo = reflector(variant)
         val name = variantInfo["name"]?.valueString ?: return@invokeOnVariantsCompat
+        // Main variants implement com.android.build.api.variant.CanMinifyCode; the read is
+        // best-effort and stays null when the running AGP does not expose the flag.
+        val minifyEnabled = variantInfo["isMinifyEnabled"]?.value as? Boolean
         val variants = getOrCreateCollectedVariants(rootProject).getOrPut(project.path) { mutableListOf() }
         if (variants.none { it.name == name }) {
-            variants.add(Variant(name, null, variantInfo["minSdk"]["apiLevel"]?.valueString))
+            variants.add(Variant(
+                name = name,
+                signingConfigName = null,
+                minSdkVersion = variantInfo["minSdk"]["apiLevel"]?.valueString,
+                minifyEnabled = minifyEnabled,
+            ))
         }
     }
     if (!registered) {

@@ -49,6 +49,7 @@
 
 | 目录 | 适配版本 |
 |---|---|
+| `deploy_compat/v_rabbit` | Android Studio Rabbit |
 | `deploy_compat/v_quail` | Android Studio Quail |
 | `deploy_compat/v_panda` | Android Studio Panda |
 | `deploy_compat/v_otter` | Android Studio Otter 2 Feature Drop |
@@ -65,6 +66,8 @@
 各版本 compat 默认通过 `compileOnly` 使用 `deploy_compat/stub_api/v_*/stubapi.jar`，仓库不再保存真实 Android Studio JAR。新增版本时依次使用 `create_compat_module.sh` 创建模块、`switch_api.sh real <jar-dir>` 显式切换本地真实 JAR、完成适配和真实 IDE 验证、用 `generate_stub_api.sh` 生成 Stub，最后切回 `switch_api.sh stub`。脚本不自动检测 Android Studio 安装目录，本地选择写入被忽略的 `deploy_compat/local.properties`。
 
 Stub helper 保留类、继承、成员 descriptor、泛型、Kotlin metadata、内层类、方法声明及注解和会被内联的常量，只移除普通方法实现。方法注解中的 nullability、`@JvmStatic` 等信息会影响 Kotlin 编译结果，不能在生成 Stub 时丢弃。纯源码信息（例如完全未使用的 import）不会进入编译产物，因此生成后必须切回 Stub clean compile；若失败，优先删除无效 import 或完成最小源码适配，不能无边界扩大 Stub。
+
+Rabbit 的平台 JAR 使用 Java 25 class file。Stub generator 的 ASM 版本必须至少支持 `Opcodes.V25`，否则生成阶段会在读取平台类时以 `Unsupported class file major version 69` 失败。生成的 compile-only Stub 必须将 class file 版本限制为 Java 17，避免仓库的 JDK 17 构建无法读取平台类。
 
 Stub 生成后的最终验收必须从 Stub checkout 执行 `./deploy_compat/verify_stub_api.sh <real-api-jugg-repo>`。参数必须是本地指向真实 Android Studio JAR、具有对应 compat 模块的另一份 Jugg checkout；脚本不自动检测该目录。脚本先报告每个 `v_*` 模块的源码差异供人工确认，但生成文件和无效 import 差异不直接决定结果；随后 clean 构建两边全部 compat JAR，最后比较 class entry 和 `com.android.*`、`com.intellij.*`、`org.jetbrains.android.*` 的规范化字节码引用（包含调用 opcode、owner、成员名和 descriptor）。全部模块必须显示 `MATCH`；任一产物差异均验收失败，详细 manifest 和 diff 保存在 `build/stub-api-verify/`。不得用未 clean 的历史 JAR、仅“编译成功”或忽略 opcode 的目标名比较替代该验收。
 
@@ -85,6 +88,8 @@ Debug attach 同样必须走 `IAsDeployerCompat.attachJavaDebugger()`，不要�
 Quail 的 deployer API 已迁移到 `com.android.tools.deployer.common` 与 `com.android.tools.deployer.install` 包，`OptimisticApkUpdater` 不存在。`deploy_compat/v_quail` 必须独立实现，不继承 legacy compat 链，避免 superclass 或方法签名在启动期解析旧 root deployer 类型。
 
 Quail 新版 `AdbClient` 的标准/full install 路径强制要求 `AdbSession`，无 session 时不再回退 ddmlib，而是抛出 `AdbSession is required for installation`。`QuailAsDeployerCompat` 创建 `AdbClient` 时必须使用三参数构造并传入 `AdbLibApplicationService` 的 application session；同一 helper 同时供 daemon installer 与 `ApkInstaller` 使用，确保 delta install 回退 full install 时仍可正常安装。
+
+Rabbit 将 `AdbClient` 构造参数从 `IDevice` 改为 `DeviceHolder`。`RabbitAsDeployerCompat` 继承 Quail 的 deployer 行为，只在统一的 `createAdbClient()` 边界用 legacy `IDevice` 构造 `DeviceHolder`，并继续传入 application `AdbSession`，保证 daemon installer 与 full install 使用相同的 Rabbit API 形态。
 
 Quail 4 将 `InstallOptions.Builder.setSkipVerification()` 的设备参数从 `IDevice` 改为 `DeviceHolder`，而 Quail 1 不包含 `DeviceHolder`。`deploy_compat/v_quail` 通过两个版本都提供的 `AdbClient.getSkipVerificationOption()` 计算安装参数，再将非空参数写入 `InstallOptions`，避免在兼容实现中静态引用任一版本专属签名；同一个 `AdbClient` 必须同时用于参数计算和 `ApkInstaller`。
 

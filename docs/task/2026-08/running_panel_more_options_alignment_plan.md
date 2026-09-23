@@ -1,8 +1,8 @@
-# Running Pannel More Options 能力迁移方案
+# Running Panel More Options 能力迁移方案
 
 ## 1. 目标
 
-将旧 `MoreOptionsManager` 中仍有效的设置和工具入口迁移到 `Jugg Running Pannel` 的 Settings，保持原有展示条件、确认流程和状态副作用，随后删除已无展示入口的旧菜单实现。
+将旧 `MoreOptionsManager` 中仍有效的设置和工具入口迁移到 `Jugg Running Panel` 的 Settings，保持原有展示条件、确认流程和状态副作用，随后删除已无展示入口的旧菜单实现。
 
 ## 2. 已批准范围
 

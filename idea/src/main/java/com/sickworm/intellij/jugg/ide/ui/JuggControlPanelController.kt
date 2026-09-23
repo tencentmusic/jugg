@@ -17,6 +17,7 @@ import com.sickworm.intellij.jugg.ide.SyncEvent
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.ide.controlpanel.JuggControlPanelModel
 import com.sickworm.intellij.jugg.ide.controlpanel.JuggEvent
+import com.sickworm.intellij.jugg.logger.getInstance
 import java.util.UUID
 import javax.swing.JComponent
 
@@ -32,6 +33,7 @@ open class JuggControlPanelController(
     private val logger: Logger,
 ) {
     val model = JuggControlPanelModel()
+    private val userActionLogger = logger.getInstance(USER_ACTION_LOG_TAG)
     private var panel: JuggControlPanel? = null
     private var syncEventTaskId: String? = null
 
@@ -131,6 +133,7 @@ open class JuggControlPanelController(
                 "<html>This will embed incremental changes to APK, let incremental effects for Android RemoteViews, " +
                         "but it will cost more time to deploy.<br>Are you sure to enable?</html>"
             )) {
+            recordUserAction("canceled", "Enable Embedded to APK", JuggEvent.Status.CANCELED)
             model.updateSettings(currentSettings())
             return
         }
@@ -145,6 +148,7 @@ open class JuggControlPanelController(
             "<html>This will effects compilation stability. Continue?</html>"
         )
         if (!confirmed) {
+            recordUserAction("canceled", "Confirm Switch Backup Classpath", JuggEvent.Status.CANCELED)
             model.updateSettings(currentSettings())
             return
         }
@@ -155,27 +159,15 @@ open class JuggControlPanelController(
     }
 
     private fun recordSettingChanged(name: String, enabled: Boolean) {
-        recordEvent(
-            taskId = UUID.randomUUID().toString(),
-            category = JuggEvent.Category.USER_ACTION,
-            phase = JuggEvent.Phase.COMPLETED,
-            status = JuggEvent.Status.SUCCEEDED,
-            title = "Setting changed",
-            detail = "$name: ${if (enabled) "enabled" else "disabled"}",
-            isTerminal = true,
-        )
+        emitUserAction("Setting changed", "$name: ${if (enabled) "enabled" else "disabled"}")
     }
 
-    open fun recordUserAction(action: String) {
-        recordEvent(
-            taskId = UUID.randomUUID().toString(),
-            category = JuggEvent.Category.USER_ACTION,
-            phase = JuggEvent.Phase.COMPLETED,
-            status = JuggEvent.Status.SUCCEEDED,
-            title = "Action triggered",
-            detail = action,
-            isTerminal = true,
-        )
+    open fun recordUserAction(
+        action: String,
+        title: String = "Action triggered",
+        status: JuggEvent.Status = JuggEvent.Status.SUCCEEDED,
+    ) {
+        emitUserAction(title, action, status)
     }
 
     open fun fullGradleBuild() = manager.gradleCompile()
@@ -183,6 +175,7 @@ open class JuggControlPanelController(
     open fun runRemoteCommand() = manager.runRemoteCommand()
 
     open fun restartApp() {
+        recordUserAction("Restart App")
         val taskId = UUID.randomUUID().toString()
         recordEvent(taskId, JuggEvent.Category.APP, JuggEvent.Phase.LAUNCHING, JuggEvent.Status.STARTED, "Restart app started")
         try {
@@ -200,14 +193,10 @@ open class JuggControlPanelController(
             content = "<html>This will clear app data, run a full Gradle build, and reinstall the app.<br>Are you sure you want to continue?</html>",
             okButtonText = "Clear App Data",
         )
-        recordEvent(
-            taskId = UUID.randomUUID().toString(),
-            category = JuggEvent.Category.USER_ACTION,
-            phase = JuggEvent.Phase.COMPLETED,
-            status = if (confirmed) JuggEvent.Status.SUCCEEDED else JuggEvent.Status.CANCELED,
+        recordUserAction(
+            action = if (confirmed) "confirmed" else "canceled",
             title = "Clear app data confirmation",
-            detail = if (confirmed) "confirmed" else "canceled",
-            isTerminal = true,
+            status = if (confirmed) JuggEvent.Status.SUCCEEDED else JuggEvent.Status.CANCELED,
         )
         if (confirmed) manager.cleanAndReinstall()
     }
@@ -227,6 +216,11 @@ open class JuggControlPanelController(
             "Confirm Mark as Project Synced and Re-init Compiler",
             "<html>This will reload project info and re-init, but dependencies won't update without sync.<br>Are you sure to continue?</html>"
         )
+        recordUserAction(
+            action = if (confirmed) "confirmed" else "canceled",
+            title = "Mark as project synced",
+            status = if (confirmed) JuggEvent.Status.SUCCEEDED else JuggEvent.Status.CANCELED,
+        )
         if (confirmed) manager.markAsProjectSyncedAndReInitCompiler()
     }
 
@@ -234,6 +228,11 @@ open class JuggControlPanelController(
         val confirmed = CommonConfirmDialog.showAndGetResult(
             "Confirm Mark as Gradle Compiled and Re-init Compiler",
             "<html>This will skip gradle compilation and re-init, but the behavior of Jugg may incorrect.<br>Are you sure to continue?</html>"
+        )
+        recordUserAction(
+            action = if (confirmed) "confirmed" else "canceled",
+            title = "Mark as Gradle compiled",
+            status = if (confirmed) JuggEvent.Status.SUCCEEDED else JuggEvent.Status.CANCELED,
         )
         if (confirmed) manager.markAsGradleCompiledAndReInitCompiler()
     }
@@ -303,6 +302,23 @@ open class JuggControlPanelController(
         }
     }
 
+    private fun emitUserAction(
+        title: String,
+        detail: String,
+        status: JuggEvent.Status = JuggEvent.Status.SUCCEEDED,
+    ) {
+        userActionLogger.info("$title: $detail")
+        recordEvent(
+            taskId = UUID.randomUUID().toString(),
+            category = JuggEvent.Category.USER_ACTION,
+            phase = JuggEvent.Phase.COMPLETED,
+            status = status,
+            title = title,
+            detail = detail,
+            isTerminal = true,
+        )
+    }
+
     private fun recordEvent(
         taskId: String,
         category: JuggEvent.Category,
@@ -323,6 +339,10 @@ open class JuggControlPanelController(
             detail = detail,
             isTaskTerminal = isTerminal,
         ))
+    }
+
+    companion object {
+        const val USER_ACTION_LOG_TAG = "UserAction"
     }
 
     /** Identifies the persisted Jugg switch edited by a control panel toggle. */

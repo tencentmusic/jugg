@@ -65,14 +65,17 @@ Jugg 只负责调用脚本和校验安装结果，不内置以下行为：
 
 - `adb root`、`adb remount` 或 system 分区写入。
 - `/system/app`、`/system/priv-app` 路径选择。
-- platform 签名、shared UID 或特权权限白名单。
+- shared UID 或特权权限白名单。
 - reboot、zygote restart 或厂商刷机流程。
+
+安装脚本始终只负责安装动作。Gradle 完整构建产出的 APK 由 Gradle 自己签名；Jugg 增量改写 APK 后的签名步骤由 [自定义 APK 签名脚本](./custom-apk-sign-script.md) 独立接管，两者互不替代。
 
 脚本执行成功也不能单独证明 App 已成为系统应用。仍应通过 `dumpsys package <applicationId>` 检查 `codePath`、`SYSTEM`、`PRIVILEGED` 和权限授予状态。
 
 ## 相关页面
 
 - [Clean Reinstall](./clean-reinstall.md)
+- [自定义 APK 签名脚本](./custom-apk-sign-script.md)
 - [APK 更新与安装](../../concepts/apk-update-and-install.md)
 - [多 APK](./multi-apk.md)
 - [多设备](./multi-device.md)

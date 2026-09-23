@@ -20,6 +20,8 @@ data class DeployOptions(
     val isWarmUp: Boolean = false,
     val compileUiHandler: CompileUiHandler = CompileUiHandler.DEFAULT,
     val customApkInstallScript: String = "",
+    /** Project command replacing the default keystore signing of the rewritten APK. */
+    val customApkSignScript: String = "",
     val retryReason: String? = null,
     val isSkipExceptOverlayCheck: Boolean = false,
     val retryDeployData: JuggDeployData? = null,
@@ -39,6 +41,7 @@ data class DeployOptions(
 
     fun toSafeString(): String = copy(
         customApkInstallScript = if (customApkInstallScript.isNotEmpty()) "(configured)" else "",
+        customApkSignScript = if (customApkSignScript.isNotEmpty()) "(configured)" else "(not_configured)",
     ).toString()
 }
 data class DeployTaskResult(

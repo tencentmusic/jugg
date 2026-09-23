@@ -32,6 +32,7 @@ import com.sickworm.intellij.jugg.ide.JuggConfigurationType
 import com.sickworm.intellij.jugg.ide.JuggRunConfiguration
 import com.sickworm.intellij.jugg.ide.bean.IProcessHandler
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
+import com.sickworm.intellij.jugg.ide.ui.JuggControlPanelController
 import com.sickworm.intellij.jugg.ide.ui.SimpleProcessHandler
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.ai.mcp.RunLogCollector
@@ -51,6 +52,7 @@ class JuggConfigurationRunner(
     private val juggRunningTaskCreator: IJuggRunningTaskCreator,
     private val gitFileChangesDetector: GitFileChangesDetector,
     private val logger: Logger,
+    private val userActions: JuggControlPanelController? = null,
 ) : IJuggConfigurationRunner {
 
     override val isCompiling: Boolean get() = currentTask?.isRunning == true
@@ -214,6 +216,7 @@ class JuggConfigurationRunner(
             isSkipDeploy = isSkipDeploy,
             isAlwaysRestartApp = isAlwaysRestartApp,
             targetDeviceSerial = targetDeviceSerial,
+            userActions = userActions,
         ) {
             override fun onEnd(runResult: RunResult) {
                 synchronized(waitLock) {

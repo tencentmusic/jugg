@@ -736,7 +736,7 @@ class BaseCompileContext(
             val outputFile = File(tempLibraryDir, path)
             outputFile.parentFile.mkdirs()
             it.file.copyRecursively(outputFile, overwrite = true)
-            LibraryDependency(it.name, outputFile, it.lastModifiedTime, it.crc32)
+            LibraryDependency(it.name, outputFile, it.lastModifiedTime, it.crc32, it.rPackageName)
         }
         // the newer, the higher priority
         val finalTempLibraries = (savedTempLibraries + oldLibraries).distinctBy { it.file.path }

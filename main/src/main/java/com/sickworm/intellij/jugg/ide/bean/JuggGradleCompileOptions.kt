@@ -269,6 +269,10 @@ data class JuggGradleCompileOptions(
     val enableCustomApkInstallScript: Boolean = false,
     /** Project-local shell script used for app APK install and reinstall operations. */
     val customApkInstallScript: String = "",
+    /** Whether the rewritten APK should be signed by [customApkSignScript]. */
+    val enableCustomApkSignScript: Boolean = false,
+    /** Project-local shell script used to sign the rewritten APK in place. */
+    val customApkSignScript: String = "",
 ) {
 
     /** Rsync exclude patterns after applying the default or customized state. */
@@ -397,6 +401,9 @@ data class JuggGradleCompileOptions(
         if (enableCustomApkInstallScript && customApkInstallScript.isBlank()) {
             errorDetails += "Run configuration argument [Custom APK install script] is empty\n"
         }
+        if (enableCustomApkSignScript && customApkSignScript.isBlank()) {
+            errorDetails += "Run configuration argument [Custom APK sign script] is empty\n"
+        }
         if (isRemoteCompile) {
             if (remoteSshUser.isEmpty()) {
                 errorDetails += "Run configuration argument [SSH user] is empty\n"
@@ -440,9 +447,11 @@ data class JuggGradleCompileOptions(
     fun toSafeString(): String {
         val replacePasswordDesc = if (remoteSshPassword.isNotEmpty()) "(has_password)" else "(no_password)"
         val replaceScriptDesc = if (customApkInstallScript.isNotEmpty()) "(configured)" else "(not_configured)"
+        val replaceSignScriptDesc = if (customApkSignScript.isNotEmpty()) "(configured)" else "(not_configured)"
         var string = copy(
             remoteSshPassword = replacePasswordDesc,
             customApkInstallScript = replaceScriptDesc,
+            customApkSignScript = replaceSignScriptDesc,
         ).toString()
         string = string.replace("remoteSshPassword=$remoteSshPassword", "remoteSshPassword=$replacePasswordDesc")
         string = string.replace("compileCommand=$compileCommand", "compileCommand=(redacted)")

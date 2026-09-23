@@ -294,7 +294,12 @@ class JuggDeployerHelper(
             logger.info("Resigning APK...")
             TimeLogger.start("insertFileAndResignApk")
             val (isSuccess, failedReason) = IncrementalDeployHelper(compileContextManager.compileContext, logger)
-                .updateApk(deployData.apks, deployData.updateApkFiles)
+                .updateApk(
+                    deployData.apks,
+                    deployData.updateApkFiles,
+                    deployOptions.customApkSignScript,
+                    deployOptions.compileUiHandler,
+                )
             if (!isSuccess) {
                 return ChangesDeployOutcome(
                     DeployTaskResult(isSuccess = false, isCanFallback = true, costTime = costTime(), failedReason = failedReason),
@@ -316,7 +321,7 @@ class JuggDeployerHelper(
                 logger.info("App is running but not deployable by Android Studio. " +
                         "Direct Deploy will restart the app after deployment.")
             } else {
-                logger.info("Android Studio deployable client unavailable, try Best-effort Direct Deploy fallback.")
+                logger.debug("Android Studio deployable client unavailable, try Best-effort Direct Deploy fallback.")
             }
         }
         if (isNeedReinstallApk || !deployStateManager.getDeployState(device).isReadyDeploy || isProjectSwitchedThisRun) {
@@ -503,7 +508,11 @@ class JuggDeployerHelper(
                 }
             }
         val (isSuccess, failedReason) = IncrementalDeployHelper(compileContextManager.compileContext, logger).updateApk(
-            incDeployData.apks, deployItems + deployedItems)
+            incDeployData.apks,
+            deployItems + deployedItems,
+            deployOptions.customApkSignScript,
+            deployOptions.compileUiHandler,
+        )
         logger.debug("Embedding APK finished, isSuccess: $isSuccess, failedReason: $failedReason")
         if (!isSuccess) {
             logger.warn("Embedding APK failed. Reason: $failedReason")

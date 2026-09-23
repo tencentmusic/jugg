@@ -71,7 +71,7 @@ open class DirectOverlayWriter(
     private fun writeZip(zipFile: File, files: List<DirectOverlayWriteFile>) {
         ZipOutputStream(zipFile.outputStream().buffered()).use { zip ->
             files.forEach { file ->
-                require(isSafeZipPath(file.path)) { "Unsafe overlay path: ${file.path}" }
+                require(isSafeOverlayZipPath(file.path)) { "Unsafe overlay path: ${file.path}" }
                 zip.putNextEntry(ZipEntry(file.path))
                 zip.write(file.content)
                 zip.closeEntry()
@@ -150,15 +150,6 @@ open class DirectOverlayWriter(
             }
     }
 
-    private fun isSafeZipPath(path: String): Boolean {
-        return path.isNotEmpty() &&
-                !path.startsWith("/") &&
-                !path.contains("\\") &&
-                !path.contains("../") &&
-                path != ".." &&
-                !path.startsWith("../")
-    }
-
     private fun isSafePackageName(packageName: String): Boolean {
         return PACKAGE_NAME_PATTERN.matches(packageName)
     }
@@ -181,6 +172,19 @@ open class DirectOverlayWriter(
         private const val BASE_APK_PREFIX = "base.apk/"
         private val PACKAGE_NAME_PATTERN = Regex("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+")
     }
+}
+
+/**
+ * Rejects overlay entry paths that a device-side extraction must not accept.
+ * Shared by the Direct Overlay writer and the rootless compat pending archive.
+ */
+internal fun isSafeOverlayZipPath(path: String): Boolean {
+    return path.isNotEmpty() &&
+            !path.startsWith("/") &&
+            !path.contains("\\") &&
+            !path.contains("../") &&
+            path != ".." &&
+            !path.startsWith("../")
 }
 
 data class DirectOverlayWriteRequest(

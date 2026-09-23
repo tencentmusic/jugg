@@ -56,6 +56,10 @@ class ReadProjectInfoGradle7CompatTest : ReadProjectInfoGradleCompatTestBase() {
             },
             afterRun = { fixtureDir, result ->
                 assertEquals(0, result.exitCode, "Gradle $gradleVersion android fixture failed.\n${result.output}")
+                assertFalse(
+                    result.output.contains("NoSuchMethodException") && result.output.contains(".isMinifyEnabled()"),
+                    "Legacy variant minify collection must not print expected reflection failures.\n${result.output}",
+                )
                 val projectInfo = ProjectInfoSerializer(
                     JuggPathManager(fixtureDir).gradleProjectInfoFile,
                     mock(Logger::class.java),
@@ -68,6 +72,37 @@ class ReadProjectInfoGradle7CompatTest : ReadProjectInfoGradleCompatTestBase() {
                 assertTrue(
                     appModule.runtimeLibraryDependencies.any { it.name == RUNTIME_LIBRARY },
                     "Runtime-scoped transitive library is missing. output=\n${result.output}",
+                )
+            },
+        )
+    }
+
+    /**
+     * Verifies the legacy `applicationVariants` path records the resolved minify flag of every
+     * variant, so the incremental compiler can tell a minified variant apart from one that only has
+     * a leftover `outputs/mapping/<variant>/mapping.txt`.
+     *
+     * Only the configuration phase runs here, so flipping the release flag costs no R8 build.
+     */
+    @Test
+    fun generatedScript_shouldCollectVariantMinifyFlagsFromLegacyVariants() {
+        assertInitScriptRunsOnAndroidFixture(
+            assetDir = "android-app-agp7",
+            beforeRun = { fixtureDir ->
+                val appBuildFile = File(fixtureDir, "app/build.gradle")
+                appBuildFile.writeText(appBuildFile.readText().replace("minifyEnabled false", "minifyEnabled true"))
+            },
+            afterRun = { fixtureDir, result ->
+                assertEquals(0, result.exitCode, "Gradle $gradleVersion android fixture failed.\n${result.output}")
+                val projectInfo = ProjectInfoSerializer(
+                    JuggPathManager(fixtureDir).gradleProjectInfoFile,
+                    mock(Logger::class.java),
+                ).load(isSkipVersionCheck = true)
+                val variants = projectInfo!!.modules.getValue("app").variants
+                assertEquals(
+                    mapOf("debug" to false, "release" to true),
+                    variants.associate { it.name to it.minifyEnabled },
+                    "Legacy variants must carry the minify flag read from the variant build type.\n${result.output}",
                 )
             },
         )

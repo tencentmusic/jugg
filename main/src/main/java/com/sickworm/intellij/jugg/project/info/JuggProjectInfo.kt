@@ -43,11 +43,30 @@ data class ComposeResourceDirectory(
     val directory: File,
 )
 
+/** One recursive external build input root with the file kinds accepted below it. */
+data class ExternalBuildInputDir(
+    val directory: File,
+    val filterRules: Set<ExternalBuildInputFilterRule>,
+)
+
+val EXTERNAL_BUILD_INPUT_SCHEMA_ERROR =
+    "Jugg external build input schema is not compatible with this version, " +
+            "the project info will be rebuilt by a full Gradle build"
+
+/** File kinds accepted below one recursive external build input root. */
+enum class ExternalBuildInputFilterRule {
+    Dart,
+    FlutterAsset,
+    CppSource,
+    CppHeader,
+    NativeDirectory,
+}
+
 /** External Gradle build discovered for sources that Jugg cannot compile directly. */
 data class ExternalBuildInfo(
     val type: ExternalBuildType,
-    /** Recursive trigger roots: any non-excluded file below them belongs to this external build. */
-    val inputDirs: List<File>,
+    /** Recursive trigger roots with the file kinds each root accepts. */
+    val inputDirs: List<ExternalBuildInputDir>,
     /** Task producing the final native artifacts: a Flutter pack/copy task or a C++ merge task. */
     val taskPath: String?,
     /** Directory holding Flutter `flutter_assets`; null for external builds without assets output. */
@@ -81,6 +100,8 @@ data class ExternalBuildInfoRequestItem(
     val buildVariant: String,
     val taskPath: String,
     val type: ExternalBuildType,
+    val apkOwnerModuleRootDir: File? = null,
+    val apkOwnerBuildVariant: String? = null,
 )
 
 /** Invocation-scoped request consumed by the Gradle init script collector. */
@@ -96,6 +117,7 @@ data class ExternalBuildInfoUpdate(
     val buildVariant: String,
     val previousTaskPath: String,
     val externalBuildInfo: ExternalBuildInfo,
+    val strippedNativeOutput: File? = null,
 )
 
 /** One build-root collector result. Multiple files may form one composite-build invocation. */
@@ -170,6 +192,9 @@ data class ModuleInfo(
 
     /** Returns true when this module represents an androidTest source set. */
     val isAndroidTestModule: Boolean get() = instrumentationTargetPackage != null
+
+    /** Effective minify flag of the selected build variant. */
+    val minifyEnabled: Boolean? get() = variants.firstOrNull { it.name == buildVariant }?.minifyEnabled
 
     /**
      * Type enumerates supported Gradle module categories.
@@ -448,13 +473,17 @@ data class LibraryDependency(
     val name: String,
     val file: File,
     val lastModifiedTime: Long,
-    val crc32: Long
+    val crc32: Long,
+    val rPackageName: String?,
 ) : Dependency {
 
     // secondary constructor provides defaults to avoid Kotlin 1.5 script codegen crash:
     // primary constructor default values referencing top-level functions in .kts files
     // trigger "Error generating constructors" in Kotlin 1.5 (Gradle 7 / AGP 3.5)
-    constructor(name: String, file: File) : this(name, file, file.lastModified(), computeCrc32(file))
+    constructor(name: String, file: File) : this(name, file, file.lastModified(), computeCrc32(file), null)
+
+    constructor(name: String, file: File, lastModifiedTime: Long, crc32: Long) :
+            this(name, file, lastModifiedTime, crc32, null)
 
     val isValid get() = file.exists()
 
@@ -563,6 +592,7 @@ data class Variant(
     val name: String,
     val signingConfigName: String?,
     val minSdkVersion: String? = null,
+    val minifyEnabled: Boolean? = null,
 )
 
 /**

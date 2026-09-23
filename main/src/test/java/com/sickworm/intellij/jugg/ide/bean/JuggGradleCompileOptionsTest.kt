@@ -103,6 +103,57 @@ class JuggGradleCompileOptionsTest {
     }
 
     @Test
+    fun customSignScript_shouldBeRequiredWhenEnabled() {
+        val parentDir = Files.createTempDirectory("jugg_custom_sign_parent").toFile()
+        val projectDir = File(parentDir, "demo").apply { mkdirs() }
+        try {
+            val options = makeOptions(projectDir, parentDir).copy(
+                enableCustomApkSignScript = true,
+                customApkSignScript = "",
+            )
+
+            assertFailsWith<JuggException> { options.checkConfig() }
+        } finally {
+            parentDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun customSignScript_shouldNotBeRequiredWhenDisabled() {
+        val parentDir = Files.createTempDirectory("jugg_custom_sign_disabled").toFile()
+        val projectDir = File(parentDir, "demo").apply { mkdirs() }
+        try {
+            val options = makeOptions(projectDir, parentDir).copy(
+                enableCustomApkSignScript = false,
+                customApkSignScript = "",
+            )
+
+            options.checkConfig()
+        } finally {
+            parentDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun toSafeString_shouldHideCustomSignScript() {
+        val parentDir = Files.createTempDirectory("jugg_custom_sign_safe_string").toFile()
+        val projectDir = File(parentDir, "demo").apply { mkdirs() }
+        try {
+            val secretScript = "./sign.sh --token secret-token"
+            val safeString = makeOptions(projectDir, parentDir).copy(
+                enableCustomApkSignScript = true,
+                customApkSignScript = secretScript,
+            ).toSafeString()
+
+            assertEquals(false, safeString.contains(secretScript))
+            assertEquals(false, safeString.contains("secret-token"))
+            assertEquals(true, safeString.contains("customApkSignScript=(configured)"))
+        } finally {
+            parentDir.deleteRecursively()
+        }
+    }
+
+    @Test
     fun toSafeString_shouldHideCustomInstallScript() {
         val parentDir = Files.createTempDirectory("jugg_custom_install_safe_string").toFile()
         val projectDir = File(parentDir, "demo").apply { mkdirs() }

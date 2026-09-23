@@ -12,7 +12,7 @@
 
 随着操作和诊断信息增加，下拉菜单无法承载状态、说明、日志和任务进度，也容易把“当前 Run Configuration 参数”与“项目级 Jugg 设置”混在一起。
 
-本方案新增项目级 `Jugg Running Pannel` Tool Window，作为统一控制台，目标是：
+本方案新增项目级 `Jugg Running Panel` Tool Window，作为统一控制台，目标是：
 
 1. 高频操作在一个固定入口内完成。
 2. 用户随时知道当前配置、目标设备、运行阶段和最近结果。
@@ -26,7 +26,7 @@
 
 新增项目级 Tool Window：
 
-- 名称：`Jugg Running Pannel`
+- 名称：`Jugg Running Panel`
 - icon：复用 Jugg Run Configuration icon
 - 固定设计基线：IDE 右侧停靠；首期只维护这一套布局
 - 默认宽度：`420px`；允许用户在约 `360–520px` 范围内调整
@@ -49,7 +49,7 @@ Run Configuration 最终只保留名为 `More options` 的兼容入口，点击�
 ## 3. 信息架构
 
 ```text
-Jugg Running Pannel Tool Window
+Jugg Running Panel Tool Window
 ├── Overview
 │   ├── Context Header
 │   ├── Current Task

@@ -10,8 +10,9 @@ import com.sickworm.intellij.jugg.compiler.ui.BuildChangesConfirmResult
 import com.sickworm.intellij.jugg.compiler.context.CompileContextManager
 import com.sickworm.intellij.jugg.compiler.context.ICompileEnvironmentSource
 import com.sickworm.intellij.jugg.compiler.ui.TooManyChangesConfirmResult
+import com.sickworm.intellij.jugg.compiler.external.ExternalBuildTarget
 import com.sickworm.intellij.jugg.compiler.external.deriveExternalBuildCommand
-import com.sickworm.intellij.jugg.compiler.external.resolveExternalBuild
+import com.sickworm.intellij.jugg.compiler.external.resolveExternalBuilds
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.sickworm.intellij.jugg.deploy.instrument.LibraryTestApkBuildHistory
@@ -445,8 +446,8 @@ class JuggCompilerHelper(
             return CompileTaskResult.incrementalFailed(true, reason)
         }
         if (hasExternalBuildSources) {
-            val taskPaths = externalBuildSources.mapNotNull(::resolveExternalBuildInfo)
-                .mapNotNull { it.taskPath }
+            val taskPaths = externalBuildSources.flatMap(::resolveExternalBuildTargets)
+                .mapNotNull { it.buildInfo.taskPath }
                 .distinct()
             if (lastCompileCommand == null || deriveExternalBuildCommand(lastCompileCommand, taskPaths) == null) {
                 logger.info("External source changes require a derivable Gradle command, forcing Gradle full compile.")
@@ -532,19 +533,25 @@ class JuggCompilerHelper(
             if (!file.file.exists()) {
                 return "External build source was removed, full Gradle compile required"
             }
-            val buildInfo = resolveExternalBuildInfo(file)
-                ?: return "External build metadata not found"
-            if (!buildInfo.isSupported) {
+            val targets = resolveExternalBuildTargets(file)
+            if (targets.isEmpty()) {
+                return "External build metadata not found"
+            }
+            targets.firstOrNull { !it.buildInfo.isSupported }?.buildInfo?.let { buildInfo ->
                 return buildInfo.unsupportedReason ?: "External build is not supported"
             }
         }
         return null
     }
 
-    private fun resolveExternalBuildInfo(file: ChangedFile): ExternalBuildInfo? {
-        val module = runCatching { compileContextManager.compileContext.modules[file.module.name] }
-            .getOrNull() ?: file.module
-        return resolveExternalBuild(module, file.file)
+    private fun resolveExternalBuildTargets(file: ChangedFile): List<ExternalBuildTarget> {
+        val modules = runCatching { compileContextManager.compileContext.modules.values.toList() }
+            .getOrDefault(emptyList())
+        val hasAnchor = modules.any { module ->
+            module.name == file.module.name &&
+                    module.moduleRootDir.absoluteFile.normalize() == file.module.moduleRootDir.absoluteFile.normalize()
+        }
+        return resolveExternalBuilds(if (hasAnchor) modules else modules + file.module, file.file)
     }
 
     private fun isCompileCommandChanged(options: JuggGradleCompileOptions): Boolean {

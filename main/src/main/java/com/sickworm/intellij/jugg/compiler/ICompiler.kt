@@ -374,7 +374,12 @@ interface ICompileContext {
 
     val usageFile get() = applicationModule?.buildPathInfo?.usageFile
 
-    val isMinified get() = mappingFile?.exists() == true
+    /**
+     * True only when the selected variant really enables minify. A leftover mapping.txt from an
+     * earlier minified build of the same variant must not turn a non-minified variant into a
+     * minified one.
+     */
+    val isMinified get() = applicationModule?.minifyEnabled == true
 
     val tempModule: ModuleInfo
 

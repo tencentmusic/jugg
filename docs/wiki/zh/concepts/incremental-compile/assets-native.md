@@ -44,13 +44,14 @@ Dart 或 Flutter asset 变化
   -> flutter_assets 转为 asset；该 task 自己声明的 native 输出（归档或目录）中的 native lib 转为 native lib
 
 C/C++ 变化
-  -> 执行当前变体的 native build/merge task
-  -> 新 .so 转为 native lib 增量产物
+  -> 找到共享该物理源码的所有 Native 模块
+  -> 在一次 Gradle invocation 中执行当前变体的全部去重 native build/merge task
+  -> 各模块的新 .so 分别转为 native lib 增量产物
 ```
 
-这个过程不执行 aapt2，也不会生成 `resources.arsc`。Dart 或已确认的 Flutter asset 变化始终执行 Flutter 编译和 native 输出 task，不增加 Jugg 侧 Flutter 缓存；Flutter assets 从当前输出目录读取，native lib 只接受该任务自身声明的 native 输出中结构明确的 ABI 条目，不会递归扫描 Flutter 中间目录。C/C++ 到 `.so` 的转换仍由 Gradle、CMake 和 NDK 完成。Jugg 只选择当前变体所需的外部 task，并收集它们的新输出，因此 Android Java/Kotlin 和资源部分仍走原有增量编译。
+这个过程不执行 aapt2，也不会生成 `resources.arsc`。Dart 或已确认的 Flutter asset 变化始终执行 Flutter 编译和 native 输出 task，不增加 Jugg 侧 Flutter 缓存；Flutter assets 从当前输出目录读取，native lib 只接受该任务自身声明的 native 输出中结构明确的 ABI 条目，不会递归扫描 Flutter 中间目录。C/C++ 到 `.so` 的转换仍由 Gradle、CMake 和 NDK 完成。同一个物理 source 同时参与多个 Native 模块时，Jugg 会执行所有匹配模块的当前变体 task，并分别收集它们的输出；只有全部相关构建和输出收集成功后，该 source 才完成本轮编译。Android Java/Kotlin 和资源部分仍走原有增量编译。
 
-外部构建采用“目录触发、Gradle 判定”的策略：Jugg 监控 Flutter 根，以及当前 Flutter task 输入的父目录和本地 package 根；Native 监控 externalNativeBuild 配置根、源码父目录和 include root。若一个目录已经覆盖另一个目录，项目模型只保留较上层的目录。目录下任意非排除文件都可能触发对应 task，因此允许少量误触发；是否真的需要重新构建仍由 Gradle 的 up-to-date 机制决定。Jugg 不再依赖旧 depfile 的精确文件列表，也不解析 `pubspec.yaml` 的 asset 声明，所以 Flutter 根中新建的图片、JSON 或嵌套目录文件不会因为上次尚不存在而漏掉。
+外部构建采用“目录触发、Gradle 判定”的策略，每个被监控目录都带有自己接受的文件类型。Flutter package 根只接受 Dart 源码，不会扩大为任意文件；由 `pubspec.yaml` 的 `flutter.assets` 或 `l10n.yaml` 的 `arb-dir` 声明的资源目录，以及 Flutter task 在 package 根之下暴露的目录，接受任意文件。Native 的 externalNativeBuild 配置根接受 C/C++ 源码和头文件，native build metadata 确认的具体源码目录接受任意非隐藏文件，include root 只接受头文件。父子目录各自保留规则，不再由上层目录吞掉子目录；同一目录的多条规则之间是 OR，因此即使更宽的 Native 目录也覆盖某个头文件，它仍会命中对应的 include root。仍允许少量误触发；较宽的共享目录或 include root 也可能同时触发多个 Native 模块，包括产物较大的模块。Gradle 和 Ninja 的 up-to-date 与真实依赖判断仍决定实际执行哪些 native 工作。Jugg 不再依赖旧 depfile 的精确文件列表，所以已监控资源目录中新建的图片、JSON 或嵌套目录文件不会因为上次尚不存在而漏掉。单文件 asset、font 和 shader 仍依赖 Flutter task inputs，而不依赖 `pubspec.yaml` 条目；已删除的文件直接忽略，把旧 native 代码或 asset 从设备上移除需要一次完整 Run。
 
 Flutter SDK、全局 pub cache、`.dart_tool`、`.cxx`、`.externalNativeBuild` 和构建输出目录始终不监听。每次外部 task 执行时，Jugg 会在同一 Gradle invocation 结束前只收集本轮相关 module 和 variant 的最新外部构建信息；它不会为了配置文件变化另起一个完整 project-info 刷新。新信息合入项目模型后，文件监控范围立即更新，因此新加入的本地 package、共享 C/C++ 目录或 include root 从下一次文件变化开始即可触发。若定向信息未完整生成或无法合入，当前增量编译会失败并保留完整 Gradle 回退边界，而不会继续使用已知过期的监控范围。
 
@@ -92,11 +93,11 @@ Jugg runtime 在 overlay 生效后把包含该 overlay 的 `AssetManager` 更新
 
 - 删除 Flutter asset 时，Jugg 不生成删除产物，也不触发增量编译失败或 Gradle 回退。已安装 APK 或既有 overlay 中的旧 asset 继续保留；需要让删除真正生效时，再执行完整 Gradle 构建刷新 APK 基线。
 - 外部构建成功且约定输出路径可访问时，Flutter asset 或 native lib 产物集合缩小，乃至本轮没有可部署产物，都会被视为成功且不生成对应的移除结果。旧 asset 或 `.so` 继续保留；只有需要让删除真正生效时才执行完整 Gradle 构建。
-- 已识别的 Dart/C/C++ 源码或外部构建配置输入被删除时，Jugg 回退完整 Gradle 构建。
-- 同一轮里有多个外部输入时，Jugg 要求全部输入都能解析。任一输入缺少 metadata、task 或产物契约（例如多 module 工程中只有一个 module 配置了外部构建）时整轮回退完整 Gradle，不会只构建可识别的部分。
+- 被删除的路径会被输入规则忽略：已识别的 Dart/C/C++ 源码、Flutter asset 或外部构建配置输入消失后不再产生变更项，也不会移除旧产物。已经进入待编译队列后才被删除的外部输入仍会回退完整 Gradle 构建而不是部分外部构建，因为它已经无法解析。
+- 同一轮包含多个外部输入，或一个物理 source 匹配多个模块时，Jugg 要求所有输入和 target 都能解析。任一 target 缺少 metadata、task 或产物契约时整轮回退完整 Gradle，不会只构建可识别的部分。
 - 已识别 Flutter/C++ 源码根但缺少 task、输出目录或 Flutter native 输出元数据时，Jugg 会回退完整 Gradle 构建；外部 task 执行失败、约定输出路径缺失或不可读、native 归档损坏或包含不安全/重复条目时，本轮编译失败。具体原因由对应 compiler 打印并保存在编译错误中。
 - 远程编译和无法安全派生外部 task 的自定义命令会回到完整 Gradle 构建。
-- `pubspec.yaml`、`pubspec.lock`、`CMakeLists.txt`、项目内 `*.cmake`、`Android.mk` 和 `Application.mk` 是外部构建的配置输入。修改它们会执行既有外部 task，并在 task 结束后刷新项目模型，不需要单独触发完整构建；只有 NDK、ABI、native source set、packaging 规则等无法由该 task 覆盖的配置变化，才需要完整 Gradle 构建刷新 APK 基线。
+- `pubspec.yaml`、`pubspec.lock`、`l10n.yaml`、`CMakeLists.txt`、项目内 `*.cmake`、`Android.mk` 和 `Application.mk` 是外部构建的配置输入。修改它们会执行既有外部 task，并在 task 结束后刷新项目模型，不需要单独触发完整构建；只有 NDK、ABI、native source set、packaging 规则等无法由该 task 覆盖的配置变化，才需要完整 Gradle 构建刷新 APK 基线。
 - 修改 asset source set、variant 或影响 APK 路径与归属的构建配置后，需要刷新 Gradle 基线。
 - native lib 更新依赖可用的 APK 签名配置；无法完成重签名时，不能继续使用这条增量更新路径。
 

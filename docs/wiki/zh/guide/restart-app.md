@@ -32,6 +32,8 @@ jugg restart
 
 Restart 只重启当前 Jugg Run Configuration 对应的 App。它不会重新编译，也不会清理 App 数据。
 
+启动目标按 launch Activity、HOME Activity 的顺序降级。如果这个 App 两者都没有，Restart 没有页面可以拉起，也不会改启动其它普通 Activity，只会执行 `am force-stop <package>` 停止 App，并在日志中说明。这是 Restart 的最终降级结果，App 数据仍然保留。
+
 ## 每次部署后都重启
 
 如果当前改动频繁碰到启动态问题，可以在 More Options 中打开：

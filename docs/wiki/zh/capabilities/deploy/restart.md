@@ -35,6 +35,20 @@ Restart 用于让需要生命周期刷新或进程重新加载的部署结果生
 
 Hot Fix class、push-only overlay 和部分进程级缓存会要求重启 App；普通非空且不要求重启 App 的增量部署会重建 Activity。Debug 入口会把“部署后重启 App”作为默认行为，以保证调试会话建立在新的进程状态上。
 
+## 启动目标的选择顺序
+
+Restart、install 后启动和 Recover 启动共用同一套启动目标选择，按整个 APK 集合（含 split APK）依次降级：
+
+| 顺序 | 启动目标 | 命中条件 | 最终动作 |
+|---|---|---|---|
+| 1 | launch Activity | `MAIN` + `LAUNCHER`/`LEANBACK_LAUNCHER` | 启动该 Activity |
+| 2 | HOME Activity | enabled、exported，且含 `MAIN` + `HOME` | 启动该 Activity |
+| 3 | 停止 App | 前两类都不存在 | `am force-stop <package>` |
+
+降级跨全部 APK 分阶段执行：先遍历所有 APK 找 launch Activity，找不到才遍历所有 APK 找 HOME Activity。因此后续 split APK 的 launch Activity 仍然优先于前面 APK 的 HOME Activity。两者都不存在时 Jugg 不会改启动其它普通 Activity，只停止 App。
+
+restart 时启动命令附带 `-S`，Debug 时附带 `-D`；第 2 级也保持这些参数。走到第 3 级时 restart 已经完成，但 App 是停止状态而不是启动状态，Restart 不会因此清理 App 数据。
+
 ## 与部署策略的关系
 
 | 策略 | 是否重启 |

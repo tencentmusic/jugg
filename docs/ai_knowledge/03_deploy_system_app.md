@@ -1,6 +1,6 @@
 # 系统应用部署约束
 
-> 最后核对：2026-09-11
+> 最后核对：2026-09-15
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ## 1. 文档定位
@@ -13,7 +13,7 @@
 
 不展开 Jugg install / overlay 的一般机制，见 `03_deploy_core.md`。
 
-Jugg **没有内置**把普通 APK 首次安装成系统应用的 installer、`priv-app` push 或权限白名单逻辑。Run Configuration 可启用 `Enable custom APK install script`，让项目自己的 Gradle task 或脚本接管普通 App 的 install/reinstall；系统分区写入、白名单、签名和重启仍完全由该脚本负责。已经安装的 debuggable 应用如果不满足 Android Studio Deployer 的 `run-as`、普通 UID 与 SELinux label 前提，但 shell、root adbd 或非交互 `su` 能完整访问其 data 目录，class、资源和 assets 增量部署可走 Jugg Direct transport。
+Jugg **没有内置**把普通 APK 首次安装成系统应用的 installer、`priv-app` push 或权限白名单逻辑。Run Configuration 可启用 `Enable custom APK install script`，让项目自己的 Gradle task 或脚本接管普通 App 的 install/reinstall；系统分区写入、白名单和重启仍完全由该脚本负责。需要平台签名或服务器签名时，另用 `Enable custom APK sign script` 替换 Jugg 增量改写 APK 后的默认本地 keystore 签名；两个脚本相互独立，安装脚本不因为启用了签名脚本而改变职责。已经安装的 debuggable 应用如果不满足 Android Studio Deployer 的 `run-as`、普通 UID 与 SELinux label 前提，但 shell、root adbd 或非交互 `su` 能完整访问其 data 目录，class、资源和 assets 增量部署可走 Jugg Direct transport。
 
 ## 2. 核心源码索引
 
@@ -21,10 +21,14 @@ Jugg **没有内置**把普通 APK 首次安装成系统应用的 installer、`p
 |---|---|---|
 | `JuggDeployer.install()` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/applychanges/JuggDeployer.kt` | 统一安装入口。普通 App 可选择自定义脚本，否则调用 Apply Changes executor；成功后统一写 deployment cache 与 overlay id。 |
 | `CustomApkInstallScriptRunner` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/applychanges/CustomApkInstallScriptRunner.kt` | 在本地工程根目录执行用户脚本，补齐 Android SDK platform-tools 路径，并在脚本后校验已安装 APK。 |
+| `CustomApkSignScriptRunner` | `main/src/main/java/com/sickworm/intellij/jugg/apk/CustomApkSignScriptRunner.kt` | 在本地工程根目录执行用户签名脚本，把待签名临时 APK 绝对路径作为最后一个位置参数传入，用于平台签名或服务器签名。 |
 | `IAsDeployerCompat.install()` | `deploy_compat/*/AsDeployerCompat.kt` | 实际执行 AS install session。失败文案来自 PackageManager，不能据此推断“已经按系统应用安装”。 |
 | `AppSandboxExecutor` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/AppSandboxExecutor.kt` | app 私有目录统一入口。以唯一成功标记、UID 范围和探针 SELinux context 判断 Apply Changes 兼容性；不兼容时依次探测普通 shell、root adbd 和非交互 `su`，并固定本轮使用的真实 `dataDir` 与权限模式。 |
 | `DirectAppSandboxDeployTransport` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/hotreload/DirectAppSandboxDeployTransport.kt` | 在 AS deployer 前接管 `run-as` 不兼容应用的 class、资源和 assets 增量部署：先写 Direct Overlay，新增 class 追加 in-memory dex elements，纯方法体尝试在线 redefine；Android 11+ 的普通资源及混合变化刷新运行中 Resources，并按 deploy mode 重建 Activity，失败时请求重启应用。 |
 | `DirectOverlayWriter` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/direct/DirectOverlayWriter.kt` | 通过 `AppSandboxExecutor` 原子写 `code_cache/.overlay`，新 overlay id 最后提交。 |
+| `RootlessCompatDeployStaging` / `RootlessCompatImportConfirmer` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/hotreload/RootlessCompatDeployStaging.kt` | 无 sandbox 时把兼容 payload 暂存到 App 专属 external files 目录，并在 App 重启后按 requestId 读取导入结果。 |
+| `RootlessCompatDeployArchive` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/direct/RootlessCompatDeployArchive.kt` | rootless pending archive 协议：payload ZIP、`request.properties` 元数据、payload SHA-256 与导入结果行解析。 |
+| `RootlessCompatDeployImporter` | `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/hotfix/RootlessCompatDeployImporter.java` | App 启动早期导入暂存请求：校验协议/包名/摘要/expected overlay id，私有 staging 后原子提交并最后写 overlay id。 |
 
 ## 3. 关键模型
 
@@ -76,6 +80,7 @@ Jugg 部署
   -> JuggDeployer.install / codeSwap / fullSwap
   -> 启用自定义安装脚本且目标是普通 App APK: 项目脚本执行系统化或厂商安装流程
   -> 否则 AS deployer: pm install 到 /data/app
+  -> 增量阶段: Manifest / native library 等写回 APK 时，启用自定义签名脚本则由项目脚本签名，否则用本地 keystore
   -> 增量阶段: Direct Overlay / Apply Changes
   -> 系统应用结论仍必须由 dumpsys 的 codePath / flags / privateFlags 证明
 ```
@@ -86,7 +91,7 @@ Jugg 部署
 
 系统包已经存在后，Android 允许 `pm install` 作为更新并保留原 `FLAG_SYSTEM`。这条路径要求**新 APK 与 `/system` 里那份基线 APK 签名一致**。Android Studio / Jugg 默认 debug keystore 与 platform 签名不同，会得到 `INSTALL_FAILED_UPDATE_INCOMPATIBLE`，看起来像“无法 update”。处理是让 debug/release 都使用首次 push 时的同一套 platform 密钥，而不是 uninstall 后改用 debug 包重装（系统分区 APK 卸不掉）。
 
-Jugg 默认 install 走同一条 AS installer，签名对齐后**预期**可以更新已有系统包。启用自定义安装脚本后，Gradle install、APK 更新和 recover reinstall 都可重新执行项目脚本；脚本必须安装 Jugg 本轮提供的 APK，否则 checksum 校验失败。校验成功后，Jugg 会在 app sandbox 可用时清理旧 `code_cache/.overlay`，再记录新 base deployment cache，避免系统应用重装保留 app data 后反复出现 overlay state mismatch。class、资源和 assets 可进入 Direct app sandbox transport；Manifest/native library 继续由既有 APK 更新、重签和安装流程处理，随后重放 overlay。
+Jugg 默认 install 走同一条 AS installer，签名对齐后**预期**可以更新已有系统包。平台签名与 debug keystore 不一致时，可启用自定义 APK 签名脚本，让项目脚本在 Jugg 写回 Manifest/native library 后按平台证书重新签名，再进入安装。启用自定义安装脚本后，Gradle install、APK 更新和 recover reinstall 都可重新执行项目脚本；脚本必须安装 Jugg 本轮提供的 APK，否则 checksum 校验失败。校验成功后，Jugg 会在 app sandbox 可用时清理旧 `code_cache/.overlay`，再记录新 base deployment cache，避免系统应用重装保留 app data 后反复出现 overlay state mismatch。class、资源和 assets 可进入 Direct app sandbox transport；Manifest/native library 继续由既有 APK 更新、签名和安装流程处理，随后重放 overlay。
 
 ### 4.1 自定义 APK 安装脚本契约
 
@@ -98,7 +103,22 @@ Jugg 默认 install 走同一条 AS installer，签名对齐后**预期**可以�
 - 脚本触发 reboot 时应自行等待设备启动和 PackageManager 扫描完成后再退出；Jugg 只复用现有短暂 ADB offline 恢复窗口。
 - 退出码非零、用户取消、ADB 未恢复、包不存在或实际 APK checksum 不匹配时失败。脚本自身失败不可 deploy retry 或 Gradle fallback；脚本成功后的其它部署失败沿用原有 retry/fallback 策略，可能重新执行脚本，重复执行的处理由业务方负责。
 
-### 4.2 run-as 不兼容应用增量链路
+### 4.2 自定义 APK 签名脚本契约
+
+平台证书与 Gradle `SigningConfig` 不一致时，Jugg 改写 Manifest/native library 后按默认 keystore 重签会得到 `INSTALL_FAILED_UPDATE_INCOMPATIBLE`。Run Configuration 可启用 `Enable custom APK sign script`，用项目脚本替换这一步签名，典型用法是把 APK 发送到签名服务器。
+
+- UI 开关未启用时仅显示 switch，默认签名行为不变；启用后显示单行高度的输入面板和项目脚本示例占位提示。
+- 脚本在本地工程根目录执行，macOS/Linux 使用 Bash，Windows 使用 `cmd.exe`；远程编译产物在本地 IDE 主机完成改写，脚本也在该主机执行。Bash 不加载用户 shell 启动文件。
+- Jugg 把 zipalign 后的临时 APK **绝对路径**作为最后一个位置参数传入，并按宿主 shell 规则安全转义；路径含空格、括号或 Unicode 时仍是单个参数。Jugg 不注入设备、applicationId 或其它变量。
+- 脚本必须原地覆盖传入的临时 APK；签名服务返回到其它文件时，脚本需在退出前自行替换该路径。
+- 退出码 `0` 只表示脚本执行完成；Jugg 随后仍用 `apksigner verify` 校验，只有校验通过才原子替换原 APK。校验失败或脚本非零退出时原 APK 保持不变，且当次更新不会进入安装。
+- 不要求本地 `SigningConfig` 有效，也绝不在脚本失败后回退到本地 keystore 签名，避免产生签名身份错误的 APK。
+- 脚本输出转发到 Run 窗口，取消 Run 会终止脚本进程；不对已知失败自动重试，上传、等待、下载及其重试策略由业务脚本负责。
+- 生效范围只包括 Jugg 改写 APK 的场景：Manifest、native library、embedded dex 以及 Embedded APK 路径。Gradle 完整构建的签名流程不变，CLI `BuildIncrementalApkCommand` 与手工导出增量 APK 继续使用默认签名。
+- 部署 retry 和 recover/reinstall 安装的是已经签好的 APK，不会重复执行签名脚本；多设备 Run 可能对同一 APK 重复执行脚本，重复执行的语义由业务脚本负责。
+- 脚本内容属于敏感配置，日志与 `toSafeString()` 只输出 `(configured)` / `(not_configured)`，不得打印脚本原文。
+
+### 4.3 run-as 不兼容应用增量链路
 
 ```text
 run-as package 执行可回滚写入探测
@@ -123,6 +143,41 @@ run-as package 执行可回滚写入探测
 
 能力判断不依赖 system/privileged flag、`sharedUserId` 或具体 `run-as` 错误文本。ADB transport/offline 异常直接传播；Direct 权限不可用或 deployment cache 缺失时提前失败，不再进入必然失败的 Android Studio Deployer。Activity relaunch 也由 Direct JVMTI 请求独立完成，不重新调用 Android Studio `fullSwap/overlaySwap`，且不使用会杀进程的 `am start -S`。该路径只接管已经安装后的增量部署；首次系统化仍只能由外部流程或自定义 APK 安装脚本完成。Direct 与官方 Apply Changes 的剩余能力差异统一见 `03_deploy_core.md` §6.4。
 
+### 4.4 Rootless 兼容部署（普通 shell、root adbd、`su` 全部不可用）
+
+量产 `user` ROM（`ro.debuggable=0`）上的可调试系统应用可能同时满足：`run-as` 探测不通过、`adb root` 返回 `adbd cannot run as root in production builds`、没有可用的非交互 `su`。此时 Host 无法写入 App data 目录，`AppSandboxExecutor` 的 `mode` 固定为 `UNAVAILABLE`。
+
+```text
+JuggDeployer.optimisticSwap
+  -> DirectAppSandboxDeployTransport.tryDeploy
+      -> sandbox.mode == UNAVAILABLE
+          -> 非兼容 payload：抛 REDEPLOY_WITH_COMPAT_MESSAGE
+              -> DeployRetryHandler 复用既有 compat retry
+              -> DeployFileManager.appendCompatDeployFiles(原始数据)
+          -> 兼容 payload：RootlessCompatDeployStaging
+              -> 复用 DirectOverlayWriteRequestBuilder 生成 overlay id 与文件集合
+              -> adb push /sdcard/Android/data/<package>/files/jugg/rootless-compat/<requestId>/
+                   payload.zip -> request.properties -> ready（最后写入）
+              -> chmod 755 目录 / 644 文件，不使用 777
+  -> 返回 pendingRequest，本轮不写 deployment cache
+  -> JuggDeployerHelper 重启 App 一次
+  -> RootlessCompatImportConfirmer 按 requestId 等待 App 导入结果（默认 30s 上限）
+      -> 成功：storeEntry + 后续 deployHistory/DeployFileManager.commit
+      -> 失败或超时：抛错，不提交任何状态，best-effort 清理暂存目录
+```
+
+App 侧由 `BootstrapApplication.attachBaseContext()` 在 `HotfixLoader.init()` 之后、`isNeedEnableHotfix()` 之前调用 `RootlessCompatDeployImporter.importPending()`，因此导入和加载发生在同一次进程启动。导入规则与 Direct Overlay 保持一致：先校验协议版本、包名、requestId、payload SHA-256 与 expected overlay id，再解压到 `code_cache/rootless_import/<requestId>/` 私有 staging，最后按 Direct Overlay 的 cleanup、full resource push 与 overlay id 规则提交，`id` 最后写入。任何校验、解压或空间失败都保留旧 overlay，并通过 `jugg-agent` tag 输出一行 `__JUGG_ROOTLESS_IMPORT__ FAILED <requestId> <stage> <reason>`。
+
+导入按 request 幂等：metadata 与 payload 摘要校验通过后，如果当前 `code_cache/.overlay/id` 已等于本 request 的 `nextOverlayId`（例如上一次启动在导入完成后、Host 读取结果前崩溃），会再次输出同一行 `__JUGG_ROOTLESS_IMPORT__ OK <requestId>` 并直接返回，不重复提交。overlay id 不是 `nextOverlayId` 时仍按状态不匹配失败，不能把任意已提交 overlay 当成本 request 的成功结果。
+
+约束：
+
+- 这条路径只接受兼容 payload，结果类型为 `COMPAT_HOT_FIX`。
+- 不调用 `prepareStartupAgent()`、`pushAgentToApp()`、`DirectHotReloadWriter` 或 `am attach-agent`，不产生为 agent 准备的第二次重启。
+- 该路径依赖 APK 已注入 Jugg compat runtime；缺少运行时会在等待导入结果时超时并明确失败，首版不自动重建安装状态机。
+- 暂存目录固定使用 `/sdcard/Android/data/<package>/files/jugg/rootless-compat`，App 侧通过 `Context.getExternalFilesDir(null)` 定位；避免 `system_app` 等 SELinux domain 无法读取 `/data/local/tmp` 的请求。
+- Manifest 与 native library 仍走完整 APK 更新链路。
+
 ## 5. 隐形约束
 
 - Play Store 镜像不能作为系统应用试验场：通常不能 `adb root`，`/system` 只读。应使用 Google APIs 或 AOSP `userdebug` 镜像。
@@ -134,6 +189,8 @@ run-as package 执行可回滚写入探测
 - AGP debug 包默认 `android:testOnly="true"`，系统扫描后可能无法从启动器打开。首次落盘到系统分区应使用非 testOnly 的 release 包（可保持 `debuggable`）。
 - 隐藏 API / `framework.jar` 只影响编译能否引用 `@hide` 接口，不能代替系统目录安装，也不是 `FLAG_PRIVILEGED` 的充分条件。
 - Apply Changes 兼容性只由 `run-as` 可回滚探测的唯一成功标记、原始 UID `10000..19999`，以及探针与既有 `code_cache` 相同的 SELinux context 决定。仅 UID 相同不足以证明应用进程能读取 `run-as` 创建的文件。未兼容时 Direct transport 必须实际验证 data 目录写入、owner 修复、SELinux label 恢复和清理能力；普通文件继承既有 `code_cache` 的动态 MCS context，JVMTI `.so` 使用 appdomain 可执行的 `apk_data_file:s0`。不能用 root 输出文本、应用 flags 或错误字符串代替能力探测。
+- Rootless 兼容部署只在 compat payload 且 `AppSandboxExecutor.mode == UNAVAILABLE` 时生效。普通 payload（包含 recover 的空 dry payload）在 sandbox 不可用时抛出 `REDEPLOY_WITH_COMPAT_MESSAGE`，`DeployStateRecover.tryDryDeploy` 会忽略该信号并返回成功，让真正的增量 payload 走一次 compat redeploy，而不是在必然失败的 recover 上循环。
+- Rootless 的提交点是 App 的导入确认：`JuggDeployer.optimisticSwap` 不写 deployment cache，`JuggDeployerHelper` 只有在收到匹配 requestId 的 `OK` 结果后才 `storeEntry` 并清理 external files 请求目录。超时不等于成功，进程启动或 `am start` 成功都不能代替导入结果。
 - 系统包已存在后，Android Studio Run / `adb install` / Jugg install 都是更新，不是首次安装。签名必须与 `/system` 内 APK 相同。`adb uninstall` 只能去掉 `/data` 里的更新，系统分区基线仍在；随后再用 debug 证书安装，照样会签名冲突。
 - Google APIs 镜像上，按 `/system/app` / `/system/priv-app` 路径可以得到 `FLAG_SYSTEM` / `PRIVILEGED`，但证书不匹配平台时 `signature|privileged` 权限仍会 denied。AOSP `default` / `test-keys` 镜像上，平台签名匹配的 `/system/app` 也可获得 `INSTALL_PACKAGES`，不依赖 priv-app；`sharedUserId="android.uid.system"` 且证书匹配时进程 UID 为 1000。
 

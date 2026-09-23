@@ -391,7 +391,10 @@ open class QuailAsDeployerCompat : IAsDeployerCompat {
         }.getOrNull()
     }
 
-    private fun createAdbClient(device: com.android.ddmlib.IDevice, logger: com.android.utils.ILogger): AdbClient {
+    protected open fun createAdbClient(
+        device: com.android.ddmlib.IDevice,
+        logger: com.android.utils.ILogger,
+    ): AdbClient {
         return AdbClient(device, logger, AdbLibApplicationService.instance.session)
     }
 

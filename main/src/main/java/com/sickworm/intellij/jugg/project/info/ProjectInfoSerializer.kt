@@ -148,7 +148,8 @@ class ProjectInfoSerializer(val dataFile: File, private val logger: Logger) {
             val buildInfos = moduleObj.getAsJsonArray("externalBuildInfos") ?: return
             buildInfos.forEach { element ->
                 val info = element.asJsonObject
-                restoreExternalBuildLists(info)
+                validateExternalBuildInputDirs(info)
+                restoreExternalBuildDefaults(info)
                 val isFlutter = info.stringOrNull("type") == ExternalBuildType.Flutter.name
                 if (!info.has("assetsOutputDir") && isFlutter) {
                     info.stringOrNull("outputDir")?.let { info.addProperty("assetsOutputDir", it) }
@@ -165,42 +166,22 @@ class ProjectInfoSerializer(val dataFile: File, private val logger: Logger) {
             }
         }
 
-        /**
-         * Restores the recursive input roots from the previous source-root and exact-input model.
-         */
-        private fun restoreExternalBuildLists(info: JsonObject) {
-            if (!info.has("inputDirs")) {
-                val directories = mutableListOf<File>()
-                info.getAsJsonArray("sourceDirs")?.forEach { sourceDir ->
-                    sourceDir.takeIf { it.isJsonPrimitive }?.asString?.let { directories.add(File(it)) }
+        private fun validateExternalBuildInputDirs(info: JsonObject) {
+            val inputDirs = info.getAsJsonArray("inputDirs")
+                ?: throw IllegalStateException(EXTERNAL_BUILD_INPUT_SCHEMA_ERROR)
+            inputDirs.forEach { element ->
+                if (!element.isJsonObject) {
+                    throw IllegalStateException(EXTERNAL_BUILD_INPUT_SCHEMA_ERROR)
                 }
-                info.getAsJsonArray("inputFiles")?.forEach { input ->
-                    input.takeIf { it.isJsonPrimitive }?.asString?.let { path ->
-                        File(path).parentFile?.let(directories::add)
-                    }
-                }
-                val inputDirs = JsonArray()
-                compactInputDirs(directories).forEach { inputDirs.add(it.path) }
-                info.add("inputDirs", inputDirs)
             }
+        }
+
+        private fun restoreExternalBuildDefaults(info: JsonObject) {
             listOf("configFiles", "excludedDirs").forEach { name ->
                 if (!info.has(name)) {
                     info.add(name, JsonArray())
                 }
             }
-        }
-
-        private fun compactInputDirs(directories: List<File>): List<File> {
-            val result = mutableListOf<File>()
-            directories.map { it.absoluteFile.normalize() }
-                .distinctBy { it.path }
-                .sortedBy { it.toPath().nameCount }
-                .forEach { directory ->
-                    if (result.none { directory.toPath().startsWith(it.toPath()) }) {
-                        result.add(directory)
-                    }
-                }
-            return result
         }
 
         private fun JsonObject.stringOrNull(name: String): String? {

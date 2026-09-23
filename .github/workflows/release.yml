@@ -79,6 +79,9 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
+        with:
+          # Default still includes the obsolete `tools` package, which Google no longer serves.
+          packages: platform-tools
 
       - name: Install Android build tools
         run: sdkmanager "platforms;android-33" "ndk;27.0.12077973" "cmake;3.22.1"

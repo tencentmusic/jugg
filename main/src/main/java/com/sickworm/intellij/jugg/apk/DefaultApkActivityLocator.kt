@@ -33,9 +33,29 @@ class DefaultApkActivityLocator(val logger: Logger) {
         if (defaultActivityName == null) {
             val errorMessage = StringBuilder("Unable to find Default Activity in:\n")
             printActivities(activities, errorMessage)
-            logger.info(errorMessage.toString())
+            logger.debug(errorMessage.toString())
         }
         return defaultActivityName
+    }
+
+    /**
+     * Returns the qualified name of the first activity that declares MAIN with HOME.
+     */
+    fun computeHomeActivity(manifest: ManifestActivityInfo): String? {
+        return manifest.activities()
+            .firstOrNull { isStartableActivity(it) && isHomeActivity(it) }
+            ?.qualifiedName
+    }
+
+    private fun isStartableActivity(activity: NodeActivity): Boolean {
+        return activity.isEnabled &&
+                activity.exported == true &&
+                !activity.qualifiedName.isNullOrEmpty()
+    }
+
+    private fun isHomeActivity(activity: NodeActivity): Boolean {
+        return activity.hasAction("android.intent.action.MAIN") &&
+                activity.hasCategory("android.intent.category.HOME")
     }
 
     private fun printActivities(activities: List<NodeActivity>, message: StringBuilder) {

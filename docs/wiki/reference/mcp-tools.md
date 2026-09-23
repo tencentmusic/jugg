@@ -46,7 +46,7 @@ There are currently 20 registered public MCP tools.
 |---|---|---|
 | `version` | None | Returns the Jugg plugin version. |
 | `list-projects` | None | Lists projects initialized in the current IDE. |
-| `restart` | `projectDir`, `waitAppReadyAfterSuccess` | Restarts the target app. |
+| `restart` | `projectDir`, `waitAppReadyAfterSuccess` | Restarts the target app; when no launch or HOME Activity exists it only runs `am force-stop`. |
 | `compile` | `projectDir` | Compiles without deployment. |
 | `deploy` | `projectDir`, `alwaysRestartApp`, `waitAppReadyAfterSuccess` | Compiles and deploys. |
 | `clean-reinstall` | `projectDir`, `waitAppReadyAfterSuccess` | Clears app data and reinstalls the APK. |

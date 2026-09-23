@@ -322,6 +322,13 @@ public final class StubApiGenerator {
         }
 
         @Override
+        public void visit(int version, int access, String name, String signature, String superName,
+                          String[] interfaces) {
+            // Stub APIs are compile-only, so keep them readable by the JDK 17 build toolchain.
+            super.visit(Math.min(version, Opcodes.V17), access, name, signature, superName, interfaces);
+        }
+
+        @Override
         public MethodVisitor visitMethod(int access, String name, String descriptor, String signature,
                                          String[] exceptions) {
             MethodVisitor method = super.visitMethod(access, name, descriptor, signature, exceptions);

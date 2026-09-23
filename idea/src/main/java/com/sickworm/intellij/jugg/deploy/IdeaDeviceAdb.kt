@@ -288,6 +288,10 @@ class IdeaDeviceAdb(
         return ApkReader(apkFile, logger).getDefaultActivity()
     }
 
+    override fun getHomeActivity(apkFile: File): String? {
+        return ApkReader(apkFile, logger).getHomeActivity()
+    }
+
     override fun getArch(packageName: String): String {
         try {
             val pids = adbClient.getPids(packageName)

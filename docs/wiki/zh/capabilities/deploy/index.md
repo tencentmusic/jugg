@@ -19,6 +19,7 @@ Jugg 部署能力承接编译产物，把 APK、dex、资源 overlay、Manifest�
 |---|---|---|
 | [Clean Reinstall](./clean-reinstall.md) | 支持重新安装，可按需清理 app 数据 | 重新建立 APK、部署历史和 overlay 基线 |
 | [自定义 APK 安装脚本](./custom-apk-install-script.md) | 支持用项目脚本接管普通 App 的 install/reinstall | 适配系统应用、厂商 task 和其它非标准安装流程 |
+| [自定义 APK 签名脚本](./custom-apk-sign-script.md) | 支持用项目脚本替换增量改写 APK 的默认 keystore 签名 | 支持平台证书、厂商密钥或服务器签名流程 |
 | [Code Swap](./code-swap.md) | 支持可在线替换的方法体级 class 更新 | 不重启 App 进程；普通非空部署通常重建 Activity |
 | [Full Swap](./full-swap.md) | 支持需要重启 Activity 的 Apply Changes | 更新代码或 overlay 后重启当前 Activity |
 | [Hot Reload](./hot-reload.md) | 支持在线增量 overlay 和 class 更新 | App 保持运行，必要时只重启 Activity |

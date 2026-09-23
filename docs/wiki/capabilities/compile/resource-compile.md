@@ -31,6 +31,7 @@ This page explains whether a resource change is supported and what deployment re
 |---|---|---|
 | Compiled resources and `resources.arsc` | Incremental link of Android `res/` | Enter deployment as a resource overlay |
 | `R.java`, and `R.dex` needed by some R-reference scenarios | Resource IDs or symbols change | `R.java` continues into source compilation, and generated DEX deploys with the resource artifacts |
+| `R*.dex` for an external AAR's own namespace | The external AAR's resources change | Derives that namespace's R declarations from the host main R and deploys them, so existing AAR code can read the new resource fields |
 | ViewBinding/DataBinding generated sources | Binding layout changes | Continue into Java/Kotlin source compilation |
 | Asset overlay | `assets/` changes | Bypasses `aapt2` and deploys according to target APK |
 | Updated Manifest | The Manifest contains an actual incremental change | Is written to the target APK, re-signed, and installed |
@@ -58,6 +59,7 @@ Deployment of a regular resource or asset overlay normally restarts the Activity
 - Manifest node deletion, attribute deletion, or `tools:*` operations that depend on a complete merge do not produce corresponding removal or merge results. The device continues using the previous merged manifest content. See [AndroidManifest compilation](./manifest.md) for details.
 - After changing a source set, variant, resource directory, resource generation logic, or resource obfuscation configuration, complete Gradle Sync when the project model changes, then run a full Gradle build for the target variant to establish a new APK and resource-table baseline.
 - Added or modified styleables depend on R declarations from the latest build, and resource obfuscation depends on a mapping that matches the current APK. Use a Gradle build to refresh a missing or inconsistent baseline.
+- When an external AAR's resources change, Jugg additionally generates `R*.dex` for that dependency's namespace. The namespace comes from Gradle's `package-aware-r.txt` first and falls back to the AAR manifest `package`. If neither is available Jugg does not guess: the incremental build fails and asks for a full Gradle build.
 - Compose Multiplatform resources do not pass through Android `aapt2` and are not handled by the Android `res/` rules on this page.
 - On the first resource overlay deployment, Jugg may include resource files from the baseline, so the number of deployed files can exceed the number changed directly in the current run.
 

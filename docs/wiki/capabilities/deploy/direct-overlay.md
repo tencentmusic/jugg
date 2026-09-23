@@ -19,6 +19,7 @@ Direct Overlay is Jugg's alternate overlay-write path when a device has not yet 
 | Device is not ready, but history and cache match | Supported | Writes the overlay directly into the app sandbox |
 | Android O or later, with compatible Apply Changes prerequisites | Supported | Uses `run-as` to write into the app sandbox |
 | Class, resource, or asset change with no `run-as` success marker, an out-of-range UID, or a mismatched SELinux label | Supported when the permission probe succeeds | Uses a fixed ordinary-shell, root-adbd, or device-supported non-interactive-`su` command form against the real data directory |
+| `run-as`, ordinary shell, root adbd, and non-interactive `su` are all unavailable | Supported for compat payloads; other payloads convert to compat deploy first | Stages the compat payload under the app-specific external files directory for the app to import on its next start, without pushing any JVMTI agent |
 | Apply Changes startup agent must be prepared in advance | Supported | The Direct Overlay path pushes the Android Studio startup agent |
 | Overlay ID does not match the expected value | Does not force a write | Switches to recovery or reinstallation |
 | The writer fails after modifying the overlay | Does not fall back to old Apply Changes | Prevents continued deployment from a partially committed state |
@@ -55,7 +56,9 @@ Direct Overlay requires all of the following:
 - Deployment data is non-empty and does not represent an install.
 - The device OS version meets the requirement and the app sandbox is writable through the selected `run-as`, ordinary-shell, root-adbd, or non-interactive-`su` mode.
 
-When `run-as`, the UID, or the SELinux label is incompatible, Jugg can deliver classes, resources, and assets directly. Pure method-body changes can be replaced online. On Android 11 or later, resource, asset, and mixed code/resource changes refresh resources in the current process and recreate the Activity, falling back to an app restart if the refresh fails. Android 8–10 and compatible deployment retain resource paths that require a process restart. Manifest and native-library changes still use APK updates and installation. Failed permission probes or a missing deployment cache cause an explicit failure.
+When `run-as`, the UID, or the SELinux label is incompatible, Jugg can deliver classes, resources, and assets directly. Pure method-body changes can be replaced online. On Android 11 or later, resource, asset, and mixed code/resource changes refresh resources in the current process and recreate the Activity, falling back to an app restart if the refresh fails. Android 8–10 and compatible deployment retain resource paths that require a process restart. Manifest and native-library changes still use APK updates and installation. A missing deployment cache causes an explicit failure.
+
+When the ordinary shell, root adbd, and non-interactive `su` are unavailable too, Jugg stops trying to write the app sandbox: ordinary class, resource, and asset changes are converted to compat deploy first, and the compat payload is staged under the shell-writable, app-readable `/sdcard/Android/data/<package>/files/jugg/rootless-compat/<requestId>/`. The app is restarted once and locates the request through `Context.getExternalFilesDir(null)` before importing `code_cache/.overlay` during early startup. This path never pushes, copies, or attaches a JVMTI agent, and it does not advance the deployment cache, deploy history, or file state until the app confirms the import; a failed or timed-out import keeps the previous overlay and fails explicitly.
 
 ## Related pages
 

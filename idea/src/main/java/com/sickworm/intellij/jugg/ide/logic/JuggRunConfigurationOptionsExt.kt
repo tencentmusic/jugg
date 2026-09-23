@@ -42,6 +42,8 @@ fun JuggRunConfigurationOptions.toCompileOptions(
         isRemoteSyncExcludePatternsCustomized = options.isRemoteSyncExcludePatternsCustomized,
         enableCustomApkInstallScript = options.enableCustomApkInstallScript,
         customApkInstallScript = options.customApkInstallScript ?: "",
+        enableCustomApkSignScript = options.enableCustomApkSignScript,
+        customApkSignScript = options.customApkSignScript ?: "",
     )
 }
 

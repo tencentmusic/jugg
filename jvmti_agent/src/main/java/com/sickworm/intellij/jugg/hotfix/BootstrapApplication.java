@@ -55,6 +55,9 @@ public class BootstrapApplication extends Application {
     @Override
     protected void attachBaseContext(Context base) {
         HotfixLoader.init(base);
+        // Import a host-staged rootless compat payload before the hotfix decision, so this very
+        // process start loads the newly committed overlay.
+        RootlessCompatDeployImporter.importPending(base);
         boolean isNeedEnableHotfix = HotfixLoader.isNeedEnableHotfix();
         LogUtils.e(TAG, "attachBaseContext start, isNeedEnableHotfix " + isNeedEnableHotfix);
         if (isNeedEnableHotfix) {

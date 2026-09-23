@@ -25,7 +25,7 @@ The Control Panel maintains the current IDE session state from structured events
 
 ## Open the panel
 
-Projects with a runnable Jugg configuration show the `Jugg Running Pannel` tool window on the right side of Android Studio. You can also open it from `Tools > Open Jugg Control Panel`.
+Projects with a runnable Jugg configuration show the `Jugg Running Panel` tool window on the right side of Android Studio. You can also open it from `Tools > Open Jugg Control Panel`.
 
 Entry points in the Run Configuration that require settings open the Settings page directly, so you do not need to search through two windows.
 
@@ -47,11 +47,15 @@ Overview combines the following information:
 
 The Logs page shows Jugg's structured core events and supports filtering by source, level, current task, and keyword.
 
-- Sources include Deploy, Runtime, and CLI / MCP.
+- Sources include IDE and CLI / MCP. Jugg business clicks and confirmation dialogs are recorded as User Action.
 - Levels include Info, Warn, and Error.
-- `Current task` keeps only events from the current task.
+- `Current task` keeps only compile/deploy task events, not click records.
 - `Follow` automatically follows new events.
 - Select an event to copy it for an issue report.
+
+After you click Quick Actions, Jugg toolbar/menu actions, or a compile confirmation dialog, the Logs page shows the matching User Action. The same text is also written to `build/jugg/log/compile_latest.log` with the fixed prefix `[UserAction]`. The Last Deploy timeline on Overview shows only the current run and does not list these clicks.
+
+When a run falls back to Gradle, Logs shows `Fallback to gradle compile. Reason: ...` on the current task. The same line is written to the Run window and `compile_latest.log`.
 
 Structured logs help identify the stage quickly, but they do not replace full logs. To inspect Gradle output, exception stacks, or lower-level deployment details, open `build/jugg/log/compile_latest.log`.
 

@@ -1,6 +1,6 @@
 # 编译系统：混淆映射
 
-> 最后核对：2026-08-27
+> 最后核对：2026-09-16
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -29,9 +29,11 @@
 
 | 数据 | 生产者 | 消费者 | 关键约束 |
 |---|---|---|---|
-| `mapping.txt` | 已安装 APK / 增量数据目录 | `ClassMinifyCompiler`, `DexMinifyCompiler` | `context.isMinified` 仍以 mapping 是否存在作为主要判断；release 缺失 mapping 只告警并继续 |
+| `mapping.txt` | 已安装 APK / 增量数据目录 | `ClassMinifyCompiler`, `DexMinifyCompiler` | 变体开启 minify 时是必需输入；缺失即失败，不允许静默跳过 |
 | `usage.txt` | R8/ProGuard 输出 | `DexMinifyCompiler` | 只增强 `_jugg_fix` 输入 class 的兼容改写；缺失或解析失败时退化为不裁剪 deleted method |
 | `MinifyInfo` | 部署数据/影响分析链路 | `DexMinifyCompiler` | 用于识别 inline 受影响类与 `_jugg_fix` 原始 class 输入 |
+
+是否进入混淆只由当前选中变体的真实 `minifyEnabled` 决定：`GradleProjectInfoReader` / `GradleVariantCollector` 把 `Variant.minifyEnabled` 写进 project info，`ModuleInfo.minifyEnabled` 按 `buildVariant` 派生，`ICompileContext.isMinified` 只判断它是否为 `true`。`outputs/mapping/<variant>/mapping.txt` 是否存在不参与该判断：用户曾经为某个变体开启过 minify、之后关闭时，旧 mapping 会残留在磁盘上，用它推断会把未混淆产物当成混淆产物处理。
 
 ---
 
@@ -54,7 +56,8 @@ SourceCompiler.compileDexOutputs()
 
 ## 5. 隐形约束 / 设计思路 / 已知边界
 
-- release 缺 mapping 不会硬失败：`ClassMinifyCompiler` / `DexMinifyCompiler` 只 warn 并 wrap 原任务结果。排查 release 异常时要先确认日志是否出现 mapping 缺失告警。
+- 变体开启 minify 但 `mapping.txt` 缺失时会硬失败：`ClassMinifyCompiler` / `DexMinifyCompiler` 打印用户可见 `warn` 并让本轮增量编译失败，不再 wrap 原任务结果。原因是缺少 mapping 时输出的命名空间一定与已安装 APK 不一致，静默继续等于部署一份运行时必然崩溃的产物。排查 release 异常时先确认日志是否出现该告警。
+- 变体未开启 minify 时直接跳过混淆，即使该变体目录下仍有上一次混淆构建残留的 `mapping.txt`；Jugg 不删除也不清理该文件，只按真实配置路由。
 - `usage.txt` 只参与 `_jugg_fix` 输入 class 的方法体兼容改写：已删除方法保留签名但改为空实现/默认返回；字段删除目前由 reader 记录，当前链路主要消费 removed methods。
 - 部分 R8 版本会在 `usage.txt` 中擦除 Kotlin property accessor 的参数信息。精确签名未命中时，只有 usage 与 class bytecode 中该方法名都唯一才按名称回退；任一侧存在 overload 就保持原方法，避免误裁剪同名成员。
 - `preObfuscateForMinifyInfo()` 是为了让 DB 查询使用 APK 里的混淆类名；若跳过这一步，容易误判“类在 DB 中缺失”。

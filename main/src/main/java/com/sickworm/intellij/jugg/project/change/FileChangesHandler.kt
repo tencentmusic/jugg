@@ -4,7 +4,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.ICompileContext
 import com.sickworm.intellij.jugg.compiler.external.isInExternalBuildCacheDirectory
-import com.sickworm.intellij.jugg.compiler.external.resolveExternalBuild
+import com.sickworm.intellij.jugg.compiler.external.resolveExternalBuilds
 import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import com.sickworm.intellij.jugg.compiler.relativePathForPrintSafe
 import com.sickworm.intellij.jugg.git.FileMatcher
@@ -215,7 +215,7 @@ class FileChangesHandler(
         buildDirs: List<File>,
     ): Scope {
         val externalSourceDirs = compiledModules.flatMap { module ->
-            module.externalBuildInfos.flatMap { it.inputDirs }
+            module.externalBuildInfos.flatMap { it.inputDirs }.map { it.directory }
         }
         val scanRoots = (listOf(projectDir) + compiledModules.map { it.moduleRootDir } + externalSourceDirs)
             .map { it.normalizedPath }
@@ -244,10 +244,8 @@ class FileChangesHandler(
         if (file.isInBuildDir) {
             return null
         }
-        // A removed external build input stays visible so the incremental pre-check can require a
-        // full Gradle build; its artifacts cannot be removed from the APK incrementally.
         if (!file.exists()) {
-            return checkExternalBuildSource(file)
+            return null
         }
 
         checkBuildFiles(file)?.let {
@@ -277,14 +275,11 @@ class FileChangesHandler(
         if (file.hasExcludedExternalBuildDirectory()) {
             return null
         }
-        getModules().forEach { module ->
-            val buildInfo = resolveExternalBuild(module, file) ?: return@forEach
-            val baseDir = buildInfo.inputDirs.firstOrNull { sourceDir ->
-                file.pathEquals(sourceDir) || file.isChild(sourceDir)
-            } ?: file.absoluteFile.normalize().parentFile ?: return@forEach
-            return ChangedFile(CompileFile.Type.ExternalBuildSource, file, baseDir, module)
-        }
-        return null
+        val target = resolveExternalBuilds(getModules(), file).firstOrNull() ?: return null
+        val baseDir = target.matchedInputDir?.directory
+            ?: file.absoluteFile.normalize().parentFile
+            ?: return null
+        return ChangedFile(CompileFile.Type.ExternalBuildSource, file, baseDir, target.module)
     }
 
     private fun checkComposeResource(file: File): ChangedFile? {

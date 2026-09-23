@@ -1,6 +1,6 @@
 # 工程化：项目模型与 Gradle 集成
 
-> 最后核对：2026-09-12
+> 最后核对：2026-09-16
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -55,6 +55,7 @@
 | `build/jugg/database/project_infos.db/gradle_include_builds.txt` | Gradle init script | include build project info 文件列表 |
 | `build/jugg/database/project_infos.db/is_dirty` | project info 管理 | 标记需要更新 project info |
 | `build/jugg/classpath/` | Gradle/full build fetch | 本地 classpath、APK、library backup、embedded APK |
+| `build/jugg/classpath/native_strip/` | Gradle init script（完整构建写入） | APK owner 的 `keepDebugSymbols` 与 ABI strip 工具缓存，含 `config.json` 与 `tools/` 内随基线迁移的工具副本；位于 `classpath/root` 之外，不进入 Java/Kotlin classpath |
 | `~/.jugg/library_test_build_records` | androidTest history | 记录 self-targeting library Test APK 构建历史 |
 | `build/jugg/config/run_configurations/<id>.json` | IDEA / standalone | 独立 CLI build profile；id 为稳定 UUID，重命名不改变 id |
 | `build/jugg/config/current_run_configuration.json` | IDEA / standalone | 当前配置指针，只保存 schemaVersion 与 configId |
@@ -74,6 +75,7 @@ IDEA Jugg Run Configuration 是共享 profile 的同步源。项目启动时会�
 | `moduleRootDir` / `projectRootDir` | 模块根与 IDE 项目根；相对路径用于跨机器/远端同步 |
 | `sourceDirs` | 模块全部有效源码根的扁平集合；KMP common roots 也必须包含在内 |
 | `buildVariant` / `buildPathInfo` | 当前变体及 AGP 输出路径推断 |
+| `variants` / `minifyEnabled` | 全部变体及其真实 minify 配置；`minifyEnabled` 是 `variants` 中命中 `buildVariant` 的派生值，`null` 表示旧快照或 AGP 未暴露该配置 |
 | `moduleDependencies` / `runtimeModuleDependencies` / `libraryDependencies` / `runtimeLibraryDependencies` | 编译、APK 运行时归属和库依赖；`runtimeModuleDependencies=null` 表示旧快照，继续使用旧的模块依赖遍历 |
 | `applicationId` / `namespace` | APK 归属、manifest、androidTest target 解析基础 |
 | `isUseDataBinding` | Gradle 读取的 DataBinding build feature；合并后必须保留，供增量 layout 编译选择 DataBinding 模式 |
@@ -83,7 +85,7 @@ IDEA Jugg Run Configuration 是共享 profile 的同步源。项目启动时会�
 | `kotlinCommonSourceDirs` | 选中 Android Kotlin compilation 视为 common 的 Kotlin source roots；非 KMP 或读取失败时为空列表 |
 | `kotlinFragmentSourceDirs` | 选中 Android Kotlin task 暴露的 fragment 到 source roots 映射；旧快照或不支持时为空 map |
 | `kotlinFragmentRefines` | fragment refinement edge，key 为 refining fragment，value 为其直接 refined fragments |
-| `externalBuildInfos` | 当前 variant 的 Flutter/C++ 外部构建类型、`inputDirs`（递归触发根，已合并被祖先覆盖的子目录）、`configFiles`（配置输入）、`excludedDirs`（永不监听的生成/缓存目录）、产生最终 native 产物的 Gradle task、native 输出位置，以及 Flutter assets 输出目录；native 输出是单个 `File`，运行时按归档或目录分派，不为容器类型分别建模；旧快照的 `sourceDirs` 与 `inputFiles` 在读取边界转换成 `inputDirs` |
+| `externalBuildInfos` | 当前 variant 的 Flutter/C++ 外部构建类型、`inputDirs`（`ExternalBuildInputDir`：递归触发根 + 该根接受的 `ExternalBuildInputFilterRule` 集合）、`configFiles`（配置输入）、`excludedDirs`（永不监听的生成/缓存目录）、产生最终 native 产物的 Gradle task、native 输出位置，以及 Flutter assets 输出目录；native 输出是单个 `File`，运行时按归档或目录分派，不为容器类型分别建模；旧 `inputDirs` 字符串数组在读取边界显式拒绝，由一次完整 Gradle 构建重写快照 |
 | `kotlinDefaultFragmentName` | 无 source root 精确命中时使用的 task default fragment；旧快照或不支持时为 `null` |
 | `composeResourceInfo` | 已检测的 Compose resource task metadata；同时保存 supported/unsupported 状态与原因，由增量链按 task 和 generator API 结构消费，不按 Kotlin/Compose 精确版本过滤 |
 
@@ -135,6 +137,7 @@ IDE / Gradle compile 触发 project info 更新
      校验 Compose resource 任务并读取 generator/resource directory metadata
      读取当前 variant 的 Flutter compile/pack Jar task、mergeNativeLibs task、外部源码根、输出目录和 native archive
   -> 写入 gradle_project_infos.json
+     Application / Dynamic Feature 已配置，读取各自当前 variant 的 strip 配置写入 classpath/native_strip
      include build 额外写入 gradle_include_builds.txt
 ```
 
@@ -144,13 +147,15 @@ IDE / Gradle compile 触发 project info 更新
 
 Application 与 Dynamic Feature 的 APK 模块归属使用 Gradle 已解析的 variant runtime classpath。`GradleProjectInfoReader` 从 `ProjectComponentIdentifier` 收集本构建和 composite build 的 project component，Gradle DSL 的 `exclude`、依赖替换和变体选择已经在该边界生效；`ModuleApkBelongsUtils` 直接使用这份扁平 resolved module 集合，不再沿 IDE/compile dependency 图递归推导。读取失败、目标 runtime configuration 不存在或旧 JSON 没有 `runtimeModuleDependencies` 时字段保持 `null`，整体回退既有 `moduleDependencies` 遍历，不能把“不知道”序列化成权威空集合。
 
-Application 与 Dynamic Feature 同时从选中 variant 的 `RuntimeClasspath` 读取最终 APK 可见的外部库，写入 `runtimeLibraryDependencies`；其他模块仍只读取既有 compile dependency，避免为每个 Library 重复解析运行时图。依赖 diff 先检查完整构建基线：基线存在非空 runtime library 数据时，本轮两个 diff 都比较 `libraryDependencies + runtimeLibraryDependencies`，并按 artifact 绝对路径去重；基线 runtime 为空时，本轮两个 diff 都只比较 `libraryDependencies`。因此新基线能够检测仅通过 Maven runtime scope、`runtimeOnly` 或其他运行时传递路径进入 APK 的 AAR/JAR，旧基线又不会把升级后首次采集到的全部 runtime library 误报为新增。APK 根模块的 runtime configuration 缺失或解析失败属于依赖快照不完整，必须让本次 Gradle 读取失败并回退完整构建，不能保存权威空列表继续部署。
+Application 与 Dynamic Feature 同时从选中 variant 的 `RuntimeClasspath` 读取最终 APK 可见的外部库，写入 `runtimeLibraryDependencies`；其他模块仍只读取既有 compile dependency，避免为每个 Library 重复解析运行时图。该读取只消费 library artifact，因此 `doGetDependencies` 对它会跳过 `getProjectDependencies` 的 legacy `ResolvedConfiguration` 遍历：该遍历只产出会被丢弃的 `ModuleDependency`，却会解析整个 APK 根的 runtime artifact 图（多 Dynamic Feature 工程上每个 APK 根模块约 16～18s）。runtime module 依赖仍由 `getRuntimeModuleDependencies` 通过 `resolutionResult` 单独读取，两者的数据和失败语义互不替代。依赖 diff 先检查完整构建基线：基线存在非空 runtime library 数据时，本轮两个 diff 都比较 `libraryDependencies + runtimeLibraryDependencies`，并按 artifact 绝对路径去重；基线 runtime 为空时，本轮两个 diff 都只比较 `libraryDependencies`。因此新基线能够检测仅通过 Maven runtime scope、`runtimeOnly` 或其他运行时传递路径进入 APK 的 AAR/JAR，旧基线又不会把升级后首次采集到的全部 runtime library 误报为新增。APK 根模块的 runtime configuration 缺失或解析失败属于依赖快照不完整，必须让本次 Gradle 读取失败并回退完整构建，不能保存权威空列表继续部署。
 
 `readProjectInfo.gradle.kts` 在 `gradle.taskGraph.whenReady` 后分流执行：dry-run 仍立即调用 `readAndSave()`，避免没有真实 task execution 时丢失 project info；非 dry-run 会把读取挂到 task graph 最后一个 task 的 `doLast`，让依赖快照尽量在 execution phase 读取，减少 Gradle 9/AGP 高版本的 configuration-time resolve warning。
 
 Android variant 读取保留 `applicationVariants` 和 `libraryVariants` 作为旧 AGP 的首选入口（dynamic feature 使用 `applicationVariants`）；仅当 legacy API 未返回 variant 时，才使用配置阶段从 `androidComponents.onVariants` 收集的名称与有效 `minSdk`。收集结果按 Gradle project path 存在 root project extra properties 中，不保留 AGP variant 实例；project info 的 `buildVariant` 推导和 AndroidTest assemble task 注入复用同一份回退数据。该注册同时覆盖 application、library 和 dynamic-feature plugin，反射注册失败时保持旧路径继续执行，不中断 Gradle 配置。
 
 `Variant.minSdkVersion` 在旧 API 下读取 `mergedFlavor.minSdkVersion.apiLevel`，Android Components 下读取 `minSdk.apiLevel`。选定 `buildVariant` 后，将对应值写入 `ModuleInfo.minSdkVersion`，仅在无法取得该值时回退 `defaultConfig.minSdkVersion`；不能在后续 copy 中再用 defaultConfig 覆盖，否则 flavor 覆盖 minSdk 时 D8 会使用错误的 API 级别。旧快照缺少 variant 的可空字段时仍保留原 module minSdk 和签名配置，不要求迁移；刷新 Gradle project info 后取得有效 variant 值。
+
+每条变体记录同时采集真实 minify 配置，供 `ICompileContext.isMinified` 判断增量编译是否需要混淆。legacy 变体对象不暴露该能力，先尝试 `variant.isMinifyEnabled`，失败后回退到 `variant.buildType.isMinifyEnabled`（`com.android.builder.model.BuildType` 的稳定契约）；Android Components 路径读取变体实现的 `com.android.build.api.variant.CanMinifyCode.isMinifyEnabled`。两处都是 Best-effort 读取，读不到时字段保持 `null`，由 `ICompileContext.isMinified` 判定为“未开启 minify”。不得用 `outputs/mapping/<variant>/mapping.txt` 是否存在代替该配置：用户关闭 minify 后旧 mapping 会残留，据此判断会把未混淆产物按混淆产物处理。
 
 同一次 task graph 出现多个 variant 时，`guessBuildVariant()` 优先按 Gradle 启动 task 的后缀精确匹配最长 variant 名称，再使用原有 Debug/Release 回退。例如 Flutter add-to-app 常见的 `profile { initWith debug }` 会同时执行 Debug 与 Profile 相关 task，但 `:app:assembleProfile` 必须选择 Profile，才能读取 `compileFlutterBuildProfile` 和 `mergeProfileNativeLibs` 元数据。
 
@@ -187,9 +192,9 @@ JuggManager.onSyncEvent()
 
 `JuggProjectInfoMerger` 合并得到的最终 `JuggProjectInfo` / `ModuleInfo` 只保存在编译上下文内存中，不会回写 `project_infos.json`。磁盘上的 `project_infos.json`、`gradle_project_infos.json` 和 include build 快照分别代表各自输入源，时间戳和单个文件字段都不能直接代表最终合并状态；排查最终行为时应结合全部输入快照与编译日志判断。
 
-`ModuleInfo.externalBuildInfos` 保存 Flutter/C++ 递归触发根、配置输入、排除目录、当前变体 task、native 输出位置和 Flutter assets 输出目录。Flutter 的 `inputDirs` 由 Flutter 根、`compileFlutterBuild<Variant>.sourceFiles` 的父目录和可识别的本地 pub package 根组成，不区分 package 是否位于同一 Gradle 根工程，也不解析 `pubspec.yaml` 的 asset 声明；Native 的 `inputDirs` 由 externalNativeBuild 配置根、CMake File API / `android_gradle_build.json` 给出的 source 父目录与 include root 组成。所有目录规范化后删除已被祖先覆盖的子目录。Flutter SDK 根、pub cache 根、`.dart_tool` 与模块 build directory 进入 `excludedDirs`，永不监听。能够识别输入根但无法读取 task、assets 输出或 native 输出时仍保留该记录，并通过 `unsupportedReason` 标记不支持；Run 预检会转为完整 Gradle 构建。
+`ModuleInfo.externalBuildInfos` 保存 Flutter/C++ 递归触发根及其文件类型规则、配置输入、排除目录、当前变体 task、native 输出位置和 Flutter assets 输出目录。每个触发根带一组 `filterRules`（`Dart`、`FlutterAsset`、`CppSource`、`CppHeader`、`NativeDirectory`），规则之间是 OR，规则集合不允许为空。Flutter 的输入根由 Flutter package 根与 `compileFlutterBuild<Variant>.sourceFiles` 中 Dart 文件的父目录组成（`Dart`），由 task inputs 向上定位的本地 pub package 根使用同样规则；非 Dart task 输入只有严格位于 package 根之下才生成对应目录的 `FlutterAsset`，package 根本身永远只生成 `Dart`。`pubspec.yaml`、`pubspec.lock`、`l10n.yaml` 进入 `configFiles`，`flutter.assets` 的目录声明与 `l10n.yaml` 的 `arb-dir` 生成 `FlutterAsset` 目录，单文件 asset、font、shader 依赖 task inputs；声明路径必须位于所属 package 根内且不经过符号链接或 `excludedDirs`。Native 的输入根由 externalNativeBuild 配置根（`CppSource + CppHeader`）、CMake File API / `android_gradle_build.json` 给出的非 Header source 父目录（`NativeDirectory`）、显式 Header source 父目录与 include root（`CppHeader`）组成；CMake target 的相对 source path 以 codemodel `paths.source` 为基准解析。父目录等于配置根时不扩大规则，未识别或无法纳入 `NativeDirectory` 的 metadata 输入直接忽略，只按 external build 聚合一条 debug 日志，既不设置 `unsupportedReason` 也不写入 project info。采集后只做规范化与“相同路径 + 相同规则集合”去重，保留父子目录和同目录不同规则集合。Flutter SDK 根、pub cache 根、`.dart_tool`、Gradle 用户目录、Android SDK/NDK/CMake toolchain、staging 目录与模块 build directory 进入 `excludedDirs`，永不监听。能够识别输入根但无法读取 task、assets 输出或 native 输出时仍保留该记录，并通过 `unsupportedReason` 标记不支持；Run 预检会转为完整 Gradle 构建。
 
-external task 成功后不再异步触发完整 project-info local fetch。派生 Gradle command 通过 init script 与 invocation 参数执行 `juggCollectExternalBuildInfo`，只重读本轮 module/variant/type 的 metadata 并输出到临时目录；runtime 校验结果完整性后，以旧 task path 为定位键定向替换最新 Gradle 快照中的记录，原子保存并重新走既有 project-info merge。`BaseCompileContext.update()` 随后派发 modules 更新，`FileChangesHandler` 立即原子替换扫描根与排除目录。collector、定向合并或 context 回写任一失败时 external 编译失败，避免 task 已成功但后续仍按旧范围监控。
+external task 成功后不再异步触发完整 project-info local fetch。派生 Gradle command 通过 init script 与 invocation 参数执行 `juggCollectExternalBuildInfo`，只重读本轮 module/variant/type 的 metadata 并输出到临时目录；runtime 校验结果完整性后，以旧 task path 为定位键定向替换最新 Gradle 快照中的记录，原子保存并重新走既有 project-info merge。`BaseCompileContext.update()` 随后派发 modules 更新，`FileChangesHandler` 立即原子替换扫描根与排除目录。collector、定向合并或 context 回写任一失败时 external 编译失败，避免 task 已成功但后续仍按旧范围监控。`request.json` 是 `ExternalBuildTaskRunner` 为单次 invocation 生成的临时执行与收集清单，包含 invocation id 与本轮 module/variant/task/type，不是持久化项目配置或独立的只读 metadata 请求。生产侧派生命令要求 external task path 非空，并始终将 external task(s) 与 collector 放在同一条 Gradle 命令中；目前没有只请求 collector 的产品入口，测试单独运行 collector 只用于验证依赖编排。C++ request 额外携带 APK owner（base app 或 dynamic feature）的 module root 与 variant，collector 据此读取该 owner 的 `strip<Variant>DebugSymbols` 配置（`keepDebugSymbols`、按 ABI 的 strip executable），在本轮 invocation 目录内复现 AGP 单文件 strip 语义并把 stripped 输出路径写进 result 的 `strippedNativeOutput`。该字段只描述本轮 invocation，不写入 `ExternalBuildInfo`/`ModuleInfo`；collector 不执行 APK owner 的 strip task，也不解析其 input artifact provider，因此不会把无关 app strip 或 app merge 带回任务图。collector 在根工程评估期（`gradle.rootProject`）通过 `dependsOn` 绑定本轮 local request 的 module task，确保 Configuration on Demand 与并行构建下必须先完成 native/Flutter 输出，再读取和剥离当前产物；仅靠 `mustRunAfter` 或 `TaskState` 观察不能作为完成屏障。结果侧仍校验有效输出、invocation id 和 request/update key 完全一致，这些是完整性门禁，不是任务顺序检查。旧 request/result JSON 缺少 APK owner 或 stripped 输出时，C++ 本轮明确失败，不伪造成功。
 
 全量构建完成后，如果 IDE 没有可靠返回 Sync Success，Jugg 会补偿读取一次 IDE project info。该分支仅使用 IDE 数据补充 module/source 结构，library dependency 始终以同一次全量构建生成的 Gradle project info 为准，不受 IDE JSON mtime 更新影响；正常 IDE Sync 仍沿用现有的 mtime 新旧判断。
 
@@ -288,14 +293,18 @@ APK 拉取全部成功后，`LocalGradleCompileClient` / `RemoteGradleCompileCli
 ## 6. 隐形约束
 
 - `ModuleInfo` 新增字段时必须同步 `JuggProjectInfoSerialize`、`JuggProjectInfoMerger`、`ProjectInfoSerializerInGradle`、`CmdLineContextManager`、`LibrariesBackupHelper`；否则 Gradle/IDE/CLI 任一侧会丢字段。
+- `Variant` 的字段由 Groovy `JsonBuilder` / Gson 按属性序列化，不需要手工白名单；新增字段必须保持 nullable 且带默认值，旧快照读回 `null` 表示“未知”。`ModuleInfo.minifyEnabled` 是派生属性、不是存储字段，Gson 不会回写它，也不参与 merge：merge 只保留 Gradle 侧 `variants`，因此 IDE-only 模块的 `minifyEnabled` 保持 `null`。
 - Gradle 侧 Groovy `JsonGenerator` 会把 Kotlin Boolean `is*` 字段写成 JavaBean 名（`isUseDataBinding` → `useDataBinding`）。IDE `ProjectInfoSerializer` 用 Gson 按字段名读取，加载时按 `ModuleInfo` 声明的 `is*` 布尔字段自动把 bean 名拷到字段名，不要为单个开关加白名单。新增同类字段时，`gson load of groovy snapshot preserves DataBinding setting` 会要求 fixture 赋值为 true 并完成 Groovy→Gson 回读。只修 merger 保留逻辑挡不住 JSON 回读丢开关。
+- `LibraryDependency.rPackageName` 保存外部 AAR 的 R namespace：`GradleProjectInfoReader` 按 Gradle component identifier Best-effort 读取 `android-symbol-with-package-name`（`package-aware-r.txt` 首个非空行），AGP 不支持、文件缺失或内容为空时保持 `null`，由 `DependencyDiffResultHelper` 回退 AAR Manifest `package`。它是依赖元数据：不加入 `LibraryDependencySet` 文件集合、不参与 CRC diff，旧快照缺字段按 `null` 读取，metadata 补全不会产生虚假依赖更新。Gradle 快照仅在 `res` 条目序列化该字段，避免在 manifest 和 jar 条目重复保存；序列化与复制路径必须显式保留该字段，尤其是 `ProjectInfoSerializerInGradle.getJsonGenerator()` 的手工白名单 `libraryConverter` 与 `BaseCompileContext.saveTempLibraries()`。
 - `runtimeModuleDependencies` 只对 Application / Dynamic Feature 根模块读取；非空或空列表都是 Gradle resolved runtime 的权威结果，`null` 才触发旧逻辑。`ProjectComponentIdentifier.projectPath` 必须用独立规则去除开头的 `:` 后再把层级分隔符转换为 `.`，composite build 根项目则使用 `projectName`；不能复用面向 display name 的通用转换，也不能继续依赖 `ResolvedDependency.moduleVersion == unspecified` 的启发式判断。
 - `runtimeLibraryDependencies` 只对 Application / Dynamic Feature 根模块读取。完整构建基线存在非空 runtime library 数据时，两个依赖 diff 统一与 `libraryDependencies` 合并并按 artifact 绝对路径去重；基线 runtime 为空时两个 diff 统一保持 compile-only。不能根据 last snapshot 单独启用 runtime，也不能通过提升 `FullBuildInfoSerializer` 版本强制所有旧基线失效。
 - `JuggProjectInfo.agpR8Classpath` 只保存可脱离 Gradle classloader 使用的直接引用路径，不把 R8 文件复制到 classpath backup，也不进入 `FullBuildInfo` 或 compile context 磁盘格式；Gradle instrumentation code source 找不到原始 buildscript artifact 或旧 project info 缺失该字段时按 `null` 兼容，并由 dex 阶段回退到 Jugg 内置 R8。
 - `JuggProjectInfo.agpR8Classpath` 类型允许为 `null`，但构造参数没有默认值；所有构造点必须明确传递现有路径或显式传入 `null`。仅转换 modules 的流程必须使用 `projectInfo.copy(modules = ...)`，禁止重新构造根快照导致项目级字段丢失。
 - `composeResourceInfo` 已按上述链路同步并在 merge 时优先保留 Gradle 值；`main/src/main/resources/gradle/readProjectInfo.gradle.kts` 也必须与 `gradle/script` 生成源一致。
+- `ExternalBuildInfo.inputDirs` 的元素形态由读取边界显式校验：Gradle（Groovy/JsonSlurper）与 IDE（Gson）两条链都只接受 `{directory, filterRules}` 对象，字符串数组、缺失 `inputDirs`、空规则集合都按 schema 不兼容失败，由现有 project info 读取边界记录 `EXTERNAL_BUILD_INPUT_SCHEMA_ERROR` 并丢弃快照（CLI 由 `ProjectInfoSerializer` 读取边界兜底）。不提升 `JuggProjectInfoSerialize.VERSION`，也不从旧 `sourceDirs`/`inputFiles` 恢复。目录与规则在 `compactInputDirs` 中按规范化路径排序、按枚举声明顺序写入，保证快照稳定。
 - `ExternalBuildInfo` 的 native 输出只保留一个字段，禁止再按容器类型（archive / directory）增加字段。它在 `ProjectInfoSerializerInGradle.parseExternalBuildInfos`、`ProjectInfoSerializer.restoreExternalBuildOutputs` 和 `CmdLineContextManager` 的工程路径搬迁中同步；Gradle（Groovy）与 IDE（Gson）两条读取链都在读取边界把旧快照恢复成新语义：旧 Flutter 的 `outputDir` 是 assets 输出、`nativeLibsArchive` 或上一轮本地实现写入的 `nativeLibsDir` 是 native 输出，旧 C++ 的 `outputDir` 是 native 输出。恢复是确定性的，不删库、不提升序列化版本、也不丢字段。`isSupported` 对 Flutter 要求 assets 输出与 native 输出同时存在，对 C++ 只要求 native 输出存在。Flutter 3.x 的 copy task 属于 AGP `addGeneratedSourceDirectory` 注册的产物任务，reader 只读取它的 `destinationDir` 与 `compileFlutterBuild<Variant>` 依赖，不读取 `intermediateDir` 之外的裸 Flutter 中间目录。
 - `buildReadProjectInfoScript.gradle` 必须收集 init script 内嵌源码的全部非 Gradle classpath 依赖，并按声明依赖排序；`JuggPathManager` 引用 `JuggGlobalPathManager` 时，两者必须同时收集且后者排在前面，避免生成的独立 KTS 编译失败。
+- `build/jugg/classpath/native_strip` 是可迁移的完整构建工具链基线，不是运行状态数据库：完整 Gradle 构建按标准化 `moduleRootDir + variant` 写入 APK owner 的 `keepDebugSymbols` 与 ABI strip 工具，并把这些工具复制到 `tools/` 内保留可执行属性；工具先写完再原子发布 `config.json`，未被引用的旧工具随后 Best-effort 清理。读取时优先使用随基线复制的 `backupPath`，`sourcePath` 只用于本机降级与诊断，因此流水线复制基线时必须一并保存整个 `native_strip/` 目录（若只保存 `classpath/root`、`apk`、`libraries`、`embedded_apk` 白名单，需要同步加入），并且复制方式必须保留文件属性；丢失可执行位的备份工具会被判为不可用。该缓存不进入 `Variant` / `ModuleInfo` / `ExternalBuildInfo` 序列化模型，`Clear Jugg Build` 删除 `build/jugg` 时自然清除，不新增独立清理入口。
 - trailing-comma 清理分两步：先删除 `)` 前尾逗号并保留 `) {` 与行尾注释；再删除嵌套调用留下的 `),\n)` 外层尾逗号，且不得删除 `),\nnextArg` 这种非末参数分隔逗号。否则 Gradle 5/6（Kotlin DSL language version < 1.4）会因残留 `arg),` 脚本编译失败。
 - 改动会进入 `buildReadProjectInfoScript` 的输入时（`gradle/script/**`、被内嵌的 `project/info/**`、`DependencyDiffResult`、生成器本身），验证矩阵必须包含生成脚本**语法**回归，不能只用 Gradle 7/9 功能 compat 代替：默认跑 `ReadProjectInfoScriptContentTest`（含尾逗号等生成契约）；有 JDK 条件时再跑 `ReadProjectInfoGradle5CompatTest` / `ReadProjectInfoGradle6CompatTest`。Gradle 7+ 已接受尾逗号，测过 7/9 不等于语法兼容仍成立。细节与 owner 见 `06_testing.md` §7.4。
 - Project info 只记录选中 Android Kotlin task 为本轮增量编译暴露的 fragment graph，不构建项目全部 target 的完整 Kotlin source-set 依赖图，也不记录 deletion 图或 generated source cache。
@@ -329,6 +338,7 @@ APK 拉取全部成功后，`LocalGradleCompileClient` / `RemoteGradleCompileCli
 | AGP 升级后找不到 R.jar / manifest / data binding 输出 | `ModuleBuildPathInfo` 对应属性 |
 | R 类能找到但字段缺失、library 资源字段突然找不到 | `BaseCompileContext.getGradleRFilePaths()` 选中的单个 R provider 与 `module compile R.jar candidates found in module` debug 日志；对照 `compile_r_class_jar` 与 `compile_only_not_namespaced_r_class_jar` 的 lastModified |
 | project info JSON 缺字段 | `ModuleInfo` 字段同步清单、`ProjectInfoSerializerInGradle`、`JuggProjectInfoMerger` |
+| 关闭 minify 后增量产物仍带混淆命名 / 开启 minify 后报 mapping 缺失 | `gradle_project_infos.json` 的 `variants[].minifyEnabled`、`ModuleInfo.minifyEnabled`、`ICompileContext.isMinified`；`minifyEnabled=null` 说明快照过期或 AGP 未暴露该配置，需要一次成功的 Gradle 读取 |
 | 已启用 DataBinding 但增量仍报 `data binding is not enabled` | `ProjectInfoSerializer` 对 Groovy `useDataBinding` 的读取别名；再查 merger 是否保留 `isUseDataBinding` |
 | AGP 升级后增量 D8 断言/不兼容 | `JuggProjectInfo.agpR8Classpath`、`GradleProjectInfoReaderManager.findAgpR8Classpath()`、`DexFileMaker` |
 | include build 模块缺失 | `gradle_include_builds.txt` 与 `JuggProjectInfoMerger` |
@@ -339,6 +349,7 @@ APK 拉取全部成功后，`LocalGradleCompileClient` / `RemoteGradleCompileCli
 | Compose 默认/自定义资源目录未识别 | `GradleProjectInfoReader.getComposeResourceInfo()`、`readComposeResourceDirectories()` 与序列化后的 `composeResourceInfo` |
 | Compose resource API 不受支持 | task 类型集合与必要属性、task class 的 code source、generator class/method/constructor 结构及 `unsupportedReason` |
 | `-I readProjectInfo.gradle.kts` 报 trailing commas / Expecting an argument | `buildReadProjectInfoScript.gradle` 尾逗号清理；用 `ReadProjectInfoScriptContentTest` 与 Gradle 5/6 compat 回归，见 `06_testing.md` §7.4 |
+| C++ 增量报 `App strip task strip<X>DebugSymbols was not found in :app` | 该 invocation 在 Configuration on Demand 下未配置 APK owner。检查 `build/jugg/classpath/native_strip/config.json` 是否有该 `moduleRootDir + variant` 的唯一 entry、entry 引用的 `backupPath` 或 `sourcePath` 是否仍可执行；缺失时执行一次完整 Gradle 构建刷新缓存，不要为读配置把 owner 的 strip/merge task 加入本轮任务图 |
 | Dart/C/C++/Flutter asset/CMake 配置修改没有触发外部构建 | 先从 `compile_latest.log` 确认文件是否到达 before-filter/ChangedFile；再检查 `externalBuildInfos.inputDirs` 是否覆盖该路径、`configFiles`/`excludedDirs`、task/native 输出元数据、当前 variant 的 Flutter/native task，以及 `FileChangesHandler` 是否已收到 compile context 更新。若外部 task 已执行但新目录仍不触发，继续检查 `juggCollectExternalBuildInfo` 是否产出完整 invocation 结果、定向 project-info merge 是否成功。 |
 
 ---

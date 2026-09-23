@@ -15,8 +15,7 @@ class Reflector(val value: Any?) {
             val method = value::class.java.getMethod(getMethodName)
             val result = method.invoke(value)
             return Reflector(result)
-        } catch (e: Throwable) {
-            println("Jugg: reflect get field failed: $e")
+        } catch (_: Throwable) {
             return null
         }
     }
@@ -48,7 +47,6 @@ class Reflector(val value: Any?) {
                     }
                 }
             }
-            println("Jugg: reflect get field failed: $e")
             return null
         }
     }
@@ -78,8 +76,7 @@ class Reflector(val value: Any?) {
             }
             val result = method.invoke(value, *argValue)
             return Reflector(result)
-        } catch (e: Throwable) {
-            println("Jugg: reflect invoke method failed for ${value::class.java}.${methodName}: $e")
+        } catch (_: Throwable) {
             return null
         }
     }
@@ -115,8 +112,7 @@ class Reflector(val value: Any?) {
                 }
                 constructor.isAccessible = true
                 return constructor.newInstance(*args)
-            } catch (e: Throwable) {
-                println("Jugg: reflect new instance failed: $e")
+            } catch (_: Throwable) {
                 return null
             }
         }

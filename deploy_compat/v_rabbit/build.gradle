@@ -1,0 +1,42 @@
+plugins {
+    id 'org.jetbrains.kotlin.jvm'
+    id 'java'
+    id 'org.jetbrains.intellij'
+}
+
+sourceCompatibility = 11
+targetCompatibility = 11
+version getDirCommitId(rootDir.relativePath(projectDir))
+
+compileKotlin {
+    kotlinOptions.jvmTarget = "11"
+}
+
+buildSearchableOptions {
+    enabled = false
+}
+
+intellij {
+    version = ide_version
+}
+
+repositories {
+    google()
+    mavenCentral()
+
+    flatDir {
+        dirs 'libs'
+    }
+}
+
+dependencies {
+    compileOnly getCompatApiFiles(project)
+
+    implementation "org.jetbrains.kotlin:kotlin-stdlib"
+    implementation project(':deploy_compat:interface')
+    api project(':deploy_compat:v_quail')
+}
+
+test {
+    useJUnitPlatform()
+}

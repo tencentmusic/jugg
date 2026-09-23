@@ -9,6 +9,7 @@ private const val KEY_DEPENDENCY_NAME = "dependency_name"
 private const val KEY_OLD_DEPENDENCY_MANIFEST = "relative_old_dependency_manifest"
 private const val KEY_OLD_DEPENDENCY_JAR = "relative_old_dependency_jar"
 private const val KEY_OLD_DEPENDENCY_RES = "relative_old_dependency_res"
+private const val KEY_R_PACKAGE_NAME = "r_package_name"
 
 // name extension
 
@@ -100,6 +101,28 @@ fun CompileFile.withOldRes(file: File?): CompileFile {
         return copy()
     }
     return copy(extraInfo = extraInfo + (KEY_OLD_DEPENDENCY_RES to file))
+}
+
+// R package name (namespace) of the external AAR owning this changed resource
+
+val CompileFile.rPackageName: String?
+    get() = extraInfo[KEY_R_PACKAGE_NAME] as? String
+
+val ChangedFile.rPackageName: String?
+    get() = extraInfo[KEY_R_PACKAGE_NAME] as? String
+
+fun ChangedFile.withRPackageName(name: String?): ChangedFile {
+    if (name.isNullOrEmpty()) {
+        return copy()
+    }
+    return copy(extraInfo = extraInfo + (KEY_R_PACKAGE_NAME to name))
+}
+
+fun CompileFile.withRPackageName(name: String?): CompileFile {
+    if (name.isNullOrEmpty()) {
+        return copy()
+    }
+    return copy(extraInfo = extraInfo + (KEY_R_PACKAGE_NAME to name))
 }
 
 

@@ -46,7 +46,7 @@ tags:
 |---|---|---|
 | `version` | 无 | 返回 Jugg 插件版本。 |
 | `list-projects` | 无 | 列出当前 IDE 已初始化项目。 |
-| `restart` | `projectDir`、`waitAppReadyAfterSuccess` | 重启目标 App。 |
+| `restart` | `projectDir`、`waitAppReadyAfterSuccess` | 重启目标 App；没有 launch/HOME Activity 时只执行 `am force-stop`。 |
 | `compile` | `projectDir` | 仅编译不部署。 |
 | `deploy` | `projectDir`、`alwaysRestartApp`、`waitAppReadyAfterSuccess` | 编译并部署。 |
 | `clean-reinstall` | `projectDir`、`waitAppReadyAfterSuccess` | 清数据并重装 APK。 |

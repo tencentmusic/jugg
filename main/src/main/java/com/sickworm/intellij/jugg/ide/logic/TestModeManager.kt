@@ -22,7 +22,8 @@ object TestModeManager {
         FlagInfo("test_mode", "Throw exceptions instead of graceful degradation for debugging"),
         FlagInfo("runtime_test", "Test deploy compat layer at runtime"),
         FlagInfo("skip_assemble", "Skip Gradle assemble in test projects to speed up tests"),
-        FlagInfo("log_verbose", "Enable verbose logging for detailed debug output")
+        FlagInfo("log_verbose", "Enable verbose logging for detailed debug output"),
+        FlagInfo("system_app_rootless_mode", "Force deploy by pushing material to sdcard by direct deploy and read and load by runtime on reboot"),
     )
 
     @Volatile
@@ -51,6 +52,9 @@ object TestModeManager {
     val isLogVerboseEnabled: Boolean by lazy {
         isMasterEnabled && File(flagDir, "log_verbose").exists() // frequently called, use lazy
     }
+
+    fun isForceSystemAppRootlessMode(): Boolean =
+        isMasterEnabled && File(flagDir, "system_app_rootless_mode").exists()
 
     private fun writeInfoJson() {
         flagDir.mkdirs()

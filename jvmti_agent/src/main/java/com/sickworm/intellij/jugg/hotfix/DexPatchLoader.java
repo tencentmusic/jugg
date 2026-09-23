@@ -56,6 +56,13 @@ class DexPatchLoader {
             }
         }
 
+        if (dstDexFiles.isEmpty()) {
+            // A resource-only compat overlay has nothing to inject, and replacing the app
+            // classloader can fail on devices whose framework hides the internals we reflect on.
+            LogUtils.i(TAG, "install: no dex file to inject, keep the origin classloader.");
+            return;
+        }
+
         ClassLoader classLoader;
         LogUtils.d(TAG, "install: before inject base context's classloader = " + baseContext.getClassLoader());
         try {

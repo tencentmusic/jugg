@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.ide.logic
 import com.intellij.execution.RunManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.diagnostic.DefaultLogger
+import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowManager
 import com.intellij.ui.SimpleColoredComponent
@@ -30,6 +31,7 @@ import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.ide.ui.JuggControlPanel
 import com.sickworm.intellij.jugg.ide.ui.JuggControlPanelController
 import com.sickworm.intellij.jugg.ide.ui.MockJuggControlPanelModel
+import com.sickworm.intellij.jugg.logger.ITestStdoutLogger
 import com.sickworm.intellij.jugg.mock.TestGlobal
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -187,7 +189,7 @@ class JuggRunSettingsComponentTest {
         Mockito.`when`(content.component).thenReturn(panel)
         Mockito.`when`(contentManager.contents).thenReturn(arrayOf(content))
         Mockito.`when`(toolWindow.contentManager).thenReturn(contentManager)
-        Mockito.`when`(toolWindowManager.getToolWindow("Jugg Running Pannel")).thenReturn(toolWindow)
+        Mockito.`when`(toolWindowManager.getToolWindow("Jugg Running Panel")).thenReturn(toolWindow)
         Mockito.doReturn(toolWindowManager).`when`(project).getService(ToolWindowManager::class.java)
 
         val component = JuggRunSettingsComponent()
@@ -234,6 +236,58 @@ class JuggRunSettingsComponentTest {
         assertTrue(scriptPanel.isVisible)
         assertTrue(options.enableCustomApkInstallScript)
         assertEquals(scriptTextField.text, options.customApkInstallScript)
+    }
+
+    @Test
+    fun `custom APK sign script panel should only show when enabled`() {
+        TestGlobal.init()
+        val component = JuggRunSettingsComponent()
+        val checkbox = descendants(component).filterIsInstance<JCheckBox>()
+            .single { it.text == "Enable custom APK sign script" }
+        val scriptPanel = descendants(component).filterIsInstance<JPanel>()
+            .single { (it.border as? TitledBorder)?.title == "Custom APK Sign Script" }
+        val compileCommandTextField = readPrivateField<JTextField>(component, "compileCommandTextField")
+        val scriptTextField = descendants(scriptPanel).filterIsInstance<JBTextField>().single()
+
+        assertFalse(checkbox.isSelected)
+        assertFalse(scriptPanel.isVisible)
+        assertEquals(compileCommandTextField.preferredSize.height, scriptTextField.preferredSize.height)
+        assertEquals("e.g. ./scripts/sign-system-apk.sh", scriptTextField.emptyText.text)
+
+        checkbox.doClick()
+        scriptTextField.text = "./scripts/sign-system-apk.sh"
+        val options = JuggRunConfigurationOptions()
+        component.updateJuggRunConfigurationOptions(options)
+
+        assertTrue(scriptPanel.isVisible)
+        assertTrue(options.enableCustomApkSignScript)
+        assertEquals(scriptTextField.text, options.customApkSignScript)
+    }
+
+    @Test
+    fun `custom APK sign script should round trip through run configuration state`() {
+        TestGlobal.init()
+        val component = JuggRunSettingsComponent()
+        component.updateUi(JuggRunConfigurationOptions().apply {
+            enableCustomApkSignScript = true
+            customApkSignScript = "./scripts/sign-system-apk.sh --server production"
+        }, "jugg:test")
+
+        val checkbox = descendants(component).filterIsInstance<JCheckBox>()
+            .single { it.text == "Enable custom APK sign script" }
+        val scriptPanel = descendants(component).filterIsInstance<JPanel>()
+            .single { (it.border as? TitledBorder)?.title == "Custom APK Sign Script" }
+        val scriptTextField = descendants(scriptPanel).filterIsInstance<JBTextField>().single()
+
+        assertTrue(checkbox.isSelected)
+        assertTrue(scriptPanel.isVisible)
+        assertEquals("./scripts/sign-system-apk.sh --server production", scriptTextField.text)
+
+        val options = JuggRunConfigurationOptions()
+        component.updateJuggRunConfigurationOptions(options)
+
+        assertTrue(options.enableCustomApkSignScript)
+        assertEquals("./scripts/sign-system-apk.sh --server production", options.customApkSignScript)
     }
 
     @Test
@@ -359,30 +413,25 @@ class JuggRunSettingsComponentTest {
     }
 
     @Test
-    fun `quick action click should be recorded before execution`() {
+    fun `user action should appear in panel events and UserAction logs`() {
         TestGlobal.init()
-        val controller = Mockito.mock(JuggControlPanelController::class.java)
-        val panel = createPanel(controller = controller)
-        val action = descendants(panel).filterIsInstance<ActionLink>()
-            .first { it.text == "Fallback to Gradle" }
+        val logs = mutableListOf<String>()
+        val controller = createController(CapturingLogger("root", logs))
 
-        action.doClick()
+        controller.recordUserAction("Fallback to Gradle")
 
-        Mockito.verify(controller).recordUserAction("Fallback to Gradle")
-        Mockito.verify(controller).fullGradleBuild()
+        val event = controller.model.snapshot().recentEvents.single()
+        assertEquals(JuggEventCategory.USER_ACTION, event.category)
+        assertEquals("Action triggered", event.title)
+        assertEquals("Fallback to Gradle", event.detail)
+        assertEquals(listOf("[UserAction] Action triggered: Fallback to Gradle"), logs)
     }
 
     @Test
     fun `setting change should be recorded as a user action`() {
         TestGlobal.init()
-        val controller = JuggControlPanelController(
-            project = mockProject(),
-            manager = Mockito.mock(JuggManager::class.java),
-            deployTargetManager = Mockito.mock(IDeployTargetManager::class.java),
-            deployHistoryManager = Mockito.mock(IDeployHistoryManager::class.java),
-            deployFileManager = Mockito.mock(DeployFileManager::class.java),
-            logger = DefaultLogger("JuggControlPanelControllerTest"),
-        )
+        val logs = mutableListOf<String>()
+        val controller = createController(CapturingLogger("root", logs))
 
         controller.updateSetting(JuggControlPanelController.Setting.QUICK_DEPLOY, true)
 
@@ -390,6 +439,7 @@ class JuggRunSettingsComponentTest {
         assertEquals(JuggEventCategory.USER_ACTION, event.category)
         assertEquals("Setting changed", event.title)
         assertEquals("Quick deploy: enabled", event.detail)
+        assertEquals(listOf("[UserAction] Setting changed: Quick deploy: enabled"), logs)
     }
 
     @Test
@@ -694,6 +744,17 @@ class JuggRunSettingsComponentTest {
         return field.get(target) as T
     }
 
+    private fun createController(logger: Logger): JuggControlPanelController {
+        return JuggControlPanelController(
+            project = mockProject(),
+            manager = Mockito.mock(JuggManager::class.java),
+            deployTargetManager = Mockito.mock(IDeployTargetManager::class.java),
+            deployHistoryManager = Mockito.mock(IDeployHistoryManager::class.java),
+            deployFileManager = Mockito.mock(DeployFileManager::class.java),
+            logger = logger,
+        )
+    }
+
     private fun mockProject(): Project {
         val project = Mockito.mock(Project::class.java)
         Mockito.doReturn(Mockito.mock(RunManager::class.java)).`when`(project).getService(RunManager::class.java)
@@ -811,5 +872,16 @@ class JuggRunSettingsComponentTest {
             component.doLayout()
             component.components.forEach { layoutRecursively(it) }
         }
+    }
+}
+
+private class CapturingLogger(
+    private val category: String,
+    private val infos: MutableList<String>,
+) : DefaultLogger(category), ITestStdoutLogger {
+    override fun deriveTag(tag: String): Logger = CapturingLogger(tag, infos)
+
+    override fun info(message: String?) {
+        infos.add("[$category] $message")
     }
 }

@@ -8,7 +8,9 @@ import org.gradle.util.GradleVersion
 import groovy.json.JsonSlurper
 import java.io.File
 import java.nio.file.AtomicMoveNotSupportedException
+import java.nio.file.FileSystems
 import java.nio.file.Files
+import java.nio.file.Paths
 import java.nio.file.StandardCopyOption
 
 /**
@@ -52,6 +54,7 @@ class GradleProjectInfoReaderManager(
             } else {
                 writeProjectInfoFile(projectInfo)
                 writeIncludeProjectsFile()
+                refreshNativeStripCache(projectInfo)
                 GradleDependencyDiffer(rootProject, projectInfo, ideProjectDir).deleteTmpProjectInfos()
             }
 
@@ -227,19 +230,21 @@ class GradleProjectInfoReaderManager(
         }
     }
 
-    /** Configures the invocation-scoped collector after all external build tasks are available. */
+    /** Makes the collector depend on every local external task declared by this invocation. */
     fun configureExternalBuildInfoCollector() {
         if (!isExternalBuildInfoCollection()) {
             return
         }
         val collector = rootProject.tasks.maybeCreate(COLLECT_EXTERNAL_BUILD_INFO_TASK_NAME)
-        val localTasks = readExternalBuildInfoRequests().mapNotNull { request ->
-            rootProject.allprojects.firstOrNull {
+        val requests = readExternalBuildInfoRequests()
+        val localTaskPaths = requests.mapNotNull { request ->
+            val matchesLocalProject = rootProject.allprojects.any {
                 it.projectDir.absoluteFile.normalize() == request.moduleRootDir.absoluteFile.normalize()
-            }?.tasks?.findByPath(request.taskPath)
-        }
-        if (localTasks.isNotEmpty()) {
-            collector.mustRunAfter(localTasks)
+            }
+            if (matchesLocalProject) request.taskPath else null
+        }.distinct()
+        if (localTaskPaths.isNotEmpty()) {
+            collector.dependsOn(localTaskPaths)
         }
         includeBuildProjects.forEach { includedBuild ->
             collector.dependsOn(includedBuild.task(COLLECT_EXTERNAL_BUILD_INFO_TASK_PATH))
@@ -282,6 +287,11 @@ class GradleProjectInfoReaderManager(
                 buildVariant = module.buildVariant,
                 previousTaskPath = request.taskPath,
                 externalBuildInfo = buildInfo,
+                strippedNativeOutput = if (request.type == ExternalBuildType.Cpp) {
+                    stripExternalNativeOutput(request, buildInfo.nativeOutput, outputDir)
+                } else {
+                    null
+                },
             )
         }
         if (updates.isEmpty()) {
@@ -293,16 +303,7 @@ class GradleProjectInfoReaderManager(
         tempFile.writeText(ProjectInfoSerializerInGradle.getJsonGenerator().toJson(
             ExternalBuildInfoUpdateResult(invocationId, updates),
         ))
-        try {
-            Files.move(
-                tempFile.toPath(),
-                outputFile.toPath(),
-                StandardCopyOption.REPLACE_EXISTING,
-                StandardCopyOption.ATOMIC_MOVE,
-            )
-        } catch (_: AtomicMoveNotSupportedException) {
-            Files.move(tempFile.toPath(), outputFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
-        }
+        publishAtomically(tempFile, outputFile)
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -324,7 +325,267 @@ class GradleProjectInfoReaderManager(
                 buildVariant = item["buildVariant"] as? String ?: return@mapNotNull null,
                 taskPath = item["taskPath"] as? String ?: return@mapNotNull null,
                 type = type,
+                // Absent in requests written before selective strip was added; the C++ path then fails
+                // explicitly instead of silently deploying unstripped module output.
+                apkOwnerModuleRootDir = (item["apkOwnerModuleRootDir"] as? String)?.let(::File),
+                apkOwnerBuildVariant = item["apkOwnerBuildVariant"] as? String,
             )
+        }
+    }
+
+    /**
+     * Caches the APK owner strip configuration of every configured Application and Dynamic Feature
+     * module. A later external invocation may run with Gradle configuration on demand, where the APK
+     * owner is never configured and its strip task can not be read, so a normal Gradle build has to
+     * publish the configuration instead of letting that invocation configure the owner.
+     */
+    private fun refreshNativeStripCache(projectInfo: JuggProjectInfo) {
+        try {
+            val entries = projectInfo.modules.values.mapNotNull { module ->
+                if (module.moduleType != ModuleInfo.Type.Application &&
+                        module.moduleType != ModuleInfo.Type.DynamicFeature) {
+                    return@mapNotNull null
+                }
+                readNativeStripConfigEntry(module)
+            }.distinctBy { it.moduleRootDir.absolutePath + "|" + it.variant }
+            NativeStripConfigCache(juggPathManager.localClasspathStoragePathManager.nativeStripDir).write(entries)
+        } catch (e: Throwable) {
+            // The cache is an auxiliary capability: a failure must not break project info reading, and
+            // the external invocation reports the missing configuration explicitly instead.
+            println("Jugg: native strip cache refresh failed: $e")
+        }
+    }
+
+    private fun readNativeStripConfigEntry(module: ModuleInfo): NativeStripConfigEntry? {
+        val project = rootProject.allprojects.firstOrNull {
+            it.projectDir.absoluteFile.normalize() == module.moduleRootDir.absoluteFile.normalize()
+        } ?: return null
+        val stripTaskName = "strip${module.buildVariant.camelCompat}DebugSymbols"
+        val stripTask = project.tasks.findByName(stripTaskName) ?: run {
+            println("Jugg: skip native strip cache for ${project.path}: $stripTaskName was not found")
+            return null
+        }
+        val keepDebugSymbols = readStripKeepPatterns(stripTask)
+        val stripExecutables = readStripExecutables(stripTask)
+        if (keepDebugSymbols == null || stripExecutables == null) {
+            println("Jugg: skip native strip cache for ${project.path}: strip configuration is unreadable")
+            return null
+        }
+        return NativeStripConfigEntry(project.projectDir, module.buildVariant, keepDebugSymbols, stripExecutables)
+    }
+
+    /**
+     * Reproduces AGP's single-file strip for one C++ build and returns the directory holding the
+     * stripped `<abi>` native libraries of this invocation, which is the base directory expected by
+     * the external build compiler outputs.
+     *
+     * Only the APK owner strip task configuration is read: the task action is never executed and its
+     * input artifact provider is never resolved, so no app merge or unrelated native producer enters
+     * the task graph of this invocation.
+     */
+    fun stripExternalNativeOutput(
+        request: ExternalBuildInfoRequestItem,
+        nativeOutput: File?,
+        invocationOutputDir: File,
+    ): File {
+        println("Jugg: start stripped output for ${request.taskPath}")
+        val ownerRootDir = request.apkOwnerModuleRootDir?.absoluteFile?.normalize()
+        val ownerVariant = request.apkOwnerBuildVariant
+        if (ownerRootDir == null || ownerVariant == null) {
+            throw IllegalStateException("APK owner is missing for ${request.taskPath}, " +
+                    "run a normal Gradle build to refresh Jugg project info")
+        }
+        if (nativeOutput == null || !nativeOutput.isDirectory) {
+            throw IllegalStateException("External native output is unavailable: $nativeOutput")
+        }
+        val stripConfig = resolveNativeStripConfig(ownerRootDir, ownerVariant)
+        val keepMatchers = stripConfig.keepDebugSymbols.map { compileKeepDebugSymbolsPattern(it) }
+        val stripExecutables = stripConfig.stripExecutables
+
+        val stripRoot = File(File(invocationOutputDir, "native"), externalNativeOutputKey(request))
+        stripRoot.deleteRecursively()
+        stripRoot.mkdirs()
+        nativeOutput.walkTopDown().filter { it.isFile && it.extension == "so" }.forEach { source ->
+            // AGP matches keepDebugSymbols and strip tools against paths relative to the strip input.
+            val keepPath = source.relativeTo(nativeOutput).path.replace(File.separatorChar, '/')
+            val abi = source.parentFile.name
+            val output = File(File(stripRoot, abi), source.name)
+            output.parentFile.mkdirs()
+            val tempOutput = File(output.parentFile, output.name + ".tmp")
+            if (keepMatchers.any { it.matches(Paths.get(keepPath)) }) {
+                ensureDeployableNativeSize(source, keepPath)
+                copyNativeFile(source, tempOutput)
+            } else {
+                stripNativeFile(source, abi, stripExecutables[abi], tempOutput)
+            }
+            verifyStrippedNativeFile(tempOutput, keepPath)
+            publishAtomically(tempOutput, output)
+        }
+        println("Jugg: stripped output for ${request.taskPath} into $stripRoot")
+        return stripRoot
+    }
+
+    /**
+     * Resolves the APK owner strip configuration. The cached configuration is preferred because this
+     * invocation may run with Gradle configuration on demand, where the owner is not configured and
+     * its strip task can not be read. A miss falls back to one live read, which keeps the existing
+     * contract for a configured owner instead of guessing a strip tool.
+     */
+    private fun resolveNativeStripConfig(ownerRootDir: File, ownerVariant: String): NativeStripConfig {
+        NativeStripConfigCache(juggPathManager.localClasspathStoragePathManager.nativeStripDir)
+            .read(ownerRootDir, ownerVariant)?.let { return it }
+        val stripTaskName = "strip${ownerVariant.camelCompat}DebugSymbols"
+        val ownerProject = rootProject.allprojects.firstOrNull {
+            it.projectDir.absoluteFile.normalize() == ownerRootDir
+        } ?: throw IllegalStateException("APK owner project not found for $ownerRootDir")
+        val stripTask = ownerProject.tasks.findByName(stripTaskName)
+            ?: throw IllegalStateException("App strip task $stripTaskName was not found in " +
+                    "${ownerProject.path}, run a normal Gradle build to refresh the Jugg native strip cache")
+        val keepDebugSymbols = readStripKeepPatterns(stripTask)
+            ?: throw IllegalStateException("App strip keepDebugSymbols is unreadable: ${stripTask.path}")
+        val stripExecutables = readStripExecutables(stripTask)
+            ?: throw IllegalStateException("App strip executable finder is unreadable: ${stripTask.path}")
+        return NativeStripConfig(keepDebugSymbols, stripExecutables)
+    }
+
+    /** Stable directory name for one requested C++ target inside this invocation's output directory. */
+    private fun externalNativeOutputKey(request: ExternalBuildInfoRequestItem): String {
+        val seed = listOf(
+            rootProject.rootDir.absolutePath,
+            request.moduleRootDir.absolutePath,
+            request.buildVariant,
+            request.taskPath,
+            request.apkOwnerModuleRootDir?.absolutePath.orEmpty(),
+        ).joinToString("|")
+        return "n" + Integer.toHexString(seed.hashCode())
+    }
+
+    /** Mirrors AGP's StripDebugSymbolsTask glob compilation for jniLibs keepDebugSymbols patterns. */
+    private fun compileKeepDebugSymbolsPattern(pattern: String): java.nio.file.PathMatcher {
+        val maybeSlash = if (pattern.startsWith("/") || pattern.startsWith("*")) "" else "/"
+        return FileSystems.getDefault().getPathMatcher("glob:$maybeSlash$pattern")
+    }
+
+    private fun readStripKeepPatterns(stripTask: Any): List<String>? {
+        val property = reflector(stripTask)["keepDebugSymbols"]?.value ?: return null
+        val value = reflector(property).invoke("get")?.value ?: return null
+        return (value as? Collection<*>)?.map { it.toString() } ?: emptyList()
+    }
+
+    /**
+     * Reads the per-ABI strip executables through the AGP NDK handler. The tool map key changed from
+     * the internal `Abi` type to the ABI string in AGP 8.11, so keys are normalized by capability
+     * instead of by plugin version.
+     */
+    private fun readStripExecutables(stripTask: Any): Map<String, File>? {
+        val ndkHandlerInput = reflector(stripTask)["ndkHandlerInput"]?.value ?: return null
+        val sdkBuildService = reflector(stripTask)["sdkBuildService"]?.value?.let {
+            reflector(it).invoke("get")?.value
+        } ?: return null
+        val ndkHandler = invokeWithArg(sdkBuildService, "versionedNdkHandler", ndkHandlerInput) ?: return null
+        val finder = reflector(ndkHandler)["stripExecutableFinderProvider"]?.value?.let {
+            reflector(it).invoke("get")?.value
+        } ?: return null
+        val executables = reflector(finder)["stripExecutables"]?.value as? Map<*, *> ?: return null
+        return executables.mapNotNull { entry ->
+            val abi = if (entry.key is String) entry.key as String else reflector(entry.key)["tag"]?.valueString
+            val stripTool = entry.value as? File
+            if (abi == null || stripTool == null) null else abi to stripTool
+        }.toMap()
+    }
+
+    private fun stripNativeFile(source: File, abi: String, stripTool: File?, output: File) {
+        val reason = when {
+            stripTool == null -> "no strip tool for ABI '$abi'"
+            !stripTool.isFile -> "strip tool $stripTool was not found"
+            else -> runStripCommand(stripTool, source, output)
+        }
+        if (reason == null) {
+            return
+        }
+        // Same contract as AGP: never retry the identical command, package the library as is.
+        println("Jugg: $reason, package ${source.name} as is")
+        output.delete()
+        copyNativeFile(source, output)
+    }
+
+    /** Returns null when the library was stripped, otherwise the reason to package it as is. */
+    private fun runStripCommand(stripTool: File, source: File, output: File): String? {
+        val process = try {
+            ProcessBuilder(
+                stripTool.absolutePath, "--strip-unneeded", "-o", output.absolutePath, source.absolutePath,
+            ).redirectErrorStream(true).start()
+        } catch (e: Throwable) {
+            return "strip ${source.name} with $stripTool failed: $e"
+        }
+        val detail = StringBuilder()
+        process.inputStream.bufferedReader().forEachLine { line ->
+            if (detail.length < STRIP_OUTPUT_LIMIT) {
+                detail.append(line).append('\n')
+            }
+        }
+        val exitCode = process.waitFor()
+        return if (exitCode == 0) null else "strip ${source.name} with $stripTool returned $exitCode: $detail"
+    }
+
+    /** Streams the file, so a library larger than a JVM byte array never has to fit in memory. */
+    private fun copyNativeFile(source: File, output: File) {
+        output.delete()
+        source.inputStream().use { input ->
+            output.outputStream().use { out -> input.copyTo(out, DEFAULT_BUFFER_SIZE) }
+        }
+    }
+
+    private fun verifyStrippedNativeFile(file: File, relativePath: String) {
+        if (!file.isFile || !file.canRead()) {
+            throw IllegalStateException("Stripped native library was not produced: $relativePath")
+        }
+        ensureDeployableNativeSize(file, relativePath)
+    }
+
+    /**
+     * Rejects a native library that cannot be represented by the deploy data before it reaches the
+     * IDE, instead of failing later with an out of memory error while reading it into a byte array.
+     */
+    private fun ensureDeployableNativeSize(file: File, relativePath: String) {
+        val size = file.length()
+        if (size <= 0L) {
+            throw IllegalStateException("Native library is empty and can not be deployed: $relativePath")
+        }
+        if (size > Int.MAX_VALUE) {
+            throw IllegalStateException("Native library $relativePath is $size bytes, exceeding the " +
+                    "${Int.MAX_VALUE} bytes deploy limit. Keep debug symbols or a missing strip tool can " +
+                    "cause this, run a normal Gradle build before retrying Jugg.")
+        }
+    }
+
+    /**
+     * Invokes one named single-argument method. `Reflector.invoke` matches parameter types exactly,
+     * which fails for the AGP NDK handler argument because Gradle passes a generated implementation.
+     */
+    private fun invokeWithArg(value: Any, methodName: String, arg: Any): Any? {
+        val method = value::class.java.methods.firstOrNull {
+            it.name == methodName && it.parameterCount == 1
+        } ?: return null
+        return try {
+            method.isAccessible = true
+            method.invoke(value, arg)
+        } catch (e: Throwable) {
+            println("Jugg: reflect invoke $methodName failed: $e")
+            null
+        }
+    }
+
+    private fun publishAtomically(tempFile: File, outputFile: File) {
+        try {
+            Files.move(
+                tempFile.toPath(),
+                outputFile.toPath(),
+                StandardCopyOption.REPLACE_EXISTING,
+                StandardCopyOption.ATOMIC_MOVE,
+            )
+        } catch (_: AtomicMoveNotSupportedException) {
+            Files.move(tempFile.toPath(), outputFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
         }
     }
 
@@ -445,6 +706,8 @@ class GradleProjectInfoReaderManager(
     }
 
     companion object {
+        /** Retained strip process output is diagnostic only, so it stays bounded. */
+        private const val STRIP_OUTPUT_LIMIT = 2000
         const val PARAM_DIFF_MODE = "jugg.diffMode"
         const val PARAM_INC_DEPLOY_TIMES = "jugg.incDeployTimes"
         const val PARAM_BUILD_TARGET = "jugg.buildTarget"

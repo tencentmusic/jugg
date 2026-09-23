@@ -15,7 +15,7 @@ tags:
 
 | 项目 | 支持范围 |
 |---|---|
-| Android Studio | Bumblebee 至 Quail |
+| Android Studio | Bumblebee 至 Rabbit |
 | IntelliJ IDEA | 2021.1.3 至 2025.1 Beta |
 | AGP | 3.4 至 9.1 |
 | Gradle | 5.4.1 至 9.2.1 |
@@ -23,7 +23,7 @@ tags:
 | target API | 21 至 36 |
 | Android 设备 | Android 8 至 16 |
 
-- Android Studio 当前兼容实现覆盖 Chipmunk 至 Quail；Bumblebee 使用低版本兼容实现。
+- Android Studio 当前兼容实现覆盖 Chipmunk 至 Rabbit；Bumblebee 使用低版本兼容实现。
 - AGP 已验证 3.4.2、3.5.4、4.1.3、4.2.0、7.2.2、8.3.0、8.7.0、8.13.0、9.1.2。
 - Gradle 兼容验证覆盖 5.4.1、6.8、7.3.3、9.2.1，Gradle 8.x 也在支持范围内。
 - Android 8 至 10 使用兼容部署；Android 11 及以上支持标准增量部署。

@@ -93,6 +93,7 @@ class ProjectInfoSerializerInGradle(private val dataFile: File) {
                         file = File(it["file"] as String),
                         lastModifiedTime = (it["lastModifiedTime"] as Number).toLong(),
                         crc32 = (it["crc32"] as Number).toLong(), // you will get Int and Long, so convert to Number
+                        rPackageName = it["rPackageName"] as? String, // missing field in old project info
                     )
                 }
                 val rootInfo = json["juggProjectInfoExceptModules"] as? Map<String, Any>
@@ -116,17 +117,30 @@ class ProjectInfoSerializerInGradle(private val dataFile: File) {
         }
     }
 
+    /**
+     * Reads the external build records of one module. Input directories are only accepted in the
+     * `{directory, filterRules}` form: a snapshot written by an older Jugg version can not describe
+     * which file kinds its roots accept, and guessing them would restore the false positives this
+     * schema exists to prevent. The caller treats the failure as unavailable project info and one
+     * full Gradle build rewrites the snapshot.
+     */
     @Suppress("UNCHECKED_CAST")
     private fun parseExternalBuildInfos(value: Any?): List<ExternalBuildInfo> {
         return (value as? List<Map<String, Any>>).orEmpty().mapNotNull { info ->
             val type = (info["type"] as? String)?.let {
                 runCatching { ExternalBuildType.valueOf(it) }.getOrNull()
             } ?: return@mapNotNull null
-            val inputDirs = (info["inputDirs"] as? List<String>).orEmpty().map(::File).ifEmpty {
-                compactExternalBuildInputDirs(
-                    (info["sourceDirs"] as? List<String>).orEmpty().map(::File) +
-                            (info["inputFiles"] as? List<String>).orEmpty().mapNotNull { File(it).parentFile },
-                )
+            val rawInputDirs = info["inputDirs"] as? List<Any>
+                ?: throw IllegalStateException(EXTERNAL_BUILD_INPUT_SCHEMA_ERROR)
+            val inputDirs = rawInputDirs.map { element ->
+                val dir = element as? Map<String, Any> ?: throw IllegalStateException(EXTERNAL_BUILD_INPUT_SCHEMA_ERROR)
+                val directory = (dir["directory"] as? String)?.let(::File)
+                    ?: throw IllegalStateException(EXTERNAL_BUILD_INPUT_SCHEMA_ERROR)
+                val rules = (dir["filterRules"] as? List<String>).orEmpty().mapNotNull { name ->
+                    runCatching { ExternalBuildInputFilterRule.valueOf(name) }.getOrNull()
+                }
+                if (rules.isEmpty()) throw IllegalStateException(EXTERNAL_BUILD_INPUT_SCHEMA_ERROR)
+                ExternalBuildInputDir(directory, rules.toSet())
             }
             if (inputDirs.isEmpty()) return@mapNotNull null
             // Snapshots written before the outputs were unified are restored here: legacy Flutter kept
@@ -179,19 +193,6 @@ class ProjectInfoSerializerInGradle(private val dataFile: File) {
         )
     }
 
-    private fun compactExternalBuildInputDirs(directories: List<File>): List<File> {
-        val result = mutableListOf<File>()
-        directories.map { it.absoluteFile.normalize() }
-            .distinctBy { it.path }
-            .sortedBy { it.toPath().nameCount }
-            .forEach { directory ->
-                if (result.none { directory.toPath().startsWith(it.toPath()) }) {
-                    result.add(directory)
-                }
-            }
-        return result
-    }
-
     companion object {
 
         fun getJsonGenerator() : JsonGenerator {
@@ -217,6 +218,12 @@ class ProjectInfoSerializerInGradle(private val dataFile: File) {
                     result["file"] = libraryDependency.file
                     result["lastModifiedTime"] = libraryDependency.lastModifiedTime
                     result["crc32"] = libraryDependency.crc32
+                    // Only resources consume the namespace; avoid repeating it on manifest and jar entries.
+                    if (libraryDependency.isRes) {
+                        libraryDependency.rPackageName?.let {
+                            result["rPackageName"] = it
+                        }
+                    }
                     return result
                 }
             }

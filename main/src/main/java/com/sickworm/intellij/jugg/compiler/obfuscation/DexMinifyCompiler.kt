@@ -71,16 +71,19 @@ class DexMinifyCompiler(
             return task.wrapToResult()
         }
 
-        // Try to find mapping file from incremental data directory
-        val mappingFile = context.mappingFile
-        if (!context.isMinified || mappingFile == null || !mappingFile.exists()) {
-            if (context.isReleaseApk) {
-                logger.warn("This appears to be a release build, but mapping file not found, skip obfuscation.")
-                logger.warn("Compile result may not correct.")
-            } else {
-                logger.debug("No mapping file found, skip obfuscation.")
-            }
+        if (!context.isMinified) {
+            logger.debug("Minify is not enabled for the current variant, skip obfuscation.")
             return task.wrapToResult()
+        }
+
+        // Minify is enabled, so the output must match the deployed APK naming. Leaving the dex
+        // un-obfuscated here would deploy classes the installed APK cannot reference.
+        val mappingFile = context.mappingFile
+        if (mappingFile == null || !mappingFile.exists()) {
+            logger.warn("Minify is enabled for the current variant, but mapping file not found: " +
+                    "${mappingFile?.absolutePath}")
+            logger.warn("Compile failed, please run a full Gradle build to regenerate the mapping file.")
+            return task.allFailed("mapping file not found for the minified variant")
         }
 
         // Initialize obfuscator if mapping file changed

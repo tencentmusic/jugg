@@ -16,6 +16,12 @@ internal val File.stdAbsPath: String
 private val crc32 = CRC32()
 
 fun CompileOutput.toDeployItem(deployName: String = deployItemName): DeployItem {
+    // DeployItem.content is a byte array, so a larger file can never be deployed and must fail here
+    // instead of raising an out of memory error while reading it.
+    val size = file.length()
+    if (size > Int.MAX_VALUE) {
+        throw JuggInternalException.outputTooLargeToDeploy(file, size)
+    }
     val bytes = file.readBytes()
     val crc = crc32.run {
         reset()

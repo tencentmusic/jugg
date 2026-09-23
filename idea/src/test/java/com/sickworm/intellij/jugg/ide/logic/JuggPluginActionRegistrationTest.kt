@@ -31,7 +31,7 @@ class JuggPluginActionRegistrationTest {
 
     @Test
     fun pluginXml_shouldRegisterJuggControlPanel() {
-        val toolWindow = pluginExtension("toolWindow", "id", "Jugg Running Pannel")
+        val toolWindow = pluginExtension("toolWindow", "id", "Jugg Running Panel")
         assertEquals("com.sickworm.intellij.jugg.ide.ui.JuggToolWindowFactory", toolWindow.getAttribute("factoryClass"))
         assertEquals("right", toolWindow.getAttribute("anchor"))
         assertEquals("/res/icons/run_configuration.svg", toolWindow.getAttribute("icon"))

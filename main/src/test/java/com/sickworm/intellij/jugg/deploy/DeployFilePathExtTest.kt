@@ -1,13 +1,18 @@
 package com.sickworm.intellij.jugg.deploy
 
 import com.sickworm.intellij.jugg.compiler.CompileOutput
+import com.sickworm.intellij.jugg.compiler.isWindows
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
+import com.sickworm.intellij.jugg.JuggInternalException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assume
 import org.junit.Test
 import java.io.File
+import java.io.RandomAccessFile
 import java.nio.file.Files
+import kotlin.test.assertFailsWith
 
 class DeployFilePathExtTest {
 
@@ -83,6 +88,27 @@ class DeployFilePathExtTest {
         )
 
         assertEquals(listOf("/test.apk", "/base.apk"), item.targetApkPaths)
+    }
+
+    @Test
+    fun `fails before reading an output that cannot fit in a byte array`() {
+        Assume.assumeFalse("creating a sparse file larger than 2 GiB is not portable", isWindows)
+        val baseDir = Files.createTempDirectory("jugg-oversized-output").toFile()
+        val oversized = File(baseDir, "lib/arm64-v8a/libhuge.so").apply {
+            parentFile.mkdirs()
+            RandomAccessFile(this, "rw").use { it.setLength(Int.MAX_VALUE + 1L) }
+        }
+        val output = CompileOutput(
+            type = CompileOutput.Type.NativeLib,
+            file = oversized,
+            baseDir = baseDir,
+            apkPath = "/base.apk",
+        )
+
+        val error = assertFailsWith<JuggInternalException> { output.toDeployItem() }
+
+        val message = error.message!!
+        assertTrue(message, message.contains("exceeding the ${Int.MAX_VALUE} bytes limit"))
     }
 
     private fun writeFile(baseDir: File, relativePath: String, bytes: ByteArray): File {

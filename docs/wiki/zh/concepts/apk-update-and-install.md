@@ -25,9 +25,11 @@ Android 系统从已安装 APK 读取 Manifest、native lib 和部分打包信�
 
 Jugg 只能写入已经由当前增量流程生成的文件。C/C++ 源码编译、ABI 变化、packaging 配置变化或完整 Manifest merge 超出当前增量结果时，仍需 Gradle 重新生成 APK。
 
-## 更新 APK 需要可用的签名配置
+## 更新 APK 需要重新签名
 
-Android 不接受内容被修改但签名未更新的 APK。Jugg 写入目标文件后，会使用当前工程的签名配置重新签名。签名配置缺失或无效时，APK 更新会明确失败，并把 Gradle 回退资格交给 Run 层。
+Android 不接受内容被修改但签名未更新的 APK。Jugg 写入目标文件后，会使用当前工程的签名配置重新签名；签名配置缺失或无效时，APK 更新会明确失败，并把 Gradle 回退资格交给 Run 层。
+
+签名身份必须与设备上已有的包一致，否则更新会被拒绝。Gradle `SigningConfig` 无法表达平台证书、厂商密钥或服务器签名流程时，可以在 Run Configuration 启用自定义 APK 签名脚本：Jugg 把对齐后的临时 APK 绝对路径作为最后一个参数交给项目脚本，脚本原地签名后，Jugg 仍用 `apksigner verify` 校验，通过才替换原 APK。启用脚本后本地签名配置不再是 APK 更新的前置条件，脚本失败也不会回退到本地 keystore 签名。完整契约见 [自定义 APK 签名脚本](../capabilities/deploy/custom-apk-sign-script.md)。
 
 多 APK 工程会根据产物的真实归属修改对应的 base、split 或 test APK。一个产物只写入它所属的 APK，不会为了方便全部塞进 base APK。
 
@@ -38,7 +40,7 @@ Android 不接受内容被修改但签名未更新的 APK。Jugg 写入目标文
 ```text
 生成 Manifest 或 native lib 增量产物
   -> 写入最近的 Gradle APK
-  -> 使用工程签名重新签名
+  -> 使用工程签名重新签名，启用自定义签名脚本时改由项目脚本签名
   -> 安装更新后的 APK
   -> 重建 deployment cache 与设备 checkpoint
   -> 重新生成待下发的 class 和 overlay
@@ -70,3 +72,4 @@ Recover 触发的重新安装也不等于 Gradle 回退。它通常安装当前�
 - [Gradle 回退与基线重建](./gradle-fallback-baseline.md)
 - [Clean Reinstall 能力](../capabilities/deploy/clean-reinstall.md)
 - [自定义 APK 安装脚本](../capabilities/deploy/custom-apk-install-script.md)
+- [自定义 APK 签名脚本](../capabilities/deploy/custom-apk-sign-script.md)

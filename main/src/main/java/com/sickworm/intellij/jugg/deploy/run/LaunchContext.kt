@@ -6,6 +6,7 @@ import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.deploy.AppAbiCache
 import com.sickworm.intellij.jugg.deploy.AppSandboxExecutor
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
+import com.sickworm.intellij.jugg.deploy.hotreload.RootlessCompatPending
 
 /**
  * Runtime context shared by deploy tasks, deployer, and direct overlay transport for one deploy run.
@@ -29,6 +30,11 @@ class LaunchContext(
     private val deployHost: IDeployHost? = null,
     private val appSandboxExecutors: MutableMap<String, AppSandboxExecutor> = mutableMapOf(),
     internal val appAbiCache: AppAbiCache = AppAbiCache(),
+    /**
+     * Rootless compat requests staged in this run. The app owns the commit, so deploy state must not
+     * advance until it reports the import result of every request listed here.
+     */
+    val rootlessCompatPending: MutableList<RootlessCompatPending> = mutableListOf(),
 ) {
     val applyChangesExecutor: IApplyChangesExecutor
         get() = installSession.applyChangesExecutor
@@ -84,6 +90,7 @@ class LaunchContext(
             deployHost = deployHost,
             appSandboxExecutors = appSandboxExecutors,
             appAbiCache = appAbiCache,
+            rootlessCompatPending = rootlessCompatPending,
         )
     }
 }

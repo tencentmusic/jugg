@@ -1,6 +1,6 @@
 # 插件运行时问题排查手册
 
-> 最后核对：2026-09-13
+> 最后核对：2026-09-16
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -195,7 +195,7 @@ idea/.../runtime/HostTaskExecutor.kt          # ApplicationManager.isDispatchThr
 | ConstRef 启动与扫描 | `defer initial full scan` / `io throttle enabled` / `full scan progress` |
 | ConstRef 降级 | `fallback to no-op const-ref` |
 | IDE 启动链 | `InitialVfsRefresh` / `postInit` / `clangd` |
-| release 重混淆 | `Obfuscated:` / `mapping.txt` / `NoClassDefFoundError` / `NoSuchMethodError` / `AbstractMethodError` |
+| release 重混淆 | `Obfuscated:` / `mapping.txt` / `Minify is enabled for the current variant` / `NoClassDefFoundError` / `NoSuchMethodError` / `AbstractMethodError` |
 | Jugg Debug attach | `Jugg Debug attach:` / `waitForClientReadyForDebug` / `Connected to the target VM` |
 
 ---
@@ -218,7 +218,7 @@ idea/.../runtime/HostTaskExecutor.kt          # ApplicationManager.isDispatchThr
 | APK DB 初始化慢 | 对齐 APK 大小、隔离解析信号、数据库体积和实际耗时 | APK parser / database；`05_utilities.md` |
 | 兼容资源部署先 OOM、后续持续 `FileSystemAlreadyExistsException` | 对齐 `ResourceApkModifier` 的条目/字节/heap 日志、`Open ZipFS` 临时文件路径和 deploy payload heap；后续 Run 应使用新的临时 URI，OOM 后正式缓存应被清理 | `ResourceApkModifier`、`ApkFileModifier`、`JuggDeployerHelper`；`03_deploy_core.md`、`05_utilities.md` |
 | `source_files.db` 每次启动都重建 | 检查 rebuild stamp、删除失败与 `SQLITE_BUSY`；不要使用 DB creation/modified time 判断最近重建 | `SourceFileManager`、`SourceFileDatabaseSqLiteHelper`；本节 4.3 |
-| release 增量后 runtime crash | 先确认 mapping 加载与 `Obfuscated:`，再对比 staging DEX 和 APK DEX；异常名不能单独决定映射缺口 | `DexObfuscator`、`DexMinifyCompiler`；`02_compile_obfuscation.md` |
+| release 增量后 runtime crash | 先确认当前变体的真实 minify 配置与 mapping 来源是否一致（`variants[].minifyEnabled` / `ModuleInfo.minifyEnabled`），再确认 mapping 加载与 `Obfuscated:`，最后对比 staging DEX 和 APK DEX；异常名不能单独决定映射缺口。变体未开启 minify 时残留的 `outputs/mapping/<variant>/mapping.txt` 不参与判定，也不参与混淆 | `ICompileContext.isMinified`、`DexMinifyCompiler`、`DexObfuscator`；`02_compile_obfuscation.md` |
 | Kotlin `INTERNAL_ERROR` 且栈含 shaded `JavaVersion` | recreate compiler 同样失败只能增强“宿主环境”推断；继续核对宿主 JDK、项目 Kotlin 版本和兼容日志 | `KotlinCompilerHostCompat`；`02_compile_source.md` |
 | Kotlin `INTERNAL_ERROR` 且栈含 `DelegatingFileSystem.close`、`DescriptorLoadingContext.close` | 确认同一异常块还包含 `UnsupportedOperationException`；命中后预热只缓存当前 compiler classpath 状态，真实源码应出现独立 JVM 重试日志。子进程只接收一个 Kotlin argfile 参数；不同 toolchain 不应同步降级 | `KotlinCompilerOutputParser`、`KotlinCompilerInvoker`、`KotlinCompilerProcessRunner`；`02_compile_source.md` |
 | Kotlin `cannot access ... which is a supertype of ...` / `unresolved supertypes:`，常见于 ROM、车机系统应用引用 hidden API | 先看 `kotlin compile: kotlinc` 的 `-cp` 里 SDK `android.jar` 是否排在同名 framework/HideAPI jar 之前；这不是 HideAPI 路径缺失。命中后应出现后置重试日志，日志中 `-cp` 顺序与默认不同属预期 | `AndroidJarClasspathRetry`、`KotlinCompilerInvoker`；`02_compile_source.md` |
@@ -256,6 +256,7 @@ idea/.../runtime/HostTaskExecutor.kt          # ApplicationManager.isDispatchThr
 | `IllegalAccessError` / `IncompatibleClassChangeError` | 对比成员 access flags、direct/virtual section 和 invoke 形态 |
 | 新增类、匿名类、lambda 的 `AbstractMethodError` | 检查类自身 mapping 缺失时是否能从接口/父类推导方法映射 |
 | Kotlin facade 或 keep 类 `NoSuchMethodError` | 检查 R8 synthesized 条目的方法名、参数格式及恒等映射覆盖 |
+| 关闭 minify 的变体仍产出混淆命名 | 该变体目录下存在上一次混淆构建残留的 `mapping.txt`；确认 `variants[].minifyEnabled` 是否为 `false` 以及 project info 是否来自本次 Gradle 读取 |
 
 这些模式的当前实现约束统一记录在 `02_compile_obfuscation.md`。仅凭异常类型或“日志中没有目标类名”不能确认具体缺口；必须核对收集范围和 DEX/mapping 证据。
 

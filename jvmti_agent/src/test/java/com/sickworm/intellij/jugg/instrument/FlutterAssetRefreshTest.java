@@ -9,6 +9,7 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.times;
@@ -20,6 +21,7 @@ import android.content.Context;
 import android.content.res.AssetManager;
 import android.widget.Toast;
 import com.sickworm.intellij.jugg.hotfix.LogUtils;
+import com.sickworm.intellij.jugg.hotfix.ReflectUtil;
 
 import io.flutter.embedding.engine.FlutterEngine;
 import io.flutter.embedding.engine.FlutterJNI;
@@ -183,24 +185,33 @@ public class FlutterAssetRefreshTest {
     }
 
     @Test
-    public void nonFlutterContextShouldNotReachAndroidResources() throws Exception {
-        Context nonFlutterContext = mock(Context.class);
+    public void nonFlutterApplicationShouldNotReachPackageContextResources() throws Exception {
+        Context packageContext = mock(Context.class);
+        Context applicationContext = mock(Context.class);
         try (URLClassLoader withoutFlutter = new URLClassLoader(new URL[0], null)) {
-            when(nonFlutterContext.getClassLoader()).thenReturn(withoutFlutter);
+            when(applicationContext.getClassLoader()).thenReturn(withoutFlutter);
+            try (MockedStatic<ReflectUtil> reflectUtil = currentApplication(applicationContext)) {
+                assertFalse(FlutterAssetRefresh.shouldPrepareHostPackageContext(packageContext));
 
-            assertFalse(FlutterAssetRefresh.shouldPrepareHostPackageContext(nonFlutterContext));
-
-            verify(nonFlutterContext).getClassLoader();
-            verifyNoMoreInteractions(nonFlutterContext);
+                verify(applicationContext).getClassLoader();
+                verifyNoMoreInteractions(packageContext);
+            }
         }
     }
 
     @Test
-    public void flutterContextShouldPassTheRefreshGate() {
-        Context flutterContext = mock(Context.class);
-        when(flutterContext.getClassLoader()).thenReturn(classLoader());
+    public void resourceOnlyPackageContextShouldPassForFlutterApplication() throws Exception {
+        Context packageContext = mock(Context.class);
+        Context applicationContext = mock(Context.class);
+        when(applicationContext.getClassLoader()).thenReturn(classLoader());
 
-        assertTrue(FlutterAssetRefresh.shouldPrepareHostPackageContext(flutterContext));
+        try (URLClassLoader withoutFlutter = new URLClassLoader(new URL[0], null);
+                MockedStatic<ReflectUtil> reflectUtil = currentApplication(applicationContext)) {
+            when(packageContext.getClassLoader()).thenReturn(withoutFlutter);
+
+            assertTrue(FlutterAssetRefresh.shouldPrepareHostPackageContext(packageContext));
+            verifyNoMoreInteractions(packageContext);
+        }
     }
 
     @Test
@@ -241,5 +252,24 @@ public class FlutterAssetRefreshTest {
     /** Mirrors the app class loader the agent passes in, which can resolve the Flutter classes. */
     private static ClassLoader classLoader() {
         return FlutterAssetRefreshTest.class.getClassLoader();
+    }
+
+    private static MockedStatic<ReflectUtil> currentApplication(Context applicationContext) {
+        MockedStatic<ReflectUtil> reflectUtil = mockStatic(ReflectUtil.class, CALLS_REAL_METHODS);
+        reflectUtil.when(() -> ReflectUtil.getActivityThread(null, null))
+                .thenReturn(new FakeActivityThread(applicationContext));
+        return reflectUtil;
+    }
+
+    private static final class FakeActivityThread {
+        private final Context applicationContext;
+
+        private FakeActivityThread(Context applicationContext) {
+            this.applicationContext = applicationContext;
+        }
+
+        private Context currentApplication() {
+            return applicationContext;
+        }
     }
 }

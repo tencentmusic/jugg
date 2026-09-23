@@ -81,6 +81,9 @@ class LocalClasspathStoragePathManager(
     val librariesBackupDir: File = File(rootDir, "libraries")
     val embeddedApkDir: File = File(rootDir, "embedded_apk")
 
+    /** Movable full build toolchain baseline; must stay out of [classpathDir] to avoid the compile classpath. */
+    val nativeStripDir: File = File(rootDir, "native_strip")
+
     override fun toString(): String {
         return "LocalClasspathStoragePathManager(rootDir=$rootDir)"
     }

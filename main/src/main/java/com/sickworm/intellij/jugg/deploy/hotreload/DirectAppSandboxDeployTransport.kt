@@ -19,6 +19,7 @@ import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.deploy.run.JuggOverlayId
 import com.sickworm.intellij.jugg.deploy.run.JuggOverlayUpdate
 import com.sickworm.intellij.jugg.deploy.run.LaunchContext
+import com.sickworm.intellij.jugg.deploy.run.flow.DeployRetryHandler
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.jvmti_agent.BuildConfig
 
@@ -51,9 +52,7 @@ class DirectAppSandboxDeployTransport(
         }
         val sandbox = launchContext.getAppSandboxExecutor(packageName, logger)
         if (sandbox.mode == AppSandboxExecutor.Mode.UNAVAILABLE) {
-            throw DirectOverlayDeployFailedException(
-                "Direct app sandbox unavailable for $packageName: ${sandbox.unavailableReason}",
-            )
+            return deployWithoutAppSandbox(packageName, data, overlayUpdate, applyChangesExecutor, sandbox)
         }
         val requiredOverlayUpdate = overlayUpdate ?: throw DirectOverlayDeployFailedException(
             "Direct app sandbox deploy requires an existing deployment cache for $packageName.",
@@ -63,6 +62,46 @@ class DirectAppSandboxDeployTransport(
         prepareStartupAgent(packageName, sandbox, appArch)
         val overlayId = writeOverlay(packageName, requiredOverlayUpdate, applyChangesExecutor, sandbox, data.isFullRes)
         return finishDeploy(packageName, data, pids, sandbox, overlayId)
+    }
+
+    private fun deployWithoutAppSandbox(
+        packageName: String,
+        data: JuggDeployData,
+        overlayUpdate: JuggOverlayUpdate?,
+        applyChangesExecutor: IApplyChangesExecutor,
+        sandbox: AppSandboxExecutor,
+    ): DirectAppSandboxDeployResult {
+        if (!data.isCompatDeploy) {
+            throw IllegalStateException(DeployRetryHandler.REDEPLOY_WITH_COMPAT_MESSAGE)
+        }
+        val requiredOverlayUpdate = overlayUpdate ?: throw DirectOverlayDeployFailedException(
+            "Direct app sandbox deploy requires an existing deployment cache for $packageName.",
+        )
+        if (data.isEmpty) {
+            throw DirectOverlayDeployFailedException(
+                "Direct app sandbox unavailable for $packageName: ${sandbox.unavailableReason}",
+            )
+        }
+        val prepared = DirectOverlayWriteRequestBuilder(logger).build(
+            packageName = packageName,
+            overlayUpdate = requiredOverlayUpdate,
+            applyChangesExecutor = applyChangesExecutor,
+            isFullResourcePush = data.isFullRes,
+        )
+        val staged = RootlessCompatDeployStaging(launchContext.deviceAdb, logger)
+            .stage(packageName, prepared.request)
+        logger.info("App sandbox is unavailable, compat payload staged for the app to import on its " +
+                "next start. requestId=${staged.requestId}")
+        return DirectAppSandboxDeployResult(
+            overlayId = prepared.overlayId,
+            needsRestart = true,
+            pendingRequest = RootlessCompatPending(
+                packageName = packageName,
+                requestId = staged.requestId,
+                overlayId = prepared.overlayId,
+                apkPaths = data.apks.flatMap { apkInfo -> apkInfo.files }.map { it.apkFile.path },
+            ),
+        )
     }
 
     private fun prepareStartupAgent(
@@ -238,4 +277,5 @@ class DirectAppSandboxDeployTransport(
 data class DirectAppSandboxDeployResult(
     val overlayId: JuggOverlayId,
     val needsRestart: Boolean,
+    val pendingRequest: RootlessCompatPending? = null,
 )

@@ -162,10 +162,13 @@ public final class FlutterAssetRefresh {
         }
     }
 
-    /** Returns whether the package context belongs to an app that can resolve FlutterEngine. */
+    /** Returns whether the package context should be prepared for the current Flutter app. */
     public static boolean shouldPrepareHostPackageContext(Context context) {
+        if (context == null) {
+            return false;
+        }
         try {
-            return isFlutterApplication(context);
+            return isFlutterApplication(currentApplication());
         } catch (Throwable e) {
             LogUtils.d(TAG, "Flutter package context update not scheduled: " + reason(e));
             return false;

@@ -49,6 +49,12 @@ class JuggRunConfigurationOptions: RunConfigurationOptions() {
     /** Project-local shell script used for app APK install and reinstall operations. */
     var customApkInstallScript by string()
 
+    /** Whether Jugg should replace the default incremental APK signing step with a project script. */
+    var enableCustomApkSignScript by property(false)
+
+    /** Project-local shell script used to sign the rewritten APK in place. */
+    var customApkSignScript by string()
+
     // new options must add to the end because property persist is in order
 
 }

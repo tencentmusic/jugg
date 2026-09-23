@@ -20,7 +20,7 @@ In a release APK, or another APK with minify enabled, R8 / ProGuard has rewritte
 
 ## Release handling runs after D8
 
-Release re-obfuscation is the final stage of source incremental compilation. Kotlin and Java still compile to ordinary classes first, and D8 still produces DEX that uses original names. Only when the current build baseline contains `mapping.txt` are these DEX files written to a temporary unobfuscated directory before release handling:
+Release re-obfuscation is the final stage of source incremental compilation. Kotlin and Java still compile to ordinary classes first, and D8 still produces DEX that uses original names. Only when the selected variant enables `minifyEnabled` are these DEX files written to a temporary unobfuscated directory before release handling:
 
 ```text
 Kotlin / Java source
@@ -36,12 +36,14 @@ This does not rerun complete R8. The incremental stage does not repeat whole-pac
 
 ## When release incremental compilation is triggered
 
-Jugg does not use the variant name to decide whether to run release incremental compilation. It checks whether `mapping.txt` exists under the current application build path:
+Jugg decides whether to run release incremental compilation from the resolved `minifyEnabled` configuration of the selected variant, which comes from the variant information read from Gradle. It is neither the variant name nor an output file:
 
-- When the mapping exists, D8 first writes unobfuscated DEX to a temporary directory, then runs mapping replay, impact analysis, and `_jugg_fix` compensation.
-- When the mapping does not exist, D8 writes DEX directly to the final output directory without creating a re-obfuscation task or reading `usage.txt`.
+- When the variant enables minify, D8 first writes unobfuscated DEX to a temporary directory, then runs mapping replay, impact analysis, and `_jugg_fix` compensation.
+- When the variant disables minify, D8 writes DEX directly to the final output directory without creating a re-obfuscation task or reading `usage.txt`.
 
-An ordinary debug build usually does not generate a mapping and naturally follows the second path. This decision also covers custom variants: a variant whose name contains `release` but has no mapping does not enter re-obfuscation, while a variant named debug that actually enables minify and produces a mapping does. The variant name describes the intended build use; it is not the trigger for release incremental compilation.
+An ordinary debug build does not enable minify by default and naturally follows the second path. This decision also covers custom variants: a variant whose name contains `release` but that does not enable minify does not enter re-obfuscation, while a variant named debug that actually enables minify does. The variant name describes the intended build use; it is not the trigger for release incremental compilation.
+
+The decision does not depend on whether `outputs/mapping/<variant>/mapping.txt` exists. After minify is enabled once for a variant and then disabled again, that file stays behind in the project; deciding from it would treat unobfuscated incremental output as obfuscated output.
 
 ## How unobfuscated DEX is re-obfuscated
 
@@ -94,7 +96,7 @@ Later propagation rounds still run re-obfuscation, but ordinary impact propagati
 
 ## When the mapping baseline is missing or mismatched
 
-`mapping.txt` is both the re-obfuscation input and the gate for entering release handling. If the file does not exist, source compilation outputs DEX through the non-minified path without replaying the mapping. That DEX cannot be deployed reliably to an already obfuscated APK. Release incremental compilation can reuse the result only after a full Gradle release build produces a matching mapping and APK baseline.
+`mapping.txt` is a required re-obfuscation input once a variant enables minify. If the file does not exist, Jugg does not silently fall back to the non-minified DEX path; it logs a warning and fails the current incremental compile, because without the mapping the output namespace can never match the installed APK, and deploying it would only produce an artifact that is guaranteed to crash at runtime. In this case run a full Gradle build to regenerate a matching mapping and APK baseline before continuing with release incremental compilation.
 
 If the current mapping does not match the installed APK, name conversion itself may succeed while runtime still encounters `NoClassDefFoundError`, `NoSuchMethodError`, `IllegalAccessError`, annotation lookup failures, or similar problems. Preserve the logs, provide a reproducible demo, and submit an issue if this occurs.
 

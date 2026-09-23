@@ -134,7 +134,7 @@ class JuggRunningTask(
             showGreenDotOnRunToolWindow()
             initIndicator(indicator)
             if (compileUiHandler.isForceGradleCompile) {
-                notifyFallback(project, "force fallback")
+                notifyFallback(project, "force fallback", logger)
             }
             val runResult = doRun(options)
             isNeedResetHasRun = runResult.isNeedResetHasRun
@@ -370,7 +370,7 @@ class JuggRunningTask(
                     fallback = "Incremental failed → Gradle",
                 )
                 fallbackPath = "Incremental failed → Gradle"
-                notifyFallback(project, failedReason)
+                notifyFallback(project, failedReason, logger)
                 compileUiHandler.isForceGradleCompile = true
                 return doRun(options)
             }
@@ -418,6 +418,9 @@ class JuggRunningTask(
                 compileUiHandler = compileUiHandler,
                 customApkInstallScript = options.customApkInstallScript.takeIf {
                     options.enableCustomApkInstallScript
+                }.orEmpty(),
+                customApkSignScript = options.customApkSignScript.takeIf {
+                    options.enableCustomApkSignScript
                 }.orEmpty(),
                 androidTestRunSpec = androidTestRunSpec,
                 androidTestResultModel = if (androidTestRunSpec != null) androidTestResultModel else null,
@@ -484,12 +487,19 @@ class JuggRunningTask(
         if (isGradleCompile && !compileUiHandler.isForceGradleCompile) {
             fallbackPath = fallbackReason?.let { "Incremental skipped → Gradle: $it" }
         }
+        if (isGradleCompile && !fallbackReason.isNullOrBlank()) {
+            recordEvent(
+                category = JuggEventCategory.COMPILE,
+                phase = JuggEventPhase.COMPILING,
+                status = JuggEventStatus.WARNING,
+                title = formatFallbackReasonMessage(fallbackReason),
+            )
+        }
         recordEvent(
             category = JuggEventCategory.COMPILE,
             phase = JuggEventPhase.COMPILING,
             status = JuggEventStatus.STARTED,
             title = if (isGradleCompile) "Gradle compile started" else "Incremental compile started",
-            detail = fallbackReason?.takeIf { isGradleCompile && !compileUiHandler.isForceGradleCompile },
             changedFiles = eventModel.snapshot().context.changedFiles,
         )
     }
@@ -581,14 +591,19 @@ class JuggRunningTask(
             }
         }
 
-        fun notifyFallback(project: Project, reason: String) {
-            val text = "Fallback to gradle compile. Reason: $reason"
+        fun notifyFallback(project: Project, reason: String, logger: Logger) {
+            val text = formatFallbackReasonMessage(reason)
+            logger.info(text)
             SwingUtilities.invokeLater {
                 val toolWindowManager: ToolWindowManager = ToolWindowManager.getInstance(project)
                 toolWindowManager.notifyByBalloon("Run", MessageType.WARNING, text)
             }
         }
     }
+}
+
+internal fun formatFallbackReasonMessage(reason: String): String {
+    return "Fallback to gradle compile. Reason: $reason"
 }
 
 internal fun prepareRunToolWindowOnTaskStart(isFirstTimeRun: Boolean, compileUiHandler: CompileUiHandler) {

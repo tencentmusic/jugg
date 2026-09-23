@@ -8,6 +8,7 @@ import com.sickworm.intellij.jugg.compiler.CompileResult
 import com.sickworm.intellij.jugg.compiler.CompileTask
 import com.sickworm.intellij.jugg.compiler.ICompileContext
 import com.sickworm.intellij.jugg.compiler.Result
+import com.sickworm.intellij.jugg.compiler.resolveApkOwnerModule
 import com.sickworm.intellij.jugg.compiler.toCancelResult
 import com.sickworm.intellij.jugg.gradle.compile.crc32
 import com.sickworm.intellij.jugg.project.info.ExternalBuildInfo
@@ -30,32 +31,47 @@ class ExternalBuildCompiler(
     override fun doCompile(task: CompileTask): CompileResult {
         // Every changed external input must resolve; a partially resolved round would run only some
         // builds and still report all files as compiled.
-        val resolved = task.files.map { it to resolveBuild(it) }
+        val resolved = task.files.map { it to resolveBuilds(it) }
         if (resolved.isEmpty()) {
             return task.failed("External build metadata not found")
         }
-        resolved.firstOrNull { it.second == null }?.first?.let { unresolved ->
+        resolved.firstOrNull { it.second.isEmpty() }?.first?.let { unresolved ->
             return task.failed("External build metadata not found: ${unresolved.file.name}")
         }
         resolved.firstOrNull { !it.first.file.exists() }?.first?.let { missing ->
             return task.failed("External build source no longer exists: ${missing.file.name}")
         }
-        val builds = resolved.map { (file, buildInfo) -> moduleOf(file) to buildInfo!! }.distinctBy {
-            it.second.taskPath ?: "${it.second.type}:${it.second.inputDirs}"
-        }
-        builds.firstOrNull { !it.second.isSupported }?.second?.let { unsupported ->
+        val targets = resolved.flatMap { it.second }
+        targets.firstOrNull { !it.buildInfo.isSupported }?.buildInfo?.let { unsupported ->
             return task.failed(unsupported.unsupportedReason ?: "External build is not supported")
         }
+        val builds = targets.distinctBy { target ->
+            listOf(
+                target.module.moduleRootDir.absoluteFile.normalize().path,
+                target.module.buildVariant,
+                target.buildInfo.taskPath,
+                target.buildInfo.type,
+            )
+        }
         val gradleCommand = getFullBuildGradleCommand() ?: return task.failed("Gradle command not found")
-        val buildNames = builds.map { it.second.type.name }.distinct().joinToString("/")
+        val buildNames = builds.map { it.buildInfo.type.name }.distinct().joinToString("/")
         logger.info("Compiling $buildNames sources with Gradle...")
         val requests = builds.map { (module, buildInfo) ->
+            // C++ outputs are stripped with the APK owner configuration, so the collector needs the
+            // owning app or dynamic feature module instead of assuming every library belongs to app.
+            val apkOwner = if (buildInfo.type == ExternalBuildType.Cpp) {
+                context.resolveApkOwnerModule(module)
+            } else {
+                null
+            }
             ExternalBuildInfoRequestItem(
                 moduleName = module.name,
                 moduleRootDir = module.moduleRootDir,
                 buildVariant = module.buildVariant,
                 taskPath = buildInfo.taskPath!!,
                 type = buildInfo.type,
+                apkOwnerModuleRootDir = apkOwner?.moduleRootDir,
+                apkOwnerBuildVariant = apkOwner?.buildVariant,
             )
         }
         val initScript = try {
@@ -90,15 +106,19 @@ class ExternalBuildCompiler(
         }
 
         val updatedBuilds = builds.map { (module, buildInfo) ->
-            val updatedInfo = runResult.updates.singleOrNull { update ->
+            val update = runResult.updates.singleOrNull { update ->
                 update.moduleRootDir.absoluteFile.normalize() == module.moduleRootDir.absoluteFile.normalize() &&
                         update.buildVariant == module.buildVariant &&
                         update.previousTaskPath == buildInfo.taskPath &&
                         update.externalBuildInfo.type == buildInfo.type
-            }?.externalBuildInfo ?: buildInfo
-            (context.modules[module.name] ?: module) to updatedInfo
+            }
+            ResolvedBuild(
+                module = context.modules[module.name] ?: module,
+                buildInfo = update?.externalBuildInfo ?: buildInfo,
+                strippedNativeOutput = update?.strippedNativeOutput,
+            )
         }
-        val collected = updatedBuilds.map { (module, buildInfo) -> collectArtifacts(task, module, buildInfo) }
+        val collected = updatedBuilds.map { collectArtifacts(task, it) }
         collected.firstNotNullOfOrNull { it.error }?.let { error ->
             return task.failed(error)
         }
@@ -109,10 +129,14 @@ class ExternalBuildCompiler(
         )
     }
 
-    private fun resolveBuild(file: CompileFile): ExternalBuildInfo? = resolveExternalBuild(moduleOf(file), file.file)
-
-    /** Uses the latest module snapshot; changed files may still hold the module read before a refresh. */
-    private fun moduleOf(file: CompileFile): ModuleInfo = context.modules[file.module.name] ?: file.module
+    private fun resolveBuilds(file: CompileFile): List<ExternalBuildTarget> {
+        val modules = context.modules.values.toList()
+        val hasAnchor = modules.any { module ->
+            module.name == file.module.name &&
+                    module.moduleRootDir.absoluteFile.normalize() == file.module.moduleRootDir.absoluteFile.normalize()
+        }
+        return resolveExternalBuilds(if (hasAnchor) modules else modules + file.module, file.file)
+    }
 
     private fun getFullBuildGradleCommand(): String? {
         val command = try {
@@ -126,14 +150,10 @@ class ExternalBuildCompiler(
         return "./gradlew $command"
     }
 
-    private fun collectArtifacts(
-        task: CompileTask,
-        module: ModuleInfo,
-        buildInfo: ExternalBuildInfo,
-    ): CollectedArtifacts {
-        return when (buildInfo.type) {
-            ExternalBuildType.Flutter -> collectFlutterArtifacts(task, module, buildInfo)
-            ExternalBuildType.Cpp -> collectCppArtifacts(task, module, buildInfo)
+    private fun collectArtifacts(task: CompileTask, build: ResolvedBuild): CollectedArtifacts {
+        return when (build.buildInfo.type) {
+            ExternalBuildType.Flutter -> collectFlutterArtifacts(task, build.module, build.buildInfo)
+            ExternalBuildType.Cpp -> collectCppArtifacts(build.module, build.strippedNativeOutput)
         }
     }
 
@@ -168,16 +188,24 @@ class ExternalBuildCompiler(
         )
     }
 
-    private fun collectCppArtifacts(
-        task: CompileTask,
-        module: ModuleInfo,
-        buildInfo: ExternalBuildInfo,
-    ): CollectedArtifacts {
-        val nativeOutput = buildInfo.nativeOutput
-        if (nativeOutput == null || !nativeOutput.isDirectory || !nativeOutput.canRead()) {
-            return CollectedArtifacts("External build output directory is unavailable: $nativeOutput", emptyList())
+    /**
+     * Collects only the stripped output produced by this invocation. The module merge directory holds
+     * unstripped libraries that are not what the APK packages, so it is never used as a fallback.
+     */
+    private fun collectCppArtifacts(module: ModuleInfo, strippedNativeOutput: File?): CollectedArtifacts {
+        if (strippedNativeOutput == null) {
+            return CollectedArtifacts(
+                "Stripped native output is unavailable for ${module.name}, run a normal Gradle build to recover",
+                emptyList(),
+            )
         }
-        return collectNativeArtifacts(task, module, nativeOutput)
+        if (!strippedNativeOutput.isDirectory || !strippedNativeOutput.canRead()) {
+            return CollectedArtifacts(
+                "Stripped native output directory is unavailable: $strippedNativeOutput",
+                emptyList(),
+            )
+        }
+        return collectNativeArtifacts(module, strippedNativeOutput)
     }
 
     /** Collects one Flutter native output, which is a Jar archive or a directory depending on the Flutter version. */
@@ -196,25 +224,18 @@ class ExternalBuildCompiler(
         }
     }
 
+    /** Collects the C++ native libraries of one invocation-owned output directory. */
     private fun collectNativeArtifacts(
-        task: CompileTask,
         module: ModuleInfo,
         outputDir: File,
     ): CollectedArtifacts {
-        val nativeRoot = File(task.outputDir, "external/${module.name.safeName()}/cpp-native")
-        nativeRoot.deleteRecursively()
-        val sourceFiles = outputDir.walkTopDown().filter { file ->
+        val allOutputs = outputDir.walkTopDown().filter { file ->
             file.isFile && file.extension == "so" && file.findAbi() != null
-        }.toList()
-        val allOutputs = sourceFiles.mapNotNull { source ->
-            val abi = source.findAbi() ?: return@mapNotNull null
-            val output = File(nativeRoot, "$abi/${source.name}")
-            output.parentFile.mkdirs()
-            source.copyTo(output, overwrite = true)
-            CompileOutput(CompileOutput.Type.NativeLib, output, nativeRoot, relativeModule = module)
+        }.map { source ->
+            CompileOutput(CompileOutput.Type.NativeLib, source, outputDir, relativeModule = module)
         }.distinctBy {
             it.relativeFile.invariantSeparatorsPath
-        }
+        }.toList()
         return CollectedArtifacts(
             error = null,
             outputs = allOutputs.filter { isChangedNativeLib(it, module) },
@@ -356,6 +377,13 @@ class ExternalBuildCompiler(
     private data class CollectedArtifacts(
         val error: String?,
         val outputs: List<CompileOutput>,
+    )
+
+    /** One external build after its invocation-scoped metadata has been applied. */
+    private data class ResolvedBuild(
+        val module: ModuleInfo,
+        val buildInfo: ExternalBuildInfo,
+        val strippedNativeOutput: File?,
     )
 
     companion object {

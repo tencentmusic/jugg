@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.deploy.run.deployflow
 import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.sickworm.intellij.jugg.deploy.api.AndroidVersion
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
+import com.sickworm.intellij.jugg.deploy.direct.RootlessCompatDeployArchive
 import org.mockito.Mockito
 import java.io.File
 import java.nio.file.Files
@@ -37,6 +38,15 @@ class VirtualDeployDevice(
         private set
 
     private val remotePushFiles = mutableMapOf<String, File>()
+    private val appLogLines = mutableListOf<String>()
+
+    /** Number of staged rootless compat requests the emulated app imported successfully. */
+    var rootlessImportCount: Int = 0
+        private set
+
+    /** Number of staged rootless compat requests the emulated app rejected. */
+    var rootlessImportFailureCount: Int = 0
+        private set
 
     enum class DirectOverlayWriteResult {
         OK,
@@ -115,6 +125,99 @@ class VirtualDeployDevice(
         appRestartCount++
     }
 
+    fun rootlessCompatPackageDir(): File =
+        File(root, "sdcard/Android/data/$packageName/files/jugg/rootless-compat")
+
+    fun stagedRootlessRequestDirs(): List<File> {
+        return rootlessCompatPackageDir().listFiles()
+            ?.filter { it.isDirectory && File(it, ROOTLESS_READY_FILE).isFile }
+            ?.sortedBy { it.name }
+            ?: emptyList()
+    }
+
+    /** Corrupts the staged payload so the emulated app-side digest check has to reject the request. */
+    fun corruptStagedRootlessPayload(): Boolean {
+        val payload = stagedRootlessRequestDirs().firstOrNull()
+            ?.let { File(it, ROOTLESS_PAYLOAD_FILE) } ?: return false
+        payload.appendBytes(byteArrayOf(0x2a))
+        return true
+    }
+
+    /**
+     * Emulates the app-side importer executed from `BootstrapApplication` on the next process start:
+     * it validates the staged request, commits `code_cache/.overlay` and reports the result on the
+     * `jugg-agent` log tag, which is the only channel the host can read back.
+     */
+    fun runRootlessCompatImport(): Boolean {
+        val requestDir = stagedRootlessRequestDirs().lastOrNull() ?: return false
+        val requestId = requestDir.name
+        var stage = "metadata"
+        return try {
+            val metadata = File(requestDir, ROOTLESS_REQUEST_FILE).readLines()
+                .mapNotNull { line ->
+                    val separator = line.indexOf('=')
+                    if (separator <= 0) null else line.substring(0, separator) to line.substring(separator + 1)
+                }
+                .toMap()
+            require(metadata["protocolVersion"] == "1")
+            require(metadata["packageName"] == packageName)
+            require(metadata["requestId"] == requestId)
+            val payload = File(requestDir, ROOTLESS_PAYLOAD_FILE)
+            stage = "digest"
+            require(RootlessCompatDeployArchive.sha256(payload.readBytes()) == metadata["payloadSha256"])
+            stage = "overlay-state"
+            val expectedOverlayId = metadata.getValue("expectedOverlayId")
+            require(expectedOverlayId == readOverlayId().orEmpty())
+            stage = "commit"
+            commitRootlessPayload(payload, expectedOverlayId, metadata.getValue("isFullResourcePush").toBoolean())
+            writeOverlayId(metadata.getValue("nextOverlayId"))
+            rootlessImportCount++
+            logRootlessResult(requestId, null, "")
+            true
+        } catch (e: Exception) {
+            rootlessImportFailureCount++
+            logRootlessResult(requestId, stage, e.message ?: e.javaClass.simpleName)
+            false
+        }
+    }
+
+    private fun commitRootlessPayload(payload: File, expectedOverlayId: String, isFullResourcePush: Boolean) {
+        val overlayDir = File(packageDataDir(), "code_cache/.overlay")
+        if (expectedOverlayId.isNotEmpty()) {
+            File(overlayDir, "id").delete()
+            zipEntryNames(payload)
+                .filterNot { isFullResourcePush && it.startsWith("base.apk/") }
+                .forEach { File(overlayDir, it).delete() }
+        }
+        unzipToDirectory(payload, overlayDir)
+        markOverlayDexReadOnly(overlayDir)
+    }
+
+    private fun logRootlessResult(requestId: String, stage: String?, detail: String) {
+        val marker = RootlessCompatDeployArchive.IMPORT_RESULT_MARKER
+        val line = if (stage == null) {
+            "$marker OK $requestId"
+        } else {
+            "$marker FAILED $requestId $stage $detail"
+        }
+        appLogLines += "01-01 00:00:00.000  1000  1000 I jugg-agent: $line"
+    }
+
+    private fun zipEntryNames(zipFile: File): List<String> {
+        val names = mutableListOf<String>()
+        ZipInputStream(zipFile.inputStream().buffered()).use { zip ->
+            var entry = zip.nextEntry
+            while (entry != null) {
+                if (!entry.isDirectory) {
+                    names += entry.name
+                }
+                zip.closeEntry()
+                entry = zip.nextEntry
+            }
+        }
+        return names
+    }
+
     fun listStartupAgents(): List<String> {
         val dir = startupAgentsDir()
         if (!dir.isDirectory) {
@@ -158,6 +261,7 @@ class VirtualDeployDevice(
     private fun execShellCmd(cmd: String): String {
         shellCommands += cmd
         return when {
+            cmd.startsWith("logcat") -> appLogLines.joinToString("\n")
             cmd.startsWith("mkdir -p /data/local/tmp/jugg") -> {
                 File(root, "data/local/tmp/jugg").mkdirs()
                 ""
@@ -171,6 +275,20 @@ class VirtualDeployDevice(
             cmd.startsWith("rm -f /data/local/tmp/jugg/") -> {
                 val remote = cmd.removePrefix("rm -f ").trim()
                 remotePushFiles.remove(remote)?.delete()
+                ""
+            }
+            cmd.startsWith("rm -rf /data/local/tmp/jugg/") -> {
+                val remote = cmd.removePrefix("rm -rf ").trim()
+                remotePushFiles.remove(remote)?.delete()
+                File(root, remote.removePrefix("/")).deleteRecursively()
+                ""
+            }
+            cmd.startsWith("rm -rf /sdcard/Android/data/") -> {
+                val remote = cmd.removePrefix("rm -rf ").trim()
+                remotePushFiles.keys
+                    .filter { it == remote || it.startsWith("$remote/") }
+                    .forEach { remotePushFiles.remove(it)?.delete() }
+                File(root, remote.removePrefix("/")).deleteRecursively()
                 ""
             }
             cmd == "run-as $packageName rm -rf code_cache/.overlay" -> {
@@ -357,5 +475,10 @@ class VirtualDeployDevice(
         private const val AS_AGENT_MARKER = "__JUGG_AS_AGENT__"
         private const val RUN_AS_MARKER = "__JUGG_RUN_AS_OK__"
         private const val RUN_AS_CONTEXT_MARKER = "__JUGG_RUN_AS_CONTEXT__"
+
+        /** Rootless compat request files, see [RootlessCompatDeployArchive]. */
+        private const val ROOTLESS_PAYLOAD_FILE = "payload.zip"
+        private const val ROOTLESS_REQUEST_FILE = "request.properties"
+        private const val ROOTLESS_READY_FILE = "ready"
     }
 }

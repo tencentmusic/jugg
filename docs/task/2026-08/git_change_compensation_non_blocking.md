@@ -31,7 +31,7 @@
 
 ## 明确排除
 
-- 不增加 Jugg Running Pannel UI。
+- 不增加 Jugg Running Panel UI。
 - 不增加 `JuggSettings` 开关。
 - 不配置或保留等待超时时间。
 - 不优化 JGit 查询性能。

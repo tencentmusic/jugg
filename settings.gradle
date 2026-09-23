@@ -21,5 +21,6 @@ include ':deploy_compat:v_narwhal_feature'
 include ':deploy_compat:v_otter'
 include ':deploy_compat:v_panda'
 include ':deploy_compat:v_quail'
+include ':deploy_compat:v_rabbit'
 
 include ':platform_compat:base_api'

@@ -2,7 +2,7 @@
 
 ## 背景
 
-Jugg Running Pannel 的 Quick Actions 与 Settings 当前存在命名不清晰、分类不准确和安装入口描述过于宽泛的问题。`Clean & Reinstall` 实际会清除 App 数据，但入口没有二次确认。
+Jugg Running Panel 的 Quick Actions 与 Settings 当前存在命名不清晰、分类不准确和安装入口描述过于宽泛的问题。`Clean & Reinstall` 实际会清除 App 数据，但入口没有二次确认。
 
 ## 变更范围
 

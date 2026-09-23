@@ -83,6 +83,8 @@
 
 **行为补充**：未传 serial 时重启全部目标设备，显式传入时只重启指定在线设备。成功路径默认只确认 restart 命令执行完成；需要把 App ready 作为工具成功条件时显式传 `waitAppReadyAfterSuccess=true`。
 
+启动目标按 launch Activity、HOME Activity 的顺序降级。所有 APK 都没有 launch/HOME Activity 时，工具只执行 `am force-stop <package>` 并打印 warn，不会改为启动其它 Activity；stop 命令成功仍视为工具成功，但 App 不会 ready，因此显式传 `waitAppReadyAfterSuccess=true` 会因未 ready 返回失败。规则细节见 `03_deploy_core.md` §4.4。
+
 ---
 
 ### `compile`

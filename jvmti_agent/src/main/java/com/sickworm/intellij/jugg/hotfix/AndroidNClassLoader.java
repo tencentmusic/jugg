@@ -165,6 +165,11 @@ class AndroidNClassLoader extends PathClassLoader {
         if (drawableInflater != null) {
             try {
                 ReflectUtil.findField(drawableInflater, "mClassLoader").set(drawableInflater, reflectClassLoader);
+            } catch (NoSuchFieldException e) {
+                // Android 12 and later deny this hidden field to apps targeting R or above, and some
+                // ROMs remove it. DrawableInflater only inflates XML drawables, so it keeps using the
+                // origin classloader instead of failing the whole hotfix startup.
+                LogUtils.w(TAG, "reflectPackageInfoClassloader cannot reflect drawableInflater.mClassLoader, skip: " + e);
             } catch (Exception e) {
                 if (IncrementalApkLoader.isIncrementalApk()) {
                     // no idea why it will crash

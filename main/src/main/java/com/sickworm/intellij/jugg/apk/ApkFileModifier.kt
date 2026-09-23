@@ -23,16 +23,33 @@ import java.util.zip.ZipOutputStream
 import kotlin.io.path.exists
 
 /**
+ * Escapes one shell argument so paths with spaces, quotes or Unicode characters stay a single argument.
+ */
+internal fun shellEscapeArgument(argument: String): String {
+    return if (isWindows) {
+        "\"${argument.replace("\"", "\"\"")}\""
+    } else {
+        "'${argument.replace("'", "'\"'\"'")}'"
+    }
+}
+
+internal fun shellCommand(arguments: List<String>): String {
+    return arguments.joinToString(" ") { shellEscapeArgument(it) }
+}
+
+/**
  * ApkFileModifier applies APK file updates and optional align/sign/replace steps.
  * Collaboration: Used by [ResourceApkModifier.incrementalUpdateResourceApk] and incremental deploy flows, delegating shell execution to [CmdExecutor.invoke].
  * Data Contract: [addFile] appends path-content pairs, and [insertAndResign] publishes changes only after the temporary APK is signed and verified.
+ * When [customApkSignScriptRunner] is present it replaces the local keystore signing step, and [signConfig] is only required on the default path.
  */
 class ApkFileModifier(
     private val apkFile: File,
-    private val signConfig: SigningConfig,
+    private val signConfig: SigningConfig?,
     private val androidHome: File,
     private val logger: Logger,
     private val envArray: List<String>? = null,
+    private val customApkSignScriptRunner: CustomApkSignScriptRunner? = null,
 ) {
 
     private val insertFiles = mutableListOf<Pair<String, ByteArray>>()
@@ -69,7 +86,12 @@ class ApkFileModifier(
             apkFile.copyTo(workingApkFile, overwrite = true)
             var tmpApkFile = updateFiles(workingApkFile).also(tmpApkFiles::add)
             tmpApkFile = alignApk(tmpApkFile).also(tmpApkFiles::add)
-            val signEnv = resignApk(tmpApkFile)
+            val signEnv = if (customApkSignScriptRunner != null) {
+                customApkSignScriptRunner.run(tmpApkFile)
+                envArray
+            } else {
+                resignApk(tmpApkFile)
+            }
             verifyApk(tmpApkFile, signEnv)
             replaceOldApk(tmpApkFile, apkFile)
             TimeLogger.end("insertAndResign", logger)
@@ -219,29 +241,31 @@ class ApkFileModifier(
     private fun resignApk(tmpApkFile: File): List<String>? {
         TimeLogger.start("signApk")
         // see: https://developer.android.com/tools/apksigner
+        val signingConfig = signConfig
+            ?: throw IllegalStateException("Signing config not found for APK signing.")
         val apksigner = File(buildToolsFolder, "apksigner").absolutePath
         val args = mutableListOf<String>()
         args.add("sign")
         args.add("-v")
         args.add("--ks")
-        args.add(signConfig.keystore!!.absolutePath) // we have checked keystore is not null before resign
+        args.add(signingConfig.keystore!!.absolutePath) // we have checked keystore is not null before resign
         args.add("--ks-pass")
-        args.add("pass:${signConfig.storePassword}")
-        if (signConfig.keyAlias != null) {
+        args.add("pass:${signingConfig.storePassword}")
+        if (signingConfig.keyAlias != null) {
             args.add("--ks-key-alias")
-            args.add(signConfig.keyAlias.toString())
-            if (signConfig.keyPassword != null) {
+            args.add(signingConfig.keyAlias.toString())
+            if (signingConfig.keyPassword != null) {
                 args.add("--key-pass")
-                args.add("pass:${signConfig.keyPassword}")
+                args.add("pass:${signingConfig.keyPassword}")
             }
         }
         args.add(tmpApkFile.absolutePath)
 
         val cmdString = shellCommand(listOf(apksigner) + args)
         val cmdStringSafeForPrint = cmdString
-            .replace(signConfig.storePassword ?: "null", "***")
-            .replace(signConfig.keyAlias ?: "null", "***")
-            .replace(signConfig.keyPassword ?: "null", "***")
+            .replace(signingConfig.storePassword ?: "null", "***")
+            .replace(signingConfig.keyAlias ?: "null", "***")
+            .replace(signingConfig.keyPassword ?: "null", "***")
         logger.debug("signConfig storeType: ${signConfig.storeType}, cmdString: $cmdStringSafeForPrint")
 
         val signEnv = doResign(cmdString)
@@ -340,15 +364,5 @@ class ApkFileModifier(
             throw IllegalStateException("verify APK failed, exit code: $exitCode")
         }
         TimeLogger.end("verifyApk", logger)
-    }
-
-    private fun shellCommand(arguments: List<String>): String {
-        return arguments.joinToString(" ") { argument ->
-            if (isWindows) {
-                "\"${argument.replace("\"", "\"\"")}\""
-            } else {
-                "'${argument.replace("'", "'\"'\"'")}'"
-            }
-        }
     }
 }

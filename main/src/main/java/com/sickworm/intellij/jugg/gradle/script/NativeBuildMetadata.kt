@@ -60,22 +60,30 @@ object NativeBuildMetadataReader {
     private fun readNativeCmakeReply(replyDir: File, sourceFiles: MutableSet<File>, includeDirs: MutableSet<File>) {
         replyDir.listFiles().orEmpty()
             .filter { it.isFile && it.name.startsWith(CMAKE_CODEMODEL_FILE_PREFIX) && it.name.endsWith(".json") }
-            .forEach { codemodelFile ->
-                val configurations = parseNativeMetadataJson(codemodelFile)?.get("configurations") as? List<*> ?: return@forEach
-                configurations.forEach { configuration ->
-                    val targets = (configuration as? Map<*, *>)?.get("targets") as? List<*> ?: return@forEach
-                    targets.forEach { target ->
-                        val jsonFile = (target as? Map<*, *>)?.get("jsonFile") as? String ?: return@forEach
-                        readNativeCmakeTarget(File(replyDir, jsonFile), sourceFiles, includeDirs)
+            .forEach codemodelFileLoop@{ codemodelFile ->
+                val codemodel = parseNativeMetadataJson(codemodelFile) ?: return@codemodelFileLoop
+                val sourceRoot = nativeMetadataFile((codemodel["paths"] as? Map<*, *>)?.get("source"))
+                val configurations = codemodel["configurations"] as? List<*> ?: return@codemodelFileLoop
+                configurations.forEach configurationLoop@{ configuration ->
+                    val targets = (configuration as? Map<*, *>)?.get("targets") as? List<*>
+                        ?: return@configurationLoop
+                    targets.forEach targetLoop@{ target ->
+                        val jsonFile = (target as? Map<*, *>)?.get("jsonFile") as? String ?: return@targetLoop
+                        readNativeCmakeTarget(File(replyDir, jsonFile), sourceRoot, sourceFiles, includeDirs)
                     }
                 }
             }
     }
 
-    private fun readNativeCmakeTarget(targetFile: File, sourceFiles: MutableSet<File>, includeDirs: MutableSet<File>) {
+    private fun readNativeCmakeTarget(
+        targetFile: File,
+        sourceRoot: File?,
+        sourceFiles: MutableSet<File>,
+        includeDirs: MutableSet<File>,
+    ) {
         val target = parseNativeMetadataJson(targetFile) ?: return
         (target["sources"] as? List<*>)?.forEach { source ->
-            nativeMetadataFile((source as? Map<*, *>)?.get("path"))?.let { sourceFiles.add(it) }
+            nativeMetadataFile((source as? Map<*, *>)?.get("path"), sourceRoot)?.let { sourceFiles.add(it) }
         }
         (target["compileGroups"] as? List<*>)?.forEach { group ->
             val includes = (group as? Map<*, *>)?.get("includes") as? List<*> ?: return@forEach
@@ -97,12 +105,14 @@ object NativeBuildMetadataReader {
         }
     }
 
-    /** Reads an absolute path from native build metadata; relative or malformed values are ignored. */
-    private fun nativeMetadataFile(value: Any?): File? {
+    /** Reads a native metadata path, resolving a relative value only when its metadata root is known. */
+    private fun nativeMetadataFile(value: Any?, relativeRoot: File? = null): File? {
         val path = value as? String ?: return null
         if (path.isEmpty()) return null
         val file = File(path)
-        return if (file.isAbsolute) file else null
+        if (file.isAbsolute) return file
+        if (relativeRoot == null) return null
+        return runCatching { File(relativeRoot, path).normalize() }.getOrDefault(file)
     }
 
     @Suppress("UNCHECKED_CAST")

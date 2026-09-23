@@ -35,6 +35,8 @@ Jugg 会优先尝试增量编译。当当前构建基线不再适用，或失败
 
 Gradle 构建成功后，Jugg 会把新的 APK、classpath、mapping 和资源产物作为后续增量的起点。下一次小范围修改仍会优先尝试增量编译。
 
+回退时会写出 `Fallback to gradle compile. Reason: ...`，同时出现在 Run 窗口、`compile_latest.log` 和运行面板 Logs。
+
 ## 使用边界
 
 - 增量编译会先对已知且可恢复的输入问题进行有限重试。普通源码或资源错误在重试后仍失败时，本轮直接结束，不会用 Gradle 覆盖原始错误。

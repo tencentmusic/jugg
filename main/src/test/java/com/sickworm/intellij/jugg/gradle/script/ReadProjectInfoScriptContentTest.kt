@@ -36,6 +36,9 @@ class ReadProjectInfoScriptContentTest {
         assertFalse(scriptText.contains("SelfResolvingDependency"))
         assertFalse(scriptText.contains("capitalize("))
         assertFalse(scriptText.contains("toUpperCase("))
+        // Kotlin 1.5 case conversion is not available in the Kotlin DSL of older Gradle versions.
+        assertFalse(scriptText.contains(".lowercase("))
+        assertFalse(scriptText.contains(".uppercase("))
         // Classes that use Reflector() in their instance methods must keep their companion object.
         // On Kotlin 1.5 (Gradle 7), removing the companion changes bytecode generation for the class,
         // causing the Kotlin backend to fail resolving outer instance references when constructing
@@ -248,6 +251,15 @@ class ReadProjectInfoScriptContentTest {
             scriptText.contains(") : this(juggProjectInfoExceptModules, dependencyList, modules, $sourceVersion)"),
             "generated script must inline current JuggProjectInfoSerialize.VERSION"
         )
+    }
+
+    @Test
+    fun generatedScript_shouldRequestPackageAwareSymbolArtifact() {
+        val scriptText = javaClass.getResource("/gradle/readProjectInfo.gradle.kts")?.readText()
+        assertNotNull(scriptText)
+
+        assertTrue(scriptText.contains("SimpleArtifactFilter(\"android-symbol-with-package-name\")"))
+        assertTrue(scriptText.contains("if (libraryDependency.isRes) {"))
     }
 
     @Test

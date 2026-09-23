@@ -1,5 +1,13 @@
 package com.sickworm.intellij.jugg.gradle.script
 
+import com.sickworm.intellij.jugg.project.info.ExternalBuildInfo
+import com.sickworm.intellij.jugg.project.info.ExternalBuildInputDir
+import com.sickworm.intellij.jugg.project.info.ExternalBuildInputFilterRule
+import com.sickworm.intellij.jugg.project.info.ExternalBuildInputFilterRule.CppHeader
+import com.sickworm.intellij.jugg.project.info.ExternalBuildInputFilterRule.CppSource
+import com.sickworm.intellij.jugg.project.info.ExternalBuildInputFilterRule.Dart
+import com.sickworm.intellij.jugg.project.info.ExternalBuildInputFilterRule.FlutterAsset
+import com.sickworm.intellij.jugg.project.info.ExternalBuildInputFilterRule.NativeDirectory
 import com.sickworm.intellij.jugg.project.info.ExternalBuildType
 import com.sickworm.intellij.jugg.project.info.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.project.info.ModuleInfo
@@ -157,14 +165,13 @@ class GradleProjectInfoReaderExternalBuildTest {
     }
 
     @Test
-    fun `reads Flutter task inputs without watching the SDK, generated outputs or pub cache`() {
+    fun `watches Flutter task inputs without watching the SDK, generated outputs or pub cache`() {
         val localPackage = Files.createTempDirectory("jugg-local-package").toRealPath().toFile()
         try {
             val project = ProjectBuilder.builder().withProjectDir(temporaryFolder.root).build()
             val appDir = temporaryFolder.newFolder("app").canonicalFile
             val flutterRoot = temporaryFolder.newFolder("flutter").canonicalFile
             val sameProjectPackage = temporaryFolder.newFolder("same-project-package").canonicalFile
-            val sharedAssets = temporaryFolder.newFolder("shared-assets").canonicalFile
             val sdkRoot = temporaryFolder.newFolder("flutter-sdk").canonicalFile
             val generatedDart = writeFile(File(File(appDir, "build/generated"), "Generated.dart"))
             val sdkDart = writeFile(File(File(sdkRoot, "bin/cache/pkg/sky_engine/lib/ui"), "ui.dart"))
@@ -174,7 +181,6 @@ class GradleProjectInfoReaderExternalBuildTest {
             val pubspec = writeFile(File(flutterRoot, "pubspec.yaml"))
             val localPackageDart = writeFile(File(File(localPackage, "lib"), "shared.dart"))
             val sameProjectPackageDart = writeFile(File(File(sameProjectPackage, "lib"), "shared.dart"))
-            val sharedAsset = writeFile(File(sharedAssets, "logo.png"))
             writeFile(File(localPackage, "pubspec.yaml"))
             writeFile(File(sameProjectPackage, "pubspec.yaml"))
             writeFile(File(sdkRoot, "pubspec.yaml"))
@@ -183,7 +189,7 @@ class GradleProjectInfoReaderExternalBuildTest {
                 sourceDir = flutterRoot
                 outputDirectory = temporaryFolder.newFolder("flutter-output")
                 sourceFiles = project.files(
-                    appDart, assetFile, pubspec, localPackageDart, sameProjectPackageDart, sharedAsset,
+                    appDart, assetFile, pubspec, localPackageDart, sameProjectPackageDart,
                     generatedDart, sdkDart, cachedDart,
                 )
             }
@@ -192,29 +198,27 @@ class GradleProjectInfoReaderExternalBuildTest {
                 archiveFileName.set("flutter-native.jar")
                 dependsOn(compileTask)
             }
-            val moduleInfo = ModuleInfo.virtualModule.copy(
-                name = "app",
-                moduleRootDir = appDir,
-                projectRootDir = temporaryFolder.root.canonicalFile,
-                buildVariant = "debug",
-                buildPathInfo = ModuleBuildPathInfo(appDir, appDir, "debug", buildDirRelativePath = "build"),
-            )
+            val moduleInfo = appModuleInfo(appDir)
 
             val info = readExternalBuildInfos(project, moduleInfo).single()
 
+            // Every package root only accepts Dart sources, so generated and cached Dart files are
+            // dropped with their directories instead of widening the root to arbitrary files.
+            assertTrue(File(flutterRoot, "lib") in info.inputDirectories(), "Dart input parents: ${info.inputDirs}")
+            assertTrue(localPackage in info.inputDirectories())
+            assertTrue(sameProjectPackage in info.inputDirectories())
+            assertTrue(
+                File(flutterRoot, "assets").canonicalFile in info.inputDirectories(),
+                "a task resource strictly below a package root keeps its own directory: ${info.inputDirs}",
+            )
+            assertTrue(generatedDart.parentFile.canonicalFile !in info.inputDirectories())
+            assertTrue(cachedDart.parentFile.canonicalFile !in info.inputDirectories())
+            assertEquals(setOf(Dart), info.ruleSetsAt(flutterRoot.canonicalFile).single())
+            assertEquals(setOf(FlutterAsset), info.ruleSetsAt(File(flutterRoot, "assets").canonicalFile).single())
             assertEquals(
-                setOf(flutterRoot, localPackage, sameProjectPackage, sharedAssets).canonical().toSet(),
-                info.inputDirs.canonical().toSet(),
-            )
-            assertEquals(setOf(pubspec), info.configFiles.canonical().toSet())
-
-            assertTrue(
-                localPackage in info.inputDirs.canonical(),
-                "local path package root should be watched: ${info.inputDirs}",
-            )
-            assertTrue(
-                sameProjectPackage in info.inputDirs.canonical(),
-                "same-project package root should be watched: ${info.inputDirs}",
+                setOf(pubspec, File(localPackage, "pubspec.yaml").canonicalFile,
+                    File(sameProjectPackage, "pubspec.yaml").canonicalFile),
+                info.configFiles.canonical().toSet(),
             )
             assertTrue(sdkRoot in info.excludedDirs.canonical(), "SDK must be excluded: ${info.excludedDirs}")
             assertTrue(File(flutterRoot, ".dart_tool").canonicalFile in info.excludedDirs.canonical())
@@ -225,10 +229,12 @@ class GradleProjectInfoReaderExternalBuildTest {
     }
 
     @Test
-    fun `uses the Flutter root instead of parsing pubspec asset declarations`() {
+    fun `reads declared Flutter resource directories and keeps single files on task inputs`() {
         val project = ProjectBuilder.builder().withProjectDir(temporaryFolder.root).build()
         val flutterRoot = temporaryFolder.newFolder("flutter-pubspec-assets").canonicalFile
-        val existingAsset = writeFile(File(flutterRoot, "assets/images/existing.png"))
+        val declaredDirectory = File(flutterRoot, "assets/images").apply { mkdirs() }
+        val declaredFile = File(flutterRoot, "assets/splash.png")
+        writeFile(declaredFile)
         writeFile(
             File(flutterRoot, "pubspec.yaml"),
             """
@@ -240,37 +246,75 @@ class GradleProjectInfoReaderExternalBuildTest {
                     - path: assets/flavored/
                       flavors:
                         - free
+                    - assets/other.png
+                    - /absolute/assets/
+                    - ../outside/
                     - .dart_tool/generated.png
-                    - ../outside.png
+                    - assets/back/../images/
             """.trimIndent(),
         )
+        writeFile(File(flutterRoot, "l10n.yaml"), "arb-dir: lib/l10n\ntemplate-arb-file: app_en.arb\n")
         val compileTask = project.tasks.create("compileFlutterBuildDebug", TestFlutterCompileTask::class.java).apply {
             sourceDir = flutterRoot
             outputDirectory = temporaryFolder.newFolder("flutter-output-pubspec-assets")
-            sourceFiles = project.files(existingAsset)
+            sourceFiles = project.files(declaredFile)
         }
         project.tasks.create("packJniLibsflutterBuildDebug", TestFlutterPackTask::class.java).apply {
             destinationDirectory.set(temporaryFolder.newFolder("flutter-archive-pubspec-assets"))
             archiveFileName.set("flutter-native.jar")
             dependsOn(compileTask)
         }
-        val moduleInfo = ModuleInfo.virtualModule.copy(
-            name = "app",
-            moduleRootDir = project.projectDir,
-            projectRootDir = project.projectDir,
-            buildVariant = "debug",
-            buildPathInfo = ModuleBuildPathInfo(
-                project.projectDir,
-                project.projectDir,
-                "debug",
-                buildDirRelativePath = "build",
-            ),
-        )
+        val moduleInfo = appModuleInfo(project.projectDir)
 
         val info = readExternalBuildInfos(project, moduleInfo).single()
 
-        assertEquals(listOf(flutterRoot), info.inputDirs.canonical())
-        assertTrue(existingAsset.isFile)
+        // Only directory declarations become resource roots: single files, fonts and shaders keep
+        // relying on the Flutter task inputs, and escaping or excluded declarations are rejected.
+        assertEquals(
+            listOf(
+                flutterRoot,
+                File(flutterRoot, "assets/splash.png").parentFile.canonicalFile,
+                declaredDirectory.canonicalFile,
+                File(flutterRoot, "assets/flavored").canonicalFile,
+                File(flutterRoot, "lib/l10n").canonicalFile,
+            ).sortedBy { it.path },
+            info.inputDirectories().sortedBy { it.path },
+        )
+        assertEquals(setOf(Dart), info.ruleSetsAt(flutterRoot).single())
+        assertTrue(info.ruleSetsAt(declaredDirectory.canonicalFile).single() == setOf(FlutterAsset))
+        assertTrue(File(flutterRoot, "lib/l10n").canonicalFile in info.inputDirectories())
+        assertTrue(File(flutterRoot, "pubspec.yaml").canonicalFile in info.configFiles.canonical())
+        assertTrue(File(flutterRoot, "l10n.yaml").canonicalFile in info.configFiles.canonical())
+    }
+
+    @Test
+    fun `keeps a declared but missing Flutter resource directory and rejects symbolic links`() {
+        val project = ProjectBuilder.builder().withProjectDir(temporaryFolder.root).build()
+        val flutterRoot = temporaryFolder.newFolder("flutter-empty-assets").canonicalFile
+        val missingDirectory = File(flutterRoot, "assets/missing")
+        val linkedTarget = temporaryFolder.newFolder("flutter-linked-assets")
+        val linkedDirectory = File(flutterRoot, "assets/linked")
+        linkedDirectory.parentFile.mkdirs()
+        Files.createSymbolicLink(linkedDirectory.toPath(), linkedTarget.toPath())
+        writeFile(File(flutterRoot, "pubspec.yaml"), "flutter:\n  assets:\n    - assets/missing/\n    - assets/linked/\n")
+        val compileTask = project.tasks.create("compileFlutterBuildDebug", TestFlutterCompileTask::class.java).apply {
+            sourceDir = flutterRoot
+            outputDirectory = temporaryFolder.newFolder("flutter-output-empty-assets")
+            sourceFiles = project.files(emptyList<File>())
+        }
+        project.tasks.create("packJniLibsflutterBuildDebug", TestFlutterPackTask::class.java).apply {
+            destinationDirectory.set(temporaryFolder.newFolder("flutter-archive-empty-assets"))
+            archiveFileName.set("flutter-native.jar")
+            dependsOn(compileTask)
+        }
+        val moduleInfo = appModuleInfo(project.projectDir)
+
+        val info = readExternalBuildInfos(project, moduleInfo).single()
+
+        assertTrue(!missingDirectory.exists())
+        assertTrue(missingDirectory.canonicalFile in info.inputDirectories(), "empty declared directory: ${info.inputDirs}")
+        assertTrue(linkedDirectory.canonicalFile !in info.inputDirectories(), "symlinked declaration")
+        assertEquals(listOf(flutterRoot, missingDirectory.canonicalFile).sortedBy { it.path }, info.inputDirectories())
     }
 
     @Test
@@ -291,12 +335,13 @@ class GradleProjectInfoReaderExternalBuildTest {
 
         val info = readExternalBuildInfos(project).single()
 
-        assertEquals(listOf(flutterRoot.canonicalFile), info.inputDirs.canonical())
+        assertEquals(listOf(flutterRoot.canonicalFile), info.inputDirectories())
+        assertEquals(setOf(Dart), info.inputDirs.single().filterRules)
         assertEquals(listOf(File(flutterRoot, "pubspec.yaml").canonicalFile), info.configFiles.canonical())
     }
 
     @Test
-    fun `discovers CMake configuration inputs and native metadata of the current variant`() {
+    fun `reads native configuration roots, metadata source directories and include roots`() {
         val project = ProjectBuilder.builder().withProjectDir(temporaryFolder.root).build()
         val cmakeDir = File(temporaryFolder.root, "cmake")
         val cmakeLists = writeFile(File(cmakeDir, "CMakeLists.txt"), "cmake_minimum_required(VERSION 3.22)\n")
@@ -306,48 +351,196 @@ class GradleProjectInfoReaderExternalBuildTest {
         project.tasks.create("mergeDebugNativeLibs", TestNativeMergeTask::class.java).apply {
             outputDir = temporaryFolder.newFolder("merged-native-libs")
         }
-        writeCmakeReply(File(temporaryFolder.root, ".cxx/cmake/debug/arm64-v8a"), "debug", "/debug/shared.cpp")
-        writeCmakeReply(File(temporaryFolder.root, ".cxx/cmake/release/arm64-v8a"), "release", "/release/stale.cpp")
-        val moduleInfo = ModuleInfo.virtualModule.copy(
-            name = "app",
-            moduleRootDir = temporaryFolder.root.canonicalFile,
-            projectRootDir = temporaryFolder.root.canonicalFile,
-            buildVariant = "debug",
-            buildPathInfo = ModuleBuildPathInfo(
-                temporaryFolder.root.canonicalFile,
-                temporaryFolder.root.canonicalFile,
-                "debug",
-                buildDirRelativePath = "build",
+        val moduleRoot = temporaryFolder.root.canonicalFile
+        writeCmakeReply(
+            File(temporaryFolder.root, ".cxx/cmake/debug/arm64-v8a"), "debug",
+            sources = listOf(
+                // Below the configuration root: a concrete source directory is confirmed.
+                File(moduleRoot, "cmake/native/target.cpp").path,
+                // The configuration root itself: the root rule already covers it.
+                File(moduleRoot, "cmake/root_source.cpp").path,
+                // Outside the configuration root: still a concrete source directory.
+                File(moduleRoot, "external/native.cpp").path,
+                // A metadata header source keeps its directory on header-only matching.
+                File(moduleRoot, "cmake/include/api.h").path,
             ),
+            includes = listOf(File(moduleRoot, "cmake/shared-include").path),
         )
+        writeCmakeReply(
+            File(temporaryFolder.root, ".cxx/cmake/release/arm64-v8a"), "release",
+            sources = listOf("/release/stale.cpp"),
+            includes = emptyList(),
+        )
+        val moduleInfo = appModuleInfo(moduleRoot)
 
         val info = readExternalBuildInfos(project, moduleInfo).single()
 
         assertEquals(ExternalBuildType.Cpp, info.type)
         assertEquals(
-            setOf(cmakeLists, toolchainCmake, File(File(cmakeDir, "modules"), "helpers.cmake"))
-                .canonical().toSet(),
+            setOf(cmakeLists, toolchainCmake, File(File(cmakeDir, "modules"), "helpers.cmake")).canonical().toSet(),
             info.configFiles.canonical().toSet(),
         )
-        assertTrue(File("/debug") in info.inputDirs, "debug target roots: ${info.inputDirs}")
-        assertTrue(File("/release") !in info.inputDirs, "stale variant reply must be ignored")
-        assertTrue(File(temporaryFolder.root, ".cxx").canonicalFile in info.excludedDirs.canonical())
+        assertEquals(setOf(CppSource, CppHeader), info.ruleSetsAt(cmakeDir.canonicalFile).single())
+        assertEquals(setOf(NativeDirectory), info.ruleSetsAt(File(moduleRoot, "cmake/native")).single())
+        assertEquals(setOf(NativeDirectory), info.ruleSetsAt(File(moduleRoot, "external")).single())
+        assertEquals(setOf(CppHeader), info.ruleSetsAt(File(moduleRoot, "cmake/include")).single())
+        assertEquals(setOf(CppHeader), info.ruleSetsAt(File(moduleRoot, "cmake/shared-include")).single())
+        // A stale reply of another variant never contributes inputs.
+        assertTrue(File("/release").canonicalFile !in info.inputDirectories())
+        assertNull(info.unsupportedReason)
     }
+
+    @Test
+    fun `resolves relative CMake target sources from the codemodel source root`() {
+        val project = ProjectBuilder.builder().withProjectDir(temporaryFolder.root).build()
+        val moduleRoot = temporaryFolder.root.canonicalFile
+        val cmakeDir = File(moduleRoot, "cmake")
+        writeFile(File(cmakeDir, "CMakeLists.txt"), "cmake_minimum_required(VERSION 3.22)\n")
+        project.extensions.add("android", TestAndroidExtension())
+        project.tasks.create("mergeDebugNativeLibs", TestNativeMergeTask::class.java).apply {
+            outputDir = temporaryFolder.newFolder("merged-native-relative-source")
+        }
+        writeCmakeReply(
+            File(moduleRoot, ".cxx/cmake/debug/arm64-v8a"), "debug",
+            sources = listOf("shared/shared_value.cc"),
+            includes = emptyList(),
+            sourceRoot = cmakeDir,
+        )
+
+        val info = readExternalBuildInfos(project, appModuleInfo(moduleRoot)).single()
+
+        assertEquals(setOf(NativeDirectory), info.ruleSetsAt(File(cmakeDir, "shared")).single())
+    }
+
+    @Test
+    fun `keeps every rule set of one directory and never compacts a child into its parent`() {
+        val project = ProjectBuilder.builder().withProjectDir(temporaryFolder.root).build()
+        val moduleRoot = temporaryFolder.root.canonicalFile
+        val cmakeDir = File(moduleRoot, "cmake")
+        writeFile(File(cmakeDir, "CMakeLists.txt"), "cmake_minimum_required(VERSION 3.22)\n")
+        project.extensions.add("android", TestAndroidExtension())
+        project.tasks.create("mergeDebugNativeLibs", TestNativeMergeTask::class.java).apply {
+            outputDir = temporaryFolder.newFolder("merged-native-rule-sets")
+        }
+        writeCmakeReply(
+            File(moduleRoot, ".cxx/cmake/debug/arm64-v8a"), "debug",
+            // The include root equals the configuration root, and one target source lives there too.
+            sources = listOf(File(cmakeDir, "native.cpp").path),
+            includes = listOf(cmakeDir.path),
+        )
+        val moduleInfo = appModuleInfo(moduleRoot)
+
+        val info = readExternalBuildInfos(project, moduleInfo).single()
+
+        assertEquals(
+            listOf(setOf(CppHeader), setOf(CppSource, CppHeader)),
+            info.ruleSetsAt(cmakeDir),
+            "the configuration root and the include root keep separate records: ${info.inputDirs}",
+        )
+        assertEquals(2, info.inputDirs.size, "inputs: ${info.inputDirs}")
+    }
+
+    @Test
+    fun `excludes toolchain, build and staging directories`() {
+        val project = ProjectBuilder.builder().withProjectDir(temporaryFolder.root).build()
+        val moduleRoot = temporaryFolder.root.canonicalFile
+        val sdkRoot = temporaryFolder.newFolder("android-sdk").canonicalFile
+        val ndkRoot = temporaryFolder.newFolder("android-ndk").canonicalFile
+        val stagingDir = temporaryFolder.newFolder("native-staging").canonicalFile
+        writeFile(File(temporaryFolder.root, "local.properties"),
+            "sdk.dir=${sdkRoot.path}\nndk.dir=${ndkRoot.path}\n")
+        writeFile(File(moduleRoot, "cmake/CMakeLists.txt"), "cmake_minimum_required(VERSION 3.22)\n")
+        project.extensions.add("android", TestAndroidExtension(stagingDir))
+        project.tasks.create("mergeDebugNativeLibs", TestNativeMergeTask::class.java).apply {
+            outputDir = temporaryFolder.newFolder("merged-native-toolchain")
+        }
+        val moduleInfo = appModuleInfo(moduleRoot)
+
+        val info = readExternalBuildInfos(project, moduleInfo).single()
+
+        val excluded = info.excludedDirs.canonical()
+        assertTrue(sdkRoot in excluded, "SDK: ${info.excludedDirs}")
+        assertTrue(File(sdkRoot, "cmake") in excluded)
+        assertTrue(ndkRoot in excluded, "NDK: ${info.excludedDirs}")
+        assertTrue(stagingDir in excluded, "staging: ${info.excludedDirs}")
+        assertTrue(File(moduleRoot, "build").canonicalFile in excluded)
+        assertTrue(moduleInfo.buildPathInfo.buildDir.canonicalFile in excluded)
+        assertTrue(File(moduleRoot, ".cxx").canonicalFile in excluded)
+        assertTrue(File(moduleRoot, ".externalNativeBuild").canonicalFile in excluded)
+        assertTrue(project.gradle.gradleUserHomeDir.canonicalFile in excluded, "Gradle cache: ${info.excludedDirs}")
+    }
+
+    @Test
+    fun `ignores metadata inputs the configuration root already covers`() {
+        val project = ProjectBuilder.builder().withProjectDir(temporaryFolder.root).build()
+        val moduleRoot = temporaryFolder.root.canonicalFile
+        val cmakeDir = File(moduleRoot, "cmake")
+        writeFile(File(cmakeDir, "CMakeLists.txt"), "cmake_minimum_required(VERSION 3.22)\n")
+        project.extensions.add("android", TestAndroidExtension())
+        project.tasks.create("mergeDebugNativeLibs", TestNativeMergeTask::class.java).apply {
+            outputDir = temporaryFolder.newFolder("merged-native-ignored")
+        }
+        writeCmakeReply(
+            File(moduleRoot, ".cxx/cmake/debug/arm64-v8a"), "debug",
+            sources = listOf(
+                File(cmakeDir, "root_source.cpp").path,
+                File(cmakeDir, "root_generated.proto").path,
+            ),
+            includes = emptyList(),
+        )
+        val moduleInfo = appModuleInfo(moduleRoot)
+
+        val info = readExternalBuildInfos(project, moduleInfo).single()
+
+        // Inputs the configuration root already covers never widen it, and they never mark the
+        // external build unsupported.
+        assertEquals(listOf(setOf(CppSource, CppHeader)), info.ruleSetsAt(cmakeDir))
+        assertEquals(listOf(cmakeDir.canonicalFile), info.inputDirectories())
+        assertNull(info.unsupportedReason)
+    }
+
+    /** All rule sets of one input directory, so a duplicated record can not hide a missing one. */
+    private fun ExternalBuildInfo.ruleSetsAt(directory: File): List<Set<ExternalBuildInputFilterRule>> {
+        return inputDirs.filter { it.directory.canonicalFile == directory.canonicalFile }
+            .map { it.filterRules }
+            .distinct()
+    }
+
+    private fun ExternalBuildInfo.inputDirectories(): List<File> {
+        return inputDirs.map { it.directory.canonicalFile }.distinct()
+    }
+
+    private fun appModuleInfo(moduleRoot: File): ModuleInfo = ModuleInfo.virtualModule.copy(
+        name = "app",
+        moduleRootDir = moduleRoot,
+        projectRootDir = moduleRoot,
+        buildVariant = "debug",
+        buildPathInfo = ModuleBuildPathInfo(moduleRoot, moduleRoot, "debug", buildDirRelativePath = "build"),
+    )
 
     private fun Iterable<File>.canonical(): List<File> = map { it.canonicalFile }
 
-    /** Writes a minimal CMake File API reply holding one target with one source and one include root. */
-    private fun writeCmakeReply(replyParent: File, variant: String, sourcePath: String) {
+    /** Writes a minimal CMake File API reply holding one target with the requested sources and includes. */
+    private fun writeCmakeReply(
+        replyParent: File,
+        variant: String,
+        sources: List<String>,
+        includes: List<String>,
+        sourceRoot: File? = null,
+    ) {
         val replyDir = File(replyParent, ".cmake/api/v1/reply")
         replyDir.mkdirs()
+        val paths = sourceRoot?.let { "\"paths\":{\"source\":\"${it.path}\"}," }.orEmpty()
         writeFile(
             File(replyDir, "codemodel-v2-$variant.json"),
-            """{"configurations":[{"name":"$variant","targets":[{"name":"app","jsonFile":"target-app-$variant.json"}]}]}""",
+            """{$paths"configurations":[{"name":"$variant","targets":[{"name":"app","jsonFile":"target-app-$variant.json"}]}]}""",
         )
+        val sourceJson = sources.joinToString(",") { """{"path":"$it"}""" }
+        val includeJson = includes.joinToString(",") { """{"path":"$it"}""" }
         writeFile(
             File(replyDir, "target-app-$variant.json"),
-            """{"name":"app","sources":[{"path":"$sourcePath"}],""" +
-                """"compileGroups":[{"includes":[{"path":"/${variant}/include"}]}]}""",
+            """{"name":"app","sources":[$sourceJson],""" +
+                """"compileGroups":[{"includes":[$includeJson]}]}""",
         )
     }
 
@@ -361,7 +554,7 @@ class GradleProjectInfoReaderExternalBuildTest {
     private fun readExternalBuildInfos(
         project: org.gradle.api.Project,
         moduleInfo: ModuleInfo = ModuleInfo.virtualModule.copy(buildVariant = "debug"),
-    ): List<com.sickworm.intellij.jugg.project.info.ExternalBuildInfo> {
+    ): List<ExternalBuildInfo> {
         val reader = GradleProjectInfoReader(project, null, project.projectDir)
         return reader.javaClass.getDeclaredMethod(
             "getExternalBuildInfos",
@@ -369,7 +562,7 @@ class GradleProjectInfoReaderExternalBuildTest {
             ModuleInfo::class.java,
         ).run {
             isAccessible = true
-            invoke(reader, project, moduleInfo) as List<com.sickworm.intellij.jugg.project.info.ExternalBuildInfo>
+            invoke(reader, project, moduleInfo) as List<ExternalBuildInfo>
         }
     }
 }
@@ -398,12 +591,12 @@ open class TestNativeMergeTask : DefaultTask() {
 }
 
 /** Minimal Android extension exposing the external native build paths read by the project-info script. */
-class TestAndroidExtension {
-    fun getExternalNativeBuild() = TestExternalNativeBuild()
+class TestAndroidExtension(private val buildStagingDirectory: File? = null) {
+    fun getExternalNativeBuild() = TestExternalNativeBuild(buildStagingDirectory)
 }
 
-class TestExternalNativeBuild {
-    fun getCmake() = TestNativeBuildPath("cmake/CMakeLists.txt")
+class TestExternalNativeBuild(private val buildStagingDirectory: File?) {
+    fun getCmake() = TestNativeBuildPath("cmake/CMakeLists.txt", buildStagingDirectory)
 }
 
 class TestNativeBuildPath(val path: String, val buildStagingDirectory: Any? = null)

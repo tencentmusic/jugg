@@ -1,15 +1,24 @@
 package com.sickworm.intellij.jugg.compile
 
+import com.intellij.openapi.diagnostic.Logger
 import com.jetbrains.rd.util.first
+import com.sickworm.intellij.jugg.compiler.CompileFile
+import com.sickworm.intellij.jugg.compiler.rPackageName
 import com.sickworm.intellij.jugg.compiler.manifest.XmlAndroidManifestInfo
+import com.sickworm.intellij.jugg.project.change.ChangedFile
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
+import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResultHelper
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResultSet
+import com.sickworm.intellij.jugg.project.dependency.LibraryDependencySet
+import com.sickworm.intellij.jugg.project.dependency.UpdatedLibraryDependency
+import com.sickworm.intellij.jugg.project.info.LibraryDependency
 import com.sickworm.intellij.jugg.mock.mockModule
 import com.sickworm.intellij.jugg.project.info.JuggProjectInfo
-import com.sickworm.intellij.jugg.project.info.LibraryDependency
 import java.io.File
+import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 
 class DependencyDiffResultTest {
 
@@ -36,6 +45,81 @@ class DependencyDiffResultTest {
         modules = mapOf(module.name to module),
         agpR8Classpath = null,
     )
+
+    @Test
+    fun filledRPackageNameIsNotDependencyUpdate() {
+        // The R namespace comes from the Gradle symbol artifact, so an old cache without it must not
+        // turn every AAR into an updated dependency once the metadata is filled in.
+        val currentModule = module.copy(
+            libraryDependencies = libraryDependencies.map { it.copy(rPackageName = "com.example.external") },
+        )
+        val currentBuildDependencies = JuggProjectInfo(
+            modules = mapOf(currentModule.name to currentModule),
+            agpR8Classpath = null,
+        )
+
+        val diffResult = DependencyDiffResult.create(currentBuildDependencies, fullBuildDependencies)
+
+        assertEquals(0, diffResult.changedLibraries.size)
+    }
+
+    @Test
+    fun externalResourcePrefersSymbolPackageNameOverManifestPackage() {
+        withExternalDependency(symbolPackageName = "com.example.symbol", manifestPackage = "com.example.manifest") {
+            assertEquals("com.example.symbol", it.resource().rPackageName)
+        }
+    }
+
+    @Test
+    fun externalResourceFallsBackToManifestPackageWithoutSymbol() {
+        withExternalDependency(symbolPackageName = null, manifestPackage = "com.example.manifest") {
+            assertEquals("com.example.manifest", it.resource().rPackageName)
+        }
+    }
+
+    @Test
+    fun externalResourceHasNoPackageNameWithoutSymbolAndManifestPackage() {
+        withExternalDependency(symbolPackageName = null, manifestPackage = null) {
+            assertNull(it.resource().rPackageName)
+        }
+    }
+
+    private fun withExternalDependency(
+        symbolPackageName: String?,
+        manifestPackage: String?,
+        assertion: (List<ChangedFile>) -> Unit,
+    ) {
+        val root = Files.createTempDirectory("jugg-external-dependency").toFile()
+        try {
+            val manifest = File(root, "AndroidManifest.xml").apply {
+                val packageAttribute = manifestPackage?.let { """ package="$it"""" } ?: ""
+                writeText("<manifest$packageAttribute />")
+            }
+            val res = File(root, "res").apply { mkdirs() }
+            val declaration = "com.example:external:1.0"
+            val libraries = listOf(
+                LibraryDependency(declaration, res, 0L, 1L, symbolPackageName),
+                LibraryDependency(declaration, manifest, 0L, 2L, symbolPackageName),
+            )
+            val emptyInfo = JuggProjectInfo(emptyMap(), agpR8Classpath = null)
+            val diffResult = DependencyDiffResult(
+                currentBuildDependencies = emptyInfo,
+                lastBuildDependencies = emptyInfo,
+                addedLibraries = listOf(UpdatedLibraryDependency(LibraryDependencySet(declaration, libraries), null)),
+                removedLibraries = emptyList(),
+                updatedLibraries = emptyList(),
+            )
+
+            assertion(
+                DependencyDiffResultHelper(Logger.getInstance("test"), mockModule, diffResult, diffResult)
+                    .getNewLibraryFiles()
+            )
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    private fun List<ChangedFile>.resource() = single { it.type == CompileFile.Type.Resource }
 
     @Test
     fun testAddDependency() {

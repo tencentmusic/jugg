@@ -16,4 +16,7 @@ enum class DeployFlowCaseId {
     DF_L2_010,
     DF_L2_011,
     DF_L2_012,
+
+    /** System app on a production user ROM: no run-as, no adb root, no su. */
+    DF_L2_013,
 }

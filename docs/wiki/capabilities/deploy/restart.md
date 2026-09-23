@@ -35,6 +35,20 @@ Generate deployment data
 
 Hot Fix classes, push-only overlays, and some process-level caches require an app restart. Regular non-empty incremental deployments that do not require an app restart recreate the Activity. The Debug entry point restarts the app after deployment by default so that the debugging session starts from the new process state.
 
+## How the launch target is selected
+
+Restart, start after install, and Recover start share the same launch-target selection. It falls back in order across the whole APK set, including split APKs:
+
+| Order | Launch target | Match condition | Final action |
+|---|---|---|---|
+| 1 | Launch Activity | `MAIN` + `LAUNCHER`/`LEANBACK_LAUNCHER` | Starts that Activity |
+| 2 | HOME Activity | enabled, exported, and declares `MAIN` + `HOME` | Starts that Activity |
+| 3 | Stop the app | Neither of the two above exists | `am force-stop <package>` |
+
+The fallback runs in stages across all APKs: Jugg scans every APK for a launch Activity first, and only then scans every APK for a HOME Activity. A launch Activity in a later split APK therefore still wins over a HOME Activity in an earlier APK. When neither exists, Jugg does not start some other regular Activity; it only stops the app.
+
+During a restart the start command carries `-S`, and in Debug it carries `-D`; the second level keeps those flags too. At the third level the restart has completed, but the app is stopped rather than started, and Restart does not clear app data because of it.
+
 ## Relationship to deployment strategies
 
 | Strategy | Restart behavior |

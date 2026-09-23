@@ -28,22 +28,41 @@ class AdbCmdHelper(
         execAdbShellCmd("am start ${flagPart}-n $packageName/$launchedActivity")
     }
 
+    /**
+     * Starts the app with the best activity of the whole APK set:
+     * launch activity, then HOME activity, then stop the app.
+     */
     fun startDefaultApp(packageName: String, apks: List<ApkInfo>, isRestart: Boolean = true, isDebug: Boolean = false) {
         logger.debug("startDefaultApp: $packageName, apks: $apks, isRestart: $isRestart")
         val apkFiles = apks.flatMap { it.files }.map { it.apkFile }
-        var launchedActivity: String? = null
-        apkFiles.find { apkFile ->
-            launchedActivity = adb.getDefaultLaunchActivity(apkFile)
-            if (launchedActivity != null) {
-                logger.debug("found default launch activity: $launchedActivity in ${apkFile.path}")
-            }
-            return@find launchedActivity != null
-        }
-        if (launchedActivity == null) {
-            logger.warn("No default launch activity found for $packageName, won't start App.")
+
+        val launchActivity = findActivity(apkFiles, "default launch") { adb.getDefaultLaunchActivity(it) }
+        if (launchActivity != null) {
+            startApp(packageName, launchActivity, isRestart, isDebug)
             return
         }
-        startApp(packageName, launchedActivity!!, isRestart, isDebug)
+
+        val homeActivity = findActivity(apkFiles, "HOME") { adb.getHomeActivity(it) }
+        if (homeActivity != null) {
+            logger.info("No default launch activity found for $packageName, " +
+                    "start HOME activity $homeActivity instead.")
+            startApp(packageName, homeActivity, isRestart, isDebug)
+            return
+        }
+
+        logger.warn("No launch activity found for $packageName, stop App instead.")
+        stopApp(packageName)
+    }
+
+    private fun findActivity(apkFiles: List<File>, kind: String, query: (File) -> String?): String? {
+        for (apkFile in apkFiles) {
+            val activity = query(apkFile)
+            if (activity != null) {
+                logger.debug("found $kind activity: $activity in ${apkFile.path}")
+                return activity
+            }
+        }
+        return null
     }
 
     fun stopApp(packageName: String) {

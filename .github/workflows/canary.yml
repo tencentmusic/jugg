@@ -50,6 +50,9 @@ jobs:
       - name: Set up Android SDK
         if: steps.check.outputs.should_build == 'true'
         uses: android-actions/setup-android@v4
+        with:
+          # The default package list still includes the removed tools package.
+          packages: platform-tools
 
       - name: Install Android build tools
         if: steps.check.outputs.should_build == 'true'
@@ -116,7 +119,7 @@ jobs:
         run: |
           commit_sha="$(git rev-parse HEAD)"
           short_sha="${commit_sha:0:7}"
-          release_notes="$(printf 'Automatically published from the latest %s branch build. Canary builds may be unstable. However, they include the latest bug fixes and features.\n\n- Version: `%s`\n- Commit: [`%s`](%s/%s/commit/%s)\n- Workflow: [run %s](%s/%s/actions/runs/%s)\n' \
+          release_notes="$(printf 'Automatically published from the latest %s branch build. Canary builds may be unstable. However, they include the latest experimental features.\n\n- Version: `%s`\n- Commit: [`%s`](%s/%s/commit/%s)\n- Workflow: [run %s](%s/%s/actions/runs/%s)\n' \
             "$GITHUB_REF_NAME" \
             '${{ steps.version.outputs.value }}' \
             "$short_sha" \

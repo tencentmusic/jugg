@@ -9,7 +9,7 @@
 ### 批次 1：Run Configuration 跳转
 
 - `More options` 触发宿主窗口默认 OK 动作，保存并关闭 Run Configuration。
-- 仅在窗口成功关闭后打开 `Jugg Running Pannel` 的 Settings。
+- 仅在窗口成功关闭后打开 `Jugg Running Panel` 的 Settings。
 - 测试：`JuggRunSettingsComponentTest`（L2）。
 
 ### 批次 2：Context 与 Current Task
