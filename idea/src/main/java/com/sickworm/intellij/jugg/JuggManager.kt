@@ -877,6 +877,7 @@ class JuggManager @TestOnly constructor(
         controlPanelController.recordUserAction("Report Issue")
         val backendServerUrl = juggServer.availableServerUrl
         val uploadUrl = IssueReportUploader.reportUrl(backendServerUrl)
+        val redactLogs = backendServerUrl == null || !juggServer.isCustomServer
         val progressDialog = ReportIssueProgressDialog("Preparing diagnostics...")
         taskRunnerManager.runBackgroundSafe("Prepare issue report") {
             try {
@@ -916,6 +917,7 @@ class JuggManager @TestOnly constructor(
                     logcat = logcatErrorLog,
                     hookDebugLog = File(JuggGlobalPathManager.rootDir, "skills/hooks/jugg-hook-debug.log"),
                     knownSecrets = knownSecrets,
+                    redactLogs = redactLogs,
                 )
                 SwingUtilities.invokeLater {
                     progressDialog.close(DialogWrapper.OK_EXIT_CODE)
@@ -963,10 +965,15 @@ class JuggManager @TestOnly constructor(
     }
 
     private fun uploadIssueReport(bundle: IssueReportBundle, uploadUrl: String, backendServerUrl: String? = null) {
+        val customServer = backendServerUrl != null && juggServer.isCustomServer
         SwingUtilities.invokeLater {
             val progressDialog = ReportIssueProgressDialog("Uploading logs...")
             taskRunnerManager.runBackgroundSafe("Upload issue report") {
-                val uploadResult = IssueReportUploader().upload(bundle, uploadUrl, allowHttpForBackend = backendServerUrl != null)
+                val uploadResult = IssueReportUploader().upload(
+                    bundle, uploadUrl, allowHttpForBackend = backendServerUrl != null,
+                    projectName = juggServer.projectName.takeIf { customServer },
+                    username = juggServer.username.takeIf { customServer },
+                )
                 SwingUtilities.invokeLater {
                     progressDialog.close(DialogWrapper.OK_EXIT_CODE)
                     ReportIssueResultDialog(uploadResult, backendServerUrl) {

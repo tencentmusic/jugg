@@ -52,6 +52,8 @@ tags:
 
 工程快照包含现存的 `project_infos.json`、`gradle_project_infos.json`，以及当前 included build 对应的 `include_build_*_gradle_project_infos.json`，脱敏后保存到诊断包的 `diagnostics/project-info/`。`applicationId` 和字段是否存在等诊断信息会保留；签名凭据、keystore、keyAlias、Manifest placeholders、APT/KAPT 参数和常见敏感字段的值会被替换。无法解析的快照、过期的 included build 快照、其他 `project_infos.db` 文件、源码和二进制依赖不会进入诊断包。hook 调试日志保存在 `diagnostics/cli/hook-debug.log`。
 
+手工上传仅在明确设置的 Custom Server 上单独发送工程名和开发者用户名，用于后台分类；自动选择的后台和公共服务仍只接收诊断包，不会把手工报告标记为自动上传。上传到 Custom Server 时，Jugg 日志、设备 logcat 和 hook 调试日志保留原文，包括原始工程路径和用户名。上传到自动选择的后台、公共服务或仅本地保存时，这些日志仍会脱敏。工程快照中的敏感字段始终脱敏。请仅把 Custom Server 指向受信任的服务，尤其注意 HTTP 不提供传输加密。
+
 > [!NOTE]
 > 上传失败不会改变本地编译部署结果。临时 zip 保留在 `build/jugg/tmp/diagnostics`，可以重试上传；达到 7 天后会在项目启动后的清理任务中删除。
 
@@ -59,9 +61,9 @@ tags:
 
 团队后台可以下发 `autoUploadFailureLogs=true`，让 Jugg 在最终编译失败或实际部署失败后自动上传最近两份日志。用户主动取消、跳过部署、没有设备且部署尚未开始，以及降级 Gradle 后最终成功都不会触发自动上传。一次 Run 最多上传一次。
 
-自动上传包包含最近两份经过脱敏的真实 Jugg 日志、环境信息、工程摘要、脱敏工程快照、存在时的 hook 调试日志和 manifest，不采集 adb logcat。后台还可以通过 `autoUploadFailureLogsExcludeRegex` 排除已知错误；正则命中当前 Run 的最终错误摘要时不上传。空正则表示不过滤，非法正则会跳过本次上传。
+自动上传包包含最近两份真实 Jugg 日志、环境信息、工程摘要、脱敏工程快照、存在时的 hook 调试日志和 manifest，不采集 adb logcat。日志按上述目标服务器规则处理。后台还可以通过 `autoUploadFailureLogsExcludeRegex` 排除已知错误；正则命中当前 Run 的最终错误摘要时不上传。空正则表示不过滤，非法正则会跳过本次上传。
 
-自动上传会随诊断包提交自动上传标记、失败原因摘要和可用的详细错误，同时附带工程名、开发者用户名、插件版本与 Report ID。错误文本按诊断日志的规则脱敏。手工反馈不带自动上传标记，仍按手工报告处理。
+自动上传会随诊断包提交自动上传标记、失败原因摘要和可用的详细错误，同时附带工程名、开发者用户名、插件版本与 Report ID。错误文本仅在明确设置的 Custom Server 上保留原文，其他后台仍脱敏。手工反馈不带自动上传标记，仍按手工报告处理。
 
 自动上传异步执行，不弹窗、不重试；上传失败不会改变原本的编译部署结果。只有存在可用后台服务时才上传到其 `/report_issue`（允许 HTTP 或 HTTPS）；没有可用后台时跳过，不会上传到公共服务。
 

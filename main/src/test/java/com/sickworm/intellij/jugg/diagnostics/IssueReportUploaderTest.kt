@@ -15,12 +15,15 @@ class IssueReportUploaderTest {
     @get:Rule val temp = TemporaryFolder()
 
     @Test
-    fun `automatic upload sends failure metadata while manual upload remains file only`() {
+    fun `automatic upload sends failure metadata and custom manual upload sends identity only`() {
         val requests = mutableListOf<String>()
         val client = OkHttpClient.Builder().addInterceptor { chain ->
             val request = chain.request()
             assertEquals("POST", request.method)
-            assertEquals("https://example.com/report_issue", request.url.toString())
+            assertEquals(
+                if (requests.size == 2) IssueReportUploader.JUGG_REPORT_URL else "https://example.com/report_issue",
+                request.url.toString(),
+            )
             assertTrue(request.body!!.contentType().toString().startsWith("multipart/form-data; boundary="))
             requests += Buffer().also { request.body!!.writeTo(it) }.readUtf8()
             Response.Builder().request(request).protocol(Protocol.HTTP_1_1).code(200)
@@ -37,7 +40,11 @@ class IssueReportUploaderTest {
             username = "developer",
             pluginVersion = "2.2.0-rc10",
         )).isSuccess)
-        assertTrue(uploader.upload(bundle, IssueReportUploader.reportUrl("https://example.com")).isSuccess)
+        assertTrue(uploader.upload(
+            bundle, IssueReportUploader.reportUrl("https://example.com"),
+            projectName = "MyApplication", username = "developer",
+        ).isSuccess)
+        assertTrue(uploader.upload(bundle, IssueReportUploader.JUGG_REPORT_URL).isSuccess)
 
         assertTrue(requests[0].contains("name=\"file\"; filename=\"a8df5845.zip\""))
         listOf(
@@ -47,9 +54,20 @@ class IssueReportUploaderTest {
         ).forEach { (name, value) ->
             assertTrue(requests[0].contains("name=\"$name\""), name)
             assertTrue(requests[0].contains("\r\n$value\r\n"), name)
+        }
+        listOf("project_name" to "MyApplication", "username" to "developer")
+            .forEach { (name, value) ->
+                assertTrue(requests[1].contains("name=\"$name\""), name)
+                assertTrue(requests[1].contains("\r\n$value\r\n"), name)
+            }
+        listOf("is_auto_upload", "failed_reason", "error_detail", "report_id", "plugin_version").forEach { name ->
             assertTrue(!requests[1].contains("name=\"$name\""), name)
         }
         assertTrue(requests[1].contains("name=\"file\"; filename=\"a8df5845.zip\""))
+        assertTrue(requests[2].contains("name=\"file\"; filename=\"a8df5845.zip\""))
+        listOf("project_name", "username", "plugin_version", "is_auto_upload").forEach { name ->
+            assertTrue(!requests[2].contains("name=\"$name\""), name)
+        }
     }
 
     @Test

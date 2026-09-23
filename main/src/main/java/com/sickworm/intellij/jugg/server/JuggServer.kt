@@ -37,7 +37,7 @@ import java.security.MessageDigest
  * Data Contract: Request identity is derived from [projectId], [username], and [requestToken]; [afterFullCompile] increments [sessionId], and [onCompile] increments [sessionSubId].
  */
 class JuggServer(
-    private val projectName: String,
+    val projectName: String,
     private val pathManager: JuggPathManager,
     private val coroutineScope: CoroutineScope,
     loggerArg: Logger,
@@ -56,7 +56,7 @@ class JuggServer(
     private val serverUrl: String? get() = JuggSettings.serverUrl
 
 
-    private val username: String = getUserName()
+    val username: String = getUserName()
 
     val version: String = PluginInfoReader.getPluginVersion()
 
@@ -68,6 +68,7 @@ class JuggServer(
 
     val hasAvailableServer: Boolean get() = juggServerChooser.hasAvailableServer()
     val availableServerUrl: String? get() = juggServerChooser.availableServerUrl
+    val isCustomServer: Boolean get() = juggServerChooser.isCustomServer
 
     private val client = OkHttpClient()
 
@@ -217,6 +218,7 @@ class JuggServer(
                 logger.debug("Auto upload failure logs skipped: no available backend server")
                 return@launch
             }
+            val redactLogs = !isCustomServer
             val logFiles = selectRecentFailureLogs(pathManager.logDir)
             if (logFiles.isEmpty()) {
                 logger.debug("Auto upload failure logs skipped: no Jugg logs found")
@@ -250,11 +252,12 @@ class JuggServer(
                 logcat = "",
                 hookDebugLog = File(JuggGlobalPathManager.rootDir, "skills/hooks/jugg-hook-debug.log"),
                 knownSecrets = knownSecrets,
+                redactLogs = redactLogs,
             )
             val bundle = builder.build(candidates.map { it.path }.toSet())
             val result = IssueReportUploader().upload(bundle, IssueReportUploader.reportUrl(backendServerUrl), IssueReportAutoUpload(
-                failedReason = builder.redactUploadText(failedReason, knownSecrets),
-                errorDetail = errorDetail?.let { builder.redactUploadText(it, knownSecrets) },
+                failedReason = if (redactLogs) builder.redactUploadText(failedReason, knownSecrets) else failedReason,
+                errorDetail = errorDetail?.let { if (redactLogs) builder.redactUploadText(it, knownSecrets) else it },
                 projectName = projectName,
                 username = username,
                 pluginVersion = version,

@@ -42,6 +42,7 @@ class JuggServerChooserTest {
 
         assertTrue(JuggServerChooser(TestGlobal.getLogger()).hasAvailableServer())
         assertEquals("https://custom.example.com", JuggServerChooser(TestGlobal.getLogger()).availableServerUrl)
+        assertTrue(JuggServerChooser(TestGlobal.getLogger()).isCustomServer)
     }
 
     @Test
@@ -62,6 +63,7 @@ class JuggServerChooserTest {
         chooser.updateServer(listOf(ServerRule("http://backend.example.com:12305", null)))
 
         assertEquals("http://backend.example.com:12305", chooser.availableServerUrl)
+        assertFalse(chooser.isCustomServer)
 
         JuggSettings.serverUrl = "https://previous.example.com"
         assertEquals(null, chooser.availableServerUrl)

@@ -39,6 +39,8 @@ class JuggServerChooser(logger: Logger) {
             }
         }
 
+    val isCustomServer: Boolean get() = isSetCustomServer
+
     val availableServerUrl: String?
         get() = JuggSettings.serverUrl?.takeIf { url ->
             url.isNotBlank() && (isSetCustomServer || url == selectedServerUrl)

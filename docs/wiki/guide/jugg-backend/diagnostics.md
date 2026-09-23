@@ -38,7 +38,7 @@ Whether or not the server exists or the request succeeds, the plugin writes the 
 
 Set `autoUploadFailureLogs=true` in project configuration to enable automatic uploads after final failures. `autoUploadFailureLogsExcludeRegex` is an optional exclusion regex. It performs a contains match against the current Run's final error summary and suppresses the upload when it matches. An empty field applies no filtering, while an invalid regex skips that upload.
 
-Automatic uploads cover final compilation failures and final failures after deployment has actually started. Cancellation, skipped deployment, no device before deployment starts, and a successful final result after a Gradle fallback do not trigger an upload. The bundle contains the two most recent redacted Jugg logs, environment information, a project summary, redacted project snapshots, the hook debug log when present, and the manifest; it does not collect adb logcat. Each Run uploads at most once.
+Automatic uploads cover final compilation failures and final failures after deployment has actually started. Cancellation, skipped deployment, no device before deployment starts, and a successful final result after a Gradle fallback do not trigger an upload. The bundle contains the two most recent Jugg logs, environment information, a project summary, redacted project snapshots, the hook debug log when present, and the manifest; it does not collect adb logcat. Each Run uploads at most once. An explicitly configured Custom Server receives original logs and failure error text; an automatically selected backend still receives redacted content.
 
 ## Destinations for manual and automatic reports
 

@@ -16,6 +16,35 @@ class IssueReportBundleBuilderTest {
     val temporaryFolder = TemporaryFolder()
 
     @Test
+    fun `custom server bundle keeps original logs while project credentials stay masked`() {
+        val root = temporaryFolder.newFolder()
+        val projectDir = root.resolve("secret-project").apply { mkdirs() }
+        val userHome = root.resolve("user-home").apply { mkdirs() }
+        val rawLog = "project=$projectDir home=$userHome user=developer token=secret-token"
+        val log = root.resolve("compile.log").apply { writeText(rawLog) }
+        val hookLog = root.resolve("hook.log").apply { writeText(rawLog) }
+        val projectInfoDir = root.resolve("project-info").apply { mkdirs() }
+        projectInfoDir.resolve("gradle_project_infos.json").writeText("""{"storePassword":"secret-token"}""")
+        val builder = IssueReportBundleBuilder(root.resolve("output"), projectDir, userHome, mock<Logger>())
+        val candidates = builder.prepare(
+            environment = emptyMap(), projectSummary = emptyMap(), projectInfoDir = projectInfoDir,
+            logFiles = listOf(log), logFileLimit = 1, logcat = rawLog, hookDebugLog = hookLog,
+            knownSecrets = setOf("developer", "secret-token"), redactLogs = false,
+        )
+        val bundle = builder.build(candidates.map { it.path }.toSet())
+
+        ZipFile(bundle.file).use { zip ->
+            listOf("diagnostics/logs/compile.log", "diagnostics/device/logcat.log", "diagnostics/cli/hook-debug.log")
+                .forEach { path ->
+                    assertEquals(rawLog, zip.getInputStream(zip.getEntry(path)).bufferedReader().readText())
+                }
+            val projectInfo = zip.getInputStream(zip.getEntry("diagnostics/project-info/gradle_project_infos.json"))
+                .bufferedReader().readText()
+            assertFalse("secret-token" in projectInfo)
+        }
+    }
+
+    @Test
     fun `bundle contains only selected redacted candidates and matching manifest`() {
         val root = temporaryFolder.newFolder()
         val projectDir = root.resolve("secret-project").apply { mkdirs() }

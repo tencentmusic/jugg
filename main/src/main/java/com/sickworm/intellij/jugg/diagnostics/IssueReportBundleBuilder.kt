@@ -15,7 +15,7 @@ import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
 
 /**
- * Builds a diagnostics archive exclusively from generated and redacted whitelist files.
+ * Builds a diagnostics archive from selected whitelist files, redacting logs unless sent to a custom server.
  */
 class IssueReportBundleBuilder(
     private val outputDir: File,
@@ -37,6 +37,7 @@ class IssueReportBundleBuilder(
         logcat: String,
         hookDebugLog: File? = null,
         knownSecrets: Set<String> = emptySet(),
+        redactLogs: Boolean = true,
     ): List<IssueReportCandidate> {
         startReport()
         val candidates = mutableListOf<IssueReportCandidate>()
@@ -54,7 +55,7 @@ class IssueReportBundleBuilder(
         logFiles.filter { it.isFile }.take(logFileLimit).forEach { logFile ->
             candidates += writeTextCandidate(
                 "diagnostics/logs/${logFile.name}",
-                redact(logFile.readText(), knownSecrets),
+                logFile.readText().let { if (redactLogs) redact(it, knownSecrets) else it },
                 IssueReportSensitivity.MEDIUM,
                 true,
             )
@@ -62,7 +63,7 @@ class IssueReportBundleBuilder(
         if (logcat.isNotBlank()) {
             candidates += writeTextCandidate(
                 "diagnostics/device/logcat.log",
-                redact(logcat, knownSecrets),
+                if (redactLogs) redact(logcat, knownSecrets) else logcat,
                 IssueReportSensitivity.HIGH,
                 true,
             )
@@ -70,7 +71,7 @@ class IssueReportBundleBuilder(
         if (hookDebugLog?.isFile == true) {
             candidates += writeTextCandidate(
                 "diagnostics/cli/hook-debug.log",
-                redact(hookDebugLog.readText(), knownSecrets),
+                hookDebugLog.readText().let { if (redactLogs) redact(it, knownSecrets) else it },
                 IssueReportSensitivity.HIGH,
                 true,
             )

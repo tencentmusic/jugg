@@ -19,6 +19,8 @@ class IssueReportUploader(
         url: String,
         autoUpload: IssueReportAutoUpload? = null,
         allowHttpForBackend: Boolean = false,
+        projectName: String? = null,
+        username: String? = null,
     ): IssueReportUploadResult {
         return try {
             val endpoint = validateUrl(url, allowHttpForBackend)
@@ -29,12 +31,12 @@ class IssueReportUploader(
                     if (autoUpload != null) {
                         addFormDataPart("is_auto_upload", "true")
                         addFormDataPart("failed_reason", autoUpload.failedReason)
-                        addFormDataPart("project_name", autoUpload.projectName)
-                        addFormDataPart("username", autoUpload.username)
                         addFormDataPart("plugin_version", autoUpload.pluginVersion)
                         addFormDataPart("report_id", bundle.reportId)
                         autoUpload.errorDetail?.let { addFormDataPart("error_detail", it) }
                     }
+                    (autoUpload?.projectName ?: projectName)?.let { addFormDataPart("project_name", it) }
+                    (autoUpload?.username ?: username)?.let { addFormDataPart("username", it) }
                 }.build()
             val request = Request.Builder().url(endpoint.toURL()).post(body).build()
             client.newCall(request).execute().use { response ->
