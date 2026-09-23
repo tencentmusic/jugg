@@ -1,3 +1,10 @@
+- version: 3.6.3
+  date: 2026.09.23
+  updates:
+    - "[feature] Support including project and user info when reporting issues to custom backends, and ensure public uploads remain strictly redacted"
+    - "[bugfix] Fix Android sources and resources being misclassified as external native build inputs when located under a Native directory"
+    - "[bugfix] Fix native library deployment failure when native libraries or APK exceed 2.1 GB (Int.MAX_VALUE)"
+
 - version: 3.6.2
   date: 2026.09.22
   updates:
