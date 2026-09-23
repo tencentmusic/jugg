@@ -73,6 +73,7 @@ JuggManager 初始化
 - `JuggSettings` 的远程命令历史按 `user + host + port + remoteProjectPath` 保存，每个目标只保留最近 10 条并按完整命令去重。读取损坏数据或写入失败时返回空历史，不影响远程命令执行；命令正文不得写入 Jugg 持久日志。`RemoteUserCommand` 将正文编码后交给子 shell，并用每次执行唯一的完成标记解析退出码，避免用户命令中的注释、`exit` 或输出内容干扰协议。
 - APK 修改链路依赖 `PlatformApi.allAvailableJavaHomes()` 寻找可用签名 JDK；每次重试会移除已有的 `JAVA_HOME` 并写入当前候选，即使原环境未设置该变量也能真正切换 JDK。签名失败不要只看 apksigner 输出，也要检查 host Java home 列表。
 - `ApkFileModifier.insertAndResign()` 在同目录临时副本上完成插入、对齐、签名和校验，校验复用实际签名成功时的 JDK 环境，全部成功后才替换原 APK；任一阶段失败时保留原 APK，并 best-effort 清理临时文件。
+- `ApkFileModifier` 的 `ByteArray` 插入在 JVM 14+ 继续使用 ZipFS `STORED` 语义，即使同批存在 file-backed NativeLib 也保持不变。仅存在 file-backed NativeLib 时切换到流式 ZIP 重写：file-backed entry 继承基线的 `STORED` / `DEFLATED` 方法，写入后复核 CRC 与源文件状态；超过经典 ZIP 单 entry 4 GiB 边界或大型 entry 不存在于基线 APK 时明确失败。
 - `ApkFileModifier` 调用 zipalign 和 apksigner 时按宿主 shell 逐项转义参数（`shellEscapeArgument`）；SDK、APK、keystore 路径包含空格、括号或 Unicode 字符时仍作为单个参数传递。`CustomApkSignScriptRunner` 复用同一转义规则拼接 `<configured command> '<apk 绝对路径>'`。
 - `ApkFileModifier` 的可空 `customApkSignScriptRunner` 决定签名阶段走自定义脚本还是默认 keystore：走脚本时 `signConfig` 可以为空，签名后仍统一执行 `verifyApk()` 和原子替换。脚本命令使用 `isSecureCommand`，因此 `CmdExecutor` 的 debug 日志只打印 `(secure)`，脚本原文不进入日志。
 - 兼容资源 APK 修改在 JVM 14+ 继续使用 ZipFS；`ResourceApkModifier` 为每轮写入创建唯一同目录临时文件，成功关闭后优先原子替换正式 `resource.ap_`，平台不支持时回退普通替换，避免异常遗留的 ZipFS URI 和半成品污染后续 Run。日志记录条目数、内容总字节、最大条目、APK 字节及导出前后 heap，用于区分 ZIP 生成峰值与 deployer payload 包装峰值。

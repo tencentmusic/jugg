@@ -582,19 +582,10 @@ class GradleProjectInfoReaderManager(
         ensureDeployableNativeSize(file, relativePath)
     }
 
-    /**
-     * Rejects a native library that cannot be represented by the deploy data before it reaches the
-     * IDE, instead of failing later with an out of memory error while reading it into a byte array.
-     */
     private fun ensureDeployableNativeSize(file: File, relativePath: String) {
         val size = file.length()
         if (size <= 0L) {
             throw IllegalStateException("Native library is empty and can not be deployed: $relativePath")
-        }
-        if (size > Int.MAX_VALUE) {
-            throw IllegalStateException("Native library $relativePath is $size bytes, exceeding the " +
-                    "${Int.MAX_VALUE} bytes deploy limit. Keep debug symbols or a missing strip tool can " +
-                    "cause this, run a normal Gradle build before retrying Jugg.")
         }
     }
 

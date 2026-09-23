@@ -6,7 +6,6 @@ import com.sickworm.intellij.jugg.apk.ApkFileUnit
 import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.sickworm.intellij.jugg.apk.CustomApkSignScriptRunner
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
-import com.sickworm.intellij.jugg.deploy.toDeployItem
 import com.sickworm.intellij.jugg.project.JuggException
 import java.io.File
 
@@ -52,22 +51,26 @@ class IncrementalDeployHelper(private val context: ICompileContext, private val 
                 }
             }
             logger.debug("Update apk: $apkFile\nDeploy items:\n${deployItems.joinToString("\n") { "    " + it.name }}\n")
-            deployItems.forEach {
-                if (it.type == CompileOutput.Type.Dex) {
-                    // put in INCREMENTAL_DATA_PATH
-                    val path = INCREMENTAL_DATA_PATH + it.name + ".dex"
-                    modifier.addFile(path, it.content)
-                } else {
-                    // override
-                    val path = it.name
-                    modifier.addFile(path, it.content)
-                }
-            }
             try {
+                deployItems.forEach {
+                    val path = if (it.type == CompileOutput.Type.Dex) {
+                        // put in INCREMENTAL_DATA_PATH
+                        INCREMENTAL_DATA_PATH + it.name + ".dex"
+                    } else {
+                        // override
+                        it.name
+                    }
+                    val sourceFile = it.sourceFileOrNull()
+                    if (sourceFile != null) {
+                        modifier.addFile(path, sourceFile, it.size, it.checksum)
+                    } else {
+                        modifier.addFile(path, it.content)
+                    }
+                }
                 modifier.insertAndResign()
             } catch (e: Exception) {
                 logger.warn("Update apk failed: ${apkFile.absolutePath}", e)
-                return false to "Update apk failed: ${apkFile.absolutePath}"
+                return false to "Update apk failed: ${apkFile.absolutePath}, reason: ${e.message ?: e}"
             }
             logger.info("Update apk success, output: ${apkFile.absolutePath}")
         }
@@ -119,7 +122,7 @@ class IncrementalDeployHelper(private val context: ICompileContext, private val 
                     targetPath
                 }
             }
-            return@map DeployItem(it.name, it.type, it.checksum, it.content, tempApkPath, tempTargetApkPaths)
+            return@map it.copyWithApkPaths(tempApkPath, tempTargetApkPaths)
         }
 
         val (isSuccess, failedReason) = updateApk(apkInfos, tempDeployItems)

@@ -60,7 +60,7 @@ class IdeaDeviceAdb(
         synchronized(IdeaDeviceAdb::class.java) {
             logger.debug("adb script(no fallback) in: sh -c '...'")
             val escaped = cmd.replace("'", "'\\''")
-            return invokeAdbShellCmd("sh -c '$escaped'")
+            return invokeAdbShellCmd("sh -c '$escaped'", NO_FALLBACK_OUTPUT_TIMEOUT_SECONDS)
         }
     }
 
@@ -178,13 +178,16 @@ class IdeaDeviceAdb(
         }
     }
 
-    private fun invokeAdbShellCmd(cmd: String): String {
+    private fun invokeAdbShellCmd(
+        cmd: String,
+        outputTimeoutSeconds: Long = DEFAULT_OUTPUT_TIMEOUT_SECONDS,
+    ): String {
         val cmdList = cmd.splitIgnoringQuotes()
         logger.debug("adb in:  adb shell $cmd")
         logger.debug("adb in:  cmd splits to : $cmdList")
         val response = adbClient.shell(
             cmdList.toTypedArray(),
-            timeout = 5L,
+            timeout = outputTimeoutSeconds,
             timeUnit = TimeUnit.SECONDS,
         )
         if (response.isNotEmpty()) {
@@ -296,6 +299,11 @@ class IdeaDeviceAdb(
     }
 
     companion object {
+
+        private const val DEFAULT_OUTPUT_TIMEOUT_SECONDS = 5L
+
+        // Mutating scripts cannot be retried and may copy multi-gigabyte files without producing output.
+        private const val NO_FALLBACK_OUTPUT_TIMEOUT_SECONDS = 5 * 60L
 
         /**
          * Split the string into a list of strings, handling quotes and escapes.

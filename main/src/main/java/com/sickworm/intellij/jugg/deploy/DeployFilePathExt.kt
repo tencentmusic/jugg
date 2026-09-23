@@ -13,18 +13,28 @@ internal val File.stdAbsPath: String
     get() = absolutePath.replace(File.separatorChar, '/')
 
 
-private val crc32 = CRC32()
-
 fun CompileOutput.toDeployItem(deployName: String = deployItemName): DeployItem {
-    // DeployItem.content is a byte array, so a larger file can never be deployed and must fail here
-    // instead of raising an out of memory error while reading it.
     val size = file.length()
     if (size > Int.MAX_VALUE) {
-        throw JuggInternalException.outputTooLargeToDeploy(file, size)
+        if (type != CompileOutput.Type.NativeLib) {
+            throw JuggInternalException.outputTooLargeToDeploy(file, size)
+        }
+        val outputApkPath = apkPath
+            ?: throw JuggInternalException.outputDidNotSpecificApkPath(this.toString())
+        val lastModified = file.lastModified()
+        val crc = file.streamCrc32()
+        return DeployItem.fileBackedNativeLib(
+            deployName,
+            crc,
+            file,
+            size,
+            lastModified,
+            outputApkPath,
+            targetApkPaths,
+        )
     }
     val bytes = file.readBytes()
-    val crc = crc32.run {
-        reset()
+    val crc = CRC32().run {
         update(bytes)
         value
     }
@@ -42,6 +52,21 @@ fun CompileOutput.toDeployItem(deployName: String = deployItemName): DeployItem 
             return DeployItem(deployName, type, crc, bytes, DeployItem.FLAG_BASE_APK) // will not apply to device
         }
     }
+}
+
+private fun File.streamCrc32(): Long {
+    val crc = CRC32()
+    inputStream().buffered().use { input ->
+        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+        while (true) {
+            val count = input.read(buffer)
+            if (count < 0) {
+                break
+            }
+            crc.update(buffer, 0, count)
+        }
+    }
+    return crc.value
 }
 
 val CompileOutput.deployItemName: String get() {

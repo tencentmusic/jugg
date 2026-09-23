@@ -19,6 +19,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 import java.util.zip.CRC32
+import java.util.zip.CheckedInputStream
 import java.util.zip.ZipInputStream
 import kotlin.io.path.exists
 
@@ -52,7 +53,7 @@ class ApkFileModifier(
     private val customApkSignScriptRunner: CustomApkSignScriptRunner? = null,
 ) {
 
-    private val insertFiles = mutableListOf<Pair<String, ByteArray>>()
+    private val insertFiles = mutableListOf<InsertFile>()
 
     private val buildToolsFolder: File by lazy {
         val buildToolsFolder = File(androidHome, "build-tools").listFiles()
@@ -73,7 +74,15 @@ class ApkFileModifier(
     }
 
     fun addFile(path: String, content: ByteArray): ApkFileModifier {
-        insertFiles.add(path to content)
+        insertFiles.add(InsertFile.fromBytes(path, content))
+        return this
+    }
+
+    fun addFile(path: String, file: File, size: Long, crc: Long): ApkFileModifier {
+        if (size >= CLASSIC_ZIP_ENTRY_LIMIT) {
+            throw IllegalStateException("APK entry $path is $size bytes, exceeding the classic ZIP entry limit")
+        }
+        insertFiles.add(InsertFile.fromFile(path, file, size, crc))
         return this
     }
 
@@ -120,12 +129,15 @@ class ApkFileModifier(
         // D to I haven't tested
         val jvmVersion = Runtime.version().version()
         logger.debug("JVM version: $jvmVersion")
-        val tmpApkFile = if (jvmVersion[0] >= 14) {
+        val useZipFs = jvmVersion[0] >= 14 && insertFiles.none { it.isFileBacked }
+        val tmpApkFile = if (useZipFs) {
             insertFileJvm14(apkFile)
         } else {
-            logger.warn("JVM version is ${jvmVersion[0]}, use standard ZIP API to update Zip files.")
-            logger.warn("It will cost 10-60s to finished, please upgrade to Android Studio JellyFish or later to reduce 90% cost time.")
-            insertFileUnderJvm14(apkFile)
+            if (jvmVersion[0] < 14) {
+                logger.warn("JVM version is ${jvmVersion[0]}, use standard ZIP API to update Zip files.")
+                logger.warn("It will cost 10-60s to finished, please upgrade to Android Studio JellyFish or later to reduce 90% cost time.")
+            }
+            insertFileUnderJvm14(apkFile, storeNewEntries = jvmVersion[0] >= 14)
         }
         val costTime = TimeLogger.end("insertFiles", logger)
         logger.info(" * Update APK finished, cost $costTime ms.")
@@ -139,74 +151,103 @@ class ApkFileModifier(
         val zipDisk: URI = URI.create("jar:" + apkFileToUpdate.toURI().toString())
         logger.debug("Open ZipFS, apkFile=$apkFileToUpdate, insertFileCount=${insertFiles.size}")
         FileSystems.newFileSystem(zipDisk, zipProperties).use { zipFileSystem ->
-            insertFiles.forEach { (path, content) ->
-                val pathInZipFile: Path = zipFileSystem.getPath(path)
+            insertFiles.forEach { insertFile ->
+                val pathInZipFile: Path = zipFileSystem.getPath(insertFile.path)
                 if (pathInZipFile.exists()) {
                     Files.delete(pathInZipFile)
                 }
                 if (pathInZipFile.parent != null && !pathInZipFile.parent.exists()) {
                     Files.createDirectories(pathInZipFile.parent)
                 }
-                Files.copy(content.inputStream(), pathInZipFile)
+                Files.copy(insertFile.bytes!!.inputStream(), pathInZipFile)
             }
         }
 
         return apkFileToUpdate
     }
 
-    private fun insertFileUnderJvm14(apkFile: File): File {
+    private fun insertFileUnderJvm14(apkFile: File, storeNewEntries: Boolean): File {
         val tmpUpdateApkFile = File(apkFile.parentFile, ".${apkFile.name}.tmp_updated")
         if (tmpUpdateApkFile.exists() && !tmpUpdateApkFile.delete()) {
             throw IllegalStateException("delete $tmpUpdateApkFile failed")
         }
         apkFile.copyTo(tmpUpdateApkFile)
 
-        val remainInsertFiles: MutableMap<String, ByteArray> = insertFiles.associate { it.first to it.second }.toMutableMap()
+        val remainInsertFiles = insertFiles.associateBy { it.path }.toMutableMap()
         val buf = ByteArray(4096)
 
-        ZipInputStream(FileInputStream(apkFile)).use { oldApkStream ->
-            ZipOutputStream(FileOutputStream(tmpUpdateApkFile)).use { newApkStream ->
-                var entry = oldApkStream.nextEntry
-                while (entry != null) {
-                    // ZipInputStream will get some entry with empty name, while ZipFile.entries() will not
-                    if (entry.name.isNullOrEmpty()) {
+        try {
+            ZipInputStream(FileInputStream(apkFile)).use { oldApkStream ->
+                ZipOutputStream(FileOutputStream(tmpUpdateApkFile)).use { newApkStream ->
+                    var entry = oldApkStream.nextEntry
+                    while (entry != null) {
+                        // ZipInputStream will get some entry with empty name, while ZipFile.entries() will not
+                        if (entry.name.isNullOrEmpty()) {
+                            entry = oldApkStream.nextEntry
+                            continue
+                        }
+
+                        val replaceFile = remainInsertFiles.remove(entry.name)
+                        if (replaceFile != null) {
+                            val newEntry = ZipEntry(entry).apply {
+                                size = replaceFile.size
+                                crc = replaceFile.crc
+                                compressedSize = -1L
+                                if (storeNewEntries && !replaceFile.isFileBacked) {
+                                    method = ZipEntry.STORED
+                                }
+                            }
+                            newApkStream.putNextEntry(newEntry)
+                            writeInsertFile(newApkStream, replaceFile)
+                        } else {
+                            newApkStream.putNextEntry(ZipEntry(entry))
+                            var len: Int
+                            while ((oldApkStream.read(buf).also { len = it }) > 0) {
+                                newApkStream.write(buf, 0, len)
+                            }
+                        }
+
+                        newApkStream.closeEntry()
                         entry = oldApkStream.nextEntry
-                        continue
                     }
 
-                    val replaceContent = remainInsertFiles[entry.name]
-                    if (replaceContent != null) {
-                        val newEntry = ZipEntry(entry)
-                        newEntry.size = replaceContent.size.toLong()
-                        newEntry.crc = CRC32().run {
-                            reset()
-                            update(replaceContent)
-                            value
+                    remainInsertFiles.values.forEach { insertFile ->
+                        if (insertFile.isFileBacked && insertFile.size > Int.MAX_VALUE) {
+                            throw IllegalStateException("Large native library entry is missing from the base APK: " +
+                                    "${insertFile.path}, size=${insertFile.size}")
+                        }
+                        val newEntry = ZipEntry(insertFile.path)
+                        if (storeNewEntries) {
+                            newEntry.method = ZipEntry.STORED
+                            newEntry.size = insertFile.size
+                            newEntry.crc = insertFile.crc
                         }
                         newApkStream.putNextEntry(newEntry)
-                        newApkStream.write(replaceContent)
-                        remainInsertFiles.remove(entry.name)
-                    } else {
-                        newApkStream.putNextEntry(ZipEntry(entry))
-                        var len: Int
-                        while ((oldApkStream.read(buf).also { len = it }) > 0) {
-                            newApkStream.write(buf, 0, len)
-                        }
+                        writeInsertFile(newApkStream, insertFile)
+                        newApkStream.closeEntry()
                     }
-
-                    newApkStream.closeEntry()
-                    entry = oldApkStream.nextEntry
-                }
-
-                remainInsertFiles.forEach {
-                    newApkStream.putNextEntry(ZipEntry(it.key))
-                    newApkStream.write(it.value)
-                    newApkStream.closeEntry()
                 }
             }
+        } catch (e: Exception) {
+            tmpUpdateApkFile.delete()
+            throw e
         }
 
         return tmpUpdateApkFile
+    }
+
+    private fun writeInsertFile(output: ZipOutputStream, insertFile: InsertFile) {
+        val crc = CRC32()
+        CheckedInputStream(insertFile.openInputStream(), crc).use { input ->
+            input.copyTo(output, DEFAULT_BUFFER_SIZE)
+        }
+        if (insertFile.isFileBacked) {
+            insertFile.validateSource()
+        }
+        if (crc.value != insertFile.crc) {
+            throw IllegalStateException("APK entry source changed while writing: ${insertFile.path}, " +
+                    "expectedCrc=${insertFile.crc}, actualCrc=${crc.value}")
+        }
     }
 
     private fun alignApk(tmpUpdateApkFile: File): File {
@@ -226,13 +267,18 @@ class ApkFileModifier(
             tmpAlignedApkFile.absolutePath,
         ))
         val cmd = SimpleSshCommand(cmdString, outputFilter = { line, _ -> !line.endsWith("header mismatch") })
-        val exitCode = CmdExecutor(logger).invoke(cmd)
-        if (exitCode != 0) {
-            throw IllegalStateException("zipalign failed, exit code: $exitCode")
+        try {
+            val exitCode = CmdExecutor(logger).invoke(cmd)
+            if (exitCode != 0) {
+                throw IllegalStateException("zipalign failed, exit code: $exitCode")
+            }
+            val costTime = TimeLogger.end("alignApk", logger)
+            logger.info(" * Align APK finished, cost $costTime ms.")
+            return tmpAlignedApkFile
+        } catch (e: Exception) {
+            tmpAlignedApkFile.delete()
+            throw e
         }
-        val costTime = TimeLogger.end("alignApk", logger)
-        logger.info(" * Align APK finished, cost $costTime ms.")
-        return tmpAlignedApkFile
     }
 
     private fun resignApk(tmpApkFile: File): List<String>? {
@@ -361,5 +407,52 @@ class ApkFileModifier(
             throw IllegalStateException("verify APK failed, exit code: $exitCode")
         }
         TimeLogger.end("verifyApk", logger)
+    }
+
+    private class InsertFile private constructor(
+        val path: String,
+        val bytes: ByteArray?,
+        private val file: File?,
+        val size: Long,
+        val crc: Long,
+        private val lastModified: Long,
+    ) {
+
+        val isFileBacked: Boolean get() = file != null
+
+        fun openInputStream() = bytes?.inputStream() ?: validateSource().inputStream()
+
+        fun validateSource(): File {
+            val source = file ?: throw IllegalStateException("APK entry $path is not file-backed")
+            if (!source.isFile || !source.canRead()) {
+                throw IllegalStateException("APK entry source is unavailable: $path, file=${source.absolutePath}")
+            }
+            if (source.length() != size || source.lastModified() != lastModified) {
+                throw IllegalStateException("APK entry source changed before writing: $path, " +
+                        "expectedSize=$size, actualSize=${source.length()}")
+            }
+            return source
+        }
+
+        companion object {
+            fun fromBytes(path: String, bytes: ByteArray): InsertFile {
+                val crc = CRC32().run {
+                    update(bytes)
+                    value
+                }
+                return InsertFile(path, bytes, null, bytes.size.toLong(), crc, 0L)
+            }
+
+            fun fromFile(path: String, file: File, size: Long, crc: Long): InsertFile {
+                if (!file.isFile || !file.canRead() || file.length() != size) {
+                    throw IllegalStateException("APK entry source is unavailable: $path, file=${file.absolutePath}")
+                }
+                return InsertFile(path, null, file, size, crc, file.lastModified())
+            }
+        }
+    }
+
+    companion object {
+        private const val CLASSIC_ZIP_ENTRY_LIMIT = 4_294_967_296L
     }
 }

@@ -12,6 +12,7 @@ import org.junit.Test
 import java.io.File
 import java.io.RandomAccessFile
 import java.nio.file.Files
+import kotlin.test.assertContentEquals
 import kotlin.test.assertFailsWith
 
 class DeployFilePathExtTest {
@@ -91,24 +92,64 @@ class DeployFilePathExtTest {
     }
 
     @Test
-    fun `fails before reading an output that cannot fit in a byte array`() {
-        Assume.assumeFalse("creating a sparse file larger than 2 GiB is not portable", isWindows)
-        val baseDir = Files.createTempDirectory("jugg-oversized-output").toFile()
-        val oversized = File(baseDir, "lib/arm64-v8a/libhuge.so").apply {
-            parentFile.mkdirs()
-            RandomAccessFile(this, "rw").use { it.setLength(Int.MAX_VALUE + 1L) }
-        }
+    fun `small native library keeps the byte backed path`() {
+        val baseDir = Files.createTempDirectory("jugg-small-native-output").toFile()
+        val native = writeFile(baseDir, "lib/arm64-v8a/libsmall.so", byteArrayOf(1, 2, 3))
         val output = CompileOutput(
             type = CompileOutput.Type.NativeLib,
-            file = oversized,
+            file = native,
             baseDir = baseDir,
             apkPath = "/base.apk",
         )
 
-        val error = assertFailsWith<JuggInternalException> { output.toDeployItem() }
+        val item = output.toDeployItem()
 
-        val message = error.message!!
-        assertTrue(message, message.contains("exceeding the ${Int.MAX_VALUE} bytes limit"))
+        assertFalse(item.isFileBacked)
+        assertEquals(3L, item.size)
+        assertContentEquals(byteArrayOf(1, 2, 3), item.content)
+    }
+
+    @Test
+    fun `file backed native library rejects byte array access`() {
+        val native = Files.createTempFile("jugg-large-native", ".so").toFile()
+        RandomAccessFile(native, "rw").use { it.setLength(Int.MAX_VALUE + 1L) }
+        val item = DeployItem.fileBackedNativeLib(
+            name = "lib/arm64-v8a/liblarge.so",
+            checksum = 1L,
+            file = native,
+            apkPath = "/base.apk",
+        )
+
+        try {
+            assertTrue(item.isFileBacked)
+            assertEquals(Int.MAX_VALUE + 1L, item.size)
+            assertEquals(native, item.sourceFileOrNull())
+            assertFailsWith<IllegalStateException> { item.content }
+        } finally {
+            native.delete()
+        }
+    }
+
+    @Test
+    fun `oversized non native output still fails before reading`() {
+        Assume.assumeFalse("creating a sparse file larger than 2 GiB is not portable", isWindows)
+        val baseDir = Files.createTempDirectory("jugg-oversized-asset-output").toFile()
+        val asset = File(baseDir, "assets/huge.dat").apply {
+            parentFile.mkdirs()
+            RandomAccessFile(this, "rw").use { it.setLength(Int.MAX_VALUE + 1L) }
+        }
+        val output = CompileOutput(
+            type = CompileOutput.Type.Asset,
+            file = asset,
+            baseDir = baseDir,
+            apkPath = "/base.apk",
+        )
+
+        try {
+            assertFailsWith<JuggInternalException> { output.toDeployItem() }
+        } finally {
+            asset.delete()
+        }
     }
 
     private fun writeFile(baseDir: File, relativePath: String, bytes: ByteArray): File {

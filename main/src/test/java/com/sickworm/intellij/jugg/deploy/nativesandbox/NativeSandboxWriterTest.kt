@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.deploy.nativesandbox
 
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.CompileOutput
+import com.sickworm.intellij.jugg.compiler.isWindows
 import com.sickworm.intellij.jugg.deploy.AppSandboxExecutor
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
@@ -9,12 +10,16 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
+import org.junit.Assume
 import org.junit.Test
 import org.mockito.Mockito
 import org.mockito.kotlin.any
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.whenever
 import java.io.File
+import java.io.RandomAccessFile
+import java.nio.file.Files
+import kotlin.test.assertFailsWith
 
 class NativeSandboxWriterTest {
 
@@ -47,6 +52,70 @@ class NativeSandboxWriterTest {
         assertTrue(adb.lastCopyScript.contains("[ \"\$actual\" -eq 3 ]"))
         assertTrue(adb.commands.any { it == "rm -rf ${NativeSandboxWriter.STAGING_ROOT}/session-1" })
         Mockito.verify(sandbox).execNoFallback(any(), eq(true))
+    }
+
+    @Test
+    fun `file backed native library pushes the source file directly`() {
+        Assume.assumeFalse("creating a sparse file larger than 2 GiB is not portable", isWindows)
+        val source = Files.createTempFile("jugg-large-native", ".so").toFile()
+        RandomAccessFile(source, "rw").use { it.setLength(Int.MAX_VALUE + 1L) }
+        val item = DeployItem.fileBackedNativeLib(
+            name = "lib/arm64-v8a/liblarge.so",
+            checksum = 1L,
+            file = source,
+            apkPath = "/tmp/app.apk",
+        )
+        val adb = RecordingAdb(copyOutput = "${NativeSandboxWriter.MARKER} OK")
+        val sandbox = Mockito.mock(AppSandboxExecutor::class.java)
+        whenever(sandbox.execNoFallback(any(), eq(true))).thenAnswer { invocation ->
+            adb.lastCopyScript = invocation.getArgument(0)
+            "${NativeSandboxWriter.MARKER} OK"
+        }
+        val writer = NativeSandboxWriter(adb, sandbox, Mockito.mock(Logger::class.java))
+
+        try {
+            writer.write(
+                NativeSandboxWriteRequest(
+                    packageName = "com.example.app",
+                    sessionId = "session-large",
+                    abiDirs = mapOf("arm64-v8a" to listOf(item)),
+                ),
+            )
+
+            assertEquals(listOf(source), adb.pushedFiles)
+            assertTrue(adb.lastCopyScript.contains("[ \"\$actual\" -eq ${Int.MAX_VALUE + 1L} ]"))
+        } finally {
+            source.delete()
+        }
+    }
+
+    @Test
+    fun `missing file backed source is reported as push failure`() {
+        Assume.assumeFalse("creating a sparse file larger than 2 GiB is not portable", isWindows)
+        val source = Files.createTempFile("jugg-missing-large-native", ".so").toFile()
+        RandomAccessFile(source, "rw").use { it.setLength(Int.MAX_VALUE + 1L) }
+        val item = DeployItem.fileBackedNativeLib(
+            name = "lib/arm64-v8a/liblarge.so",
+            checksum = 1L,
+            file = source,
+            apkPath = "/tmp/app.apk",
+        )
+        source.delete()
+        val sandbox = Mockito.mock(AppSandboxExecutor::class.java)
+        val writer = NativeSandboxWriter(RecordingAdb(), sandbox, Mockito.mock(Logger::class.java))
+
+        val error = assertFailsWith<NativeSandboxDeployException> {
+            writer.write(
+                NativeSandboxWriteRequest(
+                    packageName = "com.example.app",
+                    sessionId = "session-missing-large",
+                    abiDirs = mapOf("arm64-v8a" to listOf(item)),
+                ),
+            )
+        }
+
+        assertEquals(NativeSandboxDeployStep.PUSH, error.step)
+        Mockito.verify(sandbox, Mockito.never()).execNoFallback(any(), any())
     }
 
     @Test
@@ -178,6 +247,7 @@ class NativeSandboxWriterTest {
     ) : IDeviceAdb {
         val commands = mutableListOf<String>()
         val pushedPaths = mutableListOf<String>()
+        val pushedFiles = mutableListOf<File>()
         var lastCopyScript: String = ""
 
         override val displayName: String = "fake"
@@ -192,6 +262,7 @@ class NativeSandboxWriterTest {
 
         override fun execAdbShellScript(cmd: String): String = cmd
         override fun push(from: File, to: String): Boolean {
+            pushedFiles += from
             pushedPaths += to
             return pushSuccess
         }

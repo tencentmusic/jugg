@@ -75,6 +75,8 @@ native library incremental artifact
 
 An asset overlay preserves its `assets/**` path for the new resource loading path. An ordinary asset or resource overlay does not become an APK native library search directory, so the current `.so` update path modifies the target APK instead of delivering the `.so` as an asset overlay.
 
+Only a NativeLib larger than `Int.MAX_VALUE` (2,147,483,647 bytes) switches to file-backed deployment data; ordinary `.so` files and other artifacts keep the in-memory path. An APK update streams the source file, replaces the same-path entry in the baseline APK, and inherits that entry's compression method. This avoids placing the complete large `.so` in the IDE heap or forcing an originally DEFLATED entry to become STORED. The update fails explicitly when the baseline has no large entry at that path or the file reaches the classic ZIP 4 GiB single-entry boundary. If the user has already enabled “SO hot update” and the device, ABI, and sandbox requirements are satisfied, a round containing only native libraries pushes the source file directly into `code_cache/.jugg_native/<abi>/` and skips APK re-signing and installation; file size alone never enables that path.
+
 ### The Flutter Debug/JIT extraction cache
 
 Dart code in Debug mode lives in `assets/flutter_assets/kernel_blob.bin`, together with `vm_snapshot_data` and `isolate_snapshot_data`. On first start the Flutter Android embedding extracts these files into the app private directory `app_flutter` and then uses that copy, re-extracting only when `app_flutter/res_timestamp-<versionCode>-<lastUpdateTime>` no longer matches the installed APK.

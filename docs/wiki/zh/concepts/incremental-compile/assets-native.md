@@ -75,6 +75,8 @@ native lib 增量产物
 
 asset overlay 会保持 `assets/**` 路径，供新的资源加载路径读取。普通 asset 或资源 overlay 不会成为 APK 的 native library 搜索目录，因此当前 `.so` 更新路径会修改目标 APK，而不是把 `.so` 当作 asset overlay 下发。
 
+只有大小大于 `Int.MAX_VALUE`（2,147,483,647 bytes）的 NativeLib 会改用 file-backed 部署数据，普通 `.so` 和其它产物仍沿用内存路径。APK 更新会流式读取源文件、替换基线 APK 中的同路径 entry，并继承该 entry 的压缩方式，避免把完整大型 `.so` 放入 IDE 堆或把原本 DEFLATED 的 entry 强制改为 STORED。基线中没有同路径大型 entry，或文件达到经典 ZIP 单 entry 4 GiB 边界时会明确失败。若用户已开启「SO hot update」且设备、ABI、sandbox 条件满足，本轮只有 native lib 时会直接把源文件推到 `code_cache/.jugg_native/<abi>/`，跳过 APK 重签和安装；文件大小本身不会自动开启该路径。
+
 ### Flutter Debug/JIT 的解压缓存
 
 Debug 模式的 Dart 代码放在 `assets/flutter_assets/kernel_blob.bin`，并配套 `vm_snapshot_data`、`isolate_snapshot_data`。Flutter Android embedding 在首次启动时把这些文件解压到应用私有目录 `app_flutter`，之后直接使用解压结果，只在 `app_flutter/res_timestamp-<versionCode>-<lastUpdateTime>` 与实际安装的 APK 不匹配时才重新解压。

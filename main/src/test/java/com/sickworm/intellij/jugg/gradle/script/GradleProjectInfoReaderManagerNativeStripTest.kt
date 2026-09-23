@@ -1,18 +1,15 @@
 package com.sickworm.intellij.jugg.gradle.script
 
-import com.sickworm.intellij.jugg.compiler.isWindows
 import com.sickworm.intellij.jugg.project.JuggPathManager
 import com.sickworm.intellij.jugg.project.data.ExternalBuildInfoRequestItem
 import com.sickworm.intellij.jugg.project.data.ExternalBuildType
 import org.gradle.api.DefaultTask
 import org.gradle.api.Project
 import org.gradle.testfixtures.ProjectBuilder
-import org.junit.Assume
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
-import java.io.RandomAccessFile
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import kotlin.test.assertEquals
@@ -139,21 +136,6 @@ class GradleProjectInfoReaderManagerNativeStripTest {
         }
 
         assertTrue(error.message!!.contains("executable finder is unreadable"), error.message!!)
-    }
-
-    @Test
-    fun `fails the round when a stripped library exceeds the deploy limit`() {
-        Assume.assumeFalse("creating a sparse file larger than 2 GiB is not portable", isWindows)
-        val project = createProject()
-        val mergeOutput = writeLib(project.root, "lib/arm64-v8a/libhuge.so", "with-debug-symbols")
-        RandomAccessFile(File(mergeOutput, "lib/arm64-v8a/libhuge.so"), "rw")
-            .use { it.setLength(Int.MAX_VALUE + 1L) }
-
-        val error = assertFailsWith<IllegalStateException> {
-            strip(project, mergeOutput, stripTool = null)
-        }
-
-        assertTrue(error.message!!.contains("exceeding the ${Int.MAX_VALUE} bytes deploy limit"), error.message!!)
     }
 
     @Test

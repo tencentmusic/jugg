@@ -38,7 +38,7 @@ class NativeSandboxWriter(
                     val fileName = item.name.substringAfterLast('/')
                     val remotePath = "$stagingDir/$fileName"
                     pushFile(item, remotePath)
-                    stagedFiles += StagedFile(abi, fileName, remotePath, item.content.size)
+                    stagedFiles += StagedFile(abi, fileName, remotePath, item.size)
                 }
             }
             copyIntoSandbox(request.packageName, stagedFiles)
@@ -82,18 +82,29 @@ class NativeSandboxWriter(
     }
 
     private fun pushFile(item: DeployItem, remotePath: String) {
-        val local = File.createTempFile("jugg-native-", ".so")
+        var local: File? = null
         try {
-            local.writeBytes(item.content)
-            if (!adb.push(local, remotePath)) {
-                throw NativeSandboxDeployException(NativeSandboxDeployStep.PUSH, "adb push failed: $remotePath")
+            val sourceFile = item.sourceFileOrNull()
+            if (sourceFile != null) {
+                pushFile(sourceFile, remotePath)
+                item.sourceFileOrNull()
+                return
             }
+            local = File.createTempFile("jugg-native-", ".so")
+            local.writeBytes(item.content)
+            pushFile(local, remotePath)
         } catch (e: NativeSandboxDeployException) {
             throw e
         } catch (e: Exception) {
             throw NativeSandboxDeployException(NativeSandboxDeployStep.PUSH, "adb push failed: $remotePath", e)
         } finally {
-            local.delete()
+            local?.delete()
+        }
+    }
+
+    private fun pushFile(local: File, remotePath: String) {
+        if (!adb.push(local, remotePath)) {
+            throw NativeSandboxDeployException(NativeSandboxDeployStep.PUSH, "adb push failed: $remotePath")
         }
     }
 
@@ -159,7 +170,7 @@ class NativeSandboxWriter(
         val abi: String,
         val fileName: String,
         val remotePath: String,
-        val size: Int,
+        val size: Long,
     )
 
     companion object {

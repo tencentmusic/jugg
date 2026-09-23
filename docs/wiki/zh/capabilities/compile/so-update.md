@@ -23,6 +23,8 @@ Jugg 支持更新已产出的 native lib / `.so` 文件。对于 Gradle 管理�
 | Flutter Profile/Release 生成 `app.so` 或 native assets | 支持 | 执行当前变体的 Flutter native 输出任务，从该任务自己的输出中读取目标 ABI 的 native lib，再更新 APK |
 | Flutter Debug 只生成 assets，不生成 native lib | 支持 | 只更新 `flutter_assets`，不要求 native 输出存在；原生目录为空时本轮编译仍然成功；不重打包、不重签名、不安装 APK |
 | 同轮更新多个 ABI 的 native lib | 支持按目标 APK 归属处理 | 每个目标 APK 只接收属于自己的 native lib |
+| 更新大于 `Int.MAX_VALUE`（约 2 GiB）的已有 `.so` | 有条件支持 | 不把完整文件读入 IDE 堆；APK 更新时流式替换基线中的同路径 entry，SO hot update 可用时直接推送源文件 |
+| 开启「SO hot update」且本轮只有 native lib | Android 8.0+、目标 ABI 与 sandbox 可用时支持 | 写入 App `code_cache/.jugg_native/<abi>/`，跳过 APK 重签名和安装，重启 App 后加载 |
 | 删除 `.so` | 不生成移除结果 | 已安装 APK 继续包含原有 native lib |
 | 修改 `CMakeLists.txt`、项目内 `*.cmake`、`Android.mk`、`Application.mk` | 支持 | 执行当前变体的 native task，并在同一 Gradle invocation 结束前定向更新该模块的外部构建信息；新 `.so` 按既有流程更新 APK |
 | 修改 NDK、ABI、native source set 或 packaging 规则 | 不作为源码增量输入 | 通过完整 Gradle 构建刷新项目模型和 APK 基线 |
@@ -64,7 +66,10 @@ Profile/Release 使用 AOT 产物 `libapp.so`，属于 native lib，继续按上
 - 直接文件变化入口只识别项目目录中已经存在、父目录为 `armeabi`、`armeabi-v7a`、`arm64-v8a`、`x86` 或 `x86_64` 的 `.so`。
 - C/C++ 源码入口要求 Android Gradle 配置提供 CMake 或 ndk-build 文件，并能够找到当前变体的 native task。Jugg 不监听 `.cxx`、`.externalNativeBuild` 或 Gradle `build` 目录中的生成文件。工程可以在 Gradle extra `juggExternalBuildPrerequisites` 声明「哪些文件变化时先跑 codegen」；命中后同一轮先执行该 task，再跑 native merge，声明目录里相对 codegen 执行前发生大小或时间戳变化的 Kotlin/Java 才进入 Jugg 增量编译。没有声明的工程行为不变。
 - 每次检测到 C/C++ 源码变化都会执行 native task；产物内容校验只避免重复写入 APK，不跳过 native 编译。
-- 部署的是按 app 打包语义 strip 过的 `.so`，而不是 module 中间产物目录里的未 strip 文件。Jugg 在 collector 进程内读取 APK owner（base app 或 dynamic feature）的 `strip<Variant>DebugSymbols` 配置并复现 AGP 的单文件 strip 行为，不执行该 strip task。本轮只执行因 C/C++ 变化被选中的 module merge task，不会额外执行 APK owner 的其他 native merge task。strip 工具缺失或返回非 0 时按 AGP 语义原样打包该文件；保留下来的文件仍超过部署数据上限时本轮明确失败，不用提高 IDE 堆内存掩盖。
+- 部署的是按 app 打包语义 strip 过的 `.so`，而不是 module 中间产物目录里的未 strip 文件。Jugg 在 collector 进程内读取 APK owner（base app 或 dynamic feature）的 `strip<Variant>DebugSymbols` 配置并复现 AGP 的单文件 strip 行为，不执行该 strip task。本轮只执行因 C/C++ 变化被选中的 module merge task，不会额外执行 APK owner 的其他 native merge task。strip 工具缺失或返回非 0 时按 AGP 语义原样打包该文件。
+- 只有大于 `Int.MAX_VALUE`（2,147,483,647 bytes）的 NativeLib 使用 file-backed 路径；普通 `.so`、Dex、资源和 Asset 继续使用原有内存路径。file-backed 源文件在写入 APK 或推送设备前会重新校验存在性、大小和时间戳，变化后本轮明确失败。
+- APK 更新大型 `.so` 时要求基线 APK 已存在同路径 entry，并继承它的 `STORED` 或 `DEFLATED` 压缩方式；不会把 DEFLATED 大型 `.so` 强制改成 STORED。单 entry 达到经典 ZIP 4 GiB 边界、基线 entry 缺失、磁盘空间不足，或 zipalign、签名、校验、安装工具链拒绝时，本轮失败并保留原 APK。大文件的 CRC、压缩和临时 APK 会增加耗时与磁盘占用。
+- 「SO hot update」不会因文件较大而自动开启。现有开关、Android 版本、ABI 和 sandbox 条件全部满足时，大型 `.so` 直接推送源文件，不再创建同体积的本地临时副本；条件不满足或该路径失败时仍回到 APK 更新流程。
 - native library module 可以在 APK owner 未被配置的情况下构建，例如工程开启 Gradle Configuration on Demand 时本轮读不到 owner 的 strip task。因此完整 Gradle 构建会把 owner 的 strip 配置和每个 strip 工具副本缓存到 `build/jugg/classpath/native_strip`，collector 优先使用该缓存。缓存按模块根与变体精确匹配，且只有记录的工具仍可执行时才会复用；缓存缺失、损坏或工具不可用时只降级为一次实时读取，owner 未配置且没有可用缓存时本轮失败并提示执行完整 Gradle 构建，不会部署未 strip 的库。工具副本随缓存一起保存，所以基线复制到 NDK 路径不同的另一台 Worker 后仍可使用；复制基线时需要保存整个 `native_strip` 目录。
 - 同一个物理 source 匹配多个 Native 模块时，所有匹配 task 必须全部支持并执行成功，各模块输出也必须全部可收集；否则该 source 整体回退或失败，不会把部分成功结果标记为已编译。
 - 每次检测到 Dart 源码变化都会执行当前变体的 Flutter native 输出 task。Jugg 只读取该 task 自己声明的 native 输出，并按它是归档还是目录解析出 ABI 下的 `.so`；不从 Flutter 中间目录递归猜测 native 输出，也不按固定路径拼接产物位置。

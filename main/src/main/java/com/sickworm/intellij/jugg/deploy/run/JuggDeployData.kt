@@ -12,6 +12,7 @@ import com.sickworm.intellij.jugg.deploy.data.ParsedDex
 import com.sickworm.intellij.jugg.deploy.sortedForInstall
 import com.sickworm.intellij.jugg.deploy.outerClassName
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
+import java.io.File
 
 /**
  * JuggDeployData is the finalized deploy payload sent to device-side apply logic.
@@ -288,17 +289,31 @@ private fun DeployItem.targetPathsForLog(): List<String> {
 /**
  * DeployItem is one deployable artifact entry (class/resource/asset/native) with target APK metadata.
  */
-open class DeployItem(
+open class DeployItem private constructor(
     val name: String,
     val type: CompileOutput.Type,
     val checksum: Long, // crc
-    val content: ByteArray,
+    private val byteContent: ByteArray?,
+    private val fileContent: File?,
+    val size: Long,
+    private val sourceLastModified: Long,
     val apkPath: String, // resource belongs to which apk
     var targetApkPaths: List<String> = emptyList(),
 ) {
+
+    constructor(name: String, type: CompileOutput.Type, checksum: Long,
+        content: ByteArray, apkPath: String, targetApkPaths: List<String> = emptyList()
+    ) : this(name, type, checksum, content, null,
+        content.size.toLong(), 0L, apkPath, targetApkPaths)
+
     init {
         targetApkPaths = normalizeTargetApkPaths(apkPath, targetApkPaths)
     }
+
+    val content: ByteArray
+        get() = byteContent ?: throw IllegalStateException("Deploy item $name is file-backed")
+
+    val isFileBacked: Boolean get() = fileContent != null
 
     fun belongsTo(apkPath: String): Boolean {
         return when {
@@ -311,6 +326,32 @@ open class DeployItem(
 
     fun belongsToAny(apkPaths: Collection<String>): Boolean {
         return apkPaths.any { belongsTo(it) }
+    }
+
+    internal fun sourceFileOrNull(): File? {
+        val source = fileContent ?: return null
+        if (!source.isFile || !source.canRead()) {
+            throw IllegalStateException("Native library source is unavailable: ${source.absolutePath}")
+        }
+        if (source.length() != size || source.lastModified() != sourceLastModified) {
+            throw IllegalStateException("Native library source changed before deploy: ${source.absolutePath}, " +
+                    "expectedSize=$size, actualSize=${source.length()}")
+        }
+        return source
+    }
+
+    internal fun copyWithApkPaths(apkPath: String, targetApkPaths: List<String>): DeployItem {
+        return DeployItem(
+            name,
+            type,
+            checksum,
+            byteContent,
+            fileContent,
+            size,
+            sourceLastModified,
+            apkPath,
+            targetApkPaths,
+        )
     }
 
     fun toIncompleteOverlay(apk: Apk): Pair<ApkEntry, ByteString> {
@@ -326,6 +367,35 @@ open class DeployItem(
     companion object {
         const val FLAG_CLASS = "jugg_class_flag"
         const val FLAG_BASE_APK = "jugg_all_apk_flag"
+
+        internal fun fileBackedNativeLib(
+            name: String,
+            checksum: Long,
+            file: File,
+            size: Long = file.length(),
+            sourceLastModified: Long = file.lastModified(),
+            apkPath: String,
+            targetApkPaths: List<String> = emptyList(),
+        ): DeployItem {
+            require(file.isFile && file.canRead()) { "Native library source is unavailable: ${file.absolutePath}" }
+            require(size > Int.MAX_VALUE.toLong()) {
+                "Only native libraries larger than ${Int.MAX_VALUE} bytes can be file-backed: ${file.absolutePath}"
+            }
+            require(file.length() == size && file.lastModified() == sourceLastModified) {
+                "Native library source changed while creating deploy data: ${file.absolutePath}"
+            }
+            return DeployItem(
+                name,
+                CompileOutput.Type.NativeLib,
+                checksum,
+                null,
+                file,
+                size,
+                sourceLastModified,
+                apkPath,
+                targetApkPaths,
+            )
+        }
     }
 }
 
