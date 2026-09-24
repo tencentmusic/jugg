@@ -49,14 +49,20 @@
 
 ## commit 规范
 
-1. 每次完成任务后，只提交本次改动。提交信息必须用英文，标题格式为 `[prefix] subject`，`subject` 以小写字母开头且结尾不用句号。
+1. 每次完成任务后，只提交本次改动。提交信息必须用英文，标题格式为 `[prefix][module] subject`，两个 tag 紧挨着、各只出现一次；`subject` 以小写字母开头且结尾不用句号。
 2. 按用户可观察行为选择前缀：
    - `[bugfix]`：既有能力出现漏洞、异常行为或与预期不符的结果。
    - `[feature]`：新增用户可感知的能力。
    - `[optimize]`：原行为正确且可用，在可读性、容错性、稳定性、便利性、性能或耗时上产生用户可感知的改善；不适用于工程构建优化。
    - `[refactor]` / `[docs]` / `[test]` / `[other]`：分别用于无行为变化的重构、纯文档、仅测试及其他改动。
-3. 标题优先描述用户场景和可观察结果，不描述内部实现；没有直接用户时，从调用方、维护者、Agent 或运维人员视角描述。`[bugfix]` 默认使用 `[bugfix] fix <problem manifestation> when/after/for <scenario>`，不得默认套用 `prevent ... from ...`；`[optimize]` 推荐使用 `[optimize] <improvement outcome> when/for <scenario>`，不得仅通过措辞把实际 bugfix 归类为 optimize。
-4. 标题无法充分说明原因和实现时，在空行后的正文中使用自然语言补充；仅在正文较长时使用 `Problem:`、`Cause:`、`Solution:` 等小标题。
+3. 二级 `[module]` 标记改动的**功能领域**，不是 Gradle 模块名、文件目录或任务状态。优先选下面已有的最具体 tag；一个提交横跨多个领域时选主要行为 owner，无主次且互不相关的改动拆成不同提交。tag 使用小写英文，可用空格分词，不新增同义词：
+   - 编译与项目：`[compile]`（Jugg 增量编译）、`[native build]`（Flutter/C++ 外部构建）、`[dependency incremental]`（依赖增量）、`[kmp opt-in]`（KMP opt-in）、`[hilt]`（Hilt）、`[project]`（Gradle 项目模型与信息读取）。
+   - 部署：`[deploy]`（通用安装与热部署）、`[system app]`（系统应用及 rootless 部署）、`[custom install]`（自定义 APK 安装脚本）。
+   - IDE 与工具：`[ide]`（运行配置、任务编排及 IDE 界面）、`[settings]`（用户设置与控制面板设置）、`[compat]`（Android Studio 版本适配）、`[mcp]`（MCP 工具）、`[cli]`（命令行）、`[agent]`（Agent 集成与安装）、`[diagnostics]`（日志、问题报告与诊断）。
+   - 工程与内容：`[build]`（仓库构建、CI 与打包，不用于插件运行时编译）、`[release]`（版本与发布）、`[test suite]`（测试基础设施）、`[wiki]`（用户 Wiki）、`[docs]`（其他文档）、`[repo]`（仓库级规则与维护）。
+   - 新增领域确实无法归入现有 tag 时，先确定稳定名称及职责，再更新此列表和贡献指南。
+4. 标题优先描述用户场景和可观察结果，不描述内部实现；没有直接用户时，从调用方、维护者、Agent 或运维人员视角描述。`[bugfix]` 默认使用 `[bugfix][module] fix <problem manifestation> when/after/for <scenario>`，不得默认套用 `prevent ... from ...`；`[optimize]` 推荐使用 `[optimize][module] <improvement outcome> when/for <scenario>`，不得仅通过措辞把实际 bugfix 归类为 optimize。
+5. 标题无法充分说明原因和实现时，在空行后的正文中使用自然语言补充；仅在正文较长时使用 `Problem:`、`Cause:`、`Solution:` 等小标题。
 
 ## GitHub Issue URL 读取
 

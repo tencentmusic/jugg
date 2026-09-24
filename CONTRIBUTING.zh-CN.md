@@ -115,7 +115,7 @@ logger.warn("message bla bla bla" +
 
 ## 提交信息
 
-提交信息使用英文。标题格式：`[prefix] subject`
+提交信息使用英文。标题格式：`[prefix][module] subject`，两个 tag 紧挨着、各只出现一次。
 
 - `subject` 以小写字母开头，结尾不用句号。
 - 按用户可观察结果选择前缀：
@@ -123,17 +123,23 @@ logger.warn("message bla bla bla" +
   - `[feature]`：新增用户可感知的能力
   - `[optimize]`：原行为正确，但更清晰、更稳或更好用
   - `[refactor]` / `[docs]` / `[test]` / `[other]`：分别用于无行为变化的重构、纯文档、仅测试及其他改动
+- 二级 tag 标记功能领域，不是 Gradle 模块名或任务状态。优先选择最具体的现有 tag；跨领域提交选主要行为 owner，互不相关的改动分开提交：
+  - 编译与项目：`[compile]`、`[native build]`（Flutter/C++）、`[dependency incremental]`、`[kmp opt-in]`、`[hilt]`、`[project]`（Gradle 项目模型）
+  - 部署：`[deploy]`、`[system app]`（含 rootless）、`[custom install]`（APK 安装脚本）
+  - IDE 与工具：`[ide]`、`[settings]`、`[compat]`（Android Studio 版本适配）、`[mcp]`、`[cli]`、`[agent]`、`[diagnostics]`（日志与问题报告）
+  - 工程与内容：`[build]`（仓库构建/CI/打包，不是插件运行时编译）、`[release]`、`[test suite]`、`[wiki]`（用户 Wiki）、`[docs]`（其他文档）、`[repo]`（仓库级规则）
+  - 沿用小写英文及空格分词写法，不造同义词；确需新增领域时先确定稳定名称和职责，并同步本规范与 `AGENTS.md`、`CLAUDE.md`。
 - 标题优先描述用户场景和可观察结果，不描述内部实现。
-- `[bugfix]` 标题通常写成 `[bugfix] fix <problem> when/after/for <scenario>`。
-- `[optimize]` 标题通常写成 `[optimize] <improvement> when/for <scenario>`。
+- `[bugfix]` 标题通常写成 `[bugfix][module] fix <problem> when/after/for <scenario>`。
+- `[optimize]` 标题通常写成 `[optimize][module] <improvement> when/for <scenario>`。
 
 标题不够说明原因和实现时，空一行后再写正文。
 
 示例：
 
 ```text
-[bugfix] fix incremental deploy skipping resource changes after Gradle fallback
-[docs] add repository contributor guidelines
+[bugfix][deploy] fix incremental deploy skipping resource changes after Gradle fallback
+[docs][repo] add repository contributor guidelines
 ```
 
 ## Pull Request
