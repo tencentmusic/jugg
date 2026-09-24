@@ -8,10 +8,9 @@
   <a href="https://github.com/tencentmusic/jugg/releases/latest"><img src="https://img.shields.io/github/v/release/tencentmusic/jugg?label=Release&color=blue" alt="Latest Release"></a>
   <a href="https://github.com/tencentmusic/jugg/stargazers"><img src="https://img.shields.io/github/stars/tencentmusic/jugg?style=flat&color=yellow" alt="GitHub Stars"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License: MIT"></a>
-  <a href="https://tencentmusic.github.io/jugg/reference/compatibility"><img src="https://img.shields.io/badge/Android%20Studio-2021%2B-orange.svg" alt="Android Studio Support"></a>
-  <a href="https://tencentmusic.github.io/jugg/reference/compatibility"><img src="https://img.shields.io/badge/Gradle-5.4.1%20to%209.2.1-blue.svg" alt="Gradle Support"></a>
-  <a href="https://tencentmusic.github.io/jugg/reference/compatibility"><img src="https://img.shields.io/badge/Kotlin-1.3%20to%202.2-purple.svg" alt="Kotlin Support"></a>
-  <a href="https://tencentmusic.github.io/jugg/"><img src="https://img.shields.io/badge/Documentation-Wiki-brightgreen.svg" alt="Jugg Documentation"></a>
+  <a href="#proven-at-scale"><img src="https://img.shields.io/badge/Production-800k%2B_Builds-brightgreen.svg" alt="Production Tested"></a>
+  <a href="#privacy"><img src="https://img.shields.io/badge/Privacy-100%25_Offline_%2F_No_Telemetry-orange.svg" alt="Privacy"></a>
+  <a href="#key-features"><img src="https://img.shields.io/badge/Config-Zero_Intrusion-blue.svg" alt="Configuration"></a>
 </p>
 
 > See changes in 3 seconds—even in large Android codebases.
@@ -32,21 +31,18 @@ Jugg only requires an IDE plugin; it does **not** modify Gradle scripts or requi
 
 - ⚡ **3-Second Incremental Deployment**: Experience "Code Change -> Device Refresh" in seconds for daily changes, without waiting for repetitive Gradle configuration and task execution.
 - 🔥 **Apply Changes (JVMTI) Hot Reload**: Zero-restart hot reloading via JVMTI that updates modified code and resources directly in the running process—gracefully falling back to Hot Fix (app restart without reinstallation) when code swap is inapplicable.
+- 🛡️ **Battle-Tested & Safe Fallback**: Validated over 800,000+ builds in production at Tencent Music. If complex code or dependency changes exceed safe side-channel boundaries, Jugg gracefully falls back to standard Gradle builds automatically.
 - 🔌 **Zero Intrusion & Seamless Coexistence**: No Gradle script modifications and no SDK dependencies required. Jugg Run Configurations coexist with native Android configurations, allowing one-click toggling at any time.
 - 🧩 **Broad Tech-Stack Compatibility**: Out-of-the-box support for Kotlin, Java, Jetpack Compose, KMP (Compose Multiplatform), DataBinding, ViewBinding, Res/Assets, AndroidManifest, and native `.so` libraries.
 - 🤖 **AI Agent & CLI Integration**: Built-in MCP server, CLI, and Agent Skills (`jugg-android-dev-loop`) to automate full "Edit -> Compile -> Deploy -> Verify" agentic development loops.
 
 ## Community
 
-Join the Jugg WeChat group to share usage experience and troubleshooting tips.
-
-<p align="center">
-  <img src="./docs/images/wechat-group.jpg" alt="Jugg WeChat group QR code" width="360">
-</p>
+Ask questions, suggest features, or share feedback on [GitHub Discussions](https://github.com/tencentmusic/jugg/discussions).
 
 ## Quick start
 
-1. Download the plugin from [Releases](https://github.com/tencentmusic/jugg/releases/latest), then install it in Android Studio (JetBrains Marketplace listing in progress).
+1. Download the plugin package directly from [Latest Releases (.zip)](https://github.com/tencentmusic/jugg/releases/latest), then install it in Android Studio via **Plugins -> ⚙️ -> Install Plugin from Disk...** (JetBrains Marketplace listing in progress).
 2. Open an Android project and wait for the Jugg Run Configuration to be created automatically.
 3. Select the Jugg Run Configuration and click Run. The first Run establishes the Gradle baseline; after that, edit source or resources and Run again for second-level bypass incremental compilation.
 
