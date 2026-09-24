@@ -123,6 +123,30 @@ class JuggCompileHelperTest {
     }
 
     @Test
+    fun incrementalCompile_noFileChanges_firstRun_countsCompiledUndeployedFiles() {
+        val fixture = createFixture()
+        val compiledFile = ChangedFile(
+            CompileFile.Type.Kotlin,
+            File("/tmp/jugg-test/src/MainActivity.kt"),
+            File("/tmp/jugg-test"),
+            ModuleInfo.virtualModule,
+        ).apply { compiledTimes = 1 }
+        whenever(fixture.deployFileManager.isNoFileChanges()).thenReturn(true)
+        whenever(fixture.dependencyChangeManager.isNeedCompilation).thenReturn(false)
+        whenever(fixture.deployTargetManager.getDeviceNameList()).thenReturn("device-1")
+        whenever(fixture.deployFileManager.getUncompiledFiles()).thenReturn(emptyList())
+        whenever(fixture.deployFileManager.getCompiledFiles()).thenReturn(listOf(compiledFile))
+        whenever(fixture.uiHandler.createCompileStatusHolder()).thenReturn(CompileStatusHolder.DEFAULT)
+        fixture.helper.juggCompiler = mock<JuggCompiler>()
+
+        val result = fixture.helper.incrementalCompile(fixture.uiHandler)
+
+        assertTrue(result.isSuccess)
+        verify(fixture.uiHandler).notifyByBalloon("Compiling 1 files...")
+        verify(fixture.helper.juggCompiler!!, never()).compile(any())
+    }
+
+    @Test
     fun incrementalCompile_noFileChanges_projectSwitched_deployDirectlyWithoutConfirm() {
         val fixture = createFixture()
         fixture.juggRunningTaskStatusManager.isProjectSwitchedThisRun = true

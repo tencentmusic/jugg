@@ -765,7 +765,7 @@ class JuggCompilerHelper(
     }
 
     private fun notifyEmptyCompile(uiHandler: CompileUiHandler) {
-        uiHandler.notifyByBalloon("Compiling 0 files...")
+        uiHandler.notifyByBalloon("Compiling ${deployFileManager.getCompiledFiles().size} files...")
     }
 
     fun warmUp() {
