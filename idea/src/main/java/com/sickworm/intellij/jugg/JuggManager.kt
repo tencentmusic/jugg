@@ -49,6 +49,7 @@ import com.sickworm.intellij.jugg.diagnostics.IssueReportBundleBuilder
 import com.sickworm.intellij.jugg.diagnostics.IssueReportBundle
 import com.sickworm.intellij.jugg.diagnostics.IssueReportUploader
 import com.sickworm.intellij.jugg.git.GitManager
+import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.*
 import com.sickworm.intellij.jugg.project.dependency.GradleProjectInfoLocalFetchManager
@@ -525,7 +526,8 @@ class JuggManager @TestOnly constructor(
         if (changedFiles.isNotEmpty()) {
             // not strict rules, just print it out for debug
             val simpleFilterFiles = changedFiles.filter {
-                !it.path.contains("build") &&
+                !it.isChild(JuggGlobalPathManager.rootDir) &&
+                    !it.path.contains("build") &&
                     !it.path.contains(".idea") &&
                     !it.path.contains(".git") &&
                     !it.path.contains(".gradle") &&
