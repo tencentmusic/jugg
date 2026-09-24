@@ -1,7 +1,7 @@
 ---
 name: jugg-android-dev-loop
-version: 1.0.30
-date: 2026-09-21
+version: 1.0.31
+date: 2026-09-24
 description: >-
   Use when editing source files (Java/Kotlin/XML/layout/AndroidManifest/Gradle)
   in a Android project, or when user asks to build/deploy/verify an Android app.
@@ -87,6 +87,8 @@ python3 {SKILL_DIR}/scripts/jugg.py help <subcommand>
 
 All build commands **block** until completion. Run compile-class commands (`compile`, `deploy`, `gradle-build`, and `instrument`) as a single foreground CLI call, wait for that process to exit, then parse its output once. These commands may trigger Gradle internally; do not start them in the background or poll `status`, processes, logs, files, or Git state to infer progress. Process exit is the only completion signal.
 Completion means the compile/deploy job reached a terminal state; CLI does not add an extra app-ready wait.
+
+**Block the agent loop as well as the CLI.** A terminal tool may return a running session before the foreground command exits. Keep waiting for that same session inside one long-running tool invocation until the process exits; do not return control to the agent after short waits. In Codex, use one `functions.exec` call with an outer `yield_time_ms` long enough for the expected build, and await `exec_command` plus any required `write_stdin` session waits inside that call. Do not set a short outer yield (such as 1–30 seconds), repeatedly call wait tools from the agent loop, send progress messages, or inspect status/logs while the command is running. If the tool forces an early yield, use its longest supported blocking wait on the same session until exit. Parse the final output once.
 
 | Command | Purpose | When to Use |
 |---------|---------|-------------|
