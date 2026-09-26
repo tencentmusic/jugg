@@ -1,6 +1,6 @@
 ---
 title: so 更新
-description: 说明 Jugg 如何处理已有 .so、C/C++ 源码和 Flutter native 产物，并通过 APK 重签名让更新生效。
+description: 说明 Jugg 如何处理已有 .so、C/C++ 源码和 Flutter native 产物，并说明 SO hot update 与 APK 更新如何让改动生效。
 status: active
 tags:
   - capability
@@ -11,22 +11,22 @@ tags:
 
 # so 更新
 
-Jugg 支持更新已产出的 native lib / `.so` 文件。对于 Gradle 管理的 C/C++ 模块，源码变化会先执行当前变体的 native 构建任务；Flutter 混合工程产生的 native library 也会进入同一条 APK 更新流程。Jugg 随后写入目标 APK、重新签名并安装。
+Jugg 支持更新已产出的 native lib / `.so` 文件。对于 Gradle 管理的 C/C++ 模块，源码变化会先执行当前变体的 native 构建任务；Flutter 混合工程产生的 native library 也会进入相同的增量产物流程。Jugg 随后按「SO hot update」开关和设备版本选择 overlay 或 APK 更新。
 
 ## 支持范围
 
 | 场景 | 当前支持情况 | 用户可见结果 |
 |---|---|---|
-| 更新项目目录中已有、位于 ABI 目录下的 `.so` | 支持 | 更新目标 APK，重新签名并安装 |
+| 更新项目目录中已有、位于 ABI 目录下的 `.so` | 支持 | 根据 SO hot update 开关进入目标 APK overlay，或更新 APK 并重签安装 |
 | 修改 Gradle 管理的 C/C++ 源码 | 支持 | 执行当前变体的 native 构建任务，再更新生成的 `.so` |
 | 同一个 C/C++ source 被多个 Native 模块共享 | 支持 | 一次执行所有匹配模块的去重 native task，并分别更新各模块生成的 `.so` |
-| Flutter Profile/Release 生成 `app.so` 或 native assets | 支持 | 执行当前变体的 Flutter native 输出任务，从该任务自己的输出中读取目标 ABI 的 native lib，再更新 APK |
+| Flutter Profile/Release 生成 `app.so` 或 native assets | 支持 | 执行当前变体的 Flutter native 输出任务，再按开关部署生成的 native lib |
 | Flutter Debug 只生成 assets，不生成 native lib | 支持 | 只更新 `flutter_assets`，不要求 native 输出存在；原生目录为空时本轮编译仍然成功；不重打包、不重签名、不安装 APK |
 | 同轮更新多个 ABI 的 native lib | 支持按目标 APK 归属处理 | 每个目标 APK 只接收属于自己的 native lib |
 | 更新大于 `Int.MAX_VALUE`（约 2 GiB）的已有 `.so` | 有条件支持 | 不把完整文件读入 IDE 堆；APK 更新时流式替换基线中的同路径 entry，SO hot update 可用时直接推送源文件 |
-| 开启「SO hot update」且本轮只有 native lib | Android 8.0+、目标 ABI 与 sandbox 可用时支持 | 写入 App `code_cache/.jugg_native/<abi>/`，跳过 APK 重签名和安装，重启 App 后加载 |
+| 开启「SO hot update」后更新 `.so` | Android 8.0+ 支持普通大小的 `.so` | 与同轮 DEX、资源、Asset 一起下发到目标 APK 的 overlay，跳过 APK 重签和安装，重启 App 后加载 |
 | 删除 `.so` | 不生成移除结果 | 已安装 APK 继续包含原有 native lib |
-| 修改 `CMakeLists.txt`、项目内 `*.cmake`、`Android.mk`、`Application.mk` | 支持 | 执行当前变体的 native task，并在同一 Gradle invocation 结束前定向更新该模块的外部构建信息；新 `.so` 按既有流程更新 APK |
+| 修改 `CMakeLists.txt`、项目内 `*.cmake`、`Android.mk`、`Application.mk` | 支持 | 执行当前变体的 native task，并在同一 Gradle invocation 结束前定向更新该模块的外部构建信息；新 `.so` 按开关进入 overlay 或更新 APK |
 | 修改 NDK、ABI、native source set 或 packaging 规则 | 不作为源码增量输入 | 通过完整 Gradle 构建刷新项目模型和 APK 基线 |
 | 修改 `packaging.jniLibs.keepDebugSymbols` | 支持 | 按 app 打包语义保留这些 `.so` 的调试符号，不执行 app 的 native 构建或 strip 任务 |
 
@@ -44,12 +44,11 @@ Flutter Dart 源码变化
 
 项目目录中已有的 .so 发生变化
   -> 根据 ABI 和 APK 归属确定目标路径
-  -> 写入目标 APK 的 lib/<abi> 目录
-  -> 对 APK 重新签名
-  -> 安装更新后的 APK
+  -> 开关开启且 Android 8.0+：下发到目标 APK 的 overlay，重启 App
+  -> 其它情况：写入目标 APK，重新签名并安装
 ```
 
-安装完成后，App 使用更新后 APK 中的 native lib。从 C/C++ 源码生成 `.so` 仍由 Gradle、CMake 和 NDK 完成；Jugg 负责在检测到源码变化时启动对应任务，并把新产物接入既有 native lib 部署。
+App 重启后从已提交的 overlay 或更新后的 APK 加载 native lib。从 C/C++ 源码生成 `.so` 仍由 Gradle、CMake 和 NDK 完成；Jugg 负责在检测到源码变化时启动对应任务，并把新产物接入既有 native lib 部署。
 
 ## Debug Dart 代码如何生效
 
@@ -59,7 +58,7 @@ Flutter Android embedding 会把 `flutter_assets` 解压到应用私有目录 `a
 
 overlay 生效后，Jugg runtime 还会刷新 Flutter 引擎持有的 `AssetManager`，让后续 asset 读取使用当前 overlay；具体机制见 [assets 与 native lib 原理](../../concepts/incremental-compile/assets-native.md)。
 
-Profile/Release 使用 AOT 产物 `libapp.so`，属于 native lib，继续按上面的 APK 更新、重签名和安装路径处理。
+Profile/Release 使用 AOT 产物 `libapp.so`，属于 native lib，也按上述开关选择 overlay 或 APK 更新路径。
 
 ## 使用边界
 
@@ -69,7 +68,7 @@ Profile/Release 使用 AOT 产物 `libapp.so`，属于 native lib，继续按上
 - 部署的是按 app 打包语义 strip 过的 `.so`，而不是 module 中间产物目录里的未 strip 文件。Jugg 在 collector 进程内读取 APK owner（base app 或 dynamic feature）的 `strip<Variant>DebugSymbols` 配置并复现 AGP 的单文件 strip 行为，不执行该 strip task。本轮只执行因 C/C++ 变化被选中的 module merge task，不会额外执行 APK owner 的其他 native merge task。strip 工具缺失或返回非 0 时按 AGP 语义原样打包该文件。
 - 只有大于 `Int.MAX_VALUE`（2,147,483,647 bytes）的 NativeLib 使用 file-backed 路径；普通 `.so`、Dex、资源和 Asset 继续使用原有内存路径。file-backed 源文件在写入 APK 或推送设备前会重新校验存在性、大小和时间戳，变化后本轮明确失败。
 - APK 更新大型 `.so` 时要求基线 APK 已存在同路径 entry，并继承它的 `STORED` 或 `DEFLATED` 压缩方式；不会把 DEFLATED 大型 `.so` 强制改成 STORED。单 entry 达到经典 ZIP 4 GiB 边界、基线 entry 缺失、磁盘空间不足，或 zipalign、签名、校验、安装工具链拒绝时，本轮失败并保留原 APK。大文件的 CRC、压缩和临时 APK 会增加耗时与磁盘占用。
-- 「SO hot update」不会因文件较大而自动开启。现有开关、Android 版本、ABI 和 sandbox 条件全部满足时，大型 `.so` 直接推送源文件，不再创建同体积的本地临时副本；条件不满足或该路径失败时仍回到 APK 更新流程。
+- 「SO hot update」不会因文件较大而自动开启。开关开启且设备为 Android 8.0+ 时，大型 `.so` 通过 App sandbox 直接推送源文件，最终与普通 `.so` 一样放在目标 APK 的 overlay 中；sandbox 无法访问或推送失败时，本轮部署明确失败。开关关闭或 Android 版本较低时仍走 APK 更新。
 - native library module 可以在 APK owner 未被配置的情况下构建，例如工程开启 Gradle Configuration on Demand 时本轮读不到 owner 的 strip task。因此完整 Gradle 构建会把 owner 的 strip 配置和每个 strip 工具副本缓存到 `build/jugg/classpath/native_strip`，collector 优先使用该缓存。缓存按模块根与变体精确匹配，且只有记录的工具仍可执行时才会复用；缓存缺失、损坏或工具不可用时只降级为一次实时读取，owner 未配置且没有可用缓存时本轮失败并提示执行完整 Gradle 构建，不会部署未 strip 的库。工具副本随缓存一起保存，所以基线复制到 NDK 路径不同的另一台 Worker 后仍可使用；复制基线时需要保存整个 `native_strip` 目录。
 - 同一个物理 source 匹配多个 Native 模块时，所有匹配 task 必须全部支持并执行成功，各模块输出也必须全部可收集；否则该 source 整体回退或失败，不会把部分成功结果标记为已编译。
 - 每次检测到 Dart 源码变化都会执行当前变体的 Flutter native 输出 task。Jugg 只读取该 task 自己声明的 native 输出，并按它是归档还是目录解析出 ABI 下的 `.so`；不从 Flutter 中间目录递归猜测 native 输出，也不按固定路径拼接产物位置。
@@ -81,7 +80,7 @@ Profile/Release 使用 AOT 产物 `libapp.so`，属于 native lib，继续按上
 - 同一轮内多个外部输入并非全部可解析时（例如多 module 工程中只有一个 module 配置了 native 构建），整轮回退完整 Gradle 构建，不会只构建可识别的部分。
 - 删除 `.so` 不会生成 APK 内文件的移除数据，也不会仅因此让增量编译失败。已安装 APK 继续包含原有 native lib，只有需要让删除真正生效时才执行完整 Gradle 构建。
 - 多 APK 工程按目标 APK 归属更新，不会把同一份 native lib 默认写入所有 APK。
-- 签名配置缺失或无效时，本轮增量 APK 更新失败；需要通过 Gradle 构建恢复可安装的 APK 基线。
+- 关闭「SO hot update」或设备低于 Android 8.0 时，仍通过 APK 更新 `.so`；签名配置缺失或无效会使 APK 更新失败。切换开关会在下一次 Run 清除 App 数据并重装。
 
 ## 相关页面
 

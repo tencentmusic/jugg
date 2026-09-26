@@ -362,7 +362,7 @@ class JuggControlPanel(
                 settingToggle("Always restart app after deployment", "Disables hot reload to ensure global state is reinitialized.", JuggControlPanelController.Setting.ALWAYS_RESTART)),
             settingGroup("Deployment", "deployment",
                 settingToggle("Quick deploy", "Skip app startup when direct overlay is available.", JuggControlPanelController.Setting.QUICK_DEPLOY),
-                settingToggle("SO hot update", "Push changed .so files into the app and restart, skipping APK re-sign and reinstall.", JuggControlPanelController.Setting.SO_HOT_UPDATE),
+                settingToggle(".so(native library) hot update", "Deploy changed .so files and restart the app. Switching this setting clears app data and reinstalls on the next Run.", JuggControlPanelController.Setting.SO_HOT_UPDATE),
                 settingToggle("Auto fallback after deploy failure", "Recover with a full Gradle build.", JuggControlPanelController.Setting.AUTO_FALLBACK),
                 settingToggle("Embed changes into APK", "Supports Android RemoteViews with a slower deploy.", JuggControlPanelController.Setting.EMBED_APK),
                 forceCompatDevicesPanel),

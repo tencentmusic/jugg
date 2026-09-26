@@ -83,7 +83,6 @@ public class HotfixLoader {
         LogUtils.i(TAG, "installResources start...");
         new ResourcesPatchLoader(base).install();
         LogUtils.i(TAG, "installResources finish.");
-        NativeLibraryPathInstaller.install(base);
     }
 
     public synchronized static void installDex(final Context base) {

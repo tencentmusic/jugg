@@ -30,6 +30,7 @@ import com.sickworm.intellij.jugg.ide.controlpanel.JuggControlPanelModel
 import com.sickworm.intellij.jugg.ide.controlpanel.JuggEvent
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.ide.ui.JuggControlPanel
+import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
 import com.sickworm.intellij.jugg.ide.ui.JuggControlPanelController
 import com.sickworm.intellij.jugg.ide.ui.MockJuggControlPanelModel
 import com.sickworm.intellij.jugg.logger.ITestStdoutLogger
@@ -446,49 +447,28 @@ class JuggRunSettingsComponentTest {
     }
 
     @Test
-    fun `so hot update setting change should persist and be recorded as a user action`() {
+    fun `so hot update toggle confirms data clear and schedules reinstall`() {
         TestGlobal.init()
         val previous = JuggSettings.isEnableNativeSandboxDeploy
-        val previousClear = JuggSettings.isNeedSyncNativeSandboxRuntime
+        val manager = Mockito.mock(JuggManager::class.java)
         val logs = mutableListOf<String>()
-        val controller = createController(CapturingLogger("root", logs))
+        val controller = createController(CapturingLogger("root", logs), manager)
         try {
-            controller.updateSetting(JuggControlPanelController.Setting.SO_HOT_UPDATE, true)
-
-            val event = controller.model.snapshot().recentEvents.single()
-            assertEquals(JuggEventCategory.USER_ACTION, event.category)
-            assertEquals("Setting changed", event.title)
-            assertEquals("SO hot update: enabled", event.detail)
+            JuggSettings.isEnableNativeSandboxDeploy = false
+            javax.swing.SwingUtilities.invokeAndWait {
+                Mockito.mockConstruction(CommonConfirmDialog::class.java) { dialog, _ ->
+                    Mockito.`when`(dialog.showAndGet()).thenReturn(true)
+                }.use { dialogs ->
+                    controller.updateSetting(JuggControlPanelController.Setting.SO_HOT_UPDATE, true)
+                    assertTrue(JuggSettings.isEnableNativeSandboxDeploy)
+                    assertEquals(1, dialogs.constructed().size)
+                    Mockito.verify(manager).forceReInstallNextTime()
+                }
+            }
             assertEquals(listOf("[UserAction] Setting changed: SO hot update: enabled"), logs)
-            assertTrue(JuggSettings.isEnableNativeSandboxDeploy)
-            assertTrue(JuggSettings.isNeedSyncNativeSandboxRuntime)
             assertTrue(controller.model.snapshot().settings.nativeSandboxDeploy)
         } finally {
             JuggSettings.isEnableNativeSandboxDeploy = previous
-            JuggSettings.isNeedSyncNativeSandboxRuntime = previousClear
-        }
-    }
-
-    @Test
-    fun `disabling so hot update keeps leftover patches and syncs the runtime flag later`() {
-        TestGlobal.init()
-        val previous = JuggSettings.isEnableNativeSandboxDeploy
-        val previousClear = JuggSettings.isNeedSyncNativeSandboxRuntime
-        val logs = mutableListOf<String>()
-        val controller = createController(CapturingLogger("root", logs))
-        try {
-            JuggSettings.isEnableNativeSandboxDeploy = true
-            JuggSettings.isNeedSyncNativeSandboxRuntime = false
-
-            controller.updateSetting(JuggControlPanelController.Setting.SO_HOT_UPDATE, false)
-
-            assertFalse(JuggSettings.isEnableNativeSandboxDeploy)
-            assertTrue(JuggSettings.isNeedSyncNativeSandboxRuntime)
-            assertFalse(controller.model.snapshot().settings.nativeSandboxDeploy)
-            assertEquals(listOf("[UserAction] Setting changed: SO hot update: disabled"), logs)
-        } finally {
-            JuggSettings.isEnableNativeSandboxDeploy = previous
-            JuggSettings.isNeedSyncNativeSandboxRuntime = previousClear
         }
     }
 
@@ -873,10 +853,13 @@ class JuggRunSettingsComponentTest {
         return field.get(target) as T
     }
 
-    private fun createController(logger: Logger): JuggControlPanelController {
+    private fun createController(
+        logger: Logger,
+        manager: JuggManager = Mockito.mock(JuggManager::class.java),
+    ): JuggControlPanelController {
         return JuggControlPanelController(
             project = mockProject(),
-            manager = Mockito.mock(JuggManager::class.java),
+            manager = manager,
             deployTargetManager = Mockito.mock(IDeployTargetManager::class.java),
             deployHistoryManager = Mockito.mock(IDeployHistoryManager::class.java),
             deployFileManager = Mockito.mock(DeployFileManager::class.java),

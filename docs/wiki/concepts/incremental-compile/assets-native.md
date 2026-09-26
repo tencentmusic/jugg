@@ -71,13 +71,13 @@ asset incremental artifact
   -> read the new file through AssetManager at runtime
 
 native library incremental artifact
-  -> write it back to lib/<abi> in the target APK
-  -> re-sign and install the updated APK
+  -> Setting enabled on Android 8.0+: enter the target APK overlay and load after an app restart
+  -> Otherwise: write it back into the target APK, re-sign, and install
 ```
 
-An asset overlay preserves its `assets/**` path for the new resource loading path. An ordinary asset or resource overlay does not become an APK native library search directory, so the current `.so` update path modifies the target APK instead of delivering the `.so` as an asset overlay.
+An asset overlay preserves its `assets/**` path. With “SO hot update” enabled, ordinary `.so` files share the same overlay batch as DEX, resources, and assets, but remain grouped by APK and ABI. At startup the runtime selects libraries for the current process ABI from committed overlays and adds their directories to the native library search path. An `.so` requires a full app restart even when other incremental files arrive in the same run. Changing the setting clears app data and reinstalls the app on the next Run, removing previous patches.
 
-Only a NativeLib larger than `Int.MAX_VALUE` (2,147,483,647 bytes) switches to file-backed deployment data; ordinary `.so` files and other artifacts keep the in-memory path. An APK update streams the source file, replaces the same-path entry in the baseline APK, and inherits that entry's compression method. This avoids placing the complete large `.so` in the IDE heap or forcing an originally DEFLATED entry to become STORED. The update fails explicitly when the baseline has no large entry at that path or the file reaches the classic ZIP 4 GiB single-entry boundary. If the user has already enabled “SO hot update” and the device, ABI, and sandbox requirements are satisfied, a round containing only native libraries pushes the source file directly into `code_cache/.jugg_native/<abi>/` and skips APK re-signing and installation; file size alone never enables that path.
+A NativeLib larger than `Int.MAX_VALUE` (2,147,483,647 bytes) uses file-backed deployment data so the IDE does not hold the whole `.so` in its heap. With the setting enabled on Android 8.0+, Jugg pushes the source file directly through the app sandbox and ultimately publishes it into the target APK overlay as well. Missing sandbox access or a failed transfer fails the round explicitly. With the setting disabled or an older Android version, the APK update streams the source file, replaces the same-path entry in the baseline APK, and inherits its compression method. It fails explicitly if that entry is missing or the file reaches the classic ZIP 4 GiB single-entry boundary. File size never enables SO hot update automatically.
 
 ### The Flutter Debug/JIT extraction cache
 
@@ -85,7 +85,7 @@ Dart code in Debug mode lives in `assets/flutter_assets/kernel_blob.bin`, togeth
 
 An overlay update does not change the APK `lastUpdateTime`, so delivering only the asset overlay plus an ordinary restart still makes the app read the old Dart code from `app_flutter`. When the current round really compiles and deploys those Flutter JIT runtime files, Jugg therefore waits until all overlay slices succeed, deletes the `res_timestamp-*` files directly inside the target app's `app_flutter`, and then fully restarts the app so Flutter itself re-extracts from the overlay that already took effect. This path never repackages, re-signs, or installs an APK, and the deployment type users see is Hot Fix.
 
-Flutter Profile/Release use the AOT artifact `libapp.so` and keep using the native library APK update path, without entering this extraction cache invalidation. The invalidation command only deletes regular `res_timestamp-*` files directly inside `app_flutter`; it never touches `flutter_assets`, the kernel, the overlay, or other app data, and a missing timestamp counts as success.
+Flutter Profile/Release use the AOT artifact `libapp.so` and follow the native library setting to use an overlay or APK update, without entering this extraction cache invalidation. The invalidation command only deletes regular `res_timestamp-*` files directly inside `app_flutter`; it never touches `flutter_assets`, the kernel, the overlay, or other app data, and a missing timestamp counts as success.
 
 ### The AssetManager retained by a Flutter engine
 
@@ -103,7 +103,7 @@ After the overlay takes effect, the Jugg runtime supplies live Flutter engines w
 - Remote compilation and custom commands from which Jugg cannot safely derive external tasks fall back to a complete Gradle build.
 - `pubspec.yaml`, `pubspec.lock`, `l10n.yaml`, `CMakeLists.txt`, project `*.cmake`, `Android.mk`, and `Application.mk` are configuration inputs of an external build. Changing them runs the existing external task and refreshes the project model after the task finishes, without triggering a full build on its own. Only configuration that task cannot cover, such as NDK, ABI, native source sets, or packaging rules, needs a full Gradle build to refresh the APK baseline.
 - After changing asset source sets, variant, or build configuration that affects APK paths or ownership, refresh the Gradle baseline.
-- A native library update requires usable APK signing configuration. If Jugg cannot re-sign the APK, this incremental update path cannot continue.
+- The APK update path for a native library requires usable APK signing configuration. If Jugg cannot re-sign the APK, that path cannot continue.
 
 ## Related pages
 
