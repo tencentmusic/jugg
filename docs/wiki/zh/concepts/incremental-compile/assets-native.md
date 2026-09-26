@@ -71,13 +71,13 @@ asset 增量产物
   -> 运行时通过 AssetManager 读取新文件
 
 native lib 增量产物
-  -> 写回目标 APK 的 lib/<abi> 目录
-  -> 重新签名并安装更新后的 APK
+  -> 开关开启且 Android 8.0+：进入目标 APK 的 overlay，重启 App 后加载
+  -> 其它情况：写回目标 APK、重新签名并安装
 ```
 
-asset overlay 会保持 `assets/**` 路径，供新的资源加载路径读取。普通 asset 或资源 overlay 不会成为 APK 的 native library 搜索目录，因此当前 `.so` 更新路径会修改目标 APK，而不是把 `.so` 当作 asset overlay 下发。
+asset overlay 保持 `assets/**` 路径。普通大小的 `.so` 在「SO hot update」开启时与 DEX、资源和 Asset 使用同一批 overlay，但按 APK 和 ABI 分目录保存；运行时只从已提交的 overlay 中选择当前进程 ABI 的库，并把目录加入 native library 搜索路径。同轮包含其它增量文件时，`.so` 仍需完整重启 App 才会生效。切换开关会在下一次 Run 清除 App 数据并重装，使之前的补丁失效。
 
-只有大小大于 `Int.MAX_VALUE`（2,147,483,647 bytes）的 NativeLib 会改用 file-backed 部署数据，普通 `.so` 和其它产物仍沿用内存路径。APK 更新会流式读取源文件、替换基线 APK 中的同路径 entry，并继承该 entry 的压缩方式，避免把完整大型 `.so` 放入 IDE 堆或把原本 DEFLATED 的 entry 强制改为 STORED。基线中没有同路径大型 entry，或文件达到经典 ZIP 单 entry 4 GiB 边界时会明确失败。若用户已开启「SO hot update」且设备、ABI、sandbox 条件满足，本轮只有 native lib 时会直接把源文件推到 `code_cache/.jugg_native/<abi>/`，跳过 APK 重签和安装；文件大小本身不会自动开启该路径。
+大于 `Int.MAX_VALUE`（2,147,483,647 bytes）的 NativeLib 使用 file-backed 部署数据，不把整个 `.so` 放入 IDE 堆。开关开启且 Android 8.0+ 时，它通过 App sandbox 直接推送源文件，最终也发布到目标 APK 的 overlay；sandbox 不可访问或传输失败时本轮明确失败。开关关闭或 Android 版本较低时，APK 更新流式读取源文件，替换基线中同路径 entry 并继承压缩方式；基线缺少该 entry 或文件达到经典 ZIP 单 entry 4 GiB 边界时明确失败。文件大小不会自动开启 SO hot update。
 
 ### Flutter Debug/JIT 的解压缓存
 
@@ -85,7 +85,7 @@ Debug 模式的 Dart 代码放在 `assets/flutter_assets/kernel_blob.bin`，并�
 
 overlay 更新不改变 APK 的 `lastUpdateTime`，所以只下发 asset overlay 再加一次普通重启，App 仍会读取 `app_flutter` 中的旧 Dart 代码。Jugg 因此在本轮真实编译并部署了上述 Flutter JIT runtime 文件时，等全部 overlay 分片成功后删除目标应用 `app_flutter` 直属的 `res_timestamp-*`，再完整重启 App，让 Flutter 自己从已生效的 overlay 重新解压。这条路径不重打包、不重签名、不安装 APK，用户看到的部署类型是 Hot Fix。
 
-Flutter Profile/Release 使用 AOT 产物 `libapp.so`，继续走 native lib 的 APK 更新路径，不进入该解压缓存失效流程。失效命令只删除 `app_flutter` 直属的 `res_timestamp-*` 普通文件，不触碰 `flutter_assets`、kernel、overlay 和应用其它数据；timestamp 不存在时视为成功。
+Flutter Profile/Release 使用 AOT 产物 `libapp.so`，继续按 native lib 的开关选择 overlay 或 APK 更新路径，不进入该解压缓存失效流程。失效命令只删除 `app_flutter` 直属的 `res_timestamp-*` 普通文件，不触碰 `flutter_assets`、kernel、overlay 和应用其它数据；timestamp 不存在时视为成功。
 
 ### Flutter 引擎持有的 AssetManager
 
@@ -103,7 +103,7 @@ Jugg runtime 在 overlay 生效后把包含该 overlay 的 `AssetManager` 更新
 - 远程编译和无法安全派生外部 task 的自定义命令会回到完整 Gradle 构建。
 - `pubspec.yaml`、`pubspec.lock`、`l10n.yaml`、`CMakeLists.txt`、项目内 `*.cmake`、`Android.mk` 和 `Application.mk` 是外部构建的配置输入。修改它们会执行既有外部 task，并在 task 结束后刷新项目模型，不需要单独触发完整构建；只有 NDK、ABI、native source set、packaging 规则等无法由该 task 覆盖的配置变化，才需要完整 Gradle 构建刷新 APK 基线。
 - 修改 asset source set、variant 或影响 APK 路径与归属的构建配置后，需要刷新 Gradle 基线。
-- native lib 更新依赖可用的 APK 签名配置；无法完成重签名时，不能继续使用这条增量更新路径。
+- native lib 走 APK 更新时依赖可用的 APK 签名配置；无法完成重签名时，不能继续使用该路径。
 
 ## 相关页面
 

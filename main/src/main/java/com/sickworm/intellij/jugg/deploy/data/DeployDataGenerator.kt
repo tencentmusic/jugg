@@ -240,14 +240,13 @@ class DeployDataGenerator(
                 updateApkFiles += resourcesArsc
             }
         }
-        updateApkFiles += changedLibs
-
         val juggDeployData = JuggDeployData(apks,
             newClasses, hotFixModifiedClasses, hotReloadModifiedClasses,
             effectedSourceAndClassNodes,
             overlays, parsedDex,
             isFullRes, isWarmUp,
             updateApkFiles = updateApkFiles,
+            nativeLibraryOverlays = changedLibs,
             constRefEffectedSourcePaths = constRefEffectedSourcePaths,
         )
 

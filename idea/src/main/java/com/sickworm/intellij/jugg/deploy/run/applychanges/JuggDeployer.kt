@@ -17,6 +17,7 @@ import com.sickworm.intellij.jugg.deploy.direct.DirectOverlayDirtyException
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlaySwapTransport
 import com.sickworm.intellij.jugg.deploy.hotreload.DirectAppSandboxDeployTransport
 import com.sickworm.intellij.jugg.deploy.hotreload.RootlessCompatPending
+import com.sickworm.intellij.jugg.deploy.nativesandbox.NativeSandboxWriteRequest
 import com.sickworm.intellij.jugg.deploy.nativesandbox.NativeSandboxWriter
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
@@ -28,6 +29,7 @@ import com.sickworm.intellij.jugg.deploy.run.JuggInstallSession
 import com.sickworm.intellij.jugg.deploy.run.LaunchContext
 import com.sickworm.intellij.jugg.deploy.run.JuggOverlayId
 import com.sickworm.intellij.jugg.deploy.run.utils.AdbLogWrapper
+import java.util.UUID
 
 /**
  * [com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper] -> [JuggDeployTask] -> [JuggDeployer]
@@ -127,7 +129,7 @@ class JuggDeployer(
             return
         }
         val output = sandbox.exec(
-            "rm -rf code_cache/.overlay ${NativeSandboxWriter.SANDBOX_DIR} && echo success",
+            "rm -rf code_cache/.overlay code_cache/.jugg_native ${NativeSandboxWriter.TEMP_ROOT} && echo success",
             repairCodeCache = true,
         )
         check(output.trim() == "success") {
@@ -248,67 +250,104 @@ class JuggDeployer(
             }
         }
 
-        val startTime = System.currentTimeMillis()
-        tryDirectAppSandboxDeploy(packageName, data, speculativeDump, pids, arch)?.let { directResult ->
-            val costTime = System.currentTimeMillis() - startTime
-            logger.info(
-                "after direct app sandbox deploy, cost: ${costTime}ms, " +
-                    "overlay id: ${directResult.overlayId.sha}, needsRestart: ${directResult.needsRestart}, " +
-                    "pendingRequest: ${directResult.pendingRequest?.requestId}",
-            )
-            // A rootless request is only committed after the app confirms the import, so the
-            // deployment cache must keep pointing at the previous overlay until then.
-            if (directResult.pendingRequest == null) {
-                deploymentService.storeEntry(deviceSerial, packageName, newFiles, directResult.overlayId, logger)
+        val nativeFiles = data.nativeLibraryOverlays.filter { it.isFileBacked }
+        val nativeRequest = if (nativeFiles.isEmpty()) null else NativeSandboxWriteRequest(
+            packageName = packageName,
+            sessionId = UUID.randomUUID().toString().replace("-", ""),
+            files = nativeFiles,
+            apkNamesByPath = (speculativeDump ?: throw asDeployerCompat.remoteApkNotFound())
+                .apks.associate { it.path to it.name },
+        )
+        val nativeWriter = nativeRequest?.let {
+            val sandbox = launchContext.getAppSandboxExecutor(packageName, logger.logger)
+            check(sandbox.mode != AppSandboxExecutor.Mode.UNAVAILABLE) {
+                "Large native library overlay requires app sandbox access for $packageName"
             }
-            return Result().also {
-                it.overlayId = directResult.overlayId.sha
-                it.needsRestart = directResult.needsRestart
-                it.rootlessCompatPending = directResult.pendingRequest
-            }
+            NativeSandboxWriter(deviceAdb, sandbox, logger.logger).also { writer -> writer.stage(it) }
         }
-        tryDirectOverlaySwap(packageName, data, speculativeDump, arch)?.let { overlayId ->
-            val costTime = System.currentTimeMillis() - startTime
-            logger.info("after direct overlay deploy, cost: ${costTime}ms, overlay id: ${overlayId.sha}, is base install: ${overlayId.isBaseInstall}, isPushOverlayOnly: ${data.isPushOverlayOnly}")
-            deploymentService.storeEntry(deviceSerial, packageName, newFiles, overlayId, logger)
-            return Result().also {
-                it.overlayId = overlayId.sha
-                it.needsRestart = true
-            }
+        fun publishNative() {
+            if (nativeRequest != null) nativeWriter!!.publish(nativeRequest)
         }
 
-        // On an on-host verification of the dump first.
-        val verifyDump = verifyCache(speculativeDump, asDeployerCompat, installSession, logger, deviceAdb)
-
-        // Convert to ADT deploy data.
-        val builder = OverlayUpdateBuilder(asDeployerCompat)
-        val overlayUpdate = builder.build(verifyDump, data)
-
-        // Perform the swap.
         try {
-            val overlayId = runWithOfflineRetry("optimistic swap", deviceAdb, logger) {
-                asDeployerCompat.optimisticSwap(
-                    installSession, redefiners, packageName,
-                    argRestart, pids, arch, overlayUpdate,
-                    device, logger,
-                    data.isPushOverlayOnly,
-                )
+            val startTime = System.currentTimeMillis()
+            tryDirectAppSandboxDeploy(packageName, data, speculativeDump, pids, arch)?.let { directResult ->
+                val costTime = System.currentTimeMillis() - startTime
+                logger.info("after direct app sandbox deploy, cost: ${costTime}ms, " +
+                        "overlay id: ${directResult.overlayId.sha}, needsRestart: ${directResult.needsRestart}, " +
+                        "pendingRequest: ${directResult.pendingRequest?.requestId}")
+                // A rootless request is only committed after the app confirms the import, so the
+                // deployment cache must keep pointing at the previous overlay until then.
+                if (directResult.pendingRequest == null) {
+                    publishNative()
+                    deploymentService.storeEntry(deviceSerial, packageName, newFiles, directResult.overlayId, logger)
+                } else {
+                    check(nativeRequest == null) { "Large native library overlay cannot be deferred to rootless import" }
+                }
+                return Result().also {
+                    it.overlayId = directResult.overlayId.sha
+                    it.needsRestart = directResult.needsRestart
+                    it.rootlessCompatPending = directResult.pendingRequest
+                }
             }
-            val costTime = System.currentTimeMillis() - startTime
-            logger.info("after deploy, cost: ${costTime}ms, overlay id: ${overlayId.sha}, is base install: ${overlayId.isBaseInstall}, isPushOverlayOnly: ${data.isPushOverlayOnly}")
-            deploymentService.storeEntry(deviceSerial, packageName, newFiles, overlayId, logger)
+            tryDirectOverlaySwap(packageName, data, speculativeDump, arch)?.let { overlayId ->
+                val costTime = System.currentTimeMillis() - startTime
+                logger.info("after direct overlay deploy, cost: ${costTime}ms, overlay id: ${overlayId.sha}, " +
+                        "is base install: ${overlayId.isBaseInstall}, isPushOverlayOnly: ${data.isPushOverlayOnly}")
+                publishNative()
+                deploymentService.storeEntry(deviceSerial, packageName, newFiles, overlayId, logger)
+                return Result().also {
+                    it.overlayId = overlayId.sha
+                    it.needsRestart = true
+                }
+            }
 
-            return Result().also {
-                it.overlayId = overlayId.sha
+            // On an on-host verification of the dump first.
+            val verifyDump = verifyCache(speculativeDump, asDeployerCompat, installSession, logger, deviceAdb)
+
+            // Convert to ADT deploy data.
+            val builder = OverlayUpdateBuilder(asDeployerCompat)
+            val overlayUpdate = builder.build(verifyDump, data)
+
+            // Perform the swap.
+            try {
+                val overlayId = runWithOfflineRetry("optimistic swap", deviceAdb, logger) {
+                    asDeployerCompat.optimisticSwap(
+                        installSession, redefiners, packageName,
+                        argRestart, pids, arch, overlayUpdate,
+                        device, logger,
+                        data.isPushOverlayOnly,
+                    )
+                }
+                val costTime = System.currentTimeMillis() - startTime
+                logger.info("after deploy, cost: ${costTime}ms, overlay id: ${overlayId.sha}, " +
+                        "is base install: ${overlayId.isBaseInstall}, isPushOverlayOnly: ${data.isPushOverlayOnly}")
+                publishNative()
+                deploymentService.storeEntry(deviceSerial, packageName, newFiles, overlayId, logger)
+
+                return Result().also {
+                    it.overlayId = overlayId.sha
+                }
+            } catch (e: Exception) {
+                val realErrorMessage = logger.realErrorMessage
+                logger.info("Deploy failed, error: \"${realErrorMessage}\"", e)
+                if (realErrorMessage != null) {
+                    throw IllegalStateException("Deploy failed, error: \"${realErrorMessage}\"", e)
+                } else {
+                    throw asDeployerCompat.wrapDeployerException(e) ?: e
+                }
             }
         } catch (e: Exception) {
-            val realErrorMessage = logger.realErrorMessage
-            logger.info("Deploy failed, error: \"${realErrorMessage}\"", e)
-            if (realErrorMessage != null) {
-                throw IllegalStateException("Deploy failed, error: \"${realErrorMessage}\"", e)
-            } else {
-                throw asDeployerCompat.wrapDeployerException(e) ?: e
+            if (nativeRequest != null) {
+                try {
+                    nativeWriter!!.rollback(nativeRequest)
+                } catch (rollbackError: Exception) {
+                    e.addSuppressed(rollbackError)
+                }
             }
+            throw e
+        } finally {
+            if (nativeRequest != null) nativeWriter!!.discard(nativeRequest)
         }
     }
 

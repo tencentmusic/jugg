@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.deploy.run.applychanges
 import com.android.tools.deployer.DexComparator.ChangedClasses
 import com.android.tools.deployer.model.ApkEntry
 import com.android.tools.idea.protobuf.ByteString
+import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentCacheEntry
@@ -28,13 +29,15 @@ class OverlayUpdateBuilder(private val asDeployerCompat: IAsDeployerCompat) {
         val baseApk = cacheEntry.apks.find { it.name == "base.apk" } ?: cacheEntry.apks.first()
         val cacheEntryMap = cacheEntry.apks.associateBy { it.path }
         val overlayFiles = linkedMapOf<String, Pair<ApkEntry, ByteString>>()
-        data.overlays.forEach { item ->
+        (data.overlays + data.nativeLibraryOverlays.filterNot { it.isFileBacked }).forEach { item ->
             val targetPaths = item.targetApkPaths.ifEmpty { listOf(item.apkPath) }
             targetPaths.forEach { targetPath ->
                 val apk = if (targetPath == DeployItem.Companion.FLAG_CLASS || targetPath == DeployItem.Companion.FLAG_BASE_APK) {
                     baseApk
                 } else {
-                    cacheEntryMap[targetPath] ?: baseApk
+                    cacheEntryMap[targetPath] ?: if (item.type == CompileOutput.Type.NativeLib) {
+                        throw IllegalArgumentException("Unknown APK scope for ${item.name}: $targetPath")
+                    } else baseApk
                 }
                 val overlay = item.toIncompleteOverlay(apk)
                 overlayFiles.putIfAbsent(overlay.first.qualifiedPath, overlay)

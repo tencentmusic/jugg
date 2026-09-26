@@ -135,7 +135,7 @@ internal object DeployFlowTestSupport {
             isFullRes = false,
             isWarmUp = false,
             isPushOverlayOnly = false,
-            updateApkFiles = listOf(
+            nativeLibraryOverlays = listOf(
                 DeployItem(
                     name = nativeLibName,
                     type = CompileOutput.Type.NativeLib,
