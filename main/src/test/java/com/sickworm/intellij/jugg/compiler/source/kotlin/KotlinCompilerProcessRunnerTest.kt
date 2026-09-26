@@ -44,6 +44,35 @@ class KotlinCompilerProcessRunnerTest {
     }
 
     @Test
+    fun `passes validated IDE home as one JVM argument before compiler main`() {
+        val home = File("/tmp/Android Studio")
+        val command = KotlinCompilerProcessRunner.buildCommand(
+            javaHome = File("/tmp/jdk"),
+            javaFeature = 17,
+            compilerClasspath = listOf(File("/tmp/kotlin-compiler.jar")),
+            compilerArgsFile = File("/tmp/jugg-kotlinc.args"),
+            ideaHomePath = home.path,
+        )
+
+        val option = "-Didea.home.path=${home.path}"
+        assertEquals(1, command.count { it == option })
+        assertTrue(command.indexOf(option) < command.indexOf("org.jetbrains.kotlin.cli.jvm.K2JVMCompiler"))
+    }
+
+    @Test
+    fun `omits IDE home argument when no valid home is available`() {
+        val command = KotlinCompilerProcessRunner.buildCommand(
+            javaHome = File("/tmp/jdk"),
+            javaFeature = 17,
+            compilerClasspath = listOf(File("/tmp/kotlin-compiler.jar")),
+            compilerArgsFile = File("/tmp/jugg-kotlinc.args"),
+            ideaHomePath = null,
+        )
+
+        assertFalse(command.any { it.startsWith("-Didea.home.path=") })
+    }
+
+    @Test
     fun `prefers java home from compile environment`() {
         val javaHome = KotlinCompilerProcessRunner.resolveJavaHome(
             compileEnv = listOf("PATH=/usr/bin", "JAVA_HOME=/tmp/gradle-jdk"),
