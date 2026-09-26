@@ -145,13 +145,20 @@ logger.warn("message bla bla bla" +
 ## Pull Request
 
 1. Fork 仓库，并从 `main` 拉取新分支。
-2. 向 `main` 提交 Pull Request。较大改动时，维护者可能会要求改以 `develop` 为目标分支。
-3. 保持 PR 聚焦：一个问题、一个修复、一套验证说明。
-4. 填写 Pull Request 模板（`.github/PULL_REQUEST_TEMPLATE.md`）。GitHub 创建 PR 时会自动带上该模板。至少写清：
+2. 分支名使用 `<type>/<topic>`：`type` 取主要改动类型（`feature`、`bugfix`、`optimize`、`refactor`、`docs`、`test` 或 `other`），`topic` 用简短的小写英文 kebab-case 描述场景，例如 `bugfix/idea-home-compat`。不得默认使用 `codex/` 前缀；维护者指定分支名时按其要求调整。
+3. 向 `main` 提交 Pull Request；维护者指定其他目标分支时按其要求调整。
+4. 保持 PR 聚焦：一个问题、一个修复、一套验证说明。
+5. 填写 Pull Request 模板（`.github/PULL_REQUEST_TEMPLATE.md`）。GitHub 创建 PR 时会自动带上该模板。至少写清：
    - 改了什么用户可观察问题或能力
    - 如何验证
+   - 在 `Task plan` 中提供指向本 PR 新增或更新的 `docs/task/YYYY-MM/` 方案的可点击链接
    - 关联 Issue（如有）
-5. 接受 review 意见。可以用小的后续 commit 继续修改；除非维护者要求，否则不要 force-push。
+6. 接受 review 意见。可以用小的后续 commit 继续修改；除非维护者要求，否则不要 force-push。
+
+维护者可选择通过 PR 完成新增 feature、Android Studio 兼容性改动，以及影响编译/部署主链路或需要跨版本验证的 bugfix。范围明确的小型 bugfix 和普通文档更新可直接提交。PR 自动执行 `./gradlew :idea:buildPlugin`；其他验证仍按改动风险完成并写入 PR。
+
+每个 PR（包括文档和构建改动）都必须在 `docs/task/YYYY-MM/` 新增或更新任务方案。小改动可写简短方案，说明目标、范围、做法、验证及未完成事项；实际实施与方案不同时需同步更新。PR 描述应链接到 PR 分支中已提交的文件。
+`Task Plan` 自动检查覆盖所有目标分支，同时校验本 PR 修改的方案文件与描述中的链接。
 
 不要提交密钥、本地 IDE 文件、`build/` 产物，或无关的格式化改动。
 

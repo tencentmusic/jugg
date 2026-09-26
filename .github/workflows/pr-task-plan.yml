@@ -1,0 +1,26 @@
+name: Check Pull Request Task Plan
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited, ready_for_review]
+
+permissions:
+  contents: read
+
+jobs:
+  task-plan:
+    name: Task Plan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out pull request
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Check committed plan and PR link
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git show "${BASE_SHA}:tools/check_pr_plan.py" > "$RUNNER_TEMP/check_pr_plan.py"
+          python3 "$RUNNER_TEMP/check_pr_plan.py" "$GITHUB_EVENT_PATH"

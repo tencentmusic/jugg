@@ -115,7 +115,7 @@ If the change cannot be asserted automatically without binding private implement
 
 ## Commit messages
 
-Use English. Title format: `[prefix] subject`
+Use English. Title format: `[prefix][module] subject`, with exactly one of each tag and no space between them.
 
 - `subject` starts with a lowercase letter and does not end with a period.
 - Choose the prefix from the user-visible result:
@@ -123,29 +123,37 @@ Use English. Title format: `[prefix] subject`
   - `[feature]` new user-visible capability
   - `[optimize]` existing behavior is correct, but clearer, more reliable, or easier to use
   - `[refactor]` / `[docs]` / `[test]` / `[other]` for no behavior change, documentation, tests, or other work
+- Choose the most specific existing `[module]` tag for the functional area, such as `[compile]`, `[deploy]`, `[compat]`, `[build]`, or `[repo]`.
 - Describe the user scenario and observable result, not the internal implementation.
-- `[bugfix]` titles usually look like `[bugfix] fix <problem> when/after/for <scenario>`.
-- `[optimize]` titles usually look like `[optimize] <improvement> when/for <scenario>`.
+- `[bugfix]` titles usually look like `[bugfix][module] fix <problem> when/after/for <scenario>`.
+- `[optimize]` titles usually look like `[optimize][module] <improvement> when/for <scenario>`.
 
 If the title is not enough, add a short body after a blank line.
 
 Examples:
 
 ```text
-[bugfix] fix incremental deploy skipping resource changes after Gradle fallback
-[docs] add repository contributor guidelines
+[bugfix][deploy] fix incremental deploy skipping resource changes after Gradle fallback
+[docs][repo] add repository contributor guidelines
 ```
 
 ## Pull requests
 
 1. Fork the repository and create a branch from `main`.
-2. Open a pull request against `main`. Maintainers may redirect larger work to `develop`.
-3. Keep the pull request focused. One problem, one fix, one verification story.
-4. Complete the pull request template (`.github/PULL_REQUEST_TEMPLATE.md`). GitHub fills it in when you open a PR. At minimum, include:
+2. Name the branch `<type>/<topic>` using the primary change type (`feature`, `bugfix`, `optimize`, `refactor`, `docs`, `test`, or `other`) and a short lowercase kebab-case topic, such as `bugfix/idea-home-compat`. Do not default to a `codex/` prefix; use a maintainer-specified name when given.
+3. Open a pull request against `main`, unless a maintainer requests another target branch.
+4. Keep the pull request focused. One problem, one fix, one verification story.
+5. Complete the pull request template (`.github/PULL_REQUEST_TEMPLATE.md`). GitHub fills it in when you open a PR. At minimum, include:
    - What user-visible problem or capability this changes
    - How you verified it
+   - A clickable link in `Task plan` to a plan added or updated by this PR under `docs/task/YYYY-MM/`
    - Linked issue, if there is one
-5. Expect review comments. Small follow-up commits are fine; do not force-push unless a maintainer asks.
+6. Expect review comments. Small follow-up commits are fine; do not force-push unless a maintainer asks.
+
+Maintainers may choose pull requests for new features, Android Studio compatibility changes, and bug fixes affecting the main compile/deploy flow or requiring cross-version verification. They may commit small, focused bug fixes and routine documentation updates directly. Pull requests run `./gradlew :idea:buildPlugin`; include any additional verification appropriate to the change.
+
+Every pull request, including documentation and build changes, must add or update a task plan in `docs/task/YYYY-MM/`. Keep small plans concise. Record the goal, scope, approach, verification, and any remaining work; update the plan if implementation differs from it. Link the committed file from the PR head branch in the description.
+The `Task Plan` check verifies both the changed file and its PR description link for every target branch.
 
 Do not include secrets, local IDE files, `build/` outputs, or unrelated formatting churn.
 
