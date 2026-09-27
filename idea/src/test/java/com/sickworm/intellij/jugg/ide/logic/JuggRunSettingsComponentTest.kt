@@ -159,7 +159,7 @@ class JuggRunSettingsComponentTest {
         }
         assertEquals(9, settingCheckboxes)
         assertTrue(settingRows.containsAll(listOf(
-            "SO hot update Push changed .so files into the app and restart, skipping APK re-sign and reinstall.",
+            "SO hot update On Android 8.0+, updates .so files loaded by System.loadLibrary after an app restart. Already loaded libraries and absolute-path dlopen are unsupported; large .so files require app sandbox access. Older versions update the APK.",
             "Install CLI and agent skills Install the Jugg CLI, agent skills, hooks, and required permissions.",
             "Check Jugg updates Check whether a newer Jugg plugin is available.",
             "Set custom server URL Configure the server used by Jugg services.",

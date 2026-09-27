@@ -695,8 +695,9 @@ class JuggDeployerHelper(
             )
         }
 
-        var deployData = routeNativeLibraries(device, deployOptions.retryDeployData
-            ?: deployFileManager.getDeployData(deployOptions.isWarmUp, isNeedPushResourceApk(device, initialDeployData)))
+        var deployData = deployOptions.retryDeployData
+            ?: deployFileManager.getDeployData(deployOptions.isWarmUp, isNeedPushResourceApk(device, initialDeployData))
+        deployData = routeNativeLibraries(device, deployData)
         publishDeployState(deployData)
         deployData = libraryTestApkBackfillHelper.backfillIfNeeded(
             spec = deployOptions.androidTestRunSpec,
@@ -730,11 +731,11 @@ class JuggDeployerHelper(
             TimeLogger.start("insertFileAndResignApk")
             val (isSuccess, failedReason) = IncrementalDeployHelper(compileContextManager.compileContext, logger)
                 .updateApk(
-                        deployData.apks,
-                        deployData.updateApkFiles,
-                        deployOptions.customApkSignScript,
-                        deployOptions.compileUiHandler,
-                    )
+                    deployData.apks,
+                    deployData.updateApkFiles,
+                    deployOptions.customApkSignScript,
+                    deployOptions.compileUiHandler,
+                )
             if (!isSuccess) {
                 return ChangesDeployOutcome(
                     DeployTaskResult(isSuccess = false, isCanFallback = true, costTime = costTime(), failedReason = failedReason),
@@ -797,10 +798,11 @@ class JuggDeployerHelper(
 
         // get deploy data again after resigning apk (trigger full res deploy)
         if (isRecoverWithReinstall) {
-            deployData = routeNativeLibraries(device, deployFileManager.getDeployData(
+            deployData = deployFileManager.getDeployData(
                 deployOptions.isWarmUp,
                 isNeedPushResourceApk(device, deployData),
-            )).copy(isRecoverReplayAfterReinstall = true)
+            ).copy(isRecoverReplayAfterReinstall = true)
+            deployData = routeNativeLibraries(device, deployData)
             publishDeployState(deployData)
         }
 

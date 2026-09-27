@@ -128,6 +128,7 @@ class JuggDeployer(
             logger.info("Skip Direct Overlay reset after custom install: ${sandbox.unavailableReason}")
             return
         }
+        // Custom installs can preserve app data; remove legacy native patches as well.
         val output = sandbox.exec(
             "rm -rf code_cache/.overlay code_cache/.jugg_native ${NativeSandboxWriter.TEMP_ROOT} && echo success",
             repairCodeCache = true,
@@ -250,26 +251,7 @@ class JuggDeployer(
             }
         }
 
-        val nativeFiles = data.nativeLibraryOverlays.filter { it.isFileBacked }
-        val nativeRequest = if (nativeFiles.isEmpty()) null else NativeSandboxWriteRequest(
-            packageName = packageName,
-            sessionId = UUID.randomUUID().toString().replace("-", ""),
-            files = nativeFiles,
-            apkNamesByPath = (speculativeDump ?: throw asDeployerCompat.remoteApkNotFound())
-                .apks.associate { it.path to it.name },
-        )
-        val nativeWriter = nativeRequest?.let {
-            val sandbox = launchContext.getAppSandboxExecutor(packageName, logger.logger)
-            check(sandbox.mode != AppSandboxExecutor.Mode.UNAVAILABLE) {
-                "Large native library overlay requires app sandbox access for $packageName"
-            }
-            NativeSandboxWriter(deviceAdb, sandbox, logger.logger).also { writer -> writer.stage(it) }
-        }
-        fun publishNative() {
-            if (nativeRequest != null) nativeWriter!!.publish(nativeRequest)
-        }
-
-        try {
+        return withNativeLibraryOverlays(packageName, data, speculativeDump) { publishNative ->
             val startTime = System.currentTimeMillis()
             tryDirectAppSandboxDeploy(packageName, data, speculativeDump, pids, arch)?.let { directResult ->
                 val costTime = System.currentTimeMillis() - startTime
@@ -282,9 +264,11 @@ class JuggDeployer(
                     publishNative()
                     deploymentService.storeEntry(deviceSerial, packageName, newFiles, directResult.overlayId, logger)
                 } else {
-                    check(nativeRequest == null) { "Large native library overlay cannot be deferred to rootless import" }
+                    check(data.nativeLibraryOverlays.none { it.isFileBacked }) {
+                        "Large native library overlay cannot be deferred to rootless import"
+                    }
                 }
-                return Result().also {
+                return@withNativeLibraryOverlays Result().also {
                     it.overlayId = directResult.overlayId.sha
                     it.needsRestart = directResult.needsRestart
                     it.rootlessCompatPending = directResult.pendingRequest
@@ -296,7 +280,7 @@ class JuggDeployer(
                         "is base install: ${overlayId.isBaseInstall}, isPushOverlayOnly: ${data.isPushOverlayOnly}")
                 publishNative()
                 deploymentService.storeEntry(deviceSerial, packageName, newFiles, overlayId, logger)
-                return Result().also {
+                return@withNativeLibraryOverlays Result().also {
                     it.overlayId = overlayId.sha
                     it.needsRestart = true
                 }
@@ -325,7 +309,7 @@ class JuggDeployer(
                 publishNative()
                 deploymentService.storeEntry(deviceSerial, packageName, newFiles, overlayId, logger)
 
-                return Result().also {
+                return@withNativeLibraryOverlays Result().also {
                     it.overlayId = overlayId.sha
                 }
             } catch (e: Exception) {
@@ -337,17 +321,43 @@ class JuggDeployer(
                     throw asDeployerCompat.wrapDeployerException(e) ?: e
                 }
             }
+        }
+    }
+
+    /** Keeps large native libraries staged until the ordinary overlay and cache commit succeed. */
+    private fun withNativeLibraryOverlays(
+        packageName: String,
+        data: JuggDeployData,
+        cacheEntry: JuggDeploymentCacheEntry?,
+        deploy: (publishNative: () -> Unit) -> Result,
+    ): Result {
+        val nativeFiles = data.nativeLibraryOverlays.filter { it.isFileBacked }
+        if (nativeFiles.isEmpty()) return deploy({})
+
+        val request = NativeSandboxWriteRequest(
+            packageName = packageName,
+            sessionId = UUID.randomUUID().toString().replace("-", ""),
+            files = nativeFiles,
+            apkNamesByPath = (cacheEntry ?: throw asDeployerCompat.remoteApkNotFound())
+                .apks.associate { it.path to it.name },
+        )
+        val sandbox = launchContext.getAppSandboxExecutor(packageName, logger.logger)
+        check(sandbox.mode != AppSandboxExecutor.Mode.UNAVAILABLE) {
+            "Large native library overlay requires app sandbox access for $packageName"
+        }
+        val writer = NativeSandboxWriter(deviceAdb, sandbox, logger.logger)
+        writer.stage(request)
+        try {
+            return deploy { writer.publish(request) }
         } catch (e: Exception) {
-            if (nativeRequest != null) {
-                try {
-                    nativeWriter!!.rollback(nativeRequest)
-                } catch (rollbackError: Exception) {
-                    e.addSuppressed(rollbackError)
-                }
+            try {
+                writer.rollback(request)
+            } catch (rollbackError: Exception) {
+                e.addSuppressed(rollbackError)
             }
             throw e
         } finally {
-            if (nativeRequest != null) nativeWriter!!.discard(nativeRequest)
+            writer.discard(request)
         }
     }
 

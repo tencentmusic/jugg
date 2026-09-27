@@ -152,11 +152,11 @@ BootstrapApplication.attachBaseContext
   -> compat/embedded 需要时 HotfixLoader.install(base)
   -> NativeLibraryPathInstaller.install(base)
 InstrumentationHooks.handleAttachBaseContextEntry / handleNewApplicationEntry*
-  -> DexPathListFixer.isNeedFix 时 installDex / install
+  -> DexPathListFixer.isNeedFix 时 HotfixLoader.init(base) 与 installDex / install
   -> NativeLibraryPathInstaller.install(base)
 ```
 
-`NativeLibraryPathInstaller` 只处理 API 26+；`context == null` 或低 API 时 warn 后返回。只扫描带 `id` 的已提交 `.overlay`，按 base/split APK 优先顺序、当前进程位数对应的 `SUPPORTED_*_BIT_ABIS` 选择包含 `lib*.so` 的目录，再更新 `nativeLibraryDirectories` 与 `nativeLibraryPathElements`。旧 `.jugg_native/.enabled` 下的 ABI 目录只作低优先级兼容读取，等待下次 `pm clear`/重装清理。重复调用时先移除原先注入的 native 目录，保证顺序幂等。反射失败写 `code_cache/.jugg_native_inject_failed` 并 warn。此机制覆盖 `findLibrary` / `System.loadLibrary`，不覆盖绝对路径 `dlopen`；已加载的 SO 仍需重启进程。
+`NativeLibraryPathInstaller` 不依赖 `HotfixLoader.init`；未初始化时直接使用 `base.getCodeCacheDir()`，避免纯 SO 路径为 Dex 初始化额外扫描资源。它只处理 API 26+；`context == null` 或低 API 时 warn 后返回。只扫描带 `id` 的已提交 `.overlay`，按 base/split APK 优先顺序、当前进程位数对应的 `SUPPORTED_*_BIT_ABIS` 选择包含 `lib*.so` 的目录，再更新 `nativeLibraryDirectories` 与 `nativeLibraryPathElements`。旧 `.jugg_native/.enabled` 下的 ABI 目录只作低优先级兼容读取，等待下次 `pm clear`/重装清理。重复调用时先移除原先注入的 native 目录，保证顺序幂等。反射失败写 `code_cache/.jugg_native_inject_failed` 并 warn。此机制覆盖 `findLibrary` / `System.loadLibrary`，不覆盖绝对路径 `dlopen`；已加载的 SO 仍需重启进程。
 
 ### 4.4 Direct app sandbox dynamic redefine
 

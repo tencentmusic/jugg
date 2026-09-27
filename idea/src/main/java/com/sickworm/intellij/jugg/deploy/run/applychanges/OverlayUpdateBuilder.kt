@@ -32,12 +32,13 @@ class OverlayUpdateBuilder(private val asDeployerCompat: IAsDeployerCompat) {
         (data.overlays + data.nativeLibraryOverlays.filterNot { it.isFileBacked }).forEach { item ->
             val targetPaths = item.targetApkPaths.ifEmpty { listOf(item.apkPath) }
             targetPaths.forEach { targetPath ->
-                val apk = if (targetPath == DeployItem.Companion.FLAG_CLASS || targetPath == DeployItem.Companion.FLAG_BASE_APK) {
-                    baseApk
-                } else {
-                    cacheEntryMap[targetPath] ?: if (item.type == CompileOutput.Type.NativeLib) {
+                val scopedApk = cacheEntryMap[targetPath]
+                val apk = when {
+                    targetPath == DeployItem.FLAG_CLASS || targetPath == DeployItem.FLAG_BASE_APK -> baseApk
+                    scopedApk != null -> scopedApk
+                    item.type == CompileOutput.Type.NativeLib ->
                         throw IllegalArgumentException("Unknown APK scope for ${item.name}: $targetPath")
-                    } else baseApk
+                    else -> baseApk
                 }
                 val overlay = item.toIncompleteOverlay(apk)
                 overlayFiles.putIfAbsent(overlay.first.qualifiedPath, overlay)
