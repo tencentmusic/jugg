@@ -81,7 +81,7 @@ Profile/Release 使用 AOT 产物 `libapp.so`，属于 native lib，也按上述
 - 删除 `.so` 不会生成 APK 内文件的移除数据，也不会仅因此让增量编译失败。已安装 APK 继续包含原有 native lib，只有需要让删除真正生效时才执行完整 Gradle 构建。
 - 多 APK 工程按目标 APK 归属更新，不会把同一份 native lib 默认写入所有 APK。
 - 工程重开后，Jugg 会从本地成功部署记录恢复此前更新的 `.so`。如果设备恢复需要重装 App，开启「SO hot update」且设备为 Android 8.0+ 时，会按目标 APK 重放这些 `.so`；其它情况使用重装后的 APK 内容。本地记录中没有的旧 `.so` 无法重放，需要再次部署。
-- 关闭「SO hot update」或设备低于 Android 8.0 时，仍通过 APK 更新 `.so`；签名配置缺失或无效会使 APK 更新失败。切换开关会在下一次 Run 清除 App 数据并重装。
+- 关闭「SO hot update」或设备低于 Android 8.0 时，仍通过 APK 更新 `.so`；签名配置缺失或无效会使 APK 更新失败。从开启切换为关闭后，下一次 Run 会执行完整 Gradle 构建并安装包含最新 `.so` 的 APK；开启开关仍会安排清除 App 数据并重装。
 
 ## 相关页面
 

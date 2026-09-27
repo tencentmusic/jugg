@@ -81,7 +81,7 @@ Profile/Release use the AOT artifact `libapp.so`, which is a native library and 
 - Deleting an `.so` does not produce data that removes the file from the APK and does not fail incremental compilation by itself. The installed APK continues containing the old native library. Run a full Gradle build only when the deletion must actually take effect.
 - Multi-APK projects update native libraries according to target APK ownership instead of writing the same native library into every APK by default.
 - After a project reopens, Jugg restores previously updated `.so` files from local records of successful deployments. If device recovery reinstalls the app, Jugg replays those files for their target APK when “SO hot update” is enabled on Android 8.0+; otherwise, it uses the content of the reinstalled APK. Older `.so` files absent from local records cannot be replayed and must be deployed again.
-- With “SO hot update” disabled or Android older than 8.0, `.so` files still use APK updates; missing or invalid signing configuration makes that update fail. Changing the setting clears app data and reinstalls the app on the next Run.
+- With “SO hot update” disabled or Android older than 8.0, `.so` files still use APK updates; missing or invalid signing configuration makes that update fail. Switching the setting from enabled to disabled makes the next Run perform a full Gradle build and install an APK containing the latest `.so` files. Enabling the setting still schedules app data clearing and reinstallation.
 
 ## Related pages
 

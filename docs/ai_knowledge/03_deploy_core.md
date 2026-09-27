@@ -130,7 +130,6 @@ JuggDeployerHelper.deploy(isInstall=false)
   -> deployIncrementalChanges()
   -> DeployFileManager.getDeployData(isWarmUp, isNeedPushResourceApk)
   -> LibraryTestApkBackfillHelper.backfillIfNeeded()
-  -> 开启 SO hot update: 确认框介绍适用范围，提示下一次 Run 执行 pm clear 与重装；关闭时不弹框，同样安排清理重装
   -> Settings 开启 SO hot update 且 API ≥ 26: 普通 NativeLib 随同轮文件进入通用 overlay；大型 file-backed SO 单独传输后发布到同一 APK/ABI overlay 路径
   -> 其他 APK 更新或 sandbox 失败: IncrementalDeployHelper.updateApk() + recoverDeployState()
   -> 设备 not ready 或 **跨工程切换**（`LastCompileProjectRegistry` + `isProjectSwitchedThisRun`）: DeployStateRecover.recoverDeployState()
@@ -141,7 +140,9 @@ JuggDeployerHelper.deploy(isInstall=false)
   -> updateInfoAfterIncDeploy()
 ```
 
-APK 更新统一走 `IncrementalDeployHelper.updateApk()`；无自定义签名脚本时要求有效 signingConfig。`DeployDataGenerator` 把 NativeLib 放入独立的 `nativeLibraryOverlays`，不改变资源 `overlays` / `isFullRes` 语义。Helper 在 APK 更新前按 SO hot update 开关与 API ≥ 26 路由：关闭或低 API 时合并到 `updateApkFiles` 并沿用流式 APK 改写、重签、安装；开启时普通 SO 由 `OverlayUpdateBuilder` 纳入带 APK scope 的 `fileOverlays`，与 Dex、资源、Asset 使用同一 transport、overlay ID 和 deployment cache。file-backed 大型 SO 不读取 `content` 或进入 ByteString；通用 overlay 成功后，`JuggDeployer` 才经 `NativeSandboxWriter` push 源文件、暂存并发布到 `code_cache/.overlay/<apkName>/lib/<abi>/`，再提交缓存。传输、发布失败则整轮失败，不回退 APK；通用 overlay 已提交而本轮失败时交给既有 overlay ID mismatch/recover 对齐。SO 要求完整重启 App，切换开关强制下次 Run 清理 App 数据并重装。Runtime 仅从带 `id` 的已提交 `.overlay` 扫描对应进程 ABI，并把旧 `.jugg_native/.enabled` 路径作为低优先级兼容读取。
+APK 更新统一走 `IncrementalDeployHelper.updateApk()`；无自定义签名脚本时要求有效 signingConfig。`DeployDataGenerator` 把 NativeLib 放入独立的 `nativeLibraryOverlays`，不改变资源 `overlays` / `isFullRes` 语义。Helper 在 APK 更新前按 SO hot update 开关与 API ≥ 26 路由：关闭或低 API 时合并到 `updateApkFiles` 并沿用流式 APK 改写、重签、安装；开启时普通 SO 由 `OverlayUpdateBuilder` 纳入带 APK scope 的 `fileOverlays`，与 Dex、资源、Asset 使用同一 transport、overlay ID 和 deployment cache。file-backed 大型 SO 不读取 `content` 或进入 ByteString；通用 overlay 成功后，`JuggDeployer` 才经 `NativeSandboxWriter` push 源文件、暂存并发布到 `code_cache/.overlay/<apkName>/lib/<abi>/`，再提交缓存。传输、发布失败则整轮失败，不回退 APK；通用 overlay 已提交而本轮失败时交给既有 overlay ID mismatch/recover 对齐。SO 要求完整重启 App。Runtime 仅从带 `id` 的已提交 `.overlay` 扫描对应进程 ABI，并把旧 `.jugg_native/.enabled` 路径作为低优先级兼容读取。
+
+Settings 从开启切换为关闭 SO hot update 时，删除旧增量基线，使下一次 Run 完整 Gradle 构建并安装包含最新 SO 的 APK；开启时沿用清数据重装。一直关闭时的普通重装不删除增量基线。
 
 ```text
 IncrementalDeployHelper.updateApk(apkInfos, deployItems, customApkSignScript, compileUiHandler)

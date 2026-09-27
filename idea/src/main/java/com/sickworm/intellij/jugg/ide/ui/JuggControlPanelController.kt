@@ -173,6 +173,10 @@ open class JuggControlPanelController(
             return
         }
         JuggSettings.isEnableNativeSandboxDeploy = enabled
+        if (!enabled) {
+            // The APK baseline may not contain native libraries deployed through overlays.
+            deployHistoryManager.deleteDeployHistory()
+        }
         manager.forceReInstallNextTime()
         model.updateSettings(currentSettings())
         recordSettingChanged(Setting.SO_HOT_UPDATE.displayName, enabled)
