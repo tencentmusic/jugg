@@ -153,6 +153,108 @@ class ExternalBuildFlowTest {
     }
 
     @Test
+    fun `skips a previously deployed sibling native library`() {
+        val root = Files.createTempDirectory("jugg-deployed-native-sibling").toFile()
+        val parent = object : Disposable {
+            override fun dispose() = Unit
+        }
+        try {
+            val sourceRoot = File(root, "native").apply { mkdirs() }
+            val mergeOutput = File(root, "build/native")
+            val strippedOutput = File(root, "stripped/app")
+            val module = createCppModule(root, "app", root, sourceRoot,
+                ":app:mergeDebugNativeLibs", mergeOutput)
+            createCppCollectorGradleScript(root, listOf(CppStubTarget(
+                "app", root, ":app:mergeDebugNativeLibs", mergeOutput, strippedOutput, "libchanged.so",
+            )))
+            File(strippedOutput, "arm64-v8a/libstable.so").apply {
+                parentFile.mkdirs()
+                writeText("previously-deployed")
+            }
+            val source = File(sourceRoot, "native.cpp").apply { writeText("void nativeCall() {}") }
+            val context = createContext(root, module, "./gradlew :app:assembleDebug",
+                externalBuildInfoInitScript = createInitScript(root))
+            createArchive(context.apkFile, mapOf(
+                "AndroidManifest.xml" to "manifest",
+                "lib/arm64-v8a/libchanged.so" to "baseline-changed",
+                "lib/arm64-v8a/libstable.so" to "baseline-stable",
+            ))
+            val deployedRoot = File(root, "deployed")
+            val deployedStable = File(deployedRoot, "lib/arm64-v8a/libstable.so").apply {
+                parentFile.mkdirs()
+                writeText("previously-deployed")
+            }
+            val otherDeployedRoot = File(root, "other-deployed")
+            val otherDeployedStable = File(otherDeployedRoot, "lib/arm64-v8a/libstable.so").apply {
+                parentFile.mkdirs()
+                writeText("other-apk-version")
+            }
+            context.deployedFiles += CompileOutput(CompileOutput.Type.NativeLib, otherDeployedStable,
+                otherDeployedRoot, File(root, "other.apk").path)
+            context.deployedFiles += CompileOutput(CompileOutput.Type.NativeLib, deployedStable,
+                deployedRoot, context.apkFile.path)
+
+            val result = JuggCompiler(context, parent).compile(CompileTask(
+                listOf(CompileFile(CompileFile.Type.ExternalBuildSource, source, sourceRoot, module)),
+                File(root, "staging"), CompileStatusHolder.DEFAULT,
+            ))
+
+            assertTrue(result.isAllSuccess, result.toString())
+            assertEquals(listOf("lib/arm64-v8a/libchanged.so"),
+                result.outputs.filter { it.type == CompileOutput.Type.NativeLib }
+                    .map { it.relativeFile.invariantSeparatorsPath })
+        } finally {
+            Disposer.dispose(parent)
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `redeploys a native library reverted to the apk baseline`() {
+        val root = Files.createTempDirectory("jugg-reverted-native").toFile()
+        val parent = object : Disposable {
+            override fun dispose() = Unit
+        }
+        try {
+            val sourceRoot = File(root, "native").apply { mkdirs() }
+            val mergeOutput = File(root, "build/native")
+            val strippedOutput = File(root, "stripped/app")
+            val module = createCppModule(root, "app", root, sourceRoot,
+                ":app:mergeDebugNativeLibs", mergeOutput)
+            createCppCollectorGradleScript(root, listOf(CppStubTarget(
+                "app", root, ":app:mergeDebugNativeLibs", mergeOutput, strippedOutput, "libnative.so",
+            )))
+            val source = File(sourceRoot, "native.cpp").apply { writeText("void nativeCall() {}") }
+            val context = createContext(root, module, "./gradlew :app:assembleDebug",
+                externalBuildInfoInitScript = createInitScript(root))
+            createArchive(context.apkFile, mapOf(
+                "AndroidManifest.xml" to "manifest",
+                "lib/arm64-v8a/libnative.so" to "stripped",
+            ))
+            val deployedRoot = File(root, "deployed")
+            val deployedNative = File(deployedRoot, "lib/arm64-v8a/libnative.so").apply {
+                parentFile.mkdirs()
+                writeText("previously-deployed")
+            }
+            context.deployedFiles += CompileOutput(CompileOutput.Type.NativeLib, deployedNative,
+                deployedRoot, context.apkFile.path)
+
+            val result = JuggCompiler(context, parent).compile(CompileTask(
+                listOf(CompileFile(CompileFile.Type.ExternalBuildSource, source, sourceRoot, module)),
+                File(root, "staging"), CompileStatusHolder.DEFAULT,
+            ))
+
+            assertTrue(result.isAllSuccess, result.toString())
+            assertEquals(listOf("lib/arm64-v8a/libnative.so"),
+                result.outputs.filter { it.type == CompileOutput.Type.NativeLib }
+                    .map { it.relativeFile.invariantSeparatorsPath })
+        } finally {
+            Disposer.dispose(parent)
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
     fun `fails Cpp round when the invocation reports no stripped native output`() {
         val root = Files.createTempDirectory("jugg-cpp-no-stripped-output").toFile()
         val parent = object : Disposable {
@@ -972,7 +1074,7 @@ class ExternalBuildFlowTest {
                     """"buildVariant":"debug","previousTaskPath":"${target.taskPath}",""" +
                     """"externalBuildInfo":{"type":"Cpp","inputDirs":[{"directory":"${target.moduleRoot.path}","filterRules":["CppSource"]}],""" +
                     """"taskPath":"${target.taskPath}","nativeOutput":"${target.mergeOutputDir.path}",""" +
-                    """"configFiles":[],"excludedDirs":[]}$strippedField}"""
+                    """"configFiles":[],"excludedDirs":[],"prerequisites":[]}$strippedField}"""
         }
         val lines = mutableListOf(
             "#!/bin/bash",
@@ -1088,12 +1190,12 @@ class ExternalBuildFlowTest {
                 """"type":"Flutter","inputDirs":[{"directory":"${File(root, "flutter").path}","filterRules":["Dart"]}],""" +
                 """"taskPath":":flutter:packJniLibsflutterBuildDebug",""" +
                 """"assetsOutputDir":"${flutterOutput.path}","nativeOutput":"${flutterArchive.path}",""" +
-                """"configFiles":[],"excludedDirs":[]}},""" +
+                """"configFiles":[],"excludedDirs":[],"prerequisites":[]}},""" +
                 """{"moduleName":"app","moduleRootDir":"${root.path}","buildVariant":"debug",""" +
                 """"previousTaskPath":":app:mergeDebugNativeLibs","externalBuildInfo":{"type":"Cpp",""" +
                 """"inputDirs":[{"directory":"${root.path}","filterRules":["CppSource"]}],""" +
                 """"taskPath":":app:mergeDebugNativeLibs",""" +
-                """"nativeOutput":"${cppOutput.path}","configFiles":[],"excludedDirs":[]},""" +
+                """"nativeOutput":"${cppOutput.path}","configFiles":[],"excludedDirs":[],"prerequisites":[]},""" +
                 """"strippedNativeOutput":"${strippedCppOutput.path}"}"""
         val lines = mutableListOf(
             "#!/bin/bash",

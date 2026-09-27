@@ -65,7 +65,7 @@ Profile/Release 使用 AOT 产物 `libapp.so`，属于 native lib，也按上述
 - 开启「SO hot update」后，使用 App ClassLoader 的 `System.loadLibrary()` 可以优先找到 overlay 中的新库。`System.load()` 若指向原安装目录或 APK 中的库，仍会加载原库；若传入 `findLibrary()` 返回的补丁路径，则可以加载新库。native `dlopen()` / `android_dlopen_ext()` 和 ELF `DT_NEEDED` 依赖不经过这条 Java 搜索路径，可能继续使用旧库。已加载的库不会在进程内被替换。
 - 直接文件变化入口只识别项目目录中已经存在、父目录为 `armeabi`、`armeabi-v7a`、`arm64-v8a`、`x86` 或 `x86_64` 的 `.so`。
 - C/C++ 源码入口要求 Android Gradle 配置提供 CMake 或 ndk-build 文件，并能够找到当前变体的 native task。Jugg 不监听 `.cxx`、`.externalNativeBuild` 或 Gradle `build` 目录中的生成文件。工程可以在 Gradle extra `juggExternalBuildPrerequisites` 声明「哪些文件变化时先跑 codegen」；命中后同一轮先执行该 task，再跑 native merge，声明目录里相对 codegen 执行前发生大小或时间戳变化的 Kotlin/Java 才进入 Jugg 增量编译。没有声明的工程行为不变。
-- 每次检测到 C/C++ 源码变化都会执行 native task；产物内容校验只筛除与基线 APK 相同的 `.so`，不跳过 native 编译。
+- 每次检测到 C/C++ 源码变化都会执行 native task；同一目标 APK 中，产物优先与上次成功部署的 `.so` 比较，没有部署记录时与基线 APK 比较。未变化的库不重复下发，已热更新的库恢复为基线内容时仍会下发；产物比较不跳过 native 编译。
 - 部署的是按 app 打包语义 strip 过的 `.so`，而不是 module 中间产物目录里的未 strip 文件。Jugg 在 collector 进程内读取 APK owner（base app 或 dynamic feature）的 `strip<Variant>DebugSymbols` 配置并复现 AGP 的单文件 strip 行为，不执行该 strip task。本轮只执行因 C/C++ 变化被选中的 module merge task，不会额外执行 APK owner 的其他 native merge task。strip 工具缺失或返回非 0 时按 AGP 语义原样打包该文件。
 - 只有大于 `Int.MAX_VALUE`（2,147,483,647 bytes）的 NativeLib 使用 file-backed 路径；普通 `.so`、Dex、资源和 Asset 继续使用原有内存路径。file-backed 源文件在写入 APK 或推送设备前会重新校验存在性、大小和时间戳，变化后本轮明确失败。
 - APK 更新大型 `.so` 时要求基线 APK 已存在同路径 entry，并继承它的 `STORED` 或 `DEFLATED` 压缩方式；不会把 DEFLATED 大型 `.so` 强制改成 STORED。单 entry 达到经典 ZIP 4 GiB 边界、基线 entry 缺失、磁盘空间不足，或 zipalign、签名、校验、安装工具链拒绝时，本轮失败并保留原 APK。大文件的 CRC、压缩和临时 APK 会增加耗时与磁盘占用。

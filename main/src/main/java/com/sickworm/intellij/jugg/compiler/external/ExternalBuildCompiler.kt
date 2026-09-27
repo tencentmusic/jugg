@@ -285,7 +285,7 @@ class ExternalBuildCompiler(
         }.toList()
         return CollectedArtifacts(
             error = null,
-            outputs = allOutputs.filter { isChangedNativeLib(it, module) },
+            outputs = filterChangedNativeArtifacts(allOutputs, module, outputDir),
         )
     }
 
@@ -314,7 +314,7 @@ class ExternalBuildCompiler(
             .distinctBy { it.relativeFile.invariantSeparatorsPath }
         return CollectedArtifacts(
             error = null,
-            outputs = allOutputs.filter { isChangedNativeLib(it, module) },
+            outputs = filterChangedNativeArtifacts(allOutputs, module, nativeDir),
         )
     }
 
@@ -356,7 +356,7 @@ class ExternalBuildCompiler(
             }
             CollectedArtifacts(
                 error = null,
-                outputs = outputs.filter { isChangedNativeLib(it, module) },
+                outputs = filterChangedNativeArtifacts(outputs, module, nativeOutput),
             )
         } catch (e: Exception) {
             logger.debug("Read Flutter native output $nativeOutput failed", e)
@@ -379,22 +379,57 @@ class ExternalBuildCompiler(
         }
     }
 
+    private fun filterChangedNativeArtifacts(
+        outputs: List<CompileOutput>,
+        module: ModuleInfo,
+        outputSource: File,
+    ): List<CompileOutput> {
+        val changed = outputs.filter { isChangedNativeLib(it, module) }
+        logger.debug("Native library change detection: module=${module.name}, output=$outputSource, " +
+                "candidates=${outputs.size}, changed=${changed.size}, " +
+                "skipped=${outputs.size - changed.size}")
+        return changed
+    }
+
+    /**
+     * Compare each target APK against its deployed library first, then its APK baseline. A matching
+     * baseline cannot suppress a library that was previously overlaid with different content.
+     * Missing deployed files and unreadable APKs conservatively require another deployment.
+     */
     private fun isChangedNativeLib(output: CompileOutput, module: ModuleInfo): Boolean {
         val entryName = "lib/${output.relativeFile.invariantSeparatorsPath}"
         val targets = getTargetApkPaths(module)
         if (targets.isEmpty()) {
+            logger.debug("Keep native library $entryName for module ${module.name}: no target APK")
             return true
         }
-        return targets.any { apkPath ->
+        val deployed = context.deployedFiles.filter {
+            it.type == CompileOutput.Type.NativeLib &&
+                it.relativeFile.invariantSeparatorsPath == entryName
+        }
+        val checksum = output.file.crc32
+        val matchedSources = mutableListOf<String>()
+        val changed = targets.any { apkPath ->
+            val previous = deployed.find { it.apkPath == apkPath || apkPath in it.targetApkPaths }
+            if (previous != null) {
+                val matches = previous.file.isFile && previous.file.crc32 == checksum
+                if (matches) matchedSources += "$apkPath (deployed)"
+                return@any !matches
+            }
             try {
-                ZipFile(apkPath).use { apk ->
-                    apk.getEntry(entryName)?.crc != output.file.crc32
-                }
+                val matches = ZipFile(apkPath).use { apk -> apk.getEntry(entryName)?.crc == checksum }
+                if (matches) matchedSources += "$apkPath (APK baseline)"
+                !matches
             } catch (e: Exception) {
                 logger.debug("Read native entry $entryName from $apkPath failed", e)
                 true
             }
         }
+        if (!changed) {
+            logger.debug("Skip unchanged native library $entryName for module ${module.name}, crc32=$checksum: " +
+                    matchedSources.joinToString())
+        }
+        return changed
     }
 
     private fun getTargetApkPaths(module: ModuleInfo): List<String> {
