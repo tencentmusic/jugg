@@ -102,7 +102,7 @@ class DeployFileManagerRecoverTest {
 
         deployFileManager.replaceDeployedFilesForTest(listOf(oldRecoveredDex))
         deployFileManager.addStagingFiles(listOf(newStagingDex))
-        deployFileManager.resetAfterReinstall()
+        deployFileManager.resetAfterReinstall(replayNativeLibraries = true)
 
         val deployData = deployFileManager.getDeployData()
         val classItems = deployData.newClasses + deployData.hotFixModifiedClasses + deployData.hotReloadModifiedClasses
@@ -139,7 +139,7 @@ class DeployFileManagerRecoverTest {
         )
 
         deployFileManager.replaceDeployedFilesForTest(listOf(oldRecoveredDex))
-        deployFileManager.resetAfterReinstall()
+        deployFileManager.resetAfterReinstall(replayNativeLibraries = true)
         deployFileManager.addStagingFiles(listOf(newStagingDex))
 
         assertEquals(listOf(newStagingDex), deployFileManager.getStagingFiles())
@@ -178,7 +178,7 @@ class DeployFileManagerRecoverTest {
 
         deployFileManager.replaceDeployedFilesForTest(listOf(baseDex))
         deployFileManager.addStagingFiles(listOf(testDex))
-        deployFileManager.resetAfterReinstall()
+        deployFileManager.resetAfterReinstall(replayNativeLibraries = true)
 
         val deployData = deployFileManager.getDeployData()
         val classItems = deployData.newClasses + deployData.hotFixModifiedClasses + deployData.hotReloadModifiedClasses

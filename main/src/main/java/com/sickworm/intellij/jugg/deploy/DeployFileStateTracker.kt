@@ -295,8 +295,10 @@ class DeployFileStateTracker(
     }
 
     @Synchronized
-    fun resetAfterReinstall() {
-        val remainDeployedFiles = getNotStagingDeployedFiles()
+    fun resetAfterReinstall(replayNativeLibraries: Boolean) {
+        val remainDeployedFiles = getNotStagingDeployedFiles().filter {
+            replayNativeLibraries || it.type != CompileOutput.Type.NativeLib
+        }
         // put remainDeployedFiles into stagingFiles for next deployment
         remainDeployedFiles.forEach(::addStagingFile)
     }

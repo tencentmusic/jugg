@@ -82,11 +82,13 @@ changed source
   -> deployed history
 
 recover with reinstall
-  -> DeployFileManager.resetAfterReinstall()
-  -> 清空 deployed data / resource APK / staging 状态
+  -> DeployFileManager.resetAfterReinstall(replayNativeLibraries)
+  -> 未被本轮 staging 覆盖的已部署历史进入 staging，供 follow-up deploy 重放
 ```
 
 关键约束：`DeployFileManager.commit(deployData)` 只能在整轮 deploy 成功后执行；`JuggDeployTask` 内部按 APK 裁剪出来的 scoped data 不能用于全局 lifecycle commit。
+
+`CompileContextDb` 在成功部署后按目标 APK 保存 NativeLib 快照，并在工程重开时恢复类型、APK 归属和相对路径。base/split 同名 SO 使用独立目录。旧数据库没有 NativeLib 目录时按空集合读取；未保存的旧 SO 无法从历史重建。reinstall recover 只在 SO hot update 开启时将历史 NativeLib 放入 staging；关闭时使用重装后的 APK 基线。低于 API 26 的设备不进入增量编译和此恢复流程。本轮新产物仍保留在 staging，并由常规 APK/overlay 路由处理。NativeLib 不进入资源 overlay 历史判定，避免改变 `isFullRes`。
 
 multi APK 场景下，staging/deployed 的同名资源必须按“目标 APK + relative path”判定是否覆盖；不能只用 `relativeFile.path`，否则主包与 androidTest 都存在 `resources.arsc` 时会互相过滤，导致 full resource push 回读原 APK 资源。
 
@@ -231,7 +233,7 @@ recoverDeployState()
   -> allowDirectOverlayRecover && direct overlay 开关: defer INSTALL 后 launch，跳过 waitingForDeployable(5s)
   -> redeploy / retry 时 `isSkipExceptOverlayCheck=true`，recover 的 `checkRecover` 与 deploy 的 `optimisticSwap` 同样跳过 history 与 cache 对账；reinstall 后 dry check 依赖 skip 与 cache+设备一致
   -> 否则: INSTALL 后 restart + waitingForDeployable(5s)
-  -> DeployFileManager.resetAfterReinstall()
+  -> DeployFileManager.resetAfterReinstall(replayNativeLibraries)
   -> follow-up replay 标记 isRecoverReplayAfterReinstall=true，replay 完成后统一 restartApp
 ```
 

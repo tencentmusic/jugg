@@ -279,12 +279,12 @@ class DeployFileManager(
     }
 
     @Synchronized
-    fun resetAfterReinstall() {
+    fun resetAfterReinstall(replayNativeLibraries: Boolean) {
         logger.debug("resetAfterReinstall start, staging file size: ${stateTracker.getStagingFiles().size}, " +
                 "deployed file size: ${stateTracker.getDeployedFiles().size}")
         deployDataGenerator.clearDeployedData()
         resourceApkGenerator.deleteResourceApk()
-        stateTracker.resetAfterReinstall()
+        stateTracker.resetAfterReinstall(replayNativeLibraries)
         logger.debug("resetAfterReinstall done, staging file size: ${stateTracker.getStagingFiles().size}")
     }
 

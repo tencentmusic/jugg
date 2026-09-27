@@ -56,7 +56,7 @@ class JuggDeployerHelperDeployFlowTest {
             assertTrue(result.failedReason.orEmpty().contains("exit code 7"))
             assertEquals(0, fixture.virtualDevice.installInvokeCount)
             assertFalse(fixture.virtualDevice.hasDirectOverlayApply())
-            Mockito.verify(fixture.deployFileManager, Mockito.never()).resetAfterReinstall()
+            Mockito.verify(fixture.deployFileManager, Mockito.never()).resetAfterReinstall(Mockito.anyBoolean())
         }
     }
 
@@ -83,13 +83,25 @@ class JuggDeployerHelperDeployFlowTest {
             fixture.virtualDevice.hadRecoverMismatchOverlayCheckBeforeInstallAndDirectWrite(mismatchedDeviceOverlayId),
         )
         assertTrue(fixture.virtualDevice.installInvokeCount >= 1)
-        Mockito.verify(fixture.deployFileManager).resetAfterReinstall()
+        Mockito.verify(fixture.deployFileManager).resetAfterReinstall(Mockito.anyBoolean())
         assertTrue(fixture.virtualDevice.hasDirectOverlayApply())
         val deviceOverlayId = fixture.virtualDevice.readOverlayId().orEmpty()
         assertNotEquals("", deviceOverlayId)
         assertNotEquals(mismatchedDeviceOverlayId, deviceOverlayId)
         assertEquals(0, fixture.compatBoundary.optimisticSwapInvokeCount)
         Mockito.verify(fixture.deployTargetManager, Mockito.times(1)).restartApp(fixture.device)
+    }
+
+    @Test
+    fun `recover reinstall replays native history when SO hot update is supported`() {
+        withNativeSandboxDeploy(enabled = true) {
+            val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_002)
+
+            val result = fixture.helper.deploy(fixture.deployOptions)
+
+            assertTrue("deploy failed: ${result.failedReason}", result.isSuccess)
+            Mockito.verify(fixture.deployFileManager).resetAfterReinstall(true)
+        }
     }
 
     @Test
@@ -197,7 +209,7 @@ class JuggDeployerHelperDeployFlowTest {
             fixture.virtualDevice.hadRecoverMismatchOverlayCheckBeforeInstallAndDirectWrite(mismatchedDeviceOverlayId),
         )
         assertTrue(fixture.virtualDevice.installInvokeCount >= 1)
-        Mockito.verify(fixture.deployFileManager).resetAfterReinstall()
+        Mockito.verify(fixture.deployFileManager).resetAfterReinstall(Mockito.anyBoolean())
         assertTrue(fixture.virtualDevice.hasAsStartupAgentPush())
         assertTrue(fixture.virtualDevice.listStartupAgents().contains("dced2491-agent.so"))
         assertTrue(fixture.virtualDevice.hasDirectOverlayApply())
