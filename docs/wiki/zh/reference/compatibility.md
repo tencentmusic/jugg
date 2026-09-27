@@ -1,5 +1,5 @@
 ---
-title: 兼容性
+title: 兼容性：IDE、构建工具、设备与功能支持
 description: 汇总 Jugg 支持的 IDE、AGP、Gradle、Kotlin、Android 设备和产品能力范围。
 status: active
 tags:

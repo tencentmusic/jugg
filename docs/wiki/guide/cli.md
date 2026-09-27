@@ -1,5 +1,5 @@
 ---
-title: CLI
+title: 'CLI guide: incremental builds and deployment'
 description: 'Practical guide to Jugg CLI: second-level terminal incremental builds, everyday deployment hot reload, parameter mapping, and AI Agent automation.'
 status: active
 tags:

@@ -1,5 +1,5 @@
 ---
-title: Compatibility
+title: 'Compatibility: IDEs, build tools and devices'
 description: Summarizes Jugg support for IDEs, AGP, Gradle, Kotlin, Android devices, and product capabilities.
 status: active
 tags:

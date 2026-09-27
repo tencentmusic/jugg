@@ -1,5 +1,6 @@
 ---
-title: Jugg Wiki
+title: 'Jugg: Android Studio incremental compilation and hot reload'
+titleTemplate: false
 description: See everyday changes in large Android projects take effect in 3 seconds.
 layout: page
 ---

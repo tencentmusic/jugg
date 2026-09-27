@@ -1,6 +1,6 @@
 # Wiki 架构与运行
 
-> 最后核对：2026-09-12
+> 最后核对：2026-09-27
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -21,7 +21,9 @@
 | `docs/wiki/.vitepress/config.mts` | VitePress 站点配置，包含 base/nav/sidebar/search、GA4 首屏统计和 dev-only 页面排除。 |
 | `docs/wiki/.vitepress/theme/index.ts` | 继承 VitePress 默认主题、加载现有样式，并在浏览器端补充 GA4 单页路由统计。 |
 | `.agents/skills/wiki-writer/scripts/validate_wiki.py` | 检查中英文 Markdown 路径、nav/sidebar 路由顺序、相对链接、配置路由和构建产物。 |
-| `.github/workflows/wiki-pages.yml` | `main` 分支 Wiki 变更触发 GitHub Pages 构建与发布。 |
+| `.github/workflows/wiki-pages.yml` | `main` 分支 Wiki 变更触发 GitHub Pages 构建与发布，部署成功后通知 IndexNow。 |
+| `docs/wiki/scripts/submit-indexnow.mjs` | 从本次变更的 Markdown 路径计算 Wiki URL，首次接入和手工发布时从仓库内公开页面批量提交。 |
+| `docs/wiki/public/08a7eb96f7af6347462ab624ddacefa6.txt` | GitHub Pages `/jugg/` 路径下的 IndexNow 站点验证文件。 |
 | `.github/workflows/release.yml` | 版本 tag 触发正式 GitHub Release；仅 tag commit 已包含在 `main` 时构建，避免 develop tag 发布正式包。 |
 | `.github/workflows/canary.yml` | 每日或手工检查触发本次运行的分支；仅在其 HEAD 与 `canary-nightly` tag 不同时构建，并更新 Canary prerelease、插件包和 SHA-256。 |
 | `.github/workflows/dev.yml` | 仅手工触发的构建验证；按 `<versionName>-dev.<日期>.<run number>` 构建被触发 ref，并更新 `dev-latest` 滚动 prerelease、`jugg-dev.zip` 与 SHA-256。 |
@@ -198,6 +200,14 @@ GitHub Pages 发布验证：
 1. Actions 中 `Deploy wiki to GitHub Pages` 的 build 和 deploy job 均成功。
 2. 打开 `/jugg/`、`/jugg/zh/` 和至少一个中英文正文页面。
 3. 检查 CSS、JavaScript、字体和图片请求均位于 `/jugg/assets/**` 或对应 `/jugg/` 子路径。
+
+### 8.1 IndexNow 通知
+
+`wiki-pages.yml` 仅在 GitHub Pages 部署成功后运行 `submit-indexnow.mjs`。脚本先确认公开的密钥文件内容正确，再向 IndexNow 全局接口提交站点变更。GitHub Pages 是项目路径站点，密钥文件位于 `/jugg/` 而不是共享主机根目录，因此请求必须携带 `keyLocation`；它只能验证 `/jugg/` 下的 URL。
+
+普通 `main` 推送按本次 Git diff 中的 Markdown 路径提交新增、修改和删除的页面，跳过 dev-only 路径。首次加入或更换密钥文件时，从仓库中的公开 Markdown 页面提交全部 URL；手工触发 Pages workflow 也会执行全量提交。脚本只将 HTTP 200/202 视为 IndexNow 已接收请求，不能据此判断页面已收录。后台服务器使用另一发布流程和站点地址，不复用此 GitHub Pages 密钥。
+
+本地构建后可先运行 `INDEXNOW_ALL=true node docs/wiki/scripts/submit-indexnow.mjs --dry-run` 查看全量 URL，不会发送请求。发布后检查密钥文件可访问，并在 `Notify IndexNow of Wiki changes` 步骤确认提交响应；如该步骤失败，Pages 部署已完成，需按日志修正后重跑工作流。
 
 ---
 

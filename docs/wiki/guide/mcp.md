@@ -1,5 +1,5 @@
 ---
-title: MCP
+title: 'MCP guide: agent connection and tool calls'
 description: Connect to Jugg MCP, use its public tools and response model, and decide between MCP and CLI.
 status: active
 tags:
