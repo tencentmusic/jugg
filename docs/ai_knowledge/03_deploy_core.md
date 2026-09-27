@@ -59,7 +59,7 @@
 | `isNeedRestartApp` | `HOT_FIX` | 需要重启 App 生效。 |
 | 其他 | `HOT_RELOAD` | 在线 Apply Changes，尽量不重启 App。 |
 
-`isNeedRestartApp` 由 hot-fix classes、非空 `isPushOverlayOnly`、APK 根目录 overlay、非空 Compose resource compile、Flutter JIT runtime 变化、`nativeLibraryOverlays`，或 reinstall recover 后的 follow-up replay 决定；`isNeedRestartActivity` 只在非 warm-up、非空且不需要重启 App 时成立。`isEmpty` 纳入 class、resource/asset overlay、NativeLib 与 APK 更新项；NativeLib 按 APK scope 过滤，分片时只随最后一片发送。摘要日志打印 `native libraries: [...]`，部署结果以 `!isEmpty` 判断是否有变更。
+`isNeedRestartApp` 由 hot-fix classes、非空 `isPushOverlayOnly`、APK 根目录 overlay、非空 Compose resource compile、Flutter JIT runtime 变化、`nativeLibraryOverlays`，或 reinstall recover 后的 follow-up replay 决定；`isNeedRestartActivity` 只在非 warm-up、非空且不需要重启 App 时成立。`isEmpty` 纳入 class、resource/asset overlay、NativeLib 与 APK 更新项；NativeLib 按 APK scope 过滤，分片时只随最后一片发送。摘要日志打印 `native libraries: [...]`；仅有 NativeLib 时不再附加空明细块，部署结果以 `!isEmpty` 判断是否有变更。
 
 Flutter JIT runtime 变化指本轮真实编译并部署的 `assets/flutter_assets/kernel_blob.bin`、`vm_snapshot_data`、`isolate_snapshot_data`。`DeployDataPlanner` 从本轮 staging 产物识别：产物类型为 `Asset`、来源模块含 `ExternalBuildType.Flutter`、标准化部署路径命中上述三个文件之一。识别必须发生在 `DeployDataGenerator` 首次 full-resource overlay 扩展之前，否则 APK 基线带入 overlay 的旧 kernel 会被误判为本轮变化。命中结果写入瞬态字段 `flutterJitRuntimeFiles`（`List<DeployItem>`，随 `filterForApks()` 一起裁剪，不持久化、不进部署历史），warm-up 与 install 数据保持为空。
 
@@ -130,7 +130,7 @@ JuggDeployerHelper.deploy(isInstall=false)
   -> deployIncrementalChanges()
   -> DeployFileManager.getDeployData(isWarmUp, isNeedPushResourceApk)
   -> LibraryTestApkBackfillHelper.backfillIfNeeded()
-  -> 切换 SO hot update: 提示下一次 Run 执行 pm clear 与重装，使旧 overlay/native 补丁失效
+  -> 开启 SO hot update: 确认框介绍适用范围，提示下一次 Run 执行 pm clear 与重装；关闭时不弹框，同样安排清理重装
   -> Settings 开启 SO hot update 且 API ≥ 26: 普通 NativeLib 随同轮文件进入通用 overlay；大型 file-backed SO 单独传输后发布到同一 APK/ABI overlay 路径
   -> 其他 APK 更新或 sandbox 失败: IncrementalDeployHelper.updateApk() + recoverDeployState()
   -> 设备 not ready 或 **跨工程切换**（`LastCompileProjectRegistry` + `isProjectSwitchedThisRun`）: DeployStateRecover.recoverDeployState()
