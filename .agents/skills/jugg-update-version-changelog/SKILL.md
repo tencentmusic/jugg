@@ -40,7 +40,17 @@ Draft `change_log/change_log_rc_cn.yaml` first. Mirror meaning into `change_log_
 
 List user-observable capability points and failure symptoms for this version window.
 
-Commit prefixes `[feature]` / `[optimize]` / `[bugfix]` are candidate categories only. Classify by what the user perceives: a new capability, an existing path that is faster or more stable, or a distinct failure. Do not copy commit subjects that name mechanisms.
+Commit prefixes `[feature]` / `[optimize]` / `[bugfix]` and secondary module tags `[module]` are candidate categories. Classify by what the user perceives: a new capability, an existing path that is faster or more stable, or a distinct failure. Do not copy commit subjects that name mechanisms.
+
+Every changelog entry in both YAML and HTML must use two tags: a primary category prefix `[prefix]` and a secondary functional domain tag `[module]`, formatted as `[prefix][module]` with the two tags directly adjacent and no space between them (matching `AGENTS.md` commit conventions, e.g. `[feature][settings]`, `[optimize][ide]`, `[bugfix][compile]`).
+
+- Primary tag: `[feature]`, `[optimize]`, or `[bugfix]`.
+- Secondary module tag: selected from the functional domains defined in `AGENTS.md`:
+  - 编译与项目：`[compile]`、`[native build]`、`[dependency incremental]`、`[kmp opt-in]`、`[hilt]`、`[project]`
+  - 部署：`[deploy]`、`[system app]`、`[custom install]`
+  - IDE 与工具：`[ide]`、`[settings]`、`[compat]`、`[mcp]`、`[cli]`、`[agent]`、`[diagnostics]`
+  - 工程与内容：`[build]`、`[release]`、`[test suite]`、`[wiki]`、`[docs]`、`[repo]`
+- Historical versions: Earlier entries before the introduction of secondary tags may have only had a single tag; do not rewrite historical releases retroactively, but apply `[prefix][module]` consistently to the active version being authored or refreshed.
 
 Skip `[docs]`, `[test]`, `[refactor]`, and `[other]` unless they have user-visible product impact. Also skip skill, wiki, and repo-meta files (`.agents/skills`, `docs/skills`, `docs/wiki`, contributing/security templates).
 
@@ -54,10 +64,10 @@ Examples:
 
 | Keep or absorb | Why |
 |---|---|
-| Absorb Hilt receiver injection into `兼容 Hilt，…` | Makes the listed Hilt capability work |
+| Absorb Hilt receiver injection into `[feature][hilt] 兼容 Hilt，…` | Makes the listed Hilt capability work |
 | Absorb system-app reinstall / custom-script recovery into those features | Same capability, error-path fixes |
-| Rewrite heartbeat/hot-reload commits into `优化自研部署通道耗时` when that is the user-facing story | Mechanism is not a marketed feature |
-| Keep `避免 profile 构建误用 debug 任务元数据` | Flutter/C++ source support does not tell the reader that profile variants stop picking debug metadata |
+| Rewrite heartbeat/hot-reload commits into `[optimize][deploy] 优化自研部署通道耗时` when that is the user-facing story | Mechanism is not a marketed feature |
+| Keep `[bugfix][compile] 避免 profile 构建误用 debug 任务元数据` | Flutter/C++ source support does not tell the reader that profile variants stop picking debug metadata |
 
 ### Write for users
 
@@ -90,9 +100,9 @@ Rewrite; do not transcribe git. Chinese RC is the content baseline.
    - If the target version already exists, amend that entry's `date`, `isNeedReinstall`, and `updates` as needed. Never create a second entry for the same patch version.
    - Include `date: YYYY.MM.DD`.
    - Keep English and Chinese content aligned by meaning, not by literal wording.
-   - Prefix each `updates` item with `[feature]`, `[optimize]`, or `[bugfix]`, using the same category as the matching HTML entry.
-   - Sort `updates` by category: `[feature]`, then `[optimize]`, then `[bugfix]`. Preserve reasonable order inside each category.
-   - Quote YAML strings that start with `[` so they remain scalars, for example `- "[bugfix] Prevent APK updates from failing on paths with shell characters"`.
+   - Prefix each `updates` item with `[prefix][module]`, e.g. `[feature][settings]`, `[optimize][ide]`, or `[bugfix][compile]`. The two tags must be placed directly adjacent with no space. Use the same tag pair as the matching HTML entry.
+   - Sort `updates` by primary category: `[feature]`, then `[optimize]`, then `[bugfix]`. Inside each category, keep entries organized reasonably.
+   - Quote YAML strings that start with `[` so they remain scalars, for example `- "[bugfix][compat] Fix startup crash on HarmonyOS 2 devices during compatibility hot-fix mode"`.
    - If tracked resource copies exist under `idea/src/main/resources/change_log/`, update those copies too. Do not create or stage untracked resource copies unless the repository already tracks them.
 
 5. Update HTML changelog pages:
@@ -104,7 +114,7 @@ Rewrite; do not transcribe git. Chinese RC is the content baseline.
    - For a patch-only change within the same `X.Y` series, reuse the existing `<ol>` and update its `<h2>` version and date, for example `3.0.21` to `3.0.22 (2026.06.27)`.
    - If the exact target version section already exists, amend that section instead of creating a duplicate.
    - Keep one aggregated HTML section per minor series.
-   - Mirror the Chinese RC capability points. Within one patch version, do not give HTML a different inclusion set from YAML.
+   - Mirror the Chinese RC capability points with the same `[prefix][module]` tag pairs. Within one patch version, do not give HTML a different inclusion set or tagging from YAML.
    - Before adding an entry, compare its user-facing behavior with the existing entries in the active minor-series section. If the commit only fixes, optimizes, or refines a feature point already described there, do not add another HTML entry. Apply this rule equally to the English and Chinese HTML pages, and to RC YAML for the same patch.
    - Sort entries by category within the section: `[feature]`, then `[optimize]`, then `[bugfix]`. Preserve reasonable order inside each category.
    - If an entry has another recognized prefix from the repository's commit convention, place it after the three main product categories unless the user says otherwise.
