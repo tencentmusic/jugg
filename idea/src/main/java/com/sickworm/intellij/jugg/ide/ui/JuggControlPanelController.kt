@@ -162,11 +162,13 @@ open class JuggControlPanelController(
 
     private fun updateNativeSandboxDeploy(enabled: Boolean) {
         if (JuggSettings.isEnableNativeSandboxDeploy == enabled) return
-        val confirmed = CommonConfirmDialog.showAndGetResult(
-            "Confirm SO Hot Update",
-            "<html>Changing this setting will clear app data (pm clear) and reinstall the app on the next Run. Continue?</html>",
-        )
-        if (!confirmed) {
+        if (enabled && !CommonConfirmDialog.showAndGetResult(
+                "Enable SO Hot Update",
+                "<html>On Android 8.0+, changed .so files loaded by System.loadLibrary take effect after " +
+                    "an app restart. Already loaded libraries and absolute-path dlopen are unsupported; " +
+                    "large .so files require app sandbox access.<br><br>Enabling this setting clears app data " +
+                    "and reinstalls the app on the next Run. Continue?</html>",
+            )) {
             model.updateSettings(currentSettings())
             return
         }

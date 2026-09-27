@@ -291,8 +291,10 @@ class JuggDeployDataTest {
         assertFalse(data.isEmpty)
         assertEquals(JuggDeployData.DeployType.HOT_FIX, data.deployType)
         val desc = data.toDescString()
-        assertTrue(desc.contains("native libraries: [lib/arm64-v8a/libdtmp.so]"))
-        assertFalse(desc.contains("[nothing to deploy]"))
+        assertEquals(
+            "JuggDeployData (HOT_FIX): native libraries: [lib/arm64-v8a/libdtmp.so]",
+            desc,
+        )
     }
 
     @Test
