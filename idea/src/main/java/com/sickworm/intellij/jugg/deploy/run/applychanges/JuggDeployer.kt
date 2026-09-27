@@ -128,9 +128,8 @@ class JuggDeployer(
             logger.info("Skip Direct Overlay reset after custom install: ${sandbox.unavailableReason}")
             return
         }
-        // Custom installs can preserve app data; remove legacy native patches as well.
         val output = sandbox.exec(
-            "rm -rf code_cache/.overlay code_cache/.jugg_native ${NativeSandboxWriter.TEMP_ROOT} && echo success",
+            "rm -rf code_cache/.overlay ${NativeSandboxWriter.TEMP_ROOT} && echo success",
             repairCodeCache = true,
         )
         check(output.trim() == "success") {
@@ -324,7 +323,7 @@ class JuggDeployer(
         }
     }
 
-    /** Keeps large native libraries staged until the ordinary overlay and cache commit succeed. */
+    /** Stages large native libraries before transport and rolls back if transport or cache commit fails. */
     private fun withNativeLibraryOverlays(
         packageName: String,
         data: JuggDeployData,
