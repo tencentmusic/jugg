@@ -61,6 +61,15 @@ async function verifyKey() {
   throw new Error(`IndexNow key is not available at ${keyLocation}`)
 }
 
+function postUrls(urlList) {
+  return fetch('https://api.indexnow.org/indexnow', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json; charset=utf-8' },
+    body: JSON.stringify({ host: 'tencentmusic.github.io', key, keyLocation, urlList }),
+    signal: AbortSignal.timeout(15000)
+  })
+}
+
 async function main() {
   const urlList = urlsToSubmit()
   console.log(`IndexNow URLs: ${urlList.length}`)
@@ -71,12 +80,18 @@ async function main() {
   if (urlList.length === 0) return
 
   await verifyKey()
-  const response = await fetch('https://api.indexnow.org/indexnow', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json; charset=utf-8' },
-    body: JSON.stringify({ host: 'tencentmusic.github.io', key, keyLocation, urlList }),
-    signal: AbortSignal.timeout(15000)
-  })
+  let response = await postUrls(urlList)
+  if (response.status === 403) {
+    const body = await response.text()
+    let errorCode
+    try { errorCode = JSON.parse(body).errorCode } catch { /* Non-JSON errors fail below. */ }
+    if (errorCode !== 'SiteVerificationNotCompleted') {
+      throw new Error(`IndexNow returned HTTP 403: ${body.slice(0, 500)}`)
+    }
+    console.log('IndexNow site verification is pending; retrying once in 60 seconds')
+    await setTimeout(60_000)
+    response = await postUrls(urlList)
+  }
   if (response.status !== 200 && response.status !== 202) {
     throw new Error(`IndexNow returned HTTP ${response.status}: ${(await response.text()).slice(0, 500)}`)
   }

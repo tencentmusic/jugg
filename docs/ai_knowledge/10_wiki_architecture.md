@@ -203,7 +203,7 @@ GitHub Pages 发布验证：
 
 ### 8.1 IndexNow 通知
 
-`wiki-pages.yml` 仅在 GitHub Pages 部署成功后运行 `submit-indexnow.mjs`。脚本先确认公开的密钥文件内容正确，再向 IndexNow 全局接口提交站点变更。GitHub Pages 是项目路径站点，密钥文件位于 `/jugg/` 而不是共享主机根目录，因此请求必须携带 `keyLocation`；它只能验证 `/jugg/` 下的 URL。
+`wiki-pages.yml` 仅在 GitHub Pages 部署成功后运行 `submit-indexnow.mjs`。脚本先确认公开的密钥文件内容正确，再向 IndexNow 全局接口提交站点变更。GitHub Pages 是项目路径站点，密钥文件位于 `/jugg/` 而不是共享主机根目录，因此请求必须携带 `keyLocation`；它只能验证 `/jugg/` 下的 URL。首次请求即使密钥文件可访问，IndexNow 仍可能返回 `SiteVerificationNotCompleted`；脚本只对这个已知的暂态错误等待 60 秒后重试一次，仍失败则保留最终错误。
 
 普通 `main` 推送按本次 Git diff 中的 Markdown 路径提交新增、修改和删除的页面，跳过 dev-only 路径。首次加入或更换密钥文件时，从仓库中的公开 Markdown 页面提交全部 URL；手工触发 Pages workflow 也会执行全量提交。脚本只将 HTTP 200/202 视为 IndexNow 已接收请求，不能据此判断页面已收录。后台服务器使用另一发布流程和站点地址，不复用此 GitHub Pages 密钥。
 
