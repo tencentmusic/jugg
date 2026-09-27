@@ -71,13 +71,13 @@ asset 增量产物
   -> 运行时通过 AssetManager 读取新文件
 
 native lib 增量产物
-  -> 开关开启且 Android 8.0+：进入目标 APK 的 overlay，重启 App 后加载
-  -> 其它情况：写回目标 APK、重新签名并安装
+  -> 开关开启：进入目标 APK 的 overlay，重启 App 后加载
+  -> 开关关闭：写回目标 APK、重新签名并安装
 ```
 
 asset overlay 保持 `assets/**` 路径。普通大小的 `.so` 在「SO hot update」开启时与 DEX、资源和 Asset 使用同一批 overlay，但按 APK 和 ABI 分目录保存；运行时只从已提交的 overlay 中选择当前进程 ABI 的库，并把目录加入 native library 搜索路径。同轮包含其它增量文件时，`.so` 仍需完整重启 App 才会生效。从开启切换为关闭后，下一次 Run 完整 Gradle 构建并安装包含最新 `.so` 的 APK；开启开关仍会安排清除 App 数据并重装。
 
-大于 `Int.MAX_VALUE`（2,147,483,647 bytes）的 NativeLib 使用 file-backed 部署数据，不把整个 `.so` 放入 IDE 堆。开关开启且 Android 8.0+ 时，它通过 App sandbox 直接推送源文件，最终也发布到目标 APK 的 overlay；sandbox 不可访问或传输失败时本轮明确失败。开关关闭或 Android 版本较低时，APK 更新流式读取源文件，替换基线中同路径 entry 并继承压缩方式；基线缺少该 entry 或文件达到经典 ZIP 单 entry 4 GiB 边界时明确失败。文件大小不会自动开启 SO hot update。
+大于 `Int.MAX_VALUE`（2,147,483,647 bytes）的 NativeLib 使用 file-backed 部署数据，不把整个 `.so` 放入 IDE 堆。开关开启时，它通过 App sandbox 直接推送源文件，最终也发布到目标 APK 的 overlay；sandbox 不可访问或传输失败时本轮明确失败。开关关闭时，APK 更新流式读取源文件，替换基线中同路径 entry 并继承压缩方式；基线缺少该 entry 或文件达到经典 ZIP 单 entry 4 GiB 边界时明确失败。文件大小不会自动开启 SO hot update。
 
 ### Flutter Debug/JIT 的解压缓存
 

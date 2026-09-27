@@ -71,13 +71,13 @@ asset incremental artifact
   -> read the new file through AssetManager at runtime
 
 native library incremental artifact
-  -> Setting enabled on Android 8.0+: enter the target APK overlay and load after an app restart
-  -> Otherwise: write it back into the target APK, re-sign, and install
+  -> Setting enabled: enter the target APK overlay and load after an app restart
+  -> Setting disabled: write it back into the target APK, re-sign, and install
 ```
 
 An asset overlay preserves its `assets/**` path. With “SO hot update” enabled, ordinary `.so` files share the same overlay batch as DEX, resources, and assets, but remain grouped by APK and ABI. At startup the runtime selects libraries for the current process ABI from committed overlays and adds their directories to the native library search path. An `.so` requires a full app restart even when other incremental files arrive in the same run. Switching from enabled to disabled makes the next Run perform a full Gradle build and install an APK containing the latest `.so` files. Enabling the setting still schedules app data clearing and reinstallation.
 
-A NativeLib larger than `Int.MAX_VALUE` (2,147,483,647 bytes) uses file-backed deployment data so the IDE does not hold the whole `.so` in its heap. With the setting enabled on Android 8.0+, Jugg pushes the source file directly through the app sandbox and ultimately publishes it into the target APK overlay as well. Missing sandbox access or a failed transfer fails the round explicitly. With the setting disabled or an older Android version, the APK update streams the source file, replaces the same-path entry in the baseline APK, and inherits its compression method. It fails explicitly if that entry is missing or the file reaches the classic ZIP 4 GiB single-entry boundary. File size never enables SO hot update automatically.
+A NativeLib larger than `Int.MAX_VALUE` (2,147,483,647 bytes) uses file-backed deployment data so the IDE does not hold the whole `.so` in its heap. With the setting enabled, Jugg pushes the source file directly through the app sandbox and ultimately publishes it into the target APK overlay as well. Missing sandbox access or a failed transfer fails the round explicitly. With the setting disabled, the APK update streams the source file, replaces the same-path entry in the baseline APK, and inherits its compression method. It fails explicitly if that entry is missing or the file reaches the classic ZIP 4 GiB single-entry boundary. File size never enables SO hot update automatically.
 
 ### The Flutter Debug/JIT extraction cache
 

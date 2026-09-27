@@ -56,7 +56,7 @@ Direct Overlay 需要同时满足这些条件：
 - deploy data 非空，且不是 install。
 - 设备系统版本满足要求，App sandbox 可通过本轮选定的 `run-as`、普通 shell、root adbd 或非交互 `su` 模式写入。
 
-`run-as`、UID 或 SELinux label 不兼容时，Jugg 可以直接下发 class、资源和 assets。纯方法体变化可在线替换；Android 11+ 的资源、assets 或与代码混合的变化会刷新当前进程资源并重建 Activity，刷新失败时再重启 App。Android 8～10 和兼容部署沿用需要重启进程的资源路径。Manifest 和 native library 仍走 APK 更新与安装流程。缺少 deployment cache 时会直接报告失败。
+`run-as`、UID 或 SELinux label 不兼容时，Jugg 可以直接下发 class、资源和 assets。纯方法体变化可在线替换；Android 11+ 的资源、assets 或与代码混合的变化会刷新当前进程资源并重建 Activity，刷新失败时再重启 App。Android 8～10 和兼容部署沿用需要重启进程的资源路径。Manifest 仍走 APK 更新与安装；native library 在开启 SO hot update 时进入 overlay 并重启 App，关闭时走 APK 更新。缺少 deployment cache 时会直接报告失败。
 
 普通 shell、root adbd 和非交互 `su` 也全部不可用时，Jugg 不再尝试写入 App sandbox：普通的 class、资源和 assets 变更先转成兼容部署，再把兼容 payload 暂存到 shell 可写、App 可读的 `/sdcard/Android/data/<package>/files/jugg/rootless-compat/<requestId>/`，只重启 App 一次，由 App 通过 `Context.getExternalFilesDir(null)` 在启动早期导入 `code_cache/.overlay`。这条路径不推送、复制或 attach 任何 JVMTI agent，App 确认导入成功前不会推进 deployment cache、部署历史和文件状态；导入失败或超时会保留旧 overlay 并明确失败。
 

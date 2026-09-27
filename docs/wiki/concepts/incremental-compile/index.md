@@ -26,7 +26,7 @@ It does not generate a complete APK. Except for recognized Flutter/native extern
 | [DataBinding / ViewBinding](./databinding-viewbinding.md) | Layout splitting, base classes, mapper, BR, and two-stage processing. |
 | [Android Manifest compilation](./manifest.md) | Merged manifest baseline, incremental patching, and full merge boundaries. |
 | [Release incremental compilation](./release-compile.md) | Experimental mapping remapping, inline handling, and removed-member compensation. |
-| [Assets and native libraries](./assets-native.md) | Assets overlays and native libraries that must be written back to the APK. |
+| [Assets and native libraries](./assets-native.md) | Asset overlays and native libraries whose deployment path depends on the SO hot update setting. |
 | [Dependency incremental compilation](./dependency-incremental.md) | Build file confirmation, dependency change comparison, differential compilation of changed libraries, and deployment handling. |
 | [Custom compiler](./custom-compiler.md) | Custom compiler loading, extension insertion points, and hook semantics. |
 
@@ -44,7 +44,7 @@ later incremental Runs
   -> detect changed files from IDE and Git records
   -> run Flutter/native tasks for Dart or C/C++ changes
   -> route files to assets, native libraries, resources, source, Manifest, and other compilation paths by type
-  -> output DEX, resources.arsc, resource overlays, assets, Manifest, or files that must be written back to the APK
+  -> output DEX, resources.arsc, resource overlays, assets, Manifest, native libraries, and other local artifacts
   -> analyze affected source files and classes requiring DEX conversion, then continue to another compilation round when needed
   -> pass staging artifacts to deployment
 ```
