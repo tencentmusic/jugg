@@ -1,7 +1,9 @@
 package com.sickworm.intellij.jugg.hotfix;
 
 import android.content.Context;
+import android.content.pm.ApplicationInfo;
 import android.os.Build;
+import android.os.Process;
 import dalvik.system.BaseDexClassLoader;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -9,16 +11,16 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
 
-/**
- * Prepends {@code code_cache/.jugg_native/<abi>} to the app ClassLoader native search path.
- * Aligns with Freeline/Tinker DexPathList injection for API 26+.
- */
+/** Prepends committed APK-scoped native overlays to the app ClassLoader search path. */
 public final class NativeLibraryPathInstaller {
-
     private static final String TAG = HotfixLoader.TAG + "#NativeLibraryPathInstaller";
-    private static final String NATIVE_DIR_NAME = ".jugg_native";
+    private static final String OVERLAY_DIR_NAME = ".overlay";
+    private static final String LEGACY_DIR_NAME = ".jugg_native";
     private static final String ENABLED_FLAG = ".enabled";
     private static final String FAILED_FLAG = ".jugg_native_inject_failed";
 
@@ -31,121 +33,125 @@ public final class NativeLibraryPathInstaller {
             return;
         }
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-            LogUtils.w(TAG, "native library path install skipped: API " +
-                    Build.VERSION.SDK_INT + " < 26");
+            LogUtils.w(TAG, "native library path install skipped: API " + Build.VERSION.SDK_INT + " < 26");
             return;
         }
-        File nativeRoot = nativeRoot(base);
-        if (nativeRoot == null) {
+        File codeCache = HotfixLoader.codeCacheDir != null ? HotfixLoader.codeCacheDir : base.getCodeCacheDir();
+        if (codeCache == null) {
             return;
         }
-        if (!isEnabled(nativeRoot)) {
-            LogUtils.i(TAG, "native library path install skipped: SO hot update disabled");
-            return;
-        }
-        File abiDir = resolveAbiDir(nativeRoot);
-        if (abiDir == null) {
+        List<File> patchDirs = findPatchDirs(base, codeCache);
+        if (patchDirs.isEmpty()) {
             return;
         }
         ClassLoader classLoader = base.getClassLoader();
         if (!(classLoader instanceof BaseDexClassLoader)) {
-            markFailed(nativeRoot.getParentFile(), "classloader is not BaseDexClassLoader");
+            markFailed(codeCache, "classloader is not BaseDexClassLoader");
             return;
         }
         try {
-            installPath((BaseDexClassLoader) classLoader, abiDir);
-            deleteQuietly(new File(nativeRoot.getParentFile(), FAILED_FLAG));
-            LogUtils.i(TAG, "native library path installed: " + abiDir.getAbsolutePath());
+            installPaths((BaseDexClassLoader) classLoader, patchDirs, codeCache);
+            deleteQuietly(new File(codeCache, FAILED_FLAG));
+            LogUtils.i(TAG, "native library paths installed: " + patchDirs);
         } catch (Throwable throwable) {
-            markFailed(nativeRoot.getParentFile(), String.valueOf(throwable));
+            markFailed(codeCache, String.valueOf(throwable));
             LogUtils.w(TAG, "native library path install failed: " + throwable);
         }
     }
 
-    private static File nativeRoot(Context base) {
-        File codeCache = HotfixLoader.codeCacheDir;
-        if (codeCache == null) {
-            codeCache = base.getCodeCacheDir();
+    private static List<File> findPatchDirs(Context base, File codeCache) {
+        List<File> result = new ArrayList<>();
+        String[] abis = Process.is64Bit() ? Build.SUPPORTED_64_BIT_ABIS : Build.SUPPORTED_32_BIT_ABIS;
+        if (abis == null || abis.length == 0) {
+            return result;
         }
-        if (codeCache == null) {
-            return null;
-        }
-        File nativeRoot = new File(codeCache, NATIVE_DIR_NAME);
-        if (!nativeRoot.isDirectory()) {
-            return null;
-        }
-        return nativeRoot;
-    }
-
-    private static boolean isEnabled(File nativeRoot) {
-        return new File(nativeRoot, ENABLED_FLAG).isFile();
-    }
-
-    private static File resolveAbiDir(File nativeRoot) {
-        String[] abis = Build.SUPPORTED_ABIS;
-        if (abis == null) {
-            return null;
-        }
-        for (String abi : abis) {
-            if (abi == null || abi.isEmpty()) {
-                continue;
-            }
-            File dir = new File(nativeRoot, abi);
-            if (hasNativeLibs(dir)) {
-                return dir;
+        File overlayRoot = new File(codeCache, OVERLAY_DIR_NAME);
+        if (new File(overlayRoot, "id").isFile()) {
+            for (String apkName : orderedApkNames(base.getApplicationInfo(), overlayRoot)) {
+                for (String abi : abis) {
+                    if (isSafeAbi(abi)) {
+                        File dir = new File(new File(new File(overlayRoot, apkName), "lib"), abi);
+                        if (hasNativeLibs(dir)) result.add(dir);
+                    }
+                }
             }
         }
-        return null;
+        // Old deployments remain readable until the next clean/reinstall.
+        File legacyRoot = new File(codeCache, LEGACY_DIR_NAME);
+        if (new File(legacyRoot, ENABLED_FLAG).isFile()) {
+            for (String abi : abis) {
+                if (isSafeAbi(abi)) {
+                    File dir = new File(legacyRoot, abi);
+                    if (hasNativeLibs(dir)) result.add(dir);
+                }
+            }
+        }
+        return result;
+    }
+
+    private static List<String> orderedApkNames(ApplicationInfo appInfo, File overlayRoot) {
+        LinkedHashSet<String> names = new LinkedHashSet<>();
+        if (appInfo != null) {
+            addApkName(names, appInfo.sourceDir);
+            if (appInfo.splitSourceDirs != null) {
+                for (String path : appInfo.splitSourceDirs) addApkName(names, path);
+            }
+        }
+        File[] children = overlayRoot.listFiles();
+        if (children != null) {
+            Arrays.sort(children, Comparator.comparing(File::getName));
+            for (File child : children) {
+                if (child.isDirectory() && isSafeApkName(child.getName())) names.add(child.getName());
+            }
+        }
+        return new ArrayList<>(names);
+    }
+
+    private static void addApkName(LinkedHashSet<String> names, String path) {
+        if (path == null) return;
+        String name = new File(path).getName();
+        if (isSafeApkName(name)) names.add(name);
+    }
+
+    private static boolean isSafeApkName(String name) {
+        return name.matches("[A-Za-z0-9_.-]+\\.apk") && !name.contains("..");
+    }
+
+    private static boolean isSafeAbi(String abi) {
+        return "arm64-v8a".equals(abi) || "armeabi-v7a".equals(abi) || "armeabi".equals(abi)
+                || "x86_64".equals(abi) || "x86".equals(abi);
     }
 
     private static boolean hasNativeLibs(File dir) {
         File[] files = dir.isDirectory() ? dir.listFiles() : null;
-        if (files == null) {
-            return false;
-        }
+        if (files == null) return false;
         for (File file : files) {
-            if (file.isFile() && file.getName().startsWith("lib") && file.getName().endsWith(".so")) {
-                return true;
-            }
+            if (file.isFile() && file.getName().matches("lib[^/]+\\.so")) return true;
         }
         return false;
     }
 
     @SuppressWarnings("unchecked")
-    private static void installPath(BaseDexClassLoader classLoader, File folder) throws Exception {
-        Object dexPathList = ReflectUtil.findField(classLoader, "pathList").get(classLoader);
-        Field nativeLibraryDirectoriesField = ReflectUtil.findField(dexPathList, "nativeLibraryDirectories");
-        List<File> originalDirs = (List<File>) nativeLibraryDirectoriesField.get(dexPathList);
+    private static void installPaths(BaseDexClassLoader classLoader, List<File> patches, File codeCache) throws Exception {
+        Object pathList = ReflectUtil.findField(classLoader, "pathList").get(classLoader);
+        Field dirsField = ReflectUtil.findField(pathList, "nativeLibraryDirectories");
+        List<File> original = (List<File>) dirsField.get(pathList);
         List<File> appDirs = new ArrayList<>();
-        if (originalDirs != null) {
-            appDirs.addAll(originalDirs);
-        }
-        if (!appDirs.isEmpty() && sameDir(appDirs.get(0), folder)) {
-            return;
-        }
-        removeDir(appDirs, folder);
-        appDirs.add(0, folder);
-        nativeLibraryDirectoriesField.set(dexPathList, appDirs);
+        if (original != null) appDirs.addAll(original);
+        String patchRoot = canonical(codeCache) + File.separator;
+        appDirs.removeIf(file -> file != null && canonical(file).startsWith(patchRoot)
+                && (canonical(file).contains(File.separator + OVERLAY_DIR_NAME + File.separator)
+                || canonical(file).contains(File.separator + LEGACY_DIR_NAME + File.separator)));
+        appDirs.addAll(0, patches);
+        dirsField.set(pathList, appDirs);
 
         List<File> allDirs = new ArrayList<>(appDirs);
-        Field systemDirsField = ReflectUtil.findField(dexPathList, "systemNativeLibraryDirectories");
-        List<File> systemDirs = (List<File>) systemDirsField.get(dexPathList);
-        if (systemDirs != null) {
-            allDirs.addAll(systemDirs);
-        }
-        Method makePathElements = ReflectUtil.findMethod(dexPathList, "makePathElements", List.class);
-        Object[] elements = (Object[]) makePathElements.invoke(dexPathList, allDirs);
-        Field pathElementsField = ReflectUtil.findField(dexPathList, "nativeLibraryPathElements");
-        pathElementsField.set(dexPathList, elements);
-    }
-
-    private static void removeDir(List<File> dirs, File folder) {
-        String target = canonical(folder);
-        dirs.removeIf(file -> file != null && target.equals(canonical(file)));
-    }
-
-    private static boolean sameDir(File left, File right) {
-        return canonical(left).equals(canonical(right));
+        Field systemDirsField = ReflectUtil.findField(pathList, "systemNativeLibraryDirectories");
+        List<File> systemDirs = (List<File>) systemDirsField.get(pathList);
+        if (systemDirs != null) allDirs.addAll(systemDirs);
+        Method makePathElements = ReflectUtil.findMethod(pathList, "makePathElements", List.class);
+        Object[] elements = (Object[]) makePathElements.invoke(pathList, allDirs);
+        ReflectUtil.findField(pathList, "nativeLibraryPathElements").set(pathList, elements);
     }
 
     private static String canonical(File file) {
@@ -157,20 +163,15 @@ public final class NativeLibraryPathInstaller {
     }
 
     private static void markFailed(File codeCache, String reason) {
-        if (codeCache == null) {
-            return;
-        }
         File flag = new File(codeCache, FAILED_FLAG);
         try (FileOutputStream output = new FileOutputStream(flag)) {
             output.write(reason.getBytes(StandardCharsets.UTF_8));
         } catch (Exception ignored) {
-            // Best-effort flag for the next native deploy round.
+            // The host can inspect this best-effort flag after startup.
         }
     }
 
     private static void deleteQuietly(File file) {
-        if (file != null && file.exists() && !file.delete()) {
-            LogUtils.w(TAG, "unable to delete " + file.getAbsolutePath());
-        }
+        if (file.exists() && !file.delete()) LogUtils.w(TAG, "unable to delete " + file.getAbsolutePath());
     }
 }

@@ -6,13 +6,11 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.sickworm.intellij.jugg.JuggManager
 import com.sickworm.intellij.jugg.compiler.CompileFile
-import com.sickworm.intellij.jugg.deploy.AppSandboxExecutor
 import com.sickworm.intellij.jugg.deploy.CompatDeployHelper
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.deploy.IdeaDeviceAdb
-import com.sickworm.intellij.jugg.deploy.nativesandbox.NativeSandboxWriter
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.ide.JuggControlPanelHost
 import com.sickworm.intellij.jugg.ide.SyncEvent
@@ -163,48 +161,19 @@ open class JuggControlPanelController(
     }
 
     private fun updateNativeSandboxDeploy(enabled: Boolean) {
-        JuggSettings.isEnableNativeSandboxDeploy = enabled
-        JuggSettings.isNeedSyncNativeSandboxRuntime = true
-        if (syncNativeSandboxRuntimeOnConnectedDevices(enabled)) {
-            JuggSettings.isNeedSyncNativeSandboxRuntime = false
+        if (JuggSettings.isEnableNativeSandboxDeploy == enabled) return
+        val confirmed = CommonConfirmDialog.showAndGetResult(
+            "Confirm SO Hot Update",
+            "<html>Changing this setting will clear app data (pm clear) and reinstall the app on the next Run. Continue?</html>",
+        )
+        if (!confirmed) {
+            model.updateSettings(currentSettings())
+            return
         }
+        JuggSettings.isEnableNativeSandboxDeploy = enabled
+        manager.forceReInstallNextTime()
         model.updateSettings(currentSettings())
         recordSettingChanged(Setting.SO_HOT_UPDATE.displayName, enabled)
-    }
-
-    private fun syncNativeSandboxRuntimeOnConnectedDevices(enabled: Boolean): Boolean {
-        val packageName = deployTargetManager.getPackageNameOrNull()
-        if (packageName.isNullOrBlank()) {
-            logger.debug("SO sandbox runtime flag sync skipped: package name unavailable")
-            return false
-        }
-        val devices = try {
-            deployTargetManager.getConnectedDevices()
-        } catch (e: Exception) {
-            logger.warn("SO sandbox runtime flag sync skipped: list devices failed", e)
-            return false
-        }
-        if (devices.isEmpty()) {
-            logger.debug("SO sandbox runtime flag sync skipped: no connected device")
-            return false
-        }
-        var allSucceeded = true
-        devices.forEach { device ->
-            try {
-                val adb = IdeaDeviceAdb(device, logger)
-                val sandbox = AppSandboxExecutor(adb, packageName, logger)
-                if (!NativeSandboxWriter(adb, sandbox, logger).bestEffortSetEnabled(enabled)) {
-                    allSucceeded = false
-                }
-            } catch (e: Exception) {
-                allSucceeded = false
-                logger.warn("SO sandbox runtime flag sync failed", e)
-            }
-        }
-        if (allSucceeded) {
-            logger.info("SO sandbox runtime flag updated: enabled=$enabled")
-        }
-        return allSucceeded
     }
 
     private fun recordSettingChanged(name: String, enabled: Boolean) {

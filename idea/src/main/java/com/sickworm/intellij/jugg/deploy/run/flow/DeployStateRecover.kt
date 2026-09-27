@@ -116,7 +116,7 @@ open class DeployStateRecover(
             }
         }
 
-        deployFileManager.resetAfterReinstall()
+        deployFileManager.resetAfterReinstall(replayNativeLibraries = JuggSettings.isEnableNativeSandboxDeploy)
         return true to true
     }
 

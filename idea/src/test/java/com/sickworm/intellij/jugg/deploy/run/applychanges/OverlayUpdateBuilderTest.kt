@@ -53,6 +53,25 @@ class OverlayUpdateBuilderTest {
         assertEquals("changed", matchingEntries.single().value.toStringUtf8())
     }
 
+    @Test
+    fun `native library and resource share one apk scoped overlay update`() {
+        var files = emptyMap<ApkEntry, ByteString>()
+        val compat = Mockito.mock(IAsDeployerCompat::class.java)
+        Mockito.doAnswer { invocation ->
+            files = invocation.getArgument(2)
+            JuggOverlayUpdate(invocation.getArgument(0), invocation.getArgument(1), files, Any())
+        }.`when`(compat).createOverlayUpdate(any(), any(), any())
+        val resource = DeployItem("assets/demo.txt", CompileOutput.Type.Asset, 1L,
+            byteArrayOf(1), "/base.apk")
+        val native = DeployItem("lib/arm64-v8a/libdemo.so", CompileOutput.Type.NativeLib, 2L,
+            byteArrayOf(2), "/base.apk")
+
+        OverlayUpdateBuilder(compat).build(cacheEntry(), deployData(resource).copy(nativeLibraryOverlays = listOf(native)))
+
+        assertEquals(setOf("base.apk/assets/demo.txt", "base.apk/lib/arm64-v8a/libdemo.so"),
+            files.keys.map { it.qualifiedPath }.toSet())
+    }
+
     private fun deployData(vararg overlays: DeployItem): JuggDeployData {
         return JuggDeployData(
             apks = emptyList(),

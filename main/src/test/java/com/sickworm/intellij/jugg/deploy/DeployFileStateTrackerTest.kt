@@ -198,9 +198,45 @@ class DeployFileStateTrackerTest {
         )
 
         tracker.replaceDeployedFiles(listOf(oldOutput, newOutput))
-        tracker.resetAfterReinstall()
+        tracker.resetAfterReinstall(replayNativeLibraries = true)
 
         assertEquals(listOf(newOutput), tracker.getStagingFiles())
+    }
+
+    @Test
+    fun resetAfterReinstall_replaysNativeHistoryOnlyWhenSupported() {
+        val nativeOutput = compileOutput(
+            root = temporaryFolder.newFolder("native_deployed"),
+            relativePath = "lib/arm64-v8a/libsample.so",
+            apkPath = "/base.apk",
+            content = "native",
+            type = CompileOutput.Type.NativeLib,
+        )
+        val resourceOutput = compileOutput(
+            root = temporaryFolder.newFolder("resource_deployed"),
+            relativePath = "res/drawable/icon.xml",
+            apkPath = "/base.apk",
+            content = "resource",
+        )
+        val currentOutput = compileOutput(
+            root = temporaryFolder.newFolder("current_staging"),
+            relativePath = "lib/arm64-v8a/libcurrent.so",
+            apkPath = "/base.apk",
+            content = "current",
+            type = CompileOutput.Type.NativeLib,
+        )
+        val tracker = DeployFileStateTracker()
+        tracker.replaceDeployedFiles(listOf(nativeOutput, resourceOutput))
+        tracker.addStagingFiles(listOf(currentOutput))
+
+        tracker.resetAfterReinstall(replayNativeLibraries = false)
+
+        assertEquals(setOf(currentOutput, resourceOutput), tracker.getStagingFiles().toSet())
+
+        val supportedTracker = DeployFileStateTracker()
+        supportedTracker.replaceDeployedFiles(listOf(nativeOutput, resourceOutput))
+        supportedTracker.resetAfterReinstall(replayNativeLibraries = true)
+        assertEquals(setOf(nativeOutput, resourceOutput), supportedTracker.getStagingFiles().toSet())
     }
 
     @Test

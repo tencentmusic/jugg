@@ -63,6 +63,7 @@ public class BootstrapApplication extends Application {
         if (isNeedEnableHotfix) {
             HotfixLoader.install(base);
         }
+        NativeLibraryPathInstaller.install(base);
 
         super.attachBaseContext(base);
         initRawApplicationAndAppComponentFactory(base);

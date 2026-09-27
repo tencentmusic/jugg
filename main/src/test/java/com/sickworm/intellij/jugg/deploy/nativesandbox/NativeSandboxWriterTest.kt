@@ -1,7 +1,6 @@
 package com.sickworm.intellij.jugg.deploy.nativesandbox
 
 import com.intellij.openapi.diagnostic.Logger
-import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.compiler.isWindows
 import com.sickworm.intellij.jugg.deploy.AppSandboxExecutor
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
@@ -9,12 +8,10 @@ import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
-import org.junit.Assert.fail
 import org.junit.Assume
 import org.junit.Test
 import org.mockito.Mockito
 import org.mockito.kotlin.any
-import org.mockito.kotlin.eq
 import org.mockito.kotlin.whenever
 import java.io.File
 import java.io.RandomAccessFile
@@ -22,253 +19,146 @@ import java.nio.file.Files
 import kotlin.test.assertFailsWith
 
 class NativeSandboxWriterTest {
-
     @Test
-    fun `write pushes staging files and copies them through sandbox`() {
-        val adb = RecordingAdb(copyOutput = "${NativeSandboxWriter.MARKER} OK")
-        val sandbox = Mockito.mock(AppSandboxExecutor::class.java)
-        whenever(sandbox.execNoFallback(any(), eq(true))).thenAnswer { invocation ->
-            adb.lastCopyScript = invocation.getArgument(0)
-            "${NativeSandboxWriter.MARKER} OK"
+    fun `file backed native library stages source and publishes into apk scoped overlay`() {
+        withLargeNative { item, source ->
+            val adb = RecordingAdb()
+            val (sandbox, scripts) = recordingSandbox()
+            val writer = NativeSandboxWriter(adb, sandbox, Mockito.mock(Logger::class.java))
+            val request = request(item)
+
+            writer.stage(request)
+            writer.publish(request)
+            writer.discard(request)
+
+            assertEquals(listOf(source), adb.pushedFiles)
+            assertTrue(scripts.any { it.contains("cp -f ${NativeSandboxWriter.STAGING_ROOT}/session/base.apk/lib/arm64-v8a/liblarge.so") })
+            assertTrue(scripts.any { it.contains("mv code_cache/.jugg_native_stage/session/pending/base.apk/lib/arm64-v8a/liblarge.so code_cache/.overlay/base.apk/lib/arm64-v8a/liblarge.so") })
+            assertFalse(scripts.any { it.contains("touch code_cache/.jugg_native/.enabled") })
         }
-        val writer = NativeSandboxWriter(adb, sandbox, Mockito.mock(Logger::class.java))
-
-        writer.write(
-            NativeSandboxWriteRequest(
-                packageName = "com.example.app",
-                sessionId = "session-1",
-                abiDirs = mapOf("arm64-v8a" to listOf(nativeLib("lib/arm64-v8a/libdtmp.so", byteArrayOf(1, 2, 3)))),
-            ),
-        )
-
-        assertEquals(
-            listOf("${NativeSandboxWriter.STAGING_ROOT}/session-1/arm64-v8a/libdtmp.so"),
-            adb.pushedPaths,
-        )
-        assertTrue(adb.commands.any { it.contains("mkdir -p ${NativeSandboxWriter.STAGING_ROOT}/session-1/arm64-v8a") })
-        assertTrue(adb.lastCopyScript.contains("cp -f ${NativeSandboxWriter.STAGING_ROOT}/session-1/arm64-v8a/libdtmp.so"))
-        assertTrue(adb.lastCopyScript.contains("code_cache/.jugg_native/arm64-v8a/libdtmp.so"))
-        assertTrue(adb.lastCopyScript.contains("touch code_cache/.jugg_native/.enabled"))
-        assertTrue(adb.lastCopyScript.contains("[ \"\$actual\" -eq 3 ]"))
-        assertTrue(adb.commands.any { it == "rm -rf ${NativeSandboxWriter.STAGING_ROOT}/session-1" })
-        Mockito.verify(sandbox).execNoFallback(any(), eq(true))
     }
 
     @Test
-    fun `file backed native library pushes the source file directly`() {
-        Assume.assumeFalse("creating a sparse file larger than 2 GiB is not portable", isWindows)
-        val source = Files.createTempFile("jugg-large-native", ".so").toFile()
-        RandomAccessFile(source, "rw").use { it.setLength(Int.MAX_VALUE + 1L) }
-        val item = DeployItem.fileBackedNativeLib(
-            name = "lib/arm64-v8a/liblarge.so",
-            checksum = 1L,
-            file = source,
-            apkPath = "/tmp/app.apk",
-        )
-        val adb = RecordingAdb(copyOutput = "${NativeSandboxWriter.MARKER} OK")
-        val sandbox = Mockito.mock(AppSandboxExecutor::class.java)
-        whenever(sandbox.execNoFallback(any(), eq(true))).thenAnswer { invocation ->
-            adb.lastCopyScript = invocation.getArgument(0)
-            "${NativeSandboxWriter.MARKER} OK"
+    fun `failed source validation never publishes the native overlay`() {
+        withLargeNative { item, source ->
+            source.delete()
+            val adb = RecordingAdb()
+            val (sandbox, scripts) = recordingSandbox()
+            val writer = NativeSandboxWriter(adb, sandbox, Mockito.mock(Logger::class.java))
+
+            val failure = assertFailsWith<NativeSandboxDeployException> { writer.stage(request(item)) }
+
+            assertEquals(NativeSandboxDeployStep.PUSH, failure.step)
+            assertTrue(adb.pushedFiles.isEmpty())
+            assertFalse(scripts.any { it.contains("mv code_cache/.jugg_native_stage") })
         }
-        val writer = NativeSandboxWriter(adb, sandbox, Mockito.mock(Logger::class.java))
+    }
 
-        try {
-            writer.write(
-                NativeSandboxWriteRequest(
-                    packageName = "com.example.app",
-                    sessionId = "session-large",
-                    abiDirs = mapOf("arm64-v8a" to listOf(item)),
-                ),
+    @Test
+    fun `partial publish rollback restores old libraries and leaves untouched libraries intact`() {
+        withLargeNative { first, source ->
+            val second = DeployItem.fileBackedNativeLib(
+                name = "lib/arm64-v8a/libsecond.so", checksum = 2L,
+                file = source, apkPath = "/tmp/base.apk",
             )
+            val root = Files.createTempDirectory("jugg-native-publish").toFile()
+            try {
+                val oldFirst = File(root, "code_cache/.overlay/base.apk/lib/arm64-v8a/liblarge.so")
+                val oldSecond = File(root, "code_cache/.overlay/base.apk/lib/arm64-v8a/libsecond.so")
+                val pendingFirst = File(root,
+                    "code_cache/.jugg_native_stage/session/pending/base.apk/lib/arm64-v8a/liblarge.so")
+                oldFirst.parentFile.mkdirs()
+                pendingFirst.parentFile.mkdirs()
+                oldFirst.writeText("old-first")
+                oldSecond.writeText("old-second")
+                pendingFirst.writeText("new-first")
+                val sandbox = shellSandbox(root)
+                val writer = NativeSandboxWriter(RecordingAdb(), sandbox, Mockito.mock(Logger::class.java))
+                val request = request(first).copy(files = listOf(first, second))
 
-            assertEquals(listOf(source), adb.pushedFiles)
-            assertTrue(adb.lastCopyScript.contains("[ \"\$actual\" -eq ${Int.MAX_VALUE + 1L} ]"))
+                assertFailsWith<NativeSandboxDeployException> { writer.publish(request) }
+                assertEquals("new-first", oldFirst.readText())
+                writer.rollback(request)
+
+                assertEquals("old-first", oldFirst.readText())
+                assertEquals("old-second", oldSecond.readText())
+            } finally {
+                root.deleteRecursively()
+            }
+        }
+    }
+
+    @Test
+    fun `unknown apk scope fails before pushing`() {
+        withLargeNative { item, _ ->
+            val adb = RecordingAdb()
+            val (sandbox, _) = recordingSandbox()
+            val writer = NativeSandboxWriter(adb, sandbox, Mockito.mock(Logger::class.java))
+
+            assertFailsWith<IllegalArgumentException> {
+                writer.stage(request(item).copy(apkNamesByPath = emptyMap()))
+            }
+            assertTrue(adb.pushedFiles.isEmpty())
+        }
+    }
+
+    private fun withLargeNative(block: (DeployItem, File) -> Unit) {
+        Assume.assumeFalse("sparse files over 2 GiB are not portable", isWindows)
+        val source = Files.createTempFile("jugg-large-native", ".so").toFile()
+        try {
+            RandomAccessFile(source, "rw").use { it.setLength(Int.MAX_VALUE + 1L) }
+            val item = DeployItem.fileBackedNativeLib(
+                name = "lib/arm64-v8a/liblarge.so", checksum = 1L,
+                file = source, apkPath = "/tmp/base.apk",
+            )
+            block(item, source)
         } finally {
             source.delete()
         }
     }
 
-    @Test
-    fun `missing file backed source is reported as push failure`() {
-        Assume.assumeFalse("creating a sparse file larger than 2 GiB is not portable", isWindows)
-        val source = Files.createTempFile("jugg-missing-large-native", ".so").toFile()
-        RandomAccessFile(source, "rw").use { it.setLength(Int.MAX_VALUE + 1L) }
-        val item = DeployItem.fileBackedNativeLib(
-            name = "lib/arm64-v8a/liblarge.so",
-            checksum = 1L,
-            file = source,
-            apkPath = "/tmp/app.apk",
-        )
-        source.delete()
+    private fun request(item: DeployItem) = NativeSandboxWriteRequest(
+        packageName = "com.example.app", sessionId = "session",
+        files = listOf(item), apkNamesByPath = mapOf("/tmp/base.apk" to "base.apk"),
+    )
+
+    private fun recordingSandbox(): Pair<AppSandboxExecutor, MutableList<String>> {
         val sandbox = Mockito.mock(AppSandboxExecutor::class.java)
-        val writer = NativeSandboxWriter(RecordingAdb(), sandbox, Mockito.mock(Logger::class.java))
-
-        val error = assertFailsWith<NativeSandboxDeployException> {
-            writer.write(
-                NativeSandboxWriteRequest(
-                    packageName = "com.example.app",
-                    sessionId = "session-missing-large",
-                    abiDirs = mapOf("arm64-v8a" to listOf(item)),
-                ),
-            )
+        val scripts = mutableListOf<String>()
+        whenever(sandbox.execNoFallback(any(), any())).thenAnswer { invocation ->
+            scripts += invocation.getArgument<String>(0)
+            "${NativeSandboxWriter.MARKER} OK"
         }
-
-        assertEquals(NativeSandboxDeployStep.PUSH, error.step)
-        Mockito.verify(sandbox, Mockito.never()).execNoFallback(any(), any())
+        return sandbox to scripts
     }
 
-    @Test
-    fun `push failure is not reported as success`() {
-        val adb = RecordingAdb(pushSuccess = false)
+    private fun shellSandbox(root: File): AppSandboxExecutor {
         val sandbox = Mockito.mock(AppSandboxExecutor::class.java)
-        val writer = NativeSandboxWriter(adb, sandbox, Mockito.mock(Logger::class.java))
-
-        try {
-            writer.write(
-                NativeSandboxWriteRequest(
-                    packageName = "com.example.app",
-                    sessionId = "session-2",
-                    abiDirs = mapOf("arm64-v8a" to listOf(nativeLib("lib/arm64-v8a/libdtmp.so"))),
-                ),
-            )
-            fail("expected NativeSandboxDeployException")
-        } catch (e: NativeSandboxDeployException) {
-            assertEquals(NativeSandboxDeployStep.PUSH, e.step)
+        whenever(sandbox.execNoFallback(any(), any())).thenAnswer { invocation ->
+            val command = invocation.getArgument<String>(0)
+            val process = ProcessBuilder("sh", "-c", command)
+                .directory(root)
+                .redirectErrorStream(true)
+                .start()
+            val output = process.inputStream.bufferedReader().readText()
+            if (process.waitFor() != 0) throw IllegalStateException(output)
+            output
         }
-        Mockito.verify(sandbox, Mockito.never()).execNoFallback(any(), any())
-        assertTrue(adb.commands.any { it == "rm -rf ${NativeSandboxWriter.STAGING_ROOT}/session-2" })
+        return sandbox
     }
 
-    @Test
-    fun `missing success marker is a copy failure`() {
-        val adb = RecordingAdb()
-        val sandbox = Mockito.mock(AppSandboxExecutor::class.java)
-        whenever(sandbox.execNoFallback(any(), eq(true))).thenReturn("permission denied")
-        val writer = NativeSandboxWriter(adb, sandbox, Mockito.mock(Logger::class.java))
-
-        try {
-            writer.write(
-                NativeSandboxWriteRequest(
-                    packageName = "com.example.app",
-                    sessionId = "session-3",
-                    abiDirs = mapOf("arm64-v8a" to listOf(nativeLib("lib/arm64-v8a/libdtmp.so"))),
-                ),
-            )
-            fail("expected NativeSandboxDeployException")
-        } catch (e: NativeSandboxDeployException) {
-            assertEquals(NativeSandboxDeployStep.COPY, e.step)
-        }
-    }
-
-    @Test
-    fun `unsafe so path is rejected`() {
-        val adb = RecordingAdb()
-        val sandbox = Mockito.mock(AppSandboxExecutor::class.java)
-        val writer = NativeSandboxWriter(adb, sandbox, Mockito.mock(Logger::class.java))
-
-        try {
-            writer.write(
-                NativeSandboxWriteRequest(
-                    packageName = "com.example.app",
-                    sessionId = "session-4",
-                    abiDirs = mapOf("arm64-v8a" to listOf(nativeLib("lib/arm64-v8a/../libdtmp.so"))),
-                ),
-            )
-            fail("expected NativeSandboxDeployException")
-        } catch (e: NativeSandboxDeployException) {
-            assertEquals(NativeSandboxDeployStep.PUSH, e.step)
-        }
-        assertTrue(adb.pushedPaths.isEmpty())
-        assertFalse(adb.lastCopyScript.contains("cp -f"))
-    }
-
-    @Test
-    fun `fallback cleanup removes this round files not the abi directory`() {
-        val adb = RecordingAdb()
-        val sandbox = Mockito.mock(AppSandboxExecutor::class.java)
-        var lastCleanup = ""
-        whenever(sandbox.exec(any(), any())).thenAnswer { invocation ->
-            lastCleanup = invocation.getArgument(0)
-            "success"
-        }
-        val writer = NativeSandboxWriter(adb, sandbox, Mockito.mock(Logger::class.java))
-
-        writer.bestEffortRemovePatchFiles(
-            mapOf(
-                "arm64-v8a" to listOf(
-                    nativeLib("lib/arm64-v8a/libdtmp.so"),
-                    nativeLib("lib/arm64-v8a/libother.so"),
-                ),
-            ),
-        )
-
-        assertTrue(lastCleanup.contains("rm -f code_cache/.jugg_native/arm64-v8a/libdtmp.so"))
-        assertTrue(lastCleanup.contains("rm -f code_cache/.jugg_native/arm64-v8a/libother.so"))
-        assertFalse(lastCleanup.contains("rm -rf"))
-    }
-
-    @Test
-    fun `set enabled writes or removes the runtime flag without deleting patches`() {
-        val sandbox = Mockito.mock(AppSandboxExecutor::class.java)
-        val commands = mutableListOf<String>()
-        whenever(sandbox.exec(any(), any())).thenAnswer { invocation ->
-            commands += invocation.getArgument<String>(0)
-            "success"
-        }
-        val writer = NativeSandboxWriter(RecordingAdb(), sandbox, Mockito.mock(Logger::class.java))
-
-        assertTrue(writer.bestEffortSetEnabled(true))
-        assertTrue(writer.bestEffortSetEnabled(false))
-        assertEquals(
-            "mkdir -p code_cache/.jugg_native && touch code_cache/.jugg_native/.enabled && echo success",
-            commands[0],
-        )
-        assertEquals(
-            "rm -f code_cache/.jugg_native/.enabled && echo success",
-            commands[1],
-        )
-        assertFalse(commands.any { it.contains("rm -rf") })
-    }
-
-    private fun nativeLib(name: String, content: ByteArray = byteArrayOf(1)): DeployItem {
-        return DeployItem(
-            name = name,
-            type = CompileOutput.Type.NativeLib,
-            checksum = 1L,
-            content = content,
-            apkPath = "/tmp/app.apk",
-        )
-    }
-
-    private class RecordingAdb(
-        private val copyOutput: String = "",
-        private val pushSuccess: Boolean = true,
-    ) : IDeviceAdb {
-        val commands = mutableListOf<String>()
-        val pushedPaths = mutableListOf<String>()
+    private class RecordingAdb : IDeviceAdb {
         val pushedFiles = mutableListOf<File>()
-        var lastCopyScript: String = ""
-
-        override val displayName: String = "fake"
-        override val api: Int = 35
-        override val serial: String = "serial"
-        override val isOnline: Boolean = true
-
-        override fun execAdbShellCmd(cmd: String): String {
-            commands += cmd
-            return ""
-        }
-
-        override fun execAdbShellScript(cmd: String): String = cmd
-        override fun push(from: File, to: String): Boolean {
-            pushedFiles += from
-            pushedPaths += to
-            return pushSuccess
-        }
-        override fun pull(from: String, to: File): Boolean = true
+        override val displayName = "fake"
+        override val api = 35
+        override val serial = "serial"
+        override val isOnline = true
+        override fun execAdbShellCmd(cmd: String) = ""
+        override fun execAdbShellScript(cmd: String) = cmd
+        override fun push(from: File, to: String): Boolean { pushedFiles += from; return true }
+        override fun pull(from: String, to: File) = true
         override fun getDefaultLaunchActivity(apkFile: File): String? = null
-        override fun getArch(packageName: String): String = "ARCH_64_BIT"
+        override fun getArch(packageName: String) = "ARCH_64_BIT"
         override fun getProperty(name: String): String? = null
     }
 }

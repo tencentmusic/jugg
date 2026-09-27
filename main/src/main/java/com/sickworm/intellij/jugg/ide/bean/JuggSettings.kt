@@ -83,11 +83,6 @@ object JuggSettings {
      */
     var isEnableNativeSandboxDeploy: Boolean by propertiesComponent.delegate(defaultValue = false)
 
-    /**
-     * True after SO hot update is toggled until the device runtime flag is synced.
-     */
-    var isNeedSyncNativeSandboxRuntime: Boolean by propertiesComponent.delegate(defaultValue = false)
-
     var isUseProjectKotlinCompiler: Boolean by propertiesComponent.delegate(keyName = "isUseProjectKotlinCompiler_v3", defaultValue = true)
 
     /** limit max source modules to compile for better performance */

@@ -5,5 +5,6 @@ import com.sickworm.intellij.jugg.deploy.run.DeployItem
 data class NativeSandboxWriteRequest(
     val packageName: String,
     val sessionId: String,
-    val abiDirs: Map<String, List<DeployItem>>,
+    val files: List<DeployItem>,
+    val apkNamesByPath: Map<String, String>,
 )

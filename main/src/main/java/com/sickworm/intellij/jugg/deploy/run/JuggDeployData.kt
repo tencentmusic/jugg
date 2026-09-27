@@ -56,17 +56,16 @@ data class JuggDeployData(
      * APK `lastUpdateTime` changes, so these files also require invalidating the Flutter cache.
      */
     val flutterJitRuntimeFiles: List<DeployItem> = emptyList(),
-    /**
-     * Native libraries delivered through the sandbox path in this round.
-     * Transient: filtered with APK scope, not persisted into deploy history.
-     */
-    val nativeSandboxFiles: List<DeployItem> = emptyList(),
+    /** Native libraries to deploy in this round, kept separate from resource overlays. */
+    val nativeLibraryOverlays: List<DeployItem> = emptyList(),
 ) {
 
     val isEmpty get() = newClasses.isEmpty() &&
             hotFixModifiedClasses.isEmpty() &&
             hotReloadModifiedClasses.isEmpty() &&
-            overlays.isEmpty()
+            overlays.isEmpty() &&
+            nativeLibraryOverlays.isEmpty() &&
+            updateApkFiles.isEmpty()
 
     val hasClassChanges get() = newClasses.isNotEmpty() ||
             hotFixModifiedClasses.isNotEmpty() ||
@@ -90,7 +89,7 @@ data class JuggDeployData(
             || (isComposeResourceCompiled && !isEmpty)
             || isRecoverReplayAfterReinstall
             || flutterJitRuntimeFiles.isNotEmpty()
-            || nativeSandboxFiles.isNotEmpty()
+            || nativeLibraryOverlays.isNotEmpty()
 
     /** is need update files in APK and resign, e.g. AndroidManifest.xml lib/arm64-v8a/xxx.so */
     val isNeedUpdateApk: Boolean = updateApkFiles.isNotEmpty()
@@ -126,7 +125,15 @@ data class JuggDeployData(
             overlays = overlays.filter { it.belongsToAny(apkPaths) },
             updateApkFiles = updateApkFiles.filter { it.belongsToAny(apkPaths) },
             flutterJitRuntimeFiles = flutterJitRuntimeFiles.filter { it.belongsToAny(apkPaths) },
-            nativeSandboxFiles = nativeSandboxFiles.filter { it.belongsToAny(apkPaths) },
+            nativeLibraryOverlays = nativeLibraryOverlays.mapNotNull { item ->
+                val targets = item.targetApkPaths.filter { it in apkPaths }
+                when {
+                    targets.isNotEmpty() -> item.copyWithApkPaths(targets.first(), targets)
+                    item.apkPath == DeployItem.FLAG_BASE_APK && apkPaths.isNotEmpty() ->
+                        item.copyWithApkPaths(apkPaths.first(), listOf(apkPaths.first()))
+                    else -> null
+                }
+            },
         )
     }
 
@@ -141,15 +148,15 @@ data class JuggDeployData(
     fun targetApkPathSample(limit: Int = 5): List<String> {
         val classTargets = (newClasses + hotFixModifiedClasses + hotReloadModifiedClasses)
             .flatMap { it.deployItem.targetPathsForLog() }
-        val fileTargets = (overlays + updateApkFiles).flatMap { it.targetPathsForLog() }
+        val fileTargets = (overlays + nativeLibraryOverlays + updateApkFiles).flatMap { it.targetPathsForLog() }
         return (classTargets + fileTargets).distinct().take(limit)
     }
 
     private fun toString(isFull: Boolean): String {
         val builder = StringBuilder()
         builder.append("JuggDeployData ($deployType): ")
-        if (nativeSandboxFiles.isNotEmpty()) {
-            builder.append("native sandbox: ${nativeSandboxFiles.map { it.name }}\n")
+        if (nativeLibraryOverlays.isNotEmpty()) {
+            builder.append("native libraries: ${nativeLibraryOverlays.map { it.name }}\n")
         }
         if (isFull) {
             builder.append("isFullRes: $isFullRes, isWarmUp: $isWarmUp, isInstall: $isInstall, isPushOverlayOnly: $isPushOverlayOnly, isComposeResourceCompiled: $isComposeResourceCompiled, isRecoverReplayAfterReinstall: $isRecoverReplayAfterReinstall, isNeedRestartApp: $isNeedRestartApp, isCompatDeploy: $isCompatDeploy, isNeedRestartActivity:$isNeedRestartActivity\n")
@@ -161,9 +168,7 @@ data class JuggDeployData(
             }
         }
         if (isEmpty) {
-            if (nativeSandboxFiles.isEmpty()) {
-                builder.append("[nothing to deploy]")
-            }
+            builder.append("[nothing to deploy]")
             return builder.toString()
         }
         builder.append("[\n")

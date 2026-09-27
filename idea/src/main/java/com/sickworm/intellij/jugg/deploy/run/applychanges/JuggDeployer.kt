@@ -17,6 +17,7 @@ import com.sickworm.intellij.jugg.deploy.direct.DirectOverlayDirtyException
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlaySwapTransport
 import com.sickworm.intellij.jugg.deploy.hotreload.DirectAppSandboxDeployTransport
 import com.sickworm.intellij.jugg.deploy.hotreload.RootlessCompatPending
+import com.sickworm.intellij.jugg.deploy.nativesandbox.NativeSandboxWriteRequest
 import com.sickworm.intellij.jugg.deploy.nativesandbox.NativeSandboxWriter
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
@@ -28,6 +29,7 @@ import com.sickworm.intellij.jugg.deploy.run.JuggInstallSession
 import com.sickworm.intellij.jugg.deploy.run.LaunchContext
 import com.sickworm.intellij.jugg.deploy.run.JuggOverlayId
 import com.sickworm.intellij.jugg.deploy.run.utils.AdbLogWrapper
+import java.util.UUID
 
 /**
  * [com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper] -> [JuggDeployTask] -> [JuggDeployer]
@@ -127,7 +129,7 @@ class JuggDeployer(
             return
         }
         val output = sandbox.exec(
-            "rm -rf code_cache/.overlay ${NativeSandboxWriter.SANDBOX_DIR} && echo success",
+            "rm -rf code_cache/.overlay ${NativeSandboxWriter.TEMP_ROOT} && echo success",
             repairCodeCache = true,
         )
         check(output.trim() == "success") {
@@ -259,7 +261,11 @@ class JuggDeployer(
             // A rootless request is only committed after the app confirms the import, so the
             // deployment cache must keep pointing at the previous overlay until then.
             if (directResult.pendingRequest == null) {
-                deploymentService.storeEntry(deviceSerial, packageName, newFiles, directResult.overlayId, logger)
+                storeEntryWithNativeOverlays(packageName, data, speculativeDump, newFiles, directResult.overlayId)
+            } else {
+                check(data.nativeLibraryOverlays.none { it.isFileBacked }) {
+                    "Large native library overlay cannot be deferred to rootless import"
+                }
             }
             return Result().also {
                 it.overlayId = directResult.overlayId.sha
@@ -270,7 +276,7 @@ class JuggDeployer(
         tryDirectOverlaySwap(packageName, data, speculativeDump, arch)?.let { overlayId ->
             val costTime = System.currentTimeMillis() - startTime
             logger.info("after direct overlay deploy, cost: ${costTime}ms, overlay id: ${overlayId.sha}, is base install: ${overlayId.isBaseInstall}, isPushOverlayOnly: ${data.isPushOverlayOnly}")
-            deploymentService.storeEntry(deviceSerial, packageName, newFiles, overlayId, logger)
+            storeEntryWithNativeOverlays(packageName, data, speculativeDump, newFiles, overlayId)
             return Result().also {
                 it.overlayId = overlayId.sha
                 it.needsRestart = true
@@ -296,7 +302,7 @@ class JuggDeployer(
             }
             val costTime = System.currentTimeMillis() - startTime
             logger.info("after deploy, cost: ${costTime}ms, overlay id: ${overlayId.sha}, is base install: ${overlayId.isBaseInstall}, isPushOverlayOnly: ${data.isPushOverlayOnly}")
-            deploymentService.storeEntry(deviceSerial, packageName, newFiles, overlayId, logger)
+            storeEntryWithNativeOverlays(packageName, data, speculativeDump, newFiles, overlayId)
 
             return Result().also {
                 it.overlayId = overlayId.sha
@@ -309,6 +315,47 @@ class JuggDeployer(
             } else {
                 throw asDeployerCompat.wrapDeployerException(e) ?: e
             }
+        }
+    }
+
+    /** Publishes large native libraries after overlay transport and before caching its result. */
+    private fun storeEntryWithNativeOverlays(
+        packageName: String,
+        data: JuggDeployData,
+        cacheEntry: JuggDeploymentCacheEntry?,
+        newFiles: List<Apk>,
+        overlayId: JuggOverlayId,
+    ) {
+        val nativeFiles = data.nativeLibraryOverlays.filter { it.isFileBacked }
+        if (nativeFiles.isEmpty()) {
+            deploymentService.storeEntry(deviceAdb.serial, packageName, newFiles, overlayId, logger)
+            return
+        }
+        val request = NativeSandboxWriteRequest(
+            packageName = packageName,
+            sessionId = UUID.randomUUID().toString().replace("-", ""),
+            files = nativeFiles,
+            apkNamesByPath = (cacheEntry ?: throw asDeployerCompat.remoteApkNotFound())
+                .apks.associate { it.path to it.name },
+        )
+        val sandbox = launchContext.getAppSandboxExecutor(packageName, logger.logger)
+        check(sandbox.mode != AppSandboxExecutor.Mode.UNAVAILABLE) {
+            "Large native library overlay requires app sandbox access for $packageName"
+        }
+        val writer = NativeSandboxWriter(deviceAdb, sandbox, logger.logger)
+        writer.stage(request)
+        try {
+            writer.publish(request)
+            deploymentService.storeEntry(deviceAdb.serial, packageName, newFiles, overlayId, logger)
+        } catch (e: Exception) {
+            try {
+                writer.rollback(request)
+            } catch (rollbackError: Exception) {
+                e.addSuppressed(rollbackError)
+            }
+            throw e
+        } finally {
+            writer.discard(request)
         }
     }
 

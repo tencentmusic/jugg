@@ -70,8 +70,8 @@ public class InstrumentationHooks {
             ApplyChangesOverlayPolicy.recordHostApplicationInfo(base.getApplicationInfo());
             boolean isNeedFix = DexPathListFixer.isNeedFix(base);
             LogUtils.i(TAG, "handleAttachBaseContextEntry isNeedFix: " + isNeedFix);
-            HotfixLoader.init(base);
             if (isNeedFix) {
+                HotfixLoader.init(base);
                 HotfixLoader.installDex(base);
                 LogUtils.i(TAG, "handleAttachBaseContextEntry fix finished");
             }
@@ -91,8 +91,8 @@ public class InstrumentationHooks {
             ApplyChangesOverlayPolicy.recordHostApplicationInfo(base.getApplicationInfo());
             boolean isNeedFix = DexPathListFixer.isNeedFix(base);
             LogUtils.i(TAG, "handleAttachBaseContextEntry isNeedFix: " + isNeedFix);
-            HotfixLoader.init(base);
             if (isNeedFix) {
+                HotfixLoader.init(base);
                 HotfixLoader.installDex(base);
                 InstrumentationHooks.base = base;
                 LogUtils.i(TAG, "handleAttachBaseContextEntry fix finished");
@@ -110,8 +110,8 @@ public class InstrumentationHooks {
             ApplyChangesOverlayPolicy.recordHostApplicationInfo(base.getApplicationInfo());
             boolean isNeedFix = DexPathListFixer.isNeedFix(base);
             LogUtils.i(TAG, "handleAttachBaseContextEntry2 isNeedFix: " + isNeedFix);
-            HotfixLoader.init(base);
             if (isNeedFix) {
+                HotfixLoader.init(base);
                 HotfixLoader.install(base);
                 InstrumentationHooks.base = base;
                 LogUtils.i(TAG, "handleAttachBaseContextEntry2 fix finished");

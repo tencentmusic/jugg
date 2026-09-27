@@ -21,6 +21,7 @@ import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.deploy.AppSandboxExecutor
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
+import com.sickworm.intellij.jugg.deploy.nativesandbox.NativeSandboxWriter
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.IJuggDeployerDeploymentService
 import com.sickworm.intellij.jugg.deploy.run.IdeDeployState
@@ -211,7 +212,7 @@ class JuggDeployerInstallTest {
             val sandbox = sandboxes.constructed().single()
             val order = Mockito.inOrder(sandbox, fixture.deploymentService)
             order.verify(sandbox).exec(
-                "rm -rf code_cache/.overlay code_cache/.jugg_native && echo success",
+                "rm -rf code_cache/.overlay ${NativeSandboxWriter.TEMP_ROOT} && echo success",
                 repairCodeCache = true,
             )
             order.verify(fixture.deploymentService).storeEntry(
