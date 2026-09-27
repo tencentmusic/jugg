@@ -1,3 +1,19 @@
+- version: 3.5.2
+  date: 2026.09.27
+  updates:
+    - "[feature][ide] Support checking updates from JetBrains Marketplace and GitHub in the Check Updates feature"
+    - "[feature][settings] Add \"Confirm fallback when too many changes\" setting to toggle between automatic fallback and a confirmation prompt when too many files change"
+    - "[feature][agent] Support one-click installation for Anti-gravity skills and hooks"
+    - "[feature][diagnostics] Preserve historical logs across project clean"
+    - "[optimize][ide] Automatically activate the Run window when running a project for the first time"
+    - "[optimize][compile] Improve file change detection when running immediately after git pull to avoid missed updates"
+    - "[optimize][compile] Accurately report file count in the notification balloon when compiled changes await deployment"
+    - "[bugfix][compile] Fix Kotlin compiler initialization failure with Kotlin 2.2 on Quail (JVM 25)"
+    - "[bugfix][deploy] Fix startup crash on HarmonyOS 2 devices during compatibility hot-fix mode"
+    - "[bugfix][compile] Fix remote compilation failures on Intel Macs"
+    - "[bugfix][compile] Fix compilation failure for JVM target modules in KMP projects"
+    - "[bugfix][ide] Fix control panel occasionally getting stuck in initializing state"
+
 - version: 3.5.1
   date: 2026.09.18
   updates:
