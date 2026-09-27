@@ -1,6 +1,6 @@
 # 运行时与 JVMTI 支持
 
-> 最后核对：2026-09-17
+> 最后核对：2026-09-27
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -10,6 +10,8 @@
 本页描述 Apply Changes Agent、Jugg JVMTI Agent 与 IDE 部署编排的职责边界，以及 Jugg 如何准备 startup agent、判断设备是否可用 JVMTI、安装运行时 hook，并在必要时触发兼容部署重试。
 
 本页不展开 Direct Overlay 的传输细节、ViewHierarchy LocalSocket 协议、完整 install/code swap 流程；对应入口见 `03_deploy_core.md`、`03_deploy_complete.md`、`08_mcp_layout_verify_design.md`。
+
+**修改 agent 前先检查版本**：只要本次 diff 改动了 `jvmti_agent` 的 native、Java runtime、setup script 或 bundle 输入，就必须在同一提交中递增根 `build.gradle` 的 `agentVersion`。仅改 Host/IDE 代码或文档时不需要递增。设备按版本缓存 bundle；不递增时，即使重新安装插件并再次 Run，也可能继续加载旧 runtime。详见第 5 节。
 
 ---
 
@@ -284,7 +286,7 @@ compat deploy 不执行 framework transform，因此不安装 `ClassLoader#getRe
 - implementation 中 dex2jar 生成的 Kotlin 子集会替换为固定 SHA-256 的源码编译 Kotlin stdlib 2.0.0，并继续重命名到 `com.sickworm.intellij.jugg.internal.dragonfly.runtime.kotlin.**`；其余 dex2jar class 在删除旧 Kotlin 与 dexlib2 后才将缺少 `StackMapTable` 的 Java 8 class version 规范为 Java 6。正式 Gradle 流程只消费仓库中的 `*-jugg.jar`，既避免宿主 App 同名依赖冲突，也不依赖宿主提供 Kotlin runtime。
 - `jugg-runtime.jar` 继续合并相同的预处理 Dragonfly JAR，保持 `GradleApplicationInjector` 的单 runtime JAR 接口；构建同时校验私有 Dragonfly、Kotlin runtime 入口存在且原包 class entry 不存在。
 - 工程根 `build.gradle` 的 `agentVersion` 是设备目录、startup agent 文件名前缀和 bundle 文件名的共同版本源。
-- 修改 `jvmti_agent` 里的 native、Java runtime（含 `ViewExpressionEvaluator` / `view-inspect` 求值）、setup script 或 bundle 内容后，必须递增 `agentVersion`。`isAgentBundlePushed()` 只看 `/data/local/tmp/jugg/{AGENT_VERSION}` 是否已有 4 个文件；同版本插件更新不会重推，设备会继续加载旧 `jugg-instruments.jar`。
+- 修改 `jvmti_agent` 里的 native、Java runtime（包括 `HotfixLoader`、`NativeLibraryPathInstaller`、`InstrumentationHooks` 等）、setup script 或 bundle 内容后，必须递增 `agentVersion`。提交前对照本次 diff 检查这些路径。`isAgentBundlePushed()` 只看 `/data/local/tmp/jugg/{AGENT_VERSION}` 是否已有 4 个文件；同版本插件更新不会重推，设备会继续加载旧 `jugg-instruments.jar`。
 - 32 位 app 使用 `_alt.so`：bundle 打包时把 armeabi-v7a so 改名为 `jugg_jvmti_agent_alt.so`，`attachAgentToApp()` / setup script 都依赖这个约定。
 - ABI 解析当前只支持 ARM：`armeabi` / `armeabi-v7a` 映射 32 位，`arm64-v8a` 映射 64 位；不兼容 x86。所有证据都无法确定时仍按 64 位处理，覆盖大部分现有设备。
 - Java runtime 入口由 `HotfixLoader` 统一做设备 API 判定；API < 26 时 `init()` 会在访问 `Context.getCodeCacheDir()` 前 return，`install()` / `installDex()` / `isNeedEnableHotfix()` 也会短路。这个判断不改变 Gradle 构建产物，`BootstrapApplication` 注入仍只受 `jugg.inject.application.enable` 控制。
@@ -299,7 +301,6 @@ compat deploy 不执行 framework transform，因此不安装 `ClassLoader#getRe
 - `ClassLoader#getResource` hook 必须保持 early-return + fail-open：只有 overlay URL 非空时提前返回，未命中和异常继续原方法。不要改回 exit hook，否则原始 resource lookup 会先执行，失去真正的 overlay-first 语义。
 - ClassLoader resource 的可靠刷新边界是进程重启，不是 Activity 重建。Compose resource 与 `JarURLConnection` 都可能缓存旧结果。
 - Flutter JNI 刷新只能发生在 Engine 已 attach 且已启动 Dart 之后；Dart 启动前推送给 JNI 的 AssetManager 会被 Flutter 自己的 `RunBundleAndSnapshotFromLibrary()` 覆盖。对尚未启动 Dart 的 Engine，不能只跳过并等待不确定的下一次 ResourcesManager hook。
-- 修改 `FlutterAssetRefresh` 等 runtime 类后必须递增根 `build.gradle` 的 `agentVersion`，设备才会加载新的 `jugg-instruments.jar`。
 
 ---
 
