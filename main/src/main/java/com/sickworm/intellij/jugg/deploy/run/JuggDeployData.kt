@@ -155,9 +155,6 @@ data class JuggDeployData(
     private fun toString(isFull: Boolean): String {
         val builder = StringBuilder()
         builder.append("JuggDeployData ($deployType): ")
-        if (nativeLibraryOverlays.isNotEmpty()) {
-            builder.append("native libraries: ${nativeLibraryOverlays.map { it.name }}\n")
-        }
         if (isFull) {
             builder.append("isFullRes: $isFullRes, isWarmUp: $isWarmUp, isInstall: $isInstall, isPushOverlayOnly: $isPushOverlayOnly, isComposeResourceCompiled: $isComposeResourceCompiled, isRecoverReplayAfterReinstall: $isRecoverReplayAfterReinstall, isNeedRestartApp: $isNeedRestartApp, isCompatDeploy: $isCompatDeploy, isNeedRestartActivity:$isNeedRestartActivity\n")
             if (flutterJitRuntimeFiles.isNotEmpty()) {
@@ -170,11 +167,6 @@ data class JuggDeployData(
         if (isEmpty) {
             builder.append("[nothing to deploy]")
             return builder.toString()
-        }
-        if (nativeLibraryOverlays.isNotEmpty() && newClasses.isEmpty() &&
-            hotFixModifiedClasses.isEmpty() && hotReloadModifiedClasses.isEmpty() &&
-            overlays.isEmpty() && effectedClassNodes.isEmpty() && constRefEffectedSourcePaths.isEmpty()) {
-            return builder.toString().trimEnd()
         }
         builder.append("[\n")
         if (newClasses.isNotEmpty()) {
@@ -209,6 +201,11 @@ data class JuggDeployData(
                 builder.append(overlays.toLogString(isFull))
                 builder.append("\n")
             }
+        }
+        if (nativeLibraryOverlays.isNotEmpty()) {
+            builder.append("native libraries:\n")
+            builder.append(nativeLibraryOverlays.toLogString(isFull))
+            builder.append("\n")
         }
         if (isFull) {
             val effectedSourceFileNames: List<String> = (

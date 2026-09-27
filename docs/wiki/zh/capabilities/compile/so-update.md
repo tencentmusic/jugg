@@ -62,6 +62,7 @@ Profile/Release 使用 AOT 产物 `libapp.so`，属于 native lib，也按上述
 
 ## 使用边界
 
+- 开启「SO hot update」后，使用 App ClassLoader 的 `System.loadLibrary()` 可以优先找到 overlay 中的新库。`System.load()` 若指向原安装目录或 APK 中的库，仍会加载原库；若传入 `findLibrary()` 返回的补丁路径，则可以加载新库。native `dlopen()` / `android_dlopen_ext()` 和 ELF `DT_NEEDED` 依赖不经过这条 Java 搜索路径，可能继续使用旧库。已加载的库不会在进程内被替换。
 - 直接文件变化入口只识别项目目录中已经存在、父目录为 `armeabi`、`armeabi-v7a`、`arm64-v8a`、`x86` 或 `x86_64` 的 `.so`。
 - C/C++ 源码入口要求 Android Gradle 配置提供 CMake 或 ndk-build 文件，并能够找到当前变体的 native task。Jugg 不监听 `.cxx`、`.externalNativeBuild` 或 Gradle `build` 目录中的生成文件。工程可以在 Gradle extra `juggExternalBuildPrerequisites` 声明「哪些文件变化时先跑 codegen」；命中后同一轮先执行该 task，再跑 native merge，声明目录里相对 codegen 执行前发生大小或时间戳变化的 Kotlin/Java 才进入 Jugg 增量编译。没有声明的工程行为不变。
 - 每次检测到 C/C++ 源码变化都会执行 native task；产物内容校验只避免重复写入 APK，不跳过 native 编译。

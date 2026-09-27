@@ -163,11 +163,11 @@ open class JuggControlPanelController(
     private fun updateNativeSandboxDeploy(enabled: Boolean) {
         if (JuggSettings.isEnableNativeSandboxDeploy == enabled) return
         if (enabled && !CommonConfirmDialog.showAndGetResult(
-                "Enable SO Hot Update",
-                "<html>On Android 8.0+, changed .so files loaded by System.loadLibrary take effect after " +
-                    "an app restart. Already loaded libraries and absolute-path dlopen are unsupported; " +
-                    "large .so files require app sandbox access.<br><br>Enabling this setting clears app data " +
-                    "and reinstalls the app on the next Run. Continue?</html>",
+                "Enable .so(native library) Hot Update",
+                "<html>Deploy .so files through HOT FIX without modifying the APK.<br><br>" +
+                    "This feature covers <b>System.loadLibrary</b>, but does not cover <b>System.load</b> using the original absolute path, native " +
+                    "<b>dlopen</b> / <b>android_dlopen_ext</b>, or ELF <b>DT_NEEDED</b> dependencies.<br><br>" +
+                    "Continue?</html>",
             )) {
             model.updateSettings(currentSettings())
             return
@@ -386,7 +386,7 @@ open class JuggControlPanelController(
         CONFIRM_FALLBACK_WHEN_TOO_MANY_CHANGES("Confirm fallback when too many changes"),
         ALWAYS_RESTART("Always restart app"),
         QUICK_DEPLOY("Quick deploy"),
-        SO_HOT_UPDATE("SO hot update"),
+        SO_HOT_UPDATE(".so(native library) hot update"),
         AUTO_FALLBACK("Auto fallback"),
         EMBED_APK("Embed changes into APK"),
         PROJECT_KOTLIN("Project Kotlin compiler"),

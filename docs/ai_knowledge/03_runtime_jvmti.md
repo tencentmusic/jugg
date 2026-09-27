@@ -1,6 +1,6 @@
 # 运行时与 JVMTI 支持
 
-> 最后核对：2026-09-27
+> 最后核对：2026-09-28
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -158,7 +158,9 @@ InstrumentationHooks.handleAttachBaseContextEntry / handleNewApplicationEntry*
   -> NativeLibraryPathInstaller.install(base)
 ```
 
-`NativeLibraryPathInstaller` 不依赖 `HotfixLoader.init`；未初始化时直接使用 `base.getCodeCacheDir()`，避免纯 SO 路径为 Dex 初始化额外扫描资源。它只处理 API 26+；`context == null` 或低 API 时 warn 后返回。只扫描带 `id` 的已提交 `.overlay`，按 base/split APK 优先顺序、当前进程位数对应的 `SUPPORTED_*_BIT_ABIS` 选择包含 `lib*.so` 的目录，再更新 `nativeLibraryDirectories` 与 `nativeLibraryPathElements`。旧 `.jugg_native/.enabled` 下的 ABI 目录只作低优先级兼容读取，等待下次 `pm clear`/重装清理。重复调用时先移除原先注入的 native 目录，保证顺序幂等。反射失败写 `code_cache/.jugg_native_inject_failed` 并 warn。此机制覆盖 `findLibrary` / `System.loadLibrary`，不覆盖绝对路径 `dlopen`；已加载的 SO 仍需重启进程。
+`NativeLibraryPathInstaller` 不依赖 `HotfixLoader.init`；未初始化时直接使用 `base.getCodeCacheDir()`，避免纯 SO 路径为 Dex 初始化额外扫描资源。它只处理 API 26+；`context == null` 或低 API 时 warn 后返回。只扫描带 `id` 的已提交 `.overlay`，按 base/split APK 优先顺序、当前进程位数对应的 `SUPPORTED_*_BIT_ABIS` 选择包含 `lib*.so` 的目录，再更新 `nativeLibraryDirectories` 与 `nativeLibraryPathElements`。旧 `.jugg_native/.enabled` 下的 ABI 目录只作低优先级兼容读取，等待下次 `pm clear`/重装清理。重复调用时先移除原先注入的 native 目录，保证顺序幂等。反射失败写 `code_cache/.jugg_native_inject_failed` 并 warn。
+
+此机制只保证使用已注入 App ClassLoader 的 `findLibrary` / `System.loadLibrary` 优先命中补丁。`System.load` 若使用原安装目录或 APK 路径，不会被重定向；若使用 `findLibrary` 返回的补丁路径，则仍可加载补丁。native `dlopen` / `android_dlopen_ext` 和 ELF `DT_NEEDED` 依赖不经过这条 Java 搜索路径，是否命中补丁取决于 linker 搜索条件，不能保证生效。已加载的 SO 仍需重启进程。
 
 ### 4.4 Direct app sandbox dynamic redefine
 

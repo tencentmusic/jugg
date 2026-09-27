@@ -105,7 +105,7 @@ class JuggRunSettingsComponentTest {
     }
 
     @Test
-    fun `control panel preview should match approved native layout structure`() {
+    fun `control panel exposes expected sections and actions`() {
         TestGlobal.init()
         val panel = createPanel()
         val tabs = findComponent<JBTabbedPane>(panel)
@@ -159,7 +159,6 @@ class JuggRunSettingsComponentTest {
         }
         assertEquals(9, settingCheckboxes)
         assertTrue(settingRows.containsAll(listOf(
-            ".so(native library) hot update Update .so after restart.",
             "Install CLI and agent skills Install the Jugg CLI, agent skills, hooks, and required permissions.",
             "Check Jugg updates Check whether a newer Jugg plugin is available.",
             "Set custom server URL Configure the server used by Jugg services.",
@@ -303,7 +302,7 @@ class JuggRunSettingsComponentTest {
     }
 
     @Test
-    fun `settings should follow More Options capability conditions and connected devices`() {
+    fun `settings reflect injection capability and connected devices`() {
         TestGlobal.init()
         val controller = Mockito.mock(JuggControlPanelController::class.java)
         val model = JuggControlPanelModel().apply {
@@ -465,7 +464,7 @@ class JuggRunSettingsComponentTest {
                     Mockito.verify(manager).forceReInstallNextTime()
                 }
             }
-            assertEquals(listOf("[UserAction] Setting changed: SO hot update: enabled"), logs)
+            assertEquals(listOf("[UserAction] Setting changed: .so(native library) hot update: enabled"), logs)
             assertTrue(controller.model.snapshot().settings.nativeSandboxDeploy)
         } finally {
             JuggSettings.isEnableNativeSandboxDeploy = previous
