@@ -171,6 +171,11 @@ data class JuggDeployData(
             builder.append("[nothing to deploy]")
             return builder.toString()
         }
+        if (nativeLibraryOverlays.isNotEmpty() && newClasses.isEmpty() &&
+            hotFixModifiedClasses.isEmpty() && hotReloadModifiedClasses.isEmpty() &&
+            overlays.isEmpty() && effectedClassNodes.isEmpty() && constRefEffectedSourcePaths.isEmpty()) {
+            return builder.toString().trimEnd()
+        }
         builder.append("[\n")
         if (newClasses.isNotEmpty()) {
             val classString = newClasses.toClassLogString(isFull, excludeNodes = hotFixModifiedClasses + hotReloadModifiedClasses)
