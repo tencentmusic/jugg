@@ -112,21 +112,45 @@ class DeployFilePathExtTest {
     @Test
     fun `file backed native library rejects byte array access`() {
         val native = Files.createTempFile("jugg-large-native", ".so").toFile()
-        RandomAccessFile(native, "rw").use { it.setLength(Int.MAX_VALUE + 1L) }
-        val item = DeployItem.fileBackedNativeLib(
-            name = "lib/arm64-v8a/liblarge.so",
-            checksum = 1L,
-            file = native,
-            apkPath = "/base.apk",
-        )
-
         try {
+            for (size in listOf(268_435_456L, 268_435_457L)) {
+                RandomAccessFile(native, "rw").use { it.setLength(size) }
+                val item = DeployItem.fileBackedNativeLib(
+                    name = "lib/arm64-v8a/liblarge.so", checksum = 1L, file = native, apkPath = "/base.apk",
+                )
+                assertTrue(item.isFileBacked)
+                assertEquals(size, item.size)
+                assertEquals(native, item.sourceFileOrNull())
+                assertFailsWith<IllegalStateException> { item.content }
+            }
+            RandomAccessFile(native, "rw").use { it.setLength(268_435_455L) }
+            assertFailsWith<IllegalArgumentException> {
+                DeployItem.fileBackedNativeLib(
+                    name = "lib/arm64-v8a/liblarge.so", checksum = 1L, file = native, apkPath = "/base.apk",
+                )
+            }
+        } finally {
+            native.delete()
+        }
+    }
+
+    @Test
+    fun `256 mib native output becomes file backed without byte content`() {
+        Assume.assumeFalse("creating a sparse file is not portable", isWindows)
+        val baseDir = Files.createTempDirectory("jugg-256-mib-native").toFile()
+        try {
+            val native = File(baseDir, "lib/arm64-v8a/liblarge.so").apply { parentFile.mkdirs() }
+            RandomAccessFile(native, "rw").use { it.setLength(268_435_456L) }
+            val output = CompileOutput(CompileOutput.Type.NativeLib, native, baseDir, "/base.apk")
+
+            val item = output.toDeployItem()
+
             assertTrue(item.isFileBacked)
-            assertEquals(Int.MAX_VALUE + 1L, item.size)
+            assertEquals(268_435_456L, item.size)
             assertEquals(native, item.sourceFileOrNull())
             assertFailsWith<IllegalStateException> { item.content }
         } finally {
-            native.delete()
+            baseDir.deleteRecursively()
         }
     }
 

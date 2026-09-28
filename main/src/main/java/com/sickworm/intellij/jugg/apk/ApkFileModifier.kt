@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.apk
 
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.isWindows
+import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.gradle.compile.CmdExecutor
 import com.sickworm.intellij.jugg.gradle.compile.SimpleSshCommand
 import com.sickworm.intellij.jugg.logger.TimeLogger
@@ -212,7 +213,7 @@ class ApkFileModifier(
                     }
 
                     remainInsertFiles.values.forEach { insertFile ->
-                        if (insertFile.isFileBacked && insertFile.size > Int.MAX_VALUE) {
+                        if (insertFile.isFileBacked && DeployItem.shouldUseFileBackedNativeLib(insertFile.size)) {
                             throw IllegalStateException("Large native library entry is missing from the base APK: " +
                                     "${insertFile.path}, size=${insertFile.size}")
                         }

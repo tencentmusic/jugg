@@ -15,10 +15,7 @@ internal val File.stdAbsPath: String
 
 fun CompileOutput.toDeployItem(deployName: String = deployItemName): DeployItem {
     val size = file.length()
-    if (size > Int.MAX_VALUE) {
-        if (type != CompileOutput.Type.NativeLib) {
-            throw JuggInternalException.outputTooLargeToDeploy(file, size)
-        }
+    if (type == CompileOutput.Type.NativeLib && DeployItem.shouldUseFileBackedNativeLib(size)) {
         val outputApkPath = apkPath
             ?: throw JuggInternalException.outputDidNotSpecificApkPath(this.toString())
         val lastModified = file.lastModified()
@@ -32,6 +29,9 @@ fun CompileOutput.toDeployItem(deployName: String = deployItemName): DeployItem 
             outputApkPath,
             targetApkPaths,
         )
+    }
+    if (size > Int.MAX_VALUE) {
+        throw JuggInternalException.outputTooLargeToDeploy(file, size)
     }
     val bytes = file.readBytes()
     val crc = CRC32().run {

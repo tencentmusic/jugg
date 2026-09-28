@@ -374,6 +374,10 @@ open class DeployItem private constructor(
     companion object {
         const val FLAG_CLASS = "jugg_class_flag"
         const val FLAG_BASE_APK = "jugg_all_apk_flag"
+        private const val FILE_BACKED_NATIVE_MIN_SIZE = 256L * 1024 * 1024
+
+        /** Keeps native payload selection and file-backed validation on the same inclusive threshold. */
+        internal fun shouldUseFileBackedNativeLib(size: Long): Boolean = size >= FILE_BACKED_NATIVE_MIN_SIZE
 
         internal fun fileBackedNativeLib(
             name: String,
@@ -385,8 +389,8 @@ open class DeployItem private constructor(
             targetApkPaths: List<String> = emptyList(),
         ): DeployItem {
             require(file.isFile && file.canRead()) { "Native library source is unavailable: ${file.absolutePath}" }
-            require(size > Int.MAX_VALUE.toLong()) {
-                "Only native libraries larger than ${Int.MAX_VALUE} bytes can be file-backed: ${file.absolutePath}"
+            require(shouldUseFileBackedNativeLib(size)) {
+                "Only native libraries of at least $FILE_BACKED_NATIVE_MIN_SIZE bytes can be file-backed: ${file.absolutePath}"
             }
             require(file.length() == size && file.lastModified() == sourceLastModified) {
                 "Native library source changed while creating deploy data: ${file.absolutePath}"

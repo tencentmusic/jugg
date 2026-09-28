@@ -97,13 +97,14 @@ class ApkFileModifierStreamTest {
         writeZip(apk, mapOf("assets/value.txt" to EntryData("old".toByteArray(), ZipEntry.DEFLATED)))
         val original = apk.readBytes()
         val native = File(dir, "liblarge.so")
-        RandomAccessFile(native, "rw").use { it.setLength(Int.MAX_VALUE + 1L) }
+        RandomAccessFile(native, "rw").use { it.setLength(268_435_456L) }
         val modifier = modifier(apk)
 
         try {
             modifier.addFile("lib/arm64-v8a/liblarge.so", native, native.length(), 0L)
 
-            assertFailsWith<IllegalStateException> { modifier.updateDirectly() }
+            val failure = assertFailsWith<IllegalStateException> { modifier.updateDirectly() }
+            assertTrue(failure.message.orEmpty().contains("entry is missing"))
             assertArrayEquals(original, apk.readBytes())
         } finally {
             native.delete()

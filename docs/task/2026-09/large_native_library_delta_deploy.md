@@ -2,7 +2,7 @@
 
 ## 范围与执行路径
 
-2026-09-28：在已有大 SO 文件部署路径上接入 HDiffPatch 5.1.3。仅处理 `isFileBacked` NativeLib（当前为超过 `Int.MAX_VALUE` 的 SO），沿用现有 SO hot update 开关、API 26 门禁、重启生效以及发布/回滚流程。
+2026-09-28：在已有大 SO 文件部署路径上接入 HDiffPatch 5.1.3。仅处理 `isFileBacked` NativeLib（当前为达到 256 MiB、含边界的 SO），沿用现有 SO hot update 开关、API 26 门禁、重启生效以及发布/回滚流程。
 
 1. `NativeLibraryDelta` 通过通用历史接口复用 `CompileContextDb.getDeployedData()`，延迟读取一次上次成功部署保存的产物列表，筛选 NativeLib 并按 APK 作用域提供 SO 快照。helper 经构造依赖传递到 `NativeSandboxWriter`，通用部署 data 和 native request 不保存基线；不读取可被下一次编译覆盖的暂存产物。
 2. 本地基线缺失时直接完整传输，并打印一行 info：`No large SO delta baseline for ...; transferring the full file may take longer.` 不从 APK 解压或从设备拉取基线。
@@ -82,3 +82,9 @@ external compile 的 CRC 比较继续用于判断 SO 是否变化。其内存 `d
 测试先模拟 RUN_AS 拒绝执行 shell 路径，断言应该只发送补丁，旧实现实际发送完整源文件而失败（`/tmp/jugg-native-private-patcher-red.log`）。修复后沿用 writer、部署 Flow 与 overlay owner，并覆盖私有副本执行被拒、复制失败两种边界，49 项定向回归通过；回归日志为 `/tmp/jugg-native-private-patcher-tests.log`。本机 shell 使用真实桌面 hpatchz 验证“缓存不可执行、复制并 chmod 后可执行、session 清理移除副本”（`/tmp/jugg-native-private-patcher-shell.log`），仅证明 shell 流程，不代表 Android SELinux 验证。
 
 本次未操作用户设备，实际 Android 私有副本执行权限和差分耗时仍由用户复测。已核对中英文 Wiki：既有“工具不可用时完整传输”及“空间不足结束本轮”描述保持一致，无需增加内部路径细节。
+
+## File-backed 门槛调整为 256 MiB
+
+2026-09-28：按用户要求，NativeLib 大小达到 256 MiB（268,435,456 bytes，含边界）即走 file-backed。大小判断统一收归 `DeployItem.shouldUseFileBackedNativeLib(size)`，产物转换、file-backed 工厂校验和 APK 基线 entry 保护共用；后续部署仍依据 `isFileBacked` 分流。非 NativeLib 的 `ByteArray` 上限与经典 ZIP 单 entry 上限保持原义。
+
+验证 owner 为 `DeployFilePathExtTest`、`ApkFileModifierStreamTest`、`NativeSandboxWriterTest`、`JuggDeployerHelperDeployFlowTest` 和 `OverlayUpdateBuilderTest`。先将工厂回归改为 256 MiB，旧实现因仍要求达到 1 GiB 失败，证据见 `/tmp/jugg-native-256m-red.log`；随后覆盖恰好 256 MiB、上下一字节、真实稀疏 SO 转换、缺失 APK entry 时保留原包、小 SO 和超大非 SO 原有行为。测试只断言产物和失败契约，不为阈值常量另建测试。最终 62 项定向回归通过，日志见 `/tmp/jugg-native-256m-tests.log`；Wiki 校验、生产构建及中英文产物阈值核对通过。

@@ -23,7 +23,7 @@ Jugg 支持更新已产出的 native lib / `.so` 文件。对于 Gradle 管理�
 | Flutter Profile/Release 生成 `app.so` 或 native assets | 支持 | 执行当前变体的 Flutter native 输出任务，再按开关部署生成的 native lib |
 | Flutter Debug 只生成 assets，不生成 native lib | 支持 | 只更新 `flutter_assets`，不要求 native 输出存在；原生目录为空时本轮编译仍然成功；不重打包、不重签名、不安装 APK |
 | 同轮更新多个 ABI 的 native lib | 支持按目标 APK 归属处理 | 每个目标 APK 只接收属于自己的 native lib |
-| 更新大于 `Int.MAX_VALUE`（约 2 GiB）的已有 `.so` | 有条件支持 | 不把完整文件读入 IDE 堆；APK 更新时流式替换基线中的同路径 entry，SO hot update 可用时优先差分传输，基线缺失时完整传输 |
+| 更新达到 256 MiB（含边界）的已有 `.so` | 有条件支持 | 不把完整文件读入 IDE 堆；APK 更新时流式替换基线中的同路径 entry，SO hot update 可用时优先差分传输，基线缺失时完整传输 |
 | 开启「SO hot update」后更新 `.so` | 支持普通大小的 `.so` | 与同轮 DEX、资源、Asset 一起下发到目标 APK 的 overlay，跳过 APK 重签和安装，重启 App 后加载 |
 | 删除 `.so` | 不生成移除结果 | 已安装 APK 继续包含原有 native lib |
 | 修改 `CMakeLists.txt`、项目内 `*.cmake`、`Android.mk`、`Application.mk` | 支持 | 执行当前变体的 native task，并在同一 Gradle invocation 结束前定向更新该模块的外部构建信息；新 `.so` 按开关进入 overlay 或更新 APK |
@@ -67,7 +67,7 @@ Profile/Release 使用 AOT 产物 `libapp.so`，属于 native lib，也按上述
 - C/C++ 源码入口要求 Android Gradle 配置提供 CMake 或 ndk-build 文件，并能够找到当前变体的 native task。Jugg 不监听 `.cxx`、`.externalNativeBuild` 或 Gradle `build` 目录中的生成文件。工程可以在 Gradle extra `juggExternalBuildPrerequisites` 声明「哪些文件变化时先跑 codegen」；命中后同一轮先执行该 task，再跑 native merge，声明目录里相对 codegen 执行前发生大小或时间戳变化的 Kotlin/Java 才进入 Jugg 增量编译。没有声明的工程行为不变。
 - 每次检测到 C/C++ 源码变化都会执行 native task；同一目标 APK 中，产物优先与上次成功部署的 `.so` 比较，没有部署记录时与基线 APK 比较。未变化的库不重复下发，已热更新的库恢复为基线内容时仍会下发；产物比较不跳过 native 编译。
 - 部署的是按 app 打包语义 strip 过的 `.so`，而不是 module 中间产物目录里的未 strip 文件。Jugg 在 collector 进程内读取 APK owner（base app 或 dynamic feature）的 `strip<Variant>DebugSymbols` 配置并复现 AGP 的单文件 strip 行为，不执行该 strip task。本轮只执行因 C/C++ 变化被选中的 module merge task，不会额外执行 APK owner 的其他 native merge task。strip 工具缺失或返回非 0 时按 AGP 语义原样打包该文件。
-- 只有大于 `Int.MAX_VALUE`（2,147,483,647 bytes）的 NativeLib 使用 file-backed 路径；普通 `.so`、Dex、资源和 Asset 继续使用原有内存路径。file-backed 源文件在写入 APK 或推送设备前会重新校验存在性、大小和时间戳，变化后本轮明确失败。
+- 只有达到 256 MiB（268,435,456 bytes，含边界）的 NativeLib 使用 file-backed 路径；普通 `.so`、Dex、资源和 Asset 继续使用原有内存路径。file-backed 源文件在写入 APK 或推送设备前会重新校验存在性、大小和时间戳，变化后本轮明确失败。
 - APK 更新大型 `.so` 时要求基线 APK 已存在同路径 entry，并继承它的 `STORED` 或 `DEFLATED` 压缩方式；不会把 DEFLATED 大型 `.so` 强制改成 STORED。单 entry 达到经典 ZIP 4 GiB 边界、基线 entry 缺失、磁盘空间不足，或 zipalign、签名、校验、安装工具链拒绝时，本轮失败并保留原 APK。大文件的 CRC、压缩和临时 APK 会增加耗时与磁盘占用。
 - 「SO hot update」不会因文件较大而自动开启。开关开启时，大型 `.so` 优先差分传输，设备还原并校验完整新文件后，最终与普通 `.so` 一样放在目标 APK 的 overlay 中；sandbox 无法访问或推送失败时，本轮部署明确失败。开关关闭时仍走 APK 更新。
 - 大型 `.so` 首次更新或本地、设备缺少旧版本时完整传输，并以 info 提示耗时可能较长。旧版本不匹配、差分工具不可用或补丁不比完整文件小，也会完整传输；补丁还原或内容校验发生可恢复失败时最多降级一次。设备断连、空间不足或取消会结束本轮。debug 日志包含补丁大小、生成、传输及设备还原与校验等阶段耗时，耗时汇总仅以 info 输出一次大 SO 部署成功的总耗时（从准备传输到发布及清理结束，不含编译和 App 重启）；差分后仍需重建完整文件并重启 App，不承诺固定耗时。

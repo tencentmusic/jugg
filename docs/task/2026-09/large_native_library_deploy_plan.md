@@ -1,5 +1,7 @@
 # 超大 Native Library 增量部署方案
 
+> 本页保留最初针对超过 2 GiB SO 的设计与验证记录。当前 file-backed 门槛已调整为达到 256 MiB（含边界），判断统一收归 `DeployItem.shouldUseFileBackedNativeLib()`；最新实现见[大 SO 差分部署落地记录](large_native_library_delta_deploy.md)。
+
 ## 1. 背景
 
 Jugg report `a85cd5a3` 中，用户修改 C++ 源码后生成：
