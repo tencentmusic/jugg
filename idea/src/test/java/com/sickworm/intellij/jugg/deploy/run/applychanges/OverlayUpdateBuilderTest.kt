@@ -13,9 +13,11 @@ import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentCacheEntry
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.deploy.run.JuggOverlayUpdate
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Test
 import org.mockito.Mockito
 import org.mockito.kotlin.any
+import java.util.zip.CRC32
 
 class OverlayUpdateBuilderTest {
 
@@ -70,6 +72,43 @@ class OverlayUpdateBuilderTest {
 
         assertEquals(setOf("base.apk/assets/demo.txt", "base.apk/lib/arm64-v8a/libdemo.so"),
             files.keys.map { it.qualifiedPath }.toSet())
+    }
+
+    @Test
+    fun `large native change advances the ordinary overlay checkpoint`() {
+        var files = emptyMap<ApkEntry, ByteString>()
+        val compat = Mockito.mock(IAsDeployerCompat::class.java)
+        Mockito.doAnswer { invocation ->
+            files = invocation.getArgument(2)
+            JuggOverlayUpdate(invocation.getArgument(0), invocation.getArgument(1), files, Any())
+        }.`when`(compat).createOverlayUpdate(any(), any(), any())
+        val builder = OverlayUpdateBuilder(compat)
+        val cache = cacheEntry()
+
+        builder.build(cache, deployData().copy(nativeLibraryOverlays = listOf(largeNative(1L))))
+        val first = files.entries.single()
+        assertEquals("base.apk/.jugg_big_so_checksum", first.key.qualifiedPath)
+        assertEquals(CRC32().apply { update(first.value.toByteArray()) }.value, first.key.checksum)
+        val firstId = OverlayId.builder(cache.overlayId.raw as OverlayId)
+            .addOverlayFile(first.key.qualifiedPath, first.key.checksum).build().sha
+        assertNotEquals(cache.overlayId.sha, firstId)
+
+        builder.build(cache, deployData().copy(nativeLibraryOverlays = listOf(largeNative(2L))))
+        val second = files.entries.single()
+        assertEquals(first.key.qualifiedPath, second.key.qualifiedPath)
+        assertNotEquals(first.value, second.value)
+        assertNotEquals(first.key.checksum, second.key.checksum)
+        val secondId = OverlayId.builder(cache.overlayId.raw as OverlayId)
+            .addOverlayFile(second.key.qualifiedPath, second.key.checksum).build().sha
+        assertNotEquals(firstId, secondId)
+    }
+
+    private fun largeNative(checksum: Long): DeployItem = Mockito.mock(DeployItem::class.java).also {
+        Mockito.`when`(it.isFileBacked).thenReturn(true)
+        Mockito.`when`(it.name).thenReturn("lib/arm64-v8a/liblarge.so")
+        Mockito.`when`(it.apkPath).thenReturn("/base.apk")
+        Mockito.`when`(it.targetApkPaths).thenReturn(listOf("/base.apk"))
+        Mockito.`when`(it.checksum).thenReturn(checksum)
     }
 
     private fun deployData(vararg overlays: DeployItem): JuggDeployData {

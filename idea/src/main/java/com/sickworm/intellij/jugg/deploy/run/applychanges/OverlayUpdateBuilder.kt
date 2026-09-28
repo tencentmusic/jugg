@@ -9,6 +9,7 @@ import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentCacheEntry
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.deploy.run.JuggOverlayUpdate
+import java.util.zip.CRC32
 
 class OverlayUpdateBuilder(private val asDeployerCompat: IAsDeployerCompat) {
 
@@ -45,6 +46,29 @@ class OverlayUpdateBuilder(private val asDeployerCompat: IAsDeployerCompat) {
             }
         }
 
+        val bigNativeFiles = linkedMapOf<String, Long>()
+        data.nativeLibraryOverlays.filter { it.isFileBacked }.forEach { item ->
+            item.targetApkPaths.ifEmpty { listOf(item.apkPath) }.forEach { targetPath ->
+                val apk = cacheEntryMap[targetPath]
+                    ?: throw IllegalArgumentException("Unknown APK scope for ${item.name}: $targetPath")
+                bigNativeFiles.putIfAbsent("${apk.name}/${item.name}", item.checksum)
+            }
+        }
+        if (bigNativeFiles.isNotEmpty()) {
+            // Seed the marker with the previous checkpoint so later native updates cannot reuse an older ID.
+            val content = (listOf(cacheEntry.overlayId.sha) +
+                bigNativeFiles.toSortedMap().map { (path, checksum) -> "$path:$checksum" })
+                .joinToString("\n").toByteArray(Charsets.UTF_8)
+            val entry = ApkEntry(BIG_SO_CHECKSUM_OVERLAY, CRC32().apply { update(content) }.value, baseApk)
+            require(overlayFiles.putIfAbsent(entry.qualifiedPath, entry to ByteString.copyFrom(content)) == null) {
+                "Reserved overlay path: ${entry.qualifiedPath}"
+            }
+        }
+
         return asDeployerCompat.createOverlayUpdate(cacheEntry, dexOverlays, overlayFiles.values.associate { it })
+    }
+
+    private companion object {
+        const val BIG_SO_CHECKSUM_OVERLAY = ".jugg_big_so_checksum"
     }
 }
