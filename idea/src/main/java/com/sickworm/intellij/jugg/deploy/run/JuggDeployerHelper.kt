@@ -19,6 +19,7 @@ import com.sickworm.intellij.jugg.deploy.hotreload.DirectAppSandboxDeployTranspo
 import com.sickworm.intellij.jugg.deploy.hotreload.RootlessCompatImportConfirmer
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestApkSelector
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestResultModel
+import com.sickworm.intellij.jugg.deploy.nativesandbox.NativeLibraryDelta
 import com.sickworm.intellij.jugg.deploy.run.applychanges.AndroidDeployType
 import com.sickworm.intellij.jugg.deploy.run.applychanges.CustomApkInstallScriptException
 import com.sickworm.intellij.jugg.deploy.run.applychanges.JuggDeployTask
@@ -240,6 +241,7 @@ class JuggDeployerHelper(
         TimeLogger.start("deploy_to_device")
         lateinit var launchResult: LaunchResult
         var successfulSliceCount = 0
+        val nativeLibraryDelta = NativeLibraryDelta(baseLaunchContext.compileUiHandler, logger, deployHistoryManager)
         dataList.forEachIndexed { i, splitData ->
             if (dataList.size > 1) TimeLogger.start("deploy_to_device_slice$i")
             logger.debug("deploy_to_device_slice$i, " +
@@ -252,6 +254,7 @@ class JuggDeployerHelper(
                     project = project,
                     type = androidDeployType.forDeploySlice(i, dataList.lastIndex),
                     data = splitData,
+                    nativeLibraryDelta = nativeLibraryDelta,
                     deploymentService = deploymentService,
                     asDeployerCompat = asDeployerCompat,
                 )

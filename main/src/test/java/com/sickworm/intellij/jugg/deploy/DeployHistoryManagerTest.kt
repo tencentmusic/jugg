@@ -194,6 +194,16 @@ class DeployHistoryManagerTest {
             assertEquals("lib/arm64-v8a/libsample.so", native.relativeFile.invariantSeparatorsPath)
             assertEquals("updated ${apk.moduleName.ifEmpty { "base" }} library", native.file.readText())
         }
+        // Later compiler output must not overwrite the persisted delta baseline.
+        deployedFiles.forEach { it.file.writeText("next compilation") }
+        val snapshots = historyManager.getDeployedData()!!
+        listOf(baseApk, splitApk).forEach { apk ->
+            val baseline = snapshots.single {
+                it.type == CompileOutput.Type.NativeLib && it.apkPath == apk.apkFile.path &&
+                    it.relativeFile.invariantSeparatorsPath == "lib/arm64-v8a/libsample.so"
+            }
+            assertEquals("updated ${apk.moduleName.ifEmpty { "base" }} library", baseline.file.readText())
+        }
         val restoredDatabase = IncrementalDeployDataDatabase(logger)
         restoredDatabase.init(recovered.map { it.toDeployItem() })
         assertFalse(restoredDatabase.isDeployedOverlaysBefore())

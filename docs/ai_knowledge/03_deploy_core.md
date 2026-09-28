@@ -1,6 +1,6 @@
 # 部署系统：核心部署机制
 
-> 最后核对：2026-09-23
+> 最后核对：2026-09-28
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -32,7 +32,7 @@
 | `DeployFileManager` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/DeployFileManager.kt` | 部署文件 facade。维护 changed/compiled/staging/deployed 状态，生成 `JuggDeployData`，reinstall 后 reset。 |
 | `DeployDataPlanner` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/DeployDataPlanner.kt` | 从 staging + history 规划部署数据，处理 dex merge 与 compat deploy 组装。 |
 | `JuggDeployData` / `DeployItem` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployData.kt` | 最终下发设备的部署数据模型，包含 deploy type、APK 归属、restart 判断、split/filter，本轮 Flutter JIT runtime 变化（`flutterJitRuntimeFiles`），以及本轮独立于资源的 NativeLib（`nativeLibraryOverlays`）。仅大小超过 `Int.MAX_VALUE` 的 NativeLib 使用 file-backed payload，其它产物继续使用 `ByteArray`。 |
-| `NativeSandboxWriter` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/nativesandbox/` | 仅 file-backed 大型 NativeLib 在通用 swap 成功后使用 ADB push 与 app sandbox copy 暂存并发布；普通 SO 进入通用 overlay，二者最终都位于 `code_cache/.overlay/<apkName>/lib/<abi>/`。发布失败恢复旧文件且不提交 deployment cache。 |
+| `NativeSandboxWriter` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/nativesandbox/` | 仅 file-backed 大型 NativeLib 在通用 swap 成功后优先传输 HDiffPatch 差分并在设备 pending 重建，无法使用差分时使用完整 ADB push 与 app sandbox copy 暂存并发布；普通 SO 进入通用 overlay，二者最终都位于 `code_cache/.overlay/<apkName>/lib/<abi>/`。发布失败恢复旧文件且不提交 deployment cache。 |
 | `FlutterJitCacheInvalidator` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/flutter/FlutterJitCacheInvalidator.kt` | 通过 `AppSandboxExecutor` 删除目标应用 `app_flutter` 直属的 `res_timestamp-*`，让 Flutter 下次启动重新从 overlay 解压 `flutter_assets`。 |
 | `DirectOverlaySwapTransport` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/direct/DirectOverlaySwapTransport.kt` | Direct Overlay swap transport。只替换 Apply Changes 的 overlay update 动作，不接管部署生命周期。 |
 | `AppSandboxExecutor` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/AppSandboxExecutor.kt` | 统一 app 私有目录命令；严格探测 Apply Changes 的 `run-as`、UID 与 SELinux label 前提，并在不兼容时固定普通 shell、root adbd 或非交互 `su` 模式与真实 `dataDir`。 |
@@ -140,7 +140,13 @@ JuggDeployerHelper.deploy(isInstall=false)
   -> updateInfoAfterIncDeploy()
 ```
 
-APK 更新统一走 `IncrementalDeployHelper.updateApk()`；无自定义签名脚本时要求有效 signingConfig。`DeployDataGenerator` 把 NativeLib 放入独立的 `nativeLibraryOverlays`，不改变资源 `overlays` / `isFullRes` 语义。Helper 在 APK 更新前按 SO hot update 开关与 API ≥ 26 路由：关闭或低 API 时合并到 `updateApkFiles` 并沿用流式 APK 改写、重签、安装；开启时普通 SO 由 `OverlayUpdateBuilder` 纳入带 APK scope 的 `fileOverlays`，与 Dex、资源、Asset 使用同一 transport、overlay ID 和 deployment cache。file-backed 大型 SO 不读取 `content` 或进入 ByteString；`OverlayUpdateBuilder` 把本轮大型 SO 的 APK 路径与 checksum、上一轮 overlay id 编入小型 `base.apk/.jugg_big_so_checksum` overlay，由现有 swap 一起计算并写入新 id。通用 overlay 成功后，`JuggDeployer` 才经 `NativeSandboxWriter` push 源文件、暂存并发布到 `code_cache/.overlay/<apkName>/lib/<abi>/`，成功后提交 deployment cache。传输、发布失败则整轮失败，不回退 APK；通用 overlay 已提交而本轮失败时交给既有 overlay ID mismatch/recover 对齐。SO 要求完整重启 App。Runtime 仅从带 `id` 的已提交 `.overlay` 扫描对应进程 ABI，并把旧 `.jugg_native/.enabled` 路径作为低优先级兼容读取。
+APK 更新统一走 `IncrementalDeployHelper.updateApk()`；无自定义签名脚本时要求有效 signingConfig。`DeployDataGenerator` 把 NativeLib 放入独立的 `nativeLibraryOverlays`，不改变资源 `overlays` / `isFullRes` 语义。Helper 在 APK 更新前按 SO hot update 开关与 API ≥ 26 路由：关闭或低 API 时合并到 `updateApkFiles` 并沿用流式 APK 改写、重签、安装；开启时普通 SO 由 `OverlayUpdateBuilder` 纳入带 APK scope 的 `fileOverlays`，与 Dex、资源、Asset 使用同一 transport、overlay ID 和 deployment cache。file-backed 大型 SO 不读取 `content` 或进入 ByteString；`OverlayUpdateBuilder` 把本轮大型 SO 的 APK 路径与 checksum、上一轮 overlay id 编入小型 `base.apk/.jugg_big_so_checksum` overlay，由现有 swap 一起计算并写入新 id。通用 overlay 成功后，`JuggDeployer` 才经 `NativeSandboxWriter` 选择差分或完整传输、暂存并发布到 `code_cache/.overlay/<apkName>/lib/<abi>/`，成功后提交 deployment cache。传输、发布失败则整轮失败，不回退 APK；通用 overlay 已提交而本轮失败时交给既有 overlay ID mismatch/recover 对齐。SO 要求完整重启 App。Runtime 仅从带 `id` 的已提交 `.overlay` 扫描对应进程 ABI，并把旧 `.jugg_native/.enabled` 路径作为低优先级兼容读取。
+
+大型 SO 的差分仅在现有 file-backed 路径启用。`JuggDeployerHelper` 为每轮设备部署创建 `NativeLibraryDelta`，通过 `JuggDeployTask` / `JuggDeployer` 的构造依赖传给 writer。helper 在首次查询基线时调用通用 `DeployHistoryManager.getDeployedData()`，复用 `CompileContextDb.getDeployedData()` 读取成功部署的快照列表，再筛选 NativeLib，按 APK 路径与 entry name 查询；同轮多个 APK 或 slice 复用这一份索引。`JuggDeployData` 和 `NativeSandboxWriteRequest` 不承载基线状态。不能使用会被本轮编译覆盖的 staging 文件作为旧版本；不新建基线数据库，也不从 APK 提取或从设备拉取旧库。设备基线在真正应用补丁前使用 SHA-256 与本地快照核对，因此跨设备、重装或清理 overlay 后不会误用旧版本。
+
+`NativeLibraryDelta` 使用随插件分发的 HDiffPatch 5.1.3，电脑端 `hdiffz -s-1k -SD -c-zlib-1 -p-2 -d` 生成单压缩流补丁；设备端使用 NDK API 26 构建的独立 `hpatchz -s-8m`，从旧 overlay 流式重建到同一轮 pending，再校验新 SO 的 SHA-256。桌面工具覆盖 macOS Intel/Apple Silicon、Linux x86_64/arm64、Windows x86_64；Android patcher 覆盖 arm64-v8a、armeabi-v7a、x86_64、x86。`tools/build_native_delta.py` 固定源码与主机归档摘要，Android 构建固定 NDK 28.2.13676358。patcher 的 shell 缓存放在版本和 ABI 隔离的 `/data/local/tmp/jugg/hdiffpatch/`；执行前由当前 sandbox 身份复制到 App 内 `code_cache/.jugg_native_stage/<sessionId>/hpatchz` 并设置 `700` 权限，随后在该位置探测和执行，复用 session 清理。不能直接把 shell 缓存可执行等同于 RUN_AS 可执行；复制失败直接报 COPY 错误，私有副本执行探测失败仍回退完整传输。用户不需要安装工具或 NDK。
+
+本地或设备基线缺失时只做完整传输，并以 info 提示完整传输原因及耗时可能较长。基线内容不同、工具不支持/不能执行、补丁不比完整文件小，或已知可恢复的生成、解码、内容校验失败时，最多降级一次完整传输；先删除不完整 pending。取消、ADB 传输错误、设备文件 I/O 或空间不足不触发额外完整 push。最终仍使用现有 `publish/rollback`，完整新 SO 的 checksum、overlay ID、部署历史和重启契约不变。完整传输的预期回退原因使用 info；阶段进度以及差分生成、本地 hash、设备基线校验、传输字节数、设备还原与校验、发布耗时均记录为 debug；大 SO 部署成功后仅用一行 info 输出从 stage 开始到发布、缓存记录及清理结束的总耗时，失败不输出成功总耗时，异常警告保持 warn；差分减少传输量，仍需设备写出完整新 SO。真机可执行权限与耗时需要按设备验证。
 
 Settings 从开启切换为关闭 SO hot update 时，删除旧增量基线，使下一次 Run 完整 Gradle 构建并安装包含最新 SO 的 APK；开启时沿用清数据重装。一直关闭时的普通重装不删除增量基线。
 

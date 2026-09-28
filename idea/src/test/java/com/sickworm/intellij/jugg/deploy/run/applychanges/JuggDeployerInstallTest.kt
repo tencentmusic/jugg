@@ -21,6 +21,7 @@ import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.deploy.AppSandboxExecutor
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
+import com.sickworm.intellij.jugg.deploy.nativesandbox.NativeLibraryDelta
 import com.sickworm.intellij.jugg.deploy.nativesandbox.NativeSandboxWriter
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.IJuggDeployerDeploymentService
@@ -67,6 +68,7 @@ class JuggDeployerInstallTest {
                 project = Mockito.mock(Project::class.java),
                 type = AndroidDeployType.INSTALL,
                 data = JuggDeployData.forInstall(apks),
+                nativeLibraryDelta = Mockito.mock(NativeLibraryDelta::class.java),
                 deploymentService = fixture.deploymentService,
                 asDeployerCompat = fixture.compat,
                 logger = fixture.ideaLogger,
@@ -290,6 +292,7 @@ class JuggDeployerInstallTest {
         )
 
         val deployer = JuggDeployer(
+            nativeLibraryDelta = Mockito.mock(NativeLibraryDelta::class.java),
             launchContext = launchContext,
             deploymentService = deploymentService,
             logger = logger,

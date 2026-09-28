@@ -19,6 +19,7 @@ import com.sickworm.intellij.jugg.deploy.hotreload.DirectAppSandboxDeployTranspo
 import com.sickworm.intellij.jugg.deploy.hotreload.RootlessCompatPending
 import com.sickworm.intellij.jugg.deploy.nativesandbox.NativeSandboxWriteRequest
 import com.sickworm.intellij.jugg.deploy.nativesandbox.NativeSandboxWriter
+import com.sickworm.intellij.jugg.deploy.nativesandbox.NativeLibraryDelta
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.IJuggDeployerDeploymentService
@@ -36,6 +37,7 @@ import java.util.UUID
  */
 class JuggDeployer(
     private val launchContext: LaunchContext,
+    private val nativeLibraryDelta: NativeLibraryDelta,
     private val deploymentService: IJuggDeployerDeploymentService,
     private val logger: AdbLogWrapper,
     private val asDeployerCompat: IAsDeployerCompat = AsDeployerCompat,
@@ -342,7 +344,8 @@ class JuggDeployer(
         check(sandbox.mode != AppSandboxExecutor.Mode.UNAVAILABLE) {
             "Large native library overlay requires app sandbox access for $packageName"
         }
-        val writer = NativeSandboxWriter(deviceAdb, sandbox, logger.logger)
+        val writer = NativeSandboxWriter(deviceAdb, sandbox, logger.logger, nativeLibraryDelta, launchContext.compileUiHandler)
+        val startNanos = System.nanoTime()
         writer.stage(request)
         try {
             writer.publish(request)
@@ -357,6 +360,7 @@ class JuggDeployer(
         } finally {
             writer.discard(request)
         }
+        logger.logger.info("Large SO deployment finished, total=${(System.nanoTime() - startNanos) / 1_000_000_000}s.")
     }
 
     private fun tryDirectAppSandboxDeploy(

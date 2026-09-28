@@ -179,6 +179,8 @@ class DeployHistoryManager(
        return deployHistoryDb.filterUnchangedFiles(files)
     }
 
+    override fun getDeployedData(): List<CompileOutput>? = compileContextDb.getDeployedData()
+
     override fun getLastBuildFiles(files: List<ChangedFile>): List<Pair<ChangedFile, File?>> {
         return deployHistoryDb.getLastBuildFiles(files)
     }

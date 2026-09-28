@@ -77,7 +77,9 @@ native lib 增量产物
 
 asset overlay 保持 `assets/**` 路径。普通大小的 `.so` 在「SO hot update」开启时与 DEX、资源和 Asset 使用同一批 overlay，但按 APK 和 ABI 分目录保存；运行时只从已提交的 overlay 中选择当前进程 ABI 的库，并把目录加入 native library 搜索路径。同轮包含其它增量文件时，`.so` 仍需完整重启 App 才会生效。从开启切换为关闭后，下一次 Run 完整 Gradle 构建并安装包含最新 `.so` 的 APK；开启开关仍会安排清除 App 数据并重装。
 
-大于 `Int.MAX_VALUE`（2,147,483,647 bytes）的 NativeLib 使用 file-backed 部署数据，不把整个 `.so` 放入 IDE 堆。开关开启时，它通过 App sandbox 直接推送源文件，最终也发布到目标 APK 的 overlay；sandbox 不可访问或传输失败时本轮明确失败。开关关闭时，APK 更新流式读取源文件，替换基线中同路径 entry 并继承压缩方式；基线缺少该 entry 或文件达到经典 ZIP 单 entry 4 GiB 边界时明确失败。文件大小不会自动开启 SO hot update。
+大于 `Int.MAX_VALUE`（2,147,483,647 bytes）的 NativeLib 使用 file-backed 部署数据，不把整个 `.so` 放入 IDE 堆。开关开启时，它优先通过 App sandbox 差分传输，最终也发布到目标 APK 的 overlay；sandbox 不可访问或传输失败时本轮明确失败。开关关闭时，APK 更新流式读取源文件，替换基线中同路径 entry 并继承压缩方式；基线缺少该 entry 或文件达到经典 ZIP 单 entry 4 GiB 边界时明确失败。文件大小不会自动开启 SO hot update。
+
+大型 `.so` 的差分以本地上次成功部署的文件为旧版本，电脑生成补丁后先核对设备旧文件的内容。内容一致才下发补丁，在独立临时文件中还原完整新库，并校验结果后发布；旧库不会被原地修改，失败时仍可保留或恢复旧版本。基线缺失、不匹配或差分工具不可用时，Jugg 完整传输源文件。差分节省 USB 或网络传输量，但设备仍需读取旧内容并写出完整新库，因此补丁很小不代表整个部署过程同样短。
 
 ### Flutter Debug/JIT 的解压缓存
 
