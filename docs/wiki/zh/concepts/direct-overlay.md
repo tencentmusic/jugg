@@ -85,7 +85,7 @@ Direct Overlay 只有在以下条件同时满足时才会参与：
 - 设备端 overlay ID 与 cache 记录一致；
 - App sandbox 可通过本轮选定的 `run-as`、普通 shell、root adbd 或非交互 `su` 模式访问。
 
-`run-as`、UID 或 SELinux label 不兼容时，Jugg 可以直接下发 class、资源和 assets。纯方法体变化可在线替换；Android 11+ 的资源、assets 或与代码混合的变化会刷新当前进程资源并重建 Activity，进程保持运行。运行时刷新失败时会重启 App，使已提交的 overlay 在新进程生效。Android 8～10 和兼容部署仍使用需要重启进程的资源路径。Manifest 和 native library 继续走 APK 更新与安装流程。权限探测失败或缺少 deployment cache 时会直接报告失败。
+`run-as`、UID 或 SELinux label 不兼容时，Jugg 可以直接下发 class、资源和 assets。纯方法体变化可在线替换；Android 11+ 的资源、assets 或与代码混合的变化会刷新当前进程资源并重建 Activity，进程保持运行。运行时刷新失败时会重启 App，使已提交的 overlay 在新进程生效。Android 8～10 和兼容部署仍使用需要重启进程的资源路径。Manifest 继续走 APK 更新与安装；native library 在开启 SO hot update 时进入 overlay 并重启 App，关闭时走 APK 更新。权限探测失败或缺少 deployment cache 时会直接报告失败。
 
 状态无法读取时，Jugg 会回到常规校验；状态明确不匹配时进入 Recover。Direct Overlay 不会为了减少等待而绕过 checkpoint。
 

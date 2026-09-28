@@ -429,11 +429,18 @@ class KotlinCompilerInvoker {
         val compilerToolchainKey = classpath
             ?.takeIf { kotlinCompile.isUseProjectCompiler && it.isNotEmpty() }
             ?.let(::buildCompilerToolchainKey)
-        val executionMode = if (options.executionMode == ExecutionMode.IN_PROCESS &&
-            compilerToolchainKey != null && compilerToolchainKey in ideFileSystemConflictCompilerKeys) {
-            ExecutionMode.ISOLATED_PROCESS
-        } else {
-            options.executionMode
+        val executionMode = when {
+            options.executionMode == ExecutionMode.IN_PROCESS &&
+                KotlinCompilerHostCompat.shouldUseIsolatedProcess(
+                    Runtime.version().feature(), kotlinCompile.isUseProjectCompiler) -> {
+                logger.debug("JDK ${Runtime.version().feature()} with project Kotlin compiler, " +
+                        "use isolated Kotlin compiler process")
+                ExecutionMode.ISOLATED_PROCESS
+            }
+            options.executionMode == ExecutionMode.IN_PROCESS &&
+                compilerToolchainKey != null && compilerToolchainKey in ideFileSystemConflictCompilerKeys ->
+                ExecutionMode.ISOLATED_PROCESS
+            else -> options.executionMode
         }
         val shouldTrackExpectActual = options.isNeedComplementaryFiles &&
             executionMode == ExecutionMode.IN_PROCESS && kotlinCompile.isUseProjectCompiler

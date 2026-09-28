@@ -189,7 +189,7 @@ class ProjectInfoSerializer(val dataFile: File, private val logger: Logger) {
 
         /** Fills the list defaults Gson can not apply, because it never calls the Kotlin constructor. */
         private fun restoreExternalBuildDefaults(info: JsonObject) {
-            listOf("configFiles", "excludedDirs").forEach { name ->
+            listOf("configFiles", "excludedDirs", "prerequisites").forEach { name ->
                 if (!info.has(name)) {
                     info.add(name, JsonArray())
                 }

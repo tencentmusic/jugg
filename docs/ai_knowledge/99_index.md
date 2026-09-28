@@ -1,6 +1,6 @@
 # AI 使用指引（任务路由版）
 
-> 最后核对：2026-09-11
+> 最后核对：2026-09-27
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -39,7 +39,7 @@
 | 影响分析/类变更传播 | `98_code_map.md`, `03_deploy_data_generator.md` | `deploy/data/DeployDataGenerator.kt` |
 | **EffectedType 类型/merge 优先级/minify 移除检测** | `03_deploy_data_generator.md` §5.4-§5.7 | `EffectedClassNode.kt`, `DeployDataGenerator.kt`, `DeployDataDatabaseSqLiteHelper.kt`, `CompileEffectAnalyzer.kt` |
 | **修改基类触发子类级联重编译**（static 方法误传播 Bug） | `03_deploy_data_generator.md` 第5节, `docs/task/2026-03/recompile_cascade_bug_analysis.md` | `DeployDataDatabaseSqLiteHelper.kt` step 2（~826行）, `DeployDataDatabase.kt`（~454行） |
-| JVMTI/运行时 agent 协同 | `98_code_map.md`, `03_runtime_jvmti.md` | `runtime/jvmti/*` |
+| JVMTI/运行时 agent 协同；修改 `jvmti_agent` runtime 时检查 `agentVersion` | `98_code_map.md`, `03_runtime_jvmti.md` §1、§5 | `jvmti_agent/src/main/*`, 根 `build.gradle` |
 | IDE 生命周期/运行配置 | `98_code_map.md`, `04_engineering_ide.md` | `idea/.../JuggManager.kt`, `JuggRunConfiguration.kt` |
 | Jugg Debug attach / 断点不可用 | `98_code_map.md`, `04_engineering_debug_attach.md`, `04_engineering_compat.md` | `JuggDebugProgramRunner.kt`, `JuggDebugSessionManager.kt`, `AndroidStudioDebuggerAttachStarter.kt`, `*AsDeployerCompat.kt` |
 | Gradle 项目信息与依赖读取 | `98_code_map.md`, `04_engineering_project.md` | `gradle/script/GradleProjectInfoReader.kt` |

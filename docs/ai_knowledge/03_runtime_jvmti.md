@@ -1,6 +1,6 @@
 # 运行时与 JVMTI 支持
 
-> 最后核对：2026-09-15
+> 最后核对：2026-09-28
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -11,13 +11,15 @@
 
 本页不展开 Direct Overlay 的传输细节、ViewHierarchy LocalSocket 协议、完整 install/code swap 流程；对应入口见 `03_deploy_core.md`、`03_deploy_complete.md`、`08_mcp_layout_verify_design.md`。
 
+**修改 agent 前先检查版本**：只要本次 diff 改动了 `jvmti_agent` 的 native、Java runtime、setup script 或 bundle 输入，就必须在同一提交中递增根 `build.gradle` 的 `agentVersion`。仅改 Host/IDE 代码或文档时不需要递增。设备按版本缓存 bundle；不递增时，即使重新安装插件并再次 Run，也可能继续加载旧 runtime。详见第 5 节。
+
 ---
 
 ## 2. 核心源码索引
 
 | 类/文件 | 路径 | 作用 |
 |---|---|---|
-| `AppAbiResolver` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/AppAbiResolver.kt` | 在部署入口聚合进程、Manifest、APK、已安装包和设备证据，解析目标 ARM 位数 |
+| `AppAbiResolver` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/AppAbiResolver.kt` | 在部署入口聚合进程、缓存、Manifest、APK、已安装包和设备证据，解析目标 ARM 位数；`resolveWithCache` 供 Apply Changes 与 Direct app sandbox 共用 |
 | `AppAbiCache` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/AppAbiCache.kt` | 按设备、包名和完整 APK 文件指纹复用 ABI 解析结果，并在 APK 变化时自动淘汰旧结果 |
 | `ApkInfoReader` | `main/src/main/java/com/sickworm/intellij/jugg/apk/ApkInfoReader.kt` | 跨 base/split APK 聚合 ARM native library，并读取 `android:use32bitAbi` |
 | `JuggJvmtiAgentManager` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/JuggJvmtiAgentManager.kt` | 管理 Jugg agent bundle 的 push、app sandbox setup、attach 与清理 |
@@ -29,11 +31,12 @@
 | `native-lib.cpp` | `jvmti_agent/src/main/cpp/native-lib.cpp` | `Agent_OnAttach` 入口，区分 startup dataDir 与 `jugg_hot_reload:` dynamic attach options |
 | `class_redefiner.cc` | `jvmti_agent/src/main/cpp/class_redefiner.cc` | 解析 Hot Reload 请求；按官方职责边界在 native 侧更新 Application ClassLoader 的 in-memory DEX elements，再匹配已加载类并 batch `RedefineClasses()`，原子写结果 |
 | `instrumenter.cc` | `jvmti_agent/src/main/cpp/instrumenter.cc` | 加载 `jugg-instruments.jar`，设置 class file load hook 并 retransform 目标类 |
-| `InstrumentationHooks` | `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/instrument/InstrumentationHooks.java` | 处理 ResourcesManager、ClassLoader resource 等 framework hook；compat deploy 启用后必须跳过普通 Apply Changes overlay 修正 |
+| `InstrumentationHooks` | `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/instrument/InstrumentationHooks.java` | 处理 ResourcesManager、ClassLoader resource 等 framework hook；compat deploy 启用后必须跳过普通 Apply Changes overlay 修正；startup hook 在 dex fix 之后前置已提交 `code_cache/.overlay/<apkName>/lib/<abi>`（旧 `.jugg_native` 低优先级兼容） |
+| `NativeLibraryPathInstaller` | `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/hotfix/NativeLibraryPathInstaller.java` | 冷启动按进程 ABI 与 base/split 顺序把已提交 `.overlay/<apkName>/lib/<abi>` 目录前置进 `DexPathList.nativeLibraryDirectories`，供 `System.loadLibrary` / `findLibrary` 命中补丁 `.so` |
 | `ApplyChangesOverlayPolicy` | `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/instrument/ApplyChangesOverlayPolicy.java` | 记录宿主 APK 路径，判断非宿主资源环境是否需要移除 Apply Changes overlay |
 | `ResourceOverlays` | `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/instrument/ResourceOverlays.java` | 将展开 APK 目录中的资源和 assets 接入 Android 11+ ResourcesLoader；限 Direct sandbox 标记和宿主 APK，兼容部署沿用资源 APK |
 | `FlutterAssetRefresh` | `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/instrument/FlutterAssetRefresh.java` | 让 FlutterEngine 使用 overlay-aware AssetManager：已启动 Dart 的 Engine 走 `updateJavaAssetManager()`，未启动的替换 `DartExecutor.assetManager`，宿主包上下文在 `ContextImpl#createPackageContext` exit 补齐 overlay loader；失败按批 warn + Toast |
-| `HotfixLoader` | `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/hotfix/HotfixLoader.java` | 初始化 app code cache 路径，识别 compat flag，并安装 dex/resource patch |
+| `HotfixLoader` | `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/hotfix/HotfixLoader.java` | 初始化 app code cache 路径，识别 compat flag，安装 dex/resource patch，并在 `install()` 末尾幂等注入 native 搜索路径 |
 | `RootlessCompatDeployImporter` | `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/hotfix/RootlessCompatDeployImporter.java` | 在 `BootstrapApplication.attachBaseContext()` 早期导入 Host 暂存的 rootless 兼容请求：校验协议、包名、requestId、payload SHA-256 与 expected overlay id，私有 staging 后原子提交 `code_cache/.overlay`，overlay id 最后写入；失败只保留旧 overlay 并输出一行结果日志 |
 | `jugg_agent_setup.sh` | `jvmti_agent/src/main/script/jugg_agent_setup.sh` | 在 app `code_cache/startup_agents` 中放置版本化 agent so |
 | `buildAgentBundle.gradle` | `jvmti_agent/buildAgentBundle.gradle` | 将 Jugg runtime 与预处理后的 Dragonfly JAR 编译进 `jugg-instruments.jar`，并打包 64/32 位 so 和 setup script，生成 plugin resource |
@@ -87,7 +90,7 @@ Android 15 及以上、Android Studio Meerkat 以下的普通 Apply Changes 在�
 
 `AppSandboxExecutor` 统一包装 setup script：Apply Changes 兼容应用使用 `run-as`；不兼容应用在真实 `dataDir` 以本轮固定的普通 shell、root adbd 或非交互 `su` 模式执行。普通文件修正为既有 `code_cache` 的 owner 与动态 MCS context，JVMTI `.so` 修正为 appdomain 可执行的 `apk_data_file:s0`；修复阶段输出不会混入 setup script 的 `success`/`failed` 结果。上层 agent manager 不再分别拼装权限命令。
 
-部署入口只解析一次目标 ARM 位数，并把结果传给 Direct app sandbox 与后续 Apply Changes transport。优先级依次为：运行中进程、Manifest `android:use32bitAbi`、全部 base/split APK 中唯一可确定的 ARM native library 位数、已安装包的 `primaryCpuAbi`、设备主 ABI，最后保留 64 位缺省值。APK 同时包含 32/64 位 ARM library 或完全没有 ARM library 时保持 unknown，避免单个无 native library 的 resource split 覆盖其它 APK 的有效证据。只有本地 Manifest 和 APK 都无法判断时才执行 `dumpsys package`，避免确定性本地证据已经足够时仍承担同步 ADB 查询耗时。Direct app sandbox 准备 startup agent 时必须复用这个结果，不能在已停止进程上再次调用进程架构探测。
+部署入口只解析一次目标 ARM 位数，并把结果传给 Direct app sandbox 与后续 Apply Changes transport。优先级依次为：运行中进程、缓存、Manifest `android:use32bitAbi`、全部 base/split APK 中唯一可确定的 ARM native library 位数、已安装包的 `primaryCpuAbi`、设备主 ABI，最后保留 64 位缺省值。APK 同时包含 32/64 位 ARM library 或完全没有 ARM library 时保持 unknown，避免单个无 native library 的 resource split 覆盖其它 APK 的有效证据。只有本地 Manifest 和 APK 都无法判断时才执行 `dumpsys package`，避免确定性本地证据已经足够时仍承担同步 ADB 查询耗时。SO hot update 的普通文件不在 Host 按单一进程 ABI 丢弃产物；Runtime 根据进程位数选择已提交的 ABI 目录。Direct app sandbox 准备 startup agent 时必须复用这个结果，不能在已停止进程上再次调用进程架构探测。
 
 ABI 结果缓存由 `JuggDeployerHelper` 持有，key 为 device serial、packageName，以及排序后的全部 APK `absolute path + size + mtime`。同一 APK 集合在多个部署切片、内部降级和后续增量部署中只解析一次；本地证据不足时，installed package 在该缓存周期内至多查询一次。APK 指纹变化后会重新解析，并淘汰同设备同包名的旧结果。`dumpsys package` 抛出异常时仍允许本轮使用后续证据降级，但不缓存该结果，设备恢复后可重新读取更强证据。调试日志分别打印 installed package 查询耗时，以及整段 ABI 解析的 `source`、`cacheHit` 和耗时。
 
@@ -140,6 +143,24 @@ BootstrapApplication.attachBaseContext(base)
 ```
 
 导入失败的请求不会修改已提交 overlay，也不会留下可被 `HotfixLoader` 识别为成功的 enable flag；Host 依据结果行决定是否提交 deployment cache、deploy history 与文件状态，结果缺失或超时按失败处理。
+
+### 4.3.2 Native library 搜索路径注入
+
+Settings 开启 SO hot update 且设备 API ≥ 26 时，普通 SO 随同轮 Dex/资源/Asset 进入目标 APK 的通用 overlay；file-backed 大型 SO 使用专项传输，但最终也发布到 `code_cache/.overlay/<apkName>/lib/<abi>/`。启动时须在业务 `System.loadLibrary` 前注入 ClassLoader native 搜索路径，不新增 JNI 入口：
+
+```text
+BootstrapApplication.attachBaseContext
+  -> HotfixLoader.init(base)
+  -> compat/embedded 需要时 HotfixLoader.install(base)
+  -> NativeLibraryPathInstaller.install(base)
+InstrumentationHooks.handleAttachBaseContextEntry / handleNewApplicationEntry*
+  -> DexPathListFixer.isNeedFix 时 HotfixLoader.init(base) 与 installDex / install
+  -> NativeLibraryPathInstaller.install(base)
+```
+
+`NativeLibraryPathInstaller` 不依赖 `HotfixLoader.init`；未初始化时直接使用 `base.getCodeCacheDir()`，避免纯 SO 路径为 Dex 初始化额外扫描资源。它只处理 API 26+；`context == null` 或低 API 时 warn 后返回。只扫描带 `id` 的已提交 `.overlay`，按 base/split APK 优先顺序、当前进程位数对应的 `SUPPORTED_*_BIT_ABIS` 选择包含 `lib*.so` 的目录，再更新 `nativeLibraryDirectories` 与 `nativeLibraryPathElements`。旧 `.jugg_native/.enabled` 下的 ABI 目录只作低优先级兼容读取，等待下次 `pm clear`/重装清理。重复调用时先移除原先注入的 native 目录，保证顺序幂等。反射失败写 `code_cache/.jugg_native_inject_failed` 并 warn。
+
+此机制只保证使用已注入 App ClassLoader 的 `findLibrary` / `System.loadLibrary` 优先命中补丁。`System.load` 若使用原安装目录或 APK 路径，不会被重定向；若使用 `findLibrary` 返回的补丁路径，则仍可加载补丁。native `dlopen` / `android_dlopen_ext` 和 ELF `DT_NEEDED` 依赖不经过这条 Java 搜索路径，是否命中补丁取决于 linker 搜索条件，不能保证生效。已加载的 SO 仍需重启进程。
 
 ### 4.4 Direct app sandbox dynamic redefine
 
@@ -267,7 +288,7 @@ compat deploy 不执行 framework transform，因此不安装 `ClassLoader#getRe
 - implementation 中 dex2jar 生成的 Kotlin 子集会替换为固定 SHA-256 的源码编译 Kotlin stdlib 2.0.0，并继续重命名到 `com.sickworm.intellij.jugg.internal.dragonfly.runtime.kotlin.**`；其余 dex2jar class 在删除旧 Kotlin 与 dexlib2 后才将缺少 `StackMapTable` 的 Java 8 class version 规范为 Java 6。正式 Gradle 流程只消费仓库中的 `*-jugg.jar`，既避免宿主 App 同名依赖冲突，也不依赖宿主提供 Kotlin runtime。
 - `jugg-runtime.jar` 继续合并相同的预处理 Dragonfly JAR，保持 `GradleApplicationInjector` 的单 runtime JAR 接口；构建同时校验私有 Dragonfly、Kotlin runtime 入口存在且原包 class entry 不存在。
 - 工程根 `build.gradle` 的 `agentVersion` 是设备目录、startup agent 文件名前缀和 bundle 文件名的共同版本源。
-- 修改 `jvmti_agent` 里的 native、Java runtime（含 `ViewExpressionEvaluator` / `view-inspect` 求值）、setup script 或 bundle 内容后，必须递增 `agentVersion`。`isAgentBundlePushed()` 只看 `/data/local/tmp/jugg/{AGENT_VERSION}` 是否已有 4 个文件；同版本插件更新不会重推，设备会继续加载旧 `jugg-instruments.jar`。
+- 修改 `jvmti_agent` 里的 native、Java runtime（包括 `HotfixLoader`、`NativeLibraryPathInstaller`、`InstrumentationHooks` 等）、setup script 或 bundle 内容后，必须递增 `agentVersion`。提交前对照本次 diff 检查这些路径。`isAgentBundlePushed()` 只看 `/data/local/tmp/jugg/{AGENT_VERSION}` 是否已有 4 个文件；同版本插件更新不会重推，设备会继续加载旧 `jugg-instruments.jar`。
 - 32 位 app 使用 `_alt.so`：bundle 打包时把 armeabi-v7a so 改名为 `jugg_jvmti_agent_alt.so`，`attachAgentToApp()` / setup script 都依赖这个约定。
 - ABI 解析当前只支持 ARM：`armeabi` / `armeabi-v7a` 映射 32 位，`arm64-v8a` 映射 64 位；不兼容 x86。所有证据都无法确定时仍按 64 位处理，覆盖大部分现有设备。
 - Java runtime 入口由 `HotfixLoader` 统一做设备 API 判定；API < 26 时 `init()` 会在访问 `Context.getCodeCacheDir()` 前 return，`install()` / `installDex()` / `isNeedEnableHotfix()` 也会短路。这个判断不改变 Gradle 构建产物，`BootstrapApplication` 注入仍只受 `jugg.inject.application.enable` 控制。
@@ -282,7 +303,6 @@ compat deploy 不执行 framework transform，因此不安装 `ClassLoader#getRe
 - `ClassLoader#getResource` hook 必须保持 early-return + fail-open：只有 overlay URL 非空时提前返回，未命中和异常继续原方法。不要改回 exit hook，否则原始 resource lookup 会先执行，失去真正的 overlay-first 语义。
 - ClassLoader resource 的可靠刷新边界是进程重启，不是 Activity 重建。Compose resource 与 `JarURLConnection` 都可能缓存旧结果。
 - Flutter JNI 刷新只能发生在 Engine 已 attach 且已启动 Dart 之后；Dart 启动前推送给 JNI 的 AssetManager 会被 Flutter 自己的 `RunBundleAndSnapshotFromLibrary()` 覆盖。对尚未启动 Dart 的 Engine，不能只跳过并等待不确定的下一次 ResourcesManager hook。
-- 修改 `FlutterAssetRefresh` 等 runtime 类后必须递增根 `build.gradle` 的 `agentVersion`，设备才会加载新的 `jugg-instruments.jar`。
 
 ---
 

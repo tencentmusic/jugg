@@ -5,6 +5,7 @@ import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.ICompileContext
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import com.sickworm.intellij.jugg.compiler.external.isInExternalBuildCacheDirectory
+import com.sickworm.intellij.jugg.compiler.external.resolveDeletedPrerequisiteTrigger
 import com.sickworm.intellij.jugg.compiler.external.resolveExternalBuilds
 import com.sickworm.intellij.jugg.compiler.relativePathForPrintSafe
 import com.sickworm.intellij.jugg.git.FileMatcher
@@ -245,8 +246,10 @@ class FileChangesHandler(
         }
         // A removed path has no input type to restore: external build inputs describe current
         // sources, and removing one from the APK needs a full Run instead of an incremental build.
+        // Deleted codegen trigger files are the exception: they still produce ExternalBuildSource
+        // so the compile precheck can fall back to a full Gradle build.
         if (!file.exists()) {
-            return null
+            return checkDeletedPrerequisiteTrigger(file)
         }
 
         checkBuildFiles(file)?.let {
@@ -258,14 +261,14 @@ class FileChangesHandler(
         checkComposeResource(file)?.let {
             return it
         }
-        checkExternalBuildSource(file)?.let {
-            return it
-        }
         checkSource(file)?.let {
             return it
         }
         // check after source to exclude files in resource and assets
         checkNativeLib(file)?.let {
+            return it
+        }
+        checkExternalBuildSource(file)?.let {
             return it
         }
 
@@ -279,6 +282,17 @@ class FileChangesHandler(
         val target = resolveExternalBuilds(getModules(), file).firstOrNull() ?: return null
         // The resolved input directory accepted this file, so it is the base dir even when a wider
         // root of the same build also covers the path. A configuration file has no input directory.
+        val baseDir = target.matchedInputDir?.directory
+            ?: file.absoluteFile.normalize().parentFile
+            ?: return null
+        return ChangedFile(CompileFile.Type.ExternalBuildSource, file, baseDir, target.module)
+    }
+
+    private fun checkDeletedPrerequisiteTrigger(file: File): ChangedFile? {
+        if (file.hasExcludedExternalBuildDirectory()) {
+            return null
+        }
+        val target = resolveDeletedPrerequisiteTrigger(getModules(), file) ?: return null
         val baseDir = target.matchedInputDir?.directory
             ?: file.absoluteFile.normalize().parentFile
             ?: return null

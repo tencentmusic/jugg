@@ -15,13 +15,14 @@ import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
 
 /**
- * Builds a diagnostics archive exclusively from generated and redacted whitelist files.
+ * Builds a diagnostics archive for a fixed destination, redacting logs only for the public service.
  */
 class IssueReportBundleBuilder(
     private val outputDir: File,
     private val projectDir: File,
     private val userHome: File,
     private val logger: Logger,
+    private val destination: IssueReportDestination = IssueReportDestination.Public,
 ) {
     private val gson = GsonBuilder().setPrettyPrinting().create()
     private var preparedCandidates: List<IssueReportCandidate> = emptyList()
@@ -33,12 +34,12 @@ class IssueReportBundleBuilder(
         projectSummary: Map<String, Any?>,
         projectInfoDir: File? = null,
         logFiles: List<File>,
+        logFileLimit: Int,
         logcat: String,
         hookDebugLog: File? = null,
         knownSecrets: Set<String> = emptySet(),
     ): List<IssueReportCandidate> {
-        reportId = UUID.randomUUID().toString().substringBefore('-')
-        reportDir = File(outputDir, reportId).apply { mkdirs() }
+        startReport()
         val candidates = mutableListOf<IssueReportCandidate>()
         getProjectInfoFiles(projectInfoDir).forEach { projectInfoFile ->
             val redactedContent = redactProjectInfo(projectInfoFile, knownSecrets) ?: return@forEach
@@ -51,32 +52,40 @@ class IssueReportBundleBuilder(
         }
         candidates += writeJsonCandidate("diagnostics/environment.json", environment, IssueReportSensitivity.LOW)
         candidates += writeJsonCandidate("diagnostics/project-summary.json", projectSummary, IssueReportSensitivity.MEDIUM)
-        logFiles.filter { it.isFile }.forEach { logFile ->
+        logFiles.filter { it.isFile }.take(logFileLimit).forEach { logFile ->
             candidates += writeTextCandidate(
                 "diagnostics/logs/${logFile.name}",
-                redact(logFile.readText(), knownSecrets),
+                logFile.readText().let { if (destination.redactLogs) redact(it, knownSecrets) else it },
                 IssueReportSensitivity.MEDIUM,
                 true,
+                redaction = if (destination.redactLogs) "completed" else "none",
             )
         }
         if (logcat.isNotBlank()) {
             candidates += writeTextCandidate(
                 "diagnostics/device/logcat.log",
-                redact(logcat, knownSecrets),
+                if (destination.redactLogs) redact(logcat, knownSecrets) else logcat,
                 IssueReportSensitivity.HIGH,
                 true,
+                redaction = if (destination.redactLogs) "completed" else "none",
             )
         }
         if (hookDebugLog?.isFile == true) {
             candidates += writeTextCandidate(
                 "diagnostics/cli/hook-debug.log",
-                redact(hookDebugLog.readText(), knownSecrets),
+                hookDebugLog.readText().let { if (destination.redactLogs) redact(it, knownSecrets) else it },
                 IssueReportSensitivity.HIGH,
                 true,
+                redaction = if (destination.redactLogs) "completed" else "none",
             )
         }
         preparedCandidates = candidates
         return candidates
+    }
+
+    private fun startReport() {
+        reportId = UUID.randomUUID().toString().substringBefore('-')
+        reportDir = File(outputDir, reportId).apply { mkdirs() }
     }
 
     private fun getProjectInfoFiles(projectInfoDir: File?): List<File> {
@@ -164,7 +173,7 @@ class IssueReportBundleBuilder(
             }
         }
         logger.debug("Built diagnostics bundle: $zipFile")
-        return IssueReportBundle(reportId, zipFile, selected.map { it.entry })
+        return IssueReportBundle(reportId, zipFile, selected.map { it.entry }, destination)
     }
 
     private fun writeJsonCandidate(
@@ -178,10 +187,11 @@ class IssueReportBundleBuilder(
         content: String,
         sensitivity: IssueReportSensitivity,
         isSelectedByDefault: Boolean,
+        redaction: String = "completed",
     ): IssueReportCandidate {
         val file = writeFile(path, content)
         return IssueReportCandidate(
-            IssueReportEntry(path, file.length(), sensitivity),
+            IssueReportEntry(path, file.length(), sensitivity, redaction),
             file,
             isSelectedByDefault,
         )
@@ -192,6 +202,8 @@ class IssueReportBundleBuilder(
         file.writeText(content)
         return file
     }
+
+    internal fun redactUploadText(content: String, knownSecrets: Set<String>): String = redact(content, knownSecrets)
 
     private fun redact(content: String, knownSecrets: Set<String>): String {
         var redacted = content

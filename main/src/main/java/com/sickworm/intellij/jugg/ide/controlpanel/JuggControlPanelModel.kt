@@ -259,6 +259,7 @@ class JuggControlPanelModel(
         val confirmFallbackWhenTooManyChanges: Boolean = true,
         val alwaysRestartAppAfterDeployment: Boolean = false,
         val quickDeploy: Boolean = true,
+        val nativeSandboxDeploy: Boolean = false,
         val autoFallbackAfterDeployFailure: Boolean = false,
         val embedChangesIntoApk: Boolean = false,
         val useProjectKotlinCompiler: Boolean = true,

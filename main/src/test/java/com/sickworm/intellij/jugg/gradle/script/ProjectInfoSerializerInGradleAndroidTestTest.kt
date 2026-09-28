@@ -3,9 +3,12 @@ package com.sickworm.intellij.jugg.gradle.script
 import com.google.gson.JsonParser
 import com.sickworm.intellij.jugg.mock.StdLogger
 import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
+import com.sickworm.intellij.jugg.project.data.ExternalBuildGeneratedLanguage
+import com.sickworm.intellij.jugg.project.data.ExternalBuildGeneratedSourceDir
 import com.sickworm.intellij.jugg.project.data.ExternalBuildInfo
 import com.sickworm.intellij.jugg.project.data.ExternalBuildInputDir
 import com.sickworm.intellij.jugg.project.data.ExternalBuildInputFilterRule
+import com.sickworm.intellij.jugg.project.data.ExternalBuildPrerequisite
 import com.sickworm.intellij.jugg.project.data.ExternalBuildType
 import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
 import com.sickworm.intellij.jugg.project.data.LibraryDependency
@@ -184,6 +187,18 @@ class ProjectInfoSerializerInGradleAndroidTestTest {
                 taskPath = ":native:mergeDebugNativeLibs",
                 assetsOutputDir = null,
                 nativeOutput = File("/project/native/build/intermediates/merged_native_libs/debug/out"),
+                prerequisites = listOf(
+                    ExternalBuildPrerequisite(
+                        taskPath = ":native:compileMidl",
+                        triggerGlobs = listOf("**/*.idl.hpp"),
+                        generatedSourceDirs = listOf(
+                            ExternalBuildGeneratedSourceDir(
+                                File("/project/native/build/generated/idl/kotlin/commonMain"),
+                                ExternalBuildGeneratedLanguage.Kotlin,
+                            ),
+                        ),
+                    ),
+                ),
             ),
             ExternalBuildInfo(
                 type = ExternalBuildType.Flutter,

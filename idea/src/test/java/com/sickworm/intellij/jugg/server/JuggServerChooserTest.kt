@@ -4,6 +4,7 @@ import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.mock.TestGlobal
 import com.sickworm.intellij.jugg.platform.IPlatformApi
 import com.sickworm.intellij.jugg.platform.PlatformApi
+import com.sickworm.intellij.jugg.server.protocols.ServerRule
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -40,6 +41,9 @@ class JuggServerChooserTest {
         JuggSettings.serverExpireTimeMill = -1L
 
         assertTrue(JuggServerChooser(TestGlobal.getLogger()).hasAvailableServer())
+        assertEquals("https://custom.example.com", JuggServerChooser(TestGlobal.getLogger()).availableServerUrl)
+        assertEquals("https://custom.example.com/report_issue", JuggServerChooser(TestGlobal.getLogger()).issueReportDestination.uploadUrl)
+        assertFalse(JuggServerChooser(TestGlobal.getLogger()).issueReportDestination.redactLogs)
     }
 
     @Test
@@ -48,6 +52,35 @@ class JuggServerChooserTest {
         JuggSettings.serverExpireTimeMill = System.currentTimeMillis() + 60_000L
 
         assertFalse(JuggServerChooser(TestGlobal.getLogger()).hasAvailableServer())
+        assertEquals(null, JuggServerChooser(TestGlobal.getLogger()).availableServerUrl)
+        assertTrue(JuggServerChooser(TestGlobal.getLogger()).issueReportDestination.redactLogs)
+    }
+
+    @Test
+    fun `automatically selected backend is available for issue reports`() {
+        JuggSettings.serverUrl = null
+        JuggSettings.serverExpireTimeMill = 0L
+        val chooser = JuggServerChooser(TestGlobal.getLogger())
+
+        chooser.updateServer(listOf(ServerRule("http://backend.example.com:12305", null)))
+
+        assertEquals("http://backend.example.com:12305", chooser.availableServerUrl)
+        assertEquals("http://backend.example.com:12305/report_issue", chooser.issueReportDestination.uploadUrl)
+        assertFalse(chooser.issueReportDestination.redactLogs)
+
+        JuggSettings.serverUrl = "https://previous.example.com"
+        assertEquals(null, chooser.availableServerUrl)
+    }
+
+    @Test
+    fun `forced refresh replaces stale server before first request`() {
+        JuggSettings.serverUrl = "http://127.0.0.1:1"
+        JuggSettings.serverExpireTimeMill = System.currentTimeMillis() + 60_000L
+
+        JuggServerChooser(TestGlobal.getLogger()).updateServerIfExpired(isForce = true)
+
+        assertTrue(!JuggSettings.serverUrl.isNullOrBlank())
+        assertTrue(JuggSettings.serverUrl != "http://127.0.0.1:1")
     }
 
     @Test
@@ -72,6 +105,7 @@ class JuggServerChooserTest {
         assertEquals(1, confirmationContents.size)
         assertTrue(confirmationContents.single().contains("https://trusted.example.com"))
         assertTrue(confirmationContents.single().contains("custom compiler JARs"))
+        assertTrue(confirmationContents.single().contains("unredacted logs"))
     }
 
     @Test

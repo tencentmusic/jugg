@@ -23,6 +23,8 @@ LICENSE_SELECTIONS = {
 }.freeze
 
 SPDX_LICENSES = {
+  'MIT、BSD-2-Clause、BSD-3-Clause、zlib、bzip2-1.0.6、Public Domain' =>
+    'MIT AND BSD-2-Clause AND BSD-3-Clause AND Zlib AND bzip2-1.0.6 AND LicenseRef-LZMA-SDK-Public-Domain',
   'Apache-2.0' => 'Apache-2.0',
   'Apache-2.0 WITH LLVM-exception' => 'Apache-2.0 WITH LLVM-exception',
   'Apache-2.0、BSD-2-Clause；SQLite 核心 Public Domain' =>
@@ -60,7 +62,7 @@ LICENSE_REFS = {
 
 def import_components(path)
   rows = CSV.read(path, encoding: 'bom|utf-8')
-  raise "Expected 104 component rows, found #{rows.size}" unless rows.size == 104
+  raise "Expected 105 component rows, found #{rows.size}" unless rows.size == 105
   raise 'Each component row must contain eight fields' unless rows.all? { |row| row.size == 8 }
 
   rows.each do |row|
@@ -83,7 +85,7 @@ end
 
 def load_components
   table = CSV.read(COMPONENTS_FILE, headers: true, encoding: 'utf-8')
-  raise "Expected 104 component rows, found #{table.size}" unless table.size == 104
+  raise "Expected 105 component rows, found #{table.size}" unless table.size == 105
   raise "Unexpected headers: #{table.headers.inspect}" unless table.headers == HEADERS
   raise 'Component inventory contains blank fields' unless table.all? { |row| HEADERS.all? { |header| !row[header].to_s.empty? } }
 

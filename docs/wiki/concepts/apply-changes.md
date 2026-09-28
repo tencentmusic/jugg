@@ -52,7 +52,7 @@ Incremental resource compilation outputs local files such as `resources.arsc`, `
 
 When a deployment baseline receives a resource overlay for the first time, Jugg supplies the complete resource set. The device has no reusable resource overlay yet, so one changed file alone cannot form the complete new resource view. Later deployments can accumulate the current difference only after a trusted resource state exists.
 
-Manifest and native libraries do not use an ordinary overlay. When they must become install package content, they enter [APK update and installation](./apk-update-and-install.md).
+Manifest and its associated resource table must be written back to the install package through [APK update and installation](./apk-update-and-install.md). With SO hot update enabled, native libraries enter an overlay and load after an app restart; when disabled, they use the APK update path. See [Updating .so files](../capabilities/compile/so-update.md).
 
 ## Code Swap and Full Swap differ in lifecycle behavior
 

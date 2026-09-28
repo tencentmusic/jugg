@@ -16,6 +16,7 @@ import javax.swing.JPanel
  */
 class ReportIssueResultDialog(
     private val uploadResult: IssueReportUploadResult?,
+    private val serverUrl: String? = null,
     private val onRetry: (() -> Unit)? = null,
 ) : DialogWrapper(true) {
     init {
@@ -50,11 +51,15 @@ class ReportIssueResultDialog(
     }
 
     override fun doOKAction() {
-        val result = uploadResult?.reportId ?: uploadResult?.errorMessage ?: "Diagnostics bundle saved locally"
         Toolkit.getDefaultToolkit().systemClipboard.setContents(
-            StringSelection("Jugg report: $result"),
+            StringSelection(reportIssueClipboardText(uploadResult, serverUrl)),
             null,
         )
         super.doOKAction()
     }
+}
+
+internal fun reportIssueClipboardText(uploadResult: IssueReportUploadResult?, serverUrl: String?): String {
+    val result = uploadResult?.reportId ?: uploadResult?.errorMessage ?: "Diagnostics bundle saved locally"
+    return "Jugg report: $result" + (serverUrl?.let { "\nServer Url: $it" } ?: "")
 }

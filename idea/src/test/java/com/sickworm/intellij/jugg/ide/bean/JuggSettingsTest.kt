@@ -3,10 +3,29 @@ package com.sickworm.intellij.jugg.ide.bean
 import com.intellij.ide.util.PropertiesComponent
 import com.sickworm.intellij.jugg.mock.TestGlobal
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class JuggSettingsTest {
+
+    @Test
+    fun `native sandbox deploy is disabled by default`() {
+        TestGlobal.init()
+        val properties = PropertiesComponent.getInstance()
+        val settingKey = "jugg.isEnableNativeSandboxDeploy"
+        val oldValue = properties.getValue(settingKey)
+        properties.unsetValue(settingKey)
+        try {
+            assertFalse(JuggSettings.isEnableNativeSandboxDeploy)
+        } finally {
+            if (oldValue == null) {
+                properties.unsetValue(settingKey)
+            } else {
+                properties.setValue(settingKey, oldValue)
+            }
+        }
+    }
 
     @Test
     fun `compat deploy should always be enabled`() {

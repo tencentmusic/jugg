@@ -30,6 +30,7 @@ import com.sickworm.intellij.jugg.ide.controlpanel.JuggControlPanelModel
 import com.sickworm.intellij.jugg.ide.controlpanel.JuggEvent
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.ide.ui.JuggControlPanel
+import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
 import com.sickworm.intellij.jugg.ide.ui.JuggControlPanelController
 import com.sickworm.intellij.jugg.ide.ui.MockJuggControlPanelModel
 import com.sickworm.intellij.jugg.logger.ITestStdoutLogger
@@ -104,7 +105,7 @@ class JuggRunSettingsComponentTest {
     }
 
     @Test
-    fun `control panel preview should match approved native layout structure`() {
+    fun `control panel exposes expected sections and actions`() {
         TestGlobal.init()
         val panel = createPanel()
         val tabs = findComponent<JBTabbedPane>(panel)
@@ -156,7 +157,7 @@ class JuggRunSettingsComponentTest {
         val settingRows = settingGroupNames.flatMap { groupName ->
             descendants(findNamedComponent<JPanel>(panel, groupName)!!).mapNotNull { it.name }.toList()
         }
-        assertEquals(8, settingCheckboxes)
+        assertEquals(9, settingCheckboxes)
         assertTrue(settingRows.containsAll(listOf(
             "Install CLI and agent skills Install the Jugg CLI, agent skills, hooks, and required permissions.",
             "Check Jugg updates Check whether a newer Jugg plugin is available.",
@@ -301,7 +302,7 @@ class JuggRunSettingsComponentTest {
     }
 
     @Test
-    fun `settings should follow More Options capability conditions and connected devices`() {
+    fun `settings reflect injection capability and connected devices`() {
         TestGlobal.init()
         val controller = Mockito.mock(JuggControlPanelController::class.java)
         val model = JuggControlPanelModel().apply {
@@ -317,6 +318,7 @@ class JuggRunSettingsComponentTest {
         assertFalse(findSettingRow(panel, "Embed changes into APK").isVisible)
         assertFalse(findSettingRow(panel, "Use project Kotlin compiler").isVisible)
         assertFalse(findSettingRow(panel, "Backup classpath").isVisible)
+        assertTrue(findSettingRow(panel, ".so(native library) hot update").isVisible)
 
         model.updateSettings(JuggControlPanelModel.Settings(
             isInjectGradleCompileEnabled = true,
@@ -441,6 +443,96 @@ class JuggRunSettingsComponentTest {
         assertEquals("Setting changed", event.title)
         assertEquals("Quick deploy: enabled", event.detail)
         assertEquals(listOf("[UserAction] Setting changed: Quick deploy: enabled"), logs)
+    }
+
+    @Test
+    fun `so hot update toggle confirms data clear and schedules reinstall`() {
+        TestGlobal.init()
+        val previous = JuggSettings.isEnableNativeSandboxDeploy
+        val manager = Mockito.mock(JuggManager::class.java)
+        val logs = mutableListOf<String>()
+        val controller = createController(CapturingLogger("root", logs), manager)
+        try {
+            JuggSettings.isEnableNativeSandboxDeploy = false
+            javax.swing.SwingUtilities.invokeAndWait {
+                Mockito.mockConstruction(CommonConfirmDialog::class.java) { dialog, _ ->
+                    Mockito.`when`(dialog.showAndGet()).thenReturn(true)
+                }.use { dialogs ->
+                    controller.updateSetting(JuggControlPanelController.Setting.SO_HOT_UPDATE, true)
+                    assertTrue(JuggSettings.isEnableNativeSandboxDeploy)
+                    assertEquals(1, dialogs.constructed().size)
+                    Mockito.verify(manager).forceReInstallNextTime()
+                }
+            }
+            assertEquals(listOf("[UserAction] Setting changed: .so(native library) hot update: enabled"), logs)
+            assertTrue(controller.model.snapshot().settings.nativeSandboxDeploy)
+        } finally {
+            JuggSettings.isEnableNativeSandboxDeploy = previous
+        }
+    }
+
+    @Test
+    fun `so hot update toggle changes only after confirmation`() {
+        TestGlobal.init()
+        val previous = JuggSettings.isEnableNativeSandboxDeploy
+        val manager = Mockito.mock(JuggManager::class.java)
+        val controller = createController(CapturingLogger("root", mutableListOf()), manager)
+        try {
+            JuggSettings.isEnableNativeSandboxDeploy = false
+            controller.refreshSettings()
+            val panel = createPanel(model = controller.model, controller = controller)
+            val toggle = descendants(panel).filterIsInstance<JBCheckBox>()
+                .single { it.text == ".so(native library) hot update" }
+            SwingUtilities.invokeAndWait {
+                Mockito.mockConstruction(CommonConfirmDialog::class.java) { dialog, _ ->
+                    Mockito.`when`(dialog.showAndGet()).thenAnswer {
+                        assertFalse(toggle.isSelected)
+                        assertFalse(JuggSettings.isEnableNativeSandboxDeploy)
+                        false
+                    }
+                }.use {
+                    toggle.doClick()
+                }
+                assertFalse(toggle.isSelected)
+                Mockito.verify(manager, Mockito.never()).forceReInstallNextTime()
+                Mockito.mockConstruction(CommonConfirmDialog::class.java) { dialog, _ ->
+                    Mockito.`when`(dialog.showAndGet()).thenAnswer {
+                        assertFalse(toggle.isSelected)
+                        assertFalse(JuggSettings.isEnableNativeSandboxDeploy)
+                        true
+                    }
+                }.use {
+                    toggle.doClick()
+                }
+                assertTrue(toggle.isSelected)
+            }
+            assertTrue(JuggSettings.isEnableNativeSandboxDeploy)
+            assertTrue(controller.model.snapshot().settings.nativeSandboxDeploy)
+            Mockito.verify(manager).forceReInstallNextTime()
+        } finally {
+            JuggSettings.isEnableNativeSandboxDeploy = previous
+        }
+    }
+
+    @Test
+    fun `turning off so hot update skips confirmation and schedules reinstall`() {
+        TestGlobal.init()
+        val previous = JuggSettings.isEnableNativeSandboxDeploy
+        val manager = Mockito.mock(JuggManager::class.java)
+        val controller = createController(CapturingLogger("root", mutableListOf()), manager)
+        try {
+            JuggSettings.isEnableNativeSandboxDeploy = true
+            javax.swing.SwingUtilities.invokeAndWait {
+                Mockito.mockConstruction(CommonConfirmDialog::class.java).use { dialogs ->
+                    controller.updateSetting(JuggControlPanelController.Setting.SO_HOT_UPDATE, false)
+                    assertTrue(dialogs.constructed().isEmpty())
+                }
+            }
+            assertFalse(JuggSettings.isEnableNativeSandboxDeploy)
+            Mockito.verify(manager).forceReInstallNextTime()
+        } finally {
+            JuggSettings.isEnableNativeSandboxDeploy = previous
+        }
     }
 
     @Test
@@ -824,10 +916,13 @@ class JuggRunSettingsComponentTest {
         return field.get(target) as T
     }
 
-    private fun createController(logger: Logger): JuggControlPanelController {
+    private fun createController(
+        logger: Logger,
+        manager: JuggManager = Mockito.mock(JuggManager::class.java),
+    ): JuggControlPanelController {
         return JuggControlPanelController(
             project = mockProject(),
-            manager = Mockito.mock(JuggManager::class.java),
+            manager = manager,
             deployTargetManager = Mockito.mock(IDeployTargetManager::class.java),
             deployHistoryManager = Mockito.mock(IDeployHistoryManager::class.java),
             deployFileManager = Mockito.mock(DeployFileManager::class.java),

@@ -174,6 +174,13 @@ class CmdLineContextManager(
                         nativeOutput = buildInfo.nativeOutput?.convertSourceBaseDir(),
                         configFiles = buildInfo.configFiles.convertSourceBaseDir(),
                         excludedDirs = buildInfo.excludedDirs.convertSourceBaseDir(),
+                        prerequisites = buildInfo.prerequisites.map { prerequisite ->
+                            prerequisite.copy(
+                                generatedSourceDirs = prerequisite.generatedSourceDirs.map { dir ->
+                                    dir.copy(directory = dir.directory.convertSourceBaseDir())
+                                },
+                            )
+                        },
                     )
                 },
             )
