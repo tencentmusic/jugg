@@ -17,7 +17,8 @@ Describe the scenario and observable result, not the internal implementation.
 ## Task plan
 
 <!-- Replace the branch and file path with the plan added or updated in this PR.
-For a fork, also replace tencentmusic/jugg with the fork repository. -->
+For a fork, also replace tencentmusic/jugg with the fork repository.
+Same-repository develop/<version> release branch merges into main may omit this section. -->
 [Task plan](https://github.com/tencentmusic/jugg/blob/your-branch/docs/task/YYYY-MM/your-plan.md)
 
 ## Type
@@ -56,6 +57,6 @@ If the change cannot be asserted automatically without binding private implement
 ## Checklist
 
 - [ ] The pull request is focused: one problem, one fix, one verification story
-- [ ] The linked task plan is committed in this PR and reflects the final change
+- [ ] The linked task plan is committed in this PR and reflects the final change, or this is a release branch merge exempt from the plan check
 - [ ] No secrets, local IDE files, `build/` outputs, or unrelated formatting
 - [ ] Commit titles follow `[prefix][module] subject`

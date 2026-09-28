@@ -68,8 +68,8 @@
 
 - PR 目标分支默认为 `main`；维护者或用户明确指定其他目标分支时按其要求调整。
 - PR 分支使用 `<type>/<topic>`：`type` 与主要改动的提交前缀一致，取 `feature`、`bugfix`、`optimize`、`refactor`、`docs`、`test` 或 `other`；`topic` 用简短的小写英文 kebab-case 描述场景，例如 `bugfix/idea-home-compat`。
-- 每个 PR 都要新增或更新一份 `docs/task/YYYY-MM/*.md` 任务方案并随 PR 提交，描述中 `Task plan` 栏位必须链接到 PR 分支上的该文件。小型改动可以写简短方案；已有仓库外方案需先移入仓库，并在完成时更新方案与实际改动、验证结果的差异。
-- `Task Plan` 自动检查覆盖所有 PR 目标分支，校验方案文件在本 PR 中新增或更新，且描述中的链接指向该文件。
+- 除同仓库 `develop/<版本号>` 分支合入 `main` 的发布分支合并 PR 外，每个 PR 都要新增或更新一份 `docs/task/YYYY-MM/*.md` 任务方案并随 PR 提交，描述中 `Task plan` 栏位必须链接到 PR 分支上的该文件。小型改动可以写简短方案；已有仓库外方案需先移入仓库，并在完成时更新方案与实际改动、验证结果的差异。
+- `Task Plan` 自动检查覆盖所有 PR 目标分支；发布分支合并 PR 免查，其余 PR 校验方案文件在本 PR 中新增或更新，且描述中的链接指向该文件。
 - 一个 PR 解决一个问题；描述中说明用户场景、关联 Issue（如有）、验证证据和未完成的验证。PR 的 `./gradlew :idea:buildPlugin` 自动检查不代替定向测试或替代验证。由维护者 review 并决定合并。
 
 ## GitHub Issue URL 读取

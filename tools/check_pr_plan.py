@@ -10,6 +10,7 @@ from urllib.parse import quote
 
 
 PLAN_PATH = re.compile(r"docs/task/\d{4}-(?:0[1-9]|1[0-2])/[^/]+\.md\Z")
+RELEASE_BRANCH = re.compile(r"develop/\d+(?:\.\d+)+\Z")
 PLAN_SECTION = re.compile(r"(?ms)^## Task plan[ \t]*\r?\n(.*?)(?=^## |\Z)")
 MARKDOWN_LINK = re.compile(r"\[[^\]\n]+\]\((https://github\.com/[^)\s]+)\)")
 
@@ -34,13 +35,20 @@ def task_plan_links(body):
 
 def main(event_path):
     pull_request = json.loads(Path(event_path).read_text(encoding="utf-8"))["pull_request"]
-    plans = changed_plans(pull_request["base"]["sha"], pull_request["head"]["sha"])
+    base = pull_request["base"]
+    head = pull_request["head"]
+    if (base["ref"] == "main" and RELEASE_BRANCH.fullmatch(head["ref"])
+            and base["repo"]["full_name"] == head["repo"]["full_name"]):
+        print("Release branch merge does not require a task plan link.")
+        return 0
+
+    plans = changed_plans(base["sha"], head["sha"])
     if not plans:
         print("Add or update a docs/task/YYYY-MM/*.md plan in this pull request.")
         return 1
 
-    head_repo = pull_request["head"]["repo"]["full_name"]
-    refs = (pull_request["head"]["ref"], pull_request["head"]["sha"])
+    head_repo = head["repo"]["full_name"]
+    refs = (head["ref"], head["sha"])
     expected = {
         "https://github.com/{}/blob/{}/{}".format(
             head_repo, quote(ref, safe="/"), quote(path, safe="/")

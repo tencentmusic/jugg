@@ -146,14 +146,14 @@ Examples:
 5. Complete the pull request template (`.github/PULL_REQUEST_TEMPLATE.md`). GitHub fills it in when you open a PR. At minimum, include:
    - What user-visible problem or capability this changes
    - How you verified it
-   - A clickable link in `Task plan` to a plan added or updated by this PR under `docs/task/YYYY-MM/`
+   - A clickable link in `Task plan` to a plan added or updated by this PR under `docs/task/YYYY-MM/`, except for a same-repository `develop/<version>` release branch merge into `main`
    - Linked issue, if there is one
 6. Expect review comments. Small follow-up commits are fine; do not force-push unless a maintainer asks.
 
 Maintainers may choose pull requests for new features, Android Studio compatibility changes, and bug fixes affecting the main compile/deploy flow or requiring cross-version verification. They may commit small, focused bug fixes and routine documentation updates directly. Pull requests run `./gradlew :idea:buildPlugin`; include any additional verification appropriate to the change.
 
-Every pull request, including documentation and build changes, must add or update a task plan in `docs/task/YYYY-MM/`. Keep small plans concise. Record the goal, scope, approach, verification, and any remaining work; update the plan if implementation differs from it. Link the committed file from the PR head branch in the description.
-The `Task Plan` check verifies both the changed file and its PR description link for every target branch.
+Every pull request, including documentation and build changes, must add or update a task plan in `docs/task/YYYY-MM/`, except for a same-repository `develop/<version>` release branch merge into `main`. Keep small plans concise. Record the goal, scope, approach, verification, and any remaining work; update the plan if implementation differs from it. Link the committed file from the PR head branch in the description.
+The `Task Plan` check skips those release branch merges and verifies both the changed file and its PR description link for all other pull requests on every target branch.
 
 Do not include secrets, local IDE files, `build/` outputs, or unrelated formatting churn.
 
