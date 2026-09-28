@@ -169,7 +169,6 @@ open class JuggControlPanelController(
                     "<b>dlopen</b> / <b>android_dlopen_ext</b>, or ELF <b>DT_NEEDED</b> dependencies.<br><br>" +
                     "Continue?</html>",
             )) {
-            model.updateSettings(currentSettings())
             return
         }
         JuggSettings.isEnableNativeSandboxDeploy = enabled

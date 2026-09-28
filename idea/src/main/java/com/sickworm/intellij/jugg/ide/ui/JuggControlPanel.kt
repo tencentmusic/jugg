@@ -409,7 +409,14 @@ class JuggControlPanel(
     ): JComponent {
         val toggle = JBCheckBox(label).apply {
             addActionListener {
-                if (!isRenderingSettings) controller.updateSetting(setting, isSelected)
+                if (!isRenderingSettings) {
+                    val enabled = isSelected
+                    if (setting == JuggControlPanelController.Setting.SO_HOT_UPDATE && enabled) {
+                        isSelected = latestSnapshot.settings.nativeSandboxDeploy
+                    }
+                    controller.updateSetting(setting, enabled)
+                    renderSettings(latestSnapshot.settings)
+                }
             }
         }
         settingToggles[setting] = toggle

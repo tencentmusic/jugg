@@ -472,6 +472,49 @@ class JuggRunSettingsComponentTest {
     }
 
     @Test
+    fun `so hot update toggle changes only after confirmation`() {
+        TestGlobal.init()
+        val previous = JuggSettings.isEnableNativeSandboxDeploy
+        val manager = Mockito.mock(JuggManager::class.java)
+        val controller = createController(CapturingLogger("root", mutableListOf()), manager)
+        try {
+            JuggSettings.isEnableNativeSandboxDeploy = false
+            controller.refreshSettings()
+            val panel = createPanel(model = controller.model, controller = controller)
+            val toggle = descendants(panel).filterIsInstance<JBCheckBox>()
+                .single { it.text == ".so(native library) hot update" }
+            SwingUtilities.invokeAndWait {
+                Mockito.mockConstruction(CommonConfirmDialog::class.java) { dialog, _ ->
+                    Mockito.`when`(dialog.showAndGet()).thenAnswer {
+                        assertFalse(toggle.isSelected)
+                        assertFalse(JuggSettings.isEnableNativeSandboxDeploy)
+                        false
+                    }
+                }.use {
+                    toggle.doClick()
+                }
+                assertFalse(toggle.isSelected)
+                Mockito.verify(manager, Mockito.never()).forceReInstallNextTime()
+                Mockito.mockConstruction(CommonConfirmDialog::class.java) { dialog, _ ->
+                    Mockito.`when`(dialog.showAndGet()).thenAnswer {
+                        assertFalse(toggle.isSelected)
+                        assertFalse(JuggSettings.isEnableNativeSandboxDeploy)
+                        true
+                    }
+                }.use {
+                    toggle.doClick()
+                }
+                assertTrue(toggle.isSelected)
+            }
+            assertTrue(JuggSettings.isEnableNativeSandboxDeploy)
+            assertTrue(controller.model.snapshot().settings.nativeSandboxDeploy)
+            Mockito.verify(manager).forceReInstallNextTime()
+        } finally {
+            JuggSettings.isEnableNativeSandboxDeploy = previous
+        }
+    }
+
+    @Test
     fun `turning off so hot update skips confirmation and schedules reinstall`() {
         TestGlobal.init()
         val previous = JuggSettings.isEnableNativeSandboxDeploy
