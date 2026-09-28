@@ -18,6 +18,22 @@
     - "[feature] 支持 Native .so 增量热更新，仅 .so 变更时跳过 APK 改写与重装耗时（冷启动生效，可在设置中开启「SO hot update」）"
     - "[feature] 支持在 C++ 增量构建前执行声明的代码生成任务（如 IDL），并将生成的源码纳入增量编译"
 
+- version: 3.5.2
+  date: 2026.09.27
+  updates:
+    - "[feature][ide] Check updates 功能将支持通过 JetBrains Marketplace 和 GitHub 检查插件更新"
+    - "[feature][settings] 增加 \"Confirm fallback when too many changes\" 配置，变更文件过多时，支持设置自动回退构建还是弹窗提示"
+    - "[feature][agent] 支持 Anti-gravity skills/hooks 一键安装"
+    - "[feature][diagnostics] 工程 clean 时不再丢失历史日志"
+    - "[optimize][ide] 项目首次运行构建时自动激活 Run 窗口"
+    - "[optimize][compile] 优化 git pull 后立即构建时的变更检测，避免遗漏文件修改"
+    - "[optimize][compile] 存在已编译待部署产物时，准确显示提示气泡中的文件数量"
+    - "[bugfix][compile] 修复 Kotlin 2.2 + Quail3(JVM 25) Kotlin 编译器初始化失败的问题"
+    - "[bugfix][deploy] 修复 HarmonyOS 2 设备在兼容热修复模式下启动崩溃的问题"
+    - "[bugfix][compile] 修复 Mac intel 芯片，使用远程编译失败的问题"
+    - "[bugfix][compile] 修复 KMP 工程 JVM target 模块编译失败的问题"
+    - "[bugfix][ide] 修复控制面板小概率卡在初始化中状态的问题"
+
 - version: 3.5.1
   date: 2026.09.18
   updates:

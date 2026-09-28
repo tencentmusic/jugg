@@ -699,9 +699,10 @@ gtag('config', '${GA_ID}');`
     head.push(['link', { rel: 'alternate', hreflang: 'zh-CN', href: zhUrl }])
     head.push(['link', { rel: 'alternate', hreflang: 'x-default', href: enUrl }])
 
-    const title = pageData.title && pageData.title !== 'Jugg Wiki'
-      ? `${pageData.title} | Jugg Wiki`
-      : 'Jugg Wiki'
+    const pageTitle = pageData.title || 'Jugg Wiki'
+    const title = pageData.titleTemplate === false || pageTitle === 'Jugg Wiki'
+      ? pageTitle
+      : `${pageTitle} | Jugg Wiki`
     const description = pageData.description || (isZh
       ? 'Jugg 是腾讯音乐工程团队开源的 Android Studio 旁路增量编译与即时热更插件，修改代码 3 秒生效。'
       : 'Lightning-fast bypass incremental compilation & instant hot-reload plugin for Android Studio. See code changes in 3 seconds.')

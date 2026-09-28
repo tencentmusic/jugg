@@ -115,7 +115,7 @@ logger.warn("message bla bla bla" +
 
 ## 提交信息
 
-提交信息使用英文。标题格式：`[prefix] subject`
+提交信息使用英文。标题格式：`[prefix][module] subject`，两个 tag 紧挨着、各只出现一次。
 
 - `subject` 以小写字母开头，结尾不用句号。
 - 按用户可观察结果选择前缀：
@@ -123,29 +123,42 @@ logger.warn("message bla bla bla" +
   - `[feature]`：新增用户可感知的能力
   - `[optimize]`：原行为正确，但更清晰、更稳或更好用
   - `[refactor]` / `[docs]` / `[test]` / `[other]`：分别用于无行为变化的重构、纯文档、仅测试及其他改动
+- 二级 tag 标记功能领域，不是 Gradle 模块名或任务状态。优先选择最具体的现有 tag；跨领域提交选主要行为 owner，互不相关的改动分开提交：
+  - 编译与项目：`[compile]`、`[native build]`（Flutter/C++）、`[dependency incremental]`、`[kmp opt-in]`、`[hilt]`、`[project]`（Gradle 项目模型）
+  - 部署：`[deploy]`、`[system app]`（含 rootless）、`[custom install]`（APK 安装脚本）
+  - IDE 与工具：`[ide]`、`[settings]`、`[compat]`（Android Studio 版本适配）、`[mcp]`、`[cli]`、`[agent]`、`[diagnostics]`（日志与问题报告）
+  - 工程与内容：`[build]`（仓库构建/CI/打包，不是插件运行时编译）、`[release]`、`[test suite]`、`[wiki]`（用户 Wiki）、`[docs]`（其他文档）、`[repo]`（仓库级规则）
+  - 沿用小写英文及空格分词写法，不造同义词；确需新增领域时先确定稳定名称和职责，并同步本规范与 `AGENTS.md`、`CLAUDE.md`。
 - 标题优先描述用户场景和可观察结果，不描述内部实现。
-- `[bugfix]` 标题通常写成 `[bugfix] fix <problem> when/after/for <scenario>`。
-- `[optimize]` 标题通常写成 `[optimize] <improvement> when/for <scenario>`。
+- `[bugfix]` 标题通常写成 `[bugfix][module] fix <problem> when/after/for <scenario>`。
+- `[optimize]` 标题通常写成 `[optimize][module] <improvement> when/for <scenario>`。
 
 标题不够说明原因和实现时，空一行后再写正文。
 
 示例：
 
 ```text
-[bugfix] fix incremental deploy skipping resource changes after Gradle fallback
-[docs] add repository contributor guidelines
+[bugfix][deploy] fix incremental deploy skipping resource changes after Gradle fallback
+[docs][repo] add repository contributor guidelines
 ```
 
 ## Pull Request
 
 1. Fork 仓库，并从 `main` 拉取新分支。
-2. 向 `main` 提交 Pull Request。较大改动时，维护者可能会要求改以 `develop` 为目标分支。
-3. 保持 PR 聚焦：一个问题、一个修复、一套验证说明。
-4. 填写 Pull Request 模板（`.github/PULL_REQUEST_TEMPLATE.md`）。GitHub 创建 PR 时会自动带上该模板。至少写清：
+2. 分支名使用 `<type>/<topic>`：`type` 取主要改动类型（`feature`、`bugfix`、`optimize`、`refactor`、`docs`、`test` 或 `other`），`topic` 用简短的小写英文 kebab-case 描述场景，例如 `bugfix/idea-home-compat`。不得默认使用 `codex/` 前缀；维护者指定分支名时按其要求调整。
+3. 向 `main` 提交 Pull Request；维护者指定其他目标分支时按其要求调整。
+4. 保持 PR 聚焦：一个问题、一个修复、一套验证说明。
+5. 填写 Pull Request 模板（`.github/PULL_REQUEST_TEMPLATE.md`）。GitHub 创建 PR 时会自动带上该模板。至少写清：
    - 改了什么用户可观察问题或能力
    - 如何验证
+   - 在 `Task plan` 中提供指向本 PR 新增或更新的 `docs/task/YYYY-MM/` 方案的可点击链接
    - 关联 Issue（如有）
-5. 接受 review 意见。可以用小的后续 commit 继续修改；除非维护者要求，否则不要 force-push。
+6. 接受 review 意见。可以用小的后续 commit 继续修改；除非维护者要求，否则不要 force-push。
+
+维护者可选择通过 PR 完成新增 feature、Android Studio 兼容性改动，以及影响编译/部署主链路或需要跨版本验证的 bugfix。范围明确的小型 bugfix 和普通文档更新可直接提交。PR 自动执行 `./gradlew :idea:buildPlugin`；其他验证仍按改动风险完成并写入 PR。
+
+每个 PR（包括文档和构建改动）都必须在 `docs/task/YYYY-MM/` 新增或更新任务方案。小改动可写简短方案，说明目标、范围、做法、验证及未完成事项；实际实施与方案不同时需同步更新。PR 描述应链接到 PR 分支中已提交的文件。
+`Task Plan` 自动检查覆盖所有目标分支，同时校验本 PR 修改的方案文件与描述中的链接。
 
 不要提交密钥、本地 IDE 文件、`build/` 产物，或无关的格式化改动。
 

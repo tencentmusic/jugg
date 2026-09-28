@@ -10,7 +10,7 @@
     <li>[bugfix] 修复 Android 源码或资源位于 Native 监控目录下时被误识别为外部构建的问题</li>
     <li>[bugfix] 修复 Native 动态库或 APK 大于 2.1 GB（Int.MAX_VALUE）时部署失败的问题</li>
 </ol>
-<h2>3.5.1 (2026.09.18)</h2>
+<h2>3.5.2 (2026.09.27)</h2>
 <ol>
     <li>[feature] 支持 Flutter 和 C++ 源码变更，变更调用 Gradle task 生成 so，然后走 Jugg 增量构建</li>
     <li>[feature] 支持系统应用增量更新</li>
@@ -20,10 +20,17 @@
     <li>[feature] 支持自定义 APK 签名，适配 system app 远程签名场景</li>
     <li>[feature] 支持 system app 在无 root 或 run-as 权限时走兼容部署</li>
     <li>[feature] Running Panel 与日志中增加回退原因及用户操作记录</li>
+    <li>[feature][ide] Check updates 功能将支持通过 JetBrains Marketplace 和 GitHub 检查插件更新</li>
+    <li>[feature][settings] 增加 "Confirm fallback when too many changes" 配置，变更文件过多时，支持设置自动回退构建还是弹窗提示</li>
+    <li>[feature][agent] 支持 Anti-gravity skills/hooks 一键安装</li>
+    <li>[feature][diagnostics] 工程 clean 时不再丢失历史日志</li>
     <li>[optimize] Dex 报错回退时展示更简洁的警告</li>
     <li>[optimize] 优化自研部署通道耗时</li>
     <li>[optimize] 兼容无普通 Launcher Activity 的应用，部署后自动启动 Home Activity 或直接 stop，避免出现不生效的幻觉</li>
     <li>[optimize] 优化 3.5.0 引入的多模块与 Dynamic Feature 项目读取耗时变长的问题</li>
+    <li>[optimize][ide] 项目首次运行构建时自动激活 Run 窗口</li>
+    <li>[optimize][compile] 优化 git pull 后立即构建时的变更检测，避免遗漏文件修改</li>
+    <li>[optimize][compile] 存在已编译待部署产物时，准确显示提示气泡中的文件数量</li>
     <li>[bugfix] 修复 Bumblebee 运行配置查找与命名</li>
     <li>[bugfix] 修复上架问题：移除不兼容 API，更新 IDE 上的 Gradle Sync 处理</li>
     <li>[bugfix] 避免 profile 构建误用 debug 任务元数据</li>
@@ -40,6 +47,11 @@
     <li>[bugfix] 修复 CMake 相对路径源码及跨模块共享源码未被正确识别为增量输入/输出的问题</li>
     <li>[bugfix] 修复变体关闭代码混淆（minify）后因残留 mapping 文件，误识别为需要混淆，导致增量构建运行时崩溃的问题</li>
     <li>[bugfix] 修复修改模块资源后，外部 AAR 依赖读取新增资源发生 NoSuchFieldError 的问题</li>
+    <li>[bugfix][compile] 修复 Kotlin 2.2 + Quail3(JVM 25) Kotlin 编译器初始化失败的问题</li>
+    <li>[bugfix][deploy] 修复 HarmonyOS 2 设备在兼容热修复模式下启动崩溃的问题</li>
+    <li>[bugfix][compile] 修复 Mac intel 芯片，使用远程编译失败的问题</li>
+    <li>[bugfix][compile] 修复 KMP 工程 JVM target 模块编译失败的问题</li>
+    <li>[bugfix][ide] 修复控制面板小概率卡在初始化中状态的问题</li>
 </ol>
 <h2>3.4.3 (2026.09.09)</h2>
 <ol>

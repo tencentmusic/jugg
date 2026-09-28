@@ -1,5 +1,6 @@
 ---
-title: Jugg Wiki
+title: Jugg：Android Studio 增量编译与即时热更
+titleTemplate: false
 description: 让大规模 Android 工程的日常修改在 3 秒内看到效果。
 layout: page
 ---

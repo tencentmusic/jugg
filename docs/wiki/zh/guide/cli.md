@@ -1,5 +1,5 @@
 ---
-title: CLI
+title: CLI 指南：命令行增量编译与部署
 description: Jugg CLI 命令行工具指南：终端秒级增量构建、日常部署热更实战、参数映射与 AI Agent 自动化集成。
 status: active
 tags:

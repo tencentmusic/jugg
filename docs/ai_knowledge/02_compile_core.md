@@ -83,6 +83,8 @@ JuggCompilerHelper.compile(options, uiHandler)
 
 `checkFallback()` 是 MCP/status 使用的无副作用预检，不能读取 Run options 或弹窗，因此顺序不同：`未建立 full-build 基线 -> project info 不可用 -> INVALID_DEVICE -> 其他 DeployState 必须 full compile -> 变更文件过多`。首次运行同时缺少基线和 project info 时，优先报告 `not gradle compile yet`。它不会报告 Force Gradle、BuildTarget/command 切换、依赖差异确认或无文件变化确认；status 的 reason 不能替代实际 Run 的最终决策。
 
+没有新文件需要编译但直接进入部署时，`Compiling ... files` 提示计入已经编译、尚未部署的文件；没有待部署编译文件时仍显示 0。该提示不代表这些文件在本轮重新编译。
+
 ### 4.2 单轮增量编译与影响传播
 
 ```text

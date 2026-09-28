@@ -91,6 +91,27 @@ class FileLoggerTest {
     }
 
     @Test
+    fun `new logger instance should preserve previous latest log`() {
+        FileLogger(logDir).also { firstLogger ->
+            firstLogger.logger.info("before restart")
+            waitUntil { latestLogFile().readText().contains("before restart") }
+            firstLogger.dispose()
+        }
+
+        Thread.sleep(1100)
+        FileLogger(logDir).also { secondLogger ->
+            try {
+                secondLogger.logger.info("after restart")
+                waitUntil { latestLogFile().readText().contains("after restart") }
+
+                assertTrue(lastLatestLogFile().readText().contains("before restart"))
+            } finally {
+                secondLogger.dispose()
+            }
+        }
+    }
+
+    @Test
     fun `reset should not create last latest link when disabled`() {
         FileLogger.isCreateLastLogLinkFile = false
         val fileLogger = FileLogger(logDir)

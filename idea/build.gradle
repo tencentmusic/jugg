@@ -315,9 +315,61 @@ sourceSets {
     }
 }
 
+def generateChangeNotesFromYaml = { File yamlFile ->
+    if (!yamlFile.exists()) {
+        return ""
+    }
+    def sb = new StringBuilder()
+    sb.append("<h1>Change Log</h1>\n")
+    def currentVersion = null
+    def currentDate = null
+    def currentUpdates = []
+
+    def flushVersion = {
+        if (currentVersion != null) {
+            sb.append("<h2>").append(currentVersion)
+            if (currentDate) {
+                sb.append(" (").append(currentDate).append(")")
+            }
+            sb.append("</h2>\n<ol>\n")
+            currentUpdates.each { update ->
+                def escaped = update.toString()
+                        .replace('&', '&amp;')
+                        .replace('<', '&lt;')
+                        .replace('>', '&gt;')
+                sb.append("    <li>").append(escaped).append("</li>\n")
+            }
+            sb.append("</ol>\n")
+        }
+        currentVersion = null
+        currentDate = null
+        currentUpdates.clear()
+    }
+
+    yamlFile.eachLine('UTF-8') { rawLine ->
+        def line = rawLine.trim()
+        if (line.startsWith('- version:')) {
+            flushVersion()
+            currentVersion = line.substring('- version:'.length()).trim()
+        } else if (line.startsWith('date:')) {
+            currentDate = line.substring('date:'.length()).trim()
+        } else if (line.startsWith('- ') && !line.startsWith('- version:')) {
+            def text = line.substring(2).trim()
+            if (text.startsWith('"') && text.endsWith('"') && text.length() >= 2) {
+                text = text.substring(1, text.length() - 1).replace('\\"', '"')
+            } else if (text.startsWith("'") && text.endsWith("'") && text.length() >= 2) {
+                text = text.substring(1, text.length() - 1)
+            }
+            currentUpdates.add(text)
+        }
+    }
+    flushVersion()
+    return sb.toString()
+}
+
 patchPluginXml {
     sinceBuild = '211.7628.21'
-    changeNotes = new File("${rootProject.rootDir}/change_log/change_log.html").getText('UTF-8')
+    changeNotes = generateChangeNotesFromYaml(new File("${rootProject.rootDir}/change_log/change_log_rc.yaml"))
 }
 
 runPluginVerifier {

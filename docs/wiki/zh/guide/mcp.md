@@ -1,5 +1,5 @@
 ---
-title: MCP
+title: MCP 指南：Agent 接入与工具调用
 description: 介绍 Jugg MCP 的连接方式、公开工具、返回模型，以及与 CLI 的选择建议。
 status: active
 tags:
