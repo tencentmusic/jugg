@@ -593,7 +593,9 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
             ),
             kaptDependencies = classpath.aptDependencies,
             kotlinPlugins = classpath.kotlinPlugins,
-            javaSourceDirs = listOf(argsManager.dataBindingSourcesOutputDir),
+            // Adapter store generation reads the changed Kotlin source only. This directory also
+            // contains mapper Java from earlier runs, which duplicates KAPT-generated classes.
+            javaSourceDirs = emptyList(),
             executionMode = KotlinCompilerInvoker.ExecutionMode.ISOLATED_PROCESS,
         )
         val kaptTask = CompileTask(

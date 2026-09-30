@@ -108,6 +108,7 @@ SourceCompiler.prepareSourceCompile()
 - 源码 adapter 声明检测只在模块确认启用 DataBinding 后执行，非 DataBinding 模块直接跳过。检测覆盖 `BindingAdapter`、`BindingMethod(s)`、`BindingConversion`、`InverseBindingAdapter`、`InverseBindingMethod(s)`、`InverseMethod` 和 `Untaggable`，支持简单名、`androidx.databinding` / `android.databinding` 完整包名及 Kotlin alias import；注释、名称前后缀和嵌套类型名不视为声明。
 - `Bindable` 属于 BR 生成语义，不复用 adapter setter store 检测与隔离 KAPT 路径；`BindingBuildInfo` 继续由 Jugg 生成的 trigger file 驱动。
 - 隔离 KAPT 直接启动项目 `K2JVMCompiler` CLI，并为 javac internal packages 添加 module exports/opens，避免旧 KAPT 继承 Android Studio 宿主 JBR 的 module 限制。
+- Kotlin adapter 隔离 KAPT 不读取 Jugg 的 DataBinding 生成源码目录作为 Java source root；该目录可能留有上一轮 mapper、BR 和 DataBindingComponent，重新加入会与本轮 processor 生成的同名类冲突。adapter store 只从本轮 Kotlin 声明生成。
 - DataBinding mapper 失败且当前任务含 Kotlin 源时，`SourceDataBindingProcessor` 会先编译 Kotlin class，再重试一次 mapper 生成；第二次失败不再重试。正常成功路径仍只有一次 DataBinding processor invocation。
 - `DataBindingClasspathHelper` 只给 DataBinding 相关依赖做 annotation processing，避免 ARouter 等其他 processor 进入这条旁路。
 - Mapper APT 对当前模块及其直接工程依赖优先复用各模块的 Jugg merged store；没有有效 cache 时回到对应 variant 最近一次 Gradle 完整构建生成的模块 `*-setter_store.json`。AAR transform 根目录下的 `data-binding/*-setter_store.json` 仍全部收集。
@@ -145,6 +146,7 @@ SourceCompiler.prepareSourceCompile()
 | DataBinding mapper 生成失败 | `DataBindingGenMapperCompiler.runAnnotationProcessor()`，重点看 `runAnnotationProcessor apt output` 日志；若 `FileNotFoundException` 指向 kapt `DataBinderMapperImpl.java`，同时核对 Java APT 的 `ap_generated_sources` |
 | 自定义属性提示找不到 setter 或参数类型不匹配 | 先检查 `DataBindingClasspathHelper` 是否收集当前模块、直接工程依赖的有效 merged/Gradle store，再检查 `DataBindingGenMapperCompiler` 是否从 `dataBindingAarOutDir` 取得 current-module store 并发布 cache |
 | adapter-only 后下一轮 layout 找不到属性 | 检查 `SourceDataBindingProcessor` 是否因 adapter declaration 触发 processor，以及 setter store cache 的 baseline hash 是否命中 |
+| 只改 Kotlin BindingAdapter 时隔离 KAPT 报 `类重复` | 检查 KAPT 的 Java source roots 是否包含上一轮 Jugg DataBinding 生成目录；即使 Kotlin class 编译和部署成功，也要确认 merged setter store 是否已发布 |
 | 删除/改名 adapter 后旧属性仍存在 | B1 不处理删除语义；执行 Gradle fallback恢复完整 baseline |
 | BR 缺字段或 id 抖动 | `mergeLibraryBr()` / `mergeAppBr()` 的 baseline BR 与 current incremental BR |
 | `<include>` 修改后引用方未更新 | `LayoutIncludeAnalyzer.findAllIncludePath()` 和 `tempDataBindingLayoutXmlDir` 内容 |
