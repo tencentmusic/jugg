@@ -66,6 +66,8 @@ cd jugg
 - `buildPlugin` 会把插件 zip 输出到 `idea/build/distributions`。
 - `runIde` 会启动一个用于开发调试的 IDE。
 
+运行 Gradle 时，通过 `JAVA_HOME` 选择 JDK 17（例如 `JAVA_HOME=/path/to/jdk-17 ./gradlew :idea:buildPlugin`）。JDK 21 编译器会在 JVMTI agent 类中生成未命名的合成构造函数参数，插件内置的 D8 无法处理，导致 `:jvmti_agent:buildInstrumentJar` 失败。切换 JDK 后，先让 Gradle 重新编译 agent 类，再打包插件。
+
 只有需要在真实 Android 工程和设备上验证时，才把构建出的插件安装到本机 Android Studio。
 
 ## 仓库结构
@@ -77,7 +79,7 @@ cd jugg
 | `deploy_compat/` | Android Studio 版本兼容 |
 | `cmd_line/` | 命令行入口 |
 | `docs/wiki/` | 用户 Wiki |
-| `docs/ai_knowledge/` | 维护者 / AI 架构说明 |
+| `docs/ai/` | 维护者 / AI 架构说明 |
 
 只改行为所属模块。优先用能解决问题的最小补丁。
 
@@ -152,7 +154,7 @@ logger.warn("message bla bla bla" +
 ## 文档
 
 - **用户 Wiki** 位于 `docs/wiki`。英文根路径页面是内容基准，`docs/wiki/zh/` 下的中文页面需要保持同步。
-- **维护者说明** 位于 `docs/ai_knowledge`。改动影响插件内部、编译/部署行为或 AI 任务路由时，请同步更新。
+- **维护者说明** 位于 `docs/ai`。改动影响插件内部、编译/部署行为或 AI 任务路由时，请同步更新。
 - 不要把内部类名写进面向普通用户的 Wiki，除非该名称本身对用户可见。
 
 ## 社区

@@ -11,12 +11,12 @@ Write Wiki pages that explain real engineering problems, Jugg's choices, and use
 
 Follow the mandatory workflow in the repository's `AGENTS.md` before reading or editing implementation code.
 
-1. If not yet read in this session, read `docs/ai_knowledge/00_overview.md` and `docs/ai_knowledge/99_index.md`.
-2. Read `docs/ai_knowledge/98_code_map.md` to locate the behavior owner.
-3. Read `docs/ai_knowledge/10_wiki_authoring.md` and `docs/ai_knowledge/10_wiki_architecture.md`.
+1. If not yet read in this session, read `docs/ai/00_overview.md` and `docs/ai/99_index.md`.
+2. Read `docs/ai/98_code_map.md` to locate the behavior owner.
+3. Read `docs/ai/10_wiki_authoring.md` and `docs/ai/10_wiki_architecture.md`.
 4. Read the target page and the nearest `index.md` in its directory hierarchy. Read a higher-level index only if the nearest one does not establish the page's role or navigation context.
 5. If same-language concept or capability pages cover the same topic, read them too. If a target spans independent topics, inspect each paired page and decide whether to split the target.
-6. Select only directly relevant `docs/ai_knowledge` topics through `99_index.md`; never load the whole knowledge base at once.
+6. Select only directly relevant `docs/ai` topics through `99_index.md`; never load the whole knowledge base at once.
 
 For product behavior, compatibility differences, or recovery claims, verify the current implementation. Restrict code investigation to the behavior owner and facts proposed for the article.
 
@@ -34,7 +34,7 @@ Treat old articles, presentations, demos, and screenshots as supplementary backg
 
 Do not invent design motives, alternatives, or performance gains when historical material is absent. Build the causal account from current code, topic documents, logs, stable reproductions, and known user symptoms. Comments and implementation constraints can explain why current handling is needed, but do not prove the original decision process or historical benefit. When evidence only establishes what happens now, do not claim to know why it was first chosen.
 
-If a historical design intent or failure mode is verified against the current implementation, remains useful, and is absent from `docs/ai_knowledge`, list it as a knowledge-base synchronization candidate in the handoff. Do not expand a Wiki-writing task into knowledge-base maintenance unless the user requests it.
+If a historical design intent or failure mode is verified against the current implementation, remains useful, and is absent from `docs/ai`, list it as a knowledge-base synchronization candidate in the handoff. Do not expand a Wiki-writing task into knowledge-base maintenance unless the user requests it.
 
 ## Identify the page's role
 

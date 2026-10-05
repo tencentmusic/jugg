@@ -866,7 +866,7 @@ data class ResourceMapping(
 - [AabResGuard GitHub](https://github.com/bytedance/AabResGuard)
 - [AabResGuard 输出文件说明](https://github.com/bytedance/AabResGuard/blob/master/wiki/zh-cn/OUTPUT.md)
 - [AAPT2 文档](https://developer.android.com/studio/command-line/aapt2)
-- [Jugg 资源编译文档](../ai_knowledge/02_compile_resource.md)
+- [Jugg 资源编译文档](../../ai/02_compile_resource.md)
 
 ### B. 测试用例示例
 

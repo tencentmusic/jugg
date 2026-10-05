@@ -56,7 +56,7 @@ If the change cannot be asserted automatically without binding private implement
 
 - [ ] No user-facing or architecture change / 不涉及用户文档或架构变更
 - [ ] Updated user Wiki (English root source, `docs/wiki/zh/` in sync) / 已更新用户 Wiki（英文为基准，中文同步）
-- [ ] Updated maintainer notes (`docs/ai_knowledge`) / 已更新维护者说明
+- [ ] Updated maintainer notes (`docs/ai`) / 已更新维护者说明
 
 ## Checklist / 检查项
 

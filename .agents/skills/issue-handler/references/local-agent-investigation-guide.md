@@ -10,21 +10,21 @@ https://raw.githubusercontent.com/tencentmusic/jugg/main/AGENTS.md
 
 Follow its mandatory knowledge-base workflow. Read every selected document completely rather than relying on search excerpts:
 
-1. Read `docs/ai_knowledge/00_overview.md`:
+1. Read `docs/ai/00_overview.md`:
 
-   https://raw.githubusercontent.com/tencentmusic/jugg/main/docs/ai_knowledge/00_overview.md
+   https://raw.githubusercontent.com/tencentmusic/jugg/main/docs/ai/00_overview.md
 
-2. Read `docs/ai_knowledge/99_index.md`:
+2. Read `docs/ai/99_index.md`:
 
-   https://raw.githubusercontent.com/tencentmusic/jugg/main/docs/ai_knowledge/99_index.md
+   https://raw.githubusercontent.com/tencentmusic/jugg/main/docs/ai/99_index.md
 
-3. Read `docs/ai_knowledge/98_code_map.md` to locate the relevant subsystem and behavior owner candidates:
+3. Read `docs/ai/98_code_map.md` to locate the relevant subsystem and behavior owner candidates:
 
-   https://raw.githubusercontent.com/tencentmusic/jugg/main/docs/ai_knowledge/98_code_map.md
+   https://raw.githubusercontent.com/tencentmusic/jugg/main/docs/ai/98_code_map.md
 
-4. Read `docs/ai_knowledge/09_plugin_runtime_debug.md` for runtime evidence boundaries and symptom routing:
+4. Read `docs/ai/09_plugin_runtime_debug.md` for runtime evidence boundaries and symptom routing:
 
-   https://raw.githubusercontent.com/tencentmusic/jugg/main/docs/ai_knowledge/09_plugin_runtime_debug.md
+   https://raw.githubusercontent.com/tencentmusic/jugg/main/docs/ai/09_plugin_runtime_debug.md
 
 5. Use `99_index.md` to select the topic documents relevant to the reported symptom, then read those documents completely. Resolve their repository-relative paths against this Raw content base:
 

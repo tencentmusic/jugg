@@ -739,7 +739,7 @@ ChangedFile
 
 ### 10.1 测试金字塔
 
-阶段 1 的分层以 [06_testing.md §1](../ai_knowledge/06_testing.md) 为准（与 `AGENTS.md` 一致）：
+阶段 1 的分层以 [06_testing.md §1](../../ai/06_testing.md) 为准（与 `AGENTS.md` 一致）：
 
 ```
          ┌──────────────────────────────┐

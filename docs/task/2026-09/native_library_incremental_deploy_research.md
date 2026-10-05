@@ -50,7 +50,7 @@
 代码依据：
 
 - [DeployDataGenerator.kt](../../../main/src/main/java/com/sickworm/intellij/jugg/deploy/data/DeployDataGenerator.kt)
-- [JuggDeployerHelper.kt](../../../idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployerHelper.kt)
+- [JuggDeployerHelper.kt](../../../main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployerHelper.kt)
 
 ### 3.2 当前 DEX 启动补丁
 
@@ -332,11 +332,11 @@ Jugg 集成还需独立识别 SO 补丁：不能复用“DEX 已由 agent 正确
 
 ### 10.1 仓库文档
 
-- [00_overview.md](../../ai_knowledge/00_overview.md)
-- [99_index.md](../../ai_knowledge/99_index.md)
-- [98_code_map.md](../../ai_knowledge/98_code_map.md)
-- [03_deploy_core.md](../../ai_knowledge/03_deploy_core.md) 相关小节
-- [03_runtime_jvmti.md](../../ai_knowledge/03_runtime_jvmti.md)
+- [00_overview.md](../../ai/00_overview.md)
+- [99_index.md](../../ai/99_index.md)
+- [98_code_map.md](../../ai/98_code_map.md)
+- [03_deploy_core.md](../../ai/03_deploy_core.md) 相关小节
+- [03_runtime_jvmti.md](../../ai/03_runtime_jvmti.md)
 
 ### 10.2 主要平台依据
 

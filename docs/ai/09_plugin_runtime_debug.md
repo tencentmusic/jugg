@@ -91,35 +91,6 @@ Log format:
 | Derived result | CLI/UI summary copy, wrapper error, terminal-job summary, aggregate state. | Proves only that its producer classified the event that way; it does not directly establish its assumed underlying cause. |
 | Investigation conclusion | Root cause, scope, version boundary, fix judgment. | Requires raw evidence or verified producer implementation. |
 
-| Investigation target | Search keywords |
-|----------------------|-----------------|
-| Compile start | `Jugg compile started` |
-| Incremental/full decision | `preprocessIncrementalCompile` |
-| No-file-changes dialog | `confirmFallbackWhenNoFileChanges` |
-| EDT asynchronous dispatch (file changes) | `dispatching to background` |
-| Unfinished post-compile Git check | `Git check after compile is still running` |
-| Lock-wait duration | `waiting for TaskRunnerManager lock` / `waitCost=` |
-| APK DB initialization | `initAfterInstall parsed apk start` / `database all init finish` |
-| SQLite query | `getClassNodes` |
-| Deployment start | `deploy start` |
-| Compile duration | `cost ${costTime}ms` |
-| Fallback cause | `fallback` / `Fallback` |
-| Compile failure | `incremental compile error` / `SEVERE` |
-| Standalone remote authentication | `Standalone Runtime is non-interactive` / `remote login` |
-| Remote shell safety handshake | `failed to disable remote shell echo` / `Remote shell echo could not be disabled safely` |
-| Remote sync and artifact fetch | `Sync file` / `Fetch` / `RemoteGradleCompileClient` |
-| UI freeze start | `uiFreezeStarted` / `InvocationEvent has timed out` |
-| Deferred ConstRef startup | `ConstRefEngine defer initial full scan until startup stabilizes` |
-| ConstRef throttling value | `ConstRefEngine io throttle enabled` |
-| ConstRef full-scan progress | `ConstRefEngine full scan progress` |
-| ConstRef fallback | `fallback to no-op const-ref` |
-| IDE startup chain | `InitialVfsRefresh` / `postInit` / `clangd` |
-| Reobfuscation result | `Obfuscated:` |
-| Reobfuscation annotation problem | `visitAnnotation` / `mapType` |
-| Missing reobfuscated type reference | `const-class` / `filled-new-array` / `NoClassDefFoundError` |
-| Widened reobfuscated access flags | `widenAccessFlags` / `invoke-direct` / `IllegalAccessError` / `AbstractMethodError` / `IncompatibleClassChangeError` / `ExternalSyntheticLambda` |
-| Jugg Debug attach | `Jugg Debug attach:` / `waitForClientReadyForDebug` / `Debugger is waiting for application to start` / `Connected to the target VM` |
-
 On a standalone remote-compile failure, first read `{projectDir}/build/jugg/log/standlone_cli/compile_latest.log` and join login, sync, Gradle, and artifact-fetch phases by `RemoteGradleCompileClient` command ID. `Standalone Runtime is non-interactive` means the configuration lacks directly usable SSH credentials or iFT still needs interactive authentication; configure it first in IDEA/profile or an external iFT client. Logs do not preserve the raw remote command, and only allowlisted path values from environment variables are visible. Do not ask a user to upload plaintext passwords or a complete environment.
 
 ---
@@ -133,35 +104,7 @@ The component that prints an error, displays one, or returns aggregate state is 
 3. Until the behavior owner is known, do not exclude other boundaries with a narrow Git path filter; search history first by user-visible symptom, key symbol, or content change.
 4. Once found, narrow to its code, version, regression owner, and fix boundary.
 
-**Investigation steps**:
-1. Find a pause interval (over 100 ms between two timestamps with no intervening log).
-2. Search `waitCost=` for lock waiting.
-3. Search `dispatching to background` to confirm EDT calls dispatch correctly.
-4. Check whether an `@Synchronized` method may be called directly on EDT.
-
-**Known causes** (already fixed; for reference):
-- `FileChangesDetector.afterVfsChange()` called `DeployFileManager.addChangedFile()` on EDT and competed with an `@Synchronized` lock held by the compile thread, blocking EDT for about 150 ms.
-- Fix: dispatch EDT calls asynchronously through `TaskRunnerManager.runBackgroundSafe()`.
-- `processFileChanged()` and `tryCreateRunConfigurations()` once shared a `JuggManager` instance lock; when a background directory scan held it for a long time, the Gradle Sync EDT callback blocked at Run Configuration creation.
-- Fix: file-change processing and Run Configuration creation now use separate locks, serializing only within their respective business domains.
-- VFS directory events can include project-irrelevant global directories. The old implementation recursively called `listFiles()` before checking whether each file belonged to Jugg's change range, causing repeated scanning and long file-change lock holding across multiple projects.
-- Fix: `FileChangesHandler` prunes by IDE project directory and compile-module roots before expanding directories, while still including modules outside the project directory.
-
-**Key classes**:
-```
-idea/.../project/change/FileChangesDetector.kt # VFS event listener (afterVfsChange on EDT)
-main/.../deploy/DeployFileManager.kt          # addChangedFile / removeChangedFile
-main/.../project/runtime/TaskRunnerManager.kt # background dispatch, isOnEdt, project/global locks, Job lifecycle
-idea/.../runtime/HostTaskExecutor.kt          # ApplicationManager.isDispatchThread and IDEA task execution/progress
-```
-
-### 4.1.1 Long freeze after startup (`postInit / InitialVfsRefresh / clangd / ConstRef` contention)
-
-**First collect four items**:
-1. `build/jugg/log/compile_latest.log` or the most recent `compile_*.log`.
-2. IDE `idea.log`.
-3. `threadDumps-freeze-*`.
-4. An on-scene `jcmd <pid> Thread.print -l`.
+### 2.3 Counterevidence gate before a conclusion
 
 1. Write the leading conclusion and the direct evidence supporting it.
 2. Specify at least one observable item that would falsify or substantially weaken it.
@@ -175,28 +118,29 @@ The counterevidence gate does not require exhaustive hypotheses or a fixed numbe
 
 ## 3. Common search-keyword quick reference
 
-**Current expected behavior**:
-- `DeployFileManager` may create `ConstRefEngine` directly, but the `ConstRefEngine` constructor must not initialize the SQLite runtime. A ConstRef DB exception must not fail `JuggManager.<init>`.
-- If `ConstRefCacheDatabase` initialization or a runtime DB operation encounters corruption, rebuild `~/.jugg/const_ref/const_ref_shared.db` and its WAL/SHM. At runtime, retry only the original operation that encountered corruption, once.
-- If DB rebuilding or `RepoSharedFingerprintStore` initialization still fails, the log should contain `fallback to no-op const-ref`, and compilation/deployment should continue without ConstRef.
 | Investigation target | Search keywords |
 |----------------------|-----------------|
 | Compile start | `Jugg compile started` |
 | Incremental/full decision | `preprocessIncrementalCompile` |
 | File changes and full fallback | `confirmFallbackWhenNoFileChanges` / `No file changes` / `fallback` |
-| EDT and lock contention | `dispatching to background` / `waitCost=` / `TaskRunnerManager lock` |
+| EDT and lock contention | `dispatching to background` / `waitCost=` / `waiting for TaskRunnerManager lock` |
 | Post-compile Git check | `Git check after compile is still running` / `Git recovery CRC summary` |
 | APK DB initialization | `initAfterInstall parsed apk start` / `database all init finish` |
+| SQLite query | `getClassNodes` |
+| Compile duration | `cost ${costTime}ms` |
 | Compile or deploy failure | `incremental compile error` / `SEVERE` / `deploy start` |
+| Standalone remote authentication | `Standalone Runtime is non-interactive` / `remote login` |
+| Remote shell safety handshake | `failed to disable remote shell echo` / `Remote shell echo could not be disabled safely` |
+| Remote sync and artifact fetch | `Sync file` / `Fetch` / `RemoteGradleCompileClient` |
 | R class exists but resource field is missing | `module compile R.jar candidates found in module` / `R.jar candidates found in module` / `compile_r_class_jar` / `compile_only_not_namespaced_r_class_jar` |
 | IDE cannot recognize a deployable process | `NO_DEPLOYABLE_APP` / `deployable client unavailable` / `ideClientPids` / `Unexpected cmdline file for PID` |
 | Kotlin IR lowering internal error | `BackendException` / `Exception during IR lowering` / `copyValueParametersToStatic` / `Dispatch receiver type` / `SyntheticAccessorGenerator` |
 | UI freeze | `uiFreezeStarted` / `InvocationEvent has timed out` |
-| ConstRef startup and scanning | `defer initial full scan` / `io throttle enabled` / `full scan progress` |
+| ConstRef startup and scanning | `ConstRefEngine defer initial full scan until startup stabilizes` / `ConstRefEngine io throttle enabled` / `ConstRefEngine full scan progress` |
 | ConstRef fallback | `fallback to no-op const-ref` |
 | IDE startup chain | `InitialVfsRefresh` / `postInit` / `clangd` |
-| Release reobfuscation | `Obfuscated:` / `mapping.txt` / `Minify is enabled for the current variant` / `NoClassDefFoundError` / `NoSuchMethodError` / `AbstractMethodError` |
-| Jugg Debug attach | `Jugg Debug attach:` / `waitForClientReadyForDebug` / `Connected to the target VM` |
+| Release reobfuscation | `Obfuscated:` / `mapping.txt` / `Minify is enabled for the current variant` / `visitAnnotation` / `mapType` / `const-class` / `filled-new-array` / `widenAccessFlags` / `invoke-direct` / `ExternalSyntheticLambda` |
+| Jugg Debug attach | `Jugg Debug attach:` / `waitForClientReadyForDebug` / `Debugger is waiting for application to start` / `Connected to the target VM` |
 
 ---
 
@@ -206,7 +150,7 @@ This section supplies only the first troubleshooting hop. On a symptom match, re
 
 | Symptom | First evidence and interpretation boundary | Behavior owner / topic |
 |---------|--------------------------------------------|------------------------|
-| Brief IDE freeze on click or operation | Align freeze time in `idea.log`, Jugg log pause, and thread dump. A log gap alone does not prove Jugg held a lock. | `FileChangesDetector`, `TaskRunnerManager`; `04_engineering_ide.md`. |
+| Brief IDE freeze on click or operation | Align freeze time in `idea.log`, Jugg log pause, and thread dump. A log gap alone does not prove Jugg held a lock. | `IdeaFileChangeMonitor`, `FileChangeManager`, `TaskRunnerManager`; `04_engineering_ide.md`. |
 | Long freeze after startup | Collect Jugg log, `idea.log`, freeze dump, and on-scene `jcmd`; separate ConstRef, IDE startup, and EDT lock-contention paths. | `04_engineering_ide.md`, `03_deploy_const_ref.md`. |
 | ConstRef SQLite corruption | Check corrupt-DB rebuild and `fallback to no-op const-ref`; a DB exception should not expand into Run/compile/deploy failure. | `ConstRefCacheDatabase`, `ConstRefEngine`; `03_deploy_const_ref.md`. |
 | Jugg Debug breakpoint unavailable | In the same window confirm WAITING, `Connected to the target VM`, and final session creation; "waiting for debugger" does not mean the VM connected. | `04_engineering_debug_attach.md`. |
@@ -217,20 +161,20 @@ This section supplies only the first troubleshooting hop. On a symptom match, re
 | `Git check after compile is still running` | This debug message only means this run does not wait for an asynchronous follow-up, not compile failure. Investigate Git query size/history only if persistent. | `GitChangesCompileChecker`; `02_compile_core.md`. |
 | Slow APK DB initialization | Align APK size, isolated-parser signals, DB size, and measured time. | APK parser/database; `05_utilities.md`. |
 | Compatibility resource deploy OOM, followed by persistent `FileSystemAlreadyExistsException` | Align `ResourceApkModifier` entry/byte/heap logs, `Open ZipFS` temporary path, and deploy-payload heap. Later Runs should use a new temporary URI; after OOM, the formal cache should be cleaned. | `ResourceApkModifier`, `ApkFileModifier`, `JuggDeployerHelper`; `03_deploy_core.md`, `05_utilities.md`. |
-| `source_files.db` rebuilds on every startup | Check rebuild stamp, deletion failure, and `SQLITE_BUSY`; DB creation/modified time does not establish recent rebuild. | `SourceFileManager`, `SourceFileDatabaseSqLiteHelper`; §4.3 here. |
+| `source_files.db` rebuilds on every startup | Check rebuild stamp, deletion failure, and `SQLITE_BUSY`; DB creation/modified time does not establish recent rebuild. | `SourceFileManager`, `SourceFileDatabaseSqLiteHelper`; §4.5 here. |
 | Runtime crash after release incremental build | Confirm real minify configuration of the current variant and matching mapping source (`variants[].minifyEnabled` / `ModuleInfo.minifyEnabled`), then mapping load and `Obfuscated:`, then compare staging and APK DEX. Exception names alone cannot establish a mapping gap. Residual `outputs/mapping/<variant>/mapping.txt` for an unminified variant does not participate in the decision or obfuscation. | `ICompileContext.isMinified`, `DexMinifyCompiler`, `DexObfuscator`; `02_compile_obfuscation.md`. |
 | Kotlin `INTERNAL_ERROR` with shaded `JavaVersion` in stack | Failure even after compiler recreation only strengthens a host-environment inference; also inspect host JDK, project Kotlin version, and compatibility logs. | `KotlinCompilerHostCompat`; `02_compile_source.md`. |
 | Kotlin `INTERNAL_ERROR` with `DelegatingFileSystem.close`, `DescriptorLoadingContext.close` in stack | Confirm `UnsupportedOperationException` occurs in the same exception block. Then warmup caches only current compiler-classpath state; a separate JVM retry log should appear for actual sources. The subprocess takes one Kotlin argfile argument; other toolchains should not be downgraded in tandem. | `KotlinCompilerOutputParser`, `KotlinCompilerInvoker`, `KotlinCompilerProcessRunner`; `02_compile_source.md`. |
 | Kotlin `cannot access ... which is a supertype of ...` / `unresolved supertypes:`, common in ROM or vehicle system apps using hidden APIs | Check whether SDK `android.jar` precedes a same-named framework/HideAPI jar in `-cp` of `kotlin compile: kotlinc`; this is not a missing HideAPI path. A match should produce a trailing retry log with a `-cp` order intentionally different from default. | `AndroidJarClasspathRetry`, `KotlinCompilerInvoker`; `02_compile_source.md`. |
 | Kotlin `required plugin option not present` | Compare `kotlinPluginOptions` in `gradle_project_infos.json` with `-P plugin:` in `kotlin compile: kotlinc`. If present but still failing, check plugin/Kotlin versions; if missing, check `KotlinCompilerPluginData` reading. Fallback disabling must precisely match the plugin ID declared by `CommandLineProcessor`, not disable all plugins. | `GradleProjectInfoReader`, `KotlinCompilerInvoker`; `02_compile_source.md`. |
 | Kotlin `unsupported plugin option` | Confirm the rejected argument came from `kotlinPluginOptions`. Jugg removes all arguments for that plugin ID from Gradle-resolved arguments and retries only once; it does not modify user `kotlinFreeCompilerArgs`. If repeated, check whether compiler toolchain, plugin JAR, and Gradle task belong to the same compilation. | `KotlinCompiler`, `KotlinCompilerInvoker`; `02_compile_source.md`. |
-| Kotlin `BackendException: Exception during IR lowering`, caused by `copyValueParametersToStatic` and `Dispatch receiver type ... is not a subtype of ...` | Verify the real inheritance chain, whether failure is in Gradle/Kotlin incremental compilation, and whether clean restores success. With a valid chain and clean recovery, investigate an intermittent Kotlin compiler IR synthetic-accessor defect first, not a source-type error or Jugg missed dependency compile. | §4.4 here; `02_compile_source.md`. |
+| Kotlin `BackendException: Exception during IR lowering`, caused by `copyValueParametersToStatic` and `Dispatch receiver type ... is not a subtype of ...` | Verify the real inheritance chain, whether failure is in Gradle/Kotlin incremental compilation, and whether clean restores success. With a valid chain and clean recovery, investigate an intermittent Kotlin compiler IR synthetic-accessor defect first, not a source-type error or Jugg missed dependency compile. | §4.7 here; `02_compile_source.md`. |
 | Windows command output garbles Chinese | Preserve the raw-byte path; `�` may mean irreversible decode loss has already happened. | `ProcessOutputReader`; `04_engineering_compat.md`. |
 | System app cannot install, lacks `FLAG_SYSTEM`, or privileged permission is denied | First see whether `codePath` is under `/system/` and whether this run used only `pm install` / `JuggDeployer.install`. Do not treat it first as an ordinary deploy failure. | `JuggDeployer.install`; `03_deploy_system_app.md`. |
 | System app Run says cannot update / signature mismatch | Compare certificates of the `/system` baseline APK and the APK being installed. A debug keystore cannot update a platform-signed system package. | `03_deploy_system_app.md`. |
-| App runs but log shows `NO_DEPLOYABLE_APP` | Align Jugg and `idea.log`; use `pidof` and `run-as` to distinguish missing IDE Client from real non-debuggability. Successful Direct Overlay is a best-effort fallback and this state alone does not prove failure. | `DeployStateManager`, `DirectOverlaySwapTransport`; §4.5 here and `03_deploy_core.md`. |
+| App runs but log shows `NO_DEPLOYABLE_APP` | Align Jugg and `idea.log`; use `pidof` and `run-as` to distinguish missing IDE Client from real non-debuggability. Successful Direct Overlay is a best-effort fallback and this state alone does not prove failure. | `DeployStateManager`, `DirectOverlaySwapTransport`; §4.8 here and `03_deploy_core.md`. |
 
-### 4.1 Minimal evidence set for an IDE freeze
+### 4.1 IDE freeze and ConstRef startup evidence
 
 Collect first:
 
@@ -247,6 +191,20 @@ Anchor on `uiFreezeStarted` or the user's perceived time, aligning Jugg's active
 
 If source defaults differ from on-scene logs, check the installed plugin version, system properties, and runtime overrides first; current HEAD cannot override incident facts.
 
+#### 4.1.1 Long freeze after startup (`postInit / InitialVfsRefresh / clangd / ConstRef` contention)
+
+1. Find a pause interval (over 100 ms between two timestamps with no intervening log).
+2. Search `waitCost=` for lock waiting and `dispatching to background` for file-change dispatch; a log gap alone does not identify the lock owner.
+3. Check the EDT stack for a synchronous file-change path or `@Synchronized` call before attributing the freeze to Jugg.
+
+Historical notes describe an approximately 150 ms EDT VFS wait on a compile-held `DeployFileManager` lock, a shared `JuggManager` lock between file processing and Run Configuration creation, and recursive expansion of unrelated VFS directories before filtering. Current `FileChangesHandler` prunes directory traversal against project and module scan roots, including module roots outside the project directory. For a new incident, navigate from `IdeaFileChangeMonitor`, `FileChangeManager`, `FileChangesHandler`, `TaskRunnerManager`, and `HostTaskExecutor`; the former `FileChangesDetector` is a historical class name, not a current source path. Check `04_engineering_ide.md` for current ownership and do not assume any historical cause recurred.
+
+#### 4.1.2 ConstRef startup and cache failure boundary
+
+- `DeployFileManager` may construct `ConstRefEngine`, but its constructor must not initialize SQLite runtime resources; a cache exception must not fail `JuggManager` initialization.
+- `ConstRefCacheDatabase` corruption triggers close, DB/WAL/SHM rebuild, then at most one retry of the operation that failed. Failed runtime initialization degrades ConstRef to a no-op for this process; other operation failures remain local to the current operation.
+- If database rebuild or `RepoSharedFingerprintStore` initialization still fails, inspect `fallback to no-op const-ref` and confirm the main compile/deploy path continues. An initialization failure disables this process's ConstRef runtime; a later operation failure affects that operation. The exact scope is described in `03_deploy_const_ref.md` §5.
+
 ### 4.2 Distinguishing evidence for a release runtime crash
 
 | Exception pattern | Next distinguishing evidence |
@@ -261,9 +219,9 @@ If source defaults differ from on-scene logs, check the installed plugin version
 
 Current implementation constraints for these patterns are recorded in `02_compile_obfuscation.md`. Neither exception type nor "target class name absent from logs" alone confirms a specific gap; verify collection scope and DEX/mapping evidence.
 
-### 4.3 `source_files.db` rebuilds on every startup
+### 4.3 Asynchronous Git follow-up after compilation
 
-**Signal**: IDEA or standalone initialization repeatedly logs `source file db is too old, recreate database`, inflating source-index scan time and potentially followed by `SQLITE_BUSY`.
+**Signal**: `Git check after compile is still running, continue without waiting.` appears after a compile.
 
 **Current expected behavior**:
 - Start the Git follow-up asynchronously before incremental compilation to find disk modifications missed by IDE file events.
@@ -276,7 +234,7 @@ Current implementation constraints for these patterns are recorded in `02_compil
 2. Search `Git recovery CRC summary` for candidate-file and historical-CRC scale.
 3. This log alone does not mean this Run failed. Inspect repository size, untracked files, and deployment history only if it appears persistently and frequently.
 
-### 4.3 Slow APK database initialization
+### 4.4 Slow APK database initialization
 
 **Signal**: X > 3000 in `database all init finish, cost Xms`.
 
@@ -285,7 +243,7 @@ Current implementation constraints for these patterns are recorded in `02_compil
 2. Search `APK size exceeds threshold` for isolated-process parsing.
 3. Check DB file sizes under `build/jugg/database/apk/`.
 
-### 4.3.1 `source_files.db` rebuilds on every startup
+### 4.5 `source_files.db` rebuilds on every startup
 
 **Signal**: IDEA or standalone initialization repeatedly logs `source file db is too old, recreate database`, inflating source-index scan time and potentially followed by `SQLITE_BUSY`.
 
@@ -293,7 +251,7 @@ Current implementation constraints for these patterns are recorded in `02_compil
 - Last full rebuild time lives in `build/jugg/database/source_files.rebuild_at`, not DB creation or last-modified time.
 - Update the stamp only after database creation/rebuild, schema initialization, and a complete `updateSourceDirs()` commit; ordinary incremental `updateFiles()` does not refresh it.
 - A legacy DB with no stamp, corrupt stamp, stamp older than 14 days, or stamp obviously in the future is fully rebuilt once. A failed rebuild does not update the stamp.
-- Failure to delete the old DB must fail explicitly; do not pretend a rebuild succeeded over the old file.
+- Failure to delete the old DB raises an error in the database helper and is logged by the manager; do not treat the old file as a successful rebuild.
 - `Clear Jugg Build` deletes both DB and stamp; reopening the project initializes a new database normally.
 
 **Investigation steps**:
@@ -308,23 +266,22 @@ main/.../deploy/data/SourceFileManager.kt
 main/.../deploy/data/SourceFileDatabaseSqLiteHelper.kt
 ```
 
-### 4.4 Annotation-type mismatch crash after release incremental compilation
+### 4.6 Annotation-type mismatch crash after release incremental compilation
 
 **Signal**: a runtime crash reports a class "has no public methods with @Subscribe annotation", or another failed annotation lookup such as `EventBusException`, Dagger/Hilt injection failure, or annotation type mismatch.
 
 **Investigation steps**:
-1. Check whether `source_files.db` and `source_files.rebuild_at` both exist.
-2. Search `source file db rebuild stamp` / `source file db daysSinceRebuilt` to determine whether the stamp is absent, corrupt, in the future, or older than 14 days.
-3. Search `Failed to delete database` and `SQLITE_BUSY`, aligning IDEA and `standlone_cli` logs to see whether another Runtime is writing.
-4. Do not repair the stamp manually using creation or last-modified time. For recovery, use `Clear Jugg Build`, or close relevant Runtimes then delete `source_files.db` and `source_files.rebuild_at`.
+1. Confirm that the current variant is minified, its matching mapping loaded, and relevant `Obfuscated:` output exists; do not infer a mapping gap from the exception text alone.
+2. Compare annotation type descriptors on the affected class, method, and field in staging DEX and the installed APK DEX. Verify the reflected method's presence and visibility before treating this as a type-remapping failure.
+3. If descriptors differ, inspect `DexObfuscator` class/field/method `visitAnnotation()` and annotation-value `mapType()` paths against the actual mapping. Route other release crash patterns through §4.2 and `02_compile_obfuscation.md`.
 
 **Key classes**:
 ```
-main/.../deploy/data/SourceFileManager.kt
-main/.../deploy/data/SourceFileDatabaseSqLiteHelper.kt
+main/.../compiler/obfuscation/DexMinifyCompiler.kt
+main/.../compiler/obfuscation/DexObfuscator.kt
 ```
 
-### 4.4 Intermittent dispatch-receiver type assertion during Kotlin IR lowering
+### 4.7 Intermittent dispatch-receiver type assertion during Kotlin IR lowering
 
 **Typical signal**:
 
@@ -366,7 +323,7 @@ The JOOX Android report `jugg_scene_JOOX_Android_ext_20260911_144438` confirmed 
 
 Without this recurrence evidence, do not automatically clean the entire project based on this exception alone. If a Jugg-side fallback is later needed, match this exact exception chain and first evaluate one bounded retry with module-level clean or Kotlin incremental disabled so other IR lowering errors are not hidden.
 
-### 4.5 App is running but Android Studio shows `NO_DEPLOYABLE_APP`
+### 4.8 App is running but Android Studio shows `NO_DEPLOYABLE_APP`
 
 **Typical signals**:
 

@@ -248,7 +248,7 @@ class HookReminderDecisionTest(unittest.TestCase):
             "tool_input": {
                 "command": (
                     "*** Begin Patch\n"
-                    "*** Update File: docs/ai_knowledge/00_overview.md\n"
+                    "*** Update File: docs/ai/00_overview.md\n"
                     "@@\n"
                     "-old\n"
                     "+new\n"
@@ -396,7 +396,7 @@ class HookReminderDecisionTest(unittest.TestCase):
         payload = {
             "session_id": session_id,
             "hook_event_name": "afterFileEdit",
-            "file_path": "docs/ai_knowledge/00_overview.md",
+            "file_path": "docs/ai/00_overview.md",
             "edits": [{"old_string": "old", "new_string": "new"}],
             "workspace_roots": ["/tmp/android-demo"],
         }
@@ -513,7 +513,7 @@ class HookReminderDecisionTest(unittest.TestCase):
             "session": {"id": session_id},
             "tool_name": "Edit",
             "tool_input": {
-                "file_path": "docs/ai_knowledge/00_overview.md",
+                "file_path": "docs/ai/00_overview.md",
                 "old_string": "old",
                 "new_string": "new",
             },
@@ -658,7 +658,7 @@ class HookReminderDecisionTest(unittest.TestCase):
             "session_id": session_id,
             "tool_name": "write_file",
             "tool_input": {
-                "file_path": "docs/ai_knowledge/00_overview.md",
+                "file_path": "docs/ai/00_overview.md",
                 "content": "new content",
             },
         }
@@ -1537,7 +1537,7 @@ class HookReminderDecisionTest(unittest.TestCase):
             "session_id": session_id,
             "tool_name": "write_file",
             "tool_input": {
-                "file_path": "docs/ai_knowledge/00_overview.md",
+                "file_path": "docs/ai/00_overview.md",
                 "content": "new content",
             },
         }

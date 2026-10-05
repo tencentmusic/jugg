@@ -300,14 +300,14 @@ class 转换正确性、重复处理和端到端注入结果是独立、稳定�
 
 ### 9.1 已读取的仓库文档
 
-- [00_overview.md](../../ai_knowledge/00_overview.md)
-- [99_index.md](../../ai_knowledge/99_index.md)
-- [98_code_map.md](../../ai_knowledge/98_code_map.md)
-- [02_compile_source.md](../../ai_knowledge/02_compile_source.md)
-- [02_compile_core.md](../../ai_knowledge/02_compile_core.md)
-- [03_deploy_core.md](../../ai_knowledge/03_deploy_core.md)
-- [03_deploy_data_generator.md](../../ai_knowledge/03_deploy_data_generator.md)
-- [06_testing.md](../../ai_knowledge/06_testing.md)
+- [00_overview.md](../../ai/00_overview.md)
+- [99_index.md](../../ai/99_index.md)
+- [98_code_map.md](../../ai/98_code_map.md)
+- [02_compile_source.md](../../ai/02_compile_source.md)
+- [02_compile_core.md](../../ai/02_compile_core.md)
+- [03_deploy_core.md](../../ai/03_deploy_core.md)
+- [03_deploy_data_generator.md](../../ai/03_deploy_data_generator.md)
+- [06_testing.md](../../ai/06_testing.md)
 - [历史 Hilt 调研](../2026-08/2026-08-05-hilt-incremental-compile-adaptation-research.md)
 - [Wiki 注解器说明](../../wiki/zh/capabilities/compile/annotation-processors.md)
 - [增量限制 policy](../../skills/jugg-android-dev-loop/references/policy_incremental_compile_limits.md)

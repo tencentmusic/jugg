@@ -10,8 +10,8 @@ description: 'Incrementally refresh, exactly reanchor after content-preserving s
 Use this skill only when all of these repository markers exist:
 
 - `build.gradle`
-- `docs/ai_knowledge/00_overview.md`
-- `docs/ai_knowledge/99_index.md`
+- `docs/ai/00_overview.md`
+- `docs/ai/99_index.md`
 - `docs/task/2026-08/dogfood_branch_sync_workflow.md`
 
 Follow the repository `AGENTS.md` before any Git or file operation. Read the mandatory knowledge-base documents and the dogfood workflow document before acting.
@@ -222,7 +222,7 @@ If the subagent reports a blocking or high-risk merge error, fix the merge, rest
 
 ### 7. Validate before committing
 
-Run the evidence required by `docs/ai_knowledge/06_testing.md`. The default integration gate is:
+Run the evidence required by `docs/ai/06_testing.md`. The default integration gate is:
 
 ```bash
 git diff --cached --check

@@ -66,6 +66,8 @@ cd jugg
 - `buildPlugin` writes the plugin zip to `idea/build/distributions`.
 - `runIde` starts a disposable IDE for development.
 
+Run Gradle with JDK 17 selected in `JAVA_HOME` (for example, `JAVA_HOME=/path/to/jdk-17 ./gradlew :idea:buildPlugin`). JDK 21's compiler emits unnamed synthetic constructor parameters in the JVMTI agent classes that the bundled D8 cannot process, causing `:jvmti_agent:buildInstrumentJar` to fail. After switching JDKs, let Gradle recompile the agent classes before packaging.
+
 Install the built plugin into a local Android Studio only when you need to verify against a real Android project and device.
 
 ## Repository layout
@@ -77,7 +79,7 @@ Install the built plugin into a local Android Studio only when you need to verif
 | `deploy_compat/` | Android Studio version compatibility |
 | `cmd_line/` | Command-line entry |
 | `docs/wiki/` | User Wiki |
-| `docs/ai_knowledge/` | Maintainer / AI architecture notes |
+| `docs/ai/` | Maintainer / AI architecture notes |
 
 Change only the modules that own the behavior you are fixing. Prefer the smallest patch that solves the reported problem.
 
@@ -152,7 +154,7 @@ Do not include secrets, local IDE files, `build/` outputs, or unrelated formatti
 ## Documentation
 
 - **User Wiki** lives in `docs/wiki`. English pages at the Wiki root are the content source; Chinese pages under `docs/wiki/zh/` must stay in sync.
-- **Maintainer notes** live in `docs/ai_knowledge`. Update them when a change affects plugin internals, compile/deploy behavior, or AI task routing.
+- **Maintainer notes** live in `docs/ai`. Update them when a change affects plugin internals, compile/deploy behavior, or AI task routing.
 - Do not copy internal class names into user-facing Wiki pages unless the page is explaining a user-visible name.
 
 When integrating another branch into `develop/4.0`, run `python3 tools/check_english_first_diff.py --base <pre-integration-commit> --head <resulting-commit> --report /tmp/jugg-language-review.md`. Classify reported additions before completing the integration: move verified new product facts into the maintained English source without losing branch-only details, give new non-English task plans a short English `Purpose / Decision / Impact` abstract, and record justified localization, diagnostic, or test-input exceptions. See `docs/ai/97_maintenance_manual.md` §13 for the review process. The report is advisory; unchanged Chinese archives do not block integration.

@@ -2,7 +2,7 @@
 
 ## Language and coding requirements
 
-- Write code comments in English; Chinese comments are not allowed. Write new current maintainer documentation in English. Until the knowledge-base migration is complete, read the existing Chinese documents at `docs/ai_knowledge/`; do not treat the future `docs/ai/` path as available yet. Respond in Chinese when the user communicates in Chinese.
+- Write code comments in English; Chinese comments are not allowed. Write current maintainer documentation in English in `docs/ai/`, the sole current knowledge base. Respond in Chinese when the user communicates in Chinese.
 - Write new Wiki facts in the English root page first, then synchronize the Chinese `docs/wiki/zh/` mirror in the same task. Keep both routes and structures aligned.
 - Keep code and structure as simple as possible (Occam's razor). Prefer the smallest direct implementation and avoid unnecessary cognitive load.
   - Do not expose internal implementation details solely for external calls. Do not extract an interface for a class with one implementation and one method.
@@ -41,7 +41,7 @@
 
 ## Testing and verification
 
-> [06_testing.md](docs/ai_knowledge/06_testing.md) is the sole authority for verification evidence, test value, L0–L3 layers, TDD, test placement, and existing-test maintenance.
+> [06_testing.md](docs/ai/06_testing.md) is the sole authority for verification evidence, test value, L0–L3 layers, TDD, test placement, and existing-test maintenance.
 
 - Every development task needs verification evidence matching its risk. Automated tests are only one possible form of evidence.
 - Apply the test-value gate before adding or retaining an automated test. A test should protect independent, stable, observable behavior that a real change could break. Do not normally test pure implementation details, simple pass-through logic, or behavior without an adjudicable result. The value gate takes precedence over formal TDD and test-layer requirements.
@@ -72,7 +72,7 @@
 
 For plugin runtime problems such as incremental compilation failure, Android runtime crashes, deployment failure, or unexpected flow:
 
-1. Read `docs/ai_knowledge/09_plugin_runtime_debug.md` for log structure and common root causes.
+1. Read `docs/ai/09_plugin_runtime_debug.md` for log structure and common root causes.
 2. Following its path rules, read `{projectDir}/build/jugg/log/compile_latest.log` for the compilation context and failure.
 3. Compare `[ClassName]` tags and timestamps with the relevant incremental-compilation knowledge to identify the root cause. Do not rely only on the surface error message.
 
@@ -84,12 +84,12 @@ Even when a question names a path outside this project (such as `AndroidStudioPr
 
 ### 1. First read in a new session
 
-- [00_overview.md](docs/ai_knowledge/00_overview.md)
-- [99_index.md](docs/ai_knowledge/99_index.md)
+- [00_overview.md](docs/ai/00_overview.md)
+- [99_index.md](docs/ai/99_index.md)
 
 ### 2. Investigate by task
 
-- First locate paths and classes in [98_code_map.md](docs/ai_knowledge/98_code_map.md).
+- First locate paths and classes in [98_code_map.md](docs/ai/98_code_map.md).
 - Then follow the recommended search order and topical catalog in `99_index.md`; read only the relevant topic, never the whole knowledge base at once.
 - For API capability or behavior judgments, inspect the corresponding implementation rather than relying only on documentation.
 
@@ -109,4 +109,4 @@ Every completed task must include this exact section. Combine verification evide
 
 ### 4. Update documentation when needed
 
-For a functional or architectural change, update the [knowledge base](docs/ai_knowledge) and check [docs/wiki](docs/wiki) for affected user pages; update those pages too when applicable.
+For a functional or architectural change, update the [knowledge base](docs/ai) and check [docs/wiki](docs/wiki) for affected user pages; update those pages too when applicable.

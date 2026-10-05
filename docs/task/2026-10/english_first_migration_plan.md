@@ -2,7 +2,7 @@
 
 > 创建日期：2026-10-05
 > 适用分支：`develop/4.0` 及后续向它合入的分支
-> 状态：执行中；阶段 A 为规则与入口迁移
+> 状态：阶段 A～F 的 AI 实施完成；人工审核待确认（尤其是术语、历史事实与第三方法律措辞）
 
 **Purpose:** Make current Jugg engineering materials usable in English while preserving reviewable Chinese task records and existing localized user pages.
 **Decision:** Translate Chinese-only current documents, use English as the source for bilingual content, and execute A–F with one independent agent and one commit per stage.
@@ -12,7 +12,7 @@
 
 Jugg 的新增工程规则、现行维护知识、用户资料、发行资料和 Agent 工作流以英文为首写语言和事实基准。已有中英双语的内容继续按本地化契约提供中文；只有一份中文版的现行文档直接译为英文，不保留中文副本。用户明确使用中文时，Agent 仍可用中文回复。English-first 不要求翻译所有历史档案。
 
-知识库当前位于 `docs/ai_knowledge/`；迁移目标为 **`docs/ai/`，只保留英文**。这是执行计划中的目录改名，本文提交不提前移动目录。新建 `docs/task` 文档采用第 7 节确定的按审核者语言写正文、必要时附英文摘要的规则，不要求正文一律英文。
+本计划创建时，知识库位于 `docs/ai_knowledge/`；阶段 C 将 35 篇英文译文写入 **`docs/ai/`**，阶段 F 切换现行引用并删除旧目录。下文的存量数字与阶段描述保留执行前基线，供审核迁移范围。新建 `docs/task` 文档采用第 7 节确定的按审核者语言写正文、必要时附英文摘要的规则，不要求正文一律英文。
 
 迁移时保留既有产品事实、命令、路径、配置键、日志关键词和公共行为。仅改变语言的工作不顺带重构代码或改写产品行为。文档与实现冲突时，以当前实现为准，并单独记录事实修订，避免把翻译和行为修订混在同一个难以审阅的 diff 中。
 
@@ -199,3 +199,29 @@ Record the decision and its evidence in English for the reviewer.
 ```
 
 以上是指引中的样例片段，不要求创建这两份示例文件。
+
+## 8. 阶段 F 执行记录
+
+- F1a：核对新旧知识库均为同名 35 篇后，删除旧目录；把 Agent 强制入口、贡献说明、PR 模板、skills、benchmark 和 hook 测试夹具切换到 `docs/ai/`。合入差异分类器继续识别来自旧分支的 `docs/ai_knowledge/` 新增事实，并将其指向对应英文页。
+- F1b：在历史任务资料中只修复 21 个指向现行知识库的 Markdown 链接；原文中记录旧目录、旧命令、旧提交和未实施方案的文字仍保持历史原貌。链接检查另修复一处历史代码依据链接和一处档案清单中截断的可点击链接。
+- F2 自动验证：Wiki 镜像校验、production build 与主页检查通过；hook 的 44 个定向用例通过；`docs/ai/` 的入口链接和历史材料中修复的 21 个链接均指向现存文件；第三方生成器重跑无产物差异，CSV 与 SPDX 均有 104 条组件；双语发行说明生成成功；打包后的 skill 与 CLI 文件同源文件一致；`git diff --check` 通过。使用 `JAVA_HOME=/Users/wormchen/Library/Java/JavaVirtualMachines/corretto-17.0.17/Contents/Home` 运行 `./gradlew :jvmti_agent:buildInstrumentJar --offline --console=plain` 成功（32 tasks，11 秒）；同一环境运行 `./gradlew :idea:buildPlugin :idea:verifyThirdPartyCompliance --offline --console=plain` 成功（177 tasks，27 秒），包括 `:idea:verifyEmbeddedStandaloneBundle`。新 ZIP `idea/build/distributions/jugg-4.0.5-develop_4.0-SNAPSHOT.zip` 中五个第三方文件与当前源文件逐字节一致；嵌套 `deploy/jugg-agent-bundle-1.0.78.zip` 的 `jugg-instruments.jar/classes.dex` 包含英文 `No file permissions!`、`ViewHierarchyServer` 和 Dragonfly。此前 JDK 21 下的旧 D8 3.2.74 NPE 为构建环境问题；切换到 JDK 17 后由原脚本重新编译 agent Java 类并通过，无需修改源代码。
+- F2 独立事实修订：集成审计发现旧中文源文已有的排查手册段落错位，并被英文译文继承。将 IDE freeze、ConstRef、Git 异步检查、source DB 重建和 release 注解排查分别放回对应症状章节，合并重复关键字表、修正当前类入口和 `99_index.md` 的 Kotlin IR 小节引用；按现行实现及对应英文专题核对关键步骤。历史冻结原因仍作为历史线索，不据此断言当前版本存在同一缺陷。
+- 人工审核边界：译文术语和历史事实、法律相关措辞、以及英文入口独立完成安装与排查的实际体验仍待人确认；自动验证不能替代这些判断。
+
+### 人工审核交接（待审，不代表已通过）
+
+| 阶段提交 | 主要审阅入口 |
+|---|---|
+| A `38f9c8338` | [AGENTS.md](../../../AGENTS.md)、[CONTRIBUTING.md](../../../CONTRIBUTING.md)、[Wiki 写作规则](../../../.agents/skills/wiki-writer/SKILL.md) |
+| B `9ee71f4e4` | [第三方集成说明](../../../third_party/INTEGRATION.md)、[Notice](../../../THIRD_PARTY_NOTICES.md)、`third_party/components.csv` 与 CLI demo |
+| C `d9b13ba56` | [英文知识库索引](../../ai/99_index.md)，按 C1～C20 工作包逐篇审阅 |
+| D `f5b969a72` | [Skill 维护入口](../../skills/README.md)、`docs/skills/benchmark/` 与内置开发 skill |
+| E `7c24615ba` | [历史档案审阅记录](english_first_stage_e_review.md)、[逐文件索引](english_first_stage_e_archive_inventory.md)和增量分类器 |
+| F（本文件所在提交） | [排查手册](../../ai/09_plugin_runtime_debug.md)、本节与 §8；审核时用 `git rev-parse HEAD` 取得最终哈希 |
+
+F 的最终哈希无法写死在它自身的提交内容里，因为 amend 本文件会改变该哈希；交接时以 `git rev-parse HEAD` 为准，并核对 F 提交标题。
+
+- [ ] **B 法律语义**：专项确认 OpenJDK Classpath Exception、所选双重许可替代项、组合许可及 public-domain 描述、独立进程与共享 JVM 的定性；自动核对仅证明组件身份与生成物一致。
+- [ ] **C 译文**：按 C1～C20 对照 35 篇英文页与原中文源文（可用 `git show d9b13ba56^:docs/ai_knowledge/<文件名>`），审查术语、表格、约束与事实，不将自动结构检查当作人工签收。
+- [ ] **F 英文入口实走**：从 [README](../../../README.md) 与 [安装说明](../../skills/install/agent_setup.md) 完成安装；从 [AGENTS.md](../../../AGENTS.md) → [知识库索引](../../ai/99_index.md) → [排查手册](../../ai/09_plugin_runtime_debug.md) 完成排查；按 [贡献指南](../../../CONTRIBUTING.md)、[发行说明生成器](../../../tools/generate_release_notes.rb)与[维护手册](../../ai/97_maintenance_manual.md)分别检查贡献、发行、维护。由人记录步骤、理解障碍及修订意见。
+- [ ] **独立后续问题**：JDK 21 下旧 D8 3.2.74 仍不能处理该 agent Java 类；本次发行 ZIP 已在 JDK 17 下构建和校验，若需要支持 JDK 21 构建，另行处理工具链兼容性。D 的 benchmark `BUILD-2`、`E2E-1`、`INT-6` 仍要求默认 `deploy`，与现 skill 对普通源码修改默认 `compile` 冲突，需决定评分基准；E 索引中未核实的历史结论只作线索，未来被引用时对照现行代码及英文专题再决定是否提炼。

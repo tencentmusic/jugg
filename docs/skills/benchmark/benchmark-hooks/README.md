@@ -11,7 +11,7 @@ Use relative paths in reports by default. An absolute hook-script path printed v
 ## Sources of Truth
 
 - Hook installation: `docs/skills/install/agent_setup.md`
-- Behavior: `docs/ai_knowledge/04_engineering_ide.md` and `docs/ai_knowledge/08_mcp_tools_list.md`
+- Behavior: `docs/ai/04_engineering_ide.md` and `docs/ai/08_mcp_tools_list.md`
 
 ## Files
 

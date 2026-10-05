@@ -54,7 +54,7 @@ Help AI complete a task with minimal context:
 | Utility capabilities (apk/git/logger/server) | `98_code_map.md`, `05_utilities.md` | `main/.../apk`, `main/.../git`, `main/.../logger`, `main/.../server` |
 | **Crash involving annotation/reflection/class references after release incremental compilation** | `98_code_map.md`, `02_compile_obfuscation.md` | `DexObfuscator.kt`, `DexMinifyCompiler.kt` |
 | **Plugin runtime investigation** (IDE stalls / startup hangs / compilation issues / DB problems) | `09_plugin_runtime_debug.md`, then route to a topic based on symptoms | `JuggPathManager`, `DeployFileManager`, `TaskRunnerManager`, `ConstRefEngine` |
-| **Kotlin IR lowering / `copyValueParametersToStatic` / `Dispatch receiver type` / recovery after clean** | `09_plugin_runtime_debug.md` §4.4, `02_compile_source.md` | First distinguish an actual inheritance error from remote-sync input and Kotlin/Gradle incremental state |
+| **Kotlin IR lowering / `copyValueParametersToStatic` / `Dispatch receiver type` / recovery after clean** | `09_plugin_runtime_debug.md` §4.7, `02_compile_source.md` | First distinguish an actual inheritance error from remote-sync input and Kotlin/Gradle incremental state |
 | Knowledge-base maintenance / restructuring topic documents | `97_maintenance_manual.md`, `99_index.md`, `98_code_map.md` | `docs/ai/*` |
 | Wiki architecture / local operation / publishing | `10_wiki_architecture.md`, `97_maintenance_manual.md` | `docs/wiki/package.json`, `docs/wiki/.vitepress/config.mts` |
 | Wiki article writing / Markdown elements | `10_wiki_authoring.md`, `97_maintenance_manual.md` | `docs/wiki/**/*.md` |

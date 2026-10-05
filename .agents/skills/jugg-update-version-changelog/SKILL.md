@@ -16,7 +16,7 @@ Before editing anything, confirm the current working tree is a Jugg repository. 
 - `build.gradle`
 - `change_log/change_log_rc.yaml`
 - `change_log/change_log_rc_cn.yaml`
-- `docs/ai_knowledge/00_overview.md`
+- `docs/ai/00_overview.md`
 
 If those markers are missing, stop and tell the user this skill is only for Jugg projects.
 
