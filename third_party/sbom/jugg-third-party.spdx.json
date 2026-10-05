@@ -3,7 +3,7 @@
   "dataLicense": "CC0-1.0",
   "SPDXID": "SPDXRef-DOCUMENT",
   "name": "Jugg-third-party-components",
-  "documentNamespace": "https://jugg.sickworm.com/spdx/third-party-components-2840c3b8d9b4b589f8aeb08674252c332babc8e4500f916de784eccb3f936df7",
+  "documentNamespace": "https://jugg.sickworm.com/spdx/third-party-components-a1f567698dd8e631464dd9e28986abd90fbabf7ae5700f3e9560cc66c0dcf535",
   "creationInfo": {
     "created": "2026-08-08T00:00:00Z",
     "creators": [
@@ -120,13 +120,13 @@
     {
       "SPDXID": "SPDXRef-Package-001",
       "name": "OpenJDK JVMTI header",
-      "versionInfo": "无",
+      "versionInfo": "N/A",
       "downloadLocation": "https://github.com/openjdk/jdk8u/blob/jdk8u202-b08/jdk/src/share/javavm/export/jvmti.h",
       "filesAnalyzed": false,
       "licenseConcluded": "GPL-2.0-only WITH Classpath-exception-2.0",
       "licenseDeclared": "GPL-2.0-only WITH Classpath-exception-2.0",
       "copyrightText": "Copyright © 2003, 2011 Oracle and/or its affiliates",
-      "comment": "作为 JVMTI agent 构建头文件使用；仅将 JNINativeInterface_ 改为 JNINativeInterface；适用 GPL-2.0-only WITH Classpath-exception-2.0；上游基线、修改后源码和 patch 由插件内 SOURCE.md 定位到公开提交提供。"
+      "comment": "Used as a build header for the JVMTI agent; only JNINativeInterface_ was changed to JNINativeInterface; subject to GPL-2.0-only WITH Classpath-exception-2.0; the distributed SOURCE.md identifies a public commit containing the upstream baseline, modified source, and patch."
     },
     {
       "SPDXID": "SPDXRef-Package-002",
@@ -137,7 +137,7 @@
       "licenseConcluded": "GPL-3.0-or-later",
       "licenseDeclared": "GPL-3.0-or-later",
       "copyrightText": "Copyright © 1996-2025 Andrew Tridgell, Wayne Davison, and others",
-      "comment": "以 macOS 通用可执行文件随插件发行，作为独立进程调用，不与插件代码静态或动态链接；对应源码由插件内 SOURCE.md 定位到公开提交提供，GPL-3.0-or-later 文本随发行包提供。"
+      "comment": "Distributed with the plugin as a universal macOS executable and invoked as a separate process, without static or dynamic linking to plugin code; the distributed SOURCE.md identifies a public commit containing the corresponding source, and the GPL-3.0-or-later text is included in the distribution."
     },
     {
       "SPDXID": "SPDXRef-Package-003",
@@ -148,18 +148,18 @@
       "licenseConcluded": "GPL-2.0-or-later",
       "licenseDeclared": "GPL-2.0-or-later",
       "copyrightText": "Copyright © 2006-2011 Lingnu Open Source Consulting Ltd.; 2015-2016, 2021-2022 Shachar Shemesh",
-      "comment": "以 macOS arm64 可执行文件随插件发行，作为独立进程调用，不与插件代码静态或动态链接；对应源码由插件内 SOURCE.md 定位到公开提交提供，GPL-2.0-or-later 文本随发行包提供。"
+      "comment": "Distributed with the plugin as a macOS arm64 executable and invoked as a separate process, without static or dynamic linking to plugin code; the distributed SOURCE.md identifies a public commit containing the corresponding source, and the GPL-2.0-or-later text is included in the distribution."
     },
     {
       "SPDXID": "SPDXRef-Package-004",
-      "name": "Trove4J，JetBrains fork",
+      "name": "Trove4J, JetBrains fork",
       "versionInfo": "1.0.20200330",
       "downloadLocation": "https://repo1.maven.org/maven2/org/jetbrains/intellij/deps/trove4j/1.0.20200330/trove4j-1.0.20200330.jar",
       "filesAnalyzed": false,
       "licenseConcluded": "LGPL-2.1-or-later",
       "licenseDeclared": "LGPL-2.1-or-later",
       "copyrightText": "Copyright © 2002 Eric D. Friedman and Trove contributors",
-      "comment": "以独立 JAR 随插件发行并由 JVM 加载；对应 source JAR 由插件内 SOURCE.md 定位到公开提交提供，LGPL-2.1-or-later 许可证文本随发行包提供。"
+      "comment": "Distributed with the plugin as a separate JAR loaded by the JVM; the distributed SOURCE.md identifies a public commit containing the corresponding source JAR, and the LGPL-2.1-or-later license text is included in the distribution."
     },
     {
       "SPDXID": "SPDXRef-Package-005",
@@ -170,7 +170,7 @@
       "licenseConcluded": "MPL-1.1",
       "licenseDeclared": "MPL-1.1",
       "copyrightText": "Copyright © 1998 Netscape Communications Corporation; Kohei TAKETA and Java port contributors",
-      "comment": "以独立 JAR 随插件发行；本发行按上游 POM 选择 MPL-1.1；对应 source JAR 由插件内 SOURCE.md 定位到公开提交提供，许可证文本随发行包提供。"
+      "comment": "Distributed with the plugin as a separate JAR; this distribution selects MPL-1.1 according to the upstream POM; the distributed SOURCE.md identifies a public commit containing the corresponding source JAR, and the license text is included in the distribution."
     },
     {
       "SPDXID": "SPDXRef-Package-006",
@@ -181,7 +181,7 @@
       "licenseConcluded": "CDDL-1.1",
       "licenseDeclared": "CDDL-1.1",
       "copyrightText": "Copyright © 1997-2017 Oracle and/or its affiliates",
-      "comment": "作为 Android Tools Repository 依赖内嵌于 R8 8.4.21；本发行选择 CDDL-1.1；对应 source JAR 由插件内 SOURCE.md 定位到公开提交提供，许可证文本随发行包提供。"
+      "comment": "Embedded in R8 8.4.21 as an Android Tools Repository dependency; this distribution selects CDDL-1.1; the distributed SOURCE.md identifies a public commit containing the corresponding source JAR, and the license text is included in the distribution."
     },
     {
       "SPDXID": "SPDXRef-Package-007",
@@ -192,18 +192,18 @@
       "licenseConcluded": "Apache-2.0 AND BSD-2-Clause AND LicenseRef-SQLite-Public-Domain",
       "licenseDeclared": "Apache-2.0 AND BSD-2-Clause AND LicenseRef-SQLite-Public-Domain",
       "copyrightText": "Copyright © Taro L. Saito and Xerial contributors; Copyright © 2006 David Crawshaw; SQLite authors",
-      "comment": "以裁剪版 JAR 随插件发行；仅删除不支持平台的 native library，保留 macOS、Linux 和 Windows 所需版本。"
+      "comment": "Distributed with the plugin as a trimmed JAR; only native libraries for unsupported platforms were removed, while those needed for macOS, Linux, and Windows were retained."
     },
     {
       "SPDXID": "SPDXRef-Package-008",
-      "name": "AAPT2 inclink，Jugg 定制版",
-      "versionInfo": "无",
+      "name": "AAPT2 inclink, Jugg custom build",
+      "versionInfo": "N/A",
       "downloadLocation": "https://android.googlesource.com/platform/frameworks/base/+/a707013b78cea3586fdadf9a2f04932e823d7504/tools/aapt2/",
       "filesAnalyzed": false,
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2015 The Android Open Source Project; Copyright © 2024-2026 Jugg contributors",
-      "comment": "以三平台可执行文件随插件发行，并作为独立进程调用；基于 AOSP AAPT2 定制增量链接及 Android 14/Linux 兼容能力；静态链接组件另行列示；无法唯一确定版本，因此填“无”。"
+      "comment": "Distributed with the plugin as executables for three platforms and invoked as separate processes; based on AOSP AAPT2 with customized incremental linking and Android 14/Linux compatibility; statically linked components are listed separately; no unique version can be identified."
     },
     {
       "SPDXID": "SPDXRef-Package-009",
@@ -214,7 +214,7 @@
       "licenseConcluded": "Apache-2.0 AND SAX-PD AND W3C-19980720",
       "licenseDeclared": "Apache-2.0 AND SAX-PD AND W3C-19980720",
       "copyrightText": "Copyright © 1999-2009 The Apache Software Foundation; Copyright © 2000 W3C and others",
-      "comment": "作为 Xerces2 Java 的传递依赖内嵌于 R8 8.4.21；组件同时包含 Apache-2.0、SAX 和 W3C 许可内容。"
+      "comment": "Embedded in R8 8.4.21 as a transitive dependency of Xerces2 Java; the component includes content under Apache-2.0, SAX, and W3C licenses."
     },
     {
       "SPDXID": "SPDXRef-Package-010",
@@ -225,7 +225,7 @@
       "licenseConcluded": "Apache-2.0 AND LicenseRef-LZMA-SDK-Public-Domain",
       "licenseDeclared": "Apache-2.0 AND LicenseRef-LZMA-SDK-Public-Domain",
       "copyrightText": "Copyright © 2002-2021 The Apache Software Foundation",
-      "comment": "内嵌于 R8 8.4.21 并随 R8 JAR 发行；部分 sevenz 代码来自 Public Domain LZMA SDK。"
+      "comment": "Embedded in R8 8.4.21 and distributed with the R8 JAR; some sevenz code originates from the public-domain LZMA SDK."
     },
     {
       "SPDXID": "SPDXRef-Package-011",
@@ -236,7 +236,7 @@
       "licenseConcluded": "BSD-3-Clause",
       "licenseDeclared": "BSD-3-Clause",
       "copyrightText": "Copyright © 2016 The R8 project authors",
-      "comment": "以独立 JAR 随插件发行；JAR 内嵌的第三方组件已在本表分别列示。"
+      "comment": "Distributed with the plugin as a separate JAR; third-party components embedded in the JAR are listed separately in this inventory."
     },
     {
       "SPDXID": "SPDXRef-Package-012",
@@ -247,40 +247,40 @@
       "licenseConcluded": "LicenseRef-kXML2-BSD AND LicenseRef-XmlPull-Public-Domain",
       "licenseDeclared": "LicenseRef-kXML2-BSD AND LicenseRef-XmlPull-Public-Domain",
       "copyrightText": "Copyright © 2002-2004 Stefan Haustein",
-      "comment": "作为 Android Tools 依赖内嵌于 R8 8.4.21；org.kxml2 代码适用 BSD-style 条款，org.xmlpull.v1 API 为 Public Domain。"
+      "comment": "Embedded in R8 8.4.21 as an Android Tools dependency; org.kxml2 code is subject to BSD-style terms, while the org.xmlpull.v1 API is public domain."
     },
     {
       "SPDXID": "SPDXRef-Package-013",
       "name": "Android JVMTI Apply Changes / Slicer source",
-      "versionInfo": "无",
+      "versionInfo": "N/A",
       "downloadLocation": "https://android.googlesource.com/platform/tools/base/+archive/refs/heads/studio-main/deploy/agent/native.tar.gz",
       "filesAnalyzed": false,
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2017-2018 The Android Open Source Project",
-      "comment": "项目包含并修改 AOSP JVMTI Apply Changes/Slicer 源码，编译进入随插件发行的 JVMTI agent；Jugg 增加 Android 8-15 Application、ResourcesManager、ActivityThread 和 ClassLoader hook，增加可选 transform 的 Best-effort 降级与诊断日志；无法定位精确上游 commit，因此版本填“无”；修改后源码保留在仓库中。"
+      "comment": "The project includes and modifies AOSP JVMTI Apply Changes/Slicer source, compiled into the distributed JVMTI agent; Jugg adds Android 8-15 Application, ResourcesManager, ActivityThread, and ClassLoader hooks, plus best-effort fallback for optional transforms and diagnostic logging; the exact upstream commit cannot be identified, so no version is specified; modified source remains in the repository."
     },
     {
       "SPDXID": "SPDXRef-Package-014",
       "name": "Android Studio / Android Plugin APIs",
-      "versionInfo": "无",
+      "versionInfo": "N/A",
       "downloadLocation": "https://android.googlesource.com/platform/tools/base/+archive/refs/heads/studio-main.tar.gz / https://github.com/JetBrains/intellij-community/archive/refs/tags/idea/223.7571.182.zip",
       "filesAnalyzed": false,
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2000-2022 JetBrains s.r.o. and contributors; Copyright © 2005-2022 Google LLC and The Android Open Source Project",
-      "comment": "根据 Android Studio/Android Plugin API 生成并裁剪为编译 Stub，仅用于构建兼容模块，不将上游实现代码打入插件发行包；仅保留所需 API 声明，版本无法完整还原，因此填“无”。"
+      "comment": "Generated and trimmed compile stubs from Android Studio/Android Plugin APIs, used only to build compatibility modules; upstream implementation code is not bundled in the plugin distribution; only required API declarations remain, and the version cannot be fully reconstructed."
     },
     {
       "SPDXID": "SPDXRef-Package-015",
       "name": "AOSP framework class stubs",
-      "versionInfo": "无",
+      "versionInfo": "N/A",
       "downloadLocation": "https://android.googlesource.com/platform/frameworks/base/+archive/refs/heads/master/core/java/android.tar.gz",
       "filesAnalyzed": false,
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2006-2017 The Android Open Source Project",
-      "comment": "根据 AOSP framework API 编写 7 个最小编译声明，仅用于构建 JVMTI agent，不将 AOSP 实现代码打入插件发行包；API 声明经过挑选和简化，版本填“无”。"
+      "comment": "Seven minimal compile declarations written from AOSP framework APIs, used only to build the JVMTI agent; AOSP implementation code is not bundled in the plugin distribution; API declarations were selected and simplified, and no version is specified."
     },
     {
       "SPDXID": "SPDXRef-Package-016",
@@ -291,7 +291,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2015 the original author or authors",
-      "comment": "随插件发行，并在目标项目已有 gradle-wrapper.properties 但缺少启动文件时复制；gradlew 和 gradlew.bat 仅移除默认 JVM 参数 -Dfile.encoding=UTF-8；不包含 Gradle Distribution。"
+      "comment": "Distributed with the plugin and copied when a target project has gradle-wrapper.properties but lacks the launch files; gradlew and gradlew.bat only remove the default -Dfile.encoding=UTF-8 JVM argument; Gradle Distribution is not included."
     },
     {
       "SPDXID": "SPDXRef-Package-017",
@@ -302,7 +302,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2010-2023 JetBrains s.r.o. and respective authors and developers",
-      "comment": "以修改版 JAR 随插件发行；相对官方版本移除 AndroidComponentRegistrar 的 reportRemovedError 调用，另有 3 个 class 仅增加空 parameter-annotation attribute。"
+      "comment": "Distributed with the plugin as a modified JAR; compared with the official version, the reportRemovedError call in AndroidComponentRegistrar was removed, and three other classes only gained an empty parameter-annotation attribute."
     },
     {
       "SPDXID": "SPDXRef-Package-018",
@@ -313,7 +313,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2006-present Tatu Saloranta and contributors",
-      "comment": "内嵌并重定位于 Kotlin compiler 1.9.23，随 compiler JAR 一并发行。"
+      "comment": "Embedded and relocated in Kotlin compiler 1.9.23 and distributed with the compiler JAR."
     },
     {
       "SPDXID": "SPDXRef-Package-019",
@@ -324,7 +324,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2005-2008 The Android Open Source Project",
-      "comment": "AAPT2 Proto 由 R8 8.4.21 内嵌并随 R8 JAR 发行；依赖解析实际采用 8.2.0-rc01-10154469。"
+      "comment": "AAPT2 Proto is embedded in R8 8.4.21 and distributed with the R8 JAR; dependency resolution actually uses 8.2.0-rc01-10154469."
     },
     {
       "SPDXID": "SPDXRef-Package-020",
@@ -335,7 +335,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2005-2017 The Android Open Source Project",
-      "comment": "作为 compiler、compiler-common、common 和 baseLibrary 多个 JAR 随 cmd_line 独立发行物分发。"
+      "comment": "Distributed as separate compiler, compiler-common, common, and baseLibrary JARs in the cmd_line standalone distribution."
     },
     {
       "SPDXID": "SPDXRef-Package-021",
@@ -346,7 +346,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2005-2017 The Android Open Source Project",
-      "comment": "作为 compiler、compiler-common、common 和 baseLibrary 多个 JAR 随插件发行；内嵌 ANTLR Runtime 另行列示。"
+      "comment": "Distributed with the plugin as separate compiler, compiler-common, common, and baseLibrary JARs; embedded ANTLR Runtime is listed separately."
     },
     {
       "SPDXID": "SPDXRef-Package-022",
@@ -357,7 +357,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2005-2013 The Android Open Source Project",
-      "comment": "作为 cmd_line Data Binding 7.4.2 的传递依赖随独立发行物分发；与插件发行包中的 Android Tools Annotations 31.7.3 并存。"
+      "comment": "Distributed in the cmd_line standalone distribution as a transitive dependency of Data Binding 7.4.2; coexists with Android Tools Annotations 31.7.3 in the plugin distribution."
     },
     {
       "SPDXID": "SPDXRef-Package-023",
@@ -368,7 +368,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2005-2013 The Android Open Source Project",
-      "comment": "作为 Android 工具链依赖，以独立 JAR 随插件发行。"
+      "comment": "Distributed with the plugin as a separate JAR dependency of the Android toolchain."
     },
     {
       "SPDXID": "SPDXRef-Package-024",
@@ -379,18 +379,18 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2005-2013 The Android Open Source Project",
-      "comment": "多个 Android Tools 组件内嵌于 R8 8.4.21，因版本、协议和修改状态相同合并列示。"
+      "comment": "Several Android Tools components are embedded in R8 8.4.21 and grouped here because they share the same version, license, and modification status."
     },
     {
       "SPDXID": "SPDXRef-Package-025",
       "name": "AOSP native support libraries suite",
-      "versionInfo": "无",
+      "versionInfo": "N/A",
       "downloadLocation": "https://android.googlesource.com/platform/frameworks/base/+archive/refs/tags/android-14.0.0_r1.tar.gz / https://android.googlesource.com/platform/system/core/+archive/refs/tags/android-14.0.0_r1.tar.gz / https://android.googlesource.com/platform/system/libbase/+archive/refs/tags/android-14.0.0_r1.tar.gz",
       "filesAnalyzed": false,
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2005-2024 The Android Open Source Project",
-      "comment": "libandroidfw、libutils、liblog、libcutils、libziparchive、libbase、libbuildversion 和 libidmap2_policies 静态链接到 AAPT2 可执行文件；JVMTI agent 另动态链接 Android 设备提供的 liblog。"
+      "comment": "libandroidfw, libutils, liblog, libcutils, libziparchive, libbase, libbuildversion, and libidmap2_policies are statically linked into the AAPT2 executable; the JVMTI agent separately links dynamically to liblog supplied by the Android device."
     },
     {
       "SPDXID": "SPDXRef-Package-026",
@@ -401,7 +401,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2002-2014 The Apache Software Foundation",
-      "comment": "内嵌于 R8 8.4.21 并随 R8 JAR 一并发行。"
+      "comment": "Embedded in R8 8.4.21 and distributed with the R8 JAR."
     },
     {
       "SPDXID": "SPDXRef-Package-027",
@@ -412,7 +412,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2002-2023 The Apache Software Foundation",
-      "comment": "作为 JGit 的传递依赖，以独立 JAR 随插件发行。"
+      "comment": "Distributed with the plugin as a separate JAR transitive dependency of JGit."
     },
     {
       "SPDXID": "SPDXRef-Package-028",
@@ -423,7 +423,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2002-2023 The Apache Software Foundation",
-      "comment": "作为直接依赖，以独立 JAR 随插件发行。"
+      "comment": "Distributed with the plugin as a separate JAR direct dependency."
     },
     {
       "SPDXID": "SPDXRef-Package-029",
@@ -434,7 +434,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2002-2012 The Apache Software Foundation",
-      "comment": "作为 cmd_line Data Binding 7.4.2 的传递依赖随独立发行物分发；与插件发行包中的 Commons IO 2.13.0 并存。"
+      "comment": "Distributed in the cmd_line standalone distribution as a transitive dependency of Data Binding 7.4.2; coexists with Commons IO 2.13.0 in the plugin distribution."
     },
     {
       "SPDXID": "SPDXRef-Package-030",
@@ -445,7 +445,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2003-2014 The Apache Software Foundation",
-      "comment": "内嵌于 R8 8.4.21 并随 R8 JAR 一并发行。"
+      "comment": "Embedded in R8 8.4.21 and distributed with the R8 JAR."
     },
     {
       "SPDXID": "SPDXRef-Package-031",
@@ -456,7 +456,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 1999-2018 The Apache Software Foundation",
-      "comment": "内嵌于 R8 8.4.21 并随 R8 JAR 一并发行。"
+      "comment": "Embedded in R8 8.4.21 and distributed with the R8 JAR."
     },
     {
       "SPDXID": "SPDXRef-Package-032",
@@ -467,18 +467,18 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2005-2022 The Apache Software Foundation",
-      "comment": "内嵌于 R8 8.4.21 并随 R8 JAR 一并发行。"
+      "comment": "Embedded in R8 8.4.21 and distributed with the R8 JAR."
     },
     {
       "SPDXID": "SPDXRef-Package-033",
-      "name": "Apache Log4j，JetBrains dependency build",
+      "name": "Apache Log4j, JetBrains dependency build",
       "versionInfo": "1.2.17.2",
       "downloadLocation": "https://packages.jetbrains.team/maven/p/ij/intellij-dependencies/org/jetbrains/intellij/deps/log4j/1.2.17.2/log4j-1.2.17.2.jar",
       "filesAnalyzed": false,
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2007 The Apache Software Foundation",
-      "comment": "内嵌并重定位于 Kotlin compiler 1.9.23，随 compiler JAR 一并发行。"
+      "comment": "Embedded and relocated in Kotlin compiler 1.9.23 and distributed with the compiler JAR."
     },
     {
       "SPDXID": "SPDXRef-Package-034",
@@ -489,7 +489,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2016 Google Inc.",
-      "comment": "作为 Android Data Binding 的传递依赖，以独立 JAR 随插件发行；Apache-2.0 依据版本 POM 和源码文件头确定。"
+      "comment": "Distributed with the plugin as a separate JAR transitive dependency of Android Data Binding; Apache-2.0 was determined from the versioned POM and source file headers."
     },
     {
       "SPDXID": "SPDXRef-Package-035",
@@ -500,7 +500,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2013-2017 Google, Inc.; Copyright © 2013 Square, Inc.",
-      "comment": "作为 Android Data Binding 的传递依赖，以独立 JAR 随插件发行。"
+      "comment": "Distributed with the plugin as a separate JAR transitive dependency of Android Data Binding."
     },
     {
       "SPDXID": "SPDXRef-Package-036",
@@ -511,7 +511,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2009-2014 Panxiaobo and contributors",
-      "comment": "以 dex-reader、dex-reader-api 和 dex-writer 多个独立 JAR 随插件发行。"
+      "comment": "Distributed with the plugin as separate dex-reader, dex-reader-api, and dex-writer JARs."
     },
     {
       "SPDXID": "SPDXRef-Package-037",
@@ -522,7 +522,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2014-2021 The Error Prone Authors",
-      "comment": "内嵌于 R8 8.4.21 并随 R8 JAR 一并发行。"
+      "comment": "Embedded in R8 8.4.21 and distributed with the R8 JAR."
     },
     {
       "SPDXID": "SPDXRef-Package-038",
@@ -533,7 +533,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2014-2019 The Error Prone Authors",
-      "comment": "作为 cmd_line Guava 30.1-jre 的传递依赖随独立发行物分发；与 R8 内嵌 Error Prone Annotations 2.18.0 并存。"
+      "comment": "Distributed in the cmd_line standalone distribution as a transitive dependency of Guava 30.1-jre; coexists with Error Prone Annotations 2.18.0 embedded in R8."
     },
     {
       "SPDXID": "SPDXRef-Package-039",
@@ -544,7 +544,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2012-2018 Oracle and/or its affiliates",
-      "comment": "作为 JAXB 运行时依赖，以独立 JAR 随插件发行；本发行在上游双许可证中选择 Apache-2.0。"
+      "comment": "Distributed with the plugin as a separate JAR dependency of JAXB Runtime; this distribution selects Apache-2.0 from the upstream dual-license options."
     },
     {
       "SPDXID": "SPDXRef-Package-040",
@@ -555,7 +555,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2002-2017 Sebastiano Vigna, Paolo Boldi and contributors",
-      "comment": "内嵌于 R8 8.4.21 并随 R8 JAR 一并发行。"
+      "comment": "Embedded in R8 8.4.21 and distributed with the R8 JAR."
     },
     {
       "SPDXID": "SPDXRef-Package-041",
@@ -566,7 +566,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2008-2021 Google Inc., The Android Open Source Project and Gson authors",
-      "comment": "作为直接依赖，以独立 JAR 随插件发行。"
+      "comment": "Distributed with the plugin as a separate JAR direct dependency."
     },
     {
       "SPDXID": "SPDXRef-Package-042",
@@ -577,7 +577,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2005-2020 The Guava Authors",
-      "comment": "Guava 29.0-jre 内嵌并重定位于 Kotlin compiler 1.9.23；与 R8 内嵌 Guava 32.1.2-jre 并存。"
+      "comment": "Guava 29.0-jre is embedded and relocated in Kotlin compiler 1.9.23; it coexists with Guava 32.1.2-jre embedded in R8."
     },
     {
       "SPDXID": "SPDXRef-Package-043",
@@ -588,7 +588,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2005-2021 The Guava Authors",
-      "comment": "作为 cmd_line Data Binding 7.4.2 的传递依赖随独立发行物分发；与 R8、Kotlin compiler 内嵌的其他 Guava 版本并存。"
+      "comment": "Distributed in the cmd_line standalone distribution as a transitive dependency of Data Binding 7.4.2; coexists with other Guava versions embedded in R8 and Kotlin compiler."
     },
     {
       "SPDXID": "SPDXRef-Package-044",
@@ -599,7 +599,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2005-2021 The Guava Authors",
-      "comment": "内嵌于 R8 8.4.21 并随 R8 JAR 一并发行。"
+      "comment": "Embedded in R8 8.4.21 and distributed with the R8 JAR."
     },
     {
       "SPDXID": "SPDXRef-Package-045",
@@ -610,7 +610,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2018 The Guava Authors",
-      "comment": "内嵌于 R8 8.4.21 并随 R8 JAR 一并发行。"
+      "comment": "Embedded in R8 8.4.21 and distributed with the R8 JAR."
     },
     {
       "SPDXID": "SPDXRef-Package-046",
@@ -621,7 +621,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2002-2021 Sebastiano Vigna, Paolo Boldi and contributors",
-      "comment": "IntelliJ fastutil fork 内嵌并重定位于 Kotlin compiler 1.9.23，随 compiler JAR 发行。"
+      "comment": "The IntelliJ fastutil fork is embedded and relocated in Kotlin compiler 1.9.23 and distributed with the compiler JAR."
     },
     {
       "SPDXID": "SPDXRef-Package-047",
@@ -632,7 +632,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2000-2012 JetBrains s.r.o.",
-      "comment": "作为 Kotlin compiler 依赖，以独立 JAR 随插件发行。"
+      "comment": "Distributed with the plugin as a separate JAR dependency of Kotlin compiler."
     },
     {
       "SPDXID": "SPDXRef-Package-048",
@@ -643,7 +643,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2000-2021 JetBrains s.r.o. and contributors",
-      "comment": "IntelliJ Platform Core 和 JPS Model 内嵌于 Kotlin compiler 1.9.23，因协议和修改状态相同合并列示。"
+      "comment": "IntelliJ Platform Core and JPS Model are embedded in Kotlin compiler 1.9.23 and grouped here because they share the same license and modification status."
     },
     {
       "SPDXID": "SPDXRef-Package-049",
@@ -654,7 +654,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2012 Google Inc.",
-      "comment": "作为 cmd_line Guava 30.1-jre 的传递依赖随独立发行物分发；与 R8 内嵌 J2ObjC Annotations 2.8 并存。"
+      "comment": "Distributed in the cmd_line standalone distribution as a transitive dependency of Guava 30.1-jre; coexists with J2ObjC Annotations 2.8 embedded in R8."
     },
     {
       "SPDXID": "SPDXRef-Package-050",
@@ -665,7 +665,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2012 Google Inc.",
-      "comment": "属于 Guava 的 optional 编译依赖，但由 R8 许可证清单明确列为随 R8 分发的组件。"
+      "comment": "An optional compile-time dependency of Guava, but explicitly listed as distributed with R8 in the R8 license inventory."
     },
     {
       "SPDXID": "SPDXRef-Package-051",
@@ -676,7 +676,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2009-2017 the original authors",
-      "comment": "内嵌并重定位于 Kotlin compiler 1.9.23，随 compiler JAR 一并发行。"
+      "comment": "Embedded and relocated in Kotlin compiler 1.9.23 and distributed with the compiler JAR."
     },
     {
       "SPDXID": "SPDXRef-Package-052",
@@ -687,18 +687,18 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2007-2020 Timothy Wall, Olivier Chafik and contributors",
-      "comment": "JNA 和 JNA Platform 内嵌于 R8 8.4.21；本发行在上游双许可证中选择 Apache-2.0。"
+      "comment": "JNA and JNA Platform are embedded in R8 8.4.21; this distribution selects Apache-2.0 from the upstream dual-license options."
     },
     {
       "SPDXID": "SPDXRef-Package-053",
-      "name": "Java Native Access，JetBrains dependency build",
+      "name": "Java Native Access, JetBrains dependency build",
       "versionInfo": "5.9.0.26",
       "downloadLocation": "https://packages.jetbrains.team/maven/p/ij/intellij-dependencies/org/jetbrains/intellij/deps/jna/jna/5.9.0.26/jna-5.9.0.26.jar",
       "filesAnalyzed": false,
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2007-2021 Timothy Wall, Olivier Chafik and contributors",
-      "comment": "JNA 和 JNA Platform 内嵌并重定位于 Kotlin compiler 1.9.23；本发行在上游双许可证中选择 Apache-2.0。"
+      "comment": "JNA and JNA Platform are embedded and relocated in Kotlin compiler 1.9.23; this distribution selects Apache-2.0 from the upstream dual-license options."
     },
     {
       "SPDXID": "SPDXRef-Package-054",
@@ -709,7 +709,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2009-2016 Daniel Lemire, Cliff Moon, David McIntosh and contributors",
-      "comment": "作为 JGit 的传递依赖，以独立 JAR 随插件发行。"
+      "comment": "Distributed with the plugin as a separate JAR transitive dependency of JGit."
     },
     {
       "SPDXID": "SPDXRef-Package-055",
@@ -720,7 +720,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2007-2010 Júlio Vilmar Gesser; 2011-2020 The JavaParser Team",
-      "comment": "作为直接依赖，以独立 JAR 随插件发行；本发行在上游双许可证中选择 Apache-2.0。"
+      "comment": "Distributed with the plugin as a separate JAR direct dependency; this distribution selects Apache-2.0 from the upstream dual-license options."
     },
     {
       "SPDXID": "SPDXRef-Package-056",
@@ -731,7 +731,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2014-2016 Google, Inc. and Square, Inc.",
-      "comment": "作为 Android Data Binding 的传递依赖，以独立 JAR 随插件发行。"
+      "comment": "Distributed with the plugin as a separate JAR transitive dependency of Android Data Binding."
     },
     {
       "SPDXID": "SPDXRef-Package-057",
@@ -742,7 +742,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2014-2017 Javaslang contributors",
-      "comment": "内嵌于 Kotlin compiler 1.9.23，保留 javaslang.* 包名并随 compiler JAR 发行。"
+      "comment": "Embedded in Kotlin compiler 1.9.23, retaining the javaslang.* package name, and distributed with the compiler JAR."
     },
     {
       "SPDXID": "SPDXRef-Package-058",
@@ -753,7 +753,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2009 The JSR-330 Expert Group",
-      "comment": "内嵌于 R8 8.4.21 并随 R8 JAR 一并发行。"
+      "comment": "Embedded in R8 8.4.21 and distributed with the R8 JAR."
     },
     {
       "SPDXID": "SPDXRef-Package-059",
@@ -764,7 +764,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2018 The Android Open Source Project",
-      "comment": "作为 Android Data Binding 的传递依赖，以独立 JAR 随插件发行。"
+      "comment": "Distributed with the plugin as a separate JAR transitive dependency of Android Data Binding."
     },
     {
       "SPDXID": "SPDXRef-Package-060",
@@ -775,7 +775,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2013-2016 Google Inc.",
-      "comment": "内嵌于 R8 8.4.21 并随 R8 JAR 一并发行。"
+      "comment": "Embedded in R8 8.4.21 and distributed with the R8 JAR."
     },
     {
       "SPDXID": "SPDXRef-Package-061",
@@ -786,7 +786,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2005 Brian Goetz and contributors",
-      "comment": "内嵌于 R8 8.4.21 并随 R8 JAR 一并发行。"
+      "comment": "Embedded in R8 8.4.21 and distributed with the R8 JAR."
     },
     {
       "SPDXID": "SPDXRef-Package-062",
@@ -797,7 +797,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2010-2023 JetBrains s.r.o. and respective authors and developers",
-      "comment": "以多个独立 JAR 随插件发行，包含 compiler、daemon、reflect、script runtime、stdlib-jdk7/jdk8；compiler 内嵌组件另行列示。"
+      "comment": "Distributed with the plugin as multiple separate JARs including compiler, daemon, reflect, script runtime, and stdlib-jdk7/jdk8; components embedded in the compiler are listed separately."
     },
     {
       "SPDXID": "SPDXRef-Package-063",
@@ -808,7 +808,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2010-2024 JetBrains s.r.o. and respective authors and developers",
-      "comment": "作为直接依赖，以独立 JAR 随插件发行。"
+      "comment": "Distributed with the plugin as a separate JAR direct dependency."
     },
     {
       "SPDXID": "SPDXRef-Package-064",
@@ -819,7 +819,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2010-2023 JetBrains s.r.o. and Kotlin contributors",
-      "comment": "内嵌于 R8 8.4.21 并随 R8 JAR 一并发行。"
+      "comment": "Embedded in R8 8.4.21 and distributed with the R8 JAR."
     },
     {
       "SPDXID": "SPDXRef-Package-065",
@@ -830,7 +830,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2010-2023 JetBrains s.r.o. and Kotlin contributors",
-      "comment": "内嵌于 R8 8.4.21，由 kotlinx-metadata-jvm 引入；与插件顶层 Kotlin Standard Library 2.2.21 并存。"
+      "comment": "Embedded in R8 8.4.21 through kotlinx-metadata-jvm; coexists with the plugin's top-level Kotlin Standard Library 2.2.21."
     },
     {
       "SPDXID": "SPDXRef-Package-066",
@@ -841,7 +841,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2010-2024 JetBrains s.r.o. and respective authors and developers",
-      "comment": "作为 Kotlin Metadata JVM 的传递依赖，以独立 JAR 随插件发行。"
+      "comment": "Distributed with the plugin as a separate JAR transitive dependency of Kotlin Metadata JVM."
     },
     {
       "SPDXID": "SPDXRef-Package-067",
@@ -852,7 +852,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2016-2022 JetBrains s.r.o.",
-      "comment": "作为直接依赖，以独立 JAR 随插件发行。"
+      "comment": "Distributed with the plugin as a separate JAR direct dependency."
     },
     {
       "SPDXID": "SPDXRef-Package-068",
@@ -863,7 +863,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2010-2023 JetBrains s.r.o. and Kotlin Programming Language contributors",
-      "comment": "作为直接依赖，以独立 JAR 随插件发行。"
+      "comment": "Distributed with the plugin as a separate JAR direct dependency."
     },
     {
       "SPDXID": "SPDXRef-Package-069",
@@ -874,7 +874,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2016-2019 JetBrains s.r.o.",
-      "comment": "内嵌并重定位于 Kotlin compiler 1.9.23，随 compiler JAR 一并发行。"
+      "comment": "Embedded and relocated in Kotlin compiler 1.9.23 and distributed with the compiler JAR."
     },
     {
       "SPDXID": "SPDXRef-Package-070",
@@ -885,7 +885,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2011-2019 Adrien Grand, Yann Collet and contributors",
-      "comment": "内嵌并重定位于 Kotlin compiler 1.9.23，随 compiler JAR 一并发行。"
+      "comment": "Embedded and relocated in Kotlin compiler 1.9.23 and distributed with the compiler JAR."
     },
     {
       "SPDXID": "SPDXRef-Package-071",
@@ -896,7 +896,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2012-2019 Square, Inc., The Android Open Source Project and contributors",
-      "comment": "作为网络功能的直接依赖，以独立 JAR 随插件发行。"
+      "comment": "Distributed with the plugin as a separate JAR direct dependency for networking."
     },
     {
       "SPDXID": "SPDXRef-Package-072",
@@ -907,7 +907,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2014-2021 Square, Inc. and others",
-      "comment": "作为 OkHttp 的传递依赖，以独立 JAR 随插件发行。"
+      "comment": "Distributed with the plugin as a separate JAR transitive dependency of OkHttp."
     },
     {
       "SPDXID": "SPDXRef-Package-073",
@@ -918,7 +918,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2015, 2019 StreamEx contributors",
-      "comment": "内嵌并重定位于 Kotlin compiler 1.9.23，随 compiler JAR 一并发行。"
+      "comment": "Embedded and relocated in Kotlin compiler 1.9.23 and distributed with the compiler JAR."
     },
     {
       "SPDXID": "SPDXRef-Package-074",
@@ -929,18 +929,18 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 1999-2018 The Apache Software Foundation; IBM, Sun and other contributors",
-      "comment": "内嵌于 R8 8.4.21 并随 R8 JAR 一并发行。"
+      "comment": "Embedded in R8 8.4.21 and distributed with the R8 JAR."
     },
     {
       "SPDXID": "SPDXRef-Package-075",
-      "name": "LLVM libc++，Android toolchain build",
-      "versionInfo": "无",
+      "name": "LLVM libc++, Android toolchain build",
+      "versionInfo": "N/A",
       "downloadLocation": "https://android.googlesource.com/toolchain/llvm-project/+/477610d4d0d988e69dbc3fae4fe86bff3f07f2b5/libcxx/",
       "filesAnalyzed": false,
       "licenseConcluded": "Apache-2.0 WITH LLVM-exception",
       "licenseDeclared": "Apache-2.0 WITH LLVM-exception",
       "copyrightText": "Copyright © 2009-2024 LLVM Project contributors",
-      "comment": "以 libc++_static 形式静态链接到随插件发行的 AAPT2 可执行文件；对应 Android clang r510928/LLVM commit 477610d4d0d988e69dbc3fae4fe86bff3f07f2b5；无法映射独立 release 版本，因此填“无”。"
+      "comment": "Statically linked as libc++_static into the distributed AAPT2 executable; corresponds to Android clang r510928 / LLVM commit 477610d4d0d988e69dbc3fae4fe86bff3f07f2b5; no independent release version can be mapped."
     },
     {
       "SPDXID": "SPDXRef-Package-076",
@@ -951,7 +951,7 @@
       "licenseConcluded": "BSD-3-Clause",
       "licenseDeclared": "BSD-3-Clause",
       "copyrightText": "Copyright © 2000-2011 INRIA, France Telecom",
-      "comment": "以 3 个重打包 JAR 随插件发行；将 org.objectweb.asm 重定位到项目私有包名，asm-commons 另移除 module-info.class。"
+      "comment": "Distributed with the plugin as three repackaged JARs; org.objectweb.asm was relocated into a Jugg-private package, and module-info.class was additionally removed from asm-commons."
     },
     {
       "SPDXID": "SPDXRef-Package-077",
@@ -962,18 +962,18 @@
       "licenseConcluded": "BSD-3-Clause",
       "licenseDeclared": "BSD-3-Clause",
       "copyrightText": "Copyright © 2005-present Tatu Saloranta and contributors",
-      "comment": "内嵌并重定位于 Kotlin compiler 1.9.23，随 compiler JAR 一并发行。"
+      "comment": "Embedded and relocated in Kotlin compiler 1.9.23 and distributed with the compiler JAR."
     },
     {
       "SPDXID": "SPDXRef-Package-078",
-      "name": "ANTLR 4 Runtime，Data Binding 内嵌重定位代码",
+      "name": "ANTLR 4 Runtime, relocated in Data Binding",
       "versionInfo": "4.5.3",
       "downloadLocation": "https://repo1.maven.org/maven2/org/antlr/antlr4-runtime/4.5.3/antlr4-runtime-4.5.3.jar",
       "filesAnalyzed": false,
       "licenseConcluded": "BSD-3-Clause",
       "licenseDeclared": "BSD-3-Clause",
       "copyrightText": "Copyright © 2015 Terence Parr, Sam Harwell",
-      "comment": "重定位代码内嵌于 Data Binding compiler-common 8.7.3 并随其发行；由上游 Data Binding 打包。"
+      "comment": "Relocated code is embedded in Data Binding compiler-common 8.7.3 and distributed with it; packaged by upstream Data Binding."
     },
     {
       "SPDXID": "SPDXRef-Package-079",
@@ -984,18 +984,18 @@
       "licenseConcluded": "BSD-3-Clause",
       "licenseDeclared": "BSD-3-Clause",
       "copyrightText": "Copyright © 2000-2011 INRIA, France Telecom",
-      "comment": "ASM 9.6 的 core、tree、analysis、commons 和 util 代码内嵌于 R8 8.4.21；与另行重打包的 ASM 9.8 为不同版本和修改状态。"
+      "comment": "ASM 9.6 core, tree, analysis, commons, and util code is embedded in R8 8.4.21; it differs in version and modification status from separately repackaged ASM 9.8."
     },
     {
       "SPDXID": "SPDXRef-Package-080",
-      "name": "ASM all，JetBrains dependency build",
+      "name": "ASM all, JetBrains dependency build",
       "versionInfo": "9.0",
       "downloadLocation": "https://packages.jetbrains.team/maven/p/ij/intellij-dependencies/org/jetbrains/intellij/deps/asm-all/9.0/asm-all-9.0.jar",
       "filesAnalyzed": false,
       "licenseConcluded": "BSD-3-Clause",
       "licenseDeclared": "BSD-3-Clause",
       "copyrightText": "Copyright © 2000-2011 INRIA, France Telecom",
-      "comment": "ASM 9.0 内嵌并重定位于 Kotlin compiler 1.9.23；与 R8 内嵌 ASM 9.6、另行重打包 ASM 9.8 并存。"
+      "comment": "ASM 9.0 is embedded and relocated in Kotlin compiler 1.9.23; it coexists with ASM 9.6 embedded in R8 and separately repackaged ASM 9.8."
     },
     {
       "SPDXID": "SPDXRef-Package-081",
@@ -1006,40 +1006,40 @@
       "licenseConcluded": "BSD-3-Clause",
       "licenseDeclared": "BSD-3-Clause",
       "copyrightText": "Copyright © 2002-2017 the original author or authors",
-      "comment": "内嵌并重定位于 Kotlin compiler 1.9.23，随 compiler JAR 一并发行。"
+      "comment": "Embedded and relocated in Kotlin compiler 1.9.23 and distributed with the compiler JAR."
     },
     {
       "SPDXID": "SPDXRef-Package-082",
-      "name": "JSch，mwiede fork",
+      "name": "JSch, mwiede fork",
       "versionInfo": "0.2.16",
       "downloadLocation": "https://repo1.maven.org/maven2/com/github/mwiede/jsch/0.2.16/jsch-0.2.16.jar",
       "filesAnalyzed": false,
       "licenseConcluded": "BSD-3-Clause",
       "licenseDeclared": "BSD-3-Clause",
       "copyrightText": "Copyright © 2002-2015 Atsuhiko Yamanaka, JCraft, Inc.",
-      "comment": "作为 SSH 功能的直接依赖，以独立 JAR 随插件发行；JAR 内嵌的 JZlib 和 jBCrypt 另行列示。"
+      "comment": "Distributed with the plugin as a separate JAR direct dependency for SSH; JZlib and jBCrypt embedded in the JAR are listed separately."
     },
     {
       "SPDXID": "SPDXRef-Package-083",
-      "name": "JZlib，JSch 内嵌代码",
-      "versionInfo": "无",
+      "name": "JZlib, embedded in JSch",
+      "versionInfo": "N/A",
       "downloadLocation": "https://repo1.maven.org/maven2/com/github/mwiede/jsch/0.2.16/jsch-0.2.16.jar",
       "filesAnalyzed": false,
       "licenseConcluded": "BSD-3-Clause",
       "licenseDeclared": "BSD-3-Clause",
       "copyrightText": "Copyright © 2000-2011 ymnk, JCraft, Inc.",
-      "comment": "代码内嵌于 JSch 0.2.16 并随其 JAR 发行；上游未标明内嵌版本，因此版本填“无”。"
+      "comment": "Code is embedded in JSch 0.2.16 and distributed with its JAR; upstream does not identify the embedded version, so no version is specified."
     },
     {
       "SPDXID": "SPDXRef-Package-084",
-      "name": "PicoContainer，IntelliJ 精简 fork",
-      "versionInfo": "无",
+      "name": "PicoContainer, IntelliJ slimmed-down fork",
+      "versionInfo": "N/A",
       "downloadLocation": "https://repo1.maven.org/maven2/org/jetbrains/kotlin/kotlin-compiler-embeddable/1.9.23/kotlin-compiler-embeddable-1.9.23.jar",
       "filesAnalyzed": false,
       "licenseConcluded": "BSD-3-Clause",
       "licenseDeclared": "BSD-3-Clause",
       "copyrightText": "Copyright © PicoContainer Organization; Copyright © 2003 NanoContainer Organization",
-      "comment": "精简并重定位的 PicoContainer API 内嵌于 Kotlin compiler 1.9.23；上游未保留可可靠映射的独立版本，因此版本填“无”。"
+      "comment": "A reduced and relocated PicoContainer API is embedded in Kotlin compiler 1.9.23; upstream did not retain a reliably mappable standalone version, so no version is specified."
     },
     {
       "SPDXID": "SPDXRef-Package-085",
@@ -1050,29 +1050,29 @@
       "licenseConcluded": "BSD-3-Clause",
       "licenseDeclared": "BSD-3-Clause",
       "copyrightText": "Copyright © 2008 Google Inc. and protobuf contributors",
-      "comment": "内嵌于 R8 Resource Shrinker 并随 R8 JAR 发行；与 AAPT2 inclink 静态链接的 native Protocol Buffers 分开列示。"
+      "comment": "Embedded in R8 Resource Shrinker and distributed with the R8 JAR; listed separately from native Protocol Buffers statically linked into AAPT2 inclink."
     },
     {
       "SPDXID": "SPDXRef-Package-086",
-      "name": "Protocol Buffers，AOSP native runtime",
-      "versionInfo": "无",
+      "name": "Protocol Buffers, AOSP native runtime",
+      "versionInfo": "N/A",
       "downloadLocation": "https://android.googlesource.com/platform/external/protobuf/+archive/refs/heads/master.tar.gz",
       "filesAnalyzed": false,
       "licenseConcluded": "BSD-3-Clause",
       "licenseDeclared": "BSD-3-Clause",
       "copyrightText": "Copyright © 2008 Google Inc. and protobuf contributors",
-      "comment": "以 libprotobuf-cpp-full 形式静态链接到随插件发行的 AAPT2 可执行文件；二进制未暴露可可靠映射的版本，因此填“无”。"
+      "comment": "Statically linked as libprotobuf-cpp-full into the distributed AAPT2 executable; the binary does not expose a reliably mappable version, so no version is specified."
     },
     {
       "SPDXID": "SPDXRef-Package-087",
-      "name": "Protocol Buffers，Kotlin relocated fork",
+      "name": "Protocol Buffers, Kotlin relocated fork",
       "versionInfo": "2.6.1-1",
       "downloadLocation": "https://repo1.maven.org/maven2/org/jetbrains/kotlin/kotlin-compiler-embeddable/1.9.23/kotlin-compiler-embeddable-1.9.23.jar",
       "filesAnalyzed": false,
       "licenseConcluded": "BSD-3-Clause",
       "licenseDeclared": "BSD-3-Clause",
       "copyrightText": "Copyright © 2008 Google Inc.",
-      "comment": "Kotlin compiler 1.9.23 内嵌并重定位该 fork；无公开独立 JAR，实际代码随 compiler JAR 发行。"
+      "comment": "This fork is embedded and relocated in Kotlin compiler 1.9.23; no standalone public JAR exists, and the code is distributed with the compiler JAR."
     },
     {
       "SPDXID": "SPDXRef-Package-088",
@@ -1083,7 +1083,7 @@
       "licenseConcluded": "BSD-3-Clause",
       "licenseDeclared": "BSD-3-Clause",
       "copyrightText": "Copyright © 2007 Eclipse Foundation, Inc. and its licensors; JGit contributors",
-      "comment": "作为 Git 功能的直接依赖，以独立 JAR 随插件发行。"
+      "comment": "Distributed with the plugin as a separate JAR direct dependency for Git."
     },
     {
       "SPDXID": "SPDXRef-Package-089",
@@ -1094,7 +1094,7 @@
       "licenseConcluded": "BSD-3-Clause",
       "licenseDeclared": "BSD-3-Clause",
       "copyrightText": "Copyright © 2017 Oracle and/or its affiliates",
-      "comment": "作为 JAXB 运行时依赖，以独立 JAR 随插件发行。"
+      "comment": "Distributed with the plugin as a separate JAR dependency of JAXB Runtime."
     },
     {
       "SPDXID": "SPDXRef-Package-090",
@@ -1105,7 +1105,7 @@
       "licenseConcluded": "BSD-3-Clause",
       "licenseDeclared": "BSD-3-Clause",
       "copyrightText": "Copyright © 2018 Oracle and/or its affiliates",
-      "comment": "作为 JAXB 运行时依赖，以独立 JAR 随插件发行。"
+      "comment": "Distributed with the plugin as a separate JAR dependency of JAXB Runtime."
     },
     {
       "SPDXID": "SPDXRef-Package-091",
@@ -1116,18 +1116,18 @@
       "licenseConcluded": "BSD-3-Clause",
       "licenseDeclared": "BSD-3-Clause",
       "copyrightText": "Copyright © 2017-2018 Oracle and/or its affiliates",
-      "comment": "作为 JAXB 运行时依赖，以独立 JAR 随插件发行。"
+      "comment": "Distributed with the plugin as a separate JAR dependency of JAXB Runtime."
     },
     {
       "SPDXID": "SPDXRef-Package-092",
-      "name": "JAXB Runtime、TXW2",
+      "name": "JAXB Runtime and TXW2",
       "versionInfo": "2.3.2",
       "downloadLocation": "https://repo1.maven.org/maven2/org/glassfish/jaxb/jaxb-runtime/2.3.2/jaxb-runtime-2.3.2.jar",
       "filesAnalyzed": false,
       "licenseConcluded": "BSD-3-Clause",
       "licenseDeclared": "BSD-3-Clause",
       "copyrightText": "Copyright © 2018 Oracle and/or its affiliates",
-      "comment": "以 JAXB Runtime 和 TXW2 两个独立 JAR 随插件发行。"
+      "comment": "Distributed with the plugin as separate JAXB Runtime and TXW2 JARs."
     },
     {
       "SPDXID": "SPDXRef-Package-093",
@@ -1138,7 +1138,7 @@
       "licenseConcluded": "BSD-3-Clause",
       "licenseDeclared": "BSD-3-Clause",
       "copyrightText": "Copyright © 2017 Oracle and/or its affiliates",
-      "comment": "作为 JAXB 运行时依赖，以独立 JAR 随插件发行。"
+      "comment": "Distributed with the plugin as a separate JAR dependency of JAXB Runtime."
     },
     {
       "SPDXID": "SPDXRef-Package-094",
@@ -1149,7 +1149,7 @@
       "licenseConcluded": "LicenseRef-JDOM",
       "licenseDeclared": "LicenseRef-JDOM",
       "copyrightText": "Copyright © 2000-2012 Jason Hunter, Brett McLaughlin and JDOM contributors",
-      "comment": "JDOM 2.0.6 内嵌并重定位于 Kotlin compiler 1.9.23，随 compiler JAR 发行。"
+      "comment": "JDOM 2.0.6 is embedded and relocated in Kotlin compiler 1.9.23 and distributed with the compiler JAR."
     },
     {
       "SPDXID": "SPDXRef-Package-095",
@@ -1160,7 +1160,7 @@
       "licenseConcluded": "MIT",
       "licenseDeclared": "MIT",
       "copyrightText": "Copyright © 2000-2020 The Legion of the Bouncy Castle Inc.",
-      "comment": "Bouncy Castle Provider 和 PKIX 代码内嵌于 R8 8.4.21，因版本、协议和修改状态相同合并列示。"
+      "comment": "Bouncy Castle Provider and PKIX code is embedded in R8 8.4.21 and grouped here because it shares the same version, license, and modification status."
     },
     {
       "SPDXID": "SPDXRef-Package-096",
@@ -1171,7 +1171,7 @@
       "licenseConcluded": "MIT",
       "licenseDeclared": "MIT",
       "copyrightText": "Copyright © 2004-present Checker Framework developers",
-      "comment": "内嵌于 R8 8.4.21 并随 R8 JAR 一并发行。"
+      "comment": "Embedded in R8 8.4.21 and distributed with the R8 JAR."
     },
     {
       "SPDXID": "SPDXRef-Package-097",
@@ -1182,7 +1182,7 @@
       "licenseConcluded": "MIT",
       "licenseDeclared": "MIT",
       "copyrightText": "Copyright © 2004-present by the Checker Framework developers",
-      "comment": "作为 cmd_line Guava 30.1-jre 的传递依赖随独立发行物分发；与 R8 内嵌 Checker Qual 3.33.0 并存。"
+      "comment": "Distributed in the cmd_line standalone distribution as a transitive dependency of Guava 30.1-jre; coexists with Checker Qual 3.33.0 embedded in R8."
     },
     {
       "SPDXID": "SPDXRef-Package-098",
@@ -1193,7 +1193,7 @@
       "licenseConcluded": "MIT",
       "licenseDeclared": "MIT",
       "copyrightText": "Copyright © 2019 Luke Hutchison",
-      "comment": "作为直接依赖，以独立 JAR 随插件发行。"
+      "comment": "Distributed with the plugin as a separate JAR direct dependency."
     },
     {
       "SPDXID": "SPDXRef-Package-099",
@@ -1204,7 +1204,7 @@
       "licenseConcluded": "MIT",
       "licenseDeclared": "MIT",
       "copyrightText": "Copyright © 1998-2000 Thai Open Source Software Center Ltd.; Expat contributors",
-      "comment": "静态链接到随插件发行的 AAPT2 可执行文件；二进制包含 Expat 2.6.0。"
+      "comment": "Statically linked into the distributed AAPT2 executable; the binary includes Expat 2.6.0."
     },
     {
       "SPDXID": "SPDXRef-Package-100",
@@ -1215,40 +1215,40 @@
       "licenseConcluded": "MIT",
       "licenseDeclared": "MIT",
       "copyrightText": "Copyright © 2004-2017 QOS.ch",
-      "comment": "SLF4J API 和 NOP binding 以独立 JAR 随 cmd_line 发行物分发，用于提供无输出的日志绑定。"
+      "comment": "SLF4J API and NOP binding are distributed as separate JARs in the cmd_line distribution to provide a logging binding that emits no output."
     },
     {
       "SPDXID": "SPDXRef-Package-101",
-      "name": "jBCrypt，JSch 内嵌代码",
-      "versionInfo": "无",
+      "name": "jBCrypt, embedded in JSch",
+      "versionInfo": "N/A",
       "downloadLocation": "https://repo1.maven.org/maven2/com/github/mwiede/jsch/0.2.16/jsch-0.2.16.jar",
       "filesAnalyzed": false,
       "licenseConcluded": "ISC",
       "licenseDeclared": "ISC",
       "copyrightText": "Copyright © 2006 Damien Miller",
-      "comment": "代码内嵌于 JSch 0.2.16 并随其 JAR 发行；上游未标明内嵌版本，因此版本填“无”。"
+      "comment": "Code is embedded in JSch 0.2.16 and distributed with its JAR; upstream does not identify the embedded version, so no version is specified."
     },
     {
       "SPDXID": "SPDXRef-Package-102",
-      "name": "zlib，Android platform API",
-      "versionInfo": "无",
+      "name": "zlib, Android platform API",
+      "versionInfo": "N/A",
       "downloadLocation": "https://android.googlesource.com/platform/external/zlib/+archive/refs/heads/master.tar.gz",
       "filesAnalyzed": false,
       "licenseConcluded": "Zlib",
       "licenseDeclared": "Zlib",
       "copyrightText": "Copyright © 1995-2023 Jean-loup Gailly and Mark Adler",
-      "comment": "JVMTI agent 在运行时动态链接 Android 设备提供的 libz.so，插件不随包分发该平台库；运行时版本由设备决定，因此版本填“无”。"
+      "comment": "At runtime the JVMTI agent dynamically links to libz.so supplied by the Android device; the plugin does not bundle that platform library; its runtime version depends on the device, so no version is specified."
     },
     {
       "SPDXID": "SPDXRef-Package-103",
-      "name": "zlib，AOSP motley 变体",
+      "name": "zlib, AOSP motley variant",
       "versionInfo": "1.3.0.1-motley",
       "downloadLocation": "https://android.googlesource.com/platform/external/zlib/+archive/932a58803c3d13295215446fa2bbf1aba5d327ef.tar.gz",
       "filesAnalyzed": false,
       "licenseConcluded": "Zlib",
       "licenseDeclared": "Zlib",
       "copyrightText": "Copyright © 1995-2023 Jean-loup Gailly and Mark Adler",
-      "comment": "以 AOSP motley 变体静态链接到随插件发行的 AAPT2 可执行文件；版本为 1.3.0.1-motley。"
+      "comment": "The AOSP motley variant is statically linked into the distributed AAPT2 executable; version 1.3.0.1-motley."
     },
     {
       "SPDXID": "SPDXRef-Package-104",
@@ -1259,7 +1259,7 @@
       "licenseConcluded": "Libpng-2.0",
       "licenseDeclared": "Libpng-2.0",
       "copyrightText": "Copyright © 1995-2023 libpng authors",
-      "comment": "静态链接到随插件发行的 AAPT2 可执行文件；二进制包含 libpng 1.6.40。"
+      "comment": "Statically linked into the distributed AAPT2 executable; the binary includes libpng 1.6.40."
     }
   ],
   "hasExtractedLicensingInfos": [

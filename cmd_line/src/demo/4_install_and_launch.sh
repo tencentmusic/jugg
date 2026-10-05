@@ -1,24 +1,24 @@
 #!/bin/sh
 ###############################################################################
-# 演示功能：安装运行 APK
+# Demo: install the APK and launch the app.
 ###############################################################################
 
-# cd 到 demo 目录
+# Change to the demo directory.
 dir=$(dirname $0)
 cd $dir
 
-# 安装应用并启动
+# Install and launch the app.
 adb install outputs/app-debug.apk
 result=$?
 if [ $result == 0 ]; then
-  echo "安装成功"
+  echo "Install succeeded"
 else
-  echo "安装失败"
+  echo "Install failed"
 fi
 adb shell am start -n com.example.myapplication/.MainActivity
 result=$?
 if [ $result == 0 ]; then
-  echo "启动成功"
+  echo "Launch succeeded"
 else
-  echo "启动失败"
+  echo "Launch failed"
 fi

@@ -14,36 +14,36 @@ SBOM_FILE = File.join(THIRD_PARTY_DIR, 'sbom', 'jugg-third-party.spdx.json')
 HEADERS = %w[name version license copyright license_url download_url modified notes].freeze
 
 LICENSE_SELECTIONS = {
-  'JavaParser Core' => ['Apache-2.0', '本发行选择 Apache-2.0。'],
-  'juniversalchardet' => ['MPL-1.1', '本发行按上游 POM 选择 MPL-1.1。'],
-  'Fast Infoset' => ['Apache-2.0', '本发行选择 Apache-2.0。'],
-  'Java Native Access / JNA Platform' => ['Apache-2.0', '本发行选择 Apache-2.0。'],
-  'Java Native Access，JetBrains dependency build' => ['Apache-2.0', '本发行选择 Apache-2.0。'],
-  'JavaBeans Activation Framework' => ['CDDL-1.1', '本发行选择 CDDL-1.1。']
+  'JavaParser Core' => ['Apache-2.0', 'This distribution selects Apache-2.0.'],
+  'juniversalchardet' => ['MPL-1.1', 'This distribution selects MPL-1.1 according to the upstream POM.'],
+  'Fast Infoset' => ['Apache-2.0', 'This distribution selects Apache-2.0.'],
+  'Java Native Access / JNA Platform' => ['Apache-2.0', 'This distribution selects Apache-2.0.'],
+  'Java Native Access, JetBrains dependency build' => ['Apache-2.0', 'This distribution selects Apache-2.0.'],
+  'JavaBeans Activation Framework' => ['CDDL-1.1', 'This distribution selects CDDL-1.1.']
 }.freeze
 
 SPDX_LICENSES = {
   'Apache-2.0' => 'Apache-2.0',
   'Apache-2.0 WITH LLVM-exception' => 'Apache-2.0 WITH LLVM-exception',
-  'Apache-2.0、BSD-2-Clause；SQLite 核心 Public Domain' =>
+  'Apache-2.0 and BSD-2-Clause; SQLite core is public domain' =>
     'Apache-2.0 AND BSD-2-Clause AND LicenseRef-SQLite-Public-Domain',
-  'Apache-2.0、SAX License、W3C Software Notice and License' =>
+  'Apache-2.0, SAX License, and W3C Software Notice and License' =>
     'Apache-2.0 AND SAX-PD AND W3C-19980720',
-  'Apache-2.0，另含静态链接第三方组件' => 'Apache-2.0',
-  'Apache-2.0；部分 sevenz 代码来自 Public Domain LZMA SDK' =>
+  'Apache-2.0; includes statically linked third-party components' => 'Apache-2.0',
+  'Apache-2.0; some sevenz code comes from the public-domain LZMA SDK' =>
     'Apache-2.0 AND LicenseRef-LZMA-SDK-Public-Domain',
   'BSD License' => 'BSD-3-Clause',
   'BSD-3-Clause' => 'BSD-3-Clause',
-  'BSD-3-Clause，并含第三方许可证' => 'BSD-3-Clause',
+  'BSD-3-Clause; includes additional third-party licenses' => 'BSD-3-Clause',
   'BSD-style AND Public Domain' => 'LicenseRef-kXML2-BSD AND LicenseRef-XmlPull-Public-Domain',
   'CDDL-1.1' => 'CDDL-1.1',
   'EDL-1.0' => 'BSD-3-Clause',
-  'EDL-1.0（BSD-3-Clause）' => 'BSD-3-Clause',
+  'EDL-1.0 (BSD-3-Clause)' => 'BSD-3-Clause',
   'GPL-2.0-only WITH Classpath-exception-2.0' => 'GPL-2.0-only WITH Classpath-exception-2.0',
   'GPL-2.0-or-later' => 'GPL-2.0-or-later',
   'GPL-3.0-or-later' => 'GPL-3.0-or-later',
   'ISC' => 'ISC',
-  'JDOM License（BSD-style）' => 'LicenseRef-JDOM',
+  'JDOM License (BSD-style)' => 'LicenseRef-JDOM',
   'LGPL-2.1-or-later' => 'LGPL-2.1-or-later',
   'Libpng-2.0' => 'Libpng-2.0',
   'MIT' => 'MIT',
@@ -69,9 +69,9 @@ def import_components(path)
 
     row[2] = selection[0]
     notes = row[7]
-      .sub('；建议表中保留双许可证表达', '')
-      .sub('；建议表中保留三许可证表达', '')
-      .sub('；原仅填 Apache-2.0 不完整', '')
+      .sub('; retain the dual-license expression in the form', '')
+      .sub('; retain the triple-license expression in the form', '')
+      .sub('; Apache-2.0 alone was incomplete', '')
     row[7] = "#{selection[1]} #{notes}"
   end
 
@@ -118,7 +118,7 @@ def write_notice(rows)
 end
 
 def write_modifications(rows)
-  modified = rows.select { |row| row['modified'] == '是' }
+  modified = rows.select { |row| row['modified'] == 'Yes' }
   content = [
     '# Third-Party Modification Changelog',
     '',

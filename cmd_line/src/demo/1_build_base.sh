@@ -1,33 +1,30 @@
 #!/bin/sh
 ###############################################################################
-# 演示功能：构建 Jugg 基础包，后续增量编译依赖。通过 baseBuildJuggRootDir 的输入
+# Demo: build the Jugg baseline needed for later incremental builds.
 ###############################################################################
 
-# cd 到 demo 目录
+# Change to the demo directory.
 dir=$(dirname $0)
 cd $dir
 
-# 清除产物，重新解压工程
+# Remove previous outputs and extract the project again.
 rm -rf demo_project
 rm -rf outputs
 rm -rf backups
 unzip -q demo_project.zip
 
-# 环境配置
-# 强烈建议 JDK 版本 >= 14，在后续构建增量 APK 的时候速度可以快几倍
+# Environment. JDK 14 or later can make the later incremental APK build several times faster.
 echo "JAVA_HOME" $JAVA_HOME
 echo "ANDROID_HOME" $ANDROID_HOME
 
-# 运行 buildGradleBase 命令
-# 功能：构建收集 Jugg 增量编译基础产物
-# 参数介绍：
-#     cmd：运行命令
-#     baseBuildProjectDir：工程目录，相对/绝对路径都可以
-#     gradleCompileTask：构建 apk 的 gradle 编译命令
-#     gradleOutputApkPath：apk 输出路径（相对工程的相对路径
-#     logLevel：（可选）日志级别 debug/info/warn/error，默认 debug
-#     outputApkDir：（可选）apk 输出目录
-# 命令 cmd_line 等价于 java -cp "lib/*" com.sickworm.intellij.jugg.cmdline.CmdLineKt
+# Run buildGradleBase to collect baseline artifacts for Jugg incremental compilation.
+# cmd: command to run.
+# baseBuildProjectDir: project directory, relative or absolute.
+# gradleCompileTask: Gradle task that builds the APK.
+# gradleOutputApkPath: APK output path relative to the project.
+# logLevel: optional debug/info/warn/error level; defaults to debug.
+# outputApkDir: optional APK output directory.
+# cmd_line is equivalent to java -cp "lib/*" com.sickworm.intellij.jugg.cmdline.CmdLineKt.
 ../bin/cmd_line \
     cmd=buildGradleBase \
     baseBuildProjectDir=demo_project \
@@ -36,22 +33,22 @@ echo "ANDROID_HOME" $ANDROID_HOME
     logLevel=debug \
     outputApkDir=outputs
 
-# 检查结果
+# Check the result.
 result=$?
 if [ $result == 0 ]; then
-  echo "构建成功"
+  echo "Build succeeded"
 else
-  echo "构建失败"
+  echo "Build failed"
   exit -1
 fi
 
-# 备份 build/jugg 目录
-echo "备份 build/jugg 目录"
+# Back up the build/jugg directory.
+echo "Backing up build/jugg directory"
 mkdir backups
 cp -r demo_project/build/jugg backups/jugg_bak
-echo "备份完成"
+echo "Backup complete"
 
-# 打印结果
-echo "Jugg 基础包备份目录：$dir/backups/jugg_bak"
-echo "输出 APK："
+# Print the results.
+echo "Jugg baseline backup directory: $dir/backups/jugg_bak"
+echo "Output APK:"
 ls "$dir/outputs/"*
