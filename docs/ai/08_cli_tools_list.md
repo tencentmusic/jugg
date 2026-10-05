@@ -1,89 +1,89 @@
-# jugg CLI 参数与 MCP 映射
+# jugg CLI Arguments and MCP Mapping
 
-> 最后核对：2026-09-10
-> 一致性规则：文档与代码冲突时，以代码为准。
-
----
-
-## 1. 文档定位
-
-本页只描述 `jugg` CLI 的公开子命令、全局参数、CLI flag 到 MCP 参数的映射，以及几个容易误判的 CLI-only 行为。
-
-不展开 MCP tool 的完整 schema；完整参数以 [`08_mcp_tools_list.md`](08_mcp_tools_list.md) 与 `tools/list` 为准。Benchmark prompt pack、hooks 验收与被测 Agent 报告格式由 `docs/skills/benchmark/` 承载，不放在本参数清单内。
+> Last checked: 2026-09-10
+> Consistency rule: when documentation conflicts with code, code is authoritative.
 
 ---
 
-## 2. 核心源码索引
+## 1. Scope
 
-| 文件 | 作用 |
+This page covers only public `jugg` CLI subcommands, global arguments, CLI-flag-to-MCP-argument mapping, and several easily misunderstood CLI-only behaviors.
+
+It does not reproduce the complete MCP tool schemas; see [`08_mcp_tools_list.md`](08_mcp_tools_list.md) and `tools/list` for full arguments. The benchmark prompt pack, hook acceptance criteria, and tested Agent report format live in `docs/skills/benchmark/`, outside this argument list.
+
+---
+
+## 2. Core source index
+
+| File | Role |
 |------|------|
-| `docs/skills/jugg-android-dev-loop/scripts/jugg.py` | CLI 总入口；解析全局参数、处理本地 help、懒加载子命令 |
-| `docs/skills/jugg-android-dev-loop/scripts/py/help_registry.py` | side-effect-free help 文案；`COMMAND_HELP` 必须覆盖全部公开 CLI 子命令 |
-| `docs/skills/jugg-android-dev-loop/scripts/py/jugglib.py` | MCP 端口发现、projectDir 解析、kebab-case 归一化、异步轮询、输出格式 |
-| `docs/skills/jugg-android-dev-loop/scripts/py/cmd/cmd_*.py` | 各子命令参数解析；通常只做 MCP 参数直传和必要的本地校验，`stop` 直接调用 standalone launcher |
-| `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/McpToolActionRegistry.kt` | MCP 注册工具事实来源；除本地生命周期命令外，CLI 子命令映射到这里的公开工具 |
+| `docs/skills/jugg-android-dev-loop/scripts/jugg.py` | CLI entry point; parses global arguments, handles local help, and lazily loads subcommands. |
+| `docs/skills/jugg-android-dev-loop/scripts/py/help_registry.py` | Side-effect-free help text; `COMMAND_HELP` must cover every public CLI subcommand. |
+| `docs/skills/jugg-android-dev-loop/scripts/py/jugglib.py` | MCP port discovery, projectDir resolution, kebab-case normalization, asynchronous polling, and output formatting. |
+| `docs/skills/jugg-android-dev-loop/scripts/py/cmd/cmd_*.py` | Subcommand argument parsing; usually passes MCP arguments through with necessary local validation; `stop` calls the standalone launcher directly. |
+| `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/McpToolActionRegistry.kt` | Source of truth for registered MCP tools; CLI subcommands other than local lifecycle commands map to public tools here. |
 
 ---
 
-## 3. 全局行为
+## 3. Global behavior
 
-### 3.0 Python 版本要求
+### 3.0 Python version requirement
 
-`jugg` CLI 最低支持 Python 3.7。macOS/Linux wrapper 按 `python3`、`python` 顺序回退；Windows wrapper 会实际验证解释器版本，并按 `python3`、`python`、`py -3` 顺序回退，避免仅依赖 `where.exe` 的 PATH 查询结果。CLI 脚本统一启用 postponed annotations，避免 `list[str]`、`dict[str]`、`bool | None` 等注解在 Python 3.7 import 阶段求值失败。
+The `jugg` CLI supports Python 3.7 and later. The macOS/Linux wrapper falls back from `python3` to `python`; the Windows wrapper actually checks interpreter versions and tries `python3`, `python`, then `py -3`, avoiding reliance on `where.exe` PATH results alone. CLI scripts uniformly enable postponed annotations so annotations such as `list[str]`, `dict[str]`, and `bool | None` are not evaluated during Python 3.7 import.
 
-兼容性事实来源是 `docs/skills/python_compat.json`；回归检查入口是 `tools/check_python_compat.py --target jugg_cli`。严格 runtime 校验需要 PATH 中存在 `python3.7`，并使用 `--strict-runtime`。
+`docs/skills/python_compat.json` is the compatibility source of truth. Run regression checks with `tools/check_python_compat.py --target jugg_cli`. Strict runtime validation requires `python3.7` on PATH and the `--strict-runtime` option.
 
-### 3.1 projectDir 解析
+### 3.1 projectDir resolution
 
-默认路径：
+Default path:
 
 ```text
 jugg.py
   -> jugglib.resolve_project_dir()
-  -> 从当前目录向上查找最近的 settings.gradle(.kts)
-  -> 精确拥有该 Gradle 工程的 IDEA Runtime 存在时优先选择 IDEA
-  -> 没有匹配 IDEA 时选择拥有该工程的 standalone Runtime
-  -> 未命中时复用任意 standalone Runtime，由首个合法项目请求自动注册
-  -> 没有 standalone Runtime 时才启动新进程
+  -> find the nearest settings.gradle(.kts) upward from the current directory
+  -> prefer an IDEA Runtime that owns this exact Gradle project
+  -> otherwise select a standalone Runtime that owns the project
+  -> if none owns it, reuse any standalone Runtime and auto-register on the first valid project request
+  -> start a new process only when no standalone Runtime exists
 ```
 
-自动解析时，独立嵌套 Gradle 工程不会被已打开的父 IDEA 工程截获；例如父仓库与其 `android_demo_project` 都有 `settings.gradle(.kts)` 时，从后者目录执行 CLI 会使用后者的 Runtime，未打开时复用或启动 standalone Runtime，并在首个项目请求中注册该嵌套工程。
+During automatic resolution, an independently nested Gradle project is not intercepted by an open parent IDEA project. For example, if both the parent repository and its `android_demo_project` have `settings.gradle(.kts)`, invoking the CLI from the latter uses its Runtime; if it is not open, the CLI reuses or starts a standalone Runtime and registers the nested project on the first project request.
 
-传入 `--project-dir <path>` 或 `--project-dir=<path>` 时，CLI 仍用该路径发现 Runtime，并允许将最长前缀匹配到的已初始化项目目录作为 MCP `projectDir`。因此，显式传入 IDEA 工程根目录下的普通子目录时会由该 IDEA Runtime 处理；未匹配时才按 standalone 启动流程处理。`--projectDir` 作为 camelCase 全局别名也会被归一化。
+With `--project-dir <path>` or `--project-dir=<path>`, the CLI still uses that path to discover a Runtime and may send the initialized project directory found by longest-prefix matching as MCP `projectDir`. An ordinary subdirectory explicitly specified beneath an IDEA project root is therefore handled by that IDEA Runtime; only an unmatched path follows the standalone startup flow. The camelCase global alias `--projectDir` is normalized too.
 
-macOS 上 Runtime 归属匹配会使用大小写折叠后的路径 key；Runtime 探测进度、IDE Runtime 未找到和 standalone 启动进度均显示用户输入或当前工程的原始大小写路径。
+On macOS, Runtime ownership matching uses a case-folded path key. Runtime discovery progress, a missing IDE Runtime message, and standalone startup progress display the original casing of the user-provided or current project path.
 
-### 3.1.1 设备 serial
+### 3.1.1 Device serial
 
-`--serial <adbSerial>` / `--serial=<adbSerial>` 是与 `--project-dir` 同级的全局参数。它会向消费设备目标的命令注入 MCP `serial`：`deploy`、`gradle-build`、`clean-reinstall`、`restart`、`instrument`、`status`、`devices`、`layout-dump`、`view-locate`、`view-inspect`、`tap`、`activity-stack`、`wait-logs`，以及 `report` 的 `report-prepare` 阶段。`version`、`stop`、`compile`、`ssh-info`、`report-upload` 和内部 `get-compile-status` 不接收该参数。
+`--serial <adbSerial>` / `--serial=<adbSerial>` is a global argument at the same level as `--project-dir`. It injects MCP `serial` into commands that consume a device target: `deploy`, `gradle-build`, `clean-reinstall`, `restart`, `instrument`, `status`, `devices`, `layout-dump`, `view-locate`, `view-inspect`, `tap`, `activity-stack`, `wait-logs`, and the `report-prepare` stage of `report`. `version`, `stop`, `compile`, `ssh-info`, `report-upload`, and internal `get-compile-status` do not receive it.
 
-显式 serial 使用大小写敏感的精确在线设备匹配，优先级高于 IDEA 当前选中设备和 standalone daemon 启动时继承的 `ANDROID_SERIAL`；只影响当前 CLI 请求，不修改 IDE 选择、Run Configuration 或后续调用。未传 serial 时保持原有 Host 行为。
+An explicit serial requires an exact, case-sensitive online-device match. It takes precedence over the currently selected IDEA device and `ANDROID_SERIAL` inherited when the standalone daemon started. It affects only this CLI request; it changes neither IDE selection, Run Configuration, nor subsequent calls. Without serial, existing Host behavior remains.
 
-未传 serial 时，`compile`、`status`、`devices` 不要求唯一设备；`deploy`、`clean-reinstall`、`instrument` 沿用多设备部署并处理全部目标设备；`restart` 重启全部目标设备。`layout-dump`、`view-locate`、`view-inspect`、`tap`、`activity-stack`、`wait-logs` 等单设备操作在存在多个目标设备时返回结构化 `MULTIPLE_DEVICE`，提示通过 `--serial` 指定设备，不得转换为 HTTP 500。`report` 为兼容已有调用仍接收全局 serial，但忽略其值并 Best-effort 收集全部目标设备的错误日志。
+Without serial, `compile`, `status`, and `devices` do not require a unique device. `deploy`, `clean-reinstall`, and `instrument` retain multi-device deployment and process all target devices; `restart` restarts all target devices. Single-device operations such as `layout-dump`, `view-locate`, `view-inspect`, `tap`, `activity-stack`, and `wait-logs` return structured `MULTIPLE_DEVICE` when multiple target devices exist, instructing the user to specify `--serial`; they must not turn that into HTTP 500. For compatibility, `report` still accepts global serial but ignores its value and collects error logs from all target devices on a best-effort basis.
 
-### 3.2 端口与缓存
+### 3.2 Ports and cache
 
-CLI 并行扫描 `12320..12329` 后分别调用 `version`、`list-projects`，按目标 `projectDir` 选择 Runtime；单轮端口扫描耗时由最慢端口决定，不会因 Windows 空闲端口逐个 timeout 而线性累加。端口缓存只用于优先探测，不覆盖项目归属判断。默认模式下，同一项目同时出现在 IDEA 与 standalone Runtime 时稳定选择 IDEA，不跟随瞬时 `runtime.lock.owner.json` 或最近 `runtime.owner.json` 切回 standalone；没有匹配 IDEA 时才参考 owner 信息选择其他 Runtime。全局参数 `--runtime idea|standalone` 可覆盖自动选择。单条 CLI 命令选定端口后在进程内持续复用，不因 owner 变化或新 Runtime 出现而迁移；选定端口失效时当前命令失败。没有项目 owner 且未强制 IDEA 时，CLI 复用任意已运行的 standalone Runtime，并将目标项目保留为 pending projectDir，首个合法项目请求完成自动注册。
+The CLI scans `12320..12329` in parallel, then calls `version` and `list-projects` to choose a Runtime for `projectDir`. One scan takes as long as its slowest port, rather than accumulating sequential Windows idle-port timeouts. The port cache only prioritizes probing; it cannot override project ownership. In default mode, if the same project exists in IDEA and standalone Runtimes, IDEA is chosen consistently, without switching back to standalone based on transient `runtime.lock.owner.json` or recent `runtime.owner.json`. Only if IDEA does not match does owner information guide selection among other Runtimes. Global `--runtime idea|standalone` overrides automatic selection. Once a CLI command chooses a port, it uses that port for the process lifetime, without migrating if ownership changes or another Runtime appears; the command fails if its chosen port becomes unavailable. With no project owner and no forced IDEA mode, it reuses any running standalone Runtime, retaining the target as pending projectDir until the first valid project request auto-registers it.
 
-当前没有 standalone Runtime 时，普通 CLI 取得 `~/.jugg/locks/standalone.launch.lock`，在锁内重新发现 Runtime；仍未发现时才启动 standalone launcher，并持锁等待端口注册，避免不同项目并发创建多个 daemon。测试或特殊环境可用 `JUGG_STANDALONE_LAUNCH_LOCK` 覆盖锁路径。launcher 默认路径为 `~/.jugg/standalone/bin/jugg-standalone`（Windows 为 `.bat`），可用 `JUGG_STANDALONE_LAUNCHER` 覆盖。启动和首个项目自动注册的等待硬超时均为 60 秒；launch lock 最长等待 75 秒。初始化超过 10 秒后，CLI 每 10 秒从目标项目 `build/jugg/log/standlone_cli/compile_latest.log` 读取最后一条结构化日志并向 stderr 输出 heartbeat；日志缺失或读取失败只显示日志暂不可用，不中断启动。日志行最多输出 500 个字符。新进程 stdout/stderr 仍写入启动项目 `build/jugg/log/standlone_cli/standalone_startup.log`；进程在端口就绪前退出时立即展示 exit code、日志尾部和完整日志路径。Hook 调用必须设置 `JUGG_CALLER=hook`；只有目标项目 `build/jugg/database/compile_context.db/complete_flag` 已存在时才允许启动进程或在已有 standalone 中注册新项目，否则直接以成功状态跳过。
+When there is no standalone Runtime, an ordinary CLI command acquires `~/.jugg/locks/standalone.launch.lock` and rechecks Runtime discovery under the lock. It starts the standalone launcher only if none is found, then holds the lock while waiting for port registration so concurrent projects do not create multiple daemons. Tests or special environments can override the lock path through `JUGG_STANDALONE_LAUNCH_LOCK`. The default launcher is `~/.jugg/standalone/bin/jugg-standalone` (`.bat` on Windows), overridable with `JUGG_STANDALONE_LAUNCHER`. Startup and first-project auto-registration each have a hard 60-second wait timeout; launch-lock acquisition waits at most 75 seconds. After initialization exceeds 10 seconds, the CLI reads the last structured log entry from the target project's `build/jugg/log/standlone_cli/compile_latest.log` every 10 seconds and prints a heartbeat to stderr. Missing or unreadable logs only produce a temporary-log-unavailable message, without interrupting startup. A log line is limited to 500 characters. New-process stdout/stderr still goes to the startup project's `build/jugg/log/standlone_cli/standalone_startup.log`. If the process exits before its port is ready, the CLI immediately shows the exit code, log tail, and full log path. Hook calls must set `JUGG_CALLER=hook`; they may start a process or register a new project in an existing standalone Runtime only if the target project's `build/jugg/database/compile_context.db/complete_flag` exists. Otherwise, they skip successfully.
 
-standalone Step 11 支持 `compile`、`deploy`、`gradle-build`、`restart`、`devices`、`report`、内部 `get-compile-status` 与 `status`；首次构建会按需创建当前 build profile。其中 `deploy --serial`、`gradle-build --serial`、`restart --serial` 与 `devices --serial` 可在 daemon 已运行后按请求切换设备；未传 serial 时 standalone 将全部在线设备作为部署或重启目标，并由 `devices` 返回全部在线设备。`status --serial` 返回指定设备状态；`report` 忽略 serial 并收集全部在线设备的错误 logcat；standalone `gradle-build` 建立 baseline 后继续安装或部署，没有在线设备时以部署失败结束。`clean-reinstall`、`instrument`、`layout-dump`、`view-locate`、`view-inspect`、`tap`、`activity-stack`、`wait-logs` 仍未注册为 standalone capability，需 IDEA Runtime。当前配置启用 remote compile 时，standalone 复用 IDEA 的远程 Gradle 客户端执行 full build/fallback；增量编译和设备操作仍在 standalone 所在本机执行。远程构建前仍可能在本地执行 project info Gradle dry-run，不应把 remote 理解为“本地不运行 Gradle”。
+Standalone Step 11 supports `compile`, `deploy`, `gradle-build`, `restart`, `devices`, `report`, internal `get-compile-status`, and `status`; the first build creates the current build profile on demand. `deploy --serial`, `gradle-build --serial`, `restart --serial`, and `devices --serial` can switch devices per request after the daemon starts. Without serial, standalone treats all online devices as deployment or restart targets, and `devices` returns all online devices. `status --serial` returns the specified device status; `report` ignores serial and collects error logcat from all online devices; after establishing a baseline, standalone `gradle-build` proceeds with installation or deployment and fails at deployment when no device is online. `clean-reinstall`, `instrument`, `layout-dump`, `view-locate`, `view-inspect`, `tap`, `activity-stack`, and `wait-logs` remain unregistered standalone capabilities and require IDEA Runtime. When the current configuration enables remote compile, standalone reuses IDEA's remote Gradle client for full builds and fallback; incremental compilation and device operations still run on the standalone host. A local project-info Gradle dry run may still occur before a remote build; "remote" does not mean Gradle never runs locally.
 
-`status` 在项目空闲且可立即取得项目锁时完成 Git refresh、Runtime owner 恢复和一致性快照；同 Runtime 正在 compile/deploy，或项目锁正由其他写事务持有时，不等待写锁也不刷新文件状态，而是立即返回当前真实只读快照。实际部署状态、fallback 原因、待编译文件、baseline 和时间戳仍会返回；`isCompiling` 只反映当前 Runtime 的 compile/deploy 运行态，保证 CLI wait/heartbeat 不被长任务阻塞。
+When the project is idle and its lock is immediately available, `status` completes a Git refresh, Runtime-owner recovery, and a consistency snapshot. During a compile/deploy on that Runtime, or while another write transaction holds the project lock, it neither waits for the write lock nor refreshes file state, and instead immediately returns the current true read-only snapshot. Actual deployment state, fallback cause, pending files, baseline, and timestamps are still returned. `isCompiling` reflects only this Runtime's compile/deploy activity, preventing long tasks from blocking CLI waits and heartbeats.
 
-当进程仍存活但等待端口达到 60 秒硬超时时，CLI 会在失败前再执行一次完整 Runtime 发现，避免 daemon 恰好在最后一轮扫描期间完成启动却被误报超时。最终仍未识别时，CLI 先输出 `standalone_startup.log` 尾部与路径；若端口 ping 成功但 `version` 或 `list-projects` 握手失败，再输出 Runtime discovery summary，最后输出每个端口的探测摘要。只有 timeout、HTTP 5xx 或其它非预期异常会触发一次短重试；纯 connection refused 不为同一轮扫描重试。
+If a process is still alive when the hard 60-second port wait times out, the CLI makes one final complete Runtime discovery pass before failing. This avoids a false timeout when the daemon starts during the last scan. If still undiscovered, it prints the `standalone_startup.log` tail and path, then a Runtime discovery summary if port ping succeeded but the `version` or `list-projects` handshake failed, and finally a per-port probe summary. Only timeouts, HTTP 5xx, or other unexpected exceptions trigger one short retry; a plain connection refusal is not retried in the same scan.
 
-`jugg stop` 是 standalone CLI 专用的本地生命周期命令，不扫描 MCP 端口，也不调用 `resolve_port()`，因此不会在停止时意外拉起 Runtime。CLI 同步调用 standalone launcher 的 `--stop-all` 控制模式；bootstrap 在加载 active Runtime JAR 前按 Jugg 根目录匹配全部 standalone 进程。平台支持正常终止时先请求正常退出并等待 5 秒，仍存活时强制终止，不支持的平台直接强制终止。未找到进程时幂等成功。该命令会同时停止这些进程承载的所有项目，但不删除 run configuration、Compile Context、历史或日志；`--runtime idea` 明确失败。
+`jugg stop` is a standalone-CLI-only local lifecycle command. It neither scans MCP ports nor calls `resolve_port()`, so stopping cannot accidentally start a Runtime. The CLI synchronously invokes standalone launcher's `--stop-all` control mode; before loading the active Runtime JAR, bootstrap finds all standalone processes matching the Jugg root. On platforms supporting graceful termination, it requests exit, waits five seconds, then forcibly terminates survivors; other platforms terminate immediately. No matching process is an idempotent success. The command stops all projects hosted by those processes, but does not delete run configurations, Compile Context, history, or logs. `--runtime idea` fails explicitly.
 
-顶部扫描失败文案是“没有端口通过 MCP 探测”的聚合结果，只能证明本轮未发现可用 endpoint，不能单独证明具体传输原因、IDE 状态或插件生命周期。诊断时以逐端口摘要为底层分类依据；若现场输出没有保留摘要，则该层原因保持未知，继续结合生成实现和其它原始证据判断。
+A top-level scan failure message aggregates "no port passed MCP probing". It proves only that this scan found no usable endpoint; by itself it cannot establish a particular transport cause, IDE state, or plugin lifecycle. Diagnose using per-port summaries as the underlying classification. If those summaries were not retained, leave the cause at that layer unknown and inspect the generated implementation and other raw evidence.
 
-| 文件 | 默认路径 | 环境变量 |
-|------|----------|----------|
-| 端口缓存 | `~/.cache/jugg/port`（Linux/macOS）/ `%LOCALAPPDATA%/jugg/port`（Windows） | `JUGG_PORT_CACHE` |
-| 缓存根目录 | `~/.cache/jugg/` | `JUGG_CACHE_DIR` |
-| standalone 启动锁 | `~/.jugg/locks/standalone.launch.lock` | `JUGG_STANDALONE_LAUNCH_LOCK` |
+| File | Default path | Environment variable |
+|------|--------------|----------------------|
+| Port cache | `~/.cache/jugg/port` (Linux/macOS) / `%LOCALAPPDATA%/jugg/port` (Windows) | `JUGG_PORT_CACHE` |
+| Cache root | `~/.cache/jugg/` | `JUGG_CACHE_DIR` |
+| Standalone launch lock | `~/.jugg/locks/standalone.launch.lock` | `JUGG_STANDALONE_LAUNCH_LOCK` |
 
-### 3.3 输出模式
+### 3.3 Output modes
 
 ```text
 jugg --console=plain <subcommand>
@@ -91,37 +91,37 @@ jugg --console=rich <subcommand>
 jugg --console=json <subcommand>
 ```
 
-- `plain`：直接 `python3 jugg.py` 的默认模式，不显示 spinner。
-- `rich`：shell / Windows wrapper 默认注入，面向人工终端显示 spinner。
-- `json`：输出 MCP `structuredContent` JSON，供脚本或 Agent 消费。
+- `plain`: default when running `python3 jugg.py` directly; no spinner.
+- `rich`: injected by default by shell/Windows wrappers; shows a spinner in a human-facing terminal.
+- `json`: outputs MCP `structuredContent` JSON for scripts and Agents.
 
-快速复用已存在 IDEA 或 standalone Runtime 时不保留发现/端口日志。`rich` 交互终端以临时 spinner 显示探测进度；`plain` 或非交互输出仅在探测超过 1 秒后打印 `Checking Jugg runtime`，并在完成后打印选择结果。复用 standalone 注册新项目、实际启动 standalone、启动等待和错误诊断始终保留对应进度；`json` 不输出这些提示。
+Fast reuse of an existing IDEA or standalone Runtime does not retain discovery/port logs. An interactive `rich` terminal shows discovery progress in a temporary spinner. `plain` or non-interactive output prints `Checking Jugg runtime` only after probing exceeds one second, and prints the selection result on completion. Progress for registering a new project in reused standalone, actually starting standalone, waiting for startup, and error diagnosis always remains visible; `json` prints none of these prompts.
 
-`compile` / `deploy` / `gradle-build` / `instrument` 的长耗时进度提示不进入结果 stdout。`plain` 会在触发前向 stderr 输出一次起始进度（如 `Running Gradle build...`），并在运行中输出无额外前缀的 heartbeat；`rich` 会更新同一行 spinner 文案；`json` 保持 stdout 纯 JSON，默认不输出 heartbeat。
+Long-running progress for `compile`, `deploy`, `gradle-build`, and `instrument` does not enter result stdout. `plain` prints one initial progress message (such as `Running Gradle build...`) to stderr before triggering and unprefixed heartbeats while running. `rich` updates the same spinner line. `json` keeps stdout pure JSON and prints no heartbeat by default.
 
-`deploy` 成功且本轮没有编译源码时，结果只说明没有源码变化，不据此推断 APK 或其它部署动作未执行，也不宣称变更此前已经部署。最近一次含文件变化的部署详情只保存在当前 IDEA 或 standalone Runtime 会话中；没有记录时返回 Runtime 中性说明。
+A successful `deploy` with no source compilation this run reports only that no source files changed. It does not infer that no APK or other deployment action happened, or claim changes were previously deployed. Details of the latest deployment with file changes exist only in the current IDEA or standalone Runtime session; with no record, the result uses Runtime-neutral wording.
 
-用户用 Ctrl-C 中断 compile 类命令时，CLI 输出简短 `Interrupted by user.` 并以 130 退出，不打印 Python traceback。
+When the user interrupts a compile-type command with Ctrl-C, the CLI prints brief `Interrupted by user.` and exits with 130, without a Python traceback.
 
-全局参数由 `jugg.py` 在子命令分发前抽取；示例统一写在子命令前，便于阅读。
+`jugg.py` extracts global arguments before dispatching a subcommand. Examples put them before subcommands for readability.
 
-### 3.4 并发 compile 策略
+### 3.4 Concurrent compile policy
 
 ```text
 jugg [--if-compiling wait|interrupt] <compile|deploy|gradle-build|instrument> [options]
 ```
 
-- `wait`（默认）：触发前每 5s 轮询 `status.isCompiling=false`；持续等待时每 30s 在 stderr 输出一次 `waiting for previous compile` heartbeat。
-- `interrupt`：跳过等待，立即调用目标 MCP tool；服务端沿用“新任务中断旧任务”的语义。
-- 这是 CLI-only 全局参数，不发送给 MCP。
+- `wait` (default): poll `status.isCompiling=false` every five seconds before triggering; while waiting, print a `waiting for previous compile` heartbeat to stderr every 30 seconds.
+- `interrupt`: skip the wait and immediately invoke the target MCP tool; the server keeps its "new task interrupts old task" semantics.
+- This is a CLI-only global argument and is not sent to MCP.
 
-### 3.5 异步编译轮询
+### 3.5 Asynchronous compile polling
 
-`compile`、`deploy`、`gradle-build`、`instrument` 经 `jugglib.compile_call()` 调用。若首次响应 `data.status=running`，CLI 用 `get-compile-status` + `waitTimeoutMs=5000` 轮询到终态，并保留首次响应中的 `logPath`。
+`compile`, `deploy`, `gradle-build`, and `instrument` call through `jugglib.compile_call()`. If the first response is `data.status=running`, the CLI polls with `get-compile-status` and `waitTimeoutMs=5000` to a terminal state, retaining `logPath` from the first response.
 
-`get-compile-status` 返回 running 且附带 `data.indicator.text` 时，`plain` 模式会立即向 stderr 输出首条 heartbeat，后续同类 running heartbeat 每 30s 节流一次；`rich` 模式会用该文本覆盖当前 spinner 文案并保留 spinner；`json` 模式不输出该 heartbeat。
+When `get-compile-status` returns running with `data.indicator.text`, `plain` immediately prints the first heartbeat to stderr and throttles subsequent running heartbeats of that kind to every 30 seconds. `rich` uses the text to replace its current spinner wording while retaining the spinner; `json` prints no such heartbeat.
 
-### 3.6 help 输出
+### 3.6 Help output
 
 ```text
 jugg --help
@@ -129,70 +129,69 @@ jugg help <subcommand>
 jugg <subcommand> --help
 ```
 
-help 在 `jugg.py` 内直接返回，只读取 `help_registry.py`，不会连接 MCP、解析 `projectDir`、触发编译或部署。
+Help returns directly from `jugg.py`, reading only `help_registry.py`; it does not connect to MCP, resolve `projectDir`, or trigger compilation or deployment.
 
-### 3.7 CLI / skill 版本
+### 3.7 CLI / skill versions
 
-`jugg version` 的 `cliVersion` 来自 `scripts/py/cmd/cmd_version.py` 的 `CLI_VERSION`。
+`jugg version` obtains `cliVersion` from `CLI_VERSION` in `scripts/py/cmd/cmd_version.py`.
 
-插件初始化后 `JuggCliAutoUpdater` 会比较插件内 `docs-skills.zip` 与 `~/.jugg/skills/jugg-android-dev-loop/SKILL.md` 的 `version:`。只有 bundled 更高时才覆盖 `~/.jugg/bin` 和已安装的 agent skill。比较的是 `SKILL.md` 版本，不是 `CLI_VERSION`。
+After plugin initialization, `JuggCliAutoUpdater` compares the bundled `docs-skills.zip` with the `version:` in `~/.jugg/skills/jugg-android-dev-loop/SKILL.md`. Only a newer bundle overwrites `~/.jugg/bin` and the installed agent skill. The comparison uses the `SKILL.md` version, not `CLI_VERSION`.
 
-修改 `docs/skills/jugg-android-dev-loop/scripts/`、help 或 skill references 后必须同时：
+After modifying `docs/skills/jugg-android-dev-loop/scripts/`, help, or skill references, also:
 
-1. 递增 `CLI_VERSION`
-2. 递增 `SKILL.md` frontmatter 的 `version`，并更新 `date`
+1. Increment `CLI_VERSION`.
+2. Increment `SKILL.md` frontmatter `version` and update `date`.
 
-只改脚本不改 `SKILL.md` version，用户更新插件后仍会继续用旧 CLI 和 skill。
+Changing a script without the `SKILL.md` version leaves users on the old CLI and skill even after a plugin update.
+
+---
+## 4. Argument-mapping constraints
+
+CLI argument design follows "mechanical mapping, no new semantics":
+
+| Rule | Correct approach | Prohibited approach |
+|------|------------------|---------------------|
+| A flag name mechanically converts to an MCP key | `--always-restart-app` -> `alwaysRestartApp` | Invent an alias that cannot map back to an MCP key. |
+| kebab-case and camelCase are equivalent | `--source-path` -> `--sourcePath` -> `sourcePath` | Retain `--clazz` or `--instrumentationRunner` as old aliases. |
+| Omitted CLI argument means it is not sent to MCP | Omit `--always-restart-app`. | Hard-code a CLI default that overrides MCP's default. |
+| CLI-only arguments stay at the global layer | `--if-compiling` affects only the pre-trigger wait. | Put a CLI-only argument into MCP arguments. |
+| Global layer injects per-request device arguments | `--serial emulator-5556 deploy` -> `deploy.serial` | Change IDE's selected device or daemon process environment. |
+| Local lifecycle commands do not enter MCP | `stop` calls the standalone launcher directly. | Discover a port or auto-start a Runtime before stopping it. |
+
+`jugglib.normalize_args()` only mechanically converts kebab-case to camelCase; it creates no semantic aliases. Each `cmd_*.py`'s `build_params()` is the actual argument pass-through boundary.
 
 ---
 
-## 4. 参数映射约束
+## 5. Public subcommands
 
-CLI 参数设计遵循“机械映射，不创造新语义”：
+There are currently 18 public CLI subcommands from `jugg.py::COMMANDS`.
 
-| 规则 | 正确做法 | 禁止做法 |
-|------|----------|----------|
-| flag 名可机械转成 MCP key | `--always-restart-app` -> `alwaysRestartApp` | 自造无法转回 MCP key 的别名 |
-| kebab-case 与 camelCase 等价 | `--source-path` -> `--sourcePath` -> `sourcePath` | 为兼容旧名字保留 `--clazz`、`--instrumentationRunner` |
-| CLI 省略参数即不发送给 MCP | 不传 `--always-restart-app` | CLI 硬编码默认值覆盖 MCP 默认值 |
-| CLI-only 参数必须留在全局层 | `--if-compiling` 只影响触发前等待 | 把 CLI-only 参数塞进 MCP arguments |
-| 请求级设备参数由全局层注入 | `--serial emulator-5556 deploy` -> `deploy.serial` | 修改 IDE 选中设备或 daemon 进程环境 |
-| 本地生命周期命令不进入 MCP | `stop` 直接调用 standalone launcher | 为停止 Runtime 先执行端口发现或自动启动 |
+| Subcommand | MCP tool | Purpose |
+|------------|----------|---------|
+| `version` | `version` | Show CLI and plugin versions; no `projectDir` needed. |
+| `stop` | CLI local | Stop every standalone Runtime under the same Jugg root; neither connect to nor start a Runtime. |
+| `compile` | `compile` | Incrementally compile and automatically poll to a terminal state. |
+| `deploy` | `deploy` | Compile and deploy, automatically polling to a terminal state. |
+| `gradle-build` | `gradle-build` | Force a Gradle build and follow the install/start flow. |
+| `clean-reinstall` | `clean-reinstall` | Clear data and reinstall APKs. |
+| `restart` | `restart` | Restart the app. |
+| `instrument` | `instrument` | Run a test anchored to an androidTest source file. |
+| `status` | `status` | Inspect deployment state, pending-file summary, androidTest baseline, and compile activity. |
+| `layout-dump` | `layout-dump` | Export the UI hierarchy as HTML. |
+| `view-locate` | `view-locate` | Find element positions, candidate budget, and source location. |
+| `view-inspect` | `view-inspect` | Read View properties through reflection. |
+| `tap` | `tap` | Touch by coordinate, percentage, or element. |
+| `devices` | `devices` | List devices. |
+| `activity-stack` | `activity-stack` | Inspect the Activity stack. |
+| `ssh-info` | `ssh-info` | Request SSH troubleshooting information. |
+| `report` | `report-prepare` + `report-upload` | Create and show a final diagnostic bundle, then upload after user confirmation. |
+| `wait-logs` | `wait-logs` | Wait for an app-log marker, crash, or timeout. |
 
-`jugglib.normalize_args()` 只做 kebab-case 到 camelCase 的机械转换，不做语义 alias。每个 `cmd_*.py` 的 `build_params()` 是实际参数直传边界。
-
----
-
-## 5. 公开子命令
-
-当前公开 CLI 子命令共 18 个，来自 `jugg.py::COMMANDS`。
-
-| 子命令 | MCP tool | 说明 |
-|--------|----------|------|
-| `version` | `version` | 显示 CLI 版本和插件版本；无需 `projectDir` |
-| `stop` | CLI local | 停止同一 Jugg root 下的全部 standalone Runtime；不连接或启动 Runtime |
-| `compile` | `compile` | 增量编译，自动轮询终态 |
-| `deploy` | `deploy` | 编译并部署，自动轮询终态 |
-| `gradle-build` | `gradle-build` | 强制 Gradle 构建并走后续安装/启动链路 |
-| `clean-reinstall` | `clean-reinstall` | 清数据并重装 APK |
-| `restart` | `restart` | 重启 App |
-| `instrument` | `instrument` | 从 androidTest 源文件锚点运行测试 |
-| `status` | `status` | 查看部署状态、未编译文件摘要、androidTest baseline 与 compile 运行态 |
-| `layout-dump` | `layout-dump` | 导出 UI 层级 HTML |
-| `view-locate` | `view-locate` | 查找元素位置、候选预算和源码位置 |
-| `view-inspect` | `view-inspect` | 反射读取 View 属性 |
-| `tap` | `tap` | 坐标、百分比或元素模式触控 |
-| `devices` | `devices` | 列出设备 |
-| `activity-stack` | `activity-stack` | 查看 Activity 栈 |
-| `ssh-info` | `ssh-info` | 申请 SSH 排障信息 |
-| `report` | `report-prepare` + `report-upload` | 生成并展示最终诊断包，用户确认后上传 |
-| `wait-logs` | `wait-logs` | 等待 App 日志 marker / crash / timeout |
-
-`list-projects`、`get-compile-status` 是 CLI 内部使用的 MCP tool，不暴露为 CLI 子命令。
+`list-projects` and `get-compile-status` are MCP tools used internally by the CLI, not exposed as CLI subcommands.
 
 ---
 
-## 6. 子命令参数
+## 6. Subcommand arguments
 
 ### `version`
 
@@ -200,7 +199,7 @@ CLI 参数设计遵循“机械映射，不创造新语义”：
 jugg version
 ```
 
-无需 `projectDir`。默认输出 CLI version 与当前已初始化项目中的插件版本；`--console=json` 返回 `{"cliVersion": "...", "plugin": <MCP structuredContent>}`。
+No `projectDir` is required. Default output includes the CLI version and the plugin version of the currently initialized project. `--console=json` returns `{"cliVersion": "...", "plugin": <MCP structuredContent>}`.
 
 ### `stop`
 
@@ -209,7 +208,7 @@ jugg stop
 jugg --project-dir <path> stop
 ```
 
-该命令停止同一 Jugg root 下的全部 standalone CLI Runtime，不支持 IDEA Runtime；`--project-dir` 不会缩小停止范围。它不经过 MCP，不要求 daemon 已完成端口初始化；支持正常终止的平台等待最多 5 秒后强制终止仍存活的目标进程，不支持的平台直接强制终止。没有匹配进程时返回成功，各项目持久化状态保持不变。
+This command stops all standalone CLI Runtimes under the same Jugg root; it does not support IDEA Runtime. `--project-dir` does not narrow its scope. It bypasses MCP and does not require the daemon to finish port initialization. Platforms supporting graceful shutdown wait up to five seconds, then force-terminate surviving targets; other platforms force-terminate directly. No matching process returns success, and each project's persistent state remains unchanged.
 
 ### `compile`
 
@@ -217,11 +216,11 @@ jugg --project-dir <path> stop
 jugg compile
 ```
 
-无子命令参数。终态输出 `status`、`message`、`full log`、`detail` 等字段。
+There are no subcommand arguments. Terminal output includes `status`, `message`, `full log`, `detail`, and other fields.
 
-`compile` 仅生成编译产物，不执行部署。它会刷新统一部署状态来判断增量或 Gradle fallback；设备选择层会安全处理多设备，因此 compile 不会仅因多台设备在线而失败。构建文件变化需要 rebuild、上一次 Gradle 构建失败或其他状态要求完整构建时，仍会自动回退到 Gradle 编译。
+`compile` creates only compile artifacts; it does not deploy. It refreshes unified deployment state to decide between incremental compilation and Gradle fallback. The device-selection layer safely handles multiple devices, so compile does not fail merely because multiple devices are online. Build-file changes requiring a rebuild, a failed prior Gradle build, or another state requiring a full build still trigger automatic Gradle fallback.
 
-没有待编译文件时，终态 message 会显示 `compile executed successfully. No pending file changes.`。该状态表示本轮没有生成新的编译产物，命令仍然成功且不会执行部署；直接完成和异步轮询完成时输出一致。
+With no pending files, the terminal message is `compile executed successfully. No pending file changes.`. This means the run produced no new compile artifact, while the command succeeded without deploying. Direct completion and asynchronous-poll completion have the same output.
 
 ### `deploy`
 
@@ -229,17 +228,17 @@ jugg compile
 jugg deploy [--always-restart-app <true|false>]
 ```
 
-| CLI flag | MCP 参数 | 说明 |
-|----------|----------|------|
-| `--always-restart-app` / `--alwaysRestartApp` | `alwaysRestartApp` | `true` 时部署后强制重启 App；`false` 允许 HOT RELOAD。省略时由 MCP 默认值决定 |
+| CLI flag | MCP argument | Description |
+|----------|--------------|-------------|
+| `--always-restart-app` / `--alwaysRestartApp` | `alwaysRestartApp` | `true` forces an app restart after deployment; `false` permits HOT RELOAD. If omitted, MCP's default applies. |
 
-终态输出 `isCompileSuccess`、`isDeploySuccess` 与日志路径。判断部署是否成功时必须同时看 deploy 结果，不要只看 compile 是否成功。
+Terminal output includes `isCompileSuccess`, `isDeploySuccess`, and log paths. Check the deploy result as well as compile success to determine whether deployment succeeded.
 
-standalone 部署的显式 `--serial` 优先，其次使用 `ANDROID_SERIAL`；两者均未设置时部署全部在线设备。请求级 `--serial` 不依赖 daemon 启动环境，因此 daemon 已运行后仍可逐次切换目标设备。
+An explicit standalone-deployment `--serial` takes priority, followed by `ANDROID_SERIAL`; without either, deploy to all online devices. Per-request `--serial` is independent of the daemon's startup environment, so targets can change on successive requests after it starts.
 
-没有待部署文件时，终态 message 会明确说明当前 Jugg 检测到的修改均已部署，并展示本次 IDE 会话内最后一次包含文件变更的成功部署时间（绝对时间 + 相对时间）和项目相对路径；文件最多展示 20 条。该信息只保存在当前 IDE 会话，IDE 重启后无记录时会明确提示详情不可用。直接完成和异步轮询完成时输出一致。
+With no files to deploy, the terminal message explicitly says all changes currently detected by Jugg have been deployed. It shows the latest successful deployment with file changes in the current IDE session, including absolute and relative time and project-relative paths, capped at 20 files. If there is no record after an IDE restart, the message explicitly says details are unavailable. Direct completion and asynchronous-poll completion have the same output.
 
-CLI 当前不暴露 MCP 的 `waitAppReadyAfterSuccess` 参数；省略时按 MCP 默认值 `false`，即只等待 compile/deploy 任务终态，不额外等待 App ready。
+The CLI does not currently expose MCP `waitAppReadyAfterSuccess`. Omitting it uses MCP's default `false`: wait for the compile/deploy task to terminate, without an extra wait for app readiness.
 
 ### `gradle-build`
 
@@ -247,9 +246,9 @@ CLI 当前不暴露 MCP 的 `waitAppReadyAfterSuccess` 参数；省略时按 MCP
 jugg gradle-build
 ```
 
-无子命令参数。IDEA 与 standalone Runtime 都在 Gradle 构建后继续安装/启动链路；standalone 未传 serial 时部署到全部在线设备，没有在线设备时以失败结束。选中 remote profile 时，Gradle full build/fallback 走 SSH/iFT 远程编译，同步、产物拉取与回退语义对齐 IDEA；standalone 不会弹出认证框，SSH 凭据缺失或 iFT 未认证时以 failed 终态返回明确提示。失败时会打印 `detail`，包含 Gradle build 日志摘要，例如 `Compile project failed, please check the error message.` 后面的实际错误行；长日志 preview 上限为 8KB，采用 4KB 开头 + 4KB 结尾。
+There are no subcommand arguments. Both IDEA and standalone Runtime continue through installation/start after the Gradle build. Without serial, standalone deploys to all online devices and fails if none is online. With a remote profile selected, a Gradle full build or fallback uses SSH/iFT remote compilation, with synchronization, artifact retrieval, and fallback semantics aligned with IDEA. Standalone shows no authentication dialog: missing SSH credentials or unauthenticated iFT return a failed terminal state with an explicit message. On failure, it prints `detail` with a Gradle-build-log summary, such as actual error lines after `Compile project failed, please check the error message.`. Long-log preview is capped at 8 KB, with 4 KB from the beginning and 4 KB from the end.
 
-CLI 当前不暴露 MCP 的 `waitAppReadyAfterSuccess` 参数；省略时按 MCP 默认值 `false`，即只等待 Gradle build 任务终态，不额外等待 App ready。
+The CLI does not currently expose MCP `waitAppReadyAfterSuccess`. Omitting it uses MCP's default `false`: wait only for the Gradle build task to terminate, without an extra app-readiness wait.
 
 ### `clean-reinstall`
 
@@ -257,9 +256,9 @@ CLI 当前不暴露 MCP 的 `waitAppReadyAfterSuccess` 参数；省略时按 MCP
 jugg clean-reinstall
 ```
 
-无子命令参数。
+There are no subcommand arguments.
 
-CLI 当前不暴露 MCP 的 `waitAppReadyAfterSuccess` 参数；省略时按 MCP 默认值 `false`，即只等待 clean-reinstall 任务终态，不额外等待 App ready。
+The CLI does not currently expose MCP `waitAppReadyAfterSuccess`. Omitting it uses MCP's default `false`: wait only for the clean-reinstall task to terminate, without an extra app-readiness wait.
 
 ### `restart`
 
@@ -267,13 +266,13 @@ CLI 当前不暴露 MCP 的 `waitAppReadyAfterSuccess` 参数；省略时按 MCP
 jugg restart
 ```
 
-无子命令参数。
+There are no subcommand arguments.
 
-未传 `--serial` 时重启全部目标设备；显式传入 serial 时只重启指定在线设备。
+Without `--serial`, restart all target devices. With an explicit serial, restart only the specified online device.
 
-CLI 当前不暴露 MCP 的 `waitAppReadyAfterSuccess` 参数；省略时按 MCP 默认值 `false`，即只等待 restart 命令执行完成，不额外等待 App ready。
+The CLI does not currently expose MCP `waitAppReadyAfterSuccess`. Omitting it uses MCP's default `false`: wait only until restart command execution finishes, without an extra app-readiness wait.
 
-启动目标按 launch Activity、HOME Activity 的顺序降级；所有 APK 都没有 launch/HOME Activity 时只执行 `am force-stop <package>`，不启动其它 Activity。CLI 不等待 App ready，因此该情况仍按成功返回。规则细节见 `03_deploy_core.md` §4.4。
+The launch target falls back from launch Activity to HOME Activity. If no APK has either, only `am force-stop <package>` runs; no other Activity starts. Since the CLI does not wait for app readiness, that case still returns success. See `03_deploy_core.md` §4.4 for the rule details.
 
 ### `instrument`
 
@@ -283,19 +282,19 @@ jugg instrument --source-path <src/androidTest/.../FooTest.kt>
                 [--runner <runnerFqn>] [--extras <k=v;k2=v2>]
 ```
 
-| CLI flag | MCP 参数 | 说明 |
-|----------|----------|------|
-| `--source-path` / `--sourcePath` | `sourcePath` | 必填；androidTest 源文件路径，用于解析 module 与 test APK |
-| `--class` | `class` | 文件内测试类；单 class 文件可省略 |
-| `--method` | `method` | 测试方法；需已唯一确定 class |
-| `--runner` | `runner` | instrumentation runner override |
-| `--extras` | `extras` | 分号分隔的 `k=v` 列表，转换为 MCP object |
+| CLI flag | MCP argument | Description |
+|----------|--------------|-------------|
+| `--source-path` / `--sourcePath` | `sourcePath` | Required androidTest source-file path used to resolve module and Test APK. |
+| `--class` | `class` | Test class in the file; optional for a single-class file. |
+| `--method` | `method` | Test method; requires a uniquely identified class. |
+| `--runner` | `runner` | Instrumentation runner override. |
+| `--extras` | `extras` | Semicolon-delimited `k=v` entries converted to an MCP object. |
 
-硬边界：
+Hard boundaries:
 
-- 不支持 `--package`、`--testPackage`、`--testsRegex`、`--regex`。
-- 不支持旧 alias：`--clazz`、`--instrumentationRunner`、`-e`、`--e`。
-- 当前项目没有 AndroidTest full-build baseline 时会返回 `INVALID_PARAMS`，并提示开启 Android Test、执行一次 full build / `gradle-build` 后再检查 `status.data.enabledAndroidTest=true`。
+- `--package`, `--testPackage`, `--testsRegex`, and `--regex` are unsupported.
+- Old aliases `--clazz`, `--instrumentationRunner`, `-e`, and `--e` are unsupported.
+- Without an AndroidTest full-build baseline in the current project, this returns `INVALID_PARAMS`, instructing the user to enable Android Test, run one full build / `gradle-build`, then check `status.data.enabledAndroidTest=true`.
 
 ### `status`
 
@@ -303,16 +302,16 @@ jugg instrument --source-path <src/androidTest/.../FooTest.kt>
 jugg status [--refresh-changes <true|false>] [--full-info <true|false>]
 ```
 
-| CLI flag | MCP 参数 | 说明 |
-|----------|----------|------|
-| `--refresh-changes` / `--refreshChanges` | `refreshChanges` | 是否读取状态前刷新 git-tracked changed files；默认刷新，传 `false` 时跳过 |
-| `--full-info` / `--fullInfo` | `fullInfo` | 是否返回完整状态信息；默认只返回前 20 个文件路径，传 `true` 时返回全部路径 |
+| CLI flag | MCP argument | Description |
+|----------|--------------|-------------|
+| `--refresh-changes` / `--refreshChanges` | `refreshChanges` | Refresh Git-tracked changed files before reading state; default true, pass `false` to skip. |
+| `--full-info` / `--fullInfo` | `fullInfo` | Return complete state; by default only the first 20 file paths are returned, pass `true` for all. |
 
-关键字段：
+Key fields:
 
-- `executionType`：当前 Jugg run configuration 的 Gradle fallback 执行环境，取值 `local` / `remote`；AI command hook 在 `remote` 时会对 raw Gradle 命令强制先 block 一次，不再要求本次 Agent 会话先出现文件写入记录。
-- `enabledAndroidTest`：最近一次持久化 full-build baseline 是否使用 AndroidTest target，不等同于单纯 UI toggle。
-- `isCompiling`：当前是否有 compile/deploy 任务在运行；CLI 的 compile 类命令会用它做触发前等待。
+- `executionType`: Gradle-fallback execution environment of the current Jugg run configuration, `local` / `remote`. In `remote`, the AI command hook first blocks a raw Gradle command once without requiring a file-write record earlier in this Agent session.
+- `enabledAndroidTest`: whether the latest persisted full-build baseline used AndroidTest target, not merely the UI toggle.
+- `isCompiling`: whether a compile/deploy task is running now; compile-type CLI commands use it to wait before triggering.
 
 ### `layout-dump`
 
@@ -320,14 +319,14 @@ jugg status [--refresh-changes <true|false>] [--full-info <true|false>]
 jugg layout-dump [--root-layout <nodeId>] [--include-gone] [--all-windows]
 ```
 
-| CLI flag | MCP 参数 | 说明 |
-|----------|----------|------|
-| `--root-layout` / `--rootLayout` | `rootLayout` | 跨窗口查找并只导出指定节点子树 |
-| `--include-gone` / `--includeGone` | `includeGone=true` | 包含 GONE 节点 |
-| `--all-windows` / `--allWindows` | `allWindows=true` | 导出所有窗口 |
+| CLI flag | MCP argument | Description |
+|----------|--------------|-------------|
+| `--root-layout` / `--rootLayout` | `rootLayout` | Find the node across windows and export only its subtree. |
+| `--include-gone` / `--includeGone` | `includeGone=true` | Include GONE nodes. |
+| `--all-windows` / `--allWindows` | `allWindows=true` | Export all windows. |
 
-公开输出是 HTML artifact；内部 JSON 仅供布局验证的存量实现消费。
-App 侧所有 UI 查询和动作统一通过 Dragonfly 实时 snapshot；传统 Android View 与 Compose 节点保持原有 HTML/JSON 字段格式。Dragonfly 自带私有化 Kotlin/协程运行时，纯 Java 工程同样可用；Compose tooling 不兼容时由 Dragonfly 局部收口，不回退旧 ViewTree。5000 节点/60 层 snapshot 截断范围同时约束 dump、selector、tap、inspect 和 verify。
+Public output is an HTML artifact; internal JSON is consumed only by existing layout verification.
+All app-side UI queries and actions use Dragonfly live snapshots. Conventional Android View and Compose nodes retain their existing HTML/JSON field formats. Dragonfly bundles private Kotlin/coroutine runtimes and also works in a pure Java project. It handles incompatible Compose tooling locally, without falling back to the old ViewTree. The 5000-node/60-level snapshot truncation applies equally to dump, selector, tap, inspect, and verify.
 
 ### `view-locate`
 
@@ -336,8 +335,8 @@ jugg view-locate (--text <t> | --resource-id <id> | --content-desc <desc> | --cl
                  [--visible-only <true|false>] [--max-results <1..100>]
 ```
 
-| CLI flag | MCP 参数 |
-|----------|----------|
+| CLI flag | MCP argument |
+|----------|--------------|
 | `--text` | `target.text` |
 | `--resource-id` / `--resourceId` | `target.resourceId` |
 | `--content-desc` / `--contentDesc` | `target.contentDesc` |
@@ -345,7 +344,7 @@ jugg view-locate (--text <t> | --resource-id <id> | --content-desc <desc> | --cl
 | `--visible-only` / `--visibleOnly` | `visibleOnly` |
 | `--max-results` / `--maxResults` | `maxResults` |
 
-多个 selector 使用 AND 逻辑；resourceId 支持完整/短 ID，className 支持完整类名/simple name 精确匹配。CLI 省略 `visibleOnly` / `maxResults` 时不发送，由 MCP 使用默认值 `true` / `10`。返回 `matchCount`、`returnedCount`、`truncated` 和 `matches[]`；只有唯一命中才返回顶层 bounds/position/size。runtime 能提供时同时返回源码文件和行号。
+Multiple selectors use AND. `resourceId` matches a full or short ID; `className` exactly matches a full class name or simple name. If the CLI omits `visibleOnly` / `maxResults`, it sends neither, letting MCP use defaults of `true` / `10`. The response includes `matchCount`, `returnedCount`, `truncated`, and `matches[]`; top-level bounds/position/size appear only on a unique match. Source file and line number are also returned when the runtime provides them.
 
 ### `view-inspect`
 
@@ -354,16 +353,16 @@ jugg view-inspect (--text <t> | --resource-id <id> | --content-desc <desc>)
                   [--class-name <cls>] <expr1> [<expr2> ...]
 ```
 
-| CLI flag | MCP 参数 |
-|----------|----------|
+| CLI flag | MCP argument |
+|----------|--------------|
 | `--text` | `target.text` |
 | `--resource-id` / `--resourceId` | `target.resourceId` |
 | `--content-desc` / `--contentDesc` | `target.contentDesc` |
 | `--class-name` / `--className` | `target.className` |
-| 位置参数 | `expressions[]` |
+| Positional argument | `expressions[]` |
 
-表达式可以是 getter/query 方法，或无括号名字。无括号名字先读 public 字段，再按 Kotlin property / `getXxx()` / `isXxx()` 解析，例如 `getText()`、`layoutParams.leftMargin`、`getLayoutParams().getMarginStart()`。
-Android 节点读取原始 View；Compose 节点读取 Dragonfly 节点对象，因此 View 专属 getter 可能返回单项 error。
+Expressions may be getter/query methods or bare names. A bare name first reads a public field, then resolves a Kotlin property / `getXxx()` / `isXxx()`, for example `getText()`, `layoutParams.leftMargin`, or `getLayoutParams().getMarginStart()`.
+Android nodes expose the original View; Compose nodes expose a Dragonfly node object, so a View-only getter may return an item-level error.
 
 ### `tap`
 
@@ -375,25 +374,25 @@ jugg tap [--action tap|long-press|swipe]
          [--duration <ms>]
 ```
 
-| CLI flag | MCP 参数 | 说明 |
-|----------|----------|------|
-| `--action` | `action` | `tap`、`long-press`、`swipe`；默认 `tap` |
-| `--x` / `--y` | `x` / `y` | 坐标模式起点 |
-| `--end-x` / `--endX` | `endX` | swipe 终点 x |
-| `--end-y` / `--endY` | `endY` | swipe 终点 y |
-| `--x-percent` / `--xPercent` | `xPercent` | 百分比模式起点 x，范围 0-100 |
-| `--y-percent` / `--yPercent` | `yPercent` | 百分比模式起点 y，范围 0-100 |
-| `--end-x-percent` / `--endXPercent` | `endXPercent` | swipe 百分比终点 x |
-| `--end-y-percent` / `--endYPercent` | `endYPercent` | swipe 百分比终点 y |
-| `--text` | `text` | 元素模式 selector |
-| `--resource-id` / `--resourceId` | `resourceId` | 元素模式 selector |
-| `--content-desc` / `--contentDesc` | `contentDesc` | 元素模式 selector |
-| `--class-name` / `--className` | `className` | 元素模式 AND 过滤 |
-| `--duration` | `duration` | 手势时长，ms |
+| CLI flag | MCP argument | Description |
+|----------|--------------|-------------|
+| `--action` | `action` | `tap`, `long-press`, or `swipe`; default `tap`. |
+| `--x` / `--y` | `x` / `y` | Coordinate-mode start. |
+| `--end-x` / `--endX` | `endX` | Swipe end x. |
+| `--end-y` / `--endY` | `endY` | Swipe end y. |
+| `--x-percent` / `--xPercent` | `xPercent` | Percentage-mode start x, in 0–100. |
+| `--y-percent` / `--yPercent` | `yPercent` | Percentage-mode start y, in 0–100. |
+| `--end-x-percent` / `--endXPercent` | `endXPercent` | Swipe percentage end x. |
+| `--end-y-percent` / `--endYPercent` | `endYPercent` | Swipe percentage end y. |
+| `--text` | `text` | Element-mode selector. |
+| `--resource-id` / `--resourceId` | `resourceId` | Element-mode selector. |
+| `--content-desc` / `--contentDesc` | `contentDesc` | Element-mode selector. |
+| `--class-name` / `--className` | `className` | Element-mode AND filter. |
+| `--duration` | `duration` | Gesture duration in ms. |
 
-元素模式 selector 与 dump 使用同一 Dragonfly 节点模型。Compose 节点当前按 bounds 中心向所属 root View 派发 MotionEvent；尚不等价于 Compose Semantics action，也不能可靠识别 disabled/stale 节点。
+Element-mode selectors and dumps use the same Dragonfly node model. A Compose node currently dispatches MotionEvent at its bounds center to its owning root View. This is not equivalent to a Compose Semantics action and cannot reliably detect disabled or stale nodes.
 
-`swipe` 在坐标模式必须提供 end 坐标；百分比模式必须提供 end 百分比坐标。
+`swipe` requires end coordinates in coordinate mode or end percentages in percentage mode.
 
 ### `devices`
 
@@ -401,9 +400,9 @@ jugg tap [--action tap|long-press|swipe]
 jugg devices
 ```
 
-无子命令参数。
+There are no subcommand arguments.
 
-IDEA 与 standalone Runtime 均支持该命令。standalone 未传 `--serial` 时返回全部在线设备；传入时只返回精确匹配的在线设备，未命中返回 `NO_DEVICE`。
+IDEA and standalone Runtime both support this command. Without `--serial`, standalone returns every online device. With serial, it returns only the exactly matching online device, or `NO_DEVICE` if none matches.
 
 ### `activity-stack`
 
@@ -411,7 +410,7 @@ IDEA 与 standalone Runtime 均支持该命令。standalone 未传 `--serial` �
 jugg activity-stack
 ```
 
-无子命令参数。
+There are no subcommand arguments.
 
 ### `ssh-info`
 
@@ -419,8 +418,8 @@ jugg activity-stack
 jugg ssh-info --reason <reason>
 ```
 
-| CLI flag | MCP 参数 |
-|----------|----------|
+| CLI flag | MCP argument |
+|----------|--------------|
 | `--reason` | `reason` |
 
 ### `report`
@@ -430,13 +429,13 @@ jugg report
 jugg --serial emulator-5554 report
 ```
 
-CLI 先调用 `report-prepare` 生成最终 ZIP，再展示本地路径、总大小、固定上传地址，以及 manifest 中每个条目的路径和大小。清单与 IDEA 一样优先展示 Jugg logs，其余条目保持生成顺序；CLI 不额外显示敏感等级和脱敏状态。确认提示为 `[Y/n]`，用户直接回车、输入 `y` 或 `yes` 时调用 `report-upload`；输入其他内容、EOF 或中断均保留本地 ZIP 且不上传。上传请求携带 prepare 返回的 `reportId` 与 SHA-256，服务端在发起 HTTPS 请求前重新校验同一个 ZIP，内容变化时明确失败。
+The CLI first calls `report-prepare` to create the final ZIP, then displays its local path, total size, fixed upload address, and each manifest entry's path and size. As in IDEA, the list puts Jugg logs first and otherwise retains generation order. The CLI does not additionally show sensitivity levels or redaction states. The confirmation prompt is `[Y/n]`: Enter alone, `y`, or `yes` calls `report-upload`; any other input, EOF, or interruption keeps the local ZIP without uploading. The upload carries the `reportId` and SHA-256 returned by prepare. Before making the HTTPS request, the server verifies that same ZIP again and explicitly fails if its contents changed.
 
-`report` 为兼容已有命令仍接收 `--serial`，但不会据此过滤设备。多设备在线时会 Best-effort 收集全部目标设备的错误 logcat；单台设备读取失败只省略该设备的日志，其他诊断信息和其他设备日志继续生成。
+For compatibility, `report` still accepts `--serial`, but does not filter devices with it. With multiple online devices, it collects error logcat from all targets on a best-effort basis. If one device read fails, only that device's logs are omitted; other diagnostics and device logs continue.
 
-`report` 暂不区分 `--console=json`，始终执行相同的文件清单展示和确认交互。该命令不提供 `--yes`、自定义上传地址或逐项选择参数。
+`report` currently does not distinguish `--console=json`; it always displays the same file list and confirmation interaction. It offers no `--yes`, custom upload address, or per-item selection arguments.
 
-上传成功后 message 与 IDE 保持一致：`Report uploaded. Jugg Report ID: <reportId>`。最终响应只保留 `reportId`，不再输出 entries、临时 `filePath` 或 artifact 的 `type/path`；这些内容只在上传前的确认清单中展示。
+On upload success, the message matches IDE: `Report uploaded. Jugg Report ID: <reportId>`. The final response retains only `reportId`; entries, temporary `filePath`, and artifact `type/path` no longer appear. Those are visible only in the pre-upload confirmation list.
 
 ### `wait-logs`
 
@@ -444,32 +443,32 @@ CLI 先调用 `report-prepare` 生成最终 ZIP，再展示本地路径、总大
 jugg wait-logs --marker <regex> [--tags <t1,t2,...>] [--timeout-ms <ms>]
 ```
 
-| CLI flag | MCP 参数 | 说明 |
-|----------|----------|------|
-| `--marker` | `marker` | Java Pattern 正则，必填 |
-| `--tags` | `tags` | 逗号分隔 tag 白名单 |
-| `--timeout-ms` / `--timeoutMs` | `timeoutMs` | 硬超时，范围 `[1000, 300000]`，默认 30000 |
+| CLI flag | MCP argument | Description |
+|----------|--------------|-------------|
+| `--marker` | `marker` | Required Java Pattern regex. |
+| `--tags` | `tags` | Comma-delimited tag allowlist. |
+| `--timeout-ms` / `--timeoutMs` | `timeoutMs` | Hard timeout in `[1000, 300000]`, default 30000. |
 
 ---
 
-## 7. 排查入口
+## 7. Troubleshooting entry points
 
-| 现象 | 优先入口 |
-|------|----------|
-| 子命令是否公开、help 是否覆盖 | `jugg.py::COMMANDS` + `help_registry.py::COMMAND_HELP` |
-| CLI flag 是否正确映射 MCP 参数 | 对应 `cmd_*.py::build_params()` |
-| kebab-case 参数未生效 | `jugglib.normalize_args()` |
-| CLI 找不到项目 | `jugglib.resolve_project_dir()`、`list-projects` 返回 |
-| compile 类命令一直等待 | `status.isCompiling`、`jugglib.wait_for_compile_idle()` |
-| 命令显示 compile 成功但部署失败 | 终态 `isCompileSuccess` / `isDeploySuccess` 与 `full log` |
-| 更新插件后 CLI/skill 仍是旧文案或旧行为 | bundled `SKILL.md` `version` 必须高于 `~/.jugg/skills/jugg-android-dev-loop/SKILL.md`；规则见 §3.7 |
+| Symptom | First place to inspect |
+|---------|------------------------|
+| Whether a subcommand is public and covered by help | `jugg.py::COMMANDS` + `help_registry.py::COMMAND_HELP` |
+| Whether a CLI flag maps correctly to an MCP argument | Corresponding `cmd_*.py::build_params()` |
+| kebab-case argument has no effect | `jugglib.normalize_args()` |
+| CLI cannot find the project | `jugglib.resolve_project_dir()` and `list-projects` response |
+| A compile-type command keeps waiting | `status.isCompiling` and `jugglib.wait_for_compile_idle()` |
+| Command reports compile success but deployment failure | Terminal `isCompileSuccess` / `isDeploySuccess` and `full log` |
+| CLI/skill still has old text or behavior after plugin update | Bundled `SKILL.md` `version` must exceed `~/.jugg/skills/jugg-android-dev-loop/SKILL.md`; see §3.7. |
 
 ---
 
-## 8. 关联文档
+## 8. Related documents
 
-- MCP 工具参数清单：`08_mcp_tools_list.md`
-- MCP 设计说明：`08_mcp_design.md`
-- 代码路径速查：`98_code_map.md`
-- CLI / MCP 行为变更后的 skill 同步规则：`08_mcp_design.md` §9–§10
-- CLI/skill 版本递增：本页 §3.7
+- MCP tool argument list: `08_mcp_tools_list.md`.
+- MCP design: `08_mcp_design.md`.
+- Code path quick reference: `98_code_map.md`.
+- Skill synchronization after CLI/MCP behavior changes: `08_mcp_design.md` §9–§10.
+- CLI/skill version increments: §3.7 of this page.

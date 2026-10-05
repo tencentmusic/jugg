@@ -1,331 +1,331 @@
-# 插件运行时问题排查手册
+# Plugin Runtime Troubleshooting Manual
 
-> 最后核对：2026-09-16
-> 一致性规则：文档与代码冲突时，以代码为准。
-
----
-
-## 0. AI 读取本文档时的自动行动清单
-
-收到“排查问题”类请求且含有日志片段时，按顺序执行：
-
-1. 从日志片段定位问题时间窗，优先精确到毫秒。
-2. 向上、向下扩展完整上下文，确认前后调用链和任务状态。
-3. 使用第 3 节关键词定位线程、状态、回退和耗时信号。
-4. 根据 `[ClassName]` 定位症状 owner，再沿调用链确认 behavior owner。
-5. 按第 4 节选择专题文档和首查证据，避免在入口手册内猜具体实现。
-6. 按第 2.3 节执行反证门禁，再输出根因、调用链和修复方向；缺少直接证据时明确标记推断边界。
+> Last checked: 2026-09-16
+> Consistency rule: when documentation conflicts with code, code is authoritative.
 
 ---
 
-## 1. 运行时目录入口
+## 0. Automatic action checklist for an AI reading this document
 
-由 `JuggPathManager` 定义，优先关注以下入口：
+For a troubleshooting request that includes log excerpts, proceed in order:
+
+1. Locate the incident time window in the excerpt, ideally to the millisecond.
+2. Expand context above and below to establish the surrounding call chain and task state.
+3. Use Section 3 keywords to find thread, state, fallback, and duration signals.
+4. Locate the symptom owner from `[ClassName]`, then follow the call chain to the behavior owner.
+5. Choose topical documents and initial evidence from Section 4; do not guess the implementation within this entry manual.
+6. Apply the counterevidence gate in Section 2.3 before reporting root cause, call chain, and fix direction; label inference limits explicitly without direct evidence.
+
+---
+
+## 1. Runtime directory entry points
+
+Defined by `JuggPathManager`; inspect these first:
 
 ```
 build/jugg/                            # juggRootDir
-├── log/                               # 日志目录
-│   ├── compile_latest.log             # 当前主日志的 best-effort 快捷入口
-│   ├── compile_latest-1.log           # 上一份主日志的 best-effort 快捷入口
+├── log/                               # log directory
+│   ├── compile_latest.log             # best-effort shortcut to current main log
+│   ├── compile_latest-1.log           # best-effort shortcut to previous main log
 │   ├── compile_YYYY-MM-DD_HH-mm-ss.0.log
-│   └── standlone_cli/                  # standalone Runtime 独立日志目录
+│   └── standlone_cli/                  # separate standalone Runtime log directory
 │       ├── compile_latest.log
-│       ├── standalone_startup.log       # CLI 启动 daemon 时捕获的 stdout/stderr
+│       ├── standalone_startup.log       # stdout/stderr captured when CLI starts daemon
 │       └── compile_YYYY-MM-DD_HH-mm-ss.0.log
-├── build/staging/                     # 本次增量编译输出（dex/资源）
+├── build/staging/                     # this incremental compile's output (dex/resources)
 ├── database/
-│   ├── apk/                           # APK 解析后的 SQLite DB（*.db）
-│   ├── project_infos.db/              # 模块/APK 配置快照
+│   ├── apk/                           # SQLite DBs from APK parsing (*.db)
+│   ├── project_infos.db/              # module/APK configuration snapshot
 │   │   ├── project_infos.json
 │   │   └── gradle_project_infos.json
-│   ├── compile_context.db/            # classpath、模块信息
-│   │   ├── complete_flag               # compile context 完整写入标记
-│   │   ├── module_builds.json          # module build path 快照
-│   │   ├── full_build_info.json        # Gradle full build 命令、BuildTarget、写入时间
-│   └── deploy_history.db/             # 部署历史（增量恢复）
+│   ├── compile_context.db/            # classpath and module information
+│   │   ├── complete_flag               # marker of complete compile-context write
+│   │   ├── module_builds.json          # module build-path snapshot
+│   │   ├── full_build_info.json        # Gradle full-build command, BuildTarget, write time
+│   └── deploy_history.db/             # deployment history (incremental recovery)
 ├── classpath/
-│   ├── root/                          # classpath jar
-│   ├── apk/                           # APK 文件缓存
-│   └── libraries/                     # 依赖库备份
+│   ├── root/                          # classpath jars
+│   ├── apk/                           # APK file cache
+│   └── libraries/                     # dependency backups
 ├── config/
 │   ├── custom_compilers/
 │   ├── agent_setup.md
 │   └── jugg-android-dev-loop/
-└── tmp/diff/                          # 远程编译 diff 结果
+└── tmp/diff/                          # remote-compile diff results
 
 ${projectRoot}/.gradle/jugg/
 ├── readProjectInfo.gradle.kts
 └── jugg-runtime.jar
 
-~/.jugg/const_ref/                     # 跨项目常量引用缓存（全局）
-~/.jugg/locks/global.lock              # IDEA / standalone 全局写锁
-~/.jugg/hot_update/                    # 已校验 update jars、hot_update_data.json、load_manifest.json
+~/.jugg/const_ref/                     # cross-project constant-reference cache (global)
+~/.jugg/locks/global.lock              # IDEA/standalone global write lock
+~/.jugg/hot_update/                    # verified update jars, hot_update_data.json, load_manifest.json
 ```
 
-**代码位置**：`main/src/main/java/.../project/runtime/JuggPathManager.kt`
+**Code location**: `main/src/main/java/.../project/runtime/JuggPathManager.kt`.
 
-当前 `reportIssue()` 继续通过 `ProjectInfoReader.printInfo()`、设备 logcat dump 和 `JuggServer.reportAndUploadLogs()` 收集信息，不额外生成 runtime diagnostics JSON。IDEA 与 standalone 两个日志目录各自保留最近 10 份；上报时按修改时间合并，仅选择最新 10 份，并以 `diagnostics/logs/standlone_cli/` 标识 standalone 来源。standalone doctor/report 在真实命令入口落地时再设计共享诊断模型。
+Current `reportIssue()` still collects through `ProjectInfoReader.printInfo()`, device logcat dump, and `JuggServer.reportAndUploadLogs()`; it does not additionally generate runtime diagnostics JSON. IDEA and standalone each retain their latest 10 logs. Reporting merges by modification time, selects only the latest 10 overall, and marks standalone sources under `diagnostics/logs/standlone_cli/`. Design a shared diagnostic model when standalone doctor/report gains a real command entry point.
 
-standalone 主日志按工程 runtime 生命周期分段：工程初始化时创建，普通 `compile/deploy` 继续追加；成功完成 Gradle 全量构建并开始重建编译上下文时重新分段。`standalone_startup.log` 每次 CLI 发起 daemon 启动时覆盖写入，只服务于启动失败的即时诊断。
+Standalone main logs are segmented by project Runtime lifecycle: initialization creates a segment, ordinary `compile/deploy` appends, and a successful Gradle full build starts a new segment when rebuilding the compile context. Each CLI-initiated daemon startup overwrites `standalone_startup.log`, used only for immediate startup-failure diagnosis.
 
 ---
 
-## 2. 日志与证据边界
+## 2. Logs and evidence boundaries
 
-日志格式：
+Log format:
 
 ```text
 [2026-03-16 16:13:27.109] [FINE   ] [ClassName] message
 ```
 
-- 时间戳精确到**毫秒**
-- 级别：`FINE`=debug / `INFO` / `WARNING` / `SEVERE`
-- `[ClassName]` 由 `logger.getInstance("ClassName")` 决定，可直接作为代码定位依据
-- 日志来源由目录区分：`log/` 是 IDEA，`log/standlone_cli/` 是 standalone；出现 `Runtime lock contention` 与 `Runtime lock acquired after contention` 时，可按 `runtime`、`ownerRuntime`、`ownerPid`、`ownerCommand`、`ownerJobId` 和 `waitMs` 还原交替持锁时序。
+- Timestamps have **millisecond** precision.
+- Levels: `FINE`=debug / `INFO` / `WARNING` / `SEVERE`.
+- `[ClassName]` is chosen by `logger.getInstance("ClassName")` and can directly guide code lookup.
+- Directories distinguish log sources: `log/` is IDEA and `log/standlone_cli/` is standalone. For `Runtime lock contention` and `Runtime lock acquired after contention`, reconstruct alternating lock ownership from `runtime`, `ownerRuntime`, `ownerPid`, `ownerCommand`, `ownerJobId`, and `waitMs`.
 
-### 2.1 证据层级与解释边界
+### 2.1 Evidence levels and interpretation limits
 
-| 层级 | 典型内容 | 使用边界 |
-|------|----------|----------|
-| 原始证据 | 异常栈、协议状态、进程状态、源码分支、命令结果、Git diff | 可直接支持其所在层级的事实，但仍需确认时间、版本和来源 |
-| 派生结果 | CLI/UI 汇总文案、wrapper error、任务终态摘要、聚合状态 | 只证明生成方做出了该分类，不能直接证明其假定的底层原因 |
-| 调查结论 | 根因、影响范围、版本边界、修复判断 | 必须由原始证据或已核对的生成实现支持 |
+| Level | Typical content | Use boundary |
+|-------|-----------------|--------------|
+| Raw evidence | Exception stacks, protocol state, process state, source branches, command results, Git diff. | Directly supports facts at its own layer, but verify time, version, and source. |
+| Derived result | CLI/UI summary copy, wrapper error, terminal-job summary, aggregate state. | Proves only that its producer classified the event that way; it does not directly establish its assumed underlying cause. |
+| Investigation conclusion | Root cause, scope, version boundary, fix judgment. | Requires raw evidence or verified producer implementation. |
 
-| 排查目标 | 搜索关键词 |
-|---------|-----------|
-| 编译开始 | `Jugg compile started` |
-| 增量/全量判断 | `preprocessIncrementalCompile` |
-| 无文件变化弹框 | `confirmFallbackWhenNoFileChanges` |
-| EDT 异步派发（文件变化） | `dispatching to background` |
-| 编译后 Git 补检未完成 | `Git check after compile is still running` |
-| 锁等待耗时 | `waiting for TaskRunnerManager lock` / `waitCost=` |
-| APK DB 初始化 | `initAfterInstall parsed apk start` / `database all init finish` |
-| SQLite 查询 | `getClassNodes` |
-| 部署开始 | `deploy start` |
-| 编译耗时 | `cost ${costTime}ms` |
-| 回退原因 | `fallback` / `Fallback` |
-| 编译失败 | `incremental compile error` / `SEVERE` |
-| standalone 远程认证 | `Standalone Runtime is non-interactive` / `remote login` |
-| 远程 shell 安全握手 | `failed to disable remote shell echo` / `Remote shell echo could not be disabled safely` |
-| 远程同步与产物拉取 | `Sync file` / `Fetch` / `RemoteGradleCompileClient` |
-| UI freeze 起点 | `uiFreezeStarted` / `InvocationEvent has timed out` |
-| ConstRef 启动延后 | `ConstRefEngine defer initial full scan until startup stabilizes` |
-| ConstRef 限速实值 | `ConstRefEngine io throttle enabled` |
-| ConstRef 全扫进度 | `ConstRefEngine full scan progress` |
-| ConstRef 降级 | `fallback to no-op const-ref` |
-| IDE 启动链 | `InitialVfsRefresh` / `postInit` / `clangd` |
-| 重混淆结果 | `Obfuscated:` |
-| 重混淆注解问题 | `visitAnnotation` / `mapType` |
-| 重混淆类型引用遗漏 | `const-class` / `filled-new-array` / `NoClassDefFoundError` |
-| 重混淆 access flag 宽化 | `widenAccessFlags` / `invoke-direct` / `IllegalAccessError` / `AbstractMethodError` / `IncompatibleClassChangeError` / `ExternalSyntheticLambda` |
+| Investigation target | Search keywords |
+|----------------------|-----------------|
+| Compile start | `Jugg compile started` |
+| Incremental/full decision | `preprocessIncrementalCompile` |
+| No-file-changes dialog | `confirmFallbackWhenNoFileChanges` |
+| EDT asynchronous dispatch (file changes) | `dispatching to background` |
+| Unfinished post-compile Git check | `Git check after compile is still running` |
+| Lock-wait duration | `waiting for TaskRunnerManager lock` / `waitCost=` |
+| APK DB initialization | `initAfterInstall parsed apk start` / `database all init finish` |
+| SQLite query | `getClassNodes` |
+| Deployment start | `deploy start` |
+| Compile duration | `cost ${costTime}ms` |
+| Fallback cause | `fallback` / `Fallback` |
+| Compile failure | `incremental compile error` / `SEVERE` |
+| Standalone remote authentication | `Standalone Runtime is non-interactive` / `remote login` |
+| Remote shell safety handshake | `failed to disable remote shell echo` / `Remote shell echo could not be disabled safely` |
+| Remote sync and artifact fetch | `Sync file` / `Fetch` / `RemoteGradleCompileClient` |
+| UI freeze start | `uiFreezeStarted` / `InvocationEvent has timed out` |
+| Deferred ConstRef startup | `ConstRefEngine defer initial full scan until startup stabilizes` |
+| ConstRef throttling value | `ConstRefEngine io throttle enabled` |
+| ConstRef full-scan progress | `ConstRefEngine full scan progress` |
+| ConstRef fallback | `fallback to no-op const-ref` |
+| IDE startup chain | `InitialVfsRefresh` / `postInit` / `clangd` |
+| Reobfuscation result | `Obfuscated:` |
+| Reobfuscation annotation problem | `visitAnnotation` / `mapType` |
+| Missing reobfuscated type reference | `const-class` / `filled-new-array` / `NoClassDefFoundError` |
+| Widened reobfuscated access flags | `widenAccessFlags` / `invoke-direct` / `IllegalAccessError` / `AbstractMethodError` / `IncompatibleClassChangeError` / `ExternalSyntheticLambda` |
 | Jugg Debug attach | `Jugg Debug attach:` / `waitForClientReadyForDebug` / `Debugger is waiting for application to start` / `Connected to the target VM` |
 
-standalone remote compile 失败时，先读取 `{projectDir}/build/jugg/log/standlone_cli/compile_latest.log`，按 `RemoteGradleCompileClient` 的 command id 串联登录、同步、Gradle 与产物拉取阶段。出现 `Standalone Runtime is non-interactive` 表示配置中缺少可直接使用的 SSH 凭据或 iFT 仍需交互认证，应先在 IDEA/profile 或外部 iFT 客户端完成配置。日志不会保留原始远程 command，环境变量也只有白名单路径值可见；排查时不应要求用户上传明文密码或完整环境。
+On a standalone remote-compile failure, first read `{projectDir}/build/jugg/log/standlone_cli/compile_latest.log` and join login, sync, Gradle, and artifact-fetch phases by `RemoteGradleCompileClient` command ID. `Standalone Runtime is non-interactive` means the configuration lacks directly usable SSH credentials or iFT still needs interactive authentication; configure it first in IDEA/profile or an external iFT client. Logs do not preserve the raw remote command, and only allowlisted path values from environment variables are visible. Do not ask a user to upload plaintext passwords or a complete environment.
 
 ---
 
-### 2.2 症状 owner 与 behavior owner
+### 2.2 Symptom owner and behavior owner
 
-打印错误、展示错误或返回汇总状态的组件是症状 owner，不一定是决定异常行为的组件：
+The component that prints an error, displays one, or returns aggregate state is the symptom owner; it may not decide the abnormal behavior:
 
-1. 定位观察结果由谁生成，以及它消费了哪些下层结果。
-2. 沿调用链找到真正决定异常行为、状态迁移或兼容分支的 behavior owner。
-3. behavior owner 未确定前，不使用狭窄的 Git path filter 排除其它边界；优先按用户可见现象、关键符号或内容变化搜索历史。
-4. behavior owner 确定后，再收窄到对应代码、版本、回归 owner 和修复边界。
+1. Find who generated the observed result and which lower-level results it consumed.
+2. Follow the call chain to the behavior owner that actually decides the abnormal behavior, state transition, or compatibility branch.
+3. Until the behavior owner is known, do not exclude other boundaries with a narrow Git path filter; search history first by user-visible symptom, key symbol, or content change.
+4. Once found, narrow to its code, version, regression owner, and fix boundary.
 
-**排查步骤**：
-1. 找停顿区间（两条日志时间戳差值 > 100ms 且无中间日志）
-2. 搜 `waitCost=` 确认是否有锁等待
-3. 搜 `dispatching to background` 确认 EDT 调用是否正确派发
-4. 检查 `@Synchronized` 方法是否可能被 EDT 直接调用
+**Investigation steps**:
+1. Find a pause interval (over 100 ms between two timestamps with no intervening log).
+2. Search `waitCost=` for lock waiting.
+3. Search `dispatching to background` to confirm EDT calls dispatch correctly.
+4. Check whether an `@Synchronized` method may be called directly on EDT.
 
-**已知根因**（已修复，供参考）：
-- `FileChangesDetector.afterVfsChange()` 在 EDT 调用 `DeployFileManager.addChangedFile()`，与编译线程持有的 `@Synchronized` 锁竞争，导致 EDT 阻塞 ~150ms
-- 修复：EDT 调用时通过 `TaskRunnerManager.runBackgroundSafe()` 异步派发
-- `processFileChanged()` 与 `tryCreateRunConfigurations()` 曾共同使用 `JuggManager` 实例锁；后台目录扫描长时间持锁时，Gradle Sync 的 EDT 回调会阻塞在 Run Configuration 创建入口
-- 修复：文件变化处理与 Run Configuration 创建使用两个独立锁，只保留各自业务域内的串行语义
-- VFS 目录事件可能包含工程无关的全局目录，旧实现会先递归 `listFiles()`，再逐文件判断是否属于 Jugg 变更范围；多工程并行时会重复扫描并长时间占用文件变化处理锁
-- 修复：`FileChangesHandler` 在展开目录前按 IDE 工程目录与编译模块根目录剪枝，工程外模块仍纳入范围
+**Known causes** (already fixed; for reference):
+- `FileChangesDetector.afterVfsChange()` called `DeployFileManager.addChangedFile()` on EDT and competed with an `@Synchronized` lock held by the compile thread, blocking EDT for about 150 ms.
+- Fix: dispatch EDT calls asynchronously through `TaskRunnerManager.runBackgroundSafe()`.
+- `processFileChanged()` and `tryCreateRunConfigurations()` once shared a `JuggManager` instance lock; when a background directory scan held it for a long time, the Gradle Sync EDT callback blocked at Run Configuration creation.
+- Fix: file-change processing and Run Configuration creation now use separate locks, serializing only within their respective business domains.
+- VFS directory events can include project-irrelevant global directories. The old implementation recursively called `listFiles()` before checking whether each file belonged to Jugg's change range, causing repeated scanning and long file-change lock holding across multiple projects.
+- Fix: `FileChangesHandler` prunes by IDE project directory and compile-module roots before expanding directories, while still including modules outside the project directory.
 
-**关键类**：
+**Key classes**:
 ```
-idea/.../project/change/FileChangesDetector.kt # VFS 事件监听（afterVfsChange 在 EDT）
+idea/.../project/change/FileChangesDetector.kt # VFS event listener (afterVfsChange on EDT)
 main/.../deploy/DeployFileManager.kt          # addChangedFile / removeChangedFile
-main/.../project/runtime/TaskRunnerManager.kt # 后台派发、isOnEdt、项目/全局锁和 Job 生命周期
-idea/.../runtime/HostTaskExecutor.kt          # ApplicationManager.isDispatchThread 与 IDEA Task 执行/进度
+main/.../project/runtime/TaskRunnerManager.kt # background dispatch, isOnEdt, project/global locks, Job lifecycle
+idea/.../runtime/HostTaskExecutor.kt          # ApplicationManager.isDispatchThread and IDEA task execution/progress
 ```
 
-### 4.1.1 启动后长时间卡死（`postInit / InitialVfsRefresh / clangd / ConstRef` 竞争）
+### 4.1.1 Long freeze after startup (`postInit / InitialVfsRefresh / clangd / ConstRef` contention)
 
-**先收集四份证据**：
-1. `build/jugg/log/compile_latest.log` 或最近的 `compile_*.log`
-2. IDE `idea.log`
-3. `threadDumps-freeze-*`
-4. 一份当场 `jcmd <pid> Thread.print -l`
+**First collect four items**:
+1. `build/jugg/log/compile_latest.log` or the most recent `compile_*.log`.
+2. IDE `idea.log`.
+3. `threadDumps-freeze-*`.
+4. An on-scene `jcmd <pid> Thread.print -l`.
 
-1. 写出当前领先结论及其直接支持证据。
-2. 明确至少一项能够推翻或显著削弱该结论的可观察证据。
-3. 在现有日志、源码、历史、附件和运行状态中主动查找该证据，不以未检索代替不存在。
-4. 对已出现的冲突证据逐项解释；无法解释时降低结论强度或继续定位 behavior owner。
-5. 核对结论是否超出证据的时间、版本、主机或调用层级边界。
+1. Write the leading conclusion and the direct evidence supporting it.
+2. Specify at least one observable item that would falsify or substantially weaken it.
+3. Actively look for that item in existing logs, source, history, attachments, and runtime state; failure to search does not mean it is absent.
+4. Explain each conflicting item found; if it cannot be explained, weaken the conclusion or continue locating the behavior owner.
+5. Check whether the conclusion exceeds the time, version, host, or call-layer boundary of the evidence.
 
-反证门禁不要求穷举所有假设，也不要求固定数量的工具调用。证据缺失时，应明确缺失项和可确认的最小结论，不得伪造确定性。
+The counterevidence gate does not require exhaustive hypotheses or a fixed number of tool calls. When evidence is missing, state what is missing and the narrowest conclusion supported; do not invent certainty.
 
 ---
 
-## 3. 常用搜索词速查
+## 3. Common search-keyword quick reference
 
-**当前期望行为**：
-- `DeployFileManager` 可直接创建 `ConstRefEngine`，但 `ConstRefEngine` 构造不应初始化 SQLite runtime；`JuggManager.<init>` 不应因 ConstRef DB 异常失败。
-- `ConstRefCacheDatabase` 初始化或运行期 DB 操作遇到损坏库时会重建 `~/.jugg/const_ref/const_ref_shared.db` 及其 WAL/SHM；运行期只重试触发损坏的原操作一次。
-- 若 DB 重建或 `RepoSharedFingerprintStore` 初始化仍失败，日志应出现 `fallback to no-op const-ref`，后续编译/部署按无 ConstRef 继续。
-| 排查目标 | 搜索关键词 |
-|----------|------------|
-| 编译开始 | `Jugg compile started` |
-| 增量/全量判断 | `preprocessIncrementalCompile` |
-| 文件变化与全量回退 | `confirmFallbackWhenNoFileChanges` / `No file changes` / `fallback` |
-| EDT 与锁竞争 | `dispatching to background` / `waitCost=` / `TaskRunnerManager lock` |
-| 编译后 Git 补检 | `Git check after compile is still running` / `Git recovery CRC summary` |
-| APK DB 初始化 | `initAfterInstall parsed apk start` / `database all init finish` |
-| 编译或部署失败 | `incremental compile error` / `SEVERE` / `deploy start` |
-| R 类存在但资源字段缺失 | `module compile R.jar candidates found in module` / `R.jar candidates found in module` / `compile_r_class_jar` / `compile_only_not_namespaced_r_class_jar` |
-| IDE 无法识别可部署进程 | `NO_DEPLOYABLE_APP` / `deployable client unavailable` / `ideClientPids` / `Unexpected cmdline file for PID` |
-| Kotlin IR lowering 内部错误 | `BackendException` / `Exception during IR lowering` / `copyValueParametersToStatic` / `Dispatch receiver type` / `SyntheticAccessorGenerator` |
+**Current expected behavior**:
+- `DeployFileManager` may create `ConstRefEngine` directly, but the `ConstRefEngine` constructor must not initialize the SQLite runtime. A ConstRef DB exception must not fail `JuggManager.<init>`.
+- If `ConstRefCacheDatabase` initialization or a runtime DB operation encounters corruption, rebuild `~/.jugg/const_ref/const_ref_shared.db` and its WAL/SHM. At runtime, retry only the original operation that encountered corruption, once.
+- If DB rebuilding or `RepoSharedFingerprintStore` initialization still fails, the log should contain `fallback to no-op const-ref`, and compilation/deployment should continue without ConstRef.
+| Investigation target | Search keywords |
+|----------------------|-----------------|
+| Compile start | `Jugg compile started` |
+| Incremental/full decision | `preprocessIncrementalCompile` |
+| File changes and full fallback | `confirmFallbackWhenNoFileChanges` / `No file changes` / `fallback` |
+| EDT and lock contention | `dispatching to background` / `waitCost=` / `TaskRunnerManager lock` |
+| Post-compile Git check | `Git check after compile is still running` / `Git recovery CRC summary` |
+| APK DB initialization | `initAfterInstall parsed apk start` / `database all init finish` |
+| Compile or deploy failure | `incremental compile error` / `SEVERE` / `deploy start` |
+| R class exists but resource field is missing | `module compile R.jar candidates found in module` / `R.jar candidates found in module` / `compile_r_class_jar` / `compile_only_not_namespaced_r_class_jar` |
+| IDE cannot recognize a deployable process | `NO_DEPLOYABLE_APP` / `deployable client unavailable` / `ideClientPids` / `Unexpected cmdline file for PID` |
+| Kotlin IR lowering internal error | `BackendException` / `Exception during IR lowering` / `copyValueParametersToStatic` / `Dispatch receiver type` / `SyntheticAccessorGenerator` |
 | UI freeze | `uiFreezeStarted` / `InvocationEvent has timed out` |
-| ConstRef 启动与扫描 | `defer initial full scan` / `io throttle enabled` / `full scan progress` |
-| ConstRef 降级 | `fallback to no-op const-ref` |
-| IDE 启动链 | `InitialVfsRefresh` / `postInit` / `clangd` |
-| release 重混淆 | `Obfuscated:` / `mapping.txt` / `Minify is enabled for the current variant` / `NoClassDefFoundError` / `NoSuchMethodError` / `AbstractMethodError` |
+| ConstRef startup and scanning | `defer initial full scan` / `io throttle enabled` / `full scan progress` |
+| ConstRef fallback | `fallback to no-op const-ref` |
+| IDE startup chain | `InitialVfsRefresh` / `postInit` / `clangd` |
+| Release reobfuscation | `Obfuscated:` / `mapping.txt` / `Minify is enabled for the current variant` / `NoClassDefFoundError` / `NoSuchMethodError` / `AbstractMethodError` |
 | Jugg Debug attach | `Jugg Debug attach:` / `waitForClientReadyForDebug` / `Connected to the target VM` |
 
 ---
 
-## 4. 症状路由与首查证据
+## 4. Symptom routing and first evidence
 
-本章只给排查第一跳。命中症状后读取对应专题，不在入口手册展开历史修复和单个 visitor/API 的实现清单。
+This section supplies only the first troubleshooting hop. On a symptom match, read the topical document rather than expanding historical fixes or individual visitor/API implementation lists here.
 
-| 现象 | 首查证据与解释边界 | behavior owner / 专题 |
-|------|--------------------|----------------------|
-| IDE 点击或操作短暂冻结 | 对齐 `idea.log` 的 freeze 时间、Jugg 日志停顿和 thread dump；日志间隔本身不能证明 Jugg 持锁 | `FileChangesDetector`、`TaskRunnerManager`；`04_engineering_ide.md` |
-| 启动后长时间卡死 | 同时收集 Jugg 日志、`idea.log`、freeze dump、现场 `jcmd`；按 ConstRef、IDE startup、EDT 锁竞争分桶 | `04_engineering_ide.md`、`03_deploy_const_ref.md` |
-| ConstRef SQLite corrupt | 检查损坏重建和 `fallback to no-op const-ref`；DB 异常不应扩大为 Run/compile/deploy 失败 | `ConstRefCacheDatabase`、`ConstRefEngine`；`03_deploy_const_ref.md` |
-| Jugg Debug 断点不可用 | 同一时间窗确认 WAITING、`Connected to the target VM` 与最终 session 创建；“等待 debugger”不等于 VM 已连接 | `04_engineering_debug_attach.md` |
-| 有改动却回退全量 Gradle | 核对 changed files、IDE 文件事件、Git 补检和 deploy history；不要先删除 history 破坏现场 | `JuggCompilerHelper`、`DeployFileManager`；`02_compile_core.md` |
-| 增量编译报找不到资源字段（`找不到符号: 变量 xxx`），但 R 类存在、资源也没删 | 先确认不是资源缺失：错误位置是 `R$xxx` 内部缺少字段，属 classpath shadow。按顺序核对：javac/kotlinc 实际 `-classpath` 中第一个同名 `R$xxx` 来自哪个 jar；该 module 目录下 `compile_r_class_jar` 与 `compile_only_not_namespaced_r_class_jar` 的 lastModified；`module compile R.jar candidates found in module` debug 日志的 selected 路径。修复后一个 module 只贡献一个 Gradle R.jar，若仍看到两个 R 布局同时进入 classpath，按 `BaseCompileContext.getGradleRFilePaths()` 回归处理 | `BaseCompileContext.getGradleRFilePaths()`、`ModuleBuildPathInfo.moduleCompileRFileCandidates`；`02_compile_source.md`、`04_engineering_project.md` |
-| 新增 Flutter asset 没有触发编译 | 先查 `Detect file changed (before filter)`、Git `no-record` 与后续 `ChangedFile[ExternalBuildSource]`；若停在分类前，再对照 `gradle_project_infos.json` 的 Flutter `inputFiles`、当前 pubspec asset 文件/目录声明和 `excludedDirs`。未声明的新文件应继续忽略，不能按任意 assets 目录推断归属 | `FileChangesHandler`、`resolveExternalBuild`、`GradleProjectInfoReader.readFlutterInputs`；`02_compile_core.md`、`04_engineering_project.md` |
-| 升级后 `not gradle compile yet` | 查 `complete_flag`、`module_builds.json` 版本及恢复日志；缺失 flag 不应手工伪造 | `CompileContextDb`、`BuildPathInfoSerializer`；`04_engineering_project.md` |
-| `Git check after compile is still running` | 该 debug 只表示本轮不等待异步补检，不代表编译失败；持续出现才检查 Git 查询规模与历史 | `GitChangesCompileChecker`；`02_compile_core.md` |
-| APK DB 初始化慢 | 对齐 APK 大小、隔离解析信号、数据库体积和实际耗时 | APK parser / database；`05_utilities.md` |
-| 兼容资源部署先 OOM、后续持续 `FileSystemAlreadyExistsException` | 对齐 `ResourceApkModifier` 的条目/字节/heap 日志、`Open ZipFS` 临时文件路径和 deploy payload heap；后续 Run 应使用新的临时 URI，OOM 后正式缓存应被清理 | `ResourceApkModifier`、`ApkFileModifier`、`JuggDeployerHelper`；`03_deploy_core.md`、`05_utilities.md` |
-| `source_files.db` 每次启动都重建 | 检查 rebuild stamp、删除失败与 `SQLITE_BUSY`；不要使用 DB creation/modified time 判断最近重建 | `SourceFileManager`、`SourceFileDatabaseSqLiteHelper`；本节 4.3 |
-| release 增量后 runtime crash | 先确认当前变体的真实 minify 配置与 mapping 来源是否一致（`variants[].minifyEnabled` / `ModuleInfo.minifyEnabled`），再确认 mapping 加载与 `Obfuscated:`，最后对比 staging DEX 和 APK DEX；异常名不能单独决定映射缺口。变体未开启 minify 时残留的 `outputs/mapping/<variant>/mapping.txt` 不参与判定，也不参与混淆 | `ICompileContext.isMinified`、`DexMinifyCompiler`、`DexObfuscator`；`02_compile_obfuscation.md` |
-| Kotlin `INTERNAL_ERROR` 且栈含 shaded `JavaVersion` | recreate compiler 同样失败只能增强“宿主环境”推断；继续核对宿主 JDK、项目 Kotlin 版本和兼容日志 | `KotlinCompilerHostCompat`；`02_compile_source.md` |
-| Kotlin `INTERNAL_ERROR` 且栈含 `DelegatingFileSystem.close`、`DescriptorLoadingContext.close` | 确认同一异常块还包含 `UnsupportedOperationException`；命中后预热只缓存当前 compiler classpath 状态，真实源码应出现独立 JVM 重试日志。子进程只接收一个 Kotlin argfile 参数；不同 toolchain 不应同步降级 | `KotlinCompilerOutputParser`、`KotlinCompilerInvoker`、`KotlinCompilerProcessRunner`；`02_compile_source.md` |
-| Kotlin `cannot access ... which is a supertype of ...` / `unresolved supertypes:`，常见于 ROM、车机系统应用引用 hidden API | 先看 `kotlin compile: kotlinc` 的 `-cp` 里 SDK `android.jar` 是否排在同名 framework/HideAPI jar 之前；这不是 HideAPI 路径缺失。命中后应出现后置重试日志，日志中 `-cp` 顺序与默认不同属预期 | `AndroidJarClasspathRetry`、`KotlinCompilerInvoker`；`02_compile_source.md` |
-| Kotlin `required plugin option not present` | 对比 `gradle_project_infos.json` 的 `kotlinPluginOptions` 与 `kotlin compile: kotlinc` 中的 `-P plugin:`；参数已存在仍失败时检查 plugin/Kotlin 版本，参数缺失时检查 `KotlinCompilerPluginData` 读取。兜底禁用必须按 `CommandLineProcessor` 声明的 plugin id 精确命中，不能禁用全部插件 | `GradleProjectInfoReader`、`KotlinCompilerInvoker`；`02_compile_source.md` |
-| Kotlin `unsupported plugin option` | 先确认错误参数是否来自 `kotlinPluginOptions`；Jugg 只会为 Gradle-resolved 参数移除同 plugin id 的整组参数并重试一次，用户 `kotlinFreeCompilerArgs` 不会自动修改。重复出现时检查 compiler toolchain、插件 JAR 与 Gradle task 是否属于同一 compilation | `KotlinCompiler`、`KotlinCompilerInvoker`；`02_compile_source.md` |
-| Kotlin `BackendException: Exception during IR lowering`，根因含 `copyValueParametersToStatic` 和 `Dispatch receiver type ... is not a subtype of ...` | 先核对真实继承链、失败是否来自 Gradle/Kotlin 增量编译、clean 后是否恢复。继承链合法且 clean 可恢复时，优先按 Kotlin compiler 的间歇性 IR synthetic accessor 缺陷调查，不要直接归因于源码类型错误或 Jugg 漏跟编 | 本节 4.4；`02_compile_source.md` |
-| Windows 命令中文乱码 | 保留原始字节链路；出现 `�` 表示可能已发生不可逆解码损失 | `ProcessOutputReader`；`04_engineering_compat.md` |
-| 系统应用装不上、无 `FLAG_SYSTEM`、或特权权限被拒 | 先看 `codePath` 是否在 `/system/`，以及本次是否只走了 `pm install` / `JuggDeployer.install`；不要先当普通部署失败修 | `JuggDeployer.install`；`03_deploy_system_app.md` |
-| 系统应用 Run 提示无法 update / 签名不一致 | 对比 `/system` 基线 APK 与本次安装 APK 的 cert；debug keystore 不能更新 platform 签名的系统包 | `03_deploy_system_app.md` |
-| App 已运行但日志显示 `NO_DEPLOYABLE_APP` | 对齐 Jugg 日志与 `idea.log`，再用 `pidof`、`run-as` 区分 IDE Client 缺失和真实不可调试；Direct Overlay 成功属于 Best-effort 降级，不应仅凭该状态判失败 | `DeployStateManager`、`DirectOverlaySwapTransport`；本节 4.5、`03_deploy_core.md` |
+| Symptom | First evidence and interpretation boundary | Behavior owner / topic |
+|---------|--------------------------------------------|------------------------|
+| Brief IDE freeze on click or operation | Align freeze time in `idea.log`, Jugg log pause, and thread dump. A log gap alone does not prove Jugg held a lock. | `FileChangesDetector`, `TaskRunnerManager`; `04_engineering_ide.md`. |
+| Long freeze after startup | Collect Jugg log, `idea.log`, freeze dump, and on-scene `jcmd`; separate ConstRef, IDE startup, and EDT lock-contention paths. | `04_engineering_ide.md`, `03_deploy_const_ref.md`. |
+| ConstRef SQLite corruption | Check corrupt-DB rebuild and `fallback to no-op const-ref`; a DB exception should not expand into Run/compile/deploy failure. | `ConstRefCacheDatabase`, `ConstRefEngine`; `03_deploy_const_ref.md`. |
+| Jugg Debug breakpoint unavailable | In the same window confirm WAITING, `Connected to the target VM`, and final session creation; "waiting for debugger" does not mean the VM connected. | `04_engineering_debug_attach.md`. |
+| Changes present but fallback to full Gradle | Compare changed files, IDE file events, Git follow-up, and deploy history. Do not destroy evidence by deleting history first. | `JuggCompilerHelper`, `DeployFileManager`; `02_compile_core.md`. |
+| Incremental compile says a resource field cannot be found (`找不到符号: 变量 xxx`), although R class exists and resource was not deleted | First rule out a missing resource: the missing field is inside `R$xxx`, indicating classpath shadowing. In order, check which same-named `R$xxx` jar occurs first on actual javac/kotlinc `-classpath`; lastModified of `compile_r_class_jar` and `compile_only_not_namespaced_r_class_jar` under that module; selected path in `module compile R.jar candidates found in module` debug log. After a fix, one module should contribute only one Gradle R.jar. If both R layouts still enter classpath, treat as a `BaseCompileContext.getGradleRFilePaths()` regression. | `BaseCompileContext.getGradleRFilePaths()`, `ModuleBuildPathInfo.moduleCompileRFileCandidates`; `02_compile_source.md`, `04_engineering_project.md`. |
+| New Flutter asset does not trigger compile | Check `Detect file changed (before filter)`, Git `no-record`, then `ChangedFile[ExternalBuildSource]`. If stopped before classification, compare Flutter `inputFiles` in `gradle_project_infos.json`, current pubspec asset file/directory declarations, and `excludedDirs`. Undeclared new files remain ignored; do not infer ownership from an arbitrary assets directory. | `FileChangesHandler`, `resolveExternalBuild`, `GradleProjectInfoReader.readFlutterInputs`; `02_compile_core.md`, `04_engineering_project.md`. |
+| `not gradle compile yet` after upgrade | Check `complete_flag`, `module_builds.json` version, and recovery log; do not fabricate a missing flag manually. | `CompileContextDb`, `BuildPathInfoSerializer`; `04_engineering_project.md`. |
+| `Git check after compile is still running` | This debug message only means this run does not wait for an asynchronous follow-up, not compile failure. Investigate Git query size/history only if persistent. | `GitChangesCompileChecker`; `02_compile_core.md`. |
+| Slow APK DB initialization | Align APK size, isolated-parser signals, DB size, and measured time. | APK parser/database; `05_utilities.md`. |
+| Compatibility resource deploy OOM, followed by persistent `FileSystemAlreadyExistsException` | Align `ResourceApkModifier` entry/byte/heap logs, `Open ZipFS` temporary path, and deploy-payload heap. Later Runs should use a new temporary URI; after OOM, the formal cache should be cleaned. | `ResourceApkModifier`, `ApkFileModifier`, `JuggDeployerHelper`; `03_deploy_core.md`, `05_utilities.md`. |
+| `source_files.db` rebuilds on every startup | Check rebuild stamp, deletion failure, and `SQLITE_BUSY`; DB creation/modified time does not establish recent rebuild. | `SourceFileManager`, `SourceFileDatabaseSqLiteHelper`; §4.3 here. |
+| Runtime crash after release incremental build | Confirm real minify configuration of the current variant and matching mapping source (`variants[].minifyEnabled` / `ModuleInfo.minifyEnabled`), then mapping load and `Obfuscated:`, then compare staging and APK DEX. Exception names alone cannot establish a mapping gap. Residual `outputs/mapping/<variant>/mapping.txt` for an unminified variant does not participate in the decision or obfuscation. | `ICompileContext.isMinified`, `DexMinifyCompiler`, `DexObfuscator`; `02_compile_obfuscation.md`. |
+| Kotlin `INTERNAL_ERROR` with shaded `JavaVersion` in stack | Failure even after compiler recreation only strengthens a host-environment inference; also inspect host JDK, project Kotlin version, and compatibility logs. | `KotlinCompilerHostCompat`; `02_compile_source.md`. |
+| Kotlin `INTERNAL_ERROR` with `DelegatingFileSystem.close`, `DescriptorLoadingContext.close` in stack | Confirm `UnsupportedOperationException` occurs in the same exception block. Then warmup caches only current compiler-classpath state; a separate JVM retry log should appear for actual sources. The subprocess takes one Kotlin argfile argument; other toolchains should not be downgraded in tandem. | `KotlinCompilerOutputParser`, `KotlinCompilerInvoker`, `KotlinCompilerProcessRunner`; `02_compile_source.md`. |
+| Kotlin `cannot access ... which is a supertype of ...` / `unresolved supertypes:`, common in ROM or vehicle system apps using hidden APIs | Check whether SDK `android.jar` precedes a same-named framework/HideAPI jar in `-cp` of `kotlin compile: kotlinc`; this is not a missing HideAPI path. A match should produce a trailing retry log with a `-cp` order intentionally different from default. | `AndroidJarClasspathRetry`, `KotlinCompilerInvoker`; `02_compile_source.md`. |
+| Kotlin `required plugin option not present` | Compare `kotlinPluginOptions` in `gradle_project_infos.json` with `-P plugin:` in `kotlin compile: kotlinc`. If present but still failing, check plugin/Kotlin versions; if missing, check `KotlinCompilerPluginData` reading. Fallback disabling must precisely match the plugin ID declared by `CommandLineProcessor`, not disable all plugins. | `GradleProjectInfoReader`, `KotlinCompilerInvoker`; `02_compile_source.md`. |
+| Kotlin `unsupported plugin option` | Confirm the rejected argument came from `kotlinPluginOptions`. Jugg removes all arguments for that plugin ID from Gradle-resolved arguments and retries only once; it does not modify user `kotlinFreeCompilerArgs`. If repeated, check whether compiler toolchain, plugin JAR, and Gradle task belong to the same compilation. | `KotlinCompiler`, `KotlinCompilerInvoker`; `02_compile_source.md`. |
+| Kotlin `BackendException: Exception during IR lowering`, caused by `copyValueParametersToStatic` and `Dispatch receiver type ... is not a subtype of ...` | Verify the real inheritance chain, whether failure is in Gradle/Kotlin incremental compilation, and whether clean restores success. With a valid chain and clean recovery, investigate an intermittent Kotlin compiler IR synthetic-accessor defect first, not a source-type error or Jugg missed dependency compile. | §4.4 here; `02_compile_source.md`. |
+| Windows command output garbles Chinese | Preserve the raw-byte path; `�` may mean irreversible decode loss has already happened. | `ProcessOutputReader`; `04_engineering_compat.md`. |
+| System app cannot install, lacks `FLAG_SYSTEM`, or privileged permission is denied | First see whether `codePath` is under `/system/` and whether this run used only `pm install` / `JuggDeployer.install`. Do not treat it first as an ordinary deploy failure. | `JuggDeployer.install`; `03_deploy_system_app.md`. |
+| System app Run says cannot update / signature mismatch | Compare certificates of the `/system` baseline APK and the APK being installed. A debug keystore cannot update a platform-signed system package. | `03_deploy_system_app.md`. |
+| App runs but log shows `NO_DEPLOYABLE_APP` | Align Jugg and `idea.log`; use `pidof` and `run-as` to distinguish missing IDE Client from real non-debuggability. Successful Direct Overlay is a best-effort fallback and this state alone does not prove failure. | `DeployStateManager`, `DirectOverlaySwapTransport`; §4.5 here and `03_deploy_core.md`. |
 
-### 4.1 IDE freeze 的最小证据集
+### 4.1 Minimal evidence set for an IDE freeze
 
-先收集：
+Collect first:
 
-1. 当前或最近的 `compile_*.log`。
-2. 同一时间窗的 `idea.log`。
-3. `threadDumps-freeze-*`。
-4. 当场 `jcmd <pid> Thread.print -l`。
+1. Current or recent `compile_*.log`.
+2. `idea.log` from the same time window.
+3. `threadDumps-freeze-*`.
+4. An on-scene `jcmd <pid> Thread.print -l`.
 
-以 `uiFreezeStarted` 或用户感知时间为锚点，对齐 Jugg 的 active task 与 worker 栈：
+Anchor on `uiFreezeStarted` or the user's perceived time, aligning Jugg's active task with worker stacks:
 
-- Jugg 日志存在活跃 ConstRef full scan，且 worker 栈落在 const-ref / SQLite，才支持 ConstRef 高负载判断。
-- `ApplicationImpl.postInit`、`InitialVfsRefresh`、`clangd` 更活跃，而 Jugg 缺少对应工作信号时，优先检查 IDE 启动链。
-- `waitCost=`、`TaskRunnerManager lock` 与 EDT 栈同时出现时，才继续检查锁竞争 owner。
+- An active ConstRef full scan in Jugg logs together with a worker stack in const-ref/SQLite supports a ConstRef high-load conclusion.
+- When `ApplicationImpl.postInit`, `InitialVfsRefresh`, or `clangd` is more active and Jugg has no corresponding work signal, first inspect the IDE startup chain.
+- Continue investigating lock-contention ownership only when `waitCost=`, `TaskRunnerManager lock`, and an EDT stack appear together.
 
-源码默认值与现场日志不一致时，先核对实际安装插件版本、系统属性和运行时覆盖，不能用当前 HEAD 覆盖现场事实。
+If source defaults differ from on-scene logs, check the installed plugin version, system properties, and runtime overrides first; current HEAD cannot override incident facts.
 
-### 4.2 release runtime crash 的区分证据
+### 4.2 Distinguishing evidence for a release runtime crash
 
-| 异常模式 | 下一项区分证据 |
-|----------|----------------|
-| 注解/反射查找失败 | 对比 staging/APK DEX 的注解类型描述符 |
-| `NoClassDefFoundError` | 检查调用方 DEX 中 `const-class`、数组、异常表等类型引用是否仍为原名 |
-| `IllegalAccessError` / `IncompatibleClassChangeError` | 对比成员 access flags、direct/virtual section 和 invoke 形态 |
-| 新增类、匿名类、lambda 的 `AbstractMethodError` | 检查类自身 mapping 缺失时是否能从接口/父类推导方法映射 |
-| Kotlin facade 或 keep 类 `NoSuchMethodError` | 检查 R8 synthesized 条目的方法名、参数格式及恒等映射覆盖 |
-| 关闭 minify 的变体仍产出混淆命名 | 该变体目录下存在上一次混淆构建残留的 `mapping.txt`；确认 `variants[].minifyEnabled` 是否为 `false` 以及 project info 是否来自本次 Gradle 读取 |
+| Exception pattern | Next distinguishing evidence |
+|-------------------|-----------------------------|
+| Annotation/reflection lookup failure | Compare annotation type descriptors in staging and APK DEX. |
+| `NoClassDefFoundError` | Check whether `const-class`, arrays, exception tables, and other type references in caller DEX still use original names. |
+| `IllegalAccessError` / `IncompatibleClassChangeError` | Compare member access flags, direct/virtual sections, and invocation form. |
+| `AbstractMethodError` for a new class, anonymous class, or lambda | Check whether method mapping can be inferred from interfaces/superclasses when the class has no mapping of its own. |
+| `NoSuchMethodError` in a Kotlin facade or keep class | Inspect R8 synthesized entry method names, argument format, and identity-mapping coverage. |
+| An unminified variant still produces obfuscated names | A residual `mapping.txt` from an earlier minified build exists in that variant directory; verify `variants[].minifyEnabled` is `false` and project info came from this Gradle read. |
 
-这些模式的当前实现约束统一记录在 `02_compile_obfuscation.md`。仅凭异常类型或“日志中没有目标类名”不能确认具体缺口；必须核对收集范围和 DEX/mapping 证据。
+Current implementation constraints for these patterns are recorded in `02_compile_obfuscation.md`. Neither exception type nor "target class name absent from logs" alone confirms a specific gap; verify collection scope and DEX/mapping evidence.
 
-### 4.3 `source_files.db` 每次启动都重建
+### 4.3 `source_files.db` rebuilds on every startup
 
-**信号**：IDEA 或 standalone 初始化时反复出现 `source file db is too old, recreate database`，源码索引扫描耗时被重复放大，随后可能出现 `SQLITE_BUSY`。
+**Signal**: IDEA or standalone initialization repeatedly logs `source file db is too old, recreate database`, inflating source-index scan time and potentially followed by `SQLITE_BUSY`.
 
-**当前期望行为**：
-- Git 补检在增量编译前异步启动，用于发现 IDE 文件事件遗漏的磁盘修改。
-- 编译结束后只消费已经完成的补检结果，不等待仍在运行的查询。
-- 查询未完成时仅记录 debug，当前编译和部署继续；迟到结果不触发本轮二次编译，也不会被后续 Run 误读。
-- 后台查询可以自然完成，其文件刷新结果可进入后续 Run 的待编译状态。
+**Current expected behavior**:
+- Start the Git follow-up asynchronously before incremental compilation to find disk modifications missed by IDE file events.
+- After compilation, consume only completed follow-up results, without waiting for queries still running.
+- An unfinished query logs debug only; current compilation and deployment continue. Late results do not trigger a second compile this run and are not misread by a subsequent Run.
+- A background query may finish naturally and its file-refresh results may enter pending state for a later Run.
 
-**排查步骤**：
-1. 搜 `gitManager.getChangedFiles` 与 `gitManager.getUncommittedFiles`，区分 commit diff 和工作区扫描耗时。
-2. 搜 `Git recovery CRC summary`，确认候选文件和历史 CRC 规模。
-3. 该日志本身不表示本次 Run 失败；只有持续高频出现时才继续检查仓库规模、未跟踪文件和部署历史。
+**Investigation steps**:
+1. Search `gitManager.getChangedFiles` and `gitManager.getUncommittedFiles` to separate commit-diff and working-tree scan durations.
+2. Search `Git recovery CRC summary` for candidate-file and historical-CRC scale.
+3. This log alone does not mean this Run failed. Inspect repository size, untracked files, and deployment history only if it appears persistently and frequently.
 
-### 4.3 APK 数据库初始化慢
+### 4.3 Slow APK database initialization
 
-**信号**：`database all init finish, cost Xms` 中 X > 3000。
+**Signal**: X > 3000 in `database all init finish, cost Xms`.
 
-**排查步骤**：
-1. 确认 APK 大小（`build/jugg/classpath/apk/`）
-2. 搜 `APK size exceeds threshold` 确认是否触发了隔离进程解析
-3. 检查 `build/jugg/database/apk/` 下 db 文件大小
+**Investigation steps**:
+1. Check APK size in `build/jugg/classpath/apk/`.
+2. Search `APK size exceeds threshold` for isolated-process parsing.
+3. Check DB file sizes under `build/jugg/database/apk/`.
 
-### 4.3.1 `source_files.db` 每次启动都重建
+### 4.3.1 `source_files.db` rebuilds on every startup
 
-**信号**：IDEA 或 standalone 初始化时反复出现 `source file db is too old, recreate database`，源码索引扫描耗时被重复放大，随后可能出现 `SQLITE_BUSY`。
+**Signal**: IDEA or standalone initialization repeatedly logs `source file db is too old, recreate database`, inflating source-index scan time and potentially followed by `SQLITE_BUSY`.
 
-**当前期望行为**：
-- 最近一次完整重建时间保存在 `build/jugg/database/source_files.rebuild_at`，不使用 DB 的 creation time 或 last modified time。
-- stamp 只在数据库创建或重建、schema 初始化、`updateSourceDirs()` 完整提交后更新；普通增量 `updateFiles()` 不刷新。
-- 老版本 DB 缺少 stamp、stamp 损坏、超过 14 天或明显位于未来时完整重建一次；重建失败不更新 stamp。
-- 删除旧 DB 失败时必须明确失败，不能继续在原文件上伪装重建成功。
-- `Clear Jugg Build` 会同时删除 DB 与 stamp，重新打开项目后按新库正常初始化。
+**Current expected behavior**:
+- Last full rebuild time lives in `build/jugg/database/source_files.rebuild_at`, not DB creation or last-modified time.
+- Update the stamp only after database creation/rebuild, schema initialization, and a complete `updateSourceDirs()` commit; ordinary incremental `updateFiles()` does not refresh it.
+- A legacy DB with no stamp, corrupt stamp, stamp older than 14 days, or stamp obviously in the future is fully rebuilt once. A failed rebuild does not update the stamp.
+- Failure to delete the old DB must fail explicitly; do not pretend a rebuild succeeded over the old file.
+- `Clear Jugg Build` deletes both DB and stamp; reopening the project initializes a new database normally.
 
-**排查步骤**：
-1. 检查 `source_files.db` 与 `source_files.rebuild_at` 是否同时存在。
-2. 搜 `source file db rebuild stamp` / `source file db daysSinceRebuilt`，确认是缺失、损坏、未来时间还是超过 14 天。
-3. 搜 `Failed to delete database` 与 `SQLITE_BUSY`，并对齐 IDEA、`standlone_cli` 日志，确认是否有另一 Runtime 正在写入。
-4. 不要用 creation time 或 last modified time 人工修复 stamp；需要恢复时使用 `Clear Jugg Build`，或关闭相关 Runtime 后删除 `source_files.db` 与 `source_files.rebuild_at`。
+**Investigation steps**:
+1. Check whether `source_files.db` and `source_files.rebuild_at` both exist.
+2. Search `source file db rebuild stamp` / `source file db daysSinceRebuilt` to determine whether the stamp is absent, corrupt, in the future, or older than 14 days.
+3. Search `Failed to delete database` and `SQLITE_BUSY`, aligning IDEA and `standlone_cli` logs to see whether another Runtime is writing.
+4. Do not repair the stamp manually using creation or last-modified time. For recovery, use `Clear Jugg Build`, or close relevant Runtimes then delete `source_files.db` and `source_files.rebuild_at`.
 
-**关键类**：
+**Key classes**:
 ```
 main/.../deploy/data/SourceFileManager.kt
 main/.../deploy/data/SourceFileDatabaseSqLiteHelper.kt
 ```
 
-### 4.4 release 增量编译后注解类型不匹配 crash
+### 4.4 Annotation-type mismatch crash after release incremental compilation
 
-**信号**：runtime crash 报某类 "has no public methods with @Subscribe annotation" 或其他注解查找失败（如 `EventBusException`、Dagger/Hilt 注入失败等注解类型不匹配异常）。
+**Signal**: a runtime crash reports a class "has no public methods with @Subscribe annotation", or another failed annotation lookup such as `EventBusException`, Dagger/Hilt injection failure, or annotation type mismatch.
 
-**排查步骤**：
-1. 检查 `source_files.db` 与 `source_files.rebuild_at` 是否同时存在。
-2. 搜 `source file db rebuild stamp` / `source file db daysSinceRebuilt`，确认是缺失、损坏、未来时间还是超过 14 天。
-3. 搜 `Failed to delete database` 与 `SQLITE_BUSY`，并对齐 IDEA、`standlone_cli` 日志，确认是否有另一 Runtime 正在写入。
-4. 不要用 creation time 或 last modified time 人工修复 stamp；需要恢复时使用 `Clear Jugg Build`，或关闭相关 Runtime 后删除 `source_files.db` 与 `source_files.rebuild_at`。
+**Investigation steps**:
+1. Check whether `source_files.db` and `source_files.rebuild_at` both exist.
+2. Search `source file db rebuild stamp` / `source file db daysSinceRebuilt` to determine whether the stamp is absent, corrupt, in the future, or older than 14 days.
+3. Search `Failed to delete database` and `SQLITE_BUSY`, aligning IDEA and `standlone_cli` logs to see whether another Runtime is writing.
+4. Do not repair the stamp manually using creation or last-modified time. For recovery, use `Clear Jugg Build`, or close relevant Runtimes then delete `source_files.db` and `source_files.rebuild_at`.
 
-**关键类**：
+**Key classes**:
 ```
 main/.../deploy/data/SourceFileManager.kt
 main/.../deploy/data/SourceFileDatabaseSqLiteHelper.kt
 ```
 
-### 4.4 Kotlin IR lowering 中间歇性的 dispatch receiver 类型断言
+### 4.4 Intermittent dispatch-receiver type assertion during Kotlin IR lowering
 
-**典型信号**：
+**Typical signal**:
 
 ```text
 org.jetbrains.kotlin.backend.common.BackendException: Exception during IR lowering
@@ -334,79 +334,79 @@ org.jetbrains.kotlin.ir.util.IrUtilsKt.copyValueParametersToStatic
 org.jetbrains.kotlin.backend.common.lower.inline.SyntheticAccessorGenerator
 ```
 
-JOOX Android 的 `jugg_scene_JOOX_Android_ext_20260911_144438` 报告确认过一次完整案例：
+The JOOX Android report `jugg_scene_JOOX_Android_ext_20260911_144438` confirmed one complete case:
 
-- 现场使用 Kotlin 2.0.21，失败发生在远程 Gradle 的 `:wemusic:compileDebugKotlin`，调用栈进入 `IncrementalJvmCompilerRunner`。
-- 报错声称 `PlayerGeneralSongInfoFragment` 不是 `AbsPlayerFragment` 的子类型，但 APK/Dex 中的实际继承链为 `PlayerGeneralSongInfoFragment -> AbsPlayerPagerSubCellFragment -> AbsPlayerFragment`，继承关系合法。
-- 前一轮 Jugg 增量编译在修改 `AbsPlayerFragment.kt` 后，已正确级联编译中间类和 `PlayerGeneralSongInfoFragment.kt` 并成功，现有证据不支持稳定的影响分析漏编。
-- 失败的 Gradle 构建有大量 task 处于 `UP-TO-DATE`；执行 clean 后再次运行同一 Gradle 配置成功，现有证据不支持稳定的源码语义错误。
-- `PlayerGeneralSongInfoFragment` 的 Kotlin SMAP 包含来自 `AbsPlayerFragment.kt` 的内联代码映射，与异常栈中的 synthetic accessor lowering 边界一致。
+- The incident used Kotlin 2.0.21. Failure occurred in remote Gradle `:wemusic:compileDebugKotlin`, with stack entering `IncrementalJvmCompilerRunner`.
+- The error claimed `PlayerGeneralSongInfoFragment` was not a subtype of `AbsPlayerFragment`, but the actual APK/Dex inheritance chain is `PlayerGeneralSongInfoFragment -> AbsPlayerPagerSubCellFragment -> AbsPlayerFragment`, which is valid.
+- After modifying `AbsPlayerFragment.kt`, the previous Jugg incremental compile correctly cascaded to the intermediate class and `PlayerGeneralSongInfoFragment.kt` and succeeded. Current evidence does not support a stable missed impact-analysis compile.
+- Many tasks in the failed Gradle build were `UP-TO-DATE`; running the same Gradle configuration after clean succeeded. Current evidence does not support a stable source-semantic error.
+- `PlayerGeneralSongInfoFragment`'s Kotlin SMAP contains inline-code mappings from `AbsPlayerFragment.kt`, consistent with the synthetic-accessor lowering boundary in the exception stack.
 
-**当前结论**：
+**Current conclusion**:
 
-- 高置信度根因是 Kotlin JVM IR compiler 的间歇性内部缺陷。公开问题 [KT-73245](https://youtrack.jetbrains.com/issue/KT-73245) 与现场异常、Kotlin 版本和间歇性表现高度一致，并被归并到 [KT-51944](https://youtrack.jetbrains.com/issue/KT-51944)。
-- 中高置信度触发因素是 Gradle/Kotlin 增量编译状态。远程源码同步排除普通 `build` 目录，远端 Gradle/Kotlin 编译产物会跨构建保留；基类、间接子类及内联访问连续变化时，可能更容易暴露该 compiler 缺陷。
-- 报告未包含失败瞬间的远端 Kotlin cache，无法确认具体损坏的 cache 条目，也无法区分确定性的脏增量状态与非确定性的 compiler race。
-- 现场未发现 `-Xbackend-threads`，不能直接认定启用了 parallel IR backend。KT-51944 仍未关闭，升级 Kotlin 只能作为候选验证，不能宣称必然修复。
+- High-confidence root cause: an intermittent internal Kotlin JVM IR compiler defect. Public issue [KT-73245](https://youtrack.jetbrains.com/issue/KT-73245) closely matches the incident exception, Kotlin version, and intermittence, and was merged into [KT-51944](https://youtrack.jetbrains.com/issue/KT-51944).
+- Medium-high-confidence trigger: Gradle/Kotlin incremental compilation state. Remote source synchronization excludes ordinary `build` directories, so remote Gradle/Kotlin artifacts persist across builds; successive changes to a base class, indirect subclass, and inline access may expose the compiler defect more readily.
+- The report did not include the remote Kotlin cache at the instant of failure, so the specific corrupt cache entry cannot be identified, nor can deterministic dirty incremental state be distinguished from a nondeterministic compiler race.
+- No `-Xbackend-threads` was seen, so parallel IR backend cannot be assumed. KT-51944 remains open; a Kotlin upgrade is a candidate experiment, not a guaranteed fix.
 
-**反证边界**：
+**Counterevidence boundary**:
 
-- 若 clean 后仍能稳定复现，应重新检查源码、compiler plugin 和固定 toolchain 兼容问题，降低增量状态假设的权重。
-- 若 Dex/源码继承链确实不满足断言中的父子关系，则属于真实类型或混合版本输入问题，不能套用本案例。
-- 若日志显示相关基类或中间类未同步到远端，应优先调查同步输入，不把同步缺失解释为 compiler bug。
+- If failure reproduces consistently after clean, reconsider source, compiler-plugin, and fixed-toolchain compatibility and reduce weight on the incremental-state hypothesis.
+- If the Dex/source inheritance chain does not actually satisfy the asserted subtype relationship, this is a real type or mixed-version input problem; do not apply this case.
+- If logs show the relevant base or intermediate classes were not synchronized to remote, investigate sync inputs first rather than label the missing sync a compiler bug.
 
-**下次复现时的最小保全与区分步骤**：
+**Minimum preservation and distinguishing steps on recurrence**:
 
-1. clean 前保存完整 Jugg 报告，并备份远端模块的 `build/kotlin/compileDebugKotlin`、`build/tmp/kotlin-classes`、项目 `.gradle/kotlin` 和 `.kotlin/errors`；路径不存在时记录未生成，不伪造缺失原因。
-2. 不修改源码，原命令直接重试一次；无修改即恢复会增强非确定性 compiler bug 或 race 判断。
-3. 尝试定向执行 `./gradlew :<module>:compileDebugKotlin -Pkotlin.incremental=false`；仅关闭 Kotlin incremental 后恢复会增强增量状态判断。
-4. 再尝试模块级 `:<module>:clean`，判断是否无需清理整个工程。
-5. 保存 `--info` 输出或实际 Kotlin compiler 参数，确认 dirty sources、classpath、compiler plugin 和 `-Xbackend-threads`。
+1. Before clean, save the full Jugg report and back up remote module `build/kotlin/compileDebugKotlin`, `build/tmp/kotlin-classes`, project `.gradle/kotlin`, and `.kotlin/errors`. Record a missing path as not generated without inventing its cause.
+2. Retry the original command once without changing source. Recovery without a change strengthens the nondeterministic compiler-bug or race interpretation.
+3. Try targeted `./gradlew :<module>:compileDebugKotlin -Pkotlin.incremental=false`; recovery only with Kotlin incremental disabled strengthens the incremental-state interpretation.
+4. Try module-level `:<module>:clean` next to see whether the whole project need not be cleaned.
+5. Save `--info` output or actual Kotlin compiler arguments to check dirty sources, classpath, compiler plugins, and `-Xbackend-threads`.
 
-在没有上述复现证据前，不建议仅凭该异常自动执行全工程 clean。若后续需要 Jugg 侧降级，应只精确匹配该异常链，并优先评估一次模块级 clean 或关闭 Kotlin incremental 的有界重试，避免掩盖其它 IR lowering 错误。
+Without this recurrence evidence, do not automatically clean the entire project based on this exception alone. If a Jugg-side fallback is later needed, match this exact exception chain and first evaluate one bounded retry with module-level clean or Kotlin incremental disabled so other IR lowering errors are not hidden.
 
-### 4.5 App 已运行但 Android Studio 显示 `NO_DEPLOYABLE_APP`
+### 4.5 App is running but Android Studio shows `NO_DEPLOYABLE_APP`
 
-**典型信号**：
+**Typical signals**:
 
-- Jugg 日志出现 `IdeDeployState(state=NO_DEPLOYABLE_APP, message=Android Studio deployable client unavailable)` 或旧版本文案 `app not running or not debuggable`。
-- 部署日志中的 `ideClientPids=[]`，但 `adb shell pidof <packageName>` 仍返回进程。
-- Android Studio `idea.log` 同一时间窗可能出现 `Unexpected cmdline file for PID` 等 DDMLib 进程识别异常。
-- 较新 Android Studio 能看到同一设备上的 App，旧版 Android Studio 看不到。
-- Android 15 及以上配合 Android Studio Meerkat 之前的版本时，首次资源部署可能因 JVMTI 兼容处理重启 App；重启后 App 明明在前台，下一次部署仍继续得到 `NO_DEPLOYABLE_APP`。
+- Jugg logs show `IdeDeployState(state=NO_DEPLOYABLE_APP, message=Android Studio deployable client unavailable)` or older wording `app not running or not debuggable`.
+- Deployment logs show `ideClientPids=[]`, while `adb shell pidof <packageName>` still returns a process.
+- Android Studio `idea.log` in the same window may show DDMLib process-recognition errors such as `Unexpected cmdline file for PID`.
+- A newer Android Studio sees the app on the same device, but an older version does not.
+- On Android 15 or later with an Android Studio version before Meerkat, the first resource deployment may restart the app for JVMTI compatibility. Although the app is in foreground afterward, the next deployment still gets `NO_DEPLOYABLE_APP`.
 
-**解释边界**：
+**Interpretation boundaries**:
 
-- `NO_DEPLOYABLE_APP` 是 Android Studio Apply Changes client 的观测结果，不是 APK `debuggable` 属性或设备进程状态的直接证据。
-- `ideClientPids` 来自 Android Studio/DDMLib client 列表，不等同于 `pidof` 返回的设备真实进程。
-- `run-as <packageName>` 成功能够证明普通 Direct Overlay 具备 sandbox 访问前提；不能仅凭 Android Studio Client 缺失认定 Direct Overlay 不可用。
-- 普通 Direct Overlay 独立校验 deployment cache 和设备 overlay checkpoint，但只提交 sandbox 文件，不会刷新正在运行的进程。日志出现 `Direct Overlay fallback succeeded` 时，说明 Best-effort 备用写入通道已经提交成功；该路径必须向部署生命周期传播重启需求，即使 App 当前在前台也必须重启。
-- 不要把普通 Direct Overlay 与 `DirectAppSandboxDeployTransport` 混为一谈。后者会尝试对运行中进程执行 runtime apply，并按实际结果决定是否重启；前者成功后固定需要重启。
+- `NO_DEPLOYABLE_APP` is an Android Studio Apply Changes client observation, not direct evidence of the APK `debuggable` property or device process state.
+- `ideClientPids` comes from Android Studio/DDMLib's client list; it is not equivalent to real device processes from `pidof`.
+- Successful `run-as <packageName>` proves the sandbox-access prerequisite for ordinary Direct Overlay; a missing Android Studio Client alone does not make Direct Overlay unavailable.
+- Ordinary Direct Overlay independently validates deployment cache and device overlay checkpoint, but commits only sandbox files and does not refresh the running process. `Direct Overlay fallback succeeded` means the best-effort backup write channel committed. This path must propagate a restart requirement through the deployment lifecycle even if the app is currently in foreground.
+- Do not confuse ordinary Direct Overlay with `DirectAppSandboxDeployTransport`. The latter attempts runtime apply to the running process and determines restart from the actual result; the former always requires restart after success.
 
-**当前正确行为**：
+**Current correct behavior**:
 
-1. `NO_DEPLOYABLE_APP`、App 在前台且 Direct Overlay 已启用时，先输出 `App is running but not deployable by Android Studio. Direct Deploy will restart the app after deployment.`，让用户在写入前知道本轮会重启。
-2. 普通 Direct Overlay 成功后应依次看到 `Direct Overlay fallback succeeded`、`after direct overlay deploy`、`Restarting app...` 和对应的 `am start -S`；不应出现 `App foreground, no need to restart app.`。
-3. 原始部署类型即使是 `HOT_RELOAD`，只要本轮实际重启，最终用户结果也应为 `Jugg HOT_FIX SUCCESSFUL ...` 和 `App restarted.`，不能继续显示 `Jugg HOT_RELOAD SUCCESSFUL ...` / `App deployed.`。
+1. When `NO_DEPLOYABLE_APP` occurs with app in foreground and Direct Overlay enabled, print `App is running but not deployable by Android Studio. Direct Deploy will restart the app after deployment.` first, so the user knows about this run's restart before writing.
+2. After ordinary Direct Overlay succeeds, expect `Direct Overlay fallback succeeded`, `after direct overlay deploy`, `Restarting app...`, and corresponding `am start -S`, in order. `App foreground, no need to restart app.` should not appear.
+3. Even if the original deployment type is `HOT_RELOAD`, an actual restart this run requires final user output `Jugg HOT_FIX SUCCESSFUL ...` and `App restarted.`, not `Jugg HOT_RELOAD SUCCESSFUL ...` / `App deployed.`.
 
-`needsRestartApp` 只描述本轮实际是否需要重启，不携带部署路径来源。Direct Overlay 专属提示应在确认 `NO_DEPLOYABLE_APP`、App 前台和 Direct 开关的选择点输出，不能在 finish 阶段根据 `needsRestartApp && deployType == HOT_RELOAD` 反推“一定是 Direct Deploy”。
+`needsRestartApp` describes only whether this run actually needs a restart; it does not encode which deployment path was used. Print the Direct-Overlay-specific message at the choice point where `NO_DEPLOYABLE_APP`, app foreground, and the Direct toggle are known. Do not infer "must be Direct Deploy" in finish from `needsRestartApp && deployType == HOT_RELOAD`.
 
-**排查步骤**：
+**Investigation steps**:
 
-1. 从 `compile_*.log` 记录 `NO_DEPLOYABLE_APP`、`ideClientPids`、App foreground、Direct Overlay enable/canTry、overlay checkpoint 和最终 fallback 结果。
-2. 对齐 Android Studio `idea.log` 的同一毫秒时间窗，搜索 `Unexpected cmdline file for PID`、DDMLib、JDWP 和 client 相关日志。
-3. 不重启现场，执行 `adb shell pidof <packageName>`，确认设备真实进程是否存在。
-4. 执行只读 `adb shell run-as <packageName> pwd` 验证 sandbox 能力；失败时保留原始错误，不把它解释为单纯 IDE 观测问题。
-5. 若 Direct Overlay checkpoint 匹配并成功提交，继续确认旧进程已通过 `am start -S` 重启，并核对最终结果为 `HOT_FIX` / `App restarted.`；若只有 `HOT_RELOAD` / `App deployed.`，或进程未变更，则说明 overlay 仅落盘、生命周期未兑现重启契约。
-6. 若 `run-as`、cache 或 checkpoint 也失败，再进入 recover/reinstall 或明确返回失败。
+1. From `compile_*.log`, record `NO_DEPLOYABLE_APP`, `ideClientPids`, app foreground, Direct Overlay enable/canTry, overlay checkpoint, and final fallback result.
+2. Align the same millisecond window in Android Studio `idea.log`; search `Unexpected cmdline file for PID`, DDMLib, JDWP, and client-related logs.
+3. Without restarting the incident scene, run `adb shell pidof <packageName>` to confirm the real device process.
+4. Run read-only `adb shell run-as <packageName> pwd` to verify sandbox access. Preserve the original error on failure; do not interpret it as merely an IDE observation issue.
+5. If the Direct Overlay checkpoint matches and commit succeeds, confirm `am start -S` restarted the old process and final output is `HOT_FIX` / `App restarted.`. If only `HOT_RELOAD` / `App deployed.` appears, or the process did not change, the overlay was written but the restart lifecycle contract was not met.
+6. If `run-as`, cache, or checkpoint fails too, proceed to recovery/reinstall or return an explicit failure.
 
-现场结论必须限定 Android Studio、Android API、插件版本和时间窗。旧版 Android Studio 的观测缺陷不能外推为所有 IDE 版本或所有 `NO_DEPLOYABLE_APP` 都可安全忽略。
+Scope incident conclusions to Android Studio version, Android API, plugin version, and time window. An older Android Studio observation defect cannot be generalized to all IDE versions or all `NO_DEPLOYABLE_APP` cases.
 
 ---
 
-## 5. 排查前：保存现场
+## 5. Before troubleshooting: preserve the scene
 
-在任何清理、重试、重装或再次 Run 前先备份：
+Back up before any cleanup, retry, reinstall, or another Run:
 
 ```bash
 BACKUP=~/Desktop/jugg_debug_$(date +%Y%m%d_%H%M%S)
@@ -415,46 +415,46 @@ cp -r {projectDir}/build/jugg/log/ "$BACKUP/log/"
 cp -r {projectDir}/build/jugg/database/ "$BACKUP/database/"
 ```
 
-`compile_*.log` 是主日志文件；`compile_latest*.log` 只是快捷入口。
+`compile_*.log` are primary logs; `compile_latest*.log` are only shortcuts.
 
-提交问题时按场景附带：
+Attach by scenario when filing an issue:
 
-| 文件 | 路径/来源 | 适用场景 |
-|------|-----------|----------|
-| Jugg 主日志 | `build/jugg/log/compile_*.log` | 所有问题 |
-| IDE 主日志 | `idea.log` | freeze、启动、debug attach、IDE 生命周期 |
-| freeze dump / 现场线程栈 | `threadDumps-freeze-*`、`jcmd <pid> Thread.print -l` | 卡顿与死锁 |
-| 项目信息 | `build/jugg/database/project_infos.db/` | 模块、variant、included build、APK 归属 |
-| APK 数据库 | `build/jugg/database/apk/` | APK 解析和数据库状态 |
-| 部署历史 | `build/jugg/database/deploy_history.db/` | 增量状态和恢复问题 |
-| crash / logcat / 设备 overlay | 设备现场 | runtime crash、资源和部署问题 |
+| File | Path/source | Scenario |
+|------|-------------|----------|
+| Jugg main log | `build/jugg/log/compile_*.log` | All problems. |
+| IDE main log | `idea.log` | Freeze, startup, debug attach, IDE lifecycle. |
+| Freeze dump / on-scene thread stack | `threadDumps-freeze-*`, `jcmd <pid> Thread.print -l` | Stalls and deadlocks. |
+| Project information | `build/jugg/database/project_infos.db/` | Module, variant, included build, APK ownership. |
+| APK database | `build/jugg/database/apk/` | APK parsing and database state. |
+| Deployment history | `build/jugg/database/deploy_history.db/` | Incremental state and recovery. |
+| Crash / logcat / device overlay | Device scene. | Runtime crash, resources, and deployment. |
 
-可使用 `tools/collect_jugg_scene.command <projectDir>` 一键保存 APK、R.jar、设备 crash/logcat、实际安装 APK 和 overlay 产物；ADB 定位过程写入 `meta/adb_resolution.txt`。用户侧没有本仓库时，把 `tools/collect_jugg_scene_prompt.md` 全文发给用户，让其在出问题的 Android 工程里用 Agent 执行；Agent 从 GitHub 下载官方脚本，采集完成后文件管理器会打开桌面上的 `jugg_scene_*.zip`。资源运行时问题必须在再次 Run、重装或清数据前采集，避免 staging 和设备 overlay 被覆盖。
+Use `tools/collect_jugg_scene.command <projectDir>` to save APKs, R.jars, device crash/logcat, actually installed APKs, and overlay artifacts in one step. ADB resolution is recorded in `meta/adb_resolution.txt`. If a user does not have this repository, send the full `tools/collect_jugg_scene_prompt.md` to them for their Agent to run in the affected Android project. The Agent downloads the official script from GitHub; after collection, the file manager opens the desktop `jugg_scene_*.zip`. For runtime resource issues, collect before another Run, reinstall, or data clear overwrites staging and device overlay.
 
-included build 资源 ID 与 Application / Dynamic Feature 归属问题分别按 `02_compile_source.md`、`04_engineering_project.md` 的排查入口继续，不在本文重复项目模型和 classpath 规则。
-
----
-
-## 6. 运行时修复验证流程
-
-测试价值、TDD、L0～L3 和测试落点以 `06_testing.md` 为唯一权威。本手册只补充运行时问题的证据要求：
-
-1. 修改前保存稳定失败证据，记录现场版本、宿主环境、时间窗和可重复操作。
-2. 先确定 behavior owner 和失败边界，再选择自动化测试或真机/IDE/外部进程替代验证。
-3. 自动化只能绑定私有实现或要求测试专用 seam 时，不新增测试；保留异常日志、复现步骤和判定标准。
-4. 修复后回到同一失败边界验证，并补充未命中修复条件的正常路径证据。
-5. 输出结论前再次执行第 2.3 节反证门禁，确认修复标志与用户可观察结果一致，不能用单条新增日志代替结果验证。
+For included-build resource IDs and Application/Dynamic Feature ownership, continue at troubleshooting entry points in `02_compile_source.md` and `04_engineering_project.md`; do not repeat project-model and classpath rules here.
 
 ---
 
-## 7. 关联文档
+## 6. Runtime fix verification flow
 
-- 编译主流程与回退：`02_compile_core.md`
-- 源码/Kotlin/Dex：`02_compile_source.md`
-- release 混淆映射：`02_compile_obfuscation.md`
-- ConstRef：`03_deploy_const_ref.md`
-- IDE 生命周期：`04_engineering_ide.md`
-- Jugg Debug attach：`04_engineering_debug_attach.md`
-- 项目快照与 APK 归属：`04_engineering_project.md`
-- 兼容层与命令输出：`04_engineering_compat.md`
-- 测试与验证：`06_testing.md`
+`06_testing.md` is the sole authority for test value, TDD, L0–L3, and test placement. This manual adds runtime-problem evidence requirements only:
+
+1. Preserve stable failure evidence before editing; record the incident version, host environment, time window, and reproducible steps.
+2. Identify the behavior owner and failure boundary before choosing automated tests or real-device/IDE/external-process alternative verification.
+3. If automation would bind only to private implementation or require a test-only seam, do not add it; retain exception logs, reproduction steps, and judgment criteria.
+4. After a fix, verify at the same failure boundary and add normal-path evidence for conditions outside the fix trigger.
+5. Apply the Section 2.3 counterevidence gate again before concluding; verify that fix signals match user-observable outcomes rather than treating a newly added log line as the result.
+
+---
+
+## 7. Related documents
+
+- Core compile flow and fallback: `02_compile_core.md`.
+- Source/Kotlin/Dex: `02_compile_source.md`.
+- Release obfuscation mapping: `02_compile_obfuscation.md`.
+- ConstRef: `03_deploy_const_ref.md`.
+- IDE lifecycle: `04_engineering_ide.md`.
+- Jugg Debug attach: `04_engineering_debug_attach.md`.
+- Project snapshots and APK ownership: `04_engineering_project.md`.
+- Compatibility and command output: `04_engineering_compat.md`.
+- Testing and verification: `06_testing.md`.

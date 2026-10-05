@@ -1,97 +1,97 @@
-# 编译系统：混淆映射
+# Compilation System: Obfuscation Mapping
 
-> 最后核对：2026-09-16
-> 一致性规则：文档与代码冲突时，以代码为准。
-
----
-
-## 1. 文档定位
-
-本页只覆盖 release/minified 场景的映射一致性：从未混淆 class/dex 到与已安装 APK 保持一致的混淆产物，以及 `_jugg_fix` 桥接类生成。
-
-源码到 dex 的顺序见 `02_compile_source.md`；Manifest 增量合并见 `02_compile_manifest.md`；release runtime 异常排查见 `09_plugin_runtime_debug.md`。
+> Last verified: 2026-09-16
+> Consistency rule: If documentation conflicts with code, code takes precedence.
 
 ---
 
-## 2. 核心源码索引
+## 1. Purpose of This Document
 
-| 类/接口 | 文件 | 作用 |
+This page covers mapping consistency only for release/minified builds: converting unobfuscated class/dex output into obfuscated output consistent with the installed APK, and generating `_jugg_fix` bridge classes.
+
+For source-to-dex order, see `02_compile_source.md`; for incremental Manifest merge, see `02_compile_manifest.md`; for release runtime investigations, see `09_plugin_runtime_debug.md`.
+
+---
+
+## 2. Core Source Index
+
+| Class/interface | File | Role |
 |---|---|---|
-| `ClassMinifyCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/obfuscation/ClassMinifyCompiler.kt` | class 级 mapping 重写；无 mapping 时复制原 class |
-| `DexMinifyCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/obfuscation/DexMinifyCompiler.kt` | dex 级 mapping 重写、inline 影响信息读取、`_jugg_fix` DEX 生成与 `usage.txt` compatibility stub 改写 |
-| `ClassObfuscator` / `DexObfuscator` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/obfuscation/` | 执行 class/dex 名称、字段、方法与内部引用重映射 |
-| `R8MappingReader` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/obfuscation/R8MappingReader.kt` | 读取 `mapping.txt` 并提供类/方法/字段映射查询 |
-| `R8UsageReader` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/obfuscation/R8UsageReader.kt` | 读取 `usage.txt`，记录 R8 已删除的类、方法和字段 |
+| `ClassMinifyCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/obfuscation/ClassMinifyCompiler.kt` | Rewrites mapping at class level; copies the original class when no mapping applies |
+| `DexMinifyCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/obfuscation/DexMinifyCompiler.kt` | Rewrites mapping at dex level, reads inline-effect information, generates `_jugg_fix` DEX, and rewrites `usage.txt` compatibility stubs |
+| `ClassObfuscator` / `DexObfuscator` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/obfuscation/` | Remaps class/dex names, fields, methods, and internal references |
+| `R8MappingReader` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/obfuscation/R8MappingReader.kt` | Reads `mapping.txt` and exposes class/method/field mapping queries |
+| `R8UsageReader` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/obfuscation/R8UsageReader.kt` | Reads `usage.txt` and records classes, methods, and fields removed by R8 |
 
 ---
 
-## 3. 核心数据流
+## 3. Core Data Flow
 
-| 数据 | 生产者 | 消费者 | 关键约束 |
+| Data | Producer | Consumer | Key constraint |
 |---|---|---|---|
-| `mapping.txt` | 已安装 APK / 增量数据目录 | `ClassMinifyCompiler`, `DexMinifyCompiler` | 变体开启 minify 时是必需输入；缺失即失败，不允许静默跳过 |
-| `usage.txt` | R8/ProGuard 输出 | `DexMinifyCompiler` | 只增强 `_jugg_fix` 输入 class 的兼容改写；缺失或解析失败时退化为不裁剪 deleted method |
-| `MinifyInfo` | 部署数据/影响分析链路 | `DexMinifyCompiler` | 用于识别 inline 受影响类与 `_jugg_fix` 原始 class 输入 |
+| `mapping.txt` | Installed APK / incremental-data directory | `ClassMinifyCompiler`, `DexMinifyCompiler` | Required when the variant enables minify; absence fails, never silently skip |
+| `usage.txt` | R8/ProGuard output | `DexMinifyCompiler` | Enhances compatibility rewriting only for `_jugg_fix` input classes; if absent or unparseable, continue without pruning deleted methods |
+| `MinifyInfo` | Deployment-data/effect-analysis chain | `DexMinifyCompiler` | Identifies classes affected by inline changes and original class inputs to `_jugg_fix` |
 
-是否进入混淆只由当前选中变体的真实 `minifyEnabled` 决定：`GradleProjectInfoReader` / `GradleVariantCollector` 把 `Variant.minifyEnabled` 写进 project info，`ModuleInfo.minifyEnabled` 按 `buildVariant` 派生，`ICompileContext.isMinified` 只判断它是否为 `true`。`outputs/mapping/<variant>/mapping.txt` 是否存在不参与该判断：用户曾经为某个变体开启过 minify、之后关闭时，旧 mapping 会残留在磁盘上，用它推断会把未混淆产物当成混淆产物处理。
+Only the selected variant's actual `minifyEnabled` decides whether obfuscation runs. `GradleProjectInfoReader` / `GradleVariantCollector` write `Variant.minifyEnabled` to project info, `ModuleInfo.minifyEnabled` derives it from `buildVariant`, and `ICompileContext.isMinified` checks only whether it is `true`. The presence of `outputs/mapping/<variant>/mapping.txt` does not decide: an old mapping can remain on disk after a user disables minify for a previously minified variant. Using its existence would misclassify unobfuscated output as obfuscated.
 
 ---
 
-## 4. 核心调用链路
+## 4. Core Call Chain
 
 ```text
 SourceCompiler.compileDexOutputs()
-  -> DexCompiler 生成未混淆 dex；minified 场景输出到 temp/un_minify
-  -> DexMinifyCompiler.initIfNeeded() 加载 mapping.txt，按需加载 usage.txt
-  -> preObfuscateForMinifyInfo() 先把 dex 临时混淆，供 getMinifyInfo() 按已安装 APK 的混淆类名查 DB
-  -> context.getMinifyInfo() 返回 inline 受影响类与原始 class 文件
-  -> generateJuggFixClasses() 将原始 class 经 usage.txt stub 改写、D8、obfuscate、renameDexClassDeclaration
-  -> 普通增量 dex 再执行 obfuscateWithInlineRedirect() 或 obfuscate()
-  -> 输出与 APK mapping 一致的 dex / `_jugg_fix` dex
+  -> DexCompiler generates unobfuscated dex; minified cases write to temp/un_minify
+  -> DexMinifyCompiler.initIfNeeded() loads mapping.txt and optionally usage.txt
+  -> preObfuscateForMinifyInfo() temporarily obfuscates dex so getMinifyInfo() can query DB using obfuscated class names in the installed APK
+  -> context.getMinifyInfo() returns classes affected by inline changes and original class files
+  -> generateJuggFixClasses() rewrites original classes into usage.txt stubs, runs D8, obfuscates, and calls renameDexClassDeclaration
+  -> ordinary incremental dex then runs obfuscateWithInlineRedirect() or obfuscate()
+  -> output dex / `_jugg_fix` dex consistent with APK mapping
 ```
 
-`_jugg_fix` 采用“先完全混淆，再只改类声明名”的桥接策略：声明名带 `_jugg_fix` 后缀，内部调用仍指向原混淆类，避免把桥接类变成一套脱离 APK mapping 的新实现。
+`_jugg_fix` uses a bridge strategy of “fully obfuscate first, then change only the declared class name.” After the declaration gains the `_jugg_fix` suffix, internal calls still target the original obfuscated class, so the bridge does not become an independent implementation outside the APK mapping.
 
 ---
 
-## 5. 隐形约束 / 设计思路 / 已知边界
+## 5. Hidden Constraints / Design Rationale / Known Boundaries
 
-- 变体开启 minify 但 `mapping.txt` 缺失时会硬失败：`ClassMinifyCompiler` / `DexMinifyCompiler` 打印用户可见 `warn` 并让本轮增量编译失败，不再 wrap 原任务结果。原因是缺少 mapping 时输出的命名空间一定与已安装 APK 不一致，静默继续等于部署一份运行时必然崩溃的产物。排查 release 异常时先确认日志是否出现该告警。
-- 变体未开启 minify 时直接跳过混淆，即使该变体目录下仍有上一次混淆构建残留的 `mapping.txt`；Jugg 不删除也不清理该文件，只按真实配置路由。
-- `usage.txt` 只参与 `_jugg_fix` 输入 class 的方法体兼容改写：已删除方法保留签名但改为空实现/默认返回；字段删除目前由 reader 记录，当前链路主要消费 removed methods。
-- 部分 R8 版本会在 `usage.txt` 中擦除 Kotlin property accessor 的参数信息。精确签名未命中时，只有 usage 与 class bytecode 中该方法名都唯一才按名称回退；任一侧存在 overload 就保持原方法，避免误裁剪同名成员。
-- `preObfuscateForMinifyInfo()` 是为了让 DB 查询使用 APK 里的混淆类名；若跳过这一步，容易误判“类在 DB 中缺失”。
+- When a variant enables minify but `mapping.txt` is missing, fail hard: `ClassMinifyCompiler` / `DexMinifyCompiler` emit a user-visible `warn` and fail this incremental run without wrapping the original task result. Without mapping, output names must diverge from the installed APK, and silently continuing would deploy an artifact bound to crash at runtime. Check for this warning first when investigating a release failure.
+- When the variant disables minify, skip obfuscation even if old `mapping.txt` remains in its directory from a previous minified build. Jugg neither deletes nor cleans that file; it routes only by actual configuration.
+- `usage.txt` participates only in compatibility rewriting of `_jugg_fix` input-class method bodies. Removed methods keep their signatures but become empty implementations/default returns. The reader also records deleted fields, while the current chain primarily consumes removed methods.
+- Some R8 versions erase parameter information for Kotlin property accessors in `usage.txt`. If an exact signature does not match, fall back by name only when the method name is unique in both usage and class bytecode. If either side has an overload, retain the original method to avoid pruning the wrong same-name member.
+- `preObfuscateForMinifyInfo()` lets DB queries use the APK's obfuscated class names. Skipping it can falsely suggest that a class is absent from DB.
 
-### 5.1 DEX 映射完整性边界
+### 5.1 DEX Mapping-Completeness Boundary
 
-`DexObfuscator` 使用 dex2jar visitor，不能像 ASM `ClassRemapper` 一样自动覆盖所有类型引用。release runtime crash 需要按 DEX 位置区分映射缺口：
+`DexObfuscator` uses a dex2jar visitor and cannot automatically cover every type reference as ASM `ClassRemapper` does. For release runtime crashes, locate a possible mapping gap according to its DEX position:
 
-| 异常模式 | 当前映射约束 | 关键入口 |
-|----------|--------------|----------|
-| 注解/反射查找失败 | class、field、method annotation 的类型描述符都必须经过 `mapType()` | `visitAnnotation()` |
-| `NoClassDefFoundError` | `const-class`、field/method owner 与 proto、invoke-custom 参数、数组、异常表、type stmt 都要映射 | `visitCode()` 的各 `DexCodeVisitor` 覆写 |
-| `IllegalAccessError` / `IncompatibleClassChangeError` | 成员 access flags 要与 R8 `-allowaccessmodification` 基线一致；本类非构造、非 static 的 direct invoke 需与宽化后的 virtual 形态一致 | `widenAccessFlags()`、`visitMethodStmt()` |
-| 新增类或 lambda 的 `AbstractMethodError` | 类自身无 mapping 时，方法名先从接口/父类推导，再回退类自身 | `mapMethodForCurrentClass()` |
-| Kotlin facade / keep 类 `NoSuchMethodError` | R8 synthesized 条目需规范化 qualified 方法名和中间参数类型，且恒等映射不能覆盖真实重命名 | `normalizeMethodParams()`、`methodNameMap` 构建 |
+| Failure pattern | Current mapping constraint | Key entry point |
+|-----------------|----------------------------|-----------------|
+| Annotation/reflection lookup failure | Type descriptors on class, field, and method annotations must all pass through `mapType()` | `visitAnnotation()` |
+| `NoClassDefFoundError` | Map `const-class`, field/method owner and proto, invoke-custom arguments, arrays, exception tables, and type statements | `visitCode()` overrides in each `DexCodeVisitor` |
+| `IllegalAccessError` / `IncompatibleClassChangeError` | Member access flags must match the R8 `-allowaccessmodification` baseline. A non-constructor, non-static direct invoke on the current class must match the widened virtual form | `widenAccessFlags()`, `visitMethodStmt()` |
+| `AbstractMethodError` on a new class or lambda | When the class has no mapping, derive a method name from its interface/superclass first, then fall back to the class itself | `mapMethodForCurrentClass()` |
+| `NoSuchMethodError` on a Kotlin facade / kept class | Normalize qualified method names and intermediate parameter types in R8 synthesized entries; identity mappings must not overwrite real renames | `normalizeMethodParams()`, `methodNameMap` construction |
 
-诊断时先确认 `mapping.txt` 已加载且日志出现 `Obfuscated:`，再用 `dexdump -a` 对比 staging DEX 与 APK DEX。异常类型只用于选择对比位置，不能直接证明具体 visitor 或 mapping 条目失败。
+First confirm `mapping.txt` loaded and the log contains `Obfuscated:`, then compare staging DEX with APK DEX using `dexdump -a`. The exception type helps choose where to compare; it does not prove that a particular visitor or mapping entry failed.
 
 ---
 
-## 6. 排查入口
+## 6. Investigation Entry Points
 
-| 现象 | 优先入口 |
+| Symptom | First entry point |
 |---|---|
-| release 增量后类名/方法名不匹配 | `DexMinifyCompiler.initIfNeeded()` 与 `DexObfuscator`：先确认 mapping 加载成功 |
-| release 增量后注解/类型/access/method 映射异常 | 本文 §5.1；对比 staging/APK DEX 与 mapping 后再定位 `DexObfuscator` |
-| `_jugg_fix` 类存在但运行时调用异常 | `generateJuggFixClasses()`：检查 D8 输出类名匹配、obfuscate 后路径、`renameDexClassDeclaration()` |
-| minify 删除成员影响分析异常 | `03_deploy_data_generator.md` §5.6：检查 `effectedType=MINIFY_MEMBER_REMOVED` |
+| Class/method name mismatch after release increment | `DexMinifyCompiler.initIfNeeded()` and `DexObfuscator`; first confirm mapping loaded |
+| Annotation/type/access/method mapping failure after release increment | §5.1 here; compare staging/APK DEX and mapping before locating a `DexObfuscator` point |
+| `_jugg_fix` exists but runtime calls fail | `generateJuggFixClasses()`; check D8 output class name, post-obfuscation path, and `renameDexClassDeclaration()` |
+| Abnormal effect analysis for a member removed by minify | `03_deploy_data_generator.md` §5.6; check `effectedType=MINIFY_MEMBER_REMOVED` |
 
 ---
 
-## 7. 关联文档
+## 7. Related Documents
 
-- 源码编译：`02_compile_source.md`
-- Manifest 增量合并：`02_compile_manifest.md`
-- 影响分析与 minify 类型：`03_deploy_data_generator.md`
-- release runtime 排查：`09_plugin_runtime_debug.md`
+- Source compilation: `02_compile_source.md`
+- Incremental Manifest merge: `02_compile_manifest.md`
+- Effect analysis and minify types: `03_deploy_data_generator.md`
+- Release runtime investigation: `09_plugin_runtime_debug.md`

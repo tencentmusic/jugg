@@ -1,99 +1,99 @@
-# Jugg 架构设计（AI 任务版）
+# Jugg Architecture (AI Task Edition)
 
-> 最后核对：2026-07-21
-> 一致性规则：文档与代码冲突时，以代码为准。
-
----
-
-## 1. 文档定位
-
-本页只回答三件事：
-- 系统分层怎么切
-- 运行时主链路怎么走
-- 改某类问题时应从哪里切入
+> Last verified: 2026-07-21
+> Consistency rule: If documentation conflicts with code, code takes precedence.
 
 ---
 
-## 2. 分层架构（当前代码）
+## 1. Purpose of This Document
 
-| 层级 | 目录 | 核心职责 |
-|------|------|----------|
-| IDE 入口层 | `idea/src/ide_entry` | 插件加载、初始化、Run Configuration、Sync 事件与稳定 JComponent UI 桥接 |
-| IDE 业务层 | `idea/src/main` | 编译/部署任务编排、UI、运行期策略 |
-| 核心逻辑层 | `main/src/main/java/com/sickworm/intellij/jugg` | 编译、部署、项目模型、Gradle、MCP、工具能力 |
-| 项目信息域 | `main/.../project/info` + `idea/.../compiler/context/IdeaProjectModelSource.kt` | project model source 边界、序列化/合并与 IDEA host model 读取 |
-| 项目变化域 | `main/.../project/change` + `idea/.../project/change` | 文件变化检测契约、过滤和 IDE VFS/Git detector |
-| 任务与锁域 | `main/.../project/runtime/TaskRunnerManager.kt`, `ExecutionLockManager.kt` | `TaskRunnerManager` 串行同 Runtime 的阻塞项目任务，Project Runtime lease 只互斥不同 Runtime；同时管理全局跨进程锁、后台 Job、完成事件和 dispose；IDEA 仅提供任务展示 adapter |
-| 编译上下文域 | `main/.../compiler/context` | 共享 Compile Context 生命周期、full-build path 覆盖和 Gradle-only context；不依赖 IDEA model API |
-| 兼容层 | `deploy_compat/*` | Android Studio 版本 API 适配；共享部署调用使用 `deploy.api` 自有类型，外部类型只在边界转换 |
-| 平台桩层 | `platform_compat/base_api` | IntelliJ/log4j 最小实现，支撑非 IDE 编译并作为 CLI runtime stub；不提供 Android runtime class |
-| 运行时层 | `jvmti_agent/src/main/cpp` | JVMTI agent 与兼容部署支撑 |
+This page answers only three questions:
+- How the system is layered
+- How the main runtime flows work
+- Where to begin when changing a particular kind of behavior
 
 ---
 
-## 3. 核心链路
+## 2. Layered Architecture (Current Code)
 
-### 3.1 启动与初始化
-
-1. `JuggLoader` / `JuggInitializer` 触发初始化。  
-2. `JuggManager` 组装当前 IDEA 侧项目协作对象，负责配置刷新、历史恢复、Compile Context 关联和资源释放。
-3. `JuggManager` 接收初始化、Sync、Run、UI 与 MCP 请求；已下沉能力直接使用 `main` 的领域实现。
-4. Sync 事件经 `JuggGradleSyncListener` 进入 `JuggManager.onSyncEvent`，由 `IdeaProjectModelSource → CompileContextManager` 更新 effective model 与 Compile Context。
-
-### 3.2 Run 主流程
-
-1. `JuggRunningTask.run` 进入统一执行链。
-2. `JuggCompilerHelper.compile` 决策“增量 or Gradle 回退”。
-3. 增量路径：`IncrementalCompilerHelper` -> `JuggCompiler`。
-4. 部署路径：`JuggDeployerHelper.deploy` -> `JuggDeployTask` -> `JuggDeployer`。
-5. 结果写回状态与历史（deploy/history/status managers）。
-6. `JuggRunningTask` 把 compile、deploy 关键节点记录到 `JuggControlPanelModel`；`JuggControlPanelController` 记录 Sync/App 事件并持有项目级 Model/Panel，JuggManager 仅负责装配和薄委托。
-
-### 3.3 MCP 主流程
-
-1. `McpLocalServer` 提供 `/jugg-mcp` HTTP 入口。  
-2. `McpBaseInvoker` 处理 initialize/ping/tools/list 等通用方法。  
-3. `McpToolInvoker` 校验参数并路由到 `ai/mcp/actions/*`。  
-4. 业务结果统一映射为 `structuredContent`，生命周期记录为 `MCP request` / `MCP response` 核心事件。
-5. `McpToolInvoker` 同时记录开始与唯一终态事件，不解析 raw log。
+| Layer | Directory | Main responsibility |
+|-------|-----------|---------------------|
+| IDE entry layer | `idea/src/ide_entry` | Plugin loading, initialization, Run Configuration, Sync events, and a stable JComponent UI bridge |
+| IDE business layer | `idea/src/main` | Compilation/deployment task orchestration, UI, and runtime policy |
+| Core logic layer | `main/src/main/java/com/sickworm/intellij/jugg` | Compilation, deployment, project model, Gradle, MCP, and utility capabilities |
+| Project information domain | `main/.../project/info` + `idea/.../compiler/context/IdeaProjectModelSource.kt` | Project-model source boundary, serialization/merge, and IDEA host-model reading |
+| Project change domain | `main/.../project/change` + `idea/.../project/change` | File-change detection contracts, filtering, and IDE VFS/Git detectors |
+| Task and lock domain | `main/.../project/runtime/TaskRunnerManager.kt`, `ExecutionLockManager.kt` | `TaskRunnerManager` serializes blocking project tasks within the same Runtime; the Project Runtime lease excludes only different Runtimes. It also manages global cross-process locks, background Jobs, completion events, and disposal; IDEA only supplies a task-display adapter |
+| Compile context domain | `main/.../compiler/context` | Shared Compile Context lifecycle, full-build path overrides, and Gradle-only contexts; independent of the IDEA model API |
+| Compatibility layer | `deploy_compat/*` | Android Studio version API adapters; shared deployment calls use the project's own `deploy.api` types, converting external types only at the boundary |
+| Platform stub layer | `platform_compat/base_api` | Minimal IntelliJ/log4j implementation supporting non-IDE compilation and serving as a CLI runtime stub; supplies no Android runtime classes |
+| Runtime layer | `jvmti_agent/src/main/cpp` | JVMTI agent and compatible-deployment support |
 
 ---
 
-## 4. 关键设计取舍
+## 3. Core Flows
 
-- **增量优先，失败可回退**：优先走旁路增量，必要时回退 Gradle。
-- **main 与 idea 解耦**：`main` 提供核心逻辑，`idea` 注入平台实现。
-- **Runtime 聚合后置**：项目模型、文件变化、配置和编译/部署编排形成可复用的具体领域实现后，再建立共享 Runtime 聚合；当前不为单一 IDEA 实现预建生命周期、binder 或 controller 接口。
-- **设备状态隔离**：共享 `DeployStateManager` 依赖 `IHostDeployStateResolver`，IDEA 设备状态读取由 `IdeaHostDeployStateResolver` 提供。
-- **兼容层隔离**：AS 版本差异集中在 `deploy_compat`，减少业务污染。
-- **部署类型隔离**：共享层保留 `IDevice`、`Apk`、`ApkEntry` 等既有调用面，但类型归属 `com.sickworm.intellij.jugg.deploy.api`；IDEA compat 与 standalone executor 转换真实 Android 类型。
-- **协议内聚**：MCP 在 `main/.../ai/mcp` 独立分层，不与 IDE UI 逻辑强耦合。
-- **稳定 UI 桥接**：`ide_entry` 只通过 `IJuggManagerCaller.getJuggControlPanel(page): JComponent` 挂载热更新 Panel，不暴露 Model、Event 或 UI DTO。
-- **统一事件模型**：`main/.../event` 保存无 Project/Swing 依赖的 snapshot 与核心事件；leaf compiler/deployer 继续使用日志，上层编排边界记录用户可读事件。
+### 3.1 Startup and Initialization
 
----
+1. `JuggLoader` / `JuggInitializer` triggers initialization.
+2. `JuggManager` assembles the current IDEA-side project collaborators and handles configuration refresh, history restoration, Compile Context association, and resource cleanup.
+3. `JuggManager` receives initialization, Sync, Run, UI, and MCP requests; capabilities already moved down use domain implementations in `main` directly.
+4. Sync events enter `JuggManager.onSyncEvent` via `JuggGradleSyncListener`; `IdeaProjectModelSource → CompileContextManager` updates the effective model and Compile Context.
 
-## 5. 扩展点
+### 3.2 Main Run Flow
 
-- 自定义编译器：`ICompilerCreator` + `CustomCompilerManager`。  
-- 平台能力注入：`PlatformApi`。  
-- 新 MCP 工具：新增 `McpToolAction` 并注册至 `McpToolActionRegistry`。  
-- 新兼容版本：在 `deploy_compat` 增加对应实现并接入 `AsDeployerCompat`。
+1. `JuggRunningTask.run` enters the unified execution chain.
+2. `JuggCompilerHelper.compile` chooses “incremental or Gradle fallback.”
+3. Incremental path: `IncrementalCompilerHelper` -> `JuggCompiler`.
+4. Deployment path: `JuggDeployerHelper.deploy` -> `JuggDeployTask` -> `JuggDeployer`.
+5. Results are written back to state and history (deploy/history/status managers).
+6. `JuggRunningTask` records key compile/deploy steps in `JuggControlPanelModel`; `JuggControlPanelController` records Sync/App events and owns the project Model/Panel, while `JuggManager` only assembles and delegates thinly.
 
----
+### 3.3 Main MCP Flow
 
-## 6. 常见排查入口
-
-- “为什么回退 Gradle”：`main/.../JuggCompilerHelper.kt`。
-- “为什么部署失败”：`main/.../JuggDeployerHelper.kt`。
-- “为什么类热更失败”：`idea/.../deploy/run/applychanges/JuggDeployer.kt` + `main/.../runtime/jvmti/*`。
-- “为什么 MCP 参数错误”：`main/.../ai/mcp/McpRequestValidator.kt`。
+1. `McpLocalServer` serves the `/jugg-mcp` HTTP endpoint.
+2. `McpBaseInvoker` handles common methods such as initialize/ping/tools/list.
+3. `McpToolInvoker` validates parameters and routes calls to `ai/mcp/actions/*`.
+4. Business results map consistently to `structuredContent`; lifecycle events are recorded as `MCP request` / `MCP response` core events.
+5. `McpToolInvoker` records both the start and one terminal event; it does not parse the raw log.
 
 ---
 
-## 7. 关联文档
+## 4. Key Design Choices
 
-- 编译：`02_compile_core.md`
-- 部署：`03_deploy_core.md`, `03_deploy_complete.md`
-- IDE：`04_engineering_ide.md`
-- MCP：`08_mcp_design.md`, `08_mcp_tools_list.md`
+- **Prefer incremental work, with fallback on failure**: take the side-path incremental flow first and fall back to Gradle when needed.
+- **Decouple `main` and `idea`**: `main` provides core logic, while `idea` injects platform implementations.
+- **Defer the Runtime aggregate**: create a shared Runtime aggregate only after the project model, file changes, configuration, and compile/deploy orchestration have become reusable concrete domain implementations. Do not prebuild lifecycle, binder, or controller interfaces for the current single IDEA implementation.
+- **Isolate device state**: shared `DeployStateManager` depends on `IHostDeployStateResolver`; `IdeaHostDeployStateResolver` reads IDEA device state.
+- **Isolate compatibility**: concentrate AS version differences in `deploy_compat` to keep business logic clean.
+- **Isolate deployment types**: the shared layer retains existing call surfaces such as `IDevice`, `Apk`, and `ApkEntry`, but these types belong to `com.sickworm.intellij.jugg.deploy.api`; IDEA compat and the standalone executor convert real Android types.
+- **Keep the protocol cohesive**: MCP has separate layers in `main/.../ai/mcp` and is not tightly coupled to IDE UI logic.
+- **Stable UI bridge**: `ide_entry` mounts the hot-update Panel only through `IJuggManagerCaller.getJuggControlPanel(page): JComponent`, without exposing the Model, Event, or UI DTO.
+- **Unified event model**: `main/.../event` holds snapshots and core events without Project/Swing dependencies; leaf compilers/deployers still use logs, while orchestration boundaries record user-readable events.
+
+---
+
+## 5. Extension Points
+
+- Custom compiler: `ICompilerCreator` + `CustomCompilerManager`.
+- Platform capability injection: `PlatformApi`.
+- New MCP tool: add a `McpToolAction` and register it in `McpToolActionRegistry`.
+- New compatibility version: add the corresponding implementation to `deploy_compat` and connect it through `AsDeployerCompat`.
+
+---
+
+## 6. Common Investigation Entry Points
+
+- “Why did it fall back to Gradle?”: `main/.../JuggCompilerHelper.kt`.
+- “Why did deployment fail?”: `main/.../JuggDeployerHelper.kt`.
+- “Why did a class hot update fail?”: `idea/.../deploy/run/applychanges/JuggDeployer.kt` + `main/.../runtime/jvmti/*`.
+- “Why is an MCP parameter invalid?”: `main/.../ai/mcp/McpRequestValidator.kt`.
+
+---
+
+## 7. Related Documents
+
+- Compilation: `02_compile_core.md`
+- Deployment: `03_deploy_core.md`, `03_deploy_complete.md`
+- IDE: `04_engineering_ide.md`
+- MCP: `08_mcp_design.md`, `08_mcp_tools_list.md`

@@ -1,39 +1,39 @@
-# Wiki 架构与运行
+# Wiki Architecture and Operation
 
-> 最后核对：2026-09-12
-> 一致性规则：文档与代码冲突时，以代码为准。
-
----
-
-## 1. 文档定位
-
-本页描述 Jugg 用户 Wiki 的工程结构、开发运行、构建预览和发布边界。
-
-本页不规定文章怎么写；文章写作见 `10_wiki_authoring.md`。
+> Last verified: 2026-09-12
+> Consistency rule: If documentation conflicts with code, code takes precedence.
 
 ---
 
-## 2. 核心文件索引
+## 1. Purpose of This Document
 
-| 文件 | 作用 |
+This page describes the Jugg user Wiki's project structure, local development, build preview, and publishing boundaries.
+
+For article-writing rules, see `10_wiki_authoring.md`.
+
+---
+
+## 2. Core File Index
+
+| File | Role |
 |---|---|
-| `docs/wiki/package.json` | Wiki 开发、打包、产物预览的 npm scripts 入口；后续 npm 操作都在 `docs/wiki` 下执行。 |
-| `docs/wiki/.vitepress/config.mts` | VitePress 站点配置，包含 base/nav/sidebar/search、GA4 首屏统计和 dev-only 页面排除。 |
-| `docs/wiki/.vitepress/theme/index.ts` | 继承 VitePress 默认主题、加载现有样式，并在浏览器端补充 GA4 单页路由统计。 |
-| `.agents/skills/wiki-writer/scripts/validate_wiki.py` | 检查中英文 Markdown 路径、nav/sidebar 路由顺序、相对链接、配置路由和构建产物。 |
-| `.github/workflows/wiki-pages.yml` | `main` 分支 Wiki 变更触发 GitHub Pages 构建与发布。 |
-| `.github/workflows/release.yml` | 版本 tag 触发正式 GitHub Release；仅 tag commit 已包含在 `main` 时构建，避免 develop tag 发布正式包。 |
-| `.github/workflows/canary.yml` | 每日或手工检查触发本次运行的分支；仅在其 HEAD 与 `canary-nightly` tag 不同时构建，并更新 Canary prerelease、插件包和 SHA-256。 |
-| `.github/workflows/dev.yml` | 仅手工触发的构建验证；按 `<versionName>-dev.<日期>.<run number>` 构建被触发 ref，并更新 `dev-latest` 滚动 prerelease、`jugg-dev.zip` 与 SHA-256。 |
-| `docs/wiki/dev/elements-demo.md` | 英文 dev-only 元素样板页，只用于开发环境视觉验收。 |
-| `docs/wiki/zh/dev/elements-demo.md` | 中文 dev-only 元素样板页，只用于开发环境视觉验收。 |
-| `docs/wiki/dev/assets/wiki-elements-demo.svg` | Demo 页使用的示例图片资源。 |
+| `docs/wiki/package.json` | Entry point for npm scripts to develop, package, and preview the Wiki; run all subsequent npm commands under `docs/wiki`. |
+| `docs/wiki/.vitepress/config.mts` | VitePress site configuration: base/nav/sidebar/search, GA4 first-page tracking, and dev-only page exclusion. |
+| `docs/wiki/.vitepress/theme/index.ts` | Extends the default VitePress theme, loads existing styles, and adds browser-side GA4 tracking for single-page navigation. |
+| `.agents/skills/wiki-writer/scripts/validate_wiki.py` | Checks English/Chinese Markdown paths, nav/sidebar route order, relative links, configured routes, and build outputs. |
+| `.github/workflows/wiki-pages.yml` | Builds and publishes GitHub Pages when the Wiki changes on `main`. |
+| `.github/workflows/release.yml` | Builds an official GitHub Release from a version tag only when the tag commit is already in `main`, avoiding official releases from develop tags. |
+| `.github/workflows/canary.yml` | Daily or manual check of the branch that triggered the run; builds only when its HEAD differs from the `canary-nightly` tag, then updates the Canary prerelease, plugin archive, and SHA-256. |
+| `.github/workflows/dev.yml` | Manually triggered build verification only; builds the triggered ref as `<versionName>-dev.<date>.<run number>` and updates the rolling `dev-latest` prerelease, `jugg-dev.zip`, and SHA-256. |
+| `docs/wiki/dev/elements-demo.md` | English dev-only element showcase page, used only for visual acceptance in development. |
+| `docs/wiki/zh/dev/elements-demo.md` | Chinese dev-only element showcase page, used only for visual acceptance in development. |
+| `docs/wiki/dev/assets/wiki-elements-demo.svg` | Sample image asset used on the demo page. |
 
 ---
 
-## 3. 站点结构
+## 3. Site Structure
 
-Wiki 使用 VitePress，源码根目录是 `docs/wiki`。
+The Wiki uses VitePress, with `docs/wiki` as its source root.
 
 ```text
 docs/wiki/
@@ -54,68 +54,68 @@ docs/wiki/
     troubleshooting/
 ```
 
-英文页面位于根路径，中文页面位于 `/zh/` 路径。英文是唯一内容基准；去掉 `zh/` 前缀后，中英文 Markdown 路径集合必须完全一致，nav/sidebar 的层级、顺序和目标页面也必须严格镜像。
+English pages live at the root route, while Chinese pages live under `/zh/`. English is the sole content source. After removing the `zh/` prefix, the English and Chinese Markdown path sets must match exactly; nav/sidebar hierarchy, order, and target pages must also be strict mirrors.
 
-### 3.1 GA4 页面统计
+### 3.1 GA4 Page Tracking
 
-`docs/wiki/.vitepress/config.mts` 在页面 `head` 中加载 Google tag，并使用衡量 ID `G-GNEQK6VECM` 初始化 GA4。该初始化负责首屏页面统计。
+`docs/wiki/.vitepress/config.mts` loads the Google tag in the page `head` and initializes GA4 with measurement ID `G-GNEQK6VECM`. That initialization tracks the first page.
 
-VitePress 后续切页不会完整刷新浏览器页面。`docs/wiki/.vitepress/theme/index.ts` 继承默认主题，并在浏览器端监听路由切换；首个路由回调由初始化统计覆盖，后续回调使用新路径再次调用 `gtag('config', ...)`。修改衡量 ID 时必须同时更新两个文件。
+Later VitePress route changes do not reload the browser page. `docs/wiki/.vitepress/theme/index.ts` extends the default theme and listens for browser-side route changes. Initialization covers the first route callback; subsequent callbacks invoke `gtag('config', ...)` again with the new path. When changing the measurement ID, update both files.
 
 ---
 
-## 4. dev-only 页面规则
+## 4. Dev-Only Page Rules
 
-需要视觉验收但不应该发布给用户的页面，放在 dev-only 路径：
+Place pages needed for visual acceptance but not for publication under the dev-only paths:
 
 ```text
 docs/wiki/dev/
 docs/wiki/zh/dev/
 ```
 
-必须同时满足：
+All four conditions must hold:
 
-1. 文件路径位于 dev-only 目录。
-2. frontmatter 写 `visibility: dev`。
-3. `docs/wiki/.vitepress/config.mts` 在 production build 中通过 `srcExclude` 排除路径。
-4. dev 模式下才在 nav/sidebar 中挂入口。
+1. The file is under a dev-only directory.
+2. Its frontmatter contains `visibility: dev`.
+3. `docs/wiki/.vitepress/config.mts` excludes the path from production builds through `srcExclude`.
+4. Nav/sidebar links appear only in dev mode.
 
-当前 dev-only 识别逻辑：
+Current dev-only detection:
 
 ```text
-JUGG_WIKI_DEV=true 或 vitepress dev
+JUGG_WIKI_DEV=true or vitepress dev
   -> include dev pages
 
 production build
   -> exclude dev/** and zh/dev/**
 ```
 
-production build 后应确认 dist 中不存在 dev-only 页面标题。
+After a production build, confirm that the dist output contains no dev-only page titles.
 
 ---
 
-## 5. 本地运行
+## 5. Local Operation
 
-Wiki 使用 VitePress，所有 npm 操作都以 `docs/wiki` 为工作目录。首次拉取或依赖变化后先安装依赖：
+The Wiki uses VitePress; run all npm operations from `docs/wiki`. Install dependencies after the first checkout or a dependency change:
 
 ```bash
 cd docs/wiki
 npm ci
 ```
 
-编辑 Wiki 时使用 dev server：
+Use the dev server while editing Wiki pages:
 
 ```bash
 npm run dev
 ```
 
-默认启动 VitePress dev server，保存 Markdown 或配置文件后会自动热更新页面。需要固定监听地址或端口时，通过 `--` 继续传 VitePress 参数：
+This starts the VitePress dev server by default and hot-reloads Markdown or configuration changes. To set a host or port, pass VitePress arguments after `--`:
 
 ```bash
 npm run dev -- --host 127.0.0.1 --port 5173
 ```
 
-dev 模式会自动包含 dev-only 页面，因为 `docs/wiki/.vitepress/config.mts` 中的 `isWikiDev` 会识别 `vitepress dev`。因此本地视觉验收可以直接访问：
+Dev mode includes dev-only pages automatically because `isWikiDev` in `docs/wiki/.vitepress/config.mts` recognizes `vitepress dev`. Local visual acceptance can therefore use:
 
 ```text
 /dev/elements-demo
@@ -124,95 +124,95 @@ dev 模式会自动包含 dev-only 页面，因为 `docs/wiki/.vitepress/config.
 
 ---
 
-## 6. Production 打包
+## 6. Production Build
 
-发布前使用 production build：
+Run a production build before publishing:
 
 ```bash
 npm run build
 ```
 
-构建产物输出到：
+Build output is written to:
 
 ```text
 docs/wiki/.vitepress/dist/
 ```
 
-production build 不应带 `JUGG_WIKI_DEV=true`。默认配置会通过 `srcExclude` 排除：
+Do not set `JUGG_WIKI_DEV=true` for a production build. The default configuration excludes these paths through `srcExclude`:
 
 ```text
 dev/**
 zh/dev/**
 ```
 
-如果需要临时验证 dev-only 页面能否独立构建，可以单独执行：
+To check temporarily whether dev-only pages can build independently, run:
 
 ```bash
 JUGG_WIKI_DEV=true npm run build
 ```
 
-该命令只用于开发验收，不作为发布产物。
+Use that command only for development acceptance, not to produce a publication artifact.
 
 ---
 
-## 7. 预览打包产物
+## 7. Preview the Build Output
 
-`npm run dev` 预览的是源码开发态；发布前还需要预览已经生成的静态产物：
+`npm run dev` previews the source in development mode. Before publishing, also preview the generated static output:
 
 ```bash
 npm run preview
 ```
 
-需要固定地址或端口时：
+To set a host or port:
 
 ```bash
 npm run preview -- --host 127.0.0.1 --port 4173
 ```
 
-`npm run preview` 读取 `docs/wiki/.vitepress/dist/`，因此必须先执行 `npm run build`。
+`npm run preview` reads `docs/wiki/.vitepress/dist/`, so run `npm run build` first.
 
 ---
 
-## 8. GitHub Pages 发布
+## 8. GitHub Pages Publishing
 
-GitHub Pages 使用项目站点路径：
+GitHub Pages uses the project-site path:
 
 ```text
 https://tencentmusic.github.io/jugg/
 ```
 
-`.github/workflows/wiki-pages.yml` 在 `main` 分支的 `docs/wiki/**` 或 workflow 自身发生变化时执行，也支持手工触发。构建步骤在 `docs/wiki` 下运行 `npm ci` 和 `npm run check:homepage`，完成 production build 与首页渲染检查后，再将 `.vitepress/dist` 作为 Pages artifact 发布。
+`.github/workflows/wiki-pages.yml` runs when `docs/wiki/**` or the workflow itself changes on `main`, and it also supports manual dispatch. In `docs/wiki`, the build job runs `npm ci` and `npm run check:homepage`. After the production build and homepage-render check, it publishes `.vitepress/dist` as a Pages artifact.
 
-VitePress 的公开路径由 `JUGG_WIKI_BASE` 控制：
+The public VitePress path is controlled by `JUGG_WIKI_BASE`:
 
 ```text
 GitHub Pages build -> JUGG_WIKI_BASE=/jugg/
-默认本地 build -> /
+default local build -> /
 ```
 
-不要将 `base` 直接写死为 `/jugg/`，以免本地构建错误引用 `/jugg/assets/**`。首次发布前需要在 `tencentmusic/jugg` 的 `Settings -> Pages` 中将 Source 设为 `GitHub Actions`，再手工运行 `Deploy wiki to GitHub Pages` 或向 `main` 推送 Wiki 变更。GitHub 不会将仓库转移前的 Pages 地址自动重定向到新地址。
+Do not hardcode `base` as `/jugg/`: that would make local builds incorrectly reference `/jugg/assets/**`. Before the first publication, set Source to `GitHub Actions` under `Settings -> Pages` in `tencentmusic/jugg`, then manually run `Deploy wiki to GitHub Pages` or push a Wiki change to `main`. GitHub does not automatically redirect the Pages address of the repository's previous owner to the new address.
 
-GitHub Pages 发布验证：
+Verify GitHub Pages publication by:
 
-1. Actions 中 `Deploy wiki to GitHub Pages` 的 build 和 deploy job 均成功。
-2. 打开 `/jugg/`、`/jugg/zh/` 和至少一个中英文正文页面。
-3. 检查 CSS、JavaScript、字体和图片请求均位于 `/jugg/assets/**` 或对应 `/jugg/` 子路径。
+1. Confirming both the build and deploy jobs of `Deploy wiki to GitHub Pages` succeeded in Actions.
+2. Opening `/jugg/`, `/jugg/zh/`, and at least one body page in each language.
+3. Checking that CSS, JavaScript, font, and image requests use `/jugg/assets/**` or the appropriate `/jugg/` subpath.
 
 ---
 
-## 9. 公开插件下载
+## 9. Public Plugin Downloads
 
-正式版和 Canary 使用不同发布语义：
+Official and Canary releases have different publishing semantics:
 
-- 正式版由版本 tag 触发 `release.yml`；仅 tag commit 已包含在 `main` 时才会构建，每个版本创建独立 GitHub Release。
-- `canary.yml` 更新可移动的 `canary-nightly` tag，并覆盖 `Jugg Canary` prerelease。
-- Canary 的 Actions artifact 只保留 14 天，用于构建排查；公开下载入口必须指向 GitHub Release asset，不能依赖 workflow run 页面。
-- README 和 Wiki 使用固定的 Canary Release asset 地址，因此每次构建不需要更新页面链接。
-- `release.yml` 必须排除 Canary tag，避免滚动 tag 被正式发布流程校验为版本号。
+- A version tag triggers `release.yml` for an official release; it builds only if the tag commit is in `main`, and each version receives a separate GitHub Release.
+- `canary.yml` updates the movable `canary-nightly` tag and overwrites the `Jugg Canary` prerelease.
+- Canary Actions artifacts are retained for only 14 days and serve build investigations; public download links must target a GitHub Release asset, not a workflow-run page.
+- README and Wiki use the fixed Canary Release asset URL, so the page link need not change after each build.
+- `release.yml` must exclude the Canary tag, so the official-release workflow does not try to validate a rolling tag as a version number.
 
-触发运行的分支有新 commit 时才会重新发布 Canary，版本为 `${baseVersion}-canary.<日期>.<run>`。Canary 可能包含未经完整验证的改动，下载页必须明确标记不稳定属性。
+Canary is republished only when the triggering branch has a new commit. Its version is `${baseVersion}-canary.<date>.<run>`. Canary may contain changes without full verification; download pages must clearly identify it as unstable.
 
-## 10. 关联文档
+## 10. Related Documents
 
-- `10_wiki_authoring.md`：普通 Wiki 文章写作规则。
-- `docs/wiki/.vitepress/config.mts`：站点配置、路由、导航和 production 排除规则。
+- `10_wiki_authoring.md`: Rules for ordinary Wiki articles.
+- `docs/wiki/.vitepress/config.mts`: Site configuration, routes, navigation, and production-exclusion rules.

@@ -1,162 +1,161 @@
-# 编译系统：DataBinding / ViewBinding
+# Compilation System: DataBinding / ViewBinding
 
-> 最后核对：2026-09-11
-> 一致性规则：文档与代码冲突时，以代码为准。
-
----
-
-## 1. 文档定位
-
-本页聚焦 DataBinding/ViewBinding 在 Jugg 增量编译里的两阶段处理：
-
-- 资源阶段如何生成 base classes、stripped XML 和 DataBinding 触发源。
-- 源码阶段如何保持 Mapper APT 默认路径，并对 Kotlin adapter 条件运行隔离 KAPT，维护 merged setter store、生成 mapper holder 并合并 BR。
-- 各阶段之间依赖哪些 Gradle 中间产物与 Jugg 临时目录。
-
-不重复资源编译与 Java/Kotlin 编译主链；对应内容见 `02_compile_resource.md` 与 `02_compile_source.md`。
+> Last verified: 2026-09-11
+> Consistency rule: If documentation conflicts with code, code takes precedence.
 
 ---
 
-## 2. 核心源码索引
+## 1. Purpose of This Document
 
-| 类 | 文件 | 作用 |
-|----|------|------|
-| `ResourceCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/overlay/ResourceCompiler.kt` | 资源编译阶段入口，触发 `DataBindingGenBaseClassesCompiler` |
-| `SourceCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/source/SourceCompiler.kt` | 源码编译阶段入口，触发 `SourceDataBindingProcessor` 和 mapper 生成 |
-| `SourceDataBindingProcessor` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/source/SourceDataBindingProcessor.kt` | 在源码编译前协调 DataBinding mapper 生成和失败重试 |
-| `DataBindingArgsManager` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/databinding/DataBindingArgsManager.kt` | 统一维护 DataBinding/ViewBinding 的临时目录、Gradle 中间产物路径、触发源和 mapper/BR 路径 |
-| `DataBindingGenBaseClassesCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/databinding/DataBindingGenBaseClassesCompiler.kt` | 资源阶段：split layout XML，生成 ViewBinding base classes 或 DataBinding trigger file |
-| `LegacyViewBindingLookup` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/databinding/LegacyViewBindingLookup.kt` | APK 基线没有 `ViewBindings` 时，把 7.4.2 生成的 `findChildViewById` 改写成 `findViewById` |
-| `DataBindingGenMapperCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/databinding/DataBindingGenMapperCompiler.kt` | 源码阶段：Mapper 使用 APT；Kotlin adapter 变化时先用隔离 KAPT 生成 current-module store，adapter class 成功后提交 merged store cache |
-| `DataBindingSetterStoreCache` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/databinding/DataBindingSetterStoreCache.kt` | 将官方 processor 生成的 current-module store 合入 Gradle baseline/上一版 merged store并原子发布 |
-| `LayoutIncludeAnalyzer` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/databinding/LayoutIncludeAnalyzer.kt` | 找到当前变更 layout 通过 `<include>` 影响到的 layout info |
-| `DataBindingClasspathHelper` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/databinding/DataBindingClasspathHelper.kt` | 为 DataBinding annotation processor 准备 compiler classpath、plugin，以及当前模块、直接工程依赖和 AAR 的 setter stores |
-| `DataBindingTemplates` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/databinding/DataBindingTemplates.kt` | 生成 mapper delegate、full mapper、incremental holder 模板 |
+This page focuses on the two-stage processing of DataBinding/ViewBinding during Jugg incremental compilation:
+
+- How the resource stage generates base classes, stripped XML, and DataBinding trigger sources.
+- How the source stage retains the default Mapper APT path, conditionally runs isolated KAPT for Kotlin adapters, maintains the merged setter store, generates the mapper holder, and merges BR.
+- Which Gradle intermediate outputs and Jugg temporary directories connect the stages.
+
+For the main resource- and Java/Kotlin-compilation flows, see `02_compile_resource.md` and `02_compile_source.md`.
 
 ---
 
-## 3. 核心数据流与目录模型
+## 2. Core Source Index
 
-| 路径/状态 | 维护者 | 关键语义 |
-|-----------|--------|----------|
-| `tempCompileDir/data_binding/<relative module>` | `DataBindingArgsManager` | Jugg 自己的 DataBinding 工作区，按 module root 相对路径隔离 |
-| `dataBindingSourcesOutputDir` | `DataBindingArgsManager` | base class、APT 生成源、mapper/BR 的当前轮输出目录 |
-| `dataBindingStrippedXmlDir` | `DataBindingArgsManager` | DataBinding split 后的 stripped XML，后续作为 res 输出进入 overlay |
-| `tempDataBindingLayoutXmlDir` | `DataBindingArgsManager` | 当前轮 layout info merge 目录，资源阶段生成，源码阶段继续消费 |
-| `backupDataBindingLayoutXmlDir` | `DataBindingArgsManager.reset()` | 备份 Gradle layout info，避免新增后删除文件导致 Gradle 后续编译失败 |
-| `incrementalDependencyClassesFolder` | `DataBindingArgsManager` | 保存 incremental artifact，供下轮 include 和 base class 生成使用 |
-| `dataBindingPreProcessorSources` | `DataBindingArgsManager` | DataBinding annotation processor trigger source 目录 |
-| `dataBindingDependencyArtifacts` | `DataBindingArgsManager` | Mapper APT 的 setter store 输入目录；不同来源保留在独立子目录，避免同名 JSON 覆盖 |
-| `kotlinAdapterKaptAarOutDir` / `kotlinAdapterKaptLayoutInfoDir` | `DataBindingArgsManager` | Kotlin adapter 专用隔离 KAPT 输出；layout info 使用空目录，避免 store merge 前提前解析 layout |
-| `setterStoreCacheDir` | `DataBindingArgsManager` | module + variant 隔离的稳定缓存目录，不随当前轮 DataBinding 工作区 reset；保存 baseline hash 和 merged store generation |
-| `mapperDir` | `DataBindingArgsManager` | 保存 delegate mapper、full mapper、历史 incremental mapper 源 |
-| `isKaAptRetryAptSuccess` / `isLastFallbackAptFailed` | `DataBindingArgsManager.Companion` | KAPT fallback APT 分支的兼容状态；默认 APT 路径的 Kotlin class 重试由 `SourceDataBindingProcessor` 根据当前任务是否含 Kotlin 源决定 |
+| Class | File | Role |
+|-------|------|------|
+| `ResourceCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/overlay/ResourceCompiler.kt` | Resource-stage entry point that triggers `DataBindingGenBaseClassesCompiler` |
+| `SourceCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/source/SourceCompiler.kt` | Source-stage entry point that triggers `SourceDataBindingProcessor` and mapper generation |
+| `SourceDataBindingProcessor` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/source/SourceDataBindingProcessor.kt` | Coordinates DataBinding mapper generation and failure retry before source compilation |
+| `DataBindingArgsManager` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/databinding/DataBindingArgsManager.kt` | Manages DataBinding/ViewBinding temporary directories, Gradle intermediate paths, trigger sources, and mapper/BR paths |
+| `DataBindingGenBaseClassesCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/databinding/DataBindingGenBaseClassesCompiler.kt` | Resource stage: splits layout XML and generates ViewBinding base classes or a DataBinding trigger file |
+| `LegacyViewBindingLookup` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/databinding/LegacyViewBindingLookup.kt` | Rewrites 7.4.2-generated `findChildViewById` to `findViewById` when the APK baseline lacks `ViewBindings` |
+| `DataBindingGenMapperCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/databinding/DataBindingGenMapperCompiler.kt` | Source stage: uses APT for Mapper; on Kotlin adapter changes, first generates the current-module store through isolated KAPT, then commits the merged store cache after adapter classes compile successfully |
+| `DataBindingSetterStoreCache` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/databinding/DataBindingSetterStoreCache.kt` | Merges the official processor's current-module store into the Gradle baseline / prior merged store and publishes atomically |
+| `LayoutIncludeAnalyzer` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/databinding/LayoutIncludeAnalyzer.kt` | Finds layout info affected through `<include>` by a changed layout |
+| `DataBindingClasspathHelper` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/databinding/DataBindingClasspathHelper.kt` | Prepares compiler classpath, plugins, and setter stores for the current module, direct project dependencies, and AARs for the DataBinding annotation processor |
+| `DataBindingTemplates` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/databinding/DataBindingTemplates.kt` | Templates for mapper delegate, full mapper, and incremental holder |
 
 ---
 
-## 4. 两阶段处理链路
+## 3. Core Data Flow and Directory Model
 
-### 4.1 资源阶段：base classes / trigger / stripped XML
+| Path/state | Maintainer | Key meaning |
+|------------|------------|-------------|
+| `tempCompileDir/data_binding/<relative module>` | `DataBindingArgsManager` | Jugg's DataBinding workspace, isolated by module-root-relative path |
+| `dataBindingSourcesOutputDir` | `DataBindingArgsManager` | Current-run output directory for base classes, APT-generated sources, mapper, and BR |
+| `dataBindingStrippedXmlDir` | `DataBindingArgsManager` | Stripped XML after the DataBinding split, later entering the overlay as resource output |
+| `tempDataBindingLayoutXmlDir` | `DataBindingArgsManager` | Current-run layout-info merge directory, produced in the resource stage and consumed in the source stage |
+| `backupDataBindingLayoutXmlDir` | `DataBindingArgsManager.reset()` | Backs up Gradle layout info so deleting an added file does not break a later Gradle build |
+| `incrementalDependencyClassesFolder` | `DataBindingArgsManager` | Stores incremental artifacts for later include and base-class generation |
+| `dataBindingPreProcessorSources` | `DataBindingArgsManager` | DataBinding annotation-processor trigger-source directory |
+| `dataBindingDependencyArtifacts` | `DataBindingArgsManager` | Setter-store inputs for Mapper APT, isolated into subdirectories by source to prevent same-name JSON overwrites |
+| `kotlinAdapterKaptAarOutDir` / `kotlinAdapterKaptLayoutInfoDir` | `DataBindingArgsManager` | Isolated KAPT output for Kotlin adapters; layout info uses an empty directory to avoid parsing layouts before store merge |
+| `setterStoreCacheDir` | `DataBindingArgsManager` | Stable cache directory isolated by module + variant, not reset with the current DataBinding workspace; holds baseline hash and merged-store generation |
+| `mapperDir` | `DataBindingArgsManager` | Stores delegate mapper, full mapper, and historical incremental mapper sources |
+| `isKaAptRetryAptSuccess` / `isLastFallbackAptFailed` | `DataBindingArgsManager.Companion` | Compatibility state for the KAPT-fallback APT branch; `SourceDataBindingProcessor` decides the normal APT path's Kotlin-class retry from whether the current task contains Kotlin source |
+
+---
+
+## 4. Two-Stage Processing Flow
+
+### 4.1 Resource Stage: Base Classes / Trigger / Stripped XML
 
 ```text
 ResourceCompiler
   -> DataBindingGenBaseClassesCompiler
-     -> DataBindingArgsManager 解析 Gradle/Jugg DataBinding 目录
-     -> 产出 tempDataBindingLayoutXmlDir、base classes 或 DataBinding trigger、stripped XML
-     -> JuggCompiler 把这些产物转给 SourceCompiler 或 overlays
+     -> DataBindingArgsManager resolves Gradle/Jugg DataBinding directories
+     -> produces tempDataBindingLayoutXmlDir, base classes or DataBinding trigger, and stripped XML
+     -> JuggCompiler passes these outputs to SourceCompiler or overlays
 ```
 
-资源阶段的单文件内部顺序优先直接读 `DataBindingGenBaseClassesCompiler`。文档只保留跨阶段价值：它把 Gradle layout info 备份到 Jugg 临时目录，并产出源码阶段必须消费的 trigger/layout info。
+For method order within a resource-stage file, read `DataBindingGenBaseClassesCompiler` directly. This page retains the cross-stage point: it backs Gradle layout info up into a Jugg temporary directory and produces the trigger/layout info required by the source stage.
 
-### 4.2 源码阶段：adapter store / mapper / BR / language compile
+### 4.2 Source Stage: Adapter Store / Mapper / BR / Language Compilation
 
 ```text
 SourceCompiler.prepareSourceCompile()
   -> SourceDataBindingProcessor.processDataBindingMapper()
-     -> 本轮含 Kotlin adapter declaration
+     -> this run contains a Kotlin adapter declaration
         -> DataBindingGenMapperCompiler.generateKotlinAdapterStore()
-           -> KotlinCompilerInvoker 使用 Gradle JVM 子进程运行项目 KAPT
-           -> 空 layoutInfoDir，仅生成 current-module setter store
-        -> 普通 KotlinCompiler 先生成 adapter class
+           -> KotlinCompilerInvoker runs project KAPT in a Gradle JVM child process
+           -> use an empty layoutInfoDir to generate only the current-module setter store
+        -> ordinary KotlinCompiler generates adapter classes first
         -> DataBindingSetterStoreCache.merge()
      -> DataBindingGenMapperCompiler.doModuleCompile()
-        -> 不 reset argsManager，继续消费资源阶段写入的 layout info
+        -> do not reset argsManager; continue consuming layout info from the resource stage
         -> runAnnotationProcessor()
            -> LayoutIncludeAnalyzer.findAllIncludePath(resource)
-           -> DataBindingClasspathHelper 对当前模块和直接工程依赖优先选择有效 merged store，否则使用各自 Gradle baseline，并收集全部 AAR setter store
-           -> 按来源隔离复制到 dataBindingDependencyArtifacts，由官方 DataBinding processor 递归加载并合并
-           -> Mapper 固定使用 JavaCompilerInvoker apt-only
-           -> 官方 ProcessMethodAdapters 先把当前声明加入内存 store并输出 current-module store
-           -> 官方 ProcessExpressions 随后使用同一内存 store生成 BindingImpl / Mapper
-        -> 当前任务含 adapter declaration 时，将 current-module store 合入 DataBindingSetterStoreCache
-        -> adapter-only 任务更新 cache 后返回；有 layout 时继续生成 Mapper holder 和 BR
-        -> 产出 DataBinderMapperImpl_Inc_N、DataBinderMapper_IncrementalHolder、BR、stripped XML
-  -> DataBinding 生成的 Java 源合入 Java compile 输入
-  -> Kotlin -> Java -> Dex/Minify 继续执行
+           -> DataBindingClasspathHelper prefers valid merged stores for current module and direct project dependencies, otherwise their respective Gradle baselines; collect all AAR setter stores
+           -> copy stores into dataBindingDependencyArtifacts isolated by source; the official DataBinding processor loads and merges them recursively
+           -> Mapper always uses JavaCompilerInvoker apt-only
+           -> official ProcessMethodAdapters adds current declarations to the in-memory store and outputs current-module store first
+           -> official ProcessExpressions then uses the same in-memory store to generate BindingImpl / Mapper
+        -> when the current task has adapter declarations, merge current-module store into DataBindingSetterStoreCache
+        -> adapter-only task returns after updating cache; a task with layouts also generates Mapper holder and BR
+        -> produces DataBinderMapperImpl_Inc_N, DataBinderMapper_IncrementalHolder, BR, stripped XML
+  -> DataBinding-generated Java sources enter Java compile inputs
+  -> Kotlin -> Java -> Dex/Minify continue
 ```
 
 ---
+## 5. Incremental Essentials
 
-## 5. 增量关键点
-
-- DataBinding 和 ViewBinding 都从资源阶段入口开始，但只有 DataBinding 会进入 mapper/BR 阶段。
-- `DataBindingArgsManager.isUseDataBinding(module, xmlFile)` 会在未显式开启时通过 Gradle kapt 输出目录和 XML 中 `<layout` 做猜测；普通 ViewBinding layout 不应触发 DataBinding mapper。
-- BR 合并使用 `LinkedHashMap` 保持声明顺序稳定；新增字段追加到末尾，避免 BR id 抖动。
-- mapper 使用 `DataBinderMapperImpl_Inc_N` 增量编号；`N` 来自已部署 dex 中同包名 inc mapper 的数量。
-- 源码阶段不能调用 `argsManager.reset()`，因为 mapper 生成依赖资源阶段刚写入的 `tempDataBindingLayoutXmlDir`。
-- DataBinding Mapper 固定走 Java APT trigger。只有本轮出现 Kotlin adapter declaration 时，才在 Mapper 前通过 Gradle JVM 子进程运行项目 KAPT，生成官方 current-module setter store。
-- 源码 adapter 声明检测只在模块确认启用 DataBinding 后执行，非 DataBinding 模块直接跳过。检测覆盖 `BindingAdapter`、`BindingMethod(s)`、`BindingConversion`、`InverseBindingAdapter`、`InverseBindingMethod(s)`、`InverseMethod` 和 `Untaggable`，支持简单名、`androidx.databinding` / `android.databinding` 完整包名及 Kotlin alias import；注释、名称前后缀和嵌套类型名不视为声明。
-- `Bindable` 属于 BR 生成语义，不复用 adapter setter store 检测与隔离 KAPT 路径；`BindingBuildInfo` 继续由 Jugg 生成的 trigger file 驱动。
-- 隔离 KAPT 直接启动项目 `K2JVMCompiler` CLI，并为 javac internal packages 添加 module exports/opens，避免旧 KAPT 继承 Android Studio 宿主 JBR 的 module 限制。
-- DataBinding mapper 失败且当前任务含 Kotlin 源时，`SourceDataBindingProcessor` 会先编译 Kotlin class，再重试一次 mapper 生成；第二次失败不再重试。正常成功路径仍只有一次 DataBinding processor invocation。
-- `DataBindingClasspathHelper` 只给 DataBinding 相关依赖做 annotation processing，避免 ARouter 等其他 processor 进入这条旁路。
-- Mapper APT 对当前模块及其直接工程依赖优先复用各模块的 Jugg merged store；没有有效 cache 时回到对应 variant 最近一次 Gradle 完整构建生成的模块 `*-setter_store.json`。AAR transform 根目录下的 `data-binding/*-setter_store.json` 仍全部收集。
-- Java adapter declaration 继续由 Mapper APT 同轮处理；Kotlin adapter declaration 先由隔离 KAPT 生成 current-module store，adapter class 编译成功后再 merge，并由 Mapper APT 消费。Jugg 只解析 store 容器和 declaring type，不自行推导 adapter 方法签名。
-- 不同 setter store 按来源复制到独立子目录，因为官方 DataBinding processor 会递归读取 dependency artifacts；直接平铺会让同名 store 相互覆盖。
-- 当前模块支持 adapter declaration 新增、同一 declaring type 的修改和跨轮复用，不再因声明变化前置回退 Gradle；删除源码、移除全部声明和 declaring class 改名不在 B1 范围。
-- Mapper 失败保持 SourceCompiler 既有失败/重试策略，本功能不扩大其语义。
-- `copyToGradleDir()` 不是普通输出复制，它是为了让 Gradle 后续编译看到稳定的 layout info，避免新增后删除文件导致全量 Gradle 失败。
-
----
-
-## 6. 隐形约束 / 设计思路
-
-- `isFallbackApt` 当前恒为 true，因此 `isJava` 默认偏向 APT；如果后续代码取消该常量策略，再重新按 `isUseKaptForDataBinding()` 判断 KAPT 路径。
-- `DataBindingGenBaseClassesCompiler` 的输出在 `JuggCompiler` 中会被转成下一步 `SourceCompiler` 输入，而不是直接作为最终 source 产物结束。
-- DataBinding 的 stripped XML 会以 `CompileOutput.Type.ResXml` 返回，并在 `JuggCompiler` / `SourceCompiler` 中被移动到 overlays，不能只看 Java 输出判断是否成功。
-- `mergeLibraryBr()` / `mergeAppBr()` 要求 Gradle 上一次生成的 BR 文件存在；不存在时会抛异常，而不是新建一个空 BR。
-- include 关系不是靠扫描当前 XML 文本直接编译所有引用方，而是基于 layout info 文件补齐到 `tempDataBindingLayoutXmlDir`。
-- AGP 7.2.2 和 AGP 8.4 的中间产物路径不同，`DataBindingArgsManager` 通过候选目录匹配；路径问题优先看这里，不要先改编译器参数。
-- ViewBinding/DataBinding base class 生成器固定是插件内的 7.4.2（Java 11 字节码，可在 Electric Eel 等 Java 11 IDE 加载）。它默认会写出 `ViewBindings.findChildViewById`。该类从 `viewbinding:7.0.0` 才存在。判定不看 AGP 版本或 Gradle 声明，只问 `ICompileContext.containsApkClass()` 是否返回 `Landroidx/viewbinding/ViewBindings;` 的 `ClassNode`；空列表则把生成源改写成 `rootView.findViewById`，与 AGP 4.2.2 官方产物对齐。
-- mapper / BR 基线按文件匹配：优先 `generated/source/kapt/<variant>`，没有对应文件时再看 Java APT 的 `generated/ap_generated_sources/<variant>/out`。无 KAPT 的 DataBinding 工程走后一条；两条都不存在时仍回落到 kapt 路径，错误信息保持原样。
-- DataBinding trigger file 只是为了触发 annotation processor；真实 mapper 和 BR 仍来自 processor 输出。
-- setter store cache 以 Gradle module store 内容 hash 作为 baseline 身份；baseline 变化时旧 generation 不再命中。
-- current-module store 中出现的 declaring types 会先从上一版 merged store移除，再合入本轮官方结果；无法从当前 store 得到旧 declaring type 的删除/改名场景不在 B1 范围。
+- Both DataBinding and ViewBinding enter through the resource stage, but only DataBinding enters the mapper/BR stage.
+- If not explicitly enabled, `DataBindingArgsManager.isUseDataBinding(module, xmlFile)` infers DataBinding from Gradle kapt output directories and `<layout` in XML. Ordinary ViewBinding layouts must not trigger the DataBinding mapper.
+- BR merging uses `LinkedHashMap` to keep declaration order stable; new fields are appended so BR IDs do not fluctuate.
+- The mapper uses incremental `DataBinderMapperImpl_Inc_N` numbering; `N` comes from the count of same-package incremental mappers in deployed dex.
+- The source stage must not call `argsManager.reset()` because mapper generation consumes `tempDataBindingLayoutXmlDir` just written by the resource stage.
+- DataBinding Mapper always uses a Java APT trigger. Only when the current run has a Kotlin adapter declaration does it run project KAPT in a Gradle JVM child process before Mapper, producing the official current-module setter store.
+- Scan source for adapter declarations only after confirming that DataBinding is enabled for the module; skip non-DataBinding modules outright. Detection covers `BindingAdapter`, `BindingMethod(s)`, `BindingConversion`, `InverseBindingAdapter`, `InverseBindingMethod(s)`, `InverseMethod`, and `Untaggable`. It accepts simple names, fully qualified `androidx.databinding` / `android.databinding` names, and Kotlin alias imports; comments, name prefixes/suffixes, and nested type names are not declarations.
+- `Bindable` belongs to BR generation and does not use adapter setter-store detection or isolated KAPT. The Jugg-generated trigger file still drives `BindingBuildInfo`.
+- Isolated KAPT starts the project's `K2JVMCompiler` CLI directly and adds module exports/opens for javac internal packages, avoiding module restrictions inherited from the Android Studio host JBR by older KAPT.
+- If the DataBinding mapper fails and the current task contains Kotlin source, `SourceDataBindingProcessor` compiles Kotlin classes first and retries mapper generation once. A second failure is final. The normal success path still invokes the DataBinding processor only once.
+- `DataBindingClasspathHelper` limits annotation processing to DataBinding-related dependencies so other processors such as ARouter do not enter this side path.
+- For the current module and direct project dependencies, Mapper APT prefers each module's valid Jugg merged store. Without a valid cache, it uses that variant's module `*-setter_store.json` from the latest full Gradle build. It still gathers every `data-binding/*-setter_store.json` under AAR transform roots.
+- Java adapter declarations continue to be processed by Mapper APT in the same run. Kotlin adapter declarations first produce current-module store through isolated KAPT; after adapter classes compile, Jugg merges the store for Mapper APT consumption. Jugg parses only the store container and declaring type, rather than deriving adapter method signatures itself.
+- Copy setter stores from different origins to separate subdirectories because the official DataBinding processor recursively reads dependency artifacts; flattening them would let same-name stores overwrite one another.
+- The current module supports adding adapter declarations, changing declarations on the same declaring type, and reuse across runs without a preemptive Gradle fallback. Deleting source, removing all declarations, and renaming the declaring class are outside B1 scope.
+- A Mapper failure retains the existing `SourceCompiler` failure/retry policy; this feature does not broaden it.
+- `copyToGradleDir()` is not ordinary output copying. It preserves stable layout info for later Gradle compilation so deleting a newly added file does not break a full Gradle build.
 
 ---
 
-## 7. 排查入口
+## 6. Hidden Constraints / Design Rationale
 
-| 现象 | 优先入口 |
-|------|----------|
-| 明明启用了 DataBinding 但未进入 mapper 阶段 | `DataBindingArgsManager.isUseDataBinding()` 与 module `packageName`；若 layout info 已存在仍报 `data binding is not enabled`，先查 `ProjectInfoSerializer` 对 Groovy `useDataBinding` 的回读 |
-| ViewBinding class 未生成 | `DataBindingGenBaseClassesCompiler.splitLayoutXml()` / `generateBaseClasses()` |
-| 增量编译报找不到 `androidx.viewbinding.ViewBindings` | `ICompileContext.containsApkClass()` 与 `LegacyViewBindingLookup`；确认 APK database 返回的 `ClassNode` 是否含该类，以及生成源是否已改写成 `findViewById` |
-| DataBinding mapper 生成失败 | `DataBindingGenMapperCompiler.runAnnotationProcessor()`，重点看 `runAnnotationProcessor apt output` 日志；若 `FileNotFoundException` 指向 kapt `DataBinderMapperImpl.java`，同时核对 Java APT 的 `ap_generated_sources` |
-| 自定义属性提示找不到 setter 或参数类型不匹配 | 先检查 `DataBindingClasspathHelper` 是否收集当前模块、直接工程依赖的有效 merged/Gradle store，再检查 `DataBindingGenMapperCompiler` 是否从 `dataBindingAarOutDir` 取得 current-module store 并发布 cache |
-| adapter-only 后下一轮 layout 找不到属性 | 检查 `SourceDataBindingProcessor` 是否因 adapter declaration 触发 processor，以及 setter store cache 的 baseline hash 是否命中 |
-| 删除/改名 adapter 后旧属性仍存在 | B1 不处理删除语义；执行 Gradle fallback恢复完整 baseline |
-| BR 缺字段或 id 抖动 | `mergeLibraryBr()` / `mergeAppBr()` 的 baseline BR 与 current incremental BR |
-| `<include>` 修改后引用方未更新 | `LayoutIncludeAnalyzer.findAllIncludePath()` 和 `tempDataBindingLayoutXmlDir` 内容 |
-| Gradle 后续编译因 layout info 文件缺失失败 | `DataBindingArgsManager.backupDataBindingLayoutXmlDir` 与 `copyToGradleDir()` |
-| DataBinding processor 失败后重试行为异常 | `isKaAptRetryAptSuccess` / `isLastFallbackAptFailed` 与 `SourceDataBindingProcessor` |
-| AGP 升级后找不到中间产物 | `DataBindingArgsManager.gradleDataBindingLayoutXmlDir` 候选路径 |
+- `isFallbackApt` is currently always true, so `isJava` defaults toward APT. If code later removes that constant policy, reassess the KAPT path through `isUseKaptForDataBinding()`.
+- `JuggCompiler` passes outputs of `DataBindingGenBaseClassesCompiler` to the next `SourceCompiler` input; they do not end immediately as final source outputs.
+- DataBinding stripped XML returns as `CompileOutput.Type.ResXml` and moves into overlays in `JuggCompiler` / `SourceCompiler`. Java output alone cannot establish success.
+- `mergeLibraryBr()` / `mergeAppBr()` require the BR file from the previous Gradle build. If it is absent, they throw rather than create an empty BR.
+- Include relationships are resolved from layout-info files into `tempDataBindingLayoutXmlDir`, not by scanning current XML text and compiling every referrer directly.
+- AGP 7.2.2 and 8.4 use different intermediate paths; `DataBindingArgsManager` matches candidate directories. For path issues, inspect it before changing compiler arguments.
+- The ViewBinding/DataBinding base-class generator bundled in the plugin is fixed at 7.4.2 (Java 11 bytecode, loadable in Java 11 IDEs such as Electric Eel). It normally emits `ViewBindings.findChildViewById`. That class exists only from `viewbinding:7.0.0`. Detection does not depend on AGP version or Gradle declarations: it asks whether `ICompileContext.containsApkClass()` returns a `ClassNode` for `Landroidx/viewbinding/ViewBindings;`. If the list is empty, it rewrites generated source to `rootView.findViewById`, matching official AGP 4.2.2 output.
+- Mapper/BR baselines are matched by file: prefer `generated/source/kapt/<variant>`; if the corresponding file is absent, look under Java APT `generated/ap_generated_sources/<variant>/out`. DataBinding projects without KAPT use the latter. If neither exists, still fall back to the kapt path and preserve the original error message.
+- A DataBinding trigger file exists only to invoke the annotation processor; real mapper and BR outputs still come from the processor.
+- Setter-store cache uses a content hash of the Gradle module store as baseline identity; old generations no longer match when the baseline changes.
+- Declaring types in the current-module store are removed from the previous merged store before the official result from this run is added. Removing/renaming an old declaring type that cannot be inferred from the current store is outside B1 scope.
 
 ---
 
-## 8. 关联文档
+## 7. Investigation Entry Points
 
-- 源码编译：`02_compile_source.md`
-- 资源编译：`02_compile_resource.md`
-- 项目路径模型：`04_engineering_project.md`
-- setter store 方案：`../task/databinding_setter_store_incremental_design.md`
+| Symptom | First entry point |
+|---------|-------------------|
+| DataBinding is enabled but the mapper stage does not run | `DataBindingArgsManager.isUseDataBinding()` and module `packageName`; if layout info exists but it still reports `data binding is not enabled`, first check how `ProjectInfoSerializer` reads Groovy `useDataBinding` back |
+| ViewBinding class is not generated | `DataBindingGenBaseClassesCompiler.splitLayoutXml()` / `generateBaseClasses()` |
+| Incremental compilation cannot find `androidx.viewbinding.ViewBindings` | `ICompileContext.containsApkClass()` and `LegacyViewBindingLookup`; check whether the APK database returns a `ClassNode` for the class and whether generated source was rewritten to `findViewById` |
+| DataBinding mapper generation fails | `DataBindingGenMapperCompiler.runAnnotationProcessor()`, especially the `runAnnotationProcessor apt output` log; if `FileNotFoundException` points to kapt `DataBinderMapperImpl.java`, also inspect Java APT `ap_generated_sources` |
+| Custom property has no setter or mismatched parameter type | First check whether `DataBindingClasspathHelper` gathers valid merged/Gradle stores from the current module and direct project dependencies; then check whether `DataBindingGenMapperCompiler` obtains current-module store from `dataBindingAarOutDir` and publishes the cache |
+| Layout after an adapter-only run cannot find an attribute | Check whether `SourceDataBindingProcessor` invoked the processor for an adapter declaration and whether the setter-store cache baseline hash matches |
+| Old attribute remains after deleting/renaming an adapter | B1 does not support deletion semantics; use a Gradle fallback to restore a complete baseline |
+| BR field missing or ID unstable | Compare baseline and current incremental BR in `mergeLibraryBr()` / `mergeAppBr()` |
+| A referrer is not updated after changing `<include>` | Inspect `LayoutIncludeAnalyzer.findAllIncludePath()` and `tempDataBindingLayoutXmlDir` contents |
+| Later Gradle build fails due to missing layout-info file | Inspect `DataBindingArgsManager.backupDataBindingLayoutXmlDir` and `copyToGradleDir()` |
+| Retry behaves unexpectedly after DataBinding processor failure | Inspect `isKaAptRetryAptSuccess` / `isLastFallbackAptFailed` and `SourceDataBindingProcessor` |
+| AGP upgrade causes missing intermediate outputs | Inspect candidate paths in `DataBindingArgsManager.gradleDataBindingLayoutXmlDir` |
+
+---
+
+## 8. Related Documents
+
+- Source compilation: `02_compile_source.md`
+- Resource compilation: `02_compile_resource.md`
+- Project-path model: `04_engineering_project.md`
+- Setter-store design: `../task/databinding_setter_store_incremental_design.md`

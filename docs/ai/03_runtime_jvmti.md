@@ -1,331 +1,329 @@
-# 运行时与 JVMTI 支持
+# Runtime and JVMTI Support
 
-> 最后核对：2026-09-15
-> 一致性规则：文档与代码冲突时，以代码为准。
-
----
-
-## 1. 文档定位
-
-本页描述 Apply Changes Agent、Jugg JVMTI Agent 与 IDE 部署编排的职责边界，以及 Jugg 如何准备 startup agent、判断设备是否可用 JVMTI、安装运行时 hook，并在必要时触发兼容部署重试。
-
-本页不展开 Direct Overlay 的传输细节、ViewHierarchy LocalSocket 协议、完整 install/code swap 流程；对应入口见 `03_deploy_core.md`、`03_deploy_complete.md`、`08_mcp_layout_verify_design.md`。
+> Last checked: 2026-09-15
+> Consistency rule: when documentation conflicts with code, follow the code.
 
 ---
 
-## 2. 核心源码索引
+## 1. Scope
 
-| 类/文件 | 路径 | 作用 |
+This page defines the responsibilities of Apply Changes Agent, Jugg JVMTI Agent, and IDE deployment orchestration. It explains how Jugg prepares the startup agent, checks device JVMTI capability, installs runtime hooks, and triggers compatible-deployment retry when needed.
+
+For Direct Overlay transport, the ViewHierarchy LocalSocket protocol, and complete install/code-swap flow, see `03_deploy_core.md`, `03_deploy_complete.md`, and `08_mcp_layout_verify_design.md`.
+
+---
+
+## 2. Core Source Index
+
+| Class/file | Path | Role |
 |---|---|---|
-| `AppAbiResolver` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/AppAbiResolver.kt` | 在部署入口聚合进程、Manifest、APK、已安装包和设备证据，解析目标 ARM 位数 |
-| `AppAbiCache` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/AppAbiCache.kt` | 按设备、包名和完整 APK 文件指纹复用 ABI 解析结果，并在 APK 变化时自动淘汰旧结果 |
-| `ApkInfoReader` | `main/src/main/java/com/sickworm/intellij/jugg/apk/ApkInfoReader.kt` | 跨 base/split APK 聚合 ARM native library，并读取 `android:use32bitAbi` |
-| `JuggJvmtiAgentManager` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/JuggJvmtiAgentManager.kt` | 管理 Jugg agent bundle 的 push、app sandbox setup、attach 与清理 |
-| `JuggJvmtiAgentManagerHelper` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/JuggJvmtiAgentManagerHelper.kt` | 决定部署后是否需要补 push agent，读取 flag 文件判断 JVMTI 可用性 |
-| `JuggDeployOrchestrator` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployOrchestrator.kt` | 在 deploy 前后串联 async agent 检查、push、restart 和 JVMTI compat 检测 |
-| `DeployRetryHandler` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/flow/DeployRetryHandler.kt` | deploy 失败后通过 run host 触发 JVMTI 检测，必要时切换 compat deploy |
-| `AsStartupAgentPusher` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/direct/AsStartupAgentPusher.kt` | Direct Overlay 路径推 Apply Changes startup agent，不依赖 app 进程在线 |
-| `native-lib.cpp` | `jvmti_agent/src/main/cpp/native-lib.cpp` | `Agent_OnAttach` 入口，写 `.jugg_jvmti_available` / `.jugg_jvmti_not_available` flag，并启动 instrumentation |
-| `DirectHotReloadWriter` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/DirectHotReloadWriter.kt` | 为 Direct app sandbox transport 生成 dynamic attach 请求、复制请求级 agent、等待结果文件 |
-| `native-lib.cpp` | `jvmti_agent/src/main/cpp/native-lib.cpp` | `Agent_OnAttach` 入口，区分 startup dataDir 与 `jugg_hot_reload:` dynamic attach options |
-| `class_redefiner.cc` | `jvmti_agent/src/main/cpp/class_redefiner.cc` | 解析 Hot Reload 请求；按官方职责边界在 native 侧更新 Application ClassLoader 的 in-memory DEX elements，再匹配已加载类并 batch `RedefineClasses()`，原子写结果 |
-| `instrumenter.cc` | `jvmti_agent/src/main/cpp/instrumenter.cc` | 加载 `jugg-instruments.jar`，设置 class file load hook 并 retransform 目标类 |
-| `InstrumentationHooks` | `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/instrument/InstrumentationHooks.java` | 处理 ResourcesManager、ClassLoader resource 等 framework hook；compat deploy 启用后必须跳过普通 Apply Changes overlay 修正 |
-| `ApplyChangesOverlayPolicy` | `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/instrument/ApplyChangesOverlayPolicy.java` | 记录宿主 APK 路径，判断非宿主资源环境是否需要移除 Apply Changes overlay |
-| `ResourceOverlays` | `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/instrument/ResourceOverlays.java` | 将展开 APK 目录中的资源和 assets 接入 Android 11+ ResourcesLoader；限 Direct sandbox 标记和宿主 APK，兼容部署沿用资源 APK |
-| `FlutterAssetRefresh` | `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/instrument/FlutterAssetRefresh.java` | 让 FlutterEngine 使用 overlay-aware AssetManager：已启动 Dart 的 Engine 走 `updateJavaAssetManager()`，未启动的替换 `DartExecutor.assetManager`，宿主包上下文在 `ContextImpl#createPackageContext` exit 补齐 overlay loader；失败按批 warn + Toast |
-| `HotfixLoader` | `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/hotfix/HotfixLoader.java` | 初始化 app code cache 路径，识别 compat flag，并安装 dex/resource patch |
-| `RootlessCompatDeployImporter` | `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/hotfix/RootlessCompatDeployImporter.java` | 在 `BootstrapApplication.attachBaseContext()` 早期导入 Host 暂存的 rootless 兼容请求：校验协议、包名、requestId、payload SHA-256 与 expected overlay id，私有 staging 后原子提交 `code_cache/.overlay`，overlay id 最后写入；失败只保留旧 overlay 并输出一行结果日志 |
-| `jugg_agent_setup.sh` | `jvmti_agent/src/main/script/jugg_agent_setup.sh` | 在 app `code_cache/startup_agents` 中放置版本化 agent so |
-| `buildAgentBundle.gradle` | `jvmti_agent/buildAgentBundle.gradle` | 将 Jugg runtime 与预处理后的 Dragonfly JAR 编译进 `jugg-instruments.jar`，并打包 64/32 位 so 和 setup script，生成 plugin resource |
+| `AppAbiResolver` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/AppAbiResolver.kt` | Combines process, Manifest, APK, installed-package, and device evidence at deployment entry to determine target ARM bitness. |
+| `AppAbiCache` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/AppAbiCache.kt` | Reuses ABI resolution by device, package, and complete APK-file fingerprint, evicting old results on APK changes. |
+| `ApkInfoReader` | `main/src/main/java/com/sickworm/intellij/jugg/apk/ApkInfoReader.kt` | Aggregates ARM native libraries across base/split APKs and reads `android:use32bitAbi`. |
+| `JuggJvmtiAgentManager` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/JuggJvmtiAgentManager.kt` | Manages pushing the Jugg agent bundle, app-sandbox setup, attach, and cleanup. |
+| `JuggJvmtiAgentManagerHelper` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/JuggJvmtiAgentManagerHelper.kt` | Decides whether to push a missing agent after deployment and reads flags for JVMTI availability. |
+| `JuggDeployOrchestrator` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployOrchestrator.kt` | Coordinates async agent check, push, restart, and JVMTI compatibility detection around deployment. |
+| `DeployRetryHandler` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/flow/DeployRetryHandler.kt` | After deployment failure, asks the run host to detect JVMTI compatibility and switches to compat deployment if needed. |
+| `AsStartupAgentPusher` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/direct/AsStartupAgentPusher.kt` | Pushes the Apply Changes startup agent for Direct Overlay without requiring an online app process. |
+| `native-lib.cpp` | `jvmti_agent/src/main/cpp/native-lib.cpp` | `Agent_OnAttach` entry point; writes `.jugg_jvmti_available` / `.jugg_jvmti_not_available` and starts instrumentation. |
+| `DirectHotReloadWriter` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/DirectHotReloadWriter.kt` | Builds dynamic-attach requests, copies a per-request agent, and waits for a result file for Direct app sandbox transport. |
+| `native-lib.cpp` | `jvmti_agent/src/main/cpp/native-lib.cpp` | `Agent_OnAttach` entry point distinguishing startup dataDir from `jugg_hot_reload:` dynamic attach options. |
+| `class_redefiner.cc` | `jvmti_agent/src/main/cpp/class_redefiner.cc` | Parses Hot Reload requests. Native code updates Application ClassLoader in-memory DEX elements, then matches loaded classes, batches `RedefineClasses()`, and atomically writes the result. |
+| `instrumenter.cc` | `jvmti_agent/src/main/cpp/instrumenter.cc` | Loads `jugg-instruments.jar`, sets the class-file-load hook, and retransforms target classes. |
+| `InstrumentationHooks` | `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/instrument/InstrumentationHooks.java` | Handles framework hooks for ResourcesManager and ClassLoader resources; must skip ordinary Apply Changes overlay repair under compat deployment. |
+| `ApplyChangesOverlayPolicy` | `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/instrument/ApplyChangesOverlayPolicy.java` | Records host APK paths and decides whether to remove Apply Changes overlay from non-host resource environments. |
+| `ResourceOverlays` | `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/instrument/ResourceOverlays.java` | Connects resources/assets in the extracted APK directory to Android 11+ ResourcesLoader, limited to Direct sandbox marker and host APK; compat deployment retains the resource-APK path. |
+| `FlutterAssetRefresh` | `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/instrument/FlutterAssetRefresh.java` | Supplies an overlay-aware AssetManager to FlutterEngine: running Dart Engines use `updateJavaAssetManager()`, not-yet-running ones replace `DartExecutor.assetManager`, and host package contexts gain an overlay loader at `ContextImpl#createPackageContext` exit. Failures generate a per-batch warning and Toast. |
+| `HotfixLoader` | `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/hotfix/HotfixLoader.java` | Initializes app code-cache paths, recognizes the compat flag, and installs Dex/resource patches. |
+| `RootlessCompatDeployImporter` | `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/hotfix/RootlessCompatDeployImporter.java` | Early in `BootstrapApplication.attachBaseContext()`, imports a Host-staged rootless compat request: validates protocol, package, requestId, payload SHA-256, and expected overlay ID; atomically commits private staging into `code_cache/.overlay`, writing overlay ID last. Failure preserves the old overlay and emits one result log line. |
+| `jugg_agent_setup.sh` | `jvmti_agent/src/main/script/jugg_agent_setup.sh` | Places a versioned agent `.so` under app `code_cache/startup_agents`. |
+| `buildAgentBundle.gradle` | `jvmti_agent/buildAgentBundle.gradle` | Compiles Jugg runtime and preprocessed Dragonfly JAR into `jugg-instruments.jar`, bundles 64/32-bit `.so` files and setup script, and generates a plugin resource. |
 
 ---
 
-## 3. 核心状态模型
+## 3. Core State Model
 
-| 状态/文件 | 所在位置 | 语义 |
+| State/file | Location | Semantics |
 |---|---|---|
-| Jugg agent bundle | `/data/local/tmp/jugg/{AGENT_VERSION}` | 设备全局临时目录，包含 `jugg-instruments.jar`、64/32 位 so、setup script |
-| App startup agent | `{app}/code_cache/startup_agents/{version}-jugg_jvmti_agent(.so/_alt.so)` | app sandbox 内真正被系统加载的 startup agent |
-| Direct instrumentation JAR | `{app}/code_cache/startup_agents/{version}-jugg-instruments.jar` | 仅 Direct app sandbox 复制；让 app 进程可映射 instrumentation class，普通 `run-as` 路径继续使用全局 JAR |
-| Rootless compat 请求 | `/sdcard/Android/data/{package}/files/jugg/rootless-compat/{requestId}/` | Shell 可写且 App 可从 `Context.getExternalFilesDir(null)` 读取的暂存请求：`payload.zip` + `request.properties` + 最后写入的 `ready`；由 App 在 `BootstrapApplication` 启动早期导入 |
-| Rootless 导入结果 | `jugg-agent` tag 日志行 | `__JUGG_ROOTLESS_IMPORT__ OK|FAILED <requestId> [<stage> <reason>]`，Host 唯一可读回的导入终态 |
-| Apply Changes agent | `{app}/code_cache/startup_agents/{versionHash}-{dollName}` | Direct Overlay 复用的 AS startup agent；由 `AsStartupAgentPusher` 推送 |
-| `.jugg_jvmti_available` | `{app}/code_cache/.jugg_jvmti_available` | native `Agent_OnAttach` 成功取得 JVMTI/JNI 后写入；不表示所有可选 framework hook 都成功 |
-| `.jugg_jvmti_not_available` | `{app}/code_cache/.jugg_jvmti_not_available` | native 无法取得 JVMTI/JNI 时写入，触发 compat device record |
-| compat device record | `CompatDeployHelper` 管理 | 某 app/device 已知 JVMTI 不可用后，后续直接进入兼容部署 |
+| Jugg agent bundle | `/data/local/tmp/jugg/{AGENT_VERSION}` | Device-global temporary directory containing `jugg-instruments.jar`, 64/32-bit `.so` files, and setup script. |
+| App startup agent | `{app}/code_cache/startup_agents/{version}-jugg_jvmti_agent(.so/_alt.so)` | Startup agent in the app sandbox actually loaded by the system. |
+| Direct instrumentation JAR | `{app}/code_cache/startup_agents/{version}-jugg-instruments.jar` | Copied only for Direct app sandbox, enabling the app process to map instrumentation classes; ordinary `run-as` continues to use the global JAR. |
+| Rootless compat request | `/sdcard/Android/data/{package}/files/jugg/rootless-compat/{requestId}/` | Shell-writable request readable by the app through `Context.getExternalFilesDir(null)`: `payload.zip` + `request.properties` + `ready` written last; imported early in `BootstrapApplication` startup. |
+| Rootless import result | `jugg-agent` tag log line | `__JUGG_ROOTLESS_IMPORT__ OK|FAILED <requestId> [<stage> <reason>]`, the only import terminal state readable by Host. |
+| Apply Changes agent | `{app}/code_cache/startup_agents/{versionHash}-{dollName}` | AS startup agent reused by Direct Overlay and pushed by `AsStartupAgentPusher`. |
+| `.jugg_jvmti_available` | `{app}/code_cache/.jugg_jvmti_available` | Written after native `Agent_OnAttach` obtains JVMTI/JNI; it does not establish that every optional framework hook succeeded. |
+| `.jugg_jvmti_not_available` | `{app}/code_cache/.jugg_jvmti_not_available` | Written when native cannot obtain JVMTI/JNI, triggering a compat-device record. |
+| compat device record | Managed by `CompatDeployHelper` | Once JVMTI is known unavailable for an app/device, later deployments go directly to compat deployment. |
 
-`JuggJvmtiAgentManagerHelper.isJvmtiAvailable()` 优先读 not-available flag，再读 available flag；两个 flag 都没有时返回 `null`，表示 app 启动或 agent 初始化状态尚不确定。
+`JuggJvmtiAgentManagerHelper.isJvmtiAvailable()` reads the not-available flag before the available flag. With neither flag, it returns `null`: app startup or agent initialization is not yet known.
 
-### 3.1 Apply Changes 与 Jugg 的职责边界
+### 3.1 Responsibility Boundary Between Apply Changes and Jugg
 
-满足 `run-as` 可回滚写入、原始 UID 位于 `10000..19999`，且探针与既有 `code_cache` 的 SELinux context 一致的应用继续复用 Android Studio Apply Changes 热重载通道。前提不成立、但 Jugg 能通过普通 shell、root adbd 或非交互 `su` 完整访问 app dataDir 时，Jugg 复用同一个自有 agent，通过 dynamic attach 执行 class redefinition。
+Apps meeting all three conditions continue to use Android Studio Apply Changes hot reload: a rollback-safe `run-as` write, raw UID in `10000..19999`, and matching SELinux contexts for the probe and existing `code_cache`. If these prerequisites fail but Jugg can fully access app dataDir through ordinary shell, root adbd, or noninteractive `su`, it uses its own same agent via dynamic attach for class redefinition.
 
-同一个 Jugg agent 有两种入口：startup options 为 app dataDir，负责 overlay 加载、JVMTI 检测和 framework hook；dynamic options 为 `jugg_hot_reload:<requestDir>`，处理本次 class redefine、资源刷新，并按请求标志选择是否重建 Activity。Direct app sandbox transport 先持久化 Direct Overlay，dynamic attach 失败时重启进程，复用 startup 入口加载同一 overlay。
+One Jugg agent has two entry points. Startup options contain app dataDir for overlay loading, JVMTI detection, and framework hooks. Dynamic options are `jugg_hot_reload:<requestDir>` for this request's class redefine and resource refresh, with optional Activity recreation. Direct app sandbox transport persists Direct Overlay first; if dynamic attach fails, process restart uses the startup entry point to load that same overlay.
 
 ---
 
-## 4. 核心调用链路
+## 4. Core Call Chain
 
-### 4.1 常规部署后的 Jugg agent 协同
+### 4.1 Jugg Agent Coordination After Ordinary Deployment
 
 ```text
 JuggDeployOrchestrator.execute()
-  -> 异步调用 JuggJvmtiAgentManagerHelper.isNeedPushAgentAfterDeploy()
-     install 直接跳过；增量部署检查 app sandbox 中 Jugg agent 和 AS apply changes agent 是否齐备
+  -> call JuggJvmtiAgentManagerHelper.isNeedPushAgentAfterDeploy() asynchronously
+     skip install; for incremental deployment, check Jugg and AS Apply Changes agents in app sandbox
   -> JuggDeployTask.run()
-     先完成 install / apply changes / apply changes and restart activity
-  -> detectJob.await() 后按需 JuggJvmtiAgentManagerHelper.pushAgentToApps()
-     push bundle 到 /data/local/tmp/jugg/{AGENT_VERSION}，再通过 AppSandboxExecutor 执行 setup script
-  -> 根据部署数据和用户设置决定 restart/start/no-op
-  -> 若本轮 push 过 agent 且会 restart app，调用 isHasJvmtiCompatIssue()
-     等待 native flag 文件，失败时记录 compat device 并抛出 redeploy-with-compat 信号
+     complete install / Apply Changes / Apply Changes and restart Activity first
+  -> after detectJob.await(), call JuggJvmtiAgentManagerHelper.pushAgentToApps() if needed
+     push bundle to /data/local/tmp/jugg/{AGENT_VERSION}, then run setup script through AppSandboxExecutor
+  -> decide restart/start/no-op from deployment data and user settings
+  -> if agent was pushed this run and app will restart, call isHasJvmtiCompatIssue()
+     wait for native flag files; on failure, record compat device and throw redeploy-with-compat signal
 ```
 
-push agent 放在部署之后，是为了避免 Android Studio Apply Changes 首次部署清理 startup agents 后把 Jugg agent 删掉。JVMTI 检测必须等 restart 后进行，因为 startup agent 只有 app 进程启动时才会被系统加载。
+Pushing after deployment prevents Android Studio's first Apply Changes deployment from clearing startup agents and deleting Jugg's agent. JVMTI detection must follow restart because the system loads the startup agent only when the app process starts.
 
-Android 15 及以上、Android Studio Meerkat 以下的普通 Apply Changes 在首次部署就是完整资源 overlay 时，旧 startup agent 可能只生成 framework transform cache，当前进程尚未应用缓存 transform。若历史 deployed files 为空、本轮明确编译了现代 Compose resource，且 overlay 包含 `assets/composeResources/**`，Host 会在第一次进程重启后轮询 `.studio/instruments-*.jar.cache` 中的 `android-app-ResourcesManager` 与 `android-app-LoadedApk`；两者均生成后立即再次重启，约 5 秒仍未完成则告警并继续重启，让缓存 transform 消费已提交的 overlay。该兼容只覆盖普通 Deployer；Direct Overlay、compat deploy、已有成功部署历史和 legacy Compose resource 不增加重启。
+On Android 15+ with Android Studio older than Meerkat, if the first ordinary Apply Changes deployment is a full-resource overlay, an old startup agent may generate only a framework-transform cache without applying those cached transforms in the current process. If historical deployed files are empty, modern Compose resources were explicitly compiled this run, and the overlay contains `assets/composeResources/**`, Host polls `.studio/instruments-*.jar.cache` for `android-app-ResourcesManager` and `android-app-LoadedApk` after the first process restart. If both appear, restart immediately again. If still incomplete after about 5 seconds, warn and restart anyway so the committed overlay consumes cached transforms. Only ordinary Deployer gets this compatibility restart; Direct Overlay, compat deployment, existing successful deployment history, and legacy Compose resources do not.
 
-`AppSandboxExecutor` 统一包装 setup script：Apply Changes 兼容应用使用 `run-as`；不兼容应用在真实 `dataDir` 以本轮固定的普通 shell、root adbd 或非交互 `su` 模式执行。普通文件修正为既有 `code_cache` 的 owner 与动态 MCS context，JVMTI `.so` 修正为 appdomain 可执行的 `apk_data_file:s0`；修复阶段输出不会混入 setup script 的 `success`/`failed` 结果。上层 agent manager 不再分别拼装权限命令。
+`AppSandboxExecutor` wraps the setup script uniformly. Apply Changes-compatible apps use `run-as`; incompatible apps use this run's fixed ordinary-shell, root-adbd, or noninteractive-`su` mode at actual `dataDir`. Ordinary files receive the existing `code_cache` owner and dynamic MCS context; JVMTI `.so` gets executable `apk_data_file:s0` for appdomain. Repair-stage output cannot mix into the setup script's `success`/`failed` result. The upper agent manager no longer assembles separate privilege commands.
 
-部署入口只解析一次目标 ARM 位数，并把结果传给 Direct app sandbox 与后续 Apply Changes transport。优先级依次为：运行中进程、Manifest `android:use32bitAbi`、全部 base/split APK 中唯一可确定的 ARM native library 位数、已安装包的 `primaryCpuAbi`、设备主 ABI，最后保留 64 位缺省值。APK 同时包含 32/64 位 ARM library 或完全没有 ARM library 时保持 unknown，避免单个无 native library 的 resource split 覆盖其它 APK 的有效证据。只有本地 Manifest 和 APK 都无法判断时才执行 `dumpsys package`，避免确定性本地证据已经足够时仍承担同步 ADB 查询耗时。Direct app sandbox 准备 startup agent 时必须复用这个结果，不能在已停止进程上再次调用进程架构探测。
+Deployment entry resolves target ARM bitness once, passing it to Direct app sandbox and subsequent Apply Changes transport. Evidence priority is: running process, Manifest `android:use32bitAbi`, uniquely determinable ARM native-library bitness across all base/split APKs, installed package `primaryCpuAbi`, primary device ABI, then the existing 64-bit default. If APKs contain both 32- and 64-bit ARM libraries or no ARM libraries, keep the APK evidence unknown so one resource split without native libraries cannot override other valid evidence. Query `dumpsys package` only when local Manifest and APK evidence cannot decide; avoid synchronous ADB cost when local evidence is conclusive. Direct app sandbox must reuse this resolved value when preparing startup agent, not probe process architecture again after the process has stopped.
 
-ABI 结果缓存由 `JuggDeployOrchestrator` 持有，key 为 device serial、packageName，以及排序后的全部 APK `absolute path + size + mtime`。同一 APK 集合在多个部署切片、内部降级和后续增量部署中只解析一次；本地证据不足时，installed package 在该缓存周期内至多查询一次。APK 指纹变化后会重新解析，并淘汰同设备同包名的旧结果。`dumpsys package` 抛出异常时仍允许本轮使用后续证据降级，但不缓存该结果，设备恢复后可重新读取更强证据。调试日志分别打印 installed package 查询耗时，以及整段 ABI 解析的 `source`、`cacheHit` 和耗时。
+`JuggDeployOrchestrator` owns the ABI-result cache, keyed by device serial, packageName, and sorted `absolute path + size + mtime` of every APK. One APK set resolves once across multiple deployment slices, internal degradation, and later incremental deployments. If local evidence is insufficient, query installed package at most once during that cache period. On APK-fingerprint change, resolve again and evict old results for that device/package. If `dumpsys package` throws, fallback evidence may still serve this run, but do not cache the result so a recovered device can supply stronger evidence next time. Debug logs separately report installed-package query duration and whole ABI-resolution `source`, `cacheHit`, and duration.
 
-### 4.2 失败重试中的兼容检测
+### 4.2 Compatibility Detection During Failed Retry
 
 ```text
 DeployRetryHandler.tryRetry()
   -> deployRunHost.detectJvmtiCompatIssue()
   -> JuggJvmtiAgentManagerHelper.isNeedPushAgentAfterDeploy()
-     如缺 agent，先 push 再 restart app
+     if agent absent, push then restart app
   -> isHasJvmtiCompatIssue()
-     命中 not-available flag 时记录 compat device，下一轮切 compat deploy
+     on not-available flag, record compat device; switch next round to compat deployment
 ```
 
-这条链路只判断“当前失败是否可能由 JVMTI 兼容性导致”。已经处于 compat deploy 的设备会跳过检测，避免重复记录和循环重试。
+This path only asks whether JVMTI incompatibility could explain the current failure. Devices already in compat deployment skip this detection, avoiding repeated records and retry loops.
 
-### 4.3 Native agent 启动
+### 4.3 Native Agent Startup
 
 ```text
-系统加载 startup agent
+system loads startup agent
   -> Agent_OnAttach(vm, options = app data dir)
-  -> 尝试取得 JVMTI 和 JNI
-     失败写 .jugg_jvmti_not_available
-  -> 成功写 .jugg_jvmti_available
+  -> attempt to obtain JVMTI and JNI
+     on failure write .jugg_jvmti_not_available
+  -> on success write .jugg_jvmti_available
   -> HandleStartupAgent()
      AddCapabilities
-     Direct sandbox 优先加载 app-local jugg-instruments.jar；否则使用 /data/local/tmp 中的全局 JAR
+     Direct sandbox prefers app-local jugg-instruments.jar; otherwise use global JAR under /data/local/tmp
      instrument Application / AppComponentFactory / Resources
 ```
 
-`options[0] == '/'` 时按 startup agent 处理；`jugg_hot_reload:` 前缀进入 dynamic redefine。dynamic 分支不写 startup 可用性 flag，也不重复安装 framework instrumentation。
+Treat `options[0] == '/'` as startup agent; prefix `jugg_hot_reload:` enters dynamic redefine. The dynamic branch neither writes startup-availability flags nor reinstalls framework instrumentation.
 
-### 4.3.1 Rootless 兼容 payload 的启动期导入
+### 4.3.1 Startup Import of a Rootless Compat Payload
 
-没有可用 sandbox 时 Host 不会推送任何 agent，`BootstrapApplication` 由 APK 内的 `jugg-runtime.jar` 提供：
+Without an available sandbox, Host pushes no agent. The APK's `jugg-runtime.jar` supplies `BootstrapApplication`:
 
 ```text
 BootstrapApplication.attachBaseContext(base)
-  -> HotfixLoader.init(base)                     初始化 codeCacheDir / overlayFilesDir
+  -> HotfixLoader.init(base)                     initialize codeCacheDir / overlayFilesDir
   -> RootlessCompatDeployImporter.importPending(base)
-     -> 从 Context.getExternalFilesDir(null)/jugg/rootless-compat 扫描带 ready 标记的请求（取最新一个）
-     -> app 私有文件锁串行化；拿不到锁的进程直接返回，只消费已提交 overlay
-     -> 校验 protocolVersion / packageName / requestId / payload SHA-256 / expected overlay id
-     -> 解压到 code_cache/rootless_import/<requestId>/（拒绝绝对路径、`..`、反斜杠和重复条目）
-     -> 按 Direct Overlay 规则提交：删除旧 id、清理 payload 目标、搬入文件、dex chmod 0444、最后写 id
-     -> jugg-agent tag 输出 `__JUGG_ROOTLESS_IMPORT__ OK|FAILED <requestId> [<stage> <reason>]`
-  -> HotfixLoader.isNeedEnableHotfix()            同一次进程启动即可加载新 overlay
+     -> scan Context.getExternalFilesDir(null)/jugg/rootless-compat for ready-marked requests (take newest)
+     -> serialize with app-private file lock; process unable to acquire it returns and consumes only committed overlay
+     -> validate protocolVersion / packageName / requestId / payload SHA-256 / expected overlay id
+     -> extract to code_cache/rootless_import/<requestId>/ (reject absolute paths, `..`, backslashes, duplicate entries)
+     -> commit under Direct Overlay rules: delete old id, clear payload targets, move files, chmod dex 0444, write id last
+     -> emit `__JUGG_ROOTLESS_IMPORT__ OK|FAILED <requestId> [<stage> <reason>]` under jugg-agent tag
+  -> HotfixLoader.isNeedEnableHotfix()            load new overlay on this same process start
   -> HotfixLoader.install(base)
 ```
 
-导入失败的请求不会修改已提交 overlay，也不会留下可被 `HotfixLoader` 识别为成功的 enable flag；Host 依据结果行决定是否提交 deployment cache、deploy history 与文件状态，结果缺失或超时按失败处理。
+A failed import does not change the committed overlay or leave an enable flag that `HotfixLoader` could mistake for success. Host uses the result line to decide whether to commit deployment cache, history, and file state; missing result or timeout is failure.
 
-### 4.4 Direct app sandbox dynamic redefine
+### 4.4 Direct App Sandbox Dynamic Redefine
 
 ```text
-Direct Overlay 已提交
-  -> request.txt + Dex 写入 code_cache/jugg_hot_reload/<requestId>
-  -> 为本次请求复制独立 agent so
+Direct Overlay committed
+  -> write request.txt + Dex to code_cache/jugg_hot_reload/<requestId>
+  -> copy a separate agent so for this request
   -> am attach-agent <pid> <agent>=jugg_hot_reload:<requestDir>
-  -> NEW class DEX 转为 in-memory dex elements，并追加到 Application ClassLoader
-  -> MODIFIED class 执行 GetLoadedClasses、IsModifiableClass 与 batch RedefineClasses
-  -> refreshResources=true 时更新 ResourcesLoader providers 并挂载到现存宿主 Resources
-  -> restartActivity=true 时在同一个主线程任务中对当前进程全部存活 Activity 执行 recreate()
-  -> result.tmp rename result.txt
+  -> turn NEW class DEX into in-memory dex elements and append to Application ClassLoader
+  -> for MODIFIED class, run GetLoadedClasses, IsModifiableClass, and batch RedefineClasses
+  -> when refreshResources=true, update ResourcesLoader providers and attach to existing host Resources
+  -> when restartActivity=true, call recreate() for all surviving Activities in the current process in one main-thread task
+  -> rename result.tmp to result.txt
 ```
 
-只有 `OK` 表示请求完成。V4 请求显式区分 `NEW` 与 `MODIFIED`：新增 class 不参与 JVMTI redefine。native 侧按官方职责边界从 `ActivityThread.currentApplication()` 取得 Application ClassLoader，读取并写回 `DexPathList.dexElements`；Java `DexUtility` 只负责复用 `makeInMemoryDexElements` 创建新 elements，并按 `old + new` 顺序合并。JNI 失败结果保留异常类型和消息，上层明确说明本轮新增类无法在线加载、将重启进程使用已提交 overlay。modified class 仍通过 JVMTI batch redefine。空请求和纯资源请求都允许不携带 class，因此 `[nothing to deploy]` 会完成 overlay checkpoint 与 runtime 请求，不会因 payload 为空自动重启。`refreshResources=false` 保持纯 class HOT_RELOAD 语义，`refreshResources=true` 对齐 Apply Changes 的资源切换顺序。
+Only `OK` means the request completed. V4 requests explicitly distinguish `NEW` from `MODIFIED`; new classes do not undergo JVMTI redefine. At the official responsibility boundary, native code obtains Application ClassLoader from `ActivityThread.currentApplication()` and reads/writes `DexPathList.dexElements`. Java `DexUtility` only reuses `makeInMemoryDexElements` to create elements and merges in `old + new` order. JNI failure results retain exception type and message. The upper layer explicitly says new classes could not be loaded live this run and will restart the process using the committed overlay. Modified classes still use JVMTI batch redefine. Empty and resource-only requests may contain no classes, so `[nothing to deploy]` still completes the overlay checkpoint and runtime request without automatically restarting for an empty payload. `refreshResources=false` retains pure-class HOT_RELOAD semantics; `refreshResources=true` follows Apply Changes' resource-switch order.
 
-`restartActivity=true` 在同一主线程任务中先刷新资源，再像 Apply Changes 一样遍历 `ActivityThread.mActivities` 并重建当前进程全部存活 Activity；读取失败时从 `WindowManagerGlobal` 收集窗口关联 Activity 作为回退，不重新调用 Android Studio `fullSwap/overlaySwap`。modified class 未加载时返回 `CLASS_NOT_FOUND`，Host 会明确说明当前进程无法 redefine 该 class，并重启 App 让已提交 overlay 生效；Host 仍兼容旧 agent 的 `MISSING` 结果。`UNMODIFIABLE`、JVMTI redefine error、attach 失败、结果超时、资源刷新或 Activity 重建失败都通过 `needsRestart` 降级为整应用重启，由 startup agent 加载已提交的同一 overlay。
+With `restartActivity=true`, one main-thread task refreshes resources first, then traverses `ActivityThread.mActivities` as Apply Changes does and recreates every surviving Activity in the current process. If reading fails, collect window-associated Activities from `WindowManagerGlobal` as fallback. Do not reenter Android Studio `fullSwap/overlaySwap`. An unloaded modified class returns `CLASS_NOT_FOUND`; Host explains that this process cannot redefine it and restarts the app to load the committed overlay. Host remains compatible with old agent result `MISSING`. `UNMODIFIABLE`, JVMTI redefine error, attach failure, result timeout, resource-refresh failure, and Activity-recreation failure all degrade through `needsRestart` to a full app restart, where startup agent loads the same committed overlay.
 
-终态结果返回后 Host 删除对应请求目录；超时请求在下一次请求开始前清理，避免与仍在执行的 agent 竞争文件，同时限制请求 Dex 和动态 agent so 的累积。
+Host deletes a request directory after the terminal result. It cleans a timed-out request before the next request starts, avoiding file races with a still-running agent while limiting accumulated request Dex and dynamic-agent `.so` files.
 
-`.jugg_jvmti_available` 在取得 JVMTI/JNI 后、进入 `HandleStartupAgent()` 前写入。因此它只证明 JVMTI 基础环境可取得，不能用于断言后续每个 framework hook 都已安装成功。
+`.jugg_jvmti_available` is written after JVMTI/JNI acquisition and before `HandleStartupAgent()`. It establishes only that the basic JVMTI environment is available, not that every later framework hook installed successfully.
 
-Direct transport 复制 app-local JAR 时沿用 `AppSandboxExecutor` 的 owner/SELinux 修复，并把部署入口解析的 app arch 传给 `pushAgentToApp(packageName, sandboxExecutor, appArch)`；普通 App 的无 sandbox manager 调用及 Android Studio deploy transport 不改变。
+When Direct transport copies an app-local JAR, it uses `AppSandboxExecutor` owner/SELinux repair and passes the deployment-entry app arch to `pushAgentToApp(packageName, sandboxExecutor, appArch)`. Ordinary apps' manager calls without sandbox and Android Studio deploy transport remain unchanged.
 
-### 4.5 非宿主资源的 Apply Changes overlay 修正
+### 4.5 Apply Changes Overlay Repair for Non-Host Resources
 
-Apply Changes 可能把宿主应用的 resource overlay 带入非宿主包的 `AssetManager`。WebView provider 初始化时如果拿到包含宿主 overlay package id 的资源环境，可能触发 `java.lang.IllegalStateException: Already registered a list of actions in this process` 并导致 WebView 崩溃。
+Apply Changes can carry the host app's resource overlay into a non-host package's `AssetManager`. If WebView provider initialization receives resources containing the host overlay package ID, it may throw `java.lang.IllegalStateException: Already registered a list of actions in this process` and crash WebView.
 
-Jugg 在 `ResourcesManager#createAssetManager` 的新旧签名中记录当前 `ResourcesKey.mResDir`，并与宿主 `ApplicationInfo` 中的 APK 路径比较：
+Jugg records current `ResourcesKey.mResDir` in both old and new signatures of `ResourcesManager#createAssetManager`, then compares it with APK paths in host `ApplicationInfo`:
 
 ```text
-创建 AssetManager
-  -> resDir 属于宿主 APK：保留 Apply Changes overlay
-  -> resDir 不属于宿主 APK：移除 code_cache/.overlay 中的宿主 overlay
+create AssetManager
+  -> resDir belongs to host APK: retain Apply Changes overlay
+  -> resDir is outside host APK: remove host overlay from code_cache/.overlay
 ```
 
-宿主 APK 路径尚未记录时，策略退回到旧的 `/data/app` 路径判断。该修正只处理非宿主资源环境，不能删除宿主 Activity 正常热更新所需的 overlay；compat deploy 启用时也必须跳过这条普通 Apply Changes overlay 修正。
+Before host APK paths have been recorded, policy falls back to the old `/data/app` path test. This repair addresses only non-host resource environments; it must not delete the overlay needed by the host Activity's normal hot update. Skip ordinary Apply Changes overlay repair under compat deployment too.
 
-### 4.6 Direct sandbox 普通资源 overlay
+### 4.6 Ordinary Resource Overlay in Direct Sandbox
 
-Direct transport 在 agent 准备阶段写入 `.jugg_direct_resource_overlay`；startup agent 使用系统传入的真实 dataDir 初始化资源路径。迁移自 Android Studio 的 `ResourceOverlays` 通过 `ResourcesProvider.loadFromDirectory()` 消费 `.overlay/*.apk` 中的资源和 assets，不额外生成资源 APK。`LoadedApk.getResources()` 的 entry hook 核对 dataDir 并收集宿主 base/split APK 路径，exit hook 只向包含宿主 APK 的 Resources 添加共享 loader。非宿主 Resources 和没有 Direct 标记的普通 Apply Changes 保持原路径。
+During agent preparation, Direct transport writes `.jugg_direct_resource_overlay`; startup agent initializes resource paths using the actual dataDir passed by the system. Migrated Android Studio `ResourceOverlays` consumes resources/assets under `.overlay/*.apk` through `ResourcesProvider.loadFromDirectory()`, without generating an extra resource APK. The entry hook of `LoadedApk.getResources()` validates dataDir and gathers host base/split APK paths. Its exit hook adds a shared loader only to Resources containing a host APK. Non-host Resources and ordinary Apply Changes without a Direct marker keep their original path.
 
-Android 11+ 的运行中资源请求会重新扫描已提交目录，通过 `ResourcesLoader.setProviders()` 更新已有 loader，再遍历 `ResourcesManager` 中现存的宿主 Resources 并补挂 loader，随后重建当前进程全部存活 Activity，包括其它 task 和多窗口实例。纯资源请求允许 Dex 列表为空；代码与资源混合时先完成 class redefine。资源刷新和 Activity 重建在同一个主线程任务中顺序执行，成功后保留进程；失败时外层重启 App，startup agent 继续从已提交 overlay 恢复。
+On Android 11+, a live resource request rescans committed directories, updates an existing loader through `ResourcesLoader.setProviders()`, attaches it to existing host Resources held by `ResourcesManager`, then recreates all surviving Activities in the current process, including other tasks and multiwindow instances. Resource-only requests may have an empty Dex list; for mixed code/resource changes, class redefine completes first. Resource refresh and Activity recreation run in order in one main-thread task, preserving the process on success. On failure, the outer layer restarts the app and startup agent restores from committed overlay.
 
-Android 11 以下不使用 ResourcesLoader；兼容部署 flag 存在时也不加载普通目录，由既有 `resource.ap_` 加载器处理。这两类场景继续通过进程重启生效。
+Before Android 11, ResourcesLoader is unused. With a compat-deployment flag, ordinary directories are likewise not loaded; the existing `resource.ap_` loader handles them. Both cases still take effect after process restart.
 
-迁移参考：[AOSP ResourceOverlays](https://android.googlesource.com/platform/tools/base/+/refs/heads/mirror-goog-studio-main/deploy/agent/runtime/src/main/java/com/android/tools/deploy/instrument/ResourceOverlays.java)。
+Migration reference: [AOSP ResourceOverlays](https://android.googlesource.com/platform/tools/base/+/refs/heads/mirror-goog-studio-main/deploy/agent/runtime/src/main/java/com/android/tools/deploy/instrument/ResourceOverlays.java).
 
-Direct app sandbox 与官方 Apply Changes 在 Android 版本、进程与 Activity 覆盖、class payload、切片、状态恢复和诊断协议上的完整边界见 `03_deploy_core.md` §6.4。
+See `03_deploy_core.md` §6.4 for the complete Direct app sandbox versus official Apply Changes boundaries around Android version, process/Activity coverage, class payloads, slicing, recovery, and diagnostics.
 
-### 4.8 FlutterEngine AssetManager 刷新
+### 4.8 FlutterEngine AssetManager Refresh
 
-`FlutterEngine` 构造时一次性取得 AssetManager（`createPackageContext(...).getAssets()`），native `APKAssetProvider` 又在构造时缓存对应的 `AAssetManager*`。Apply Changes 会让 `ResourcesManager.applyAllPendingAppInfoUpdates()` 重建 `ResourcesImpl/AssetManager` 并 `Resources.setImpl()`，Engine 仍持旧实例，因此继续读旧 asset。
+`FlutterEngine` obtains an AssetManager once during construction through `createPackageContext(...).getAssets()`. Native `APKAssetProvider` then caches the corresponding `AAssetManager*` at construction. Apply Changes rebuilds `ResourcesImpl/AssetManager` through `ResourcesManager.applyAllPendingAppInfoUpdates()` and calls `Resources.setImpl()`, but the Engine still holds its old instance and continues reading old assets.
 
-首次 Dart launch 前的可靠边界（Flutter 是 app 类，startup agent 阶段无法 hook，见下）：
+The reliable boundary before first Dart launch (Flutter classes cannot be hooked during startup-agent initialization, as explained below) is:
 
 ```text
 InstrumentationHooks.handleCreatePackageContextExit(Context)   [ContextImpl#createPackageContext exit hook]
-  -> compat / Android 11 以下：直接返回
-  -> App ClassLoader 无 FlutterEngine：直接返回，不读取 AssetManager
+  -> compat / below Android 11: return immediately
+  -> no FlutterEngine in App ClassLoader: return without reading AssetManager
   -> FlutterAssetRefresh.prepareHostPackageContext(context)
-     -> 包上下文属于宿主 APK 时：applyOverlayAssets(context.getResources().getAssets())
-        -> 把 Apply Changes overlay 目录作为 native ApkAssets 追加到列表末尾
+     -> for a host-APK package context: applyOverlayAssets(context.getResources().getAssets())
+        -> append the Apply Changes overlay directory as the last native ApkAssets entry
 ```
 
-`FlutterEngine` 构造期用 `context.createPackageContext(pkg, 0).getAssets()` 取得并终身持有 AssetManager，该 hook 在 native 消费之前把它补齐。已运行 Engine 与延迟启动 Engine 的批量逻辑：
+At construction, `FlutterEngine` obtains and holds the AssetManager from `context.createPackageContext(pkg, 0).getAssets()`. The hook supplements it before native code consumes it. The batch path for running and delayed-start Engines is:
 
 ```text
-InstrumentationHooks.createAssetManager*Exit()（宿主 APK 分支）
-  -> Android 11 以下 / App ClassLoader 无 FlutterEngine：直接返回，不 post
-  -> FlutterAssetRefresh.scheduleRefresh()      只登记 + post，不做 Flutter 调用
-  -> 主线程：重新创建宿主 package context 并取得其 overlay-aware AssetManager
-     无存活 Engine / 无 overlay（路径不含 /code_cache/.overlay/）-> no-op
-     idToEngine 等反射契约不可读 -> warn，不当作“无 Flutter”
-  -> 用同一份 FlutterEngine.idToEngine 快照逐个处理（覆盖未进入 FlutterEngineCache 与 spawn 的 Engine）
-     -> flutterJNI.isAttached() 为假 -> 记为失败
-     -> DartExecutor.isExecutingDart() 为真
+InstrumentationHooks.createAssetManager*Exit() (host APK branch)
+  -> below Android 11 / no FlutterEngine in App ClassLoader: return without posting
+  -> FlutterAssetRefresh.scheduleRefresh()      register + post only; do not call Flutter yet
+  -> on main thread: recreate host package context and obtain overlay-aware AssetManager
+     no live Engine / no overlay (path lacks /code_cache/.overlay/) -> no-op
+     reflection contract such as idToEngine unreadable -> warn; do not treat as “no Flutter”
+  -> handle each Engine from one FlutterEngine.idToEngine snapshot (including Engines absent from FlutterEngineCache or spawned)
+     -> flutterJNI.isAttached() false -> record failure
+     -> DartExecutor.isExecutingDart() true
         -> flutterJNI.updateJavaAssetManager(assetManager, FlutterLoader.findAppBundlePath())
-     -> 否则 -> 替换 DartExecutor.assetManager，让随后的 runBundleAndSnapshotFromLibrary() 使用新实例
-  -> 本批有失败：warn 一次 + Toast 一次；全部成功：仅 debug 日志（区分两条路径）
+     -> otherwise -> replace DartExecutor.assetManager so later runBundleAndSnapshotFromLibrary() uses the new instance
+  -> any failure in batch: warn once + Toast once; all succeed: debug log only (distinguish both paths)
 ```
 
-边界与约束：
+Boundaries and constraints:
 
-- `ResourcesManager` 与 `ContextImpl` 是 framework 级 hook，startup agent 会在普通 App 和 Flutter App 中都安装；安装和方法进入不等于状态修改。Android 11+ 仅当 App ClassLoader 能解析 `FlutterEngine` 时才继续，非 Flutter App 不投递主线程任务，也不读取或改写 package-context AssetManager。
-- compat deploy 在两个 `createAssetManager` exit 和 `createPackageContext` exit 开头就 `return`；Android 11 以下在 Flutter 调度与 package-context 处理前返回，两者继续走 `resource.ap_` + 进程重启。
-- `createPackageContext` 只会增强包含宿主 base/split APK 的 AssetManager；WebView provider、SDK 独立资源和其他 package context 不包含宿主 APK，保持原状态。Flutter App 内普通的同宿主 package context 会共享该增强，这是 framework 边界无法区分调用者时为冷启动 Engine 保留的最小影响。
-- 不能 hook Flutter 类：`io/flutter/embedding/engine/FlutterJNI` 在 startup agent 阶段不可解析（`Optional hook transform class not found`），改按需安装也因 agent 库不经 `System.loadLibrary` 加载而 `RegisterNatives` 绑不到调用方副本（`UnsatisfiedLinkError`）。因此启动边界取 framework 的 `ContextImpl#createPackageContext`。
-- 未启动 Dart 的 Engine 必须替换其 `DartExecutor` 构造期保存的 AssetManager：Flutter `RunBundleAndSnapshotFromLibrary()` 在 Dart 启动时会用它重建 `APKAssetProvider`，启动前发出的 JNI 刷新会被这次启动覆盖，只跳过则会永久遗漏。
-- 批次只枚举一次 Engine 快照；入口的定位失败（无 Application、无 Flutter、无 overlay、无 Engine）是正常 no-op，确认 overlay 且快照非空之后的任何失败都计入同一批 warn + Toast，不能只记日志或输出 `refreshed for N` 掩盖未更新。
-- 两套 `createAssetManager` Enter/Exit 的配对状态用 `ThreadLocal` 保存：Android 14+ 两个签名同时被 hook 且旧签名委托新签名（嵌套），`ResourcesManager.getResources()` 也可从任意线程进入。
-- agent 的 Java 类由 bootstrap ClassLoader 加载，Flutter 类必须用 `context.getClassLoader()` 解析，否则 `Class.forName` 永远失败。
-- 全程 fail-open：Flutter 缺失、反射失败、刷新失败都只在内部收口，不影响 Android Resources / Activity 流程；但已确认 overlay 且存在 Engine 后的失败必须按批 warn + Toast，不能静默伪装为成功。
-- 只替换 `kApkAssetProvider` resolver；已读入内存的 asset 与 Dart 侧 `rootBundle` 字符串缓存不会回退重读，因此“同一 key 的旧值”只能通过新 isolate 或未缓存读取观察到。
-- raw asset 的 overlay 覆盖通过 `ResourcesProvider.loadFromDirectory(dir, null)` 取得 Android 原生目录 ApkAssets，再把它作为**最后一个** ApkAssets 追加进宿主包上下文的 AssetManager（`OpenNonAsset` 倒序 ⇒ 优先），并用 identity WeakHashMap 去重。这里的 `null` 只表示不提供 Java 覆盖回调；Android 仍会用 native `DirectoryAssetsProvider` 读取目录文件。禁止把 Java `AssetsProvider` 交给 Flutter：Flutter 会在未附着 JVM 的 `io.worker` 线程调用 `AAssetManager_open()`，Android 的 `LoaderAssetsProvider` 会因无法取得 `JNIEnv` 直接 abort。最终实现已通过真实 Jugg 编译部署流程确认 asset 更新生效且不再触发该崩溃；历史证据见方案 §16～§17。
-- `executeDartCallback()` 使用 `DartCallback.androidAssetManager`，同样不在覆盖范围内。
+- `ResourcesManager` and `ContextImpl` are framework hooks installed by startup agent in both ordinary and Flutter apps. Hook installation and entry do not themselves imply a state change. On Android 11+, continue only if App ClassLoader resolves `FlutterEngine`; a non-Flutter app neither posts a main-thread task nor reads or rewrites a package-context AssetManager.
+- Compat deployment returns at the start of both `createAssetManager` exit hooks and the `createPackageContext` exit hook. Before Android 11, return before Flutter scheduling and package-context processing. Both continue through `resource.ap_` plus process restart.
+- `createPackageContext` augments only an AssetManager containing host base/split APKs. WebView providers, SDK-specific resources, and other package contexts lack host APKs and stay unchanged. An ordinary same-host package context within a Flutter app shares this augmentation; at the framework boundary, callers cannot be distinguished, and this is the minimal effect needed for a cold-start Engine.
+- Do not hook Flutter classes. `io/flutter/embedding/engine/FlutterJNI` cannot be resolved at startup-agent time (`Optional hook transform class not found`). Installing on demand also fails: the agent library is not loaded with `System.loadLibrary`, so `RegisterNatives` cannot bind the caller's copy (`UnsatisfiedLinkError`). Use the framework `ContextImpl#createPackageContext` startup boundary instead.
+- An Engine whose Dart has not started must replace the AssetManager captured in its `DartExecutor` constructor. Flutter's `RunBundleAndSnapshotFromLibrary()` rebuilds `APKAssetProvider` from that instance on Dart startup, overriding any JNI refresh sent earlier. Simply skipping this Engine would leave it stale indefinitely.
+- Enumerate the Engine snapshot once per batch. Entry-location misses (no Application, Flutter, overlay, or Engine) are normal no-ops. Once overlay and a nonempty snapshot are confirmed, every failure contributes to the same batch warning and Toast; a log-only failure or `refreshed for N` message must not conceal a stale Engine.
+- A `ThreadLocal` stores paired state for both `createAssetManager` Enter/Exit signatures. Android 14+ hooks both, and the old signature delegates to the new one recursively; `ResourcesManager.getResources()` may enter from any thread.
+- The agent's Java classes load through bootstrap ClassLoader. Resolve Flutter classes with `context.getClassLoader()` or `Class.forName` will always fail.
+- The whole path is fail-open. Missing Flutter, reflection failure, and refresh failure remain internal and do not break Android Resources/Activity flow. Once overlay and Engines are confirmed, however, failure must produce a per-batch warning and Toast, not silent apparent success.
+- Only the `kApkAssetProvider` resolver is replaced. Already loaded assets and Dart-side `rootBundle` string caches do not reread; observe an old value for the same key only through a new isolate or uncached read.
+- For raw assets, obtain Android native directory ApkAssets through `ResourcesProvider.loadFromDirectory(dir, null)`, then append it as the **last** ApkAssets of the host package-context AssetManager (`OpenNonAsset` searches backward, giving it priority). Deduplicate with an identity WeakHashMap. Here `null` means no Java override callback; native `DirectoryAssetsProvider` still reads directory files. Do not give Flutter a Java `AssetsProvider`: Flutter calls `AAssetManager_open()` on an `io.worker` thread unattached to JVM, where Android `LoaderAssetsProvider` aborts because it cannot obtain `JNIEnv`. The final implementation was verified through real Jugg compile/deploy: asset updates took effect without that crash. Historical evidence is in proposal §§16–17.
+- `executeDartCallback()` uses `DartCallback.androidAssetManager` and is likewise outside this coverage.
 
-### 4.9 ClassLoader resource overlay
+### 4.9 ClassLoader Resource Overlay
 
-legacy Compose resource 会通过 `ClassLoader#getResource()` 读取 APK 根目录文件，而不是通过 `AssetManager` 读取 `assets/`。Jugg 对 `java/lang/ClassLoader#getResource(String)` 做 retransformation，在原方法入口执行 overlay-first 查找：
+Legacy Compose resources use `ClassLoader#getResource()` to read APK-root files, not `AssetManager` to read `assets/`. Jugg retransforms `java/lang/ClassLoader#getResource(String)` and performs an overlay-first lookup at original-method entry:
 
 ```text
 InstrumentationHooks.classLoaderGetResource(classLoader, name)
-  -> 仅接受宿主 Application ClassLoader 或以它为 parent 的子 ClassLoader
-  -> code_cache/.overlay/base.apk/<name> 是文件：返回 file URL
-  -> resource.ap_ 存在且 ZIP entry <name> 存在：返回 jar:file URL
-  -> 未命中或异常：返回 null，继续原始 ClassLoader#getResource
+  -> accept only host Application ClassLoader or a child with it as parent
+  -> code_cache/.overlay/base.apk/<name> is a file: return file URL
+  -> resource.ap_ exists and ZIP entry <name> exists: return jar:file URL
+  -> miss or exception: return null and continue original ClassLoader#getResource
 ```
 
-hook 不限制资源名。部署到 `.overlay` 的内容是预期覆盖状态，但 `resource.ap_` 分支必须先确认 ZIP entry，不能只因 ZIP 文件存在就截断原始 fallback。
+The hook does not restrict resource names. Content deployed to `.overlay` is intended override state, but the `resource.ap_` branch must confirm the ZIP entry before suppressing the original fallback; ZIP existence alone is insufficient.
 
-首次进入 hook 只打印一次 `Classpath resource hook in`；每次命中打印 `Classpath resource overlay hit` 并区分 `file` / `resource_ap_`。`resource.ap_` 读取可能受 `JarURLConnection` 缓存影响，部署 APK 根目录 overlay 成功后必须重启 App 进程。
+On first hook entry, log `Classpath resource hook in` once. On each hit, log `Classpath resource overlay hit` with `file` or `resource_ap_`. Reads of `resource.ap_` may be affected by `JarURLConnection` caching, so restart the app process after successfully deploying an APK-root overlay.
+
+---
+## 5. Build and Version Constraints
+
+- The native target library is `jugg_jvmti_agent`; its build entry point is `jvmti_agent/CMakeLists.txt`.
+- `jvmti_agent/buildAgentBundle.gradle` generates `BuildConfig.AGENT_VERSION`, `AGENT_BUNDLE_PATH`, and flag-file names, and places the agent bundle under plugin resources.
+- `jugg-instruments.jar` is the DEX JAR actually loaded by native agent through `AddToBootstrapClassLoaderSearch()`. Dragonfly needed by ViewHierarchy must be included in this artifact with Jugg runtime classes, not only in the Gradle-injected app `jugg-runtime.jar`.
+- Most Dragonfly code comes from the upstream AAR's source-compiled `classes.jar`; AAR Manifest, assets, and native libraries do not enter Jugg. `jvmti_agent/libs/dragonfly/preprocess.sh` uses a fixed-SHA-256 Jar Jar Abrams to relocate private package names and removes `DragonflyJvmtiBridge`, unused by Jugg and carrying a `NestHost` attribute unreadable by old D8. A fixed-version dex2jar still converts `implementation_0.jar`. Preprocessing removes a dexlib2 subtree used only by Kuikly hooks that otherwise crashes AGP 8.8 D8 frame analysis; Dragonfly already contains that optional call within a `Throwable` boundary.
+- A dex2jar-generated Kotlin subset in implementation is replaced by a source-compiled Kotlin stdlib 2.0.0 with fixed SHA-256 and relocated to `com.sickworm.intellij.jugg.internal.dragonfly.runtime.kotlin.**`. After deleting old Kotlin and dexlib2, remaining dex2jar classes lacking `StackMapTable` are normalized from Java 8 class version to Java 6. The official Gradle flow consumes only repository `*-jugg.jar` files, avoiding same-name host-app dependencies and any need for host-provided Kotlin runtime.
+- `jugg-runtime.jar` also merges the same preprocessed Dragonfly JAR, preserving `GradleApplicationInjector`'s single-runtime-JAR interface. The build checks that private Dragonfly and Kotlin runtime entry points exist and original-package class entries do not.
+- Root `build.gradle`'s `agentVersion` is the common version source for device directories, startup-agent filename prefixes, and bundle filenames.
+- Increment `agentVersion` after changing native code, Java runtime (including `ViewExpressionEvaluator` / `view-inspect` evaluation), setup script, or bundle contents under `jvmti_agent`. `isAgentBundlePushed()` checks only whether four files already exist under `/data/local/tmp/jugg/{AGENT_VERSION}`; a same-version plugin update does not push again, leaving the device on old `jugg-instruments.jar`.
+- A 32-bit app uses `_alt.so`: bundle packaging renames the armeabi-v7a `.so` to `jugg_jvmti_agent_alt.so`. Both `attachAgentToApp()` and setup script depend on this convention.
+- ABI resolution currently supports ARM only: `armeabi` / `armeabi-v7a` map to 32-bit, `arm64-v8a` to 64-bit; x86 is incompatible. If evidence cannot decide, keep the 64-bit default, which covers most current devices.
+- `HotfixLoader` centrally checks device API at Java runtime entry. For API < 26, `init()` returns before accessing `Context.getCodeCacheDir()`; `install()`, `installDex()`, and `isNeedEnableHotfix()` short-circuit too. This does not change Gradle artifacts; `BootstrapApplication` injection still depends only on `jugg.inject.application.enable`.
+- If `BootstrapApplication` cannot find application meta-data, treat it as no original Application/AppComponentFactory and continue startup. Create and substitute those instances only when meta-data includes their original class names saved by Jugg.
+- On API 29+, `BootstrapAppComponentFactory.instantiateClassLoader()` must delegate to the original `AppComponentFactory` before Framework creates Application, returning its ClassLoader directly to Framework. Pass an `ApplicationInfo` with original Application and AppComponentFactory names restored. Cache the original factory for reuse by `BootstrapApplication`; never call `instantiateClassLoader()` again in `attachBaseContext()`.
+- `BootstrapApplication.attachBaseContext()` creates and attaches the original Application. Startup `ContentProvider`s then run before Application-reference replacement in `BootstrapApplication.onCreate()`. During that window, after original Application creation, `BootstrapApplication.getApplicationContext()` returns the original instance so a Provider calling `context.getApplicationContext()` sees a normal Application. `ContentProvider.getContext()` remains the Bootstrap Context retained by Framework at `attachInfo()` and is outside this compatibility behavior.
+- `BootstrapApplication` must forward `registerActivityLifecycleCallbacks()` / `unregisterActivityLifecycleCallbacks()` to the created original Application. Framework dispatches through `Activity#getApplication()`; after substitution that instance is the original Application, so callbacks left on bootstrap will never fire. `moveActivityLifecycleCallbacks()` migrates once in `onCreate()` and covers only the interval before original Application creation; it cannot replace forwarding.
+- If `replaceApplication()` replaces no `LoadedApk#mApplication`, log a warning. That field is the sole source of `Activity#getApplication()`. If every replacement misses, Activities keep the bootstrap instance and business `ActivityLifecycleCallbacks` silently stop firing, with no exception or crash for diagnosis.
+- A ResourcesManager hook can call `InstrumentationHooks.isEnableHotfix()` before `HotfixLoader.init()`. `overlayFilesDir` is then uninitialized; return false provisionally without caching the decision, and reread the compat flag after initialization.
+- Framework hook transformation follows best-effort behavior: if a target class is absent or one `RetransformClasses` fails, warn and continue other transforms without treating the whole Jugg agent as unavailable. Failure of foundational steps such as JVMTI capability or class-file-load-hook event still counts as agent instrumentation failure.
+- Both `ResourcesManager#createAssetManager` exit-hook signatures must return immediately under compat deployment. Otherwise ordinary-mode `tryFixOutSideApk()` can delete `resource.ap_` under `code_cache/.overlay` as though it were Apply Changes overlay, leaving the new Activity's AssetManager without app package ID `0x7f`.
+- Keep `ClassLoader#getResource` hook early-return and fail-open: return early only with a nonempty overlay URL; on miss or exception, continue the original method. An exit hook would run the original lookup first and lose true overlay-first semantics.
+- The reliable refresh boundary for a ClassLoader resource is process restart, not Activity recreation. Compose resources and `JarURLConnection` may both cache old results.
+- Flutter JNI refresh can run only after an Engine is attached and Dart has started. An AssetManager sent to JNI before Dart launch is overwritten by Flutter's own `RunBundleAndSnapshotFromLibrary()`. Do not simply skip an Engine whose Dart has not started and wait for an uncertain future ResourcesManager hook.
+- Increment `agentVersion` in root `build.gradle` after changing runtime classes such as `FlutterAssetRefresh` so the device loads a new `jugg-instruments.jar`.
 
 ---
 
-## 5. 构建与版本约束
+## 6. Hidden Constraints
 
-- native 目标库是 `jugg_jvmti_agent`，构建入口是 `jvmti_agent/CMakeLists.txt`。
-- `jvmti_agent/buildAgentBundle.gradle` 生成 `BuildConfig.AGENT_VERSION`、`AGENT_BUNDLE_PATH`、flag 文件名，并把 agent bundle 放到 plugin resource 路径。
-- `jugg-instruments.jar` 是 native agent 通过 `AddToBootstrapClassLoaderSearch()` 实际加载的 DEX JAR；ViewHierarchy 依赖的 Dragonfly 必须随 Jugg runtime class 一起进入该产物，不能只存在于 Gradle 注入 App 的 `jugg-runtime.jar`。
-- Dragonfly 主体来源是上游 AAR 中源码编译的 `classes.jar`，AAR Manifest、asset 和 native library 不进入 Jugg。`jvmti_agent/libs/dragonfly/preprocess.sh` 使用固定 SHA-256 的 Jar Jar Abrams 完成私有包名重写，并剔除 Jugg 不使用且旧 D8 无法读取 `NestHost` 属性的 `DragonflyJvmtiBridge` class。`implementation_0.jar` 仍由固定版本 dex2jar 转换；预处理会删除仅供 Kuikly hook 使用、且会触发 AGP 8.8 D8 frame 分析崩溃的 dexlib2 子树，该可选调用已由 Dragonfly 的 `Throwable` 边界收口。
-- implementation 中 dex2jar 生成的 Kotlin 子集会替换为固定 SHA-256 的源码编译 Kotlin stdlib 2.0.0，并继续重命名到 `com.sickworm.intellij.jugg.internal.dragonfly.runtime.kotlin.**`；其余 dex2jar class 在删除旧 Kotlin 与 dexlib2 后才将缺少 `StackMapTable` 的 Java 8 class version 规范为 Java 6。正式 Gradle 流程只消费仓库中的 `*-jugg.jar`，既避免宿主 App 同名依赖冲突，也不依赖宿主提供 Kotlin runtime。
-- `jugg-runtime.jar` 继续合并相同的预处理 Dragonfly JAR，保持 `GradleApplicationInjector` 的单 runtime JAR 接口；构建同时校验私有 Dragonfly、Kotlin runtime 入口存在且原包 class entry 不存在。
-- 工程根 `build.gradle` 的 `agentVersion` 是设备目录、startup agent 文件名前缀和 bundle 文件名的共同版本源。
-- 修改 `jvmti_agent` 里的 native、Java runtime（含 `ViewExpressionEvaluator` / `view-inspect` 求值）、setup script 或 bundle 内容后，必须递增 `agentVersion`。`isAgentBundlePushed()` 只看 `/data/local/tmp/jugg/{AGENT_VERSION}` 是否已有 4 个文件；同版本插件更新不会重推，设备会继续加载旧 `jugg-instruments.jar`。
-- 32 位 app 使用 `_alt.so`：bundle 打包时把 armeabi-v7a so 改名为 `jugg_jvmti_agent_alt.so`，`attachAgentToApp()` / setup script 都依赖这个约定。
-- ABI 解析当前只支持 ARM：`armeabi` / `armeabi-v7a` 映射 32 位，`arm64-v8a` 映射 64 位；不兼容 x86。所有证据都无法确定时仍按 64 位处理，覆盖大部分现有设备。
-- Java runtime 入口由 `HotfixLoader` 统一做设备 API 判定；API < 26 时 `init()` 会在访问 `Context.getCodeCacheDir()` 前 return，`install()` / `installDex()` / `isNeedEnableHotfix()` 也会短路。这个判断不改变 Gradle 构建产物，`BootstrapApplication` 注入仍只受 `jugg.inject.application.enable` 控制。
-- `BootstrapApplication` 查询不到 application meta-data 时按“没有原始 Application / AppComponentFactory”处理并继续启动；仅在 meta-data 中存在 Jugg 保存的原始类名时才创建和替换对应实例。
-- API 29+ 的 `BootstrapAppComponentFactory.instantiateClassLoader()` 必须在 Framework 创建 Application 前委托原始 `AppComponentFactory`，并把原始工厂返回的 ClassLoader 直接交还 Framework。委托时传入恢复了原始 Application 和 AppComponentFactory 类名的 `ApplicationInfo`；原始工厂实例必须缓存并由 `BootstrapApplication` 复用，禁止在 `attachBaseContext()` 中重复调用 `instantiateClassLoader()`。
-- `BootstrapApplication.attachBaseContext()` 会创建并 attach 原始 Application；启动 `ContentProvider` 随后执行，早于 `BootstrapApplication.onCreate()` 中的 Application 引用替换。该窗口内 `BootstrapApplication.getApplicationContext()` 在原始 Application 已创建后直接返回原始实例，使 Provider 通过 `context.getApplicationContext()` 获得正常 Application；`ContentProvider.getContext()` 仍是 Framework 在 `attachInfo()` 时保存的 Bootstrap Context，不属于此兼容范围。
-- `BootstrapApplication` 必须把 `registerActivityLifecycleCallbacks()` / `unregisterActivityLifecycleCallbacks()` 转发到已创建的原始 Application。Framework 经 `Activity#getApplication()` 分派生命周期回调，替换完成后该实例是原始 Application，留在 bootstrap 实例上的回调永远不会被分派。`moveActivityLifecycleCallbacks()` 只在 `onCreate()` 迁移一次，只能兜住原始 Application 创建之前的窗口，不能替代转发。
-- `replaceApplication()` 未替换任何 `LoadedApk#mApplication` 时必须打印 warn。该字段是 `Activity#getApplication()` 的唯一来源，全部未命中时 Activity 仍持有 bootstrap 实例，业务注册的 `ActivityLifecycleCallbacks` 会静默全部失效，且没有异常或崩溃可供定位。
-- `InstrumentationHooks.isEnableHotfix()` 可能在 `HotfixLoader.init()` 之前被 ResourcesManager hook 调用。此时 `overlayFilesDir` 尚未初始化，只能临时返回 false，不能缓存判断结果；初始化完成后必须重新读取 compat flag。
-- framework hook transform 遵循 Best-effort：目标类不存在或单个 `RetransformClasses` 失败时记录 warning 并继续其他 transform，不把整个 Jugg agent 判为不可用。JVMTI capability、class file load hook event 等基础步骤失败仍按 agent instrumentation 失败处理。
-- ResourcesManager 两个 `createAssetManager` 签名的 exit hook 都必须在 compat deploy 启用时直接返回。否则普通模式的 `tryFixOutSideApk()` 会把路径位于 `code_cache/.overlay` 的 `resource.ap_` 当成 Apply Changes overlay 删除，导致新 Activity 的 AssetManager 丢失应用包 ID `0x7f`。
-- `ClassLoader#getResource` hook 必须保持 early-return + fail-open：只有 overlay URL 非空时提前返回，未命中和异常继续原方法。不要改回 exit hook，否则原始 resource lookup 会先执行，失去真正的 overlay-first 语义。
-- ClassLoader resource 的可靠刷新边界是进程重启，不是 Activity 重建。Compose resource 与 `JarURLConnection` 都可能缓存旧结果。
-- Flutter JNI 刷新只能发生在 Engine 已 attach 且已启动 Dart 之后；Dart 启动前推送给 JNI 的 AssetManager 会被 Flutter 自己的 `RunBundleAndSnapshotFromLibrary()` 覆盖。对尚未启动 Dart 的 Engine，不能只跳过并等待不确定的下一次 ResourcesManager hook。
-- 修改 `FlutterAssetRefresh` 等 runtime 类后必须递增根 `build.gradle` 的 `agentVersion`，设备才会加载新的 `jugg-instruments.jar`。
+- `JuggSettings.isEnableCompatibleDeploymentMode` and `finalIsEnableCompatibleDeploymentMode` are always `true`; `pushAgentToApps()` and `attachAgentToApps()` have no user-facing off switch.
+- Install has no incremental deployment files, so `isNeedPushAgentAfterDeploy()` returns false immediately. Absence of agent after install does not establish a push failure.
+- For an Apply Changes-compatible app, `isNeedPushAfterDeploy()` must see both the Jugg agent and a non-Jugg `.so` startup agent. Direct app sandbox transport prepares and reuses Jugg startup agent itself, rather than having the post-deploy check push it again.
+- `isHasJvmtiCompatIssue()` waits at most 3 seconds, polling every 100 ms. It continues waiting for apps returning `null` and concludes when all apps have non-null results.
+- The not-available flag outranks available. If both exist during investigation, treat JVMTI as unavailable first, clear app `code_cache`, and retest.
+- `AsStartupAgentPusher` needs no running app process. It uses the agent `.so` resolved from host matryoshka and places it in the app sandbox with `run-as cp`.
+- `CompatDeployHelper` reads `ro.product.manufacturer`. When trimmed value equals `asus` case-insensitively, compat deployment is enabled for every app. This automatic policy writes no device compatibility record, so More Options' manual Force option is neither auto-selected nor able to disable it.
+- `CompatDeployHelper` reads `hw_sc.build.platform.version`. Any nonempty value identifies HarmonyOS and enables compat deployment regardless of system version. This automatic policy writes no device compatibility record, so More Options' manual Force option is neither auto-selected nor able to disable it.
+- `jugg_agent_setup.sh` no longer creates `.need_fix_dex_path_list` by HarmonyOS version. Do not proactively clear an old flag left from an earlier version; it could erase state created by `DexPathListFixer` self-detection.
+- An app sandbox already containing the current agent version does not replace its `.so` for a newly resolved ABI. If an old-architecture agent remains after app ABI changes, reinstall to clear sandbox and prepare again.
+- When rebuilding Dex paths, `AndroidNClassLoader` uses `sourceDir + splitSourceDirs` only without isolated split loading. With no split APK, enabled isolated split loading, or unreliable isolation detection, retain the previous base-APK filtering. Do not derive split paths only from old `dexElements`: an installed split APK may not be in that array during early app startup.
+- When `AndroidNClassLoader` updates `DrawableInflater#mClassLoader`, Android 12+ hidden API returns `NoSuchFieldException` for targetR-and-above apps; some ROMs remove the field as well. For this specific `NoSuchFieldException`, best-effort skip and warn, leaving XML drawables on the original ClassLoader. Preserve existing behavior for other exceptions (ignore for Incremental APK, throw otherwise); do not broaden this into swallowing every exception.
+- `DexPatchLoader` replaces App ClassLoader only when it collected embedded/overlay Dex. For resource-only overlay, skip injection so `HotfixLoader` can continue to `ResourcesPatchLoader` instead of failing app startup on framework-private fields when there is no Dex.
 
 ---
+## 7. Investigation Entry Points
 
-## 6. 隐形约束
-
-- `JuggSettings.isEnableCompatibleDeploymentMode` 与 `finalIsEnableCompatibleDeploymentMode` 恒为 `true`，`pushAgentToApps()` 和 `attachAgentToApps()` 不提供用户关闭入口。
-- install 没有增量部署文件，`isNeedPushAgentAfterDeploy()` 直接返回 false；不要用 install 后缺 agent 判断为 push 失败。
-- Apply Changes 兼容应用的 `isNeedPushAfterDeploy()` 要同时看到 Jugg agent 和非 Jugg 的 `.so` startup agent。Direct app sandbox transport 自行准备并复用 Jugg startup agent，不再由部署后检查重复补 push。
-- `isHasJvmtiCompatIssue()` 最多等待 3 秒，每 100ms 轮询一次；返回 `null` 的 app 会继续等，全部 app 都非 null 才收口。
-- not-available flag 优先级高于 available flag；排查时如果两个都存在，应先按不可用处理并清理 app `code_cache` 后复测。
-- `AsStartupAgentPusher` 推 AS agent 的路径不要求 app 进程在线；它用 host matryoshka 解析出的 agent so，经 `run-as cp` 放进 app sandbox。
-- `CompatDeployHelper` 读取 `ro.product.manufacturer`；值去除首尾空白后等于 `asus`（忽略大小写）时，所有 App 都直接启用 compat deploy。该自动策略不写入设备兼容记录，因此 More Options 的手动 Force 选项不会自动勾选，也不能用来关闭自动策略。
-- `CompatDeployHelper` 读取 `hw_sc.build.platform.version`；属性非空时即识别为 HarmonyOS 并直接启用 compat deploy，不限制系统版本。该自动策略不写入设备兼容记录，因此 More Options 的手动 Force 选项不会自动勾选，也不能用来关闭自动策略。
-- `jugg_agent_setup.sh` 不再按 HarmonyOS 版本创建 `.need_fix_dex_path_list`。升级前已经存在的旧 flag 不在本轮主动清理，避免误删 `DexPathListFixer` 自检测产生的状态。
-- app sandbox 已存在当前 agent 版本时不会按新解析结果替换其 so。App ABI 变化后若残留旧架构 agent，需要通过重装 App 清理 sandbox 后重新准备。
-- `AndroidNClassLoader` 重建 dex path 时，仅在非 isolated split 场景使用 `sourceDir + splitSourceDirs`；无 split APK、启用 isolated split loading 或无法可靠识别隔离状态时继续沿用原有 base APK 筛选。不能只从原 `dexElements` 取 split 路径，因为应用早期启动阶段已安装的 split APK 可能尚未挂入该数组。
-- `AndroidNClassLoader` 更新 `DrawableInflater#mClassLoader` 时，Android 12+ hidden API 会对 targetR 及以上应用返回 `NoSuchFieldException`，部分 ROM 也移除了该字段；这种明确的 `NoSuchFieldException` 按 Best-effort 跳过并打印 warn，XML drawable 继续使用原 ClassLoader。其余异常保持原规则（Incremental APK 忽略，其它抛出），不要放宽成吞掉全部异常。
-- `DexPatchLoader` 只有收集到 embedded/overlay dex 才替换 App ClassLoader；纯资源 overlay 直接跳过注入，让 `HotfixLoader` 继续执行 `ResourcesPatchLoader`，避免无 dex 时仍依赖 framework 私有字段而中断 App 启动。
-
----
-
-## 7. 排查入口
-
-| 现象 | 优先入口 |
+| Symptom | Start with |
 |---|---|
-| agent bundle 未更新 | 根 `build.gradle` 的 `agentVersion`，再查 `/data/local/tmp/jugg/{version}` 目录时间戳与文件数 |
-| `view-inspect` 无括号字段仍报 `expected '(' after method name` | 设备仍在用旧 `jugg-instruments.jar`；确认 `agentVersion` 已递增后再部署/重启 App |
-| app sandbox 中没有 Jugg agent | `JuggJvmtiAgentManager.pushAgentToApp()`、`setupAgent()`、`jugg_agent_setup.sh` |
-| 32/64 位 so 选错 | 检查 `AppAbiResolver` 的 source 日志、`dumpsys package` 中的 `primaryCpuAbi`、Manifest `use32bitAbi`、APK ARM library；Direct app sandbox 应直接使用已解析 arch |
-| 部署后被判 JVMTI 不可用 | `JuggJvmtiAgentManagerHelper.isHasJvmtiCompatIssue()`，检查 `.jugg_jvmti_not_available` |
-| 检测一直不收口 | app 是否 restart、`code_cache` 是否存在、native `Agent_OnAttach` 是否写 flag |
-| Direct Overlay 缺 AS startup agent | `AsStartupAgentPusher.hasApplyChangesStartupAgent()` 与 `pushApplyChangesStartupAgent()` |
-| ASUS 未进入兼容部署 | `CompatDeployHelper.isEnableCompatDeploy()` 读取的 `ro.product.manufacturer` 是否为 `asus`（忽略大小写与首尾空白） |
-| HarmonyOS 未进入兼容部署 | `CompatDeployHelper.isEnableCompatDeploy()` 读取的 `hw_sc.build.platform.version`；`JuggSettings.finalIsEnableCompatibleDeploymentMode` 应恒为 `true` |
-| WebView 初始化报 `Already registered a list of actions in this process` | 检查 `assetManager hook action=fix`、非宿主 `resDir` 和宿主 APK 路径是否已由 `ApplyChangesOverlayPolicy` 记录 |
-| compat deploy 中 Application 资源正常、Activity 报 `Resources$NotFoundException` | 检查 `isEnableHotfix()` 是否过早缓存 false，以及 `createAssetManagerNewExit()` 是否删除了 `resource.ap_` |
-| 业务 `ActivityLifecycleCallbacks` 完全不回调 | 先看 `replaceApplication: no LoadedApk#mApplication replaced` warn 是否出现；未出现时对比 Activity `getApplication()` 与业务 Application 的 identity，确认注册与分派是否落在同一实例 |
-| legacy Compose resource 仍是旧值 | 检查 `java/lang/ClassLoader` retransformation、`Classpath resource hook in`、overlay hit 来源，以及部署后是否重启进程 |
-| Apply Changes 后 Flutter asset 仍是旧值 | 先确认 `assetManager hook action=skip`、`FlutterEngine@… updated through FlutterJNI`（已启动 Dart）或 `… will start Dart with the new AssetManager`（未启动 Dart）是否出现；未出现时按 `Flutter asset refresh skipped` 与 `not refreshed for N engine(s)` 的原因（无 Application / 无 overlay / 无 Engine / 无 native shell / 契约不可读）排查。刷新成功后仍读到旧值时，使用未缓存 key 或 `cache: false` 排除 Dart `rootBundle` 的同 key 缓存 |
+| Agent bundle did not update | `agentVersion` in root `build.gradle`, then directory timestamp and file count under `/data/local/tmp/jugg/{version}`. |
+| `view-inspect` field without parentheses still reports `expected '(' after method name` | Device still uses old `jugg-instruments.jar`; increment `agentVersion`, then deploy/restart the app. |
+| No Jugg agent in app sandbox | `JuggJvmtiAgentManager.pushAgentToApp()`, `setupAgent()`, `jugg_agent_setup.sh`. |
+| Wrong 32/64-bit `.so` selected | Check `AppAbiResolver` source log, `primaryCpuAbi` in `dumpsys package`, Manifest `use32bitAbi`, and APK ARM libraries; Direct app sandbox should use the already resolved arch. |
+| JVMTI judged unavailable after deployment | `JuggJvmtiAgentManagerHelper.isHasJvmtiCompatIssue()` and `.jugg_jvmti_not_available`. |
+| Detection never concludes | Check whether app restarted, whether `code_cache` exists, and whether native `Agent_OnAttach` wrote a flag. |
+| Direct Overlay lacks AS startup agent | `AsStartupAgentPusher.hasApplyChangesStartupAgent()` and `pushApplyChangesStartupAgent()`. |
+| ASUS does not enter compat deployment | Does `CompatDeployHelper.isEnableCompatDeploy()` read `ro.product.manufacturer` as `asus`, ignoring case and surrounding whitespace? |
+| HarmonyOS does not enter compat deployment | Check `hw_sc.build.platform.version` read by `CompatDeployHelper.isEnableCompatDeploy()`; `JuggSettings.finalIsEnableCompatibleDeploymentMode` should always be `true`. |
+| WebView initialization reports `Already registered a list of actions in this process` | Check `assetManager hook action=fix`, non-host `resDir`, and whether `ApplyChangesOverlayPolicy` recorded host APK paths. |
+| Under compat deployment, Application resources work but Activity reports `Resources$NotFoundException` | Check whether `isEnableHotfix()` cached false too early and whether `createAssetManagerNewExit()` removed `resource.ap_`. |
+| Business `ActivityLifecycleCallbacks` never fire | First check for warning `replaceApplication: no LoadedApk#mApplication replaced`. If absent, compare identity of Activity `getApplication()` with business Application to see whether registration and dispatch use the same instance. |
+| Legacy Compose resource remains old | Check `java/lang/ClassLoader` retransformation, `Classpath resource hook in`, overlay-hit source, and whether the process restarted after deployment. |
+| Flutter asset remains old after Apply Changes | Check for `assetManager hook action=skip`, `FlutterEngine@… updated through FlutterJNI` (Dart already started), or `… will start Dart with the new AssetManager` (Dart not started). If absent, investigate `Flutter asset refresh skipped` and `not refreshed for N engine(s)` causes: no Application, overlay, Engine, or native shell, or unreadable contract. If refresh succeeded but a value remains old, test an uncached key or `cache: false` to exclude Dart `rootBundle` caching of the same key. |
 
 ---
 
-## 8. 关联文档
+## 8. Related Documents
 
-- 部署核心：`03_deploy_core.md`
-- 完整流程：`03_deploy_complete.md`
-- Direct Overlay 与兼容层入口：`04_engineering_compat.md`
-- ViewHierarchy / MCP 布局验证：`08_mcp_layout_verify_design.md`
+- Deployment core: `03_deploy_core.md`
+- Complete flow: `03_deploy_complete.md`
+- Direct Overlay and compatibility-layer entry point: `04_engineering_compat.md`
+- ViewHierarchy / MCP layout verification: `08_mcp_layout_verify_design.md`

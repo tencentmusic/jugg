@@ -1,22 +1,22 @@
-# MCP Tools 参数清单
+# MCP Tool Argument List
 
-> 最后核对：2026-09-10
-> 一致性规则：文档与代码冲突时，以代码为准。
-
----
-
-## MCP 服务信息
-
-- 端口范围：`12320..12329`
-- 路径：`/jugg-mcp`
-- 协议：JSON-RPC `2.0`
-- 支持请求头：`MCP-Protocol-Version`（`2025-06-18`、`2025-11-25`）
+> Last checked: 2026-09-10
+> Consistency rule: when documentation conflicts with code, code is authoritative.
 
 ---
 
-## MCP 返回约定
+## MCP service information
 
-`tools/call` 的 `structuredContent` 统一字段：
+- Port range: `12320..12329`
+- Path: `/jugg-mcp`
+- Protocol: JSON-RPC `2.0`
+- Supported request header: `MCP-Protocol-Version` (`2025-06-18`, `2025-11-25`)
+
+---
+
+## MCP response convention
+
+Uniform fields in `tools/call` `structuredContent`:
 
 ```json
 {
@@ -30,452 +30,452 @@
 
 ---
 
-## MCP 注册工具清单（以 `McpToolActionRegistry` 为准）
+## Registered MCP tools (per `McpToolActionRegistry`)
 
-共 **20 个**注册工具，按注册顺序排列。
+There are **20** registered tools, listed in registration order.
 
-以下设备相关工具公开可选 `serial: string`：`restart`、`deploy`、`clean-reinstall`、`gradle-build`、`instrument`、`devices`、`layout-dump`、`view-locate`、`view-inspect`、`activity-stack`、`tap`、`status`、`wait-logs`、`report-prepare`。除 `report-prepare` 外，显式 serial 按大小写敏感的在线设备精确匹配，覆盖 IDEA 选中设备与 standalone `ANDROID_SERIAL`，只影响当前请求；未命中时不得回退其他设备。`devices` 传 serial 时只返回该在线设备，未命中返回 `NO_DEVICE`。`report-prepare` 为兼容已有调用接收但忽略 serial。
+The following device-related tools expose optional `serial: string`: `restart`, `deploy`, `clean-reinstall`, `gradle-build`, `instrument`, `devices`, `layout-dump`, `view-locate`, `view-inspect`, `activity-stack`, `tap`, `status`, `wait-logs`, and `report-prepare`. Except for `report-prepare`, explicit serial exactly and case-sensitively matches an online device, overrides IDEA's selected device and standalone `ANDROID_SERIAL`, and affects only this request; a miss must not fall back to another device. With serial, `devices` returns only that online device, or `NO_DEVICE` on a miss. `report-prepare` accepts but ignores serial for compatibility.
 
-未传 serial 时，`compile`、`status`、`devices` 不要求唯一设备；`deploy`、`clean-reinstall`、`instrument` 处理全部目标设备；`restart` 重启全部目标设备。`layout-dump`、`view-locate`、`view-inspect`、`activity-stack`、`tap`、`wait-logs` 等单设备工具在多个目标设备下返回 `MULTIPLE_DEVICE`，不得抛出 HTTP 500。`report-prepare` 始终 Best-effort 收集全部目标设备错误 logcat。
+Without serial, `compile`, `status`, and `devices` do not require a unique device; `deploy`, `clean-reinstall`, and `instrument` process all target devices; `restart` restarts them all. Single-device tools such as `layout-dump`, `view-locate`, `view-inspect`, `activity-stack`, `tap`, and `wait-logs` return `MULTIPLE_DEVICE` for multiple targets rather than throwing HTTP 500. `report-prepare` always collects error logcat from all target devices on a best-effort basis.
 
 ### `version`
 
-返回当前 Jugg Runtime 的版本、类型和 capability，并保留插件版本兼容字段。
+Returns current Jugg Runtime version, type, and capabilities while retaining the plugin-version compatibility field.
 
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| （无） | — | — | — |
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| (none) | — | — | — |
 
-**返回 data**：
-- `pluginVersion`：所有项目中最高的插件版本（或统一版本）
-- `projects`（可选）：当各项目版本不一致时，返回 `projectDir -> version` 的 map
-- `runtimeType`：`idea` / `standalone` / `ci` / `unknown`
-- `runtimeVersion`：当前进程实际 Runtime 版本
-- `capabilities`：当前进程的 `McpToolRegistry` 已声明可用的 MCP capability 名称，并与 `tools/list`、action 分发保持一致；standalone Step 11 包含 `version`、`list-projects`、`compile`、`deploy`、`gradle-build`、`get-compile-status`、`status`、`restart`、`report-prepare`、`report-upload`、`devices`
+**Response data**:
+- `pluginVersion`: highest plugin version among all projects, or their shared version.
+- `projects` (optional): `projectDir -> version` map when project versions differ.
+- `runtimeType`: `idea` / `standalone` / `ci` / `unknown`.
+- `runtimeVersion`: actual Runtime version of this process.
+- `capabilities`: MCP capability names declared available by this process's `McpToolRegistry`, consistent with `tools/list` and action dispatch. Standalone Step 11 includes `version`, `list-projects`, `compile`, `deploy`, `gradle-build`, `get-compile-status`, `status`, `restart`, `report-prepare`, `report-upload`, and `devices`.
 
 ---
 
 ### `list-projects`
 
-列出当前 IDEA 或 standalone Runtime 进程已初始化的项目。该全局工具不会触发 standalone 项目自动注册；未知项目只会在首个合法项目级请求到达时注册。
+Lists initialized projects in the current IDEA or standalone Runtime process. This global tool does not auto-register a standalone project; an unknown project registers only when the first valid project-level request arrives.
 
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| （无） | — | — | — |
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| (none) | — | — | — |
 
-**返回 data**：
-- `projects`：项目数组，每项包含：
-  - `projectDir`：项目绝对路径
-  - `initialized`：是否已完成 Jugg 初始化（当前列表内项目固定为 `true`）
-  - `hasBeenFullCompiled`：是否存在完整 Jugg 全量编译基线（对齐 `DeployHistoryManager.hasBeenFullCompiled` 语义）
+**Response data**:
+- `projects`: array of projects, each containing:
+  - `projectDir`: absolute project path.
+  - `initialized`: whether Jugg initialization finished (always `true` for listed projects).
+  - `hasBeenFullCompiled`: whether a complete Jugg full-build baseline exists, aligned with `DeployHistoryManager.hasBeenFullCompiled` semantics.
 
 ---
 
 ### `restart`
 
-重启目标 App。
+Restarts the target app.
 
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `projectDir` | string | **是** | 项目绝对路径（pattern: `^/.+`） |
-| `serial` | string | 否 | 本次请求的 adb serial |
-| `waitAppReadyAfterSuccess` | boolean | 否 | `true` 时重启成功后等待 App ready；默认 `false`，不做后置 ready 等待 |
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `projectDir` | string | **yes** | Absolute project path (pattern: `^/.+`). |
+| `serial` | string | no | adb serial for this request. |
+| `waitAppReadyAfterSuccess` | boolean | no | Wait for app readiness after a successful restart when `true`; default `false`, with no post-success readiness wait. |
 
-**行为补充**：未传 serial 时重启全部目标设备，显式传入时只重启指定在线设备。成功路径默认只确认 restart 命令执行完成；需要把 App ready 作为工具成功条件时显式传 `waitAppReadyAfterSuccess=true`。
+**Additional behavior**: without serial, restart all target devices; with explicit serial, only the specified online device. By default, success confirms only that the restart command completed. Pass `waitAppReadyAfterSuccess=true` when app readiness must be part of tool success.
 
-启动目标按 launch Activity、HOME Activity 的顺序降级。所有 APK 都没有 launch/HOME Activity 时，工具只执行 `am force-stop <package>` 并打印 warn，不会改为启动其它 Activity；stop 命令成功仍视为工具成功，但 App 不会 ready，因此显式传 `waitAppReadyAfterSuccess=true` 会因未 ready 返回失败。规则细节见 `03_deploy_core.md` §4.4。
+The launch target falls back from launch Activity to HOME Activity. If no APK has either, the tool only runs `am force-stop <package>` and prints a warning; it does not start another Activity. A successful stop command still counts as tool success, but the app cannot become ready, so explicitly passing `waitAppReadyAfterSuccess=true` returns failure. See `03_deploy_core.md` §4.4.
 
 ---
 
 ### `compile`
 
-仅编译不部署。
+Compiles without deploying.
 
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `projectDir` | string | **是** | 项目绝对路径 |
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `projectDir` | string | **yes** | Absolute project path. |
 
-**无待编译文件**：编译成功且当前没有文件需要编译时，成功消息会明确显示 `No pending file changes`。该结果表示本轮没有生成新的编译产物，不会触发部署，也不会附带部署历史。首次调用内完成和通过 `get-compile-status` 轮询完成时使用相同的最终消息。
+**No pending files**: when compilation succeeds with no files to compile, the success message explicitly says `No pending file changes`. No new compile artifact is produced, no deployment occurs, and no deployment history is attached. Initial-call completion and `get-compile-status` polling use the same final message.
 
-**设备边界**：仅编译不执行部署，但会刷新统一部署状态来判断增量或 Gradle fallback。设备选择层会安全处理多设备，因此不会仅因多台设备在线而失败；构建文件变化需要 rebuild、上一次 Gradle 构建失败或其他状态要求完整构建时，仍会自动回退到 Gradle 编译。
+**Device boundary**: compile does not deploy, but refreshes unified deployment state to choose incremental compilation or Gradle fallback. Device selection safely handles multiple devices, so multiple online devices alone do not cause failure. Build-file changes requiring a rebuild, a failed previous Gradle build, or another state requiring a full build still trigger automatic Gradle fallback.
 
 ---
 
 ### `deploy`
 
-编译并部署（可能异步）。
+Compiles and deploys, possibly asynchronously.
 
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `projectDir` | string | **是** | 项目绝对路径 |
-| `serial` | string | 否 | 本次请求的 adb serial |
-| `alwaysRestartApp` | boolean | 否 | `true`（默认）时部署后强制重启 App（HOT_FIX 行为）；`false` 时仅在类结构变化时才重启（允许 HOT RELOAD） |
-| `waitAppReadyAfterSuccess` | boolean | 否 | `true` 时部署成功后等待 App ready；默认 `false`，不做后置 ready 等待 |
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `projectDir` | string | **yes** | Absolute project path. |
+| `serial` | string | no | adb serial for this request. |
+| `alwaysRestartApp` | boolean | no | `true` (default) forces app restart after deployment (HOT_FIX behavior); `false` restarts only for class-structure changes (permits HOT RELOAD). |
+| `waitAppReadyAfterSuccess` | boolean | no | Wait for app readiness after successful deployment when `true`; default `false`. |
 
-**异步返回**：`isFinal=false` 时返回 `jobId`，需用 `get-compile-status` 轮询。
+**Asynchronous response**: `isFinal=false` returns a `jobId` to poll through `get-compile-status`.
 
-**设备边界**：未传 serial 时处理全部目标设备；显式传入时只处理指定在线设备。
+**Device boundary**: without serial, process all target devices; with explicit serial, only the specified online device.
 
-**无待部署文件**：成功消息会明确说明当前 Jugg 检测到的修改均已部署，并附带本次 IDE 会话中最后一次“包含文件变更且部署成功”的绝对时间、相对时间和项目相对路径。文件最多展示 20 条，超出部分显示剩余数量；IDE 重启后没有会话内记录时会明确说明详情不可用。首次调用内完成和通过 `get-compile-status` 轮询完成时使用相同的最终消息。
+**No pending files**: the success message explicitly says every change currently detected by Jugg has been deployed. It includes the latest successful deployment with file changes in this IDE session: absolute time, relative time, and project-relative paths. At most 20 files are shown, followed by a remainder count; if an IDE restart erased the session record, the message explicitly says details are unavailable. Initial-call completion and `get-compile-status` polling use the same final message.
 
 ---
 
 ### `clean-reinstall`
 
-卸载并重装 APK（清除数据 + 重新部署）。
+Uninstalls and reinstalls APKs (clears data and redeploys).
 
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `projectDir` | string | **是** | 项目绝对路径 |
-| `serial` | string | 否 | 本次请求的 adb serial |
-| `waitAppReadyAfterSuccess` | boolean | 否 | `true` 时重装成功后等待 App ready；默认 `false`，不做后置 ready 等待 |
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `projectDir` | string | **yes** | Absolute project path. |
+| `serial` | string | no | adb serial for this request. |
+| `waitAppReadyAfterSuccess` | boolean | no | Wait for app readiness after a successful reinstall when `true`; default `false`. |
 
 ---
 
 ### `gradle-build`
 
-强制 Gradle 构建（可能异步）。
+Forces a Gradle build, possibly asynchronously.
 
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `projectDir` | string | **是** | 项目绝对路径 |
-| `serial` | string | 否 | 本次请求的 adb serial；standalone 构建成功后部署到该设备 |
-| `waitAppReadyAfterSuccess` | boolean | 否 | `true` 时构建/安装成功后等待 App ready；默认 `false`，不做后置 ready 等待 |
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `projectDir` | string | **yes** | Absolute project path. |
+| `serial` | string | no | adb serial for this request; standalone deploys to it after a successful build. |
+| `waitAppReadyAfterSuccess` | boolean | no | Wait for app readiness after successful build/install when `true`; default `false`. |
 
-**异步返回**：同 `deploy`。
+**Asynchronous response**: same as `deploy`.
 
-**行为补充**：IDEA 与 standalone `gradle-build` 都在 Gradle 构建后继续安装/启动链路，终态分别返回真实的 `isCompileSuccess` 与 `isDeploySuccess`。Standalone 未传 serial 时部署到全部在线设备，没有在线设备或部署失败时以 failed 终态返回。当前配置为 remote 时，Gradle full build/fallback 复用 IDEA 的 SSH/iFT 远程客户端，但本地 project info dry-run、增量编译和设备操作仍在 standalone 所在主机执行。standalone 无交互认证 UI；缺少 SSH 凭据或 iFT 认证时返回 failed 终态和明确操作提示。
+**Additional behavior**: IDEA and standalone `gradle-build` both continue into installation/start after Gradle, with actual `isCompileSuccess` and `isDeploySuccess` values in the terminal state. Without serial, standalone deploys to every online device and returns failed if no device is online or deployment fails. With a remote configuration, Gradle full builds/fallback reuse IDEA's SSH/iFT remote client; local project-info dry runs, incremental compilation, and device operations still run on the standalone host. Standalone has no interactive authentication UI: missing SSH credentials or iFT authentication produce a failed state with explicit instructions.
 
-**失败详情**：失败终态会在 data 中附带 `detail` / `detailLength` / `detailTruncated`（如有），内容来自本次 Gradle build + 安装/启动日志摘要；异步场景通过 `get-compile-status` 获取同一份详情。长日志 preview 上限为 8KB，采用 4KB 开头 + 4KB 结尾，避免只保留 stack/footer 而丢失根因。
+**Failure details**: failed terminal data includes `detail` / `detailLength` / `detailTruncated` when available, summarized from this Gradle build plus install/start logs. Asynchronous callers receive the same details through `get-compile-status`. Long-log preview is capped at 8 KB, taking 4 KB from the beginning and 4 KB from the end so the root cause is not displaced by the stack/footer.
 
 ### `instrument`
 
-按 androidTest 源文件锚点运行 class/method 级测试，内部复用 Jugg compile/deploy 流程。
+Runs class/method-level tests anchored to an androidTest source file, internally reusing Jugg compile/deploy.
 
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `projectDir` | string | **是** | 项目绝对路径 |
-| `serial` | string | 否 | 本次请求的 adb serial |
-| `sourcePath` | string | **是** | androidTest 源文件路径，用于解析 module 与 test APK |
-| `class` | string | 否 | 文件内测试类，单 class 文件可省略 |
-| `method` | string | 否 | 测试方法，需已唯一确定 class |
-| `runner` | string | 否 | instrumentation runner override |
-| `extras` | object | 否 | 额外 `-e key value` 参数，value 必须是 string |
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `projectDir` | string | **yes** | Absolute project path. |
+| `serial` | string | no | adb serial for this request. |
+| `sourcePath` | string | **yes** | androidTest source-file path used to resolve module and Test APK. |
+| `class` | string | no | Test class within the file; optional for a single-class file. |
+| `method` | string | no | Test method; requires a uniquely identified class. |
+| `runner` | string | no | Instrumentation runner override. |
+| `extras` | object | no | Additional `-e key value` arguments; values must be strings. |
 
-**行为补充**：
-- `package` / `testsRegex` 不再作为 target 入口；多 test APK 场景必须用 `sourcePath` 确定目标。
-- MCP 层先做参数归一化、`sourcePath` 解析与 AndroidTest full-build baseline 预检；目标解析在 androidTest source resolver 中完成。
-- 内部会以 `BuildTarget.ANDROID_TEST` 运行，并将参数映射到 `AndroidTestRunSpec`。
-- 当前项目未建立 AndroidTest full-build baseline 时，返回 `status=ERROR`、`errorCode=INVALID_PARAMS`，`message` 包含 `enabledAndroidTest=false`，并提示打开 Jugg App Run Configuration、开启 Android Test / `enableAndroidTest`、执行一次 full build / `gradle-build` 后重新检查 `status.data.enabledAndroidTest=true`。
+**Additional behavior**:
+- `package` / `testsRegex` are no longer target entry points; multiple Test APKs require `sourcePath` to select a target.
+- The MCP layer first normalizes arguments, resolves `sourcePath`, and prechecks the AndroidTest full-build baseline; the androidTest source resolver completes target resolution.
+- Internally, this uses `BuildTarget.ANDROID_TEST` and maps arguments to `AndroidTestRunSpec`.
+- Without an AndroidTest full-build baseline, it returns `status=ERROR`, `errorCode=INVALID_PARAMS`, and a `message` containing `enabledAndroidTest=false`. The instructions tell the user to open the Jugg App Run Configuration, enable Android Test / `enableAndroidTest`, run one full build / `gradle-build`, and recheck `status.data.enabledAndroidTest=true`.
 
 ---
 
 ### `get-compile-status`
 
-查询异步编译任务状态。
+Queries asynchronous compile-job state.
 
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `projectDir` | string | **是** | 项目绝对路径 |
-| `jobId` | string | **是** | 异步编译工具返回的 job ID |
-| `waitTimeoutMs` | integer | 否 | 阻塞等待状态变化的超时时间（毫秒），范围 `[0, 10000]`，默认 `0`（不阻塞） |
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `projectDir` | string | **yes** | Absolute project path. |
+| `jobId` | string | **yes** | Job ID returned by the asynchronous compile tool. |
+| `waitTimeoutMs` | integer | no | Blocking wait for state change in milliseconds, `[0, 10000]`, default `0` (nonblocking). |
 
-**返回 data**：`jobId`、`status`（running/success/failed/canceled/unknown）、`executionType`（local/remote）、`message`；running 时附带 `pollIntervalSuggestedMs`，如果当前 IDE 进度文本非空，还会附带 `indicator.text`，供 CLI/Agent 展示轻量 heartbeat。终态时附带 `isCompileSuccess`（boolean，编译是否成功，unknown 时缺失）、`isDeploySuccess`（boolean，部署是否成功，unknown 时缺失；compile 仅编译时通常为 `false`）。终态为 `failed` / `canceled` 且存在诊断输出时，附带 `detail` / `detailLength` / `detailTruncated`；成功终态不返回 `detail`。
+**Response data**: `jobId`, `status` (running/success/failed/canceled/unknown), `executionType` (local/remote), and `message`. While running, includes `pollIntervalSuggestedMs` and, when current IDE progress text is nonempty, `indicator.text` for a lightweight CLI/Agent heartbeat. Terminal state includes `isCompileSuccess` (boolean compile success, absent for unknown) and `isDeploySuccess` (boolean deployment success, absent for unknown; normally `false` for compile-only). For `failed` / `canceled` with diagnostic output, includes `detail` / `detailLength` / `detailTruncated`; successful terminal state omits `detail`.
 
-**行为说明**：
-- 当 `waitTimeoutMs > 0` 且任务当前为 `running` 时，接口会在服务端阻塞等待状态变化，直到任务终态或超时后返回。
-- 该参数用于减少“任务已结束但客户端下一次轮询还没到”的等待窗口。
+**Behavior**:
+- With `waitTimeoutMs > 0` while running, the server blocks until the state changes, the job terminates, or the timeout elapses.
+- This reduces the window where a job has finished but the client's next poll has not yet arrived.
 
 ---
 
 ### `ssh-info`
 
-申请远端 SSH 排障信息（需用户显式同意）。
+Requests remote SSH troubleshooting information (requires explicit user consent).
 
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `projectDir` | string | **是** | 项目绝对路径 |
-| `reason` | string | **是** | 需要 SSH 信息的原因 |
-| `requestedBy` | string | 否 | 请求者身份，默认 `mcp_agent` |
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `projectDir` | string | **yes** | Absolute project path. |
+| `reason` | string | **yes** | Why SSH information is needed. |
+| `requestedBy` | string | no | Requester identity, default `mcp_agent`. |
 
 ### `report-prepare`
 
-生成最终待上传的脱敏诊断 ZIP，不发起网络请求。IDEA 与 standalone 均注册该工具。
+Creates the final redacted diagnostic ZIP for review without making a network request. Both IDEA and standalone register this tool.
 
-设备错误日志按 Best-effort 采集。工具忽略调用方可能携带的 serial，并收集全部目标设备日志；某台设备 logcat 读取失败时只省略该设备条目，其他诊断信息和其他设备日志仍正常生成。
+Device error logs are collected on a best-effort basis. The tool ignores any caller-provided serial and collects logs from all target devices. If reading logcat from one device fails, only its entry is omitted; other diagnostics and device logs are still produced.
 
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `projectDir` | string | **是** | 项目绝对路径 |
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `projectDir` | string | **yes** | Absolute project path. |
 
-**返回 data**：`reportId`、`filePath`、`size`、`sha256`、固定 `uploadUrl`，以及 `entries`。每个 entry 包含 `path`、`size`、`sensitivity` 和 `redaction`，与最终 ZIP manifest 完全一致。
+**Response data**: `reportId`, `filePath`, `size`, `sha256`, fixed `uploadUrl`, and `entries`. Each entry has `path`, `size`, `sensitivity`, and `redaction`, exactly matching the final ZIP manifest.
 
 ### `report-upload`
 
-上传用户已经查看并确认的诊断 ZIP。服务端重新从项目 diagnostics 目录读取 bundle，校验 report ID、目录边界、manifest、ZIP 条目和 SHA-256；任何内容变化都会在网络请求前失败。
+Uploads a diagnostic ZIP the user has reviewed and confirmed. The server rereads the bundle from the project's diagnostics directory and verifies report ID, directory boundary, manifest, ZIP entries, and SHA-256. Any content change fails before a network request.
 
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `projectDir` | string | **是** | 项目绝对路径 |
-| `reportId` | string | **是** | `report-prepare` 返回的 8 位十六进制 ID |
-| `sha256` | string | **是** | `report-prepare` 返回的 ZIP SHA-256 |
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `projectDir` | string | **yes** | Absolute project path. |
+| `reportId` | string | **yes** | Eight-digit hexadecimal ID from `report-prepare`. |
+| `sha256` | string | **yes** | ZIP SHA-256 from `report-prepare`. |
 
-**成功返回**：message 与 IDE 对齐为 `Report uploaded. Jugg Report ID: <reportId>`；data 仅保留 `reportId`，不返回诊断 entries、本地临时路径或 file artifact。
+**Success response**: message matches IDE, `Report uploaded. Jugg Report ID: <reportId>`; data retains only `reportId`, without diagnostic entries, temporary local paths, or a file artifact.
 
 ---
 
 ### `devices`
 
-列出已连接设备并标记 selected。IDEA 与 standalone Runtime 均注册该工具；standalone 从项目级 `IDeployTargetManager` 读取在线设备，未传 serial 时不会因多设备失败。Host 当前选择读取失败时，工具 Best-effort 返回在线设备并将其标记为未选中，避免失效的 `ANDROID_SERIAL` 扩大为列表失败。
+Lists connected devices and marks the selected one. Both IDEA and standalone register this tool. Standalone reads online devices from project-level `IDeployTargetManager`; without serial it does not fail on multiple devices. If reading the Host's current selection fails, the tool still returns online devices on a best-effort basis, marked unselected, rather than letting stale `ANDROID_SERIAL` break the list.
 
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `projectDir` | string | **是** | 项目绝对路径 |
-| `serial` | string | 否 | 只返回该在线设备；未命中返回 `NO_DEVICE` |
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `projectDir` | string | **yes** | Absolute project path. |
+| `serial` | string | no | Return only this online device; `NO_DEVICE` if unmatched. |
 
 ---
 
 ### `layout-dump`
 
-导出 UI 层级。公开输出为 HTML 格式（`data.file`）；结构化 JSON 仅保留为 `LayoutDumpHelper.dumpInternal()` 的工具内部实现细节，不暴露给 Agent。
+Exports the UI hierarchy. Public output is HTML (`data.file`); structured JSON remains only an internal implementation detail of `LayoutDumpHelper.dumpInternal()` and is not exposed to Agents.
 
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `projectDir` | string | **是** | 项目绝对路径 |
-| `serial` | string | 否 | 本次请求的 adb serial |
-| `rootLayout` | string | 否 | 节点 id，仅返回该子树（推荐 short id，如 `"content"`）；指定后自动跨窗口查找 |
-| `includeGone` | boolean | 否 | `true` 时包含 GONE 节点（默认 `false`） |
-| `allWindows` | boolean | 否 | `true` 时导出所有窗口（默认 `false`，仅 top window） |
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `projectDir` | string | **yes** | Absolute project path. |
+| `serial` | string | no | adb serial for this request. |
+| `rootLayout` | string | no | Node ID; return only that subtree (prefer a short ID such as `"content"`); searches across windows automatically. |
+| `includeGone` | boolean | no | Include GONE nodes when `true` (default `false`). |
+| `allWindows` | boolean | no | Export every window when `true` (default `false`, top window only). |
 
-**行为要点**：
-- 走 App 进程内 `ViewHierarchyServer`（LocalSocket），**不回退 uiautomator**。
-- App 侧节点数据源为 Dragonfly；传统 Android View 与 Compose 节点统一适配为原有 `windows/root/children` JSON，公开 MCP/HTML 格式不变。Dragonfly 无法枚举窗口时，窗口根列表 Best-effort 降级到旧 `ActivityThread` / `WindowManagerGlobal` 反射路径，根节点仍交给 Dragonfly 提取。
-- HTML 侧虚拟节点裁剪：无语义内容的结构性节点自动裁剪。
-- Jugg snapshot 剪枝：`MAX_DEPTH=60`，`MAX_NODE_COUNT=5000`。限制作用于 Dragonfly 返回后的标准化阶段，dump、selector、tap、inspect、verify 都只能访问该范围；超限时 `truncated:true`。若 Dragonfly 原始提取阶段先失败，则无法返回 `truncated:true`。
-- 所有 `bounds`/`padding` 单位为 dp（`dp = (int)(px / density)`）。
-- 虚拟 ID 格式 `_vir_id_<hash>`；Dragonfly window/children 遍历顺序和 UI 结构不变时跨请求一致，可用于后续 selector，但不保证列表重排或页面重组后仍指向同一业务节点。
-- `className` 仅保留简单类名；`id` 去掉包名前缀。
-- Kuikly 框架控件（`KRRichTextView` 等）text 通过 `KuiklyViewResolver` 反射提取。
-- Dragonfly 自带私有化 Kotlin/协程运行时，纯 Java 工程不再因缺少宿主 Kotlin 而返回 `FEATURE_NOT_SUPPORTED`。Compose runtime/tooling 不兼容时由 Dragonfly 局部收口，不切换到旧节点数据源。
-- socket 不可连时：先 `restart` 一次 → 若仍失败 `gradle-build` → `deploy` → `restart` → 重试。
+**Behavior**:
+- Uses in-app `ViewHierarchyServer` (LocalSocket); **does not fall back to uiautomator**.
+- Dragonfly provides app-side node data. Conventional Android View and Compose nodes adapt into the existing `windows/root/children` JSON; the public MCP/HTML format is unchanged. If Dragonfly cannot enumerate windows, the window-root list falls back on a best-effort basis to the old `ActivityThread` / `WindowManagerGlobal` reflection path; Dragonfly still extracts root nodes.
+- HTML trims structural virtual nodes with no semantic content.
+- Jugg snapshot pruning uses `MAX_DEPTH=60` and `MAX_NODE_COUNT=5000`. These limits apply after normalizing Dragonfly output; dump, selector, tap, inspect, and verify can access only that range, with `truncated:true` on overflow. If raw Dragonfly extraction fails first, `truncated:true` cannot be returned.
+- All `bounds`/`padding` are in dp (`dp = (int)(px / density)`).
+- Virtual IDs use `_vir_id_<hash>`. They are stable across requests while Dragonfly window/child traversal and UI structure remain unchanged, and may be reused in later selectors; they are not guaranteed to identify the same business node after list reordering or page restructuring.
+- `className` retains only the simple class name; `id` drops the package prefix.
+- `KuiklyViewResolver` reflectively extracts text from Kuikly framework controls such as `KRRichTextView`.
+- Dragonfly bundles private Kotlin/coroutine runtimes, so pure Java projects no longer return `FEATURE_NOT_SUPPORTED` for missing host Kotlin. Dragonfly locally handles incompatible Compose runtime/tooling rather than switching to the old node source.
+- If the socket cannot connect: try `restart` once, then `gradle-build` → `deploy` → `restart` → retry if still failing.
 
 ---
 
 ### `view-locate`
 
-在 App 侧实时 Dragonfly snapshot 中查找 UI 元素。多个非空 selector 使用 AND 逻辑；返回数量受预算控制。
+Finds UI elements in an in-app live Dragonfly snapshot. Multiple nonempty selectors use AND, and a candidate budget limits the returned count.
 
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `projectDir` | string | **是** | 项目绝对路径 |
-| `serial` | string | 否 | 本次请求的 adb serial；内部 layout dump 使用同一设备 |
-| `target` | object | **是** | 元素选择器：`text`/`resourceId`/`contentDesc` |
-| `figmaNode` | object | 否 | 保留字段；当前公开实现仍以 `target` 的 text/resourceId/contentDesc 精确匹配为准 |
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `projectDir` | string | **yes** | Absolute project path. |
+| `serial` | string | no | adb serial for this request; internal layout dump uses the same device. |
+| `target` | object | **yes** | Element selector: `text`/`resourceId`/`contentDesc`. |
+| `figmaNode` | object | no | Reserved; current public implementation still uses exact `target` text/resourceId/contentDesc matching. |
 
-**返回 data**：`matchCount` 是总命中数，`returnedCount` 是实际返回数，`truncated` 表示是否按预算截断，`matches[]` 为候选摘要。唯一命中时额外返回顶层 `bounds`（`[l,t,r,b]`）、`position`（`{x,y}`）、`size`（`{width,height}`）、`className`、`resourceId`；多命中时不隐式选择第一个节点。所有坐标单位 dp。runtime 能提供时，候选与唯一命中顶层返回 `source: {file?, line?}`。
+**Response data**: `matchCount` is all matches, `returnedCount` is returned matches, `truncated` indicates budget truncation, and `matches[]` contains candidate summaries. On exactly one match, top-level `bounds` (`[l,t,r,b]`), `position` (`{x,y}`), `size` (`{width,height}`), `className`, and `resourceId` are also returned. Multiple matches do not silently select the first node. All coordinates are dp. When available from the runtime, candidates and a unique top-level match include `source: {file?, line?}`.
 
 ---
 
 ### `view-inspect`
 
-通过反射查询实时 Dragonfly snapshot 中节点的只读属性，返回原始值。Android 节点以原始 View 为查询对象，Compose 节点以 Dragonfly 节点对象为查询对象。
+Reads raw, read-only node properties in a live Dragonfly snapshot through reflection. Android nodes are queried through the original View; Compose nodes through the Dragonfly node object.
 
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `projectDir` | string | **是** | 项目绝对路径 |
-| `serial` | string | 否 | 本次请求的 adb serial |
-| `target` | object | **是** | 元素选择器：`resourceId`/`text`/`contentDesc`/`className`（AND 逻辑） |
-| `expressions` | array\<string\> | **是** | getter 方法表达式（1~20 个），如 `getText()`、`getCurrentTextColor()`、`getMaxLines()` |
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `projectDir` | string | **yes** | Absolute project path. |
+| `serial` | string | no | adb serial for this request. |
+| `target` | object | **yes** | Element selector: `resourceId`/`text`/`contentDesc`/`className` (AND). |
+| `expressions` | array\<string\> | **yes** | 1–20 getter expressions, such as `getText()`, `getCurrentTextColor()`, and `getMaxLines()`. |
 
-**行为要点**：
-- 显式 `foo()` 只走 getter/query 白名单（`get*`/`is*`/`has*`/`can*`/`should*` + `toString`/`length` 等）。
-- 无 `()` 的 identifier 先读 public 字段，再按 Kotlin/Java getter 解析：已是 `get*`/`is*` 前缀则直接调用；否则试 `getXxx()` / `isXxx()`。
-- 返回 `data.values[]`，每项含 `expression`/`value`/`type`/`error`。
-- 返回 `data.density`（设备像素密度），便于 px→dp 换算。
-- runtime 能提供时返回 `data.source: {file?, line?}`，用于把验证证据关联到源码位置。
-- 可读取仍在 View 树中的隐藏节点属性；隐藏节点不应作为点击目标。
-- Compose 节点只支持其运行时对象实际暴露的 getter；Android View 专属 getter 会在对应 expression 返回 error。
-- 与 `view-locate` 分工：坐标计算用 `view-locate`；属性查询用 `view-inspect`。
+**Behavior**:
+- Explicit `foo()` is limited to getter/query allowlist (`get*`/`is*`/`has*`/`can*`/`should*` plus `toString`/`length`, etc.).
+- A bare identifier reads a public field first, then resolves Kotlin/Java getters. If it already starts with `get*`/`is*`, call it directly; otherwise try `getXxx()` / `isXxx()`.
+- Returns `data.values[]` with `expression`/`value`/`type`/`error` per item.
+- Returns device pixel density as `data.density` for px-to-dp conversion.
+- Returns `data.source: {file?, line?}` when available to connect verification evidence to source location.
+- Properties of hidden nodes still in the View tree can be read; hidden nodes should not be click targets.
+- A Compose node supports only getters its runtime object actually exposes; Android-View-specific getters produce an error for that expression.
+- Use `view-locate` for coordinates and `view-inspect` for properties.
 
 ---
 
 ### `activity-stack`
 
-读取 Activity 栈。
+Reads the Activity stack.
 
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `projectDir` | string | **是** | 项目绝对路径 |
-| `serial` | string | 否 | 本次请求的 adb serial |
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `projectDir` | string | **yes** | Absolute project path. |
+| `serial` | string | no | adb serial for this request. |
 
-**返回 data**：`topActivity`、`activities[]`、`dumpFile`、`sourceCommand`。
+**Response data**: `topActivity`, `activities[]`, `dumpFile`, and `sourceCommand`.
 
 ---
 
 ### `tap`
 
-屏幕触控（tap/long-press/swipe）。
+Performs screen touch (tap/long-press/swipe).
 
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `projectDir` | string | **是** | 项目绝对路径 |
-| `serial` | string | 否 | 本次请求的 adb serial |
-| `action` | string | 否 | `tap`（默认）/`long-press`/`swipe` |
-| `x` | number | 否 | X 坐标（坐标模式，min: 0） |
-| `y` | number | 否 | Y 坐标（坐标模式，min: 0） |
-| `endX` | number | 否 | swipe 终点 X（坐标模式，min: 0） |
-| `endY` | number | 否 | swipe 终点 Y（坐标模式，min: 0） |
-| `xPercent` | number | 否 | X 百分比（0-100，百分比模式） |
-| `yPercent` | number | 否 | Y 百分比（0-100，百分比模式） |
-| `endXPercent` | number | 否 | swipe 终点 X 百分比（0-100） |
-| `endYPercent` | number | 否 | swipe 终点 Y 百分比（0-100） |
-| `duration` | number | 否 | 持续时间 ms（swipe 默认 300，long-press 默认 500，min: 50） |
-| `text` | string | 否 | 元素文本选择器（精确匹配） |
-| `resourceId` / `id` | string | 否 | 元素 resource-id（精确匹配，推荐 short id）；`id` 是 `resourceId` 的别名 |
-| `contentDesc` / `desc` | string | 否 | 元素 content-desc（精确匹配）；`desc` 是 `contentDesc` 的别名 |
-| `className` / `class` | string | 否 | 类名过滤（AND 逻辑）；`class` 是 `className` 的别名 |
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `projectDir` | string | **yes** | Absolute project path. |
+| `serial` | string | no | adb serial for this request. |
+| `action` | string | no | `tap` (default) / `long-press` / `swipe`. |
+| `x` | number | no | Start X in coordinate mode (min: 0). |
+| `y` | number | no | Start Y in coordinate mode (min: 0). |
+| `endX` | number | no | Swipe end X in coordinate mode (min: 0). |
+| `endY` | number | no | Swipe end Y in coordinate mode (min: 0). |
+| `xPercent` | number | no | Start X percentage (0–100). |
+| `yPercent` | number | no | Start Y percentage (0–100). |
+| `endXPercent` | number | no | Swipe end X percentage (0–100). |
+| `endYPercent` | number | no | Swipe end Y percentage (0–100). |
+| `duration` | number | no | Duration in ms (swipe default 300; long-press default 500; min: 50). |
+| `text` | string | no | Exact element-text selector. |
+| `resourceId` / `id` | string | no | Exact resource ID (prefer short ID); `id` aliases `resourceId`. |
+| `contentDesc` / `desc` | string | no | Exact content description; `desc` aliases `contentDesc`. |
+| `className` / `class` | string | no | AND class-name filter; `class` aliases `className`. |
 
-**模式优先级**：coordinate > percent > element。
+**Mode priority**: coordinate > percent > element.
 
-**行为要点**：
-- `swipe` 仅支持坐标/百分比模式，不支持元素模式。
-- 元素模式多匹配时不执行，返回 `ERROR` + 匹配元素摘要。
-- 元素模式使用实时 Dragonfly snapshot。Android 节点优先 `View.performClick()`；Compose 节点当前向所属 root View 的 bounds 中心派发 MotionEvent，不保证等价于 Semantics action，也不能可靠判断 disabled/stale。
-- 执行前检查 `topActivity` 稳定性（连续 2 次相同且 onResume，最长等待 5s）。
-- 百分比换算结果做边界钳制 `[0, size-1]`。
-- 推荐交互顺序：`layout-dump + element tap` → `layout-dump + coordinate tap` → 外部截图证据（若可用）+ percent/coordinate tap。当前 MCP `screenshot` action 未注册，不能作为默认公开工具。
+**Behavior**:
+- `swipe` supports coordinate and percentage modes only, not element mode.
+- Multiple matches in element mode prevent execution and return `ERROR` plus match summaries.
+- Element mode uses a live Dragonfly snapshot. Android nodes prefer `View.performClick()`. Compose nodes currently dispatch a MotionEvent at their bounds center to the owning root View; this is not guaranteed equivalent to a Semantics action and cannot reliably judge disabled/stale nodes.
+- Before action, check `topActivity` stability (two consecutive identical readings and onResume, waiting at most 5 seconds).
+- Clamp percentage-derived coordinates to `[0, size-1]`.
+- Recommended interaction order: `layout-dump + element tap` → `layout-dump + coordinate tap` → external screenshot evidence, if available, plus percent/coordinate tap. MCP `screenshot` action is currently unregistered and is not a default public tool.
 
 ---
 
 ### `status`
 
-查询当前 Jugg 部署状态与未编译文件摘要。
+Queries current Jugg deployment state and a summary of uncompiled files.
 
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `projectDir` | string | **是** | 项目绝对路径 |
-| `serial` | string | 否 | 返回该设备的 deploy state；未命中时 `hasDevice=false` 并在 `stateMessage` 说明原因 |
-| `refreshChanges` | boolean | 否 | 是否先刷新 git-tracked changed files；默认 `true`，传 `false` 时跳过刷新 |
-| `fullInfo` | boolean | 否 | 是否返回完整状态信息；默认 `false`，传 `true` 时 `files` 返回全部未编译文件路径 |
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `projectDir` | string | **yes** | Absolute project path. |
+| `serial` | string | no | Return this device's deploy state; if unmatched, `hasDevice=false` and `stateMessage` explains why. |
+| `refreshChanges` | boolean | no | Refresh Git-tracked changed files before reading; default `true`, pass `false` to skip. |
+| `fullInfo` | boolean | no | Return full state; default `false`, pass `true` to return all uncompiled paths in `files`. |
 
-**返回 data**：
-- `hasDevice`：boolean，设备已连接时为 `true`
-- `needFallback`：boolean，需要 Gradle 全量构建时为 `true`
-- `executionType`：`local` / `remote`，当前 Jugg run configuration 的 Gradle fallback 执行环境；AI command hook 在 `remote` 时会对 raw Gradle 命令强制先 block 一次
-- `stateMessage`：当前状态的可读原因
-- `pendingModifiedFiles`：`{ total: number, <Type>: number, ... }`，按 `CompileFile.Type` 分类统计未编译文件数量
-- `files`：未编译文件绝对路径列表；默认最多 20 个，`fullInfo=true` 时返回全部路径
-- `detail`：未截断时为空字符串；截断时为自然语言描述并提示使用 `fullInfo=true`，如 `"Showing 20 of 25 files. Set fullInfo=true to return full status information, including all 25 file paths."`
-- `lastFileModifiedTime`：最近未编译文件的本地可读时间戳（`yyyy-MM-dd HH:mm:ss`，无文件时为空字符串）
-- `lastCompileTime`：最近一次调用 `compile` / `deploy` / `gradle-build` 的本地可读时间戳（`yyyy-MM-dd HH:mm:ss`，无记录时为空字符串）；AI hooks 用它判断当前 Agent 会话写入是否已被 Jugg 验证覆盖
-- `hasBeenFullCompiled`：是否存在完整 Jugg 全量编译基线；AI hooks 仅在该字段为 `true` 时启用 raw Gradle guard 与 stop guard。command hook 对 `executionType=remote` 会跳过会话写入与 pending file 覆盖判断，仍按“一次 block、重复放行”处理
-- `enabledAndroidTest`：最近一次 full build 基线是否以 AndroidTest target 初始化（`true` 表示当时开启了 `enableAndroidTest`）
-- `isCompiling`：boolean，当前是否有 Jugg compile/deploy 运行任务在执行（对齐 `JuggConfigurationRunner.isCompiling`）
+**Response data**:
+- `hasDevice`: boolean, `true` when a device is connected.
+- `needFallback`: boolean, `true` when a Gradle full build is needed.
+- `executionType`: `local` / `remote`, the Gradle-fallback environment of the current Jugg run configuration; in `remote`, the AI command hook first blocks a raw Gradle command once.
+- `stateMessage`: human-readable current-state reason.
+- `pendingModifiedFiles`: `{ total: number, <Type>: number, ... }`, uncompiled-file counts by `CompileFile.Type`.
+- `files`: absolute uncompiled-file paths; at most 20 by default, all with `fullInfo=true`.
+- `detail`: empty string when untruncated, otherwise natural-language truncation explanation suggesting `fullInfo=true`, e.g. `"Showing 20 of 25 files. Set fullInfo=true to return full status information, including all 25 file paths."`
+- `lastFileModifiedTime`: local readable timestamp of latest uncompiled file (`yyyy-MM-dd HH:mm:ss`), or empty string with none.
+- `lastCompileTime`: local readable timestamp of latest `compile` / `deploy` / `gradle-build` invocation (`yyyy-MM-dd HH:mm:ss`), or empty string with no record. AI hooks use it to decide whether Jugg verification covered writes in this Agent session.
+- `hasBeenFullCompiled`: whether a complete Jugg full-build baseline exists. AI hooks enable raw Gradle and stop guards only when `true`. For `executionType=remote`, the command hook skips session-write and pending-file coverage checks but still applies "block once, allow repeat".
+- `enabledAndroidTest`: whether the latest full-build baseline initialized an AndroidTest target (`true` means `enableAndroidTest` was enabled then).
+- `isCompiling`: boolean, whether a Jugg compile/deploy task is active, aligned with `JuggConfigurationRunner.isCompiling`.
 
-项目空闲且可立即取得项目锁时，`status` 会在锁内完成 Runtime owner 恢复和可选 Git refresh。若同 Runtime 正在编译，或项目锁正由 IDEA/standalone 的其他写事务持有，调用会立即返回当前真实只读快照；此时跳过 refresh 和状态写入，但仍保留实际的部署状态、fallback 原因、待编译文件、baseline、时间戳与 `isCompiling`，不会等待长任务或返回伪造空值。
+When idle and able to acquire the project lock immediately, `status` restores Runtime ownership and optionally refreshes Git under the lock. If the same Runtime is compiling or another IDEA/standalone write transaction holds the project lock, it immediately returns the current real read-only snapshot. It skips refresh and state writes then, but still retains actual deployment state, fallback cause, pending files, baseline, timestamps, and `isCompiling`, without waiting on a long task or fabricating empty values.
 
 ---
 
 ### `wait-logs`
 
-阻塞式等待 App 日志，直到 marker 命中、发生 crash 或超时，返回过滤后的日志窗口。
+Blocks while waiting for app logs until a marker matches, a crash occurs, or timeout; returns the filtered log window.
 
-| 参数 | 类型 | 必填 | 默认 | 说明 |
-|------|------|------|------|------|
-| `projectDir` | string | **是** | — | 项目绝对路径（pattern: `^/.+`） |
-| `serial` | string | 否 | — | 本次请求的 adb serial；优先读取项目 + serial 的 deploy/restart 时间戳 |
-| `marker` | string | **是** | — | 停止条件正则（Java Pattern 方言），匹配日志 message 部分 |
-| `tags` | array[string] | 否 | `[]` | tag 白名单（精确匹配，空 = 不按 tag 过滤） |
-| `timeoutMs` | integer | 否 | `30000` | 硬超时毫秒，范围 `[1000, 300000]` |
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `projectDir` | string | **yes** | — | Absolute project path (pattern: `^/.+`). |
+| `serial` | string | no | — | adb serial for this request; prefer project-and-serial deploy/restart timestamps. |
+| `marker` | string | **yes** | — | Stop-condition regex (Java Pattern dialect), matched against log message text. |
+| `tags` | array[string] | no | `[]` | Exact tag allowlist (empty means no tag filtering). |
+| `timeoutMs` | integer | no | `30000` | Hard timeout in milliseconds, `[1000, 300000]`. |
 
-**返回 data**：
-- `stopReason`：`marker` / `crash` / `timeout`
-- `startTime`、`endTime`：logcat threadtime 格式 `MM-dd HH:mm:ss.SSS`
-- `targetPids`：停止时枚举的目标进程 PID 列表
-- `logs`：过滤后最多 100 行（`\n` 分割的 logcat threadtime 原生格式）
-- `allLogsPath`：全量原始日志落盘路径
-- `truncated`：`logs` 是否被截断
+**Response data**:
+- `stopReason`: `marker` / `crash` / `timeout`.
+- `startTime`, `endTime`: logcat threadtime in `MM-dd HH:mm:ss.SSS`.
+- `targetPids`: target-process PID list enumerated on stopping.
+- `logs`: at most 100 filtered lines (native logcat threadtime format, separated by `\n`).
+- `allLogsPath`: path of the saved complete raw log.
+- `truncated`: whether `logs` was truncated.
 
-**错误码**：`INVALID_PARAMS`、`INVALID_REGEX`、`NO_DEPLOY_BASELINE`、`NO_DEVICE`、`MULTIPLE_DEVICE`、`INTERNAL_ERROR`
-
----
-
-## 未注册但存在的 MCP Action
-
-以下 Action 在代码中有实现但处于精简考虑，**未注册**到工具列表，外部无法使用：
-
-| Action 文件 | 说明 |
-|-------------|------|
-| `EmulatorListMcpToolAction.kt` | 模拟器列表 |
-| `FigmaLayoutVerifyMcpToolAction.kt` | Figma 布局验证 |
-| `LayoutVerifyMcpToolAction.kt` | 旧 UI 批量验证（已从 MCP 注册表移除，外部不可用） |
-| `ScreenshotMcpToolAction.kt` | 截图（`screenshot`） |
-| `StartActivityMcpToolAction.kt` | 启动 Activity |
-| `StartAppMcpToolAction.kt` | 启动 App |
-| `StartEmulatorMcpToolAction.kt` | 启动模拟器 |
-| `StartRecordMcpToolAction.kt` | 开始录屏（`record-start`） |
-| `StopRecordMcpToolAction.kt` | 停止录屏（`record-stop`） |
+**Error codes**: `INVALID_PARAMS`, `INVALID_REGEX`, `NO_DEPLOY_BASELINE`, `NO_DEVICE`, `MULTIPLE_DEVICE`, `INTERNAL_ERROR`.
 
 ---
 
-## MCP 通用行为
+## Implemented but unregistered MCP actions
 
-### App 在线等待
+The following actions exist in code but are **not registered** in the tool list for a narrower public surface; external callers cannot use them:
 
-- `restart`、`deploy`、`gradle-build`、`clean-reinstall` 统一使用 `waitAppReadyAfterSuccess` 控制成功后的 App ready 等待；默认 `false`，只有显式传 `true` 才后置等待（每 200ms 检查，最长 10s）。
-- `activity-stack`、`tap`、`layout-dump`、`view-locate`、`view-inspect` 执行前等待 App 在线（每 100ms 检查，最长 10s）。
-- 运行态工具调用返回 `INTERNAL_ERROR` 或缺省错误码时，按瞬态错误自动重试最多 3 次，间隔 2s；用于覆盖 App 已在线但进程内服务（如 ViewHierarchyServer）尚未接受 LocalSocket 请求的短暂窗口。
-- ViewHierarchy 相关工具首次访问失败后会查询设备屏幕状态和前台 Activity；若设备息屏/非交互态，直接返回 `DEVICE_NOT_INTERACTIVE`；若目标 App 不在前台，直接返回 `APP_NOT_FOREGROUND`；这两类错误不再继续重试。
-- 运行态工具执行顺序：参数校验 → `projectDir` 初始化态校验 → App 在线校验 → 业务执行。
-
-### 异步编译调用
-
-`deploy`、`gradle-build` 可能返回 `isFinal=false` + `jobId`。用 `get-compile-status` 轮询，按 `pollIntervalSuggestedMs` 间隔。
-
-`deploy` 的成功消息在任务完成后按实际 `RunResult` 生成。没有源码变化但仍完成 install、recover 或其它部署动作时，只说明本轮未编译源码，不得推断变更此前已经部署；最近一次含文件变化的部署仅在当前 Runtime 会话内可用，缺失时使用 Runtime 中性描述。
-
-终态 data 中返回 `isCompileSuccess`（boolean）和 `isDeploySuccess`（boolean）。失败时如有诊断输出，会返回 `detail` / `detailLength` / `detailTruncated`。compile/gradle-build/deploy/instrument 都可配合 `status` 字段做更细粒度的成功/失败判定。
-
-### 产物清理
-
-MCP 拉取类工具产物落在 `build/jugg/mcp_fetch/<toolName>/`。IDE 启动后后台清理超过 30 天的文件。
+| Action file | Purpose |
+|-------------|---------|
+| `EmulatorListMcpToolAction.kt` | Emulator list. |
+| `FigmaLayoutVerifyMcpToolAction.kt` | Figma layout verification. |
+| `LayoutVerifyMcpToolAction.kt` | Old UI batch verification (removed from MCP registry; unavailable externally). |
+| `ScreenshotMcpToolAction.kt` | Screenshot (`screenshot`). |
+| `StartActivityMcpToolAction.kt` | Start an Activity. |
+| `StartAppMcpToolAction.kt` | Start the app. |
+| `StartEmulatorMcpToolAction.kt` | Start an emulator. |
+| `StartRecordMcpToolAction.kt` | Begin screen recording (`record-start`). |
+| `StopRecordMcpToolAction.kt` | End screen recording (`record-stop`). |
 
 ---
 
-## 常见错误码
+## General MCP behavior
 
-| 错误码 | 说明 |
-|--------|------|
-| `INVALID_JSON_RPC` | JSON-RPC 格式错误 |
-| `METHOD_NOT_SUPPORTED` | 不支持的方法 |
-| `TOOL_NOT_FOUND` | 工具未注册 |
-| `INVALID_PARAMS` | 参数错误 |
-| `PROJECT_NOT_INITIALIZED` | IDEA 项目未初始化，或 standalone 项目自动初始化失败 |
-| `NO_DEVICE` | 无可用设备 |
-| `MULTIPLE_DEVICE` | 单设备操作发现多个目标设备，需要显式指定 serial |
-| `DEVICE_NOT_INTERACTIVE` | 设备息屏或非交互态，需唤醒/解锁后重试 |
-| `APP_NOT_FOREGROUND` | 目标 App 不在前台，需切回目标 App 后重试 |
-| `FEATURE_NOT_SUPPORTED` | 当前工程或运行环境不支持该能力 |
-| `INTERNAL_ERROR` | 内部错误 |
+### Waiting for the app to be online
 
----
+- `restart`, `deploy`, `gradle-build`, and `clean-reinstall` uniformly use `waitAppReadyAfterSuccess` for the post-success app-readiness wait. Default `false`; only explicit `true` waits (checks every 200 ms, up to 10 seconds).
+- `activity-stack`, `tap`, `layout-dump`, `view-locate`, and `view-inspect` wait for the app to be online before execution (checks every 100 ms, up to 10 seconds).
+- If a runtime tool returns `INTERNAL_ERROR` or no error code, treat it as transient and retry automatically at most three times, two seconds apart. This covers the short window when the app is online but its in-process service, such as ViewHierarchyServer, is not yet accepting LocalSocket requests.
+- After the first ViewHierarchy-related access failure, check device screen state and foreground Activity. A sleeping/noninteractive device returns `DEVICE_NOT_INTERACTIVE` immediately; a target app outside the foreground returns `APP_NOT_FOREGROUND`. Neither error is retried further.
+- Runtime-tool order: argument validation → `projectDir` initialization-state validation → app-online check → business operation.
 
-## 连通性与排查
+### Asynchronous compile calls
 
-> 仅在"连通性/上下文异常排查"场景使用以下步骤；正常使用无需把 `list-projects` / `devices` 作为固定 preflight。
+`deploy` and `gradle-build` may return `isFinal=false` plus `jobId`. Poll with `get-compile-status` at the `pollIntervalSuggestedMs` interval.
 
-1. IDEA 场景先确认 IDE 已初始化该项目（`list-projects`）；standalone 场景允许首个合法项目请求自动注册。
-2. 参数异常先对照 `tools/list` 返回的 `inputSchema`。
-3. 设备类工具失败时再执行 `devices`。
-4. 编译类异步任务卡住时，用 `get-compile-status` + `compile_latest.log`。
-5. `layout-dump`/元素模式 `tap` 返回 `DEVICE_NOT_INTERACTIVE` 时，先唤醒/解锁设备后重试；返回 `APP_NOT_FOREGROUND` 时，先用 `restart` 或 `start-activity` 切回目标 App 后重试；仍返回 `ViewHierarchy server is unavailable` 时，再按"先 `restart` → 再 `gradle-build` → 重试"处理。
+The `deploy` success message is derived from actual `RunResult` after task completion. When no source changes occurred but install, recovery, or another deployment action still completed, it reports only that no source was compiled this run; it must not infer changes were previously deployed. The latest deployment with file changes is available only within the current Runtime session; when absent, use Runtime-neutral wording.
+
+Terminal data contains `isCompileSuccess` (boolean) and `isDeploySuccess` (boolean). On failure, if diagnostic output exists, it contains `detail` / `detailLength` / `detailTruncated`. `compile`, `gradle-build`, `deploy`, and `instrument` may also use `status` for finer success/failure judgments.
+
+### Artifact cleanup
+
+MCP fetch-tool artifacts are stored under `build/jugg/mcp_fetch/<toolName>/`. After IDE startup, background cleanup removes files older than 30 days.
 
 ---
 
-## 关联文档
+## Common error codes
 
-- CLI 封装层：`08_cli_tools_list.md`
-- 设计说明：`08_mcp_design.md`
-- figma-layout-verify 算法：`08_mcp_figma_layout_verify_internals.md`
-- UI 验证检查清单：`08_mcp_ui_verify_checklist.md`
-- 路径速查：`98_code_map.md`
+| Error code | Meaning |
+|------------|---------|
+| `INVALID_JSON_RPC` | Malformed JSON-RPC. |
+| `METHOD_NOT_SUPPORTED` | Unsupported method. |
+| `TOOL_NOT_FOUND` | Unregistered tool. |
+| `INVALID_PARAMS` | Invalid arguments. |
+| `PROJECT_NOT_INITIALIZED` | IDEA project not initialized, or standalone project auto-initialization failed. |
+| `NO_DEVICE` | No available device. |
+| `MULTIPLE_DEVICE` | A single-device operation found multiple target devices; specify serial explicitly. |
+| `DEVICE_NOT_INTERACTIVE` | Device asleep or noninteractive; wake/unlock and retry. |
+| `APP_NOT_FOREGROUND` | Target app outside foreground; return to it and retry. |
+| `FEATURE_NOT_SUPPORTED` | Capability unsupported by this project or runtime environment. |
+| `INTERNAL_ERROR` | Internal error. |
+
+---
+
+## Connectivity and troubleshooting
+
+> Use these steps only for connectivity/context anomalies. Normal use does not require fixed `list-projects` / `devices` preflight calls.
+
+1. For IDEA, confirm the IDE initialized this project (`list-projects`). For standalone, a first valid project request may auto-register it.
+2. For argument anomalies, compare with `inputSchema` from `tools/list`.
+3. Run `devices` only after a device-related tool fails.
+4. For a stuck asynchronous compile task, inspect `get-compile-status` and `compile_latest.log`.
+5. If `layout-dump` or element-mode `tap` returns `DEVICE_NOT_INTERACTIVE`, wake/unlock the device and retry. For `APP_NOT_FOREGROUND`, bring the target app forward with `restart` or `start-activity` and retry. If `ViewHierarchy server is unavailable` persists, follow `restart` → `gradle-build` → retry.
+
+---
+
+## Related documents
+
+- CLI wrapper: `08_cli_tools_list.md`.
+- Design: `08_mcp_design.md`.
+- figma-layout-verify algorithm: `08_mcp_figma_layout_verify_internals.md`.
+- UI verification checklist: `08_mcp_ui_verify_checklist.md`.
+- Code paths: `98_code_map.md`.

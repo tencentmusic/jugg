@@ -1,83 +1,83 @@
-# MCP UI 布局验证设计
+# MCP UI Layout Verification Design
 
-> 最后核对：2026-08-21
-> 一致性规则：文档与代码冲突时，以代码为准。
+> Last checked: 2026-08-21
+> Consistency rule: when documentation conflicts with code, code is authoritative.
 
 ---
 
-## 1. 文档定位
+## 1. Scope
 
-本页说明当前 MCP UI 验证能力的公开工具边界、核心数据流和容易误判的限制。它不复述完整参数表；参数以 [`08_mcp_tools_list.md`](08_mcp_tools_list.md)、`McpToolActionRegistry.defaultActions()` 和运行时 `tools/list` 为准。
+This page explains the public-tool boundary, core data flow, and easily misunderstood limits of current MCP UI verification. It does not repeat full argument tables; use [`08_mcp_tools_list.md`](08_mcp_tools_list.md), `McpToolActionRegistry.defaultActions()`, and runtime `tools/list`.
 
-当前可对外使用的 UI 证据链是：
+The current externally usable UI evidence chain is:
 
 ```text
 activity-stack
   -> layout-dump / view-locate / view-inspect
-  -> tap（需要交互时）
-  -> wait-logs（需要运行时日志闭环时）
+  -> tap (when interaction is needed)
+  -> wait-logs (when runtime-log closure is needed)
 ```
 
-`layout-verify` 与 `figma-layout-verify` 的 action 类仍存在，但没有注册到 `McpToolActionRegistry.defaultActions()`，不是当前公开 MCP tool；不要在 Agent 流程或公开工具清单中承诺可直接调用。
+The `layout-verify` and `figma-layout-verify` action classes still exist but are not registered in `McpToolActionRegistry.defaultActions()`. They are not currently public MCP tools; do not promise direct calls in Agent flows or public tool lists.
 
 ---
 
-## 2. 核心源码索引
+## 2. Core source index
 
-| 类/接口 | 文件 | 作用 |
-|---------|------|------|
-| `McpToolActionRegistry` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/McpToolActionRegistry.kt` | 公开工具注册表；判断 UI 工具是否真的可通过 MCP 调用的第一入口 |
-| `LayoutDumpMcpToolAction` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/LayoutDumpMcpToolAction.kt` | 公开 `layout-dump`，导出 HTML 视图树 artifact |
-| `LayoutDumpHelper` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/LayoutDumpHelper.kt` | 复用的内部 dump 能力；生成公开 HTML 和内部 JSON |
-| `UiFindMcpToolAction` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/UiFindMcpToolAction.kt` | 公开 `view-locate`，将组合 selector、可见性和结果预算下沉到 App 侧实时查找 |
-| `EvalViewMcpToolAction` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/EvalViewMcpToolAction.kt` | 公开 `view-inspect`，通过 App 内反射读取 getter 或 public 字段 |
-| `TapMcpToolAction` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/TapMcpToolAction.kt` | 公开 `tap`，支持坐标、百分比和元素选择器模式 |
-| `McpAppReadyGuard` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/McpAppReadyGuard.kt` | runtime observe/mutate 工具的 App 在线、前台和设备交互态检查 |
-| `ViewHierarchyClient` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/viewhierarchy/ViewHierarchyClient.kt` | IDE 侧 LocalSocket 客户端，连接 App 内 ViewHierarchy server |
-| `ViewHierarchyServer*` | `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/viewhierarchy/` | App 内视图树、点击、反射查询服务；`DragonflyHierarchySource` 为 dump、selector、tap、inspect、verify 提供每请求实时 snapshot |
-| `LayoutVerifyMcpToolAction` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/LayoutVerifyMcpToolAction.kt` | 未注册的旧批量断言 action；只能作为历史实现或内部参考 |
-| `FigmaLayoutVerifyMcpToolAction` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/FigmaLayoutVerifyMcpToolAction.kt` | 未注册的 Figma 关系验证 action；算法细节见 `08_mcp_figma_layout_verify_internals.md` |
-
----
-
-## 3. 公开工具边界
-
-| 工具 | 当前状态 | 适合回答的问题 | 不适合回答的问题 |
-|------|----------|----------------|------------------|
-| `activity-stack` | 公开 MCP | 当前页面是否在目标 Activity | 具体 View 属性 |
-| `layout-dump` | 公开 MCP + CLI | 全局视图树、候选节点、窗口/弹窗结构 | 直接断言颜色、字号等 View getter 属性 |
-| `view-locate` | 公开 MCP + CLI | 元素是否存在、bounds、size、间距、对齐 | maxLines、ellipsize、颜色、圆角等内部属性 |
-| `view-inspect` | 公开 MCP + CLI | getter / Kotlin property / public 字段可读的 View 属性、density、隐藏但仍在树里的 View 属性 | 点击坐标、是否安全可点 |
-| `tap` | 公开 MCP + CLI | 执行 tap/long-press/swipe | 作为验证工具替代 `view-locate` |
-| `wait-logs` | 公开 MCP + CLI | App 日志 marker、crash、auto-run 闭环 | UI 几何属性 |
-| `layout-verify` | 未注册 | 旧批量断言实现参考 | 公开 MCP/CLI 调用 |
-| `figma-layout-verify` | 未注册 | 内部算法研究 | 公开 MCP/CLI 调用 |
+| Class/interface | File | Role |
+|-----------------|------|------|
+| `McpToolActionRegistry` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/McpToolActionRegistry.kt` | Public tool registry; first place to check whether an UI tool is really callable through MCP. |
+| `LayoutDumpMcpToolAction` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/LayoutDumpMcpToolAction.kt` | Public `layout-dump`; exports HTML view-tree artifact. |
+| `LayoutDumpHelper` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/LayoutDumpHelper.kt` | Shared internal dump capability; generates public HTML and internal JSON. |
+| `UiFindMcpToolAction` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/UiFindMcpToolAction.kt` | Public `view-locate`; delegates combined selectors, visibility, and result budget to live in-app search. |
+| `EvalViewMcpToolAction` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/EvalViewMcpToolAction.kt` | Public `view-inspect`; reads getters or public fields via in-app reflection. |
+| `TapMcpToolAction` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/TapMcpToolAction.kt` | Public `tap`; supports coordinates, percentages, and element selectors. |
+| `McpAppReadyGuard` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/McpAppReadyGuard.kt` | App-online, foreground, and device-interactivity checks for runtime observe/mutate tools. |
+| `ViewHierarchyClient` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/viewhierarchy/ViewHierarchyClient.kt` | IDE-side LocalSocket client for the in-app ViewHierarchy server. |
+| `ViewHierarchyServer*` | `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/viewhierarchy/` | In-app view-tree, click, and reflection-query service; `DragonflyHierarchySource` supplies a live snapshot per request for dump, selectors, tap, inspect, and verify. |
+| `LayoutVerifyMcpToolAction` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/LayoutVerifyMcpToolAction.kt` | Unregistered old batch-assertion action; historical or internal reference only. |
+| `FigmaLayoutVerifyMcpToolAction` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/FigmaLayoutVerifyMcpToolAction.kt` | Unregistered Figma relationship-verification action; see `08_mcp_figma_layout_verify_internals.md` for algorithm details. |
 
 ---
 
-## 4. 核心数据流
+## 3. Public-tool boundary
 
-### 4.1 无 Figma 的 UI 证据链
+| Tool | Current state | Suitable question | Unsuitable question |
+|------|---------------|-------------------|---------------------|
+| `activity-stack` | Public MCP | Is the current page in the target Activity? | Specific View properties. |
+| `layout-dump` | Public MCP + CLI | Overall view tree, candidate nodes, window/dialog structure. | Direct assertions of color, font size, and other View getter properties. |
+| `view-locate` | Public MCP + CLI | Element existence, bounds, size, spacing, alignment. | Internal properties such as maxLines, ellipsize, color, or corner radius. |
+| `view-inspect` | Public MCP + CLI | View properties readable through getter/Kotlin property/public field, density, and hidden View properties while still in the tree. | Click coordinates or whether clicking is safe. |
+| `tap` | Public MCP + CLI | Execute tap/long-press/swipe. | Replace `view-locate` as a verification tool. |
+| `wait-logs` | Public MCP + CLI | App-log marker, crash, auto-run closure. | UI geometry. |
+| `layout-verify` | Unregistered | Reference for old batch assertions. | Public MCP/CLI calls. |
+| `figma-layout-verify` | Unregistered | Internal algorithm research. | Public MCP/CLI calls. |
+
+---
+
+## 4. Core data flow
+
+### 4.1 UI evidence without Figma
 
 ```text
 activity-stack
-  -> 确认当前页面，避免在错误 Activity 上采证
+  -> confirm current page to avoid collecting evidence from a wrong Activity
 layout-dump
-  -> App 内 ViewHierarchy LocalSocket 调用 Dragonfly 提取 Android View + Compose 节点
-  -> DragonflyHierarchySource 适配为原有 windows/root/children JSON
-  -> LayoutDumpHelper 输出 HTML artifact，并保留内部 JSON
+  -> in-app ViewHierarchy LocalSocket calls Dragonfly for Android View + Compose nodes
+  -> DragonflyHierarchySource adapts to existing windows/root/children JSON
+  -> LayoutDumpHelper emits HTML artifact and retains internal JSON
 view-locate
-  -> 通过 ViewHierarchyClient 请求 App 侧实时 find_elements
-  -> text/resourceId/contentDesc/className 非空字段使用 AND；className 支持完整名/simple name 精确匹配
-  -> visibleOnly 控制可见节点，maxResults 控制候选预算
-  -> 返回 matchCount/returnedCount/truncated/matches；唯一命中才返回顶层 bounds/position/size
+  -> ViewHierarchyClient requests live in-app find_elements
+  -> nonempty text/resourceId/contentDesc/className fields use AND; className exactly matches full/simple name
+  -> visibleOnly controls visible nodes; maxResults controls candidate budget
+  -> returns matchCount/returnedCount/truncated/matches; top-level bounds/position/size only for a unique match
 view-inspect
-  -> 通过 ViewHierarchyClient 在 App 侧抓取实时 Dragonfly snapshot
-  -> Android 节点对原始 View、Compose 节点对 Dragonfly 节点对象执行 getter 链
-  -> 返回 expression/value/type/density，并 Best-effort 返回 sourceFile/lineNumber
+  -> ViewHierarchyClient takes a live in-app Dragonfly snapshot
+  -> runs getter chain on original View for Android nodes or Dragonfly node object for Compose nodes
+  -> returns expression/value/type/density and best-effort sourceFile/lineNumber
 ```
 
-间距与对齐目前由 Agent 根据 `view-locate` 返回的 dp bounds 计算：
+The Agent currently computes spacing and alignment from dp bounds returned by `view-locate`:
 
 ```text
 horizontalSpacing = rightElement.left - leftElement.right
@@ -86,94 +86,94 @@ centerX           = (left + right) / 2
 centerY           = (top + bottom) / 2
 ```
 
-推荐判定口径沿用旧批量验证约束：绝对差 `<= 2dp`，或相对差 `<= 5%`。该口径是 Agent 报告约定，不代表当前公开工具有 `tolerance` 参数。
+The recommended judgment rule retains the old batch-verification tolerance: absolute difference `<= 2dp` or relative difference `<= 5%`. This is an Agent reporting convention, not a `tolerance` argument on a public tool.
 
-### 4.2 有 Figma 的 UI 证据链
+### 4.2 UI evidence with Figma
 
 ```text
-Figma 结构化数据
-  -> Agent 从设计稿提取 expected value（尺寸、间距、对齐、颜色等）
-  -> view-locate 获取 Android actual bounds
-  -> view-inspect 获取 getter 属性 actual
-  -> Agent 在报告中列出 expected / actual / diff / verdict
+Structured Figma data
+  -> Agent extracts expected values from the design (size, spacing, alignment, color, etc.)
+  -> view-locate obtains Android actual bounds
+  -> view-inspect obtains actual getter properties
+  -> Agent reports expected / actual / diff / verdict
 ```
 
-当前不要调用 `figma-layout-verify`。若需要了解其试验性自动关系提取算法，阅读 [`08_mcp_figma_layout_verify_internals.md`](08_mcp_figma_layout_verify_internals.md)，但公开流程仍必须由 Agent 显式列出 expected value 的来源和计算。
+Do not call `figma-layout-verify` currently. To understand its experimental automatic relationship-extraction algorithm, read [`08_mcp_figma_layout_verify_internals.md`](08_mcp_figma_layout_verify_internals.md), but the public flow must still have the Agent explicitly identify where expected values came from and how they were calculated.
 
-### 4.3 交互后的闭环
+### 4.3 Closure after interaction
 
 ```text
 tap
-  -> App ready guard 检查设备交互态、目标 App 前台、Activity 稳定
-  -> 执行坐标/百分比/元素模式触控
-  -> activity-stack 或 layout-dump 确认页面变化
-  -> wait-logs 在需要时确认 marker/crash/timeout
+  -> app-ready guard checks device interactivity, target app foreground, and Activity stability
+  -> perform touch by coordinate, percentage, or element
+  -> activity-stack or layout-dump confirms page change
+  -> wait-logs confirms marker/crash/timeout when needed
 ```
 
-元素模式多匹配时 `tap` 不执行；应先用更强选择器或坐标模式消歧。
+When element mode matches multiple nodes, `tap` does not execute. Disambiguate with a stronger selector or coordinate mode first.
 
 ---
 
-## 5. 关键模型与单位
+## 5. Key models and units
 
-| 数据 | 来源 | 单位 / 语义 |
-|------|------|-------------|
-| `layout-dump` HTML | `LayoutDumpHelper` | 面向 Agent 阅读的公开 artifact |
-| 内部 layout JSON | `LayoutDumpHelper.dumpInternal()` | 仅供布局验证存量 action 内部消费，不作为公开 API |
-| `view-locate.data.bounds` | `UiFindMcpToolAction` | `[left, top, right, bottom]`，单位 dp |
-| `view-locate.data.matchCount` | App 侧 `find_elements` | selector 总命中数；大于 1 时不返回顶层首个节点坐标 |
-| `view-locate.data.returnedCount/truncated` | App 侧 `find_elements` | 实际返回候选数，以及是否被 `maxResults` 截断 |
-| `view-locate/view-inspect.data.source` | Dragonfly 节点属性 | Best-effort `{file?, line?}`；当前不解析为 IDE 本地绝对路径 |
-| `view-inspect.data.values` | `EvalViewMcpToolAction` | getter 原始值，Agent 负责解释与换算 |
-| `view-inspect.data.density` | App 侧 ViewHierarchy 响应 | px -> dp 换算依据 |
-| Figma `dpr` | 设计稿约定 | 只用于 Agent 手动换算或未注册的 Figma 内部算法 |
-
----
-
-## 6. 隐形约束与容易误判点
-
-| 约束 / 风险 | 影响 |
-|-------------|------|
-| 注册表是公开能力的唯一可靠入口 | action 类存在不代表 MCP 可调用；先看 `defaultActions()` / `tools/list` |
-| `layout-dump` 公开 HTML，不公开内部 JSON | Agent 不应依赖内部 JSON 文件路径作为稳定接口 |
-| ViewHierarchy 是 App 内 LocalSocket Server-only | socket 不可用时不要假设会自动回退 uiautomator |
-| Dragonfly 窗口枚举有旧路径降级 | Dragonfly 返回空或枚举失败时，以 `ActivityThread` / `WindowManagerGlobal` Best-effort 补根窗口，节点仍由 Dragonfly 转换；这不是旧 ViewTree 数据源回退 |
-| Dragonfly 使用 Jugg 私有包名 | 源 DEX JAR 经离线 dex2jar + Jar Jar 预处理，Dragonfly API 与内置 Kotlin、coroutines、Guava、dexlib2 依赖统一进入 `com.sickworm.intellij.jugg.internal.dragonfly.**`，并同时打入 `jugg-instruments.jar` 与 `jugg-runtime.jar`；正式构建不执行重命名，避免宿主 App 同名类冲突 |
-| Dragonfly 不依赖宿主 Kotlin | `implementation_0.jar` 提供的 Kotlin 与协程运行时一并私有化，纯 Java App 也可使用 layout dump；私有运行时缺失由构建产物校验直接阻止发布 |
-| snapshot 范围同时约束查询和动作 | 5000 节点/60 层限制发生在 Dragonfly 原始提取之后；selector、tap、inspect、verify 无法访问被截断范围，原始提取先失败时也没有 `truncated:true` |
-| Compose action 仍是坐标降级 | 元素模式 `tap` 可按 Compose text/虚拟 id 命中，但当前只向所属 root View 的 bounds 中心派发 MotionEvent，不等价于 Semantics action，也无法可靠判断 disabled/stale |
-| Compose inspect 属性有限 | 当前只能反射 Dragonfly 节点现有 getter；Android View 专属 getter 会在对应 expression 返回 error |
-| Compose layout verify 属性有限 | text、bounds 和几何关系可用；Dragonfly 未提供的 clickable/enabled/padding/alpha/background 等属性返回 unavailable |
-| Compose 虚拟 ID 依赖确定性遍历 | window/children 顺序和 UI 结构不变时跨请求一致；重排、插入或重组可能改变 ID |
-| Dragonfly Compose 依赖宿主 Compose runtime/tooling 兼容性 | Compose 能力已并入新的 Dragonfly DEX JAR，并在不兼容时局部收口；具体版本覆盖仍需目标 App 验证 |
-| `view-locate` selector 是精确 AND | className 只接受完整类名或 simple name 精确匹配；不要依赖子串匹配 |
-| `view-locate` 候选有响应预算 | `matchCount` 可能大于 `returnedCount`；`truncated=true` 时应收紧 selector，不要把未返回节点视为不存在 |
-| `view-locate` 多命中不返回顶层坐标 | 必须从 `matches[]` 观察候选并补充 selector，不能把首个节点当作稳定断言或点击目标 |
-| `view-inspect` 可读隐藏节点 | hidden/GONE 节点属性可作为状态证据，但不能证明可点击 |
-| `screenshot` action 未注册 | 截图不能作为当前 MCP 公开流程的默认证据来源 |
-| `layout-verify` 未注册 | checklist 和报告应使用 `view-locate` / `view-inspect` 的实际输出，而不是旧 `checks[]` 批量断言 |
+| Data | Source | Unit / meaning |
+|------|--------|----------------|
+| `layout-dump` HTML | `LayoutDumpHelper` | Public artifact for Agent reading. |
+| Internal layout JSON | `LayoutDumpHelper.dumpInternal()` | Consumed only by existing internal layout-verification actions; not a public API. |
+| `view-locate.data.bounds` | `UiFindMcpToolAction` | `[left, top, right, bottom]` in dp. |
+| `view-locate.data.matchCount` | In-app `find_elements` | Total selector matches; no top-level first-node coordinates when greater than one. |
+| `view-locate.data.returnedCount/truncated` | In-app `find_elements` | Returned candidate count and whether `maxResults` truncated it. |
+| `view-locate/view-inspect.data.source` | Dragonfly node property | Best-effort `{file?, line?}`; not currently resolved to an IDE-local absolute path. |
+| `view-inspect.data.values` | `EvalViewMcpToolAction` | Raw getter values; Agent interprets and converts them. |
+| `view-inspect.data.density` | In-app ViewHierarchy response | Basis for px → dp conversion. |
+| Figma `dpr` | Design convention | Used only for Agent manual conversion or the unregistered internal Figma algorithm. |
 
 ---
 
-## 7. 排查入口
+## 6. Hidden constraints and common misreadings
 
-| 现象 | 优先入口 |
-|------|----------|
-| Agent 声称某 UI 工具可调用但运行返回 `TOOL_NOT_FOUND` | `McpToolActionRegistry.defaultActions()` 与 `08_mcp_tools_list.md` |
-| `view-locate` 找不到元素 | 检查 App 侧 `find_elements` selector；再用 `layout-dump` HTML 确认 text/id/contentDesc/className 与可见性 |
-| `view-locate` 多命中或截断 | 查看 `matchCount/returnedCount/truncated/matches[]`，补充更稳定 selector；必要时调高 `maxResults` 到 `100` 以内 |
-| 坐标/间距看起来不对 | 检查 bounds 单位是否已是 dp；px 值只能经 `view-inspect.data.density` 换算 |
-| `view-inspect` getter 失败 | `EvalViewMcpToolAction` 白名单、App 侧 `ViewExpressionEvaluator` |
-| runtime observe 工具报 socket 不可用 | `McpAppReadyGuard`、`ViewHierarchyFailureDiagnoser`、目标 App 前台状态 |
-| Figma 自动验证结果与公开工具不一致 | 先确认 `figma-layout-verify` 是否仍未注册；算法问题看 `08_mcp_figma_layout_verify_internals.md` |
+| Constraint / risk | Effect |
+|-------------------|--------|
+| Registry is the only reliable public-capability entry point. | An action class existing does not make it callable; check `defaultActions()` / `tools/list` first. |
+| `layout-dump` exposes HTML, not internal JSON. | Agents should not depend on internal JSON file paths as a stable interface. |
+| ViewHierarchy is an in-app LocalSocket server-only channel. | Do not assume automatic uiautomator fallback when the socket is unavailable. |
+| Dragonfly window enumeration has an old-path fallback. | If Dragonfly returns empty windows or enumeration fails, `ActivityThread` / `WindowManagerGlobal` supply root windows on a best-effort basis while Dragonfly still converts nodes; this is not a fallback to the old ViewTree data source. |
+| Dragonfly uses Jugg-private packages. | Source DEX JARs undergo offline dex2jar + Jar Jar preprocessing, relocating Dragonfly API and bundled Kotlin, coroutines, Guava, and dexlib2 dependencies into `com.sickworm.intellij.jugg.internal.dragonfly.**`; both `jugg-instruments.jar` and `jugg-runtime.jar` include them. Release builds do not rename them, avoiding same-name classes in host apps. |
+| Dragonfly does not depend on host Kotlin. | Kotlin and coroutine runtimes from `implementation_0.jar` are private, so a pure Java app can dump layouts; artifact validation blocks publication if the private runtime is missing. |
+| Snapshot range constrains queries and actions. | The 5000-node/60-level limit applies after raw Dragonfly extraction. Selector, tap, inspect, and verify cannot access truncated nodes; `truncated:true` is unavailable if raw extraction fails first. |
+| Compose action still falls back to coordinates. | Element-mode `tap` can match Compose text/virtual IDs, but currently dispatches MotionEvent only at bounds center to the owning root View; it is not equivalent to a Semantics action and cannot reliably judge disabled/stale state. |
+| Compose inspect properties are limited. | Only getters exposed by the current Dragonfly node object are reflectable; Android-View-only getters return an error for that expression. |
+| Compose layout-verification properties are limited. | Text, bounds, and geometric relationships work; clickable/enabled/padding/alpha/background unavailable in Dragonfly return unavailable. |
+| Compose virtual IDs depend on deterministic traversal. | Stable across requests while window/child order and UI structure remain; reorder, insertion, or restructure may change IDs. |
+| Dragonfly Compose depends on host Compose runtime/tooling compatibility. | Compose support is included in the new Dragonfly DEX JAR and handled locally on incompatibility; actual version coverage still needs verification in target apps. |
+| `view-locate` selector is exact AND. | `className` accepts only an exact full or simple class name; do not rely on substring matching. |
+| `view-locate` has a response candidate budget. | `matchCount` can exceed `returnedCount`; narrow the selector on `truncated=true`, rather than treating omitted nodes as nonexistent. |
+| Multiple `view-locate` matches have no top-level coordinates. | Inspect `matches[]` and add a selector; the first node is not a stable assertion or click target. |
+| `view-inspect` can read hidden nodes. | Hidden/GONE properties can be state evidence, but do not prove clickability. |
+| `screenshot` action is unregistered. | Screenshot is not a default evidence source in the current public MCP flow. |
+| `layout-verify` is unregistered. | Checklists and reports should use real `view-locate` / `view-inspect` output rather than old `checks[]` batch assertions. |
 
 ---
 
-## 8. 关联文档
+## 7. Troubleshooting entry points
 
-- MCP 工具参数清单：`08_mcp_tools_list.md`
-- MCP 协议与扩展规则：`08_mcp_design.md`
-- figma-layout-verify 内部算法：`08_mcp_figma_layout_verify_internals.md`
-- UI 验证检查清单：`08_mcp_ui_verify_checklist.md`
-- CLI 封装层：`08_cli_tools_list.md`
-- 代码路径速查：`98_code_map.md`
+| Symptom | First place to inspect |
+|---------|------------------------|
+| Agent claims an UI tool is callable but gets `TOOL_NOT_FOUND`. | `McpToolActionRegistry.defaultActions()` and `08_mcp_tools_list.md`. |
+| `view-locate` finds no element. | Inspect in-app `find_elements` selectors, then confirm text/id/contentDesc/className and visibility in `layout-dump` HTML. |
+| `view-locate` returns multiple matches or truncation. | Inspect `matchCount/returnedCount/truncated/matches[]`; add a more stable selector or raise `maxResults` up to `100`. |
+| Coordinates or spacing look wrong. | Check whether bounds are already dp; px values require `view-inspect.data.density` conversion. |
+| `view-inspect` getter fails. | `EvalViewMcpToolAction` allowlist and in-app `ViewExpressionEvaluator`. |
+| Runtime-observe tool reports unavailable socket. | `McpAppReadyGuard`, `ViewHierarchyFailureDiagnoser`, and target-app foreground state. |
+| Automatic Figma verification conflicts with public-tool behavior. | Confirm `figma-layout-verify` is still unregistered, then inspect `08_mcp_figma_layout_verify_internals.md` for algorithm issues. |
+
+---
+
+## 8. Related documents
+
+- MCP tool arguments: `08_mcp_tools_list.md`.
+- MCP protocol and extension rules: `08_mcp_design.md`.
+- figma-layout-verify internals: `08_mcp_figma_layout_verify_internals.md`.
+- UI verification checklist: `08_mcp_ui_verify_checklist.md`.
+- CLI wrapper: `08_cli_tools_list.md`.
+- Code paths: `98_code_map.md`.

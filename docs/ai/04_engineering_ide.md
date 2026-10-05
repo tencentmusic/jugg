@@ -1,219 +1,217 @@
-# 工程化：IDE 插件层
+# Engineering: IDE Plugin Layer
 
-> 最后核对：2026-09-08
-> 一致性规则：文档与代码冲突时，以代码为准。
-
----
-
-## 1. 文档定位
-
-本页说明 IDE 侧如何启动 Jugg、维护 project / compile / deploy 上下文，以及 Run / androidTest / MCP / 工具入口如何进入统一任务编排。
-
-本页不展开编译阶段、部署状态机、MCP tool schema、hook 脚本细节；分别见 `02_compile_core.md`、`03_deploy_complete.md`、`08_mcp_design.md`、`08_cli_tools_list.md`。
+> Last checked: 2026-09-08
+> Consistency rule: when documentation conflicts with code, follow the code.
 
 ---
 
-## 2. 核心源码索引
+## 1. Scope
 
-| 类/接口 | 文件 | 作用 |
+This page describes how the IDE starts Jugg, maintains project/compile/deploy contexts, and routes Run, androidTest, MCP, and tool entry points into shared task orchestration.
+
+For compilation stages, deployment state machine, MCP tool schemas, and hook scripts, see `02_compile_core.md`, `03_deploy_complete.md`, `08_mcp_design.md`, and `08_cli_tools_list.md`, respectively.
+
+---
+
+## 2. Core Source Index
+
+| Class/interface | File | Role |
 |---|---|---|
-| `JuggInitializer` | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/loader/JuggInitializer.kt` | 项目级插件实例注册、释放、Sync 事件转发、MCP local server 生命周期 |
-| `JuggProjectManagerListener` / `JuggGradleSyncListener` | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/` | 项目打开后通过 `GradleSyncState` 一次性订阅旧 `GradleSyncListener` 语义，并绑定 project disposable |
-| `JuggLoader` | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/loader/JuggLoader.kt` | 隔离加载 Jugg manager，支持热更新/embedded jars fallback |
-| `JuggManagerCreator` | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/loader/JuggManagerCreator.kt` | 设置 `PlatformApi.impl`、注册项目日志、创建/释放 `JuggManager` |
-| `JuggManager` | `idea/src/main/java/com/sickworm/intellij/jugg/JuggManager.kt` | IDEA 项目协调入口，注入 IDEA runtime metadata，负责配置刷新、历史恢复、Compile Context 关联、monitor 接线、Run/UI/MCP 和资源释放；文件变化与 control plane 已委托共享 manager |
-| `FileChangeManager` / `IdeaFileChangeMonitor` | `main/.../project/change/FileChangeManager.kt`, `idea/.../project/change/IdeaFileChangeMonitor.kt` | 共享 changed/delete/build-file/Git/pending barrier 处理；IDEA 侧仅将 VFS 事件适配到 monitor 契约 |
-| `CompileUiHandler` / `JuggCompileUiHandler` | `main/.../compiler/CompileUiHandler.kt`, `idea/.../compiler/JuggCompileUiHandler.kt` | 编译流程的 Host 交互边界；IDEA 复用现有 dependency dialog，manager 只应用确认结果 |
-| `HostTaskExecutor` | `idea/src/main/java/com/sickworm/intellij/jugg/runtime/HostTaskExecutor.kt` | `TaskRunnerManager` 的 IDEA 执行适配，关联 `Task.Backgroundable`、ProgressIndicator 与 EDT 状态 |
-| `DeployStateManager` / `IdeaHostDeployStateResolver` | `main/.../deploy/DeployStateManager.kt`, `idea/.../deploy/IdeaHostDeployStateResolver.kt` | 共享部署状态计算；隔离 Android Studio 设备状态读取 |
-| `JuggRunningTask` | `idea/src/main/java/com/sickworm/intellij/jugg/ide/logic/JuggRunningTask.kt` | Run 按钮后的后台任务，串联编译、部署、状态回写、Run tool window |
-| `JuggDebugProgramRunner` / `JuggDebugSessionManager` | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/JuggDebugProgramRunner.kt`, `idea/src/main/java/com/sickworm/intellij/jugg/ide/logic/JuggDebugSessionManager.kt` | 接管 Jugg + Debug executor，让 Debug 按钮可用；Jugg 编译/部署输出挂到 Run tool window，部署成功后限制单设备并通过兼容层 attach Java debugger |
-| `JuggConfigurationRunner` | `idea/src/main/java/com/sickworm/intellij/jugg/ide/logic/JuggConfigurationRunner.kt` | 创建并运行 `JuggRunningTask`，维护是否正在编译和下一轮强制重装 |
-| `RemoteCommandRunner` / `RemoteCommandDialog` | `idea/src/main/java/com/sickworm/intellij/jugg/ide/logic/RemoteCommandRunner.kt`, `idea/src/main/java/com/sickworm/intellij/jugg/ide/ui/RemoteCommandDialog.kt` | 使用当前选中的远程 Jugg Configuration 执行非交互命令，并在独立 Run Content 中流式展示输出 |
-| `JuggCompilerHelper` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/JuggCompilerHelper.kt` | IDEA 与 standalone 共享的增量/Gradle 回退判定与 compile 入口 |
-| `JuggDeployerHelper` / `IdeaDeployEnvironment` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployerHelper.kt`, `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/IdeaDeployEnvironment.kt` | 共享 Helper 选择部署路径，IDEA Host 环境提供设备、ADB、prompt、debugger、AndroidTest UI。 |
-| `JuggControlPanelHost` | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/JuggControlPanelHost.kt` | 稳定 ClassLoader 中只持有 `JComponent` 的 Tool Window 宿主；通过 `JuggInitializer.getManager(project)` 获取热更新实现 |
-| `JuggControlPanelModel` / `JuggEvent` | `main/src/main/java/com/sickworm/intellij/jugg/ide/controlpanel/` | 无 Project/Swing 依赖的项目 facts、任务状态和结构化核心事件；只公开两个入口类，投影与枚举使用嵌套类型，供 IDE、MCP 与后续 CLI 复用 |
-| `JuggControlPanelController` | `idea/src/main/java/com/sickworm/intellij/jugg/ide/ui/JuggControlPanelController.kt` | 热更新层项目级持有 Model/Panel，刷新 IDE facts、编排 Sync/App events 与 Panel 动作，并在 Manager dispose 时 clear 稳定 Host |
-| `CompileContextManager` / `IProjectModelSource` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/context/CompileContextManager.kt`, `main/src/main/java/com/sickworm/intellij/jugg/project/info/ProjectModelSource.kt` | 共享 effective project model 与 Compile Context 生命周期 |
-| `IdeaProjectModelSource` | `idea/src/main/java/com/sickworm/intellij/jugg/compiler/context/IdeaProjectModelSource.kt` | IDEA module/JDK/source root 读取，以及 IDE + Gradle project info merge 输入 |
-| `IdeaCompileEnvironmentSource` | `idea/src/main/java/com/sickworm/intellij/jugg/compiler/context/IdeaCompileEnvironmentSource.kt` | 在 Compile Context 创建或本地 Gradle fetch 执行时读取当前 Android SDK 与 Gradle 环境 |
-| `IdeaCliRunConfigurationManager` | `idea/src/main/java/com/sickworm/intellij/jugg/project/runtime/IdeaCliRunConfigurationManager.kt` | 以 Android model suggestion 为独立配置来源创建 IDEA Jugg Run Configuration，按 Gradle task 去重，逐条 Best-effort 导入共享 CLI 配置集合，维护稳定 id、当前指针和 Gradle 成功后的实际配置 |
-| `JuggControlPanel` / `JuggToolWindowFactory` | `idea/src/main/java/com/sickworm/intellij/jugg/ide/ui/` | 仅在存在有效 Jugg Run Configuration 时创建 `Jugg Running Panel` 右侧 Tool Window；Overview / Logs / Settings 使用单一面板实例，Run Configuration 的 `More options` 直接定位 Settings |
+| `JuggInitializer` | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/loader/JuggInitializer.kt` | Registers and releases project-level plugin instances, forwards Sync events, and owns the MCP local-server lifecycle. |
+| `JuggProjectManagerListener` / `JuggGradleSyncListener` | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/` | After project opening, subscribes once to old `GradleSyncListener` semantics through `GradleSyncState`, bound to project disposable. |
+| `JuggLoader` | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/loader/JuggLoader.kt` | Loads Jugg manager in isolation, supporting hot update and embedded-JAR fallback. |
+| `JuggManagerCreator` | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/loader/JuggManagerCreator.kt` | Sets `PlatformApi.impl`, registers project logging, and creates/releases `JuggManager`. |
+| `JuggManager` | `idea/src/main/java/com/sickworm/intellij/jugg/JuggManager.kt` | IDEA project coordination entry. Injects IDEA runtime metadata; handles configuration refresh, history recovery, Compile Context binding, monitor wiring, Run/UI/MCP, and cleanup. File changes and control plane are delegated to shared managers. |
+| `FileChangeManager` / `IdeaFileChangeMonitor` | `main/.../project/change/FileChangeManager.kt`, `idea/.../project/change/IdeaFileChangeMonitor.kt` | Shared changed/deleted/build-file/Git/pending-barrier processing; IDEA only adapts VFS events to monitor contract. |
+| `CompileUiHandler` / `JuggCompileUiHandler` | `main/.../compiler/CompileUiHandler.kt`, `idea/.../compiler/JuggCompileUiHandler.kt` | Host interaction boundary for compilation. IDEA reuses the dependency dialog; manager only applies its confirmed result. |
+| `HostTaskExecutor` | `idea/src/main/java/com/sickworm/intellij/jugg/runtime/HostTaskExecutor.kt` | IDEA execution adapter for `TaskRunnerManager`, associating `Task.Backgroundable`, ProgressIndicator, and EDT state. |
+| `DeployStateManager` / `IdeaHostDeployStateResolver` | `main/.../deploy/DeployStateManager.kt`, `idea/.../deploy/IdeaHostDeployStateResolver.kt` | Shared deployment-state computation with isolated Android Studio device-state reads. |
+| `JuggRunningTask` | `idea/src/main/java/com/sickworm/intellij/jugg/ide/logic/JuggRunningTask.kt` | Background task after Run button, joining compilation, deployment, state writeback, and Run tool window. |
+| `JuggDebugProgramRunner` / `JuggDebugSessionManager` | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/JuggDebugProgramRunner.kt`, `idea/src/main/java/com/sickworm/intellij/jugg/ide/logic/JuggDebugSessionManager.kt` | Takes over Jugg + Debug executor. Jugg compile/deploy output stays in Run tool window; after success it enforces one device and attaches Java debugger through compatibility layer. |
+| `JuggConfigurationRunner` | `idea/src/main/java/com/sickworm/intellij/jugg/ide/logic/JuggConfigurationRunner.kt` | Creates and runs `JuggRunningTask`, tracking compilation and a forced reinstall on the next round. |
+| `RemoteCommandRunner` / `RemoteCommandDialog` | `idea/src/main/java/com/sickworm/intellij/jugg/ide/logic/RemoteCommandRunner.kt`, `idea/src/main/java/com/sickworm/intellij/jugg/ide/ui/RemoteCommandDialog.kt` | Runs a noninteractive command against the currently selected remote Jugg Configuration and streams output in separate Run Content. |
+| `JuggCompilerHelper` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/JuggCompilerHelper.kt` | Shared IDEA/standalone decision between incremental compilation and Gradle fallback, and compilation entry. |
+| `JuggDeployerHelper` / `IdeaDeployEnvironment` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployerHelper.kt`, `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/IdeaDeployEnvironment.kt` | Shared helper selects deployment path; IDEA Host environment provides device, ADB, prompts, debugger, and AndroidTest UI. |
+| `JuggControlPanelHost` | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/JuggControlPanelHost.kt` | Tool Window host in stable ClassLoader that retains only `JComponent`; obtains hot-updated implementation through `JuggInitializer.getManager(project)`. |
+| `JuggControlPanelModel` / `JuggEvent` | `main/src/main/java/com/sickworm/intellij/jugg/ide/controlpanel/` | Project facts, task state, and structured core events without Project/Swing dependencies. Only two entry classes are public; projections and enums are nested for IDE, MCP, and future CLI reuse. |
+| `JuggControlPanelController` | `idea/src/main/java/com/sickworm/intellij/jugg/ide/ui/JuggControlPanelController.kt` | Project-level owner of Model/Panel in hot-update layer; refreshes IDE facts, coordinates Sync/App events and Panel actions, and clears stable Host on manager disposal. |
+| `CompileContextManager` / `IProjectModelSource` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/context/CompileContextManager.kt`, `main/src/main/java/com/sickworm/intellij/jugg/project/info/ProjectModelSource.kt` | Shared effective project model and Compile Context lifecycle. |
+| `IdeaProjectModelSource` | `idea/src/main/java/com/sickworm/intellij/jugg/compiler/context/IdeaProjectModelSource.kt` | IDEA module/JDK/source-root reads and merge inputs for IDE + Gradle project info. |
+| `IdeaCompileEnvironmentSource` | `idea/src/main/java/com/sickworm/intellij/jugg/compiler/context/IdeaCompileEnvironmentSource.kt` | Reads current Android SDK and Gradle environment when creating Compile Context or running a local Gradle fetch. |
+| `IdeaCliRunConfigurationManager` | `idea/src/main/java/com/sickworm/intellij/jugg/project/runtime/IdeaCliRunConfigurationManager.kt` | Creates IDEA Jugg Run Configurations from Android model suggestions as an independent source, deduplicates by Gradle task, imports shared CLI configurations one by one on a best-effort basis, and maintains stable IDs, current pointer, and actual settings after successful Gradle builds. |
+| `JuggControlPanel` / `JuggToolWindowFactory` | `idea/src/main/java/com/sickworm/intellij/jugg/ide/ui/` | Creates the right-side `Jugg Running Panel` Tool Window only when a valid Jugg Run Configuration exists. Overview/Logs/Settings share one Panel instance; Run Configuration `More options` opens Settings directly. |
 
 ---
 
-## 3. 核心状态模型
+## 3. Core State Model
 
-| 状态 | 所属对象 | 生命周期 |
+| State | Owner | Lifecycle |
 |---|---|---|
-| `instanceSet` | `JuggInitializer` | 以 project basePath 为 key 保存 `JuggLoader`；最后一个项目释放时停止 `McpLocalServer` |
-| `JuggPathManager` | `JuggManagerCreator` / `JuggManager` | 项目级 `build/jugg` 路径、日志、数据库、classpath、MCP fetch cache 的根 |
-| `CompileContext` | `CompileContextManager` | Gradle/project info 更新后重建；被 compiler、deploy file manager、自定义编译器消费 |
-| effective project model | `CompileContextManager` | source model 与 module custom classpath 合并后的内存模型；当前不额外持久化 identity 状态 |
-| deploy history / deploy state | `DeployHistoryManager` / `DeployStateManager` | full build 后初始化，增量部署成功后 commit；启动时可从历史恢复 |
-| hasRun / selected devices | `JuggRunningTaskStatusManager` | 决定“首次运行”、stop/cancel 后是否重置，以及 hook/status 语义 |
-| run UI process handler | `CompileUiHandler` / `JuggRunningTask` | 承载日志、进度、取消状态；androidTest 时接入 Test Results console |
-| file change / Run Configuration locks | `JuggManager` | 文件变化处理与 Run Configuration 创建分别串行，禁止通过 `JuggManager` 实例锁跨业务域互相阻塞 |
-| control panel snapshot | `JuggControlPanelModel` | `JuggControlPanelController` 项目级持有；保存待处理文件、当前阶段、原始 compile/deploy 事实、会话成功统计、有界 Recent Runs 与最近 200 条核心事件；MCP、Sync、App 事件只进入事件历史，不覆盖运行任务 |
-| CLI run configuration collection | `CliRunConfigurationStore` / `IdeaCliRunConfigurationManager` | `build/jugg/config/run_configurations/<id>.json` 保存独立配置，`current_run_configuration.json` 保存当前 UUID；IDEA 配置自身持久化同一稳定 id；`CliRunConfiguration` 以 additive 字段保存 `remoteSyncExcludePatterns` 与 `isRemoteSyncExcludePatternsCustomized`，schema version 1 旧 JSON 缺字段时按未自定义读取 |
+| `instanceSet` | `JuggInitializer` | Maps project basePath to `JuggLoader`; stops `McpLocalServer` after the last project is released. |
+| `JuggPathManager` | `JuggManagerCreator` / `JuggManager` | Project root for `build/jugg` paths, logs, database, classpath, and MCP fetch cache. |
+| `CompileContext` | `CompileContextManager` | Rebuilt after Gradle/project-info updates; consumed by compiler, deploy-file manager, and custom compilers. |
+| Effective project model | `CompileContextManager` | In-memory merger of source model and module custom classpath; currently persists no additional identity state. |
+| Deploy history/state | `DeployHistoryManager` / `DeployStateManager` | Initialized after a full build, committed after successful incremental deployment, recoverable from history at startup. |
+| hasRun / selected devices | `JuggRunningTaskStatusManager` | Controls “first run,” resetting after stop/cancel, and hook/status semantics. |
+| Run UI process handler | `CompileUiHandler` / `JuggRunningTask` | Carries logs, progress, and cancellation state; androidTest connects a Test Results console. |
+| File-change / Run Configuration locks | `JuggManager` | File-change handling and Run Configuration creation are serialized separately; do not use the `JuggManager` instance lock to block unrelated domains. |
+| Control-panel snapshot | `JuggControlPanelModel` | Project-level `JuggControlPanelController` retains pending files, current phase, raw compile/deploy facts, session success statistics, bounded Recent Runs, and latest 200 core events. MCP, Sync, and App events enter event history only, without replacing a running task. |
+| CLI Run Configuration collection | `CliRunConfigurationStore` / `IdeaCliRunConfigurationManager` | `build/jugg/config/run_configurations/<id>.json` stores independent configurations; `current_run_configuration.json` stores current UUID. IDEA configuration persists the same stable ID. `CliRunConfiguration` additively stores `remoteSyncExcludePatterns` and `isRemoteSyncExcludePatternsCustomized`; old schema-version-1 JSON lacking them is read as not customized. |
 
 ---
+## 4. Core Call Chain
 
-## 4. 核心调用链路
-
-### 4.1 插件初始化与项目上下文恢复
+### 4.1 Plugin Initialization and Project-Context Recovery
 
 ```text
 IDE project opened
   -> JuggProjectManagerListener.projectOpened(project)
      -> JuggInitializer.init(project)
-        创建 JuggLoader，注册到 instanceSet，并启动 McpLocalServer
-     -> 反射调用 GradleSyncState.subscribe(project, JuggGradleSyncListener, project)
-        每个 project lifecycle 只订阅一次，project dispose 时自动断开
+        create JuggLoader, register in instanceSet, start McpLocalServer
+     -> reflectively call GradleSyncState.subscribe(project, JuggGradleSyncListener, project)
+        subscribe once per project lifecycle; disconnect on project disposal
   -> JuggManagerCreator.create()
-     设置 IdeaPlatformApi，创建 JuggPathManager，注册 JuggLogger
+     set IdeaPlatformApi, create JuggPathManager, register JuggLogger
   -> JuggManager.init()
-     创建 IDEA RuntimeInfo，再由 Init Jugg 后台任务首次转换并迁移旧 PropertiesComponent 字段，失败时下次启动重试，然后显式初始化 Host-neutral JuggServer；settings 在首次访问时自动加载
-     通过 ProjectCustomConfigManager 刷新 custom config，初始化 AsDeployerCompat、min api、project info 与历史目录；已有非默认 Jugg Run Configuration 时立即判定可用并逐条导入共享 profile，无配置且 Android model suggestion 可用时按 suggestion 创建，启动阶段不生成 ProjectInfo fallback
+     create IDEA RuntimeInfo; first Init Jugg background task converts and migrates old PropertiesComponent fields, retrying next startup on failure; explicitly initialize Host-neutral JuggServer; load settings on first access
+     refresh custom config through ProjectCustomConfigManager; initialize AsDeployerCompat, min API, project info, and history directory; with existing non-default Jugg Run Configuration, mark ready and import shared profiles one by one; otherwise create from Android model suggestion if available, without ProjectInfo fallback at startup
   -> JuggManager.recoverDeployContext()
-     从 deploy history 恢复 compile context、APK、changed files，避免无必要全量构建
+     restore compile context, APKs, and changed files from deployment history to avoid an unnecessary full build
   -> background tasks
-     预初始化 deployment service、检查更新；已安装 CLI 时先按 embedded tooling build 刷新 IDEA 管理的 standalone runtime，再执行 CLI/skills auto update，MCP fetch cleanup 保持普通后台任务
+     preinitialize deployment service and check updates; if CLI installed, first refresh IDEA-managed standalone runtime according to embedded tooling build, then auto-update CLI/skills; MCP fetch cleanup stays a normal background task
 ```
 
-`recoverDeployContext()` 只在 deploy history 有可恢复信息时生效；没有历史时应提示先跑 Gradle/full compile，而不是强行构造增量上下文。
+`recoverDeployContext()` applies only with recoverable deployment history. Without history, prompt for Gradle/full compilation rather than fabricating incremental context.
 
-`JuggCliAutoUpdater` 仅在 `~/.jugg/bin` 已存在时运行，比较插件内 `docs-skills.zip` 与 `~/.jugg/skills/jugg-android-dev-loop/SKILL.md` 的 `version:`。bundled 更高才覆盖 CLI 和已安装 skill。触发条件是 `SKILL.md` 版本，不是 `CLI_VERSION`。变更规则见 `08_cli_tools_list.md` §3.7。
+`JuggCliAutoUpdater` runs only when `~/.jugg/bin` exists. It compares `version:` of bundled `docs-skills.zip` and `~/.jugg/skills/jugg-android-dev-loop/SKILL.md`, replacing CLI and installed skill only when bundled version is higher. The trigger is `SKILL.md` version, not `CLI_VERSION`. See `08_cli_tools_list.md` §3.7 for change rules.
 
-插件热更新依赖一条刻意收窄的 ClassLoader 边界。`JuggLoader` 根据 load list 选择 embedded 或 hot-update jars，并用代理把 `IJuggManagerCreator` / `IJuggManagerCaller` 调用跨回稳定 ClassLoader；创建热更新实例失败时直接回退 embedded jars，保证项目仍能打开。`loader`、`ide`、IntelliJ API 以及少量跨边界 DTO 固定由原 ClassLoader 加载，避免 IDE 已注册 extension/action 的 class identity 改变；`JuggManagerCreator` 例外由热更新 ClassLoader 加载，使主要业务实现能够替换。
+Plugin hot update depends on a deliberately narrow ClassLoader boundary. `JuggLoader` chooses embedded or hot-update JARs by load list and proxies `IJuggManagerCreator` / `IJuggManagerCaller` calls back across the stable ClassLoader. If creating a hot-updated instance fails, it falls back immediately to embedded JARs so the project still opens. `loader`, `ide`, IntelliJ API, and a few cross-boundary DTOs stay under the original ClassLoader to preserve class identity of registered IDE extensions/actions. `JuggManagerCreator` is the exception loaded by the hot-update ClassLoader, so main business behavior can change.
 
-更新下载采用“热加载 + 标准安装”双通道：只下载缺失 jar，逐个校验 md5，文件齐全后通过临时文件替换 metadata；兼容热更新时再切换 load list，使之后新打开或重新打开的工程使用新 ClassLoader。无论能否热更新，都会把 jars 打成插件 zip，并通过反射探测 `PluginInstaller.installAfterRestart()` 的两个已知签名，确保下次 IDE 启动落到标准安装版本，同时避免发布字节码静态链接内部 API；若服务端标记必须 reinstall，则不更新 load list，只走冷安装。热更新因此不是在当前 manager 上替换 class，也不能让稳定边界中新增加的方法或类型自动生效。
+Update downloads use two channels: hot load and standard installation. Download only missing JARs, verify md5 individually, and replace metadata through temporary files once all files exist. For a compatible hot update, then switch the load list so subsequently opened/reopened projects use the new ClassLoader. Whether or not hot update is possible, bundle JARs as a plugin ZIP and reflectively probe both known signatures of `PluginInstaller.installAfterRestart()` to install the standard version on the next IDE start without static linkage to an internal API. If the server requires reinstall, do not update the load list; use cold install only. Hot update does not replace classes inside the current manager and cannot make new methods/types on the stable boundary take effect automatically.
 
-Compile Context 消费方当前由 `JuggManager` 按 `DeployFileManager → JuggCompiler → FileChangesHandler → FileChangeManager/GitFileChangesDetector → CustomCompilerManager` 顺序关联。`JuggManager.dispose()` 关闭本地 Gradle project info executor，并释放 custom compiler classloader、deploy file runtime、TaskRunner 与 coroutine scope。
+Current Compile Context consumers are rebound by `JuggManager` in this order: `DeployFileManager → JuggCompiler → FileChangesHandler → FileChangeManager/GitFileChangesDetector → CustomCompilerManager`. `JuggManager.dispose()` closes the local Gradle project-info executor and releases the custom-compiler classloader, deploy-file runtime, TaskRunner, and coroutine scope.
 
-`CompileContextManager` 与 `GradleProjectInfoLocalFetchManager` 已下沉 `main`。IDEA 通过 `IdeaProjectModelSource` 提供 host model，通过 `IdeaCompileEnvironmentSource` 按使用时读取 Android SDK 与 Gradle 环境；本地 Gradle project info fetch 继续使用共享 `TaskRunnerManager` 保留项目锁、后台任务和进度语义，不再持有 IDEA `Project`。
+`CompileContextManager` and `GradleProjectInfoLocalFetchManager` now live in `main`. IDEA supplies host model through `IdeaProjectModelSource` and reads Android SDK/Gradle environment at use time through `IdeaCompileEnvironmentSource`. Local Gradle project-info fetch retains project locking, background-task, and progress semantics through shared `TaskRunnerManager` rather than owning IDEA `Project`.
 
-`DeployFileManager` 可在构造期直接创建 `ConstRefEngine` 对象，但 `ConstRefEngine` 构造期不能初始化 SQLite database、repo fingerprint store 或 impact resolver，避免全局 SQLite 缓存损坏阻断 manager 创建。这些 ConstRef runtime 资源由 `ConstRefEngine` 在 `updateModuleInfos()`、源码变更事件、编译前 readiness、on-demand 分析、影响查询或 commit ack 首次需要时懒初始化；失败后降级为 no-op，主初始化、编译和部署继续。
+`DeployFileManager` may construct a `ConstRefEngine` object immediately, but the `ConstRefEngine` constructor must not initialize SQLite database, repo fingerprint store, or impact resolver; corrupted global SQLite cache must not prevent manager creation. `ConstRefEngine` lazily initializes these runtime resources when first needed for `updateModuleInfos()`, source-change events, precompile readiness, on-demand analysis, impact query, or commit acknowledgment. Failure degrades ConstRef to no-op; main initialization, compilation, and deployment continue.
 
-`FileChangesHandler` 在 `CompileContext` 初始化后，以 IDE 工程目录和所有参与编译模块的根目录作为目录扫描范围。目录事件在调用 `listFiles()` 前先判断是否与该范围存在祖先或子孙关系；无关的全局目录不会递归展开，工程目录外的编译模块仍可沿其父目录分支被发现。每个模块都会用本地 `ModuleInfo.projectRootDir/moduleRootDir` 与 `buildDirRelativePath` 还原实际 build directory，并把它和传统 `${moduleRootDir}/build` 作为统一排除边界；不能直接使用远程 compile context 中可能已映射到 classpath 备份目录的 `buildPathInfo.buildDir`。目录事件在递归前剪枝，普通 changed file 在类型识别前过滤。删除事件只负责移除此前已登记的路径，不重复执行该过滤。该边界不依赖 build directory 是否位于 module root 内，也不会回溯清理当前内存中已有的变化。
+After `CompileContext` initialization, `FileChangesHandler` scans directories within the IDE project directory and roots of all participating compilation modules. Before `listFiles()` on a directory event, it checks whether the directory has an ancestor/descendant relationship with that scope. Unrelated global directories are not recursively expanded, while compilation modules outside the project directory remain discoverable along their parent branches. For each module, restore its actual local build directory from `ModuleInfo.projectRootDir/moduleRootDir` and `buildDirRelativePath`, and exclude both it and conventional `${moduleRootDir}/build`. Do not use remote Compile Context `buildPathInfo.buildDir`, which may map to a classpath-backup directory. Prune directory events before recursion and filter ordinary changed files before type recognition. Delete events only remove previously registered paths and do not repeat this filter. This boundary works whether or not build directory lies within module root, and does not retroactively clean changes already in memory.
 
-### 4.2 Gradle Sync 到上下文重建
+### 4.2 From Gradle Sync to Context Rebuild
 
-`JuggProjectManagerListener` 在项目打开后调用三参数 `GradleSyncState.subscribe`，只注册一个 `JuggGradleSyncListener`，并将订阅绑定到 project disposable。该静态入口在 211 已存在；221 及后续版本会由 Android Studio 内部 adapter 转发到 root-aware topic，因此不再同时注册两个 topic，也不会重复上报同一事件。由于 `GradleSyncState` 在支持范围内存在 class/interface 形态变化，入口通过反射调用，发布字节码不直接链接该类型。
+After project opening, `JuggProjectManagerListener` calls three-argument `GradleSyncState.subscribe`, registering just one `JuggGradleSyncListener` bound to project disposable. This static entry exists in 211; Android Studio internally forwards it to the root-aware topic on 221+. Do not register both topics or report one event twice. Because `GradleSyncState` changes class/interface shape within supported versions, invoke it reflectively so published bytecode does not directly link the type.
 
 ```text
 JuggGradleSyncListener
   -> JuggInitializer.onSyncEvent(project, syncEvent)
   -> JuggManager.onSyncEvent()
-     SUCCEEDED: updateProjectInfo(isAfterSync = true)，再走 tryCreateRunConfigurations(isSyncFinished = true)
-     SKIPPED: updateProjectInfo(isAfterSync = false)，再走同一创建/对账入口
-     STARTED/FAILED: 通知 dependencyChangeManager
+     SUCCEEDED: updateProjectInfo(isAfterSync = true), then tryCreateRunConfigurations(isSyncFinished = true)
+     SKIPPED: updateProjectInfo(isAfterSync = false), then same creation/reconciliation entry
+     STARTED/FAILED: notify dependencyChangeManager
   -> CompileContextManager.updateCompileContext()
   -> IdeaProjectModelSource + JuggProjectInfoMerger
   -> GradleProjectInfoLocalFetchManager.runUpdateIfNeeded()
   -> JuggManager.rebindCompileContext()
-     更新 DeployFileManager、JuggCompiler、FileChangesHandler、FileChangeManager/GitFileChangesDetector、CustomCompilerManager
+     update DeployFileManager, JuggCompiler, FileChangesHandler, FileChangeManager/GitFileChangesDetector, CustomCompilerManager
 ```
 
-Sync 成功会重置 hasRun，避免旧运行状态让“无文件变化”判断污染下一轮。
+Successful Sync resets hasRun so stale run state cannot contaminate the next “no file changes” decision.
 
-Sync 完成或被 IDE 标记为 `SKIPPED` 后，先更新 effective `JuggProjectInfo`，再读取普通 Android Run Configuration 对应的最新 Android model suggestion，并在同一个 project write lock 内完成导入、创建和 Active Build Variant 选择。
+After Sync succeeds or IDE marks it `SKIPPED`, update effective `JuggProjectInfo` first. Then read the latest Android model suggestions for ordinary Android Run Configurations and perform import, creation, and Active Build Variant selection under one project write lock.
 
-创建阶段以 suggestion 为独立来源：`IdeaCliRunConfigurationManager.reconcileActiveBuildVariants()` 先逐条导入已有 Jugg 配置，再为每条可解析的 suggestion 创建标准 `assembleVariant` 配置。suggestion 必须能精确解析为单 task `./gradlew :modulePath:assemble{Variant}`、module path 合法，且 command variant 与非空 `variantName` 一致，否则跳过该条、不伪造稳定身份。去重只在两侧都能唯一识别为单个 Gradle task 时按标准化 task 比较（`assembleDebug --offline` 与标准 suggestion 等价，`deployDebug` / `uploadDebug` 不等价）；任一侧为多 task、无法唯一识别或格式不受支持时退化为精确完整 command 比较。suggestion 生成的稳定 id 若已被 command 不是该精确标准 command 的现有配置占用，则跳过创建、保留现有配置和共享 Store。首个模块配置沿用 `jugg:<module>` 名称；同模块已有基础名称时使用 `jugg:<module>:<variant>`，再通过 `RunManager.suggestUniqueName()` 处理冲突。IDEA 名称与共享 Store 的 `CliRunConfiguration.name` 必须一致。
+Suggestion is an independent creation source. `IdeaCliRunConfigurationManager.reconcileActiveBuildVariants()` imports existing Jugg configurations one by one, then creates a standard `assembleVariant` configuration for each resolvable suggestion. A suggestion must resolve exactly to one task `./gradlew :modulePath:assemble{Variant}`, with valid module path and command variant matching nonempty `variantName`; otherwise skip it without inventing stable identity. Deduplicate by normalized task only when both sides uniquely identify one Gradle task (`assembleDebug --offline` equals a standard suggestion; `deployDebug` / `uploadDebug` do not). If either side has multiple tasks, cannot be identified uniquely, or uses unsupported format, compare entire commands exactly. If a suggestion-generated stable ID is held by an existing configuration whose command differs from the exact standard command, skip creation and retain that configuration and shared Store. Name the first module configuration `jugg:<module>`; when the base name is already used in that module, use `jugg:<module>:<variant>`, then resolve conflicts through `RunManager.suggestUniqueName()`. IDEA name and shared Store `CliRunConfiguration.name` must match.
 
-选择阶段只消费创建后的 IDEA settings 和 suggestions，不再遍历 project info 补齐配置，也不把 suggestion 写回 CompileContext。只要 selected command 与 suggestion command 都精确符合单 task 生成命令、完整 Gradle module path 一致、suggestion 的 command 与 `variantName` 一致且该 module path 只有一个 suggestion，才继续切换；module path 与 variant 直接从 command 解析，因此 `:zxphone5.0` 这类 path segment 内的点号不会被误判为层级。目标 variant 已被自定义 target（command 不是该目标标准生成命令的配置）占用时优先否决，即使标准 suggestion 配置刚刚创建也不抢占当前选择。否则目标优先使用稳定配置 id + 精确 command，其次兼容唯一精确匹配 suggestion command + APK output 的旧配置，两者都不存在时才创建稳定目标。附加 Gradle 参数、多 task、`deployDebug` / `packageDebug` / `uploadDebug`、`happyBuild` 等自定义 command，以及仅存在同 variant 自定义目标配置、suggestion 缺失或冲突的场景都保持用户选择；允许漏切，不通过简单模块名或 task 后缀猜测用户意图。普通 Android Run Configuration 只提供 Sync 当下的 active variant 和完整 Gradle module identity，不会被导入共享 CLI profile。
+Selection consumes only the resulting IDEA settings and suggestions, without traversing project info to complete configurations or writing suggestions back to CompileContext. Switch only if selected and suggestion commands both exactly follow the generated single-task form, their complete Gradle module paths match, suggestion command matches `variantName`, and that module path has exactly one suggestion. Parse module path and variant directly from command, so a dot within `:zxphone5.0` is not mistaken for hierarchy. An existing custom target whose command is not the target's standard generated command vetoes switching, even if a standard suggestion configuration was just created. Otherwise prefer a target with stable configuration ID and exact command, then a unique legacy configuration exactly matching suggestion command and APK output. Create a stable target only if neither exists. Additional Gradle arguments, multiple tasks, custom `deployDebug` / `packageDebug` / `uploadDebug` / `happyBuild`, a same-variant custom target alone, or missing/conflicting suggestions all preserve user selection. Missing a switch is acceptable; do not infer user intent from simple module name or task suffix. Ordinary Android Run Configuration supplies only current active variant and full Gradle module identity at Sync; it is not imported into shared CLI profiles.
 
-导入与创建逐条隔离：单条配置身份无法确认时只跳过该条共享导入，IDEA 配置保持可运行，其他配置继续。身份解析不抛异常，按“本轮成功构建的精确标准 command → 当前/历史共享配置中已确认的身份 → 可用 ProjectInfo”降级；没有任何来源能确认时不写入共享 Store，禁止伪造 module 或 variant。因此 project info 全部 `moduleType=Unknown` 时，只要 command 本身是标准生成命令，导入和回写仍然成立。
+Import and creation are isolated per configuration. When identity of one configuration cannot be established, skip only its shared import; keep it runnable in IDEA and continue others. Identity resolution does not throw and degrades through exact standard command successfully built this run, confirmed identity in current/historical shared configurations, then available ProjectInfo. With no confirming source, do not write shared Store or invent module/variant. Thus even if every project-info module has `moduleType=Unknown`, standard generated commands still permit import and writeback.
 
-suggestion 全不可用、没有任何非默认 Jugg 配置且 project info 能确定 application module 时，`ensureFallbackConfiguration()` 生成一个确定性 ProjectInfo fallback；仍没有可运行配置时按现有指数退避重试（最多 7 次），每次重试重新读取 suggestion 与 project info。成功出口以 RunManager 中存在非默认 Jugg 配置为准，并把 Jugg Tool Window 设为 available。
+If all suggestions are unavailable, there are no non-default Jugg configurations, and project info identifies an application module, `ensureFallbackConfiguration()` creates one deterministic ProjectInfo fallback. If no runnable configuration remains, use existing exponential-backoff retry up to seven times, rereading suggestions and project info each time. Success means RunManager holds a non-default Jugg configuration; make Jugg Tool Window available then.
 
-建议配置的 APK output pattern 从 Android Studio Android model 的实际 build folder 生成，支持 `${moduleDir}/build` 和项目根集中式 `build/${moduleName}`。该路径只用于创建新的 Jugg Configuration；Sync 不修改已有配置的 APK output pattern，也不删除或覆盖已有 command、APK output 与远端字段。
+Generate suggestion APK-output pattern from Android Studio Android model's actual build folder, supporting `${moduleDir}/build` and centralized project-root `build/${moduleName}`. It is used only for new Jugg Configurations. Sync must not change an existing configuration's APK-output pattern or delete/overwrite its command, APK output, or remote fields.
 
-suggestion 创建的配置直接使用 suggestion 的完整 Gradle module path、variant 和 APK output；只有 ProjectInfo fallback 才使用 `moduleStdPath + buildVariant`。Android model suggestion 中的 Gradle path 保留原始 segment，包含点号的模块名不会被拆成多级 path；included build 仍保留 build identity。
+Suggestion-created configurations use its complete Gradle module path, variant, and APK output directly. Only ProjectInfo fallback uses `moduleStdPath + buildVariant`. Preserve original segments in Android model Gradle paths; dotted module names are not split into hierarchy, and included builds retain build identity.
 
-IDEA VFS 事件由 `IdeaFileChangeMonitor` 转成 changed/delete 批次后交给 `FileChangeManager`。共享 manager 使用 Runtime 实例内锁串行更新 deploy file 和 dependency 状态；批次处理本身不占用 project write lock，但 `DeployFileManager` 提交的 `source_files.db` 新增和删除后台写任务必须进入 Project Runtime Lock，避免 runtime owner 切换后旧 Runtime 继续写工程数据库。`DeployStateManager.beginFileProcessing/endFileProcessing` 保证编译不会抢在事件落库前开始。Git checkout/pull 的补偿检测也位于 `main`。compile-on-save 的设置读取与最终编译调用暂留 `JuggManager`，共享 manager 只返回本批次是否存在有效变化。
+`IdeaFileChangeMonitor` converts IDEA VFS events into changed/delete batches for `FileChangeManager`. The shared manager serializes deploy-file and dependency-state updates with a Runtime-instance lock. Batch handling itself holds no project write lock, but background writes for added/deleted `source_files.db` entries submitted by `DeployFileManager` must enter Project Runtime Lock so an old Runtime cannot keep writing the project database after owner switch. `DeployStateManager.beginFileProcessing/endFileProcessing` prevents compilation from racing ahead of event persistence. Git checkout/pull compensation detection also lives in `main`. Compile-on-save setting reads and final compile calls remain temporarily in `JuggManager`; shared manager reports only whether this batch has a valid change.
 
-### 4.3 Run 到编译部署
+### 4.3 Run Through Compilation and Deployment
 
 ```text
 JuggRunConfiguration / JuggAndroidTestRunConfiguration
   -> JuggManager.runTask(options, executor, runProfile, androidTestRunSpec)
   -> JuggConfigurationRunner.runTask()
   -> JuggRunningTask.run()
-     在后台 Run Jugg project write transaction 内刷新 custom config；Run 入口只调度后台任务，不在 EDT 等待 Project Runtime Lock
-     dependency start、Run tool window 状态、JuggLogger listener、server report、结构化 task event
+     refresh custom config inside background Run Jugg project write transaction; Run entry schedules background task without waiting for Project Runtime Lock on EDT
+     dependency start, Run tool-window state, JuggLogger listener, server report, structured task event
   -> JuggCompilerHelper.compile()
-     可能走增量，也可能 fallback 到 Gradle
+     incremental or Gradle fallback
   -> JuggDeployerHelper.deploy()
-     多设备逐个部署，汇总 deploy type 和失败可回退性
+     deploy devices one by one and aggregate deploy type and fallback eligibility
   -> compileUiHandler.onEnd()
-     回写 hasRun、停止日志监听、更新 UI
+     write back hasRun, stop log listener, update UI
 ```
 
-一次 Run 使用唯一 taskId。Compile、每台设备 Deploy、fallback、取消、异常和聚合终态都进入同一个 events 体系；`JuggControlPanelModel` 只接受一个终态，Current Task、Timeline、Last Deploy、Recent Activity 和 Logs 不维护第二套任务状态。
+One Run uses a unique taskId. Compile, each device Deploy, fallback, cancellation, exceptions, and aggregate terminal result enter the same event system. `JuggControlPanelModel` accepts only one terminal state; Current Task, Timeline, Last Deploy, Recent Activity, and Logs maintain no second task state.
 
-androidTest 运行必须把 `androidTestRunSpec`、`executor`、`runProfile` 一起传入 `JuggManager.runTask()`，否则 Test Results console、source navigation、rerun failed 不能完整接入。
+For androidTest, pass `androidTestRunSpec`, `executor`, and `runProfile` together to `JuggManager.runTask()` or Test Results console, source navigation, and rerun-failed support cannot be fully connected.
 
-Debug executor 仅支持普通 Jugg RunConfiguration，不接管 androidTest。Debug 仍先复用 Jugg 的编译与部署主链路；`JuggManager.runTask()` 会把该入口标记为 `isAlwaysRestartApp=true` 与 `isDebugRun=true`，确保部署后以 `am start -D -S` 重启 App，让启动阶段等待 debugger，再由兼容层请求 Android Studio 原生 attach flow 创建/激活 `XDebugSession`。Debug attach 的完整状态模型、AS 内部 API 边界与断点不可用排查见 `04_engineering_debug_attach.md`。
-
----
-
-## 5. UI 与工具入口
-
-- IDEA 的配置发现来源分两层：`SuggestRunConfiguration` 承载 Android model 的完整 Gradle identity 与当前 active variant，是创建和切换的独立输入；`CliRunConfigurationGenerator` 只在没有可用 suggestion 时基于 Gradle project info 推断单配置 fallback（优先 `app` application module，否则按稳定排序选择，variant 使用当前 `buildVariant`，缺失时为 `debug`）。启动阶段不使用 ProjectInfo fallback，避免先创建错误 module path 或旧 variant 配置。IDEA 只导入 Jugg Run Configuration；已有 profile 逐条 Best-effort 导入并更新当前指针，后续选择/修改事件继续在项目锁内同步，避免同一稳定 id 保留上次退出时的旧参数。
-- IDEA Runtime 的 CLI/MCP Gradle 调用优先当前选中的 Jugg Run Configuration；未选中 Jugg 时按最近成功 full build 的 command + target、command、列表首项依次回退。Gradle build 成功且 APK 已确认后回写本轮实际 task、APK pattern、远端字段（含 `isRemoteSyncExcludePatternsCustomized`）和 current pointer；回写基准按 current pointer、当前选中配置、ProjectInfo 单配置 fallback 依次获取，三者都不可用时跳过本轮回写，不抛异常也不伪造身份。
-- Run Configuration 的 `More options` 只负责保存配置并打开 `Jugg Running Panel` Settings；稳定桥接接口仍保留返回空 ActionGroup 的兼容方法，不再创建旧下拉菜单。
-- `Jugg Running Panel` 的稳定层只创建 `JuggControlPanelHost`；Host 经 `IJuggManagerCaller.getJuggControlPanel(page): JComponent` 挂载当前 Jugg ClassLoader 创建的真实 Panel。Model、Snapshot、Event、Controller 和具体 Panel 类型都不进入 `ide_entry` 桥接接口，后续字段与 UI 变更可通过新 ClassLoader 生效。
-- `OpenJuggControlPanelAction` 位于 `ide_entry`，只调用 Host；`JuggInitializer` 不引用 Host。Manager dispose 委托 Controller clear Host，JuggManager 自身不保存 Panel、事件枚举或 Sync taskId。
-- Overview 作为编译驾驶舱，固定展示 Run Status、Changed Files、按 Build / Device / Jugg Plugin 分组的 Quick Actions、This Session 和 Recent Runs。预处理确定真实编译路径后，`JuggCompilerHelper` 通过 `CompileUiHandler.onCompileStarted()` 发出领域通知，`JuggRunningTask` 再投影为 Control Panel 事件并捕获 undeployed 输入快照；不再记录无业务信息的 `Jugg task started`。terminal 后任务才进入 Recent Runs；原始 compile mode、deploy type、terminal category、fallback 与各阶段耗时由结构化事件传递，Panel 只负责展示映射。编译事件固定区分 `Incremental compile` 与 `Gradle compile` 的 started/completed/failed/canceled；增量无实际编译时显示 `No compile needed`。Recent Runs 每行固定展示编译模式、最终结果、总耗时和状态，其中 compile-only、编译失败、部署失败与无设备分别使用明确结果文本，成功部署展示实际 deploy type；选中后再展示 Compile / Deploy / Total 分阶段详情。Changed Files 与 Recent Runs 使用 IDE 原生可选列表，Changed Files 双击打开文件；运行耗时由 Swing Timer 每秒刷新且不写回 Model。
-- Logs 只展示 sync、compile、deploy、app、user action、CLI/MCP 等结构化核心事件，不读取或轮询 `compile_latest.log`；来源筛选默认 `ALL` 展示所有事件，`IDE` 只保留 `source=IDE`，`CLI / MCP` 保持 CLI/MCP 来源或分类过滤。级别下拉框、当前任务与 Follow 复选框及搜索框继续叠加过滤，日志列表支持多选和平台复制快捷键。
-- MCP lifecycle 固定记录 `MCP request` / `MCP response`：request detail 保留去除 `projectDir` 后的具体参数，response detail 保留 status/message/data/artifacts/errorCode；面板内容统一递归移除 `projectDir`、脱敏敏感字段并限制最大长度。
-- Model 保留 Run Configuration、selected devices、package、changed files、baseline 与 deploy history 等 Context/Health 数据，Overview 不展示 context 摘要；Settings 使用原生分组、复选框和文字 action。Quick deploy、Embed APK、Project Kotlin 与按设备 compat 只在 Gradle 注入能力开启时展示，Backup classpath 只在当前环境可用时展示；Embed APK 与 Backup classpath 保留确认流程，后者切换成功后删除 deploy history。
-- Settings 的 Deployment 按已连接设备动态展示强制 compat deploy，每次进入或再次打开 Settings 时刷新设备列表；Integrations 提供 custom server URL，Advanced 保留 mark synced / mark Gradle compiled 两个测试操作；这些入口直接复用项目级 Manager 与 Controller，不再维护独立菜单状态。
-- Overview Quick Actions 按 Build、Device、Jugg Plugin 分组；Quick Actions、Settings 文字动作、设置开关与 `Clear app data` 确认结果会记录为 User Action，Tab、日志筛选和列表选择等纯浏览操作不记录。`Clear app data` 复用通用确认弹窗，确认后才执行清除 App 数据、完整 Gradle 构建和重装。`Clear Jugg Build` 保留既有清理 Jugg 项目构建数据并重新初始化项目的行为。
-- Build Quick Actions 最下方的 `Exec remote CMD` 只接受当前选中的远程 Jugg Configuration，不使用 full build history 或首个配置兜底。对话框固定展示 SSH target 与 `remoteProjectPath`，命令为空时只禁用 Run，不显示校验错误；支持从该目标最近 10 条命令中选择并回填，历史由 `JuggSettings` 按 `user + host + port + remoteProjectPath` 隔离。执行创建独立 `Jugg Remote Command` Run Content、专用 ProcessHandler 与 SSH client，不进入 `JuggConfigurationRunner` / `JuggRunningTask`；Stop 只取消本次命令，并在后台确认取消后以非零状态结束 Run Content。
-- `MockJuggControlPanelModel` 只通过真实 Model API 构造测试场景；Panel 在 real/mock model 之间切换时复用同一个订阅和 render 路径，不保留 UI 内置 `MockData`。
-- `JuggToolWindowFactory` 与 `OpenJuggControlPanelAction` 均实现 `DumbAware`；Panel 不依赖索引，IDE 处于 indexing / dumb mode 时仍可创建和打开。
-- Run Configuration 保留 `More options` 名称，点击后激活 `Jugg Running Panel` 并选中 Settings；全局 compat deploy 恒为开启且不提供开关，Settings 仅保留按设备强制 compat deploy；Tools 菜单的独立 action 仍从 Overview 打开。
-- `Check Jugg Update` 独立 action 与 Settings 均调用 `JuggManager.checkUpdates()`；更新请求无有效 backend 响应时提示配置 Custom Server，只有服务端明确返回 `isNeedUpdate=false` 时才提示已是最新版。从 Run Configuration 触发更新时，执行 `Reopen IDE` / `Reopen projects` 前会先关闭更新弹窗和外层 Run Configuration，避免模态窗口阻塞 reopen。
-- hot update 的下载、MD5 校验、metadata/load manifest 发布和过期清理由共享 `JuggHotUpdateManager` 完成；`load_manifest.json` 仅由真实 IDEA 热更新发布，IDEA 内置 jar 与 standalone CLI 安装均不会写入它。`IdeaHotUpdateCoordinator` 保留 IDEA 定时检查、频控、notification、plugin install/restart 与 reopen project。`JuggHotUpdateBootstrap` 在 Loader 创建 hot-update classloader 前无锁只读 manifest，其跨 classloader API 仅暴露 JDK 平台类型，禁止返回 hot-update Runtime DTO。
-- `Set custom server URL` 由 `JuggManager` 与 Control Panel Controller 复用，并委托 `JuggServerChooser` 在保存非空 URL 前展示远程能力信任确认；取消确认不修改原配置，空 URL 直接恢复默认服务器。`Clean and reset Jugg` 保持原有直接删除项目状态并 reopen project 的行为。
-- `Install Jugg Skills` 由 `InstallJuggSkillsDialog` 触发 `JuggSkillInstaller`，会安装内置 skills、CLI、hooks；安装 CLI 或 hooks 前先检测 Python 3.7+（`python3` 优先，`python` 回退），未满足时不写入 CLI 或 hook 配置。成功安装 Claude hooks 且检测到 CC Switch 配置目录时，安装结果关闭后会提示用户导出 Common Config JSON，不提供单独的 CC Switch 安装选项，也不直接修改 CC Switch 配置。选择 Codex skill 时额外通过 `CodexPermissionRuleInstaller` 写入 Codex home（优先 `CODEX_HOME`，否则 `~/.codex`）下 `rules/default.rules` 的 Jugg CLI `prefix_rule`，避免 Jugg 本地端口探测反复触发提权确认，并在安装日志记录 rules file、prefix 与 installed/already_installed/fail 状态；安装完成后导出 `~/.jugg/skills/install/agent_setup.md`。hook 与 CLI 细节以 `docs/skills` 和 `08_cli_tools_list.md` 为准。
-- 内置 standalone Bundle 每次手动安装都会替换当前 active runtime，不限制版本降级或 channel 切换，并为 `~/.jugg/bin/jugg.py` 写入可执行权限。IDEA 启动后台任务只自动刷新已经安装且 `managedBy=idea` 的 runtime，并以 `toolingReleaseBuildId` 判断 embedded tooling 是否变化；相同 tooling 上的 compatible hot update 与 `managedBy=external` 的 runtime 保持不变。自动刷新失败只记录 warn，不阻断 CLI/skills 更新；手动安装失败保留进程输出并弹出 `Install Failed` 错误窗口。
-- CLI/MCP/RPC 在 EDT 上读取 IDE 当前选择项、Jugg configuration 列表和配置 options。优先使用当前选中的 Jugg configuration；选择项不可用或不是 Jugg configuration 时，先按最近一次成功 Gradle full build 的 `compileCommand + buildTarget` 完全匹配，再按 `compileCommand` 完全匹配，最后回退到列表中的首个 Jugg 配置。同层存在多个匹配项时使用该层首项；最终首项兜底会打印 `warn`，同时以精简 `debug` 日志记录 selected、full build、resolution source 与 chosen configuration。运行时会创建对应 Run content，但默认不激活 Run tool window；失败等需要用户注意的场景才显式 show。
-- `reportIssue()` 在准备诊断数据和上传期间使用模态进度窗口；生成经过脱敏的白名单诊断候选项后，确认窗口说明运行环境日志已脱敏并用于问题分析，只展示 IDEA `log/` 和 standalone `log/standlone_cli/` 按修改时间合并后的最近 10 个 Jugg 日志文件的路径和 KB/MB 大小，默认全选，并将 Jugg 日志置顶且锁定选择。IDE、Gradle 和当前 included build 的 project info 快照作为默认勾选、可取消的高敏感度候选项，结构化脱敏后写入 `diagnostics/project-info/`；上传的 standalone 日志保留 `diagnostics/logs/standlone_cli/` 层级。上传按钮显示 `Upload logs`；选择仅保存时切换为 `Create Diagnostics Bundle`，生成后由系统文件管理器选中 ZIP。Report ID 保持为 8 位小写十六进制。上传固定提交到 `https://jugg.sickworm.com/report_issue`，不展示或持久化上传地址；结果页不展示临时 ZIP 路径。`build/jugg/tmp/diagnostics` 中达到 7 天的文件在项目启动后的延迟清理时机单独清理。
+Debug executor covers ordinary Jugg RunConfiguration only, not androidTest. Debug first reuses Jugg's compile/deploy path. `JuggManager.runTask()` sets `isAlwaysRestartApp=true` and `isDebugRun=true`; after deployment it restarts with `am start -D -S` so the app waits for debugger during startup. Compatibility layer then asks Android Studio's native attach flow to create/activate `XDebugSession`. See `04_engineering_debug_attach.md` for full state model, AS internal API boundary, and breakpoint investigation.
 
 ---
 
-## 6. 排查入口
+## 5. UI and Tool Entry Points
 
-| 现象 | 优先入口 |
+- IDEA configuration discovery has two sources. `SuggestRunConfiguration` carries full Android model Gradle identity and current active variant as independent input for creation/switching. `CliRunConfigurationGenerator` infers a single fallback from Gradle project info only when no usable suggestion exists (prefer an application module named `app`, otherwise stable ordering; use current `buildVariant`, default `debug`). Startup does not use ProjectInfo fallback, avoiding premature configurations with wrong module path or stale variant. IDEA imports Jugg Run Configurations only. Existing profiles import one by one on a best-effort basis and update the current pointer; later selection/edit events continue syncing under project lock so a stable ID does not retain parameters from the previous IDE exit.
+- IDEA Runtime CLI/MCP Gradle calls prefer the currently selected Jugg Run Configuration. If none is selected, fall back in order to exact command + target from the latest successful full build, exact command, then first configuration in the list. Once Gradle build succeeds and APK is confirmed, write back actual task, APK pattern, remote fields (including `isRemoteSyncExcludePatternsCustomized`), and current pointer. Choose writeback baseline from current pointer, selected configuration, then ProjectInfo single-configuration fallback. If none is available, skip writeback without throwing or inventing identity.
+- Run Configuration `More options` saves configuration and opens `Jugg Running Panel` Settings. The stable bridge retains a compatibility method returning an empty ActionGroup; it no longer creates the old dropdown.
+- Stable layer of `Jugg Running Panel` creates only `JuggControlPanelHost`. Through `IJuggManagerCaller.getJuggControlPanel(page): JComponent`, Host mounts the actual Panel created by current Jugg ClassLoader. Model, Snapshot, Event, Controller, and concrete Panel types stay outside `ide_entry` bridge interfaces, letting fields and UI change under a new ClassLoader.
+- `OpenJuggControlPanelAction` lives in `ide_entry` and calls only Host. `JuggInitializer` does not reference Host. On manager disposal, Controller clears Host; `JuggManager` itself retains no Panel, event enum, or Sync taskId.
+- Overview is the compilation cockpit, always showing Run Status, Changed Files, Quick Actions grouped by Build / Device / Jugg Plugin, This Session, and Recent Runs. After preprocessing determines the actual compile path, `JuggCompilerHelper` emits a domain notification through `CompileUiHandler.onCompileStarted()`; `JuggRunningTask` projects it into Control Panel events and captures the undeployed-input snapshot. Do not record an uninformative `Jugg task started`. A task enters Recent Runs only after terminal state. Structured events convey raw compile mode, deploy type, terminal category, fallback, and phase durations; Panel only maps them for display. Compile events distinguish started/completed/failed/canceled for `Incremental compile` and `Gradle compile`; an incremental run without actual compilation displays `No compile needed`. Each Recent Runs row always shows compile mode, final result, total duration, and status, with specific result text for compile-only, compile failure, deployment failure, and no device; successful deployment shows actual deploy type. Selecting a row reveals Compile / Deploy / Total phase detail. Changed Files and Recent Runs use native IDE selectable lists; double-clicking a changed file opens it. A Swing Timer refreshes elapsed run time each second without writing Model.
+- Logs displays only structured core events from Sync, compile, deploy, app, user actions, CLI/MCP, and similar sources; it does not read or poll `compile_latest.log`. Source filter `ALL` shows every event by default, `IDE` keeps only `source=IDE`, and `CLI / MCP` filters by CLI/MCP source or category. Level dropdown, current-task and Follow checkboxes, and search compose with source filtering. Log list supports multiselection and platform copy shortcuts.
+- MCP lifecycle always records `MCP request` / `MCP response`. Request detail retains concrete arguments after removing `projectDir`; response detail retains status/message/data/artifacts/errorCode. Panel content recursively removes `projectDir`, redacts sensitive fields, and enforces a maximum length.
+- Model retains Context/Health facts such as Run Configuration, selected devices, package, changed files, baseline, and deployment history; Overview does not display a context summary. Settings uses native groups, checkboxes, and text actions. Quick deploy, Embed APK, Project Kotlin, and per-device compat appear only with Gradle injection enabled; Backup classpath appears only when available in the current environment. Embed APK and Backup classpath keep confirmation; successful Backup classpath toggling deletes deployment history.
+- Settings Deployment lists forced compat deployment dynamically by connected device and refreshes device list on every entry or reopen. Integrations offers custom server URL; Advanced retains mark synced / mark Gradle compiled test actions. These entries reuse project Manager and Controller rather than independent menu state.
+- Overview Quick Actions are grouped by Build, Device, and Jugg Plugin. Quick Actions, Settings text actions, setting switches, and confirmed `Clear app data` record User Action events; browsing Tab, log filters, and list selections do not. `Clear app data` uses the common confirmation dialog and only then clears app data, runs a full Gradle build, and reinstalls. `Clear Jugg Build` keeps its existing behavior of clearing project Jugg build data and reinitializing the project.
+- `Exec remote CMD` at the bottom of Build Quick Actions accepts only the currently selected remote Jugg Configuration; it does not fall back to full-build history or the first configuration. The dialog shows SSH target and `remoteProjectPath`. Empty command merely disables Run without an error. Users can select and refill from the target's latest 10 commands; `JuggSettings` isolates history by `user + host + port + remoteProjectPath`. Execution creates separate `Jugg Remote Command` Run Content, ProcessHandler, and SSH client; it does not enter `JuggConfigurationRunner` / `JuggRunningTask`. Stop cancels only this command and closes Run Content with nonzero status after background cancellation confirmation.
+- `MockJuggControlPanelModel` constructs test scenarios only through real Model APIs. Panel uses the same subscription/render path for real and mock models, without embedded UI `MockData`.
+- `JuggToolWindowFactory` and `OpenJuggControlPanelAction` implement `DumbAware`; Panel does not depend on indexes and can be created/opened during IDE indexing/dumb mode.
+- Run Configuration keeps the name `More options`; clicking activates `Jugg Running Panel` on Settings. Global compat deployment is always enabled with no switch; Settings retains only per-device forced compat. Independent Tools-menu actions still open from Overview.
+- `Check Jugg Update` action and Settings both call `JuggManager.checkUpdates()`. If update request has no valid backend response, prompt for Custom Server; show “already latest” only when server explicitly returns `isNeedUpdate=false`. On update initiated from Run Configuration, close both update dialog and outer Run Configuration before `Reopen IDE` / `Reopen projects` to avoid modal windows blocking reopening.
+- Shared `JuggHotUpdateManager` handles hot-update downloads, MD5 verification, metadata/load-manifest publishing, and stale cleanup. Only actual IDEA hot-update publishing writes `load_manifest.json`; built-in IDEA JARs and standalone CLI installation do not. `IdeaHotUpdateCoordinator` retains IDEA scheduled checks, rate limiting, notifications, plugin install/restart, and project reopen. Before Loader creates a hot-update ClassLoader, `JuggHotUpdateBootstrap` reads manifest lock-free; its cross-ClassLoader API exposes JDK platform types only and must not return hot-update Runtime DTOs.
+- `Set custom server URL` is reused by `JuggManager` and Control Panel Controller, delegating to `JuggServerChooser` for a remote-capability trust confirmation before saving a nonempty URL. Canceling confirmation leaves original configuration; an empty URL restores the default server directly. `Clean and reset Jugg` retains direct deletion of project state followed by project reopen.
+- `Install Jugg Skills` invokes `JuggSkillInstaller` from `InstallJuggSkillsDialog` to install bundled skills, CLI, and hooks. Before CLI or hooks installation, detect Python 3.7+ (`python3` first, `python` fallback); without it, write no CLI or hook configuration. After successful Claude-hook installation, if a CC Switch configuration directory exists, prompt to export Common Config JSON when install result closes. There is no separate CC Switch install option and no direct CC Switch configuration edit. Selecting Codex skill additionally writes a Jugg CLI `prefix_rule` through `CodexPermissionRuleInstaller` to `rules/default.rules` under Codex home (`CODEX_HOME` preferred, otherwise `~/.codex`) so local-port probes do not repeatedly seek elevation. Install log records rules file, prefix, and installed/already_installed/fail status. On completion, export `~/.jugg/skills/install/agent_setup.md`. For hook/CLI details, use `docs/skills` and `08_cli_tools_list.md`.
+- Every manual installation of the bundled standalone Bundle replaces active runtime, allowing version downgrade or channel switch, and makes `~/.jugg/bin/jugg.py` executable. IDEA startup background tasks auto-refresh only installed `managedBy=idea` runtime, using `toolingReleaseBuildId` to detect embedded tooling changes. Compatible hot updates on unchanged tooling and `managedBy=external` runtime remain untouched. Auto-refresh failure only warns and does not block CLI/skills updates; manual-install failure preserves process output and opens an `Install Failed` error window.
+- CLI/MCP/RPC read current IDE selection, Jugg configuration list, and options on EDT. Prefer selected Jugg configuration. If unavailable or not Jugg, try exact `compileCommand + buildTarget` from latest successful Gradle full build, then exact `compileCommand`, then first listed Jugg configuration. Use the first match at a tier. Final first-item fallback logs `warn`, plus concise `debug` details for selected, full build, resolution source, and chosen configuration. Runtime creates corresponding Run Content without activating Run tool window by default; show it explicitly when a failure or other event needs user attention.
+- `reportIssue()` displays modal progress while preparing and uploading diagnostics. After creating redacted allowlisted candidates, the confirmation explains that runtime logs are redacted for issue analysis. It shows paths and KB/MB sizes for the 10 newest Jugg logs, merged by modification time from IDEA `log/` and standalone `log/standlone_cli/`; all selected by default, with Jugg logs pinned and selection locked. IDE, Gradle, and current included-build project-info snapshots are default-selected but removable high-sensitivity candidates; after structured redaction they go under `diagnostics/project-info/`. Uploaded standalone logs retain `diagnostics/logs/standlone_cli/` hierarchy. Upload button reads `Upload logs`; save-only changes it to `Create Diagnostics Bundle`, then selects the ZIP in the system file manager. Report ID stays eight lowercase hexadecimal characters. Upload always goes to `https://jugg.sickworm.com/report_issue`; do not display or persist the upload URL. The result page does not show temporary ZIP path. Files under `build/jugg/tmp/diagnostics` at least seven days old are cleaned separately during delayed cleanup after project startup.
+
+---
+## 6. Investigation Entry Points
+
+| Symptom | Start with |
 |---|---|
-| 插件初始化后没有 manager | `JuggInitializer.instanceSet`、`JuggLoader`、`JuggManagerCreator.create()` |
-| 启动期长时间卡住 | `09_plugin_runtime_debug.md`，再看 `JuggManager.init()` background task 和 `ConstRefEngine` 启动扫描 |
-| 启动期 SQLite corrupt | `ConstRefEngine` 构造期不应初始化 SQLite runtime；检查 `ConstRefCacheDatabase` 损坏重建与 no-op fallback 日志 |
-| 默认 Run 配置没有生成或指针错误 | `JuggManager.tryCreateRunConfigurations()`、`IdeaCliRunConfigurationManager`、`build/jugg/config/run_configurations/` 与 `current_run_configuration.json` |
-| Sync 后 project info / dependency 状态异常 | `JuggManager.onSyncEvent()`、`updateProjectInfo()`、`CompileContextManager.updateCompileContext()` |
-| Run UI 状态错乱或取消后下轮误判 | `JuggRunningTask.run()` finally 中 hasRun / processHandler / logger listener 收口 |
-| Panel 数据不刷新或热更新后仍显示旧组件 | `JuggControlPanelHost`、`JuggInitializer.getManager(project)`、`JuggManager.getJuggControlPanel()` 与 Panel subscription dispose |
-| 下载更新后当前工程仍运行旧实现 | 当前 manager 不原地换 ClassLoader；重新打开工程，若更新要求 reinstall 则重启 IDE |
-| Panel Logs 内容不可读或缺事件 | 检查 `JuggManager.onSyncEvent()`、`JuggRunningTask`、`McpToolInvoker` 的结构化事件生产；Panel 不应读取 raw log |
-| Jugg Debug attach 后断点不可用 | `04_engineering_debug_attach.md`，确认 WAITING、`Connected to the target VM` 与 `XDebugSession` |
-| androidTest 有结果但 Test Results 不完整 | `JuggManager.runTask()` 参数传递，确认 `executor` / `runProfile` / `androidTestRunSpec` 都非空 |
-| skill / hook 安装入口异常 | `JuggControlPanelController`、`InstallJuggSkillsDialog`、`JuggSkillInstaller` |
-| 更新插件后 CLI/skill 仍是旧实现 | `JuggCliAutoUpdater` 与 bundled `SKILL.md` version，见 `08_cli_tools_list.md` §3.7 |
-| MCP 本地服务没有启动或未停止 | `JuggInitializer.init()` / `release()` 对 `McpLocalServer.start()` / `stop()` 的调用 |
+| No manager after plugin initialization | `JuggInitializer.instanceSet`, `JuggLoader`, `JuggManagerCreator.create()`. |
+| Long stall during startup | `09_plugin_runtime_debug.md`, then `JuggManager.init()` background tasks and `ConstRefEngine` startup scan. |
+| SQLite corruption during startup | `ConstRefEngine` constructor should not initialize SQLite runtime; inspect `ConstRefCacheDatabase` rebuild and no-op fallback logs. |
+| Default Run Configuration absent or current pointer wrong | `JuggManager.tryCreateRunConfigurations()`, `IdeaCliRunConfigurationManager`, `build/jugg/config/run_configurations/`, and `current_run_configuration.json`. |
+| Project info/dependency state wrong after Sync | `JuggManager.onSyncEvent()`, `updateProjectInfo()`, `CompileContextManager.updateCompileContext()`. |
+| Run UI state confused, or next run misjudged after cancellation | hasRun/processHandler/logger-listener cleanup in `JuggRunningTask.run()` finally. |
+| Panel data does not refresh, or old component remains after hot update | `JuggControlPanelHost`, `JuggInitializer.getManager(project)`, `JuggManager.getJuggControlPanel()`, and Panel subscription disposal. |
+| Current project still runs old implementation after downloading update | Current manager does not swap ClassLoader in place. Reopen project; restart IDE if update requires reinstall. |
+| Panel Logs unreadable or missing events | Structured-event producers in `JuggManager.onSyncEvent()`, `JuggRunningTask`, and `McpToolInvoker`; Panel must not read raw logs. |
+| Breakpoints fail after Jugg Debug attach | `04_engineering_debug_attach.md`; verify WAITING, `Connected to the target VM`, and `XDebugSession`. |
+| androidTest has results but incomplete Test Results | Check `JuggManager.runTask()` arguments: `executor`, `runProfile`, and `androidTestRunSpec` must all be nonnull. |
+| Skill/hook installation entry fails | `JuggControlPanelController`, `InstallJuggSkillsDialog`, `JuggSkillInstaller`. |
+| CLI/skill remains old after plugin update | `JuggCliAutoUpdater` and bundled `SKILL.md` version; see `08_cli_tools_list.md` §3.7. |
+| MCP local server does not start/stop | `McpLocalServer.start()` / `stop()` calls in `JuggInitializer.init()` / `release()`. |
 
 ---
 
-## 7. 关联文档
+## 7. Related Documents
 
-- 架构：`01_architecture.md`
-- 项目模型：`04_engineering_project.md`
-- 兼容层：`04_engineering_compat.md`
-- Jugg Debug attach：`04_engineering_debug_attach.md`
-- 部署流程：`03_deploy_complete.md`
-- 插件运行时排查：`09_plugin_runtime_debug.md`
-- MCP：`08_mcp_design.md`、`08_mcp_tools_list.md`
-- CLI / skill 自动刷新：`08_cli_tools_list.md` §3.7
+- Architecture: `01_architecture.md`
+- Project model: `04_engineering_project.md`
+- Compatibility layer: `04_engineering_compat.md`
+- Jugg Debug attach: `04_engineering_debug_attach.md`
+- Deployment flow: `03_deploy_complete.md`
+- Plugin runtime investigation: `09_plugin_runtime_debug.md`
+- MCP: `08_mcp_design.md`, `08_mcp_tools_list.md`
+- CLI/skill auto-refresh: `08_cli_tools_list.md` §3.7

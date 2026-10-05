@@ -1,84 +1,84 @@
-# 编译系统：Manifest 增量合并
+# Compilation System: Incremental Manifest Merge
 
-> 最后核对：2026-08-10
-> 一致性规则：文档与代码冲突时，以代码为准。
-
----
-
-## 1. 文档定位
-
-本页只覆盖 AndroidManifest 的增量合并：从变更 manifest 到 APK-scoped `AndroidManifest.xml` overlay。
-
-资源 flat/link 细节见 `02_compile_resource.md`；源码到 dex 的顺序见 `02_compile_source.md`；release 混淆映射见 `02_compile_obfuscation.md`。
+> Last verified: 2026-08-10
+> Consistency rule: If documentation conflicts with code, code takes precedence.
 
 ---
 
-## 2. 核心源码索引
+## 1. Purpose of This Document
 
-| 类/接口 | 文件 | 作用 |
+This page covers only incremental AndroidManifest merging: from a changed manifest to an APK-scoped `AndroidManifest.xml` overlay.
+
+For resource flat/link details, see `02_compile_resource.md`; for source-to-dex order, see `02_compile_source.md`; for release obfuscation mapping, see `02_compile_obfuscation.md`.
+
+---
+
+## 2. Core Source Index
+
+| Class/interface | File | Role |
 |---|---|---|
-| `AndroidManifestCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/manifest/AndroidManifestCompiler.kt` | Manifest 编译入口；按 APK 归属读取基准 merged manifest，补 placeholder 后产出部署用 manifest overlay |
-| `AndroidManifestMerger` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/manifest/AndroidManifestMerger.kt` | 在已合并 manifest 上套用变更 diff；不是重新跑标准 ManifestMerger2 |
-| `ManifestDiffer` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/manifest/ManifestDiffer.kt` | 比较原 manifest 与变更 manifest，生成需要 patch 到 merged manifest 的节点/属性 |
-| `ManifestNodeMatcher` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/manifest/ManifestDiffer.kt` | 在 merged manifest 子树里找相对节点，决定新增节点或递归更新 |
+| `AndroidManifestCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/manifest/AndroidManifestCompiler.kt` | Manifest compilation entry point; reads the baseline merged manifest by APK ownership, fills placeholders, and emits a deployable manifest overlay |
+| `AndroidManifestMerger` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/manifest/AndroidManifestMerger.kt` | Applies a changed diff to an already merged manifest; does not rerun standard ManifestMerger2 |
+| `ManifestDiffer` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/manifest/ManifestDiffer.kt` | Compares original and changed manifests, producing nodes/attributes to patch into the merged manifest |
+| `ManifestNodeMatcher` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/manifest/ManifestDiffer.kt` | Finds relative nodes in the merged-manifest subtree and decides between adding a node and recursive updating |
 
 ---
 
-## 3. 核心数据流
+## 3. Core Data Flow
 
-| 数据 | 生产者 | 消费者 | 关键约束 |
+| Data | Producer | Consumer | Key constraint |
 |---|---|---|---|
-| 基准 merged manifest | Gradle 上次构建产物，或 Jugg 上轮写入 `tempModule/res/AndroidManifest.xml` | `AndroidManifestCompiler` | Jugg 在最终 merged manifest 上 patch，避免 raw manifest 丢失 variant merge 结果 |
-| `ChangedManifestFile` | `AndroidManifestCompiler` | `ManifestDiffer` | application 类 manifest 使用当前目标 APK 的 `applicationId`；library 显式配置同名 placeholder 时保留原值，否则补目标 APK 值；存在 namespace 时补 `JUGG_NAMESPACE_IN_GRADLE` |
-| Manifest diff element | `ManifestDiffer` | `AndroidManifestMerger` | 只携带新增节点和新增/更新属性；删除节点、删除属性和 `tools:node="remove"` 不进入 patch |
+| Baseline merged manifest | Last Gradle build output, or `tempModule/res/AndroidManifest.xml` written by Jugg in the previous run | `AndroidManifestCompiler` | Jugg patches the final merged manifest so raw manifest inputs cannot discard variant-merge results |
+| `ChangedManifestFile` | `AndroidManifestCompiler` | `ManifestDiffer` | An application manifest uses the target APK's `applicationId`. For a library, preserve an explicitly configured same-name placeholder; otherwise fill in the target APK value. Add `JUGG_NAMESPACE_IN_GRADLE` when a namespace exists |
+| Manifest diff element | `ManifestDiffer` | `AndroidManifestMerger` | Carries only new nodes and new/updated attributes; deleted nodes/attributes and `tools:node="remove"` do not enter the patch |
 
 ---
 
-## 4. 核心调用链路
+## 4. Core Call Chain
 
 ```text
 ResourceOverlayCompiler.doApkCompile()
-  -> 按 APK scoped 任务调用 AndroidManifestCompiler.doApkCompile()
-  -> 选择基准 manifest：优先上轮 Jugg merged manifest，否则用 application module merged manifest
-  -> 为变更 manifest 补当前目标 APK 的 applicationId / namespace placeholder，并为 library manifest 找上次构建相对 manifest
-  -> ManifestDiffer.diff() 只提取真实新增/变更节点
-  -> AndroidManifestMerger.merge() 将 diff patch 到基准 merged manifest
-  -> 成功后写回 tempModule/res/AndroidManifest.xml，并输出 apkPath 绑定的 CompileOutput.Type.Res
+  -> call AndroidManifestCompiler.doApkCompile() for an APK-scoped task
+  -> choose baseline manifest: prefer Jugg's previous merged manifest, otherwise the application module's merged manifest
+  -> fill applicationId / namespace placeholders for the changed manifest from the target APK and find the previous-build relative manifest for a library
+  -> ManifestDiffer.diff() extracts only truly new/changed nodes
+  -> AndroidManifestMerger.merge() patches the diff into the baseline merged manifest
+  -> on success, write back tempModule/res/AndroidManifest.xml and emit CompileOutput.Type.Res bound to apkPath
 ```
 
-这条链路的关键点是“patch merged manifest”，不是重新跑完整 Gradle manifest merge。标准 `ManifestMerger2` 需要完整 placeholder、variant/flavor manifest、依赖 manifest 和 merge feature 上下文；增量现场不能保证这些输入与上次 Gradle 构建完全一致。Jugg 因此把上次最终 merged manifest 当作稳定基线，只套用能够确定恢复的局部变化。
+The essential point is “patch the merged manifest,” not rerun the full Gradle manifest merge. Standard `ManifestMerger2` needs the complete placeholders, variant/flavor manifests, dependency manifests, and merge-feature context. An incremental run cannot guarantee that these inputs match the last Gradle build exactly. Jugg therefore treats the last final merged manifest as a stable baseline and applies only local changes it can recover deterministically.
 
-Manifest patch 是有意保守的：`ManifestDiffer` 只遍历新 manifest 中存在的节点和属性，新增节点或属性变化才进入 `DiffElement.changedChildren/changedAttributes`；旧 manifest 中存在、当前已删除的节点或属性不会生成删除操作。`tools:node="remove"` 会被视为无 patch，其他 `tools:*` 属性也不会写进最终 merged manifest。这些删除或完整 merge 指令不会单独导致增量编译失败或自动回退，已安装 APK 继续保留原有 merged manifest 内容；只有需要让删除真正生效时，才通过完整 Gradle merge 刷新基线。
-
----
-
-## 5. 隐形约束 / 设计思路 / 已知边界
-
-- Manifest 输出为空是有效结果：library manifest 未变更、diff 后无变化时不会输出 `AndroidManifest.xml`，避免触发无意义 APK repackage。
-- `AndroidManifestCompiler` 会把成功合并结果复制回 `tempModule/res/AndroidManifest.xml`；后续 manifest 增量以这个文件优先作为基准，不能只看 Gradle merged manifest。
-- `ModuleBuildPathInfo.mergedManifest` 会在 `merged_manifests` / `merged_manifest` 候选里优先选取最新的 `AndroidManifest.xml`，避免 AGP 升级后旧目录产物遮蔽新目录产物。
-- library manifest 会先和 `oldManifest` 做 CRC 比较；未变化直接跳过，避免对依赖库 manifest 做重复 patch。
-- Manifest merge 会忽略 `tools:*` 属性、manifest `package` 和 application `android:name` 更新；这不是漏合并，而是为了避免增量 patch 覆盖运行时关键身份。
-- 删除节点、删除属性和 `tools:node="remove"` 被故意忽略。增量路径只做可确定的新增/更新，避免错误删除最终 merged manifest 中由其他 source set 或依赖贡献的声明。
-- `tools:replace` 等 merge 指令在最终 merged manifest 中已经丢失完整上下文，不能把它们当普通属性直接 patch；需要完整语义时走 Gradle fallback。
-- 保留旧声明可能产生开发期 false positive，例如源码删除 Activity 后基线 manifest 暂时仍有注册；这是保守增量的已知代价，不应通过在 patch 层猜测删除来源来修复。
+Manifest patching is deliberately conservative. `ManifestDiffer` traverses only nodes and attributes present in the new manifest. New nodes or changed attributes enter `DiffElement.changedChildren/changedAttributes`, while nodes or attributes present only in the old manifest create no delete operation. `tools:node="remove"` becomes no patch, and other `tools:*` attributes do not enter the final merged manifest. These deletions or full-merge directives alone do not fail incremental compilation or trigger automatic fallback. The installed APK retains its prior merged-manifest content. Use a full Gradle merge to refresh the baseline only when removal must really take effect.
 
 ---
 
-## 6. 排查入口
+## 5. Hidden Constraints / Design Rationale / Known Boundaries
 
-| 现象 | 优先入口 |
+- Empty Manifest output is valid: an unchanged library manifest or an empty diff emits no `AndroidManifest.xml`, avoiding meaningless APK repackaging.
+- `AndroidManifestCompiler` copies a successful merged result back to `tempModule/res/AndroidManifest.xml`; later manifest increments prefer this file as baseline, so do not inspect only Gradle's merged manifest.
+- `ModuleBuildPathInfo.mergedManifest` chooses the newest `AndroidManifest.xml` among `merged_manifests` / `merged_manifest` candidates so an old path cannot shadow a new AGP output after an upgrade.
+- A library manifest is CRC-compared with `oldManifest` first; unchanged input is skipped to avoid repatching dependency-library manifests.
+- Manifest merge ignores `tools:*` attributes, manifest `package`, and updates to application `android:name`. This prevents an incremental patch from overwriting critical runtime identity; it is not an accidental omission.
+- Deleted nodes, deleted attributes, and `tools:node="remove"` are intentionally ignored. The incremental path applies only certain additions/updates, avoiding accidental deletion of declarations contributed by other source sets or dependencies in the final merged manifest.
+- Full context for merge directives such as `tools:replace` is gone in the final merged manifest. They cannot be patched as ordinary attributes; use a Gradle fallback when their complete semantics are needed.
+- Preserving old declarations can yield development-time false positives, such as an Activity remaining registered in the baseline manifest after its source is deleted. This is a known cost of conservative incremental work, not something to fix by guessing a declaration's origin in the patch layer.
+
+---
+
+## 6. Investigation Entry Points
+
+| Symptom | First entry point |
 |---|---|
-| Manifest 修改后未生效 | `AndroidManifestCompiler.doApkCompile()`：确认是否被 CRC、empty diff 或 `filterResources` 过滤 |
-| 删除节点或 `tools:remove` 后声明仍存在 | 当前增量 patch 不处理删除语义；执行完整 Gradle build 刷新 merged manifest 基线 |
-| manifest 合并结果覆盖了不该覆盖的字段 | `AndroidManifestMerger.merge()`：检查 `tools:*`、`package`、`android:name` 的忽略规则 |
-| aapt2 link 后触发不必要重打包 | `ResourceOverlayCompiler.filterResources(...)`：确认无 manifest 变更时是否仍输出根 `AndroidManifest.xml` |
+| Manifest change does not take effect | `AndroidManifestCompiler.doApkCompile()`; check CRC, empty diff, and `filterResources` filtering |
+| Declaration remains after deleting a node or using `tools:remove` | Incremental patch does not handle deletion; run a full Gradle build to refresh the merged-manifest baseline |
+| Manifest merge overwrites a field that should remain | `AndroidManifestMerger.merge()`; check ignore rules for `tools:*`, `package`, and `android:name` |
+| aapt2 link triggers unnecessary repackaging | `ResourceOverlayCompiler.filterResources(...)`; check whether root `AndroidManifest.xml` is emitted despite no manifest change |
 
 ---
 
-## 7. 关联文档
+## 7. Related Documents
 
-- 资源编译：`02_compile_resource.md`
-- 源码编译：`02_compile_source.md`
-- 编译核心调度：`02_compile_core.md`
-- 混淆映射：`02_compile_obfuscation.md`
+- Resource compilation: `02_compile_resource.md`
+- Source compilation: `02_compile_source.md`
+- Core compilation scheduling: `02_compile_core.md`
+- Obfuscation mapping: `02_compile_obfuscation.md`

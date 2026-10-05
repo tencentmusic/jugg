@@ -1,193 +1,192 @@
-# 编译系统：资源编译链（res/assets/arsc/Compose resource）
+# Compilation System: Resource Chain (res/assets/arsc/Compose Resources)
 
-> 最后核对：2026-09-01
-> 一致性规则：文档与代码冲突时，以代码为准。
-
----
-
-## 1. 文档定位
-
-本页覆盖资源相关增量编译：`res/`、`assets/`、Compose Multiplatform resource、native lib 和 manifest 如何变成可部署 overlay。它重点说明 APK-scoped 编译、aapt2 `inclink` 状态、Compose accessor/asset 分流、DataBinding/ViewBinding 产物交接和资源过滤边界。
-
-Manifest diff 见 `02_compile_manifest.md`；release 混淆见 `02_compile_obfuscation.md`；DataBinding 详细策略见 `02_compile_databinding.md`；部署如何消费资源 overlay 见 `03_deploy_core.md`。
+> Last verified: 2026-09-01
+> Consistency rule: If documentation conflicts with code, code takes precedence.
 
 ---
 
-## 2. 核心源码索引
+## 1. Purpose of This Document
 
-| 类/接口 | 文件 | 作用 |
+This page covers resource-related incremental compilation: how `res/`, `assets/`, Compose Multiplatform resources, native libraries, and manifests become deployable overlays. It emphasizes APK-scoped compilation, aapt2 `inclink` state, Compose accessor/asset routing, DataBinding/ViewBinding output handoff, and resource-filtering boundaries.
+
+For Manifest diffs, see `02_compile_manifest.md`; for release obfuscation, see `02_compile_obfuscation.md`; for detailed DataBinding policy, see `02_compile_databinding.md`; for deployment consumption of resource overlays, see `03_deploy_core.md`.
+
+---
+
+## 2. Core Source Index
+
+| Class/interface | File | Role |
 |---|---|---|
-| `ResourceOverlayCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/overlay/ResourceOverlayCompiler.kt` | 资源主协调器；按 APK scoped 任务串联 manifest、flat compile、arsc link，并过滤最终 overlay |
-| `ResourceCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/overlay/ResourceCompiler.kt` | 将资源文件或资源目录编译为 `.flat`；先处理 ViewBinding/DataBinding split XML 和生成源码 |
-| `ArscCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/overlay/ArscCompiler.kt` | 使用 aapt2 `inclink` 载入当前 APK 资源表并 link 出 `resources.arsc`、compiled res、`R.java` |
-| `AssetOverlayCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/overlay/AssetOverlayCompiler.kt` | 处理普通 `Asset`、APK 根目录 `ClasspathResource` 和 native lib 等非 res overlay |
-| `ComposeResourceCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/compose/ComposeResourceCompiler.kt` | 按 Gradle 元数据选择 legacy XML 或现代 CVR 资源模型，组织完整资源上下文，并编译 generated Kotlin |
-| `ComposeResourceGeneratorBridge` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/compose/ComposeResourceGeneratorBridge.kt` | 隔离加载项目的 Compose plugin JAR，按 generator API 形态调用 legacy 或现代官方 Kotlin generator |
-| `ComposeResourceScanner` / `ComposeValueResourceConverter` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/compose/` | 扫描 legacy XML 或现代 drawable/font/value 描述；现代管线生成 CVR version 0，`files/` 不产生 accessor |
-| `AndroidManifestCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/manifest/AndroidManifestCompiler.kt` | Manifest 增量合并，产物作为 `ArscCompiler` 输入 |
-| `DataBindingGenBaseClassesCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/databinding/DataBindingGenBaseClassesCompiler.kt` | layout 资源进入 aapt2 前生成 ViewBinding/DataBinding 基础类与 split XML |
-| `RJavaFixer` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/overlay/RJavaFixer.kt` | 修正 aapt2 生成的 `R.java`，供后续源码编译消费 |
-| `RDexForSubmoduleCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/overlay/RDexForSubmoduleCompiler.kt` | 从宿主本轮主 R `*.dex` 派生改包后的 R.dex：普通 module 按 module namespace 生成，临时模块按外部 AAR 的 R namespace 生成 |
-| `StyleableFileGenerator` / `ResGuardMappingFileGenerator` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/overlay/` | 为 `inclink --load` 提供 styleable 与资源混淆映射输入 |
+| `ResourceOverlayCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/overlay/ResourceOverlayCompiler.kt` | Main resource coordinator; connects manifest, flat compile, and arsc link per APK-scoped task, then filters the final overlay |
+| `ResourceCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/overlay/ResourceCompiler.kt` | Compiles resource files or directories into `.flat`; first handles ViewBinding/DataBinding split XML and generated sources |
+| `ArscCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/overlay/ArscCompiler.kt` | Uses aapt2 `inclink` to load the current APK resource table and link `resources.arsc`, compiled resources, and `R.java` |
+| `AssetOverlayCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/overlay/AssetOverlayCompiler.kt` | Handles ordinary `Asset`, APK-root `ClasspathResource`, native libraries, and other non-res overlays |
+| `ComposeResourceCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/compose/ComposeResourceCompiler.kt` | Selects legacy XML or modern CVR resource model from Gradle metadata, assembles complete resource context, and compiles generated Kotlin |
+| `ComposeResourceGeneratorBridge` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/compose/ComposeResourceGeneratorBridge.kt` | Isolates project Compose plugin JAR loading and invokes the official legacy or modern Kotlin generator according to API shape |
+| `ComposeResourceScanner` / `ComposeValueResourceConverter` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/compose/` | Scans legacy XML or modern drawable/font/value descriptions; the modern pipeline generates CVR version 0, and `files/` gets no accessor |
+| `AndroidManifestCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/manifest/AndroidManifestCompiler.kt` | Incremental Manifest merge; its output becomes `ArscCompiler` input |
+| `DataBindingGenBaseClassesCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/databinding/DataBindingGenBaseClassesCompiler.kt` | Generates ViewBinding/DataBinding base classes and split XML before layout resources enter aapt2 |
+| `RJavaFixer` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/overlay/RJavaFixer.kt` | Fixes aapt2-generated `R.java` for subsequent source compilation |
+| `RDexForSubmoduleCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/overlay/RDexForSubmoduleCompiler.kt` | Derives package-renamed R.dex from the host's main R `*.dex` generated this run: ordinary modules use module namespace; temporary modules use external AAR R namespace |
+| `StyleableFileGenerator` / `ResGuardMappingFileGenerator` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/overlay/` | Supply styleable and resource-obfuscation mapping inputs for `inclink --load` |
 
 ---
 
-## 3. 核心数据流
+## 3. Core Data Flow
 
-| 数据 | 生产者 | 消费者 | 关键约束 |
+| Data | Producer | Consumer | Key constraint |
 |---|---|---|---|
-| `CompileFile.Type.Resource` | 变更扫描 / 上游编译任务 | `ResourceOverlayCompiler` | 可能是单个文件，也可能是目录；目录会展开成真实资源文件集合 |
-| split layout XML | `DataBindingGenBaseClassesCompiler` | `ResourceCompiler.aapt2Compile()` | 原 layout 会在 aapt2 compile 前被 split XML 替换 |
-| generated Java/Kotlin | `ResourceCompiler` | `SourceCompiler` | ViewBinding/DataBinding 生成源码不部署，必须回流源码编译阶段 |
-| `.flat` | `ResourceCompiler` | `ArscCompiler` | 只作为 link 输入，不直接部署；同一模块内按 resource root 隔离输出目录，避免多个 `res.srcDirs` 的同名文件相互覆盖 |
-| latest res APK | `ArscCompiler.getResApk()` | aapt2 `inclink --load` | 若当前 APK 曾部署过 `resources.arsc`，会用已部署 arsc + manifest 组成临时 res APK，避免从原始 APK 旧资源表继续 link |
-| `styleables.txt` | `StyleableFileGenerator` | aapt2 `inclink --load` | `resources.arsc` 不保存 styleable；从目标 APK 相关模块的 R.jar / R.class 补回声明 |
-| `res-guard-mapping.txt` | `ResGuardMappingFileGenerator` | aapt2 `inclink --load` | release/AabResGuard 场景把原始资源名映射到基线 APK 使用的混淆名称；生成失败时 Best-effort 退化为无 mapping 加载 |
-| `resources.arsc` / compiled res / manifest | `ArscCompiler` | 部署数据转换 | `CompileOutput.apkPath` 绑定当前 APK；多 APK 归属不能丢 |
-| 外部 AAR R namespace | `GradleProjectInfoReader` 读取 `android-symbol-with-package-name`，回退 AAR Manifest `package` | `DependencyDiffResultHelper` -> Resource `CompileFile.extraInfo` | symbol 优先；两者都缺失且本轮需要外部 R.dex 时明确失败，不猜测 namespace |
-| 外部 namespace `R*.dex` | `RDexForSubmoduleCompiler` -> `DexPackageRenamer` | 部署数据转换 | 对宿主本轮全部主 R `*.dex` 改包；按 namespace 去重并排除 application 主 R package；沿用 temp module 的 base APK 路由 |
-| `targetApkPaths` | `CompileOutput` / 下游 deploy item | 部署分流 | class/dex 可归属多个 APK；资源/manifest 仍按 APK scoped 输出 |
-| `CompileFile.Type.ComposeResource` | `FileChangesHandler` | `ComposeResourceCompiler` | `baseDir` 是命中的默认或自定义 Compose resource 根目录，不能改成 module root |
-| `CompileFile.Type.ClasspathResource` | `JuggCompiler` | `AssetOverlayCompiler` | 表示必须保持 classpath 相对路径并写入 APK 根目录的 classpath resource；当前用于 legacy Compose resource |
-| Compose task metadata | `GradleProjectInfoReader` / project info | `ComposeResourceCompiler` | 包含 generator API 形态、classpath、package、Res 类名、public/content-hash flag、source-set 目录和 asset 相对路径；按任务属性校验，不按 Kotlin/Compose 版本号拦截 |
-| prepared CVR + generated Kotlin | `ComposeResourceCompiler` | generator bridge / Kotlin compiler | accessor 生成读取所有已知资源目录的完整 values/资源上下文，避免只看 changed file 丢失既有 key |
-| changed Compose resource file | `ComposeResourceCompiler` | `AssetOverlayCompiler` | 现代管线以 `Asset` 复制本轮新增/修改的 CVR、drawable、font、`files/` 到 `assets/`；legacy 管线转为 `ClasspathResource` 并保持 APK 根目录 classpath resource 路径；两者都不进入 AAPT2 |
+| `CompileFile.Type.Resource` | Change scanner / upstream compilation task | `ResourceOverlayCompiler` | May represent one file or a directory; expand directories into their real resource-file sets |
+| Split layout XML | `DataBindingGenBaseClassesCompiler` | `ResourceCompiler.aapt2Compile()` | The split XML replaces the original layout before aapt2 compile |
+| Generated Java/Kotlin | `ResourceCompiler` | `SourceCompiler` | ViewBinding/DataBinding generated source is not deployed; it must return to source compilation |
+| `.flat` | `ResourceCompiler` | `ArscCompiler` | Link input only, not directly deployed. Output directories are separated by resource root within a module so same-name files from multiple `res.srcDirs` cannot overwrite one another |
+| Latest resource APK | `ArscCompiler.getResApk()` | aapt2 `inclink --load` | If this APK has deployed `resources.arsc`, combine deployed arsc and manifest into a temporary resource APK rather than linking again from the original APK's old table |
+| `styleables.txt` | `StyleableFileGenerator` | aapt2 `inclink --load` | `resources.arsc` does not preserve styleable declarations; reconstruct them from R.jar / R.class of modules related to the target APK |
+| `res-guard-mapping.txt` | `ResGuardMappingFileGenerator` | aapt2 `inclink --load` | In release/AabResGuard cases, map original resource names to obfuscated names used by the baseline APK; on generation failure, load without mapping best-effort |
+| `resources.arsc` / compiled resources / manifest | `ArscCompiler` | Deployment-data conversion | `CompileOutput.apkPath` binds the current APK; multi-APK ownership must be retained |
+| External AAR R namespace | `GradleProjectInfoReader` reads `android-symbol-with-package-name`, falling back to AAR Manifest `package` | `DependencyDiffResultHelper` -> Resource `CompileFile.extraInfo` | Prefer symbol; if both sources are absent and this run needs external R.dex, fail explicitly rather than guess a namespace |
+| External-namespace `R*.dex` | `RDexForSubmoduleCompiler` -> `DexPackageRenamer` | Deployment-data conversion | Rename every main R `*.dex` from the host's current run; deduplicate by namespace and exclude the application main R package; keep temporary-module base-APK routing |
+| `targetApkPaths` | `CompileOutput` / downstream deploy item | Deployment routing | Classes/dex can belong to multiple APKs; resource/manifest outputs remain APK-scoped |
+| `CompileFile.Type.ComposeResource` | `FileChangesHandler` | `ComposeResourceCompiler` | `baseDir` is the matching default/custom Compose resource root, not module root |
+| `CompileFile.Type.ClasspathResource` | `JuggCompiler` | `AssetOverlayCompiler` | Classpath resource that must retain its classpath-relative path and go to the APK root; currently used by legacy Compose resources |
+| Compose task metadata | `GradleProjectInfoReader` / project info | `ComposeResourceCompiler` | Contains generator API shape, classpath, package, Res class name, public/content-hash flags, source-set directories, and asset-relative path. Validate task properties, not Kotlin/Compose version numbers |
+| Prepared CVR + generated Kotlin | `ComposeResourceCompiler` | Generator bridge / Kotlin compiler | Accessor generation reads the full values/resource context from every known resource directory, not just changed files, so existing keys are not lost |
+| Changed Compose resource file | `ComposeResourceCompiler` | `AssetOverlayCompiler` | Modern pipeline copies changed/new CVR, drawable, font, and `files/` into `assets/` as `Asset`. Legacy pipeline emits `ClasspathResource` and preserves APK-root classpath paths. Neither enters AAPT2 |
 
 ---
 
-## 4. 核心调用链路
+## 4. Core Call Chain
 
 ```text
-JuggCompiler 资源阶段
+JuggCompiler resource stage
   -> ResourceOverlayCompiler.splitApkAndCompile()
-  -> BaseCompiler 按 moduleBelongsApkMap 把同一 module 输入拆给每个归属 APK
-  -> AndroidManifestCompiler.doApkCompile() 只在 manifest 有真实 diff 时输出 manifest overlay
-  -> ResourceCompiler.doModuleCompile() 处理 layout split / generated source，再 aapt2 compile 为 .flat
-  -> ArscCompiler.doApkCompile() 为当前 APK loadTable，再 inclink flat + 可选 manifest
-  -> ResourceOverlayCompiler.filterResources() 删除不应部署的 aapt2 额外产物和无变更 manifest
-  -> 输出资源 overlay，同时把 generated Java/Kotlin 留给 SourceCompiler
+  -> BaseCompiler separates one module's input by owning APK using moduleBelongsApkMap
+  -> AndroidManifestCompiler.doApkCompile() emits a manifest overlay only for a real manifest diff
+  -> ResourceCompiler.doModuleCompile() handles layout split / generated source, then aapt2 compiles to .flat
+  -> ArscCompiler.doApkCompile() runs loadTable for the current APK, then inclink on flat files and optional manifest
+  -> ResourceOverlayCompiler.filterResources() removes extra aapt2 outputs and unchanged manifest that must not deploy
+  -> emit resource overlay while handing generated Java/Kotlin to SourceCompiler
 ```
 
-多 APK 场景下，资源链路不是“同一份输出复制到多个 APK”。`splitApkAndCompile()` 会为每个 `ApkFileUnit` 单独调用 `doApkCompile()`，因为每个 APK 的资源表、package id、manifest 和 dynamic feature 依赖关系都可能不同。
+In a multi-APK case, the resource chain does not copy the same output to several APKs. `splitApkAndCompile()` calls `doApkCompile()` separately for each `ApkFileUnit`, because each APK may differ in resource table, package ID, manifest, and dynamic-feature dependencies.
 
-### 4.1 `inclink` 基线加载与增量契约
+### 4.1 `inclink` Baseline Loading and Incremental Contract
 
 ```text
-ArscCompiler（每个 APK 独立）
-  -> 选择资源基线
-     -> 有已部署 resources.arsc：与当前 manifest 组成临时 res APK
-     -> 否则：使用 Gradle 基线 APK
-  -> 从 R.jar / R.class 生成 styleables.txt
-  -> 按需生成 AabResGuard mapping
-  -> 新建 aapt2 daemon，执行 inclink --load
-  -> 缓存已加载 invoker
-  -> 后续只把本轮 flat / manifest 交给 inclink
+ArscCompiler (independently per APK)
+  -> choose resource baseline
+     -> deployed resources.arsc exists: combine it with the current manifest into a temporary resource APK
+     -> otherwise: use the Gradle baseline APK
+  -> generate styleables.txt from R.jar / R.class
+  -> generate AabResGuard mapping when needed
+  -> create an aapt2 daemon and run inclink --load
+  -> cache the loaded invoker
+  -> subsequently pass only this run's flat files / manifest to inclink
 ```
 
-Jugg 不回读所有历史 `.flat`，而是直接从 APK 加载最终 `resources.arsc` 和编译后资源。这样既复用 Gradle 已确定的资源 ID，也避免每轮重新读取和链接全量中间产物。代价是这个 link context 成为有状态缓存：invoker 死亡、load 失败或 link 失败后必须释放，下一轮重新加载，不能把“进程仍存在”等同于“资源表已经可用”。
+Jugg does not reread all historical `.flat` files. It loads the final `resources.arsc` and compiled resources directly from an APK, reusing resource IDs already determined by Gradle and avoiding a full intermediate read/link on every run. The cost is stateful link context: when the invoker dies or load/link fails, release it and reload on the next round. A running process is not proof that its resource table is available.
 
-APK 基线还缺两类旁路信息：
+Two kinds of side-path information are absent from the APK baseline:
 
-- `resources.arsc` 不保存 `styleable` 聚合声明。`StyleableFileGenerator` 会从目标 APK 相关模块的 R.jar 或 Java classpath 中读取 `R$styleable`，合并后通过 `--styleables` 补给 `inclink --load`。
-- AabResGuard 改变了 APK 中的资源名称。`ResGuardMappingFileGenerator` 会把 Gradle mapping 转成 `inclink` 输入，确保新增/修改 XML 引用沿用已安装 APK 的混淆命名。
+- `resources.arsc` does not preserve aggregated `styleable` declarations. `StyleableFileGenerator` reads `R$styleable` from R.jar files or the Java classpath for modules related to the target APK, merges them, and supplies them through `--styleables` to `inclink --load`.
+- AabResGuard changes resource names in the APK. `ResGuardMappingFileGenerator` converts the Gradle mapping into `inclink` input so new/changed XML references use the installed APK's obfuscated names.
 
-`inclink` 的资源表是增量增加或覆盖，不负责删除旧 entry。删除 `res/` 文件不会生成资源移除数据，已安装 APK 或既有 overlay 中的旧 ID 和资源内容仍可通过 `Resources` 访问。高 API 属性曾生成的 `layout-v22` 等额外配置也不能直接删除，因此即使本轮移除了高版本属性，仍要输出对应配置覆盖旧 entry。这个约束使 `inclink` 适合开发期增量，不应被当作生产构建的完整资源链接器；只有需要让旧资源真正消失时，才通过完整 Gradle 构建刷新基线。
+The `inclink` resource table adds or overwrites incrementally; it does not remove old entries. Deleting a `res/` file creates no resource-removal data. Old IDs and contents in the installed APK or existing overlay remain accessible through `Resources`. Additional configurations such as `layout-v22` generated for high-API attributes cannot simply be deleted either. Even after removing a high-version attribute this run, emit the corresponding configuration to overwrite its old entry. This makes `inclink` appropriate for development-time increments, not a complete production resource linker. Use a full Gradle build to refresh the baseline only when old resources must actually disappear.
 
-普通 `assets/` 文件删除也不会生成移除 overlay，已安装 APK 或既有 overlay 中的旧文件仍可通过 `AssetManager` 读取。重命名资源或 asset 时只有新路径会作为新增/修改输入，旧路径仍按删除语义保留。完整 Gradle 构建用于让这些删除真正生效，不是删除事件触发的自动回退。
+Deleting an ordinary `assets/` file also produces no removal overlay, so old files remain readable via `AssetManager` from the installed APK or existing overlay. On a resource/asset rename, only the new path is an add/modify input; the old path follows deletion semantics and remains. A full Gradle build makes the removal effective; deletion does not cause automatic fallback.
 
-### 4.2 Compose Multiplatform resource 链路
+### 4.2 Compose Multiplatform Resource Flow
 
 ```text
 FileChangesHandler
-  -> 命中 ComposeResourceInfo.resourceDirectories
+  -> matches ComposeResourceInfo.resourceDirectories
   -> ChangedFile(Type.ComposeResource, file, resourceDirectory, module)
-JuggCompiler（早于 asset/resource/source）
+JuggCompiler (before asset/resource/source)
   -> ComposeResourceCompiler
-     -> legacy 管线直接扫描 XML；现代管线把全部 values XML 转为 CVR
-     -> 扫描全部已知 source set 的 values/drawable/font；files 只作为 asset
-     -> ComposeResourceGeneratorBridge 按 API 形态调用项目 plugin JAR 的官方 generator
-     -> 将 generated Kotlin 同步到模块 Compose generated source 路径，供 IDE 索引、高亮和自动 import
-     -> 一次 Kotlin invocation 编译 generated source；现代管线显式标注 expect/actual common sources
-  -> 仅将本轮 changed CVR/drawable/font/files 作为资源输出
-  -> JuggCompiler：legacy 输出转为 ClasspathResource，现代输出保持 Asset
-  -> AssetOverlayCompiler：现代资源复制到 overlays/assets；legacy 资源保持 values/drawable/font 等 APK 根路径
-  -> generated class 继续进入 source/dex
+     -> legacy pipeline scans XML directly; modern pipeline converts all values XML to CVR
+     -> scan values/drawable/font across all known source sets; files are assets only
+     -> ComposeResourceGeneratorBridge invokes the official generator in the project plugin JAR by API shape
+     -> sync generated Kotlin to the module Compose-generated-source path for IDE indexing, highlighting, and auto import
+     -> compile generated source in one Kotlin invocation; the modern pipeline marks expect/actual common sources explicitly
+  -> emit only changed CVR/drawable/font/files from this run as resource output
+  -> JuggCompiler converts legacy output to ClasspathResource and keeps modern output as Asset
+  -> AssetOverlayCompiler copies modern resources to overlays/assets and keeps legacy values/drawable/font at APK-root paths
+  -> generated classes continue to source/dex
 DeployDataPlanner
-  -> 从 DeployFileStateTracker.compiledFiles 识别本轮 ComposeResource compile
-  -> 写入 JuggDeployData.isComposeResourceCompiled，部署完成后重启 App 进程
+  -> identifies this run's ComposeResource compilation from DeployFileStateTracker.compiledFiles
+  -> writes JuggDeployData.isComposeResourceCompiled; restart the app process after deployment
 ```
 
-这里“完整上下文”和“changed-only 输出”是两层语义：accessor 必须看见项目快照列出的全部资源目录，部署 overlay 只包含本轮新增/修改文件。配置时尚不存在的默认/自定义根也会持久化，扫描时按空目录处理，因此首次创建资源仍能被识别。Compose asset 不经过 `ResourceOverlayCompiler`、`ResourceCompiler`、`ArscCompiler` 或 AAPT2。
+“Complete context” and “changed-only output” have distinct meanings: accessors must see every resource directory listed by the project snapshot, while the deployment overlay includes only files added or changed this run. Default/custom roots absent at configuration time are persisted and treated as empty directories during scanning, so the first newly created resource can still be detected. Compose assets do not pass through `ResourceOverlayCompiler`, `ResourceCompiler`, `ArscCompiler`, or AAPT2.
 
-Compose resource 的重启判断使用本轮编译输入，不从最终 `CompileOutput.Type.Asset` 反推来源。`compiledFiles` 在最后一个设备成功 commit 前保留，因此正常部署和 retry 重建 `JuggDeployData` 时都能恢复该标记；warm-up 不设置标记。现代资源虽然位于 `assets/**`，`AssetManager` / Compose runtime 仍可能缓存已读取内容，Activity restart 不足以保证刷新，所以与 legacy APK 根目录资源一样需要进程重启。
+The Compose-resource restart decision uses compile inputs from this run, not an inference from final `CompileOutput.Type.Asset`. `compiledFiles` remains until the last device commits successfully, so normal deployment and retry reconstruction of `JuggDeployData` can both recover the flag; warm-up does not set it. Although modern resources live under `assets/**`, `AssetManager` / Compose runtime may cache previously read contents, so an Activity restart does not guarantee freshness. Like legacy APK-root resources, they require a process restart.
 
-Compose generated source 路径由 `ModuleBuildPathInfo.composeResourceGeneratedSourcePath` 从模块 build directory 直接派生，不进入 Gradle project info。Jugg 生成 accessor 后直接覆盖该目录，使 Android Studio 能索引新增资源并提供高亮和自动 import；同步失败只舍弃 IDE 辅助能力，不影响已经生成的增量编译产物。文件监听或影响传播上报这些 build directory 路径时，`FileChangesHandler` 会在类型识别前统一过滤，因此同轮 Compose resource 编译只使用 `ComposeResourceCompiler` 自己生成的 accessor class，不会再从 Gradle build 输出重复编译同名 Kotlin source。
-
----
-
-## 5. 隐形约束 / 设计思路 / 已知边界
-
-- `ArscCompiler` 为每个 APK 缓存一个 `Aapt2DaemonInvoker`；invoker 死亡或 link 失败会 release，下一轮重新 `loadTable`。
-- `Aapt2DaemonInvoker` 使用结构化参数列表写入 daemon 协议，每个参数独占一行，APK、资源和输出路径允许包含空格。
-- `loadTable()` 失败时会立即 release invoker 并返回失败，禁止缓存未加载资源表的 daemon，避免后续 inclink 退化为 `no cache data found`。
-- Android res 删除不会让 `resources.arsc` 移除旧 ID，旧资源仍可被读取；只有需要让删除生效时，才通过完整 Gradle build 刷新为新的全量资源表。
-- 高 API 属性的兼容配置必须按旧基线做覆盖式输出；不能只根据当前 XML 是否还包含高版本属性决定是否生成额外配置。
-- styleable 和 ResGuard mapping 都是 `loadTable()` 的 Best-effort 辅助输入：生成失败会继续加载，但新增 styleable 或 release 资源引用可能随后编译/运行异常，排查时不能只看 aapt2 daemon 是否启动成功。
-- dynamic feature 编译依赖 base APK：base arsc 更新后，`ArscCompiler` 会把 base 本轮 flat 文件加入 feature 的 link 输入，以同步资源 ID。
-- `getResApk()` 会优先使用已部署的 `resources.arsc` 和 manifest 组成临时资源 APK；只看原始 APK 会漏掉上轮 Jugg 资源增量。
-- `ResourceOverlayCompiler.filterResources()` 会删除根 `Manifest.java`，并在 manifest 无真实变更时删除根 `AndroidManifest.xml`，避免触发 APK repackage。
-- aapt2 可能为一个资源生成多个配置目录产物；如果额外产物对应的 override XML 已存在，过滤逻辑会移除该额外产物，避免覆盖用户显式资源。
-- `ResourceCompiler` 对文件和目录输入统一按 resource root 分组：文件使用 `CompileFile.baseDir`，目录使用自身路径；每个 root 使用规范化绝对路径 MD5 建子输出目录。这样只编译本轮实际输入，同时避免同一模块多个 `res.srcDirs` 中 `values/strings.xml` 等同名文件生成同一个 flat 并相互覆盖。
-- 全量 Gradle 构建期间新观察到的 asset/resource 变更会按 Jugg 接收事件的时间保留到下一轮增量编译，不依赖文件自身 `lastModified`；复制工具可能保留旧时间戳，而对应 Gradle merge task 已在文件出现前完成。
-- DataBinding mapper 生成不在资源阶段完成；资源阶段只处理 base class / split XML，mapper 交给 `SourceCompiler` 在源码编译前处理。
-- 外部 AAR 的 `classes.jar` 不包含自身的 R class，它由宿主资源构建链路提供。外部 AAR 资源变化时，`RDexForSubmoduleCompiler` 按 `DependencyDiffResultHelper` 写入资源变更的 `r_package_name`，从宿主本轮主 R `*.dex` 派生该 namespace 下的 `R*.dex`；同一 namespace 只生成一组，application 主 R package 不重复生成。namespace 完全无法解析时抛出含 dependency name 的编译异常并提示执行完整 Gradle 构建，禁止猜测或静默成功。
-- 外部 AAR 的 R namespace 只作为依赖元数据（`LibraryDependency.rPackageName`）流转，不进入依赖文件集合、不参与 CRC diff，因此旧 project info 缓存补齐该字段不会被误判为依赖更新。symbol artifact 不可用时回退 AAR Manifest `package`，两者冲突时以 symbol 为准。
-- Compose preparation 由 Jugg 实现，不执行 Gradle Compose resource task；Kotlin 文件生成调用项目 Compose plugin JAR 的官方 generator API。当前兼容 legacy 单任务 API，以及带 converter/accessor/collector 的现代 API；API 缺失时按结构化原因回退 unsupported。
-- legacy Android runtime 通过 classloader 读取 `values/...`、`drawable/...` 等 APK 根目录资源，增量 overlay 必须使用显式的 `CompileFile.Type.ClasspathResource` 保持同名根路径；不能套用普通 Android asset 的 `assets/` 前缀。现代 Compose resource 继续使用 `CompileFile.Type.Asset` 和 Gradle metadata 提供的 asset relative path。
-- Compose resource compile 只在本轮实际存在非空部署数据时触发进程重启；普通 Android asset 不因位于 `assets/**` 自动升级为 App restart。
-- 现代管线支持 string、string-array、plurals、drawable、font，并透传 Res 类名与 content hash；legacy 管线按上游能力支持 string、drawable、font。`files/` 会复制到 asset，但不会生成 typed accessor。
-- Compose resource 文件删除会被当前增量入口忽略，因为不存在的文件无法恢复资源类型和 `baseDir`。本轮不会生成 accessor、asset、classpath resource 或旧 class 的移除数据，既有产物继续保留；只有需要让删除生效时才执行完整 Gradle build。当前没有 deletion 图、generated source/cache 复用或完整 source-set 依赖图。
-
-### 5.1 测试落点
-
-- L1：`ComposeValueResourceConverterTest`、`ComposeResourceScannerTest`、`ComposeResourceGeneratorBridgeTest` 验证 CVR/扫描结果、缺失根、diagnostic 回映射、source-set 身份和官方 golden Kotlin 输出。
-- L1（外部 AAR R namespace）：`RDexForSubmoduleCompilerTest` 验证多 namespace 生成、相同 namespace 去重、application namespace 排除、namespace 缺失明确失败与普通 feature/project module 目标 APK 回归；`DependencyDiffResultTest` 验证 symbol 优先、Manifest 回退、两者缺失返回 null 以及 metadata 补全不触发依赖更新。
-- L2（外部 AAR R namespace）：`JuggCompilerTest.external AAR resource update generates library namespace R dex` 覆盖外部 AAR 资源变化后 staging 中出现 namespace 下的 `R.dex` / `R$string.dex`，且 `R$string` 携带本轮新增字段。
-- L2：`FileChangesHandlerTest` 验证默认/自定义/unsupported/首次创建目录映射为 `ComposeResource` 且保留正确 `baseDir`，并覆盖传统/集中式 build directory 的文件与目录事件过滤；`KmpComposeFlowReproTest` 验证 Kotlin 1.9/2.1/2.3 对应 Compose generator 的真实 Gradle metadata、编译、D8、staging 与 generated accessor 回写，并覆盖资源与 Gradle generated accessor 同轮上报时不产生重复 class。Kotlin 1.7 demo profile 保留用于非 Compose Multiplatform 回归，并显式排除 `kmpCompose`。
-- L3：`KmpComposeDeployFlowTest` 通过代表性 Compose profile 的真实 demo full install、基线资源缓存预热、仅资源增量 compile/deploy/run 和 logcat 覆盖进程重启后的 accessor 实际消费、目标 APK 与无增量 Gradle Compose task；多版本产物路径矩阵由 L2 覆盖，不在 L3 重复展开。
-
-### 5.2 Android Studio E2E 验证口径
-
-Android Studio E2E 应分别验证三层证据：首次 Jugg Run 完成 Gradle baseline，新增资源 key 后 Jugg 增量生成并编译 accessor，再次只修改 value 后运行时读取到新内容。验证 value 更新前应先在基线进程读取同一资源形成缓存；Compose resource 非空增量会在 overlay 完成后重启 App 进程，不需要打开 `Always restart app after deployment`。1.9 使用 `src/commonMain/composeResources`；2.1/2.3 使用 `composeResourcesExtended`，并额外覆盖 `src/androidMain/customComposeResources`。每次 profile 切换后必须 Gradle Sync，结束后恢复 1.9。自动化中 `KmpComposeFlowReproTest`（L2）负责 1.9/2.1/2.3 编译与产物路径矩阵，`KmpComposeDeployFlowTest`（L3）只验证代表性 profile 的真实运行链路。
+The Compose-generated-source path is derived directly from the module build directory by `ModuleBuildPathInfo.composeResourceGeneratedSourcePath`, rather than stored in Gradle project info. After generating accessors, Jugg overwrites that directory so Android Studio can index new resources, highlight them, and suggest auto imports. A sync failure sacrifices only the IDE enhancement; it does not invalidate generated incremental compilation outputs. When monitoring or effect propagation reports a path under these build directories, `FileChangesHandler` filters it before type recognition. Thus this run's Compose-resource compilation uses accessor classes generated by `ComposeResourceCompiler` rather than compiling same-name Kotlin source from Gradle build output again.
 
 ---
 
-## 6. 排查入口
+## 5. Hidden Constraints / Design Rationale / Known Boundaries
 
-| 现象 | 优先入口 |
+- `ArscCompiler` caches one `Aapt2DaemonInvoker` per APK. If the invoker dies or link fails, it releases the invoker and runs `loadTable` again next round.
+- `Aapt2DaemonInvoker` writes a structured argument list into the daemon protocol, one argument per line, allowing spaces in APK, resource, and output paths.
+- On `loadTable()` failure, immediately release the invoker and return failure. Never cache a daemon without a loaded resource table; a later inclink could otherwise degrade to `no cache data found`.
+- Deleting Android resources does not remove old IDs from `resources.arsc`; old resources remain readable. Use a full Gradle build to refresh a complete table only when the removal must take effect.
+- Compatibility configurations for high-API attributes must overwrite the old baseline. Do not decide whether to emit extra configurations solely from whether the current XML still contains a high-version attribute.
+- Styleables and ResGuard mapping are best-effort auxiliary inputs to `loadTable()`. Generation failure does not stop loading, but a new styleable or release resource reference may fail later at compile/runtime. A running aapt2 daemon alone is not proof these inputs were valid.
+- Dynamic-feature compilation depends on the base APK. After base arsc changes, `ArscCompiler` adds this run's base flat files to feature link inputs so resource IDs stay aligned.
+- `getResApk()` prefers a temporary resource APK made from deployed `resources.arsc` and manifest. Looking only at the original APK misses prior Jugg resource increments.
+- `ResourceOverlayCompiler.filterResources()` removes root `Manifest.java` and, when manifest has no real change, root `AndroidManifest.xml` to avoid APK repackaging.
+- aapt2 may emit several configuration-directory outputs for one resource. If an extra output's override XML already exists, filtering removes that extra output so it cannot overwrite a user-declared resource.
+- `ResourceCompiler` groups both file and directory inputs by resource root: a file uses `CompileFile.baseDir`, while a directory uses its own path. Each root gets a child output directory named by MD5 of its normalized absolute path. This compiles only real inputs from this run while preventing same-name files such as `values/strings.xml` in multiple `res.srcDirs` of one module from overwriting the same flat file.
+- Asset/resource changes first observed during a full Gradle build remain queued for the next incremental run according to when Jugg receives the event, not the file's own `lastModified`. Copy tools can preserve an old timestamp even though the corresponding Gradle merge task finished before the file appeared.
+- DataBinding mapper generation does not finish in the resource stage. That stage handles only base classes / split XML; `SourceCompiler` handles Mapper before source compilation.
+- An external AAR's `classes.jar` does not contain its R class; the host resource build flow supplies it. On an external AAR resource change, `RDexForSubmoduleCompiler` reads `r_package_name` recorded in the resource change by `DependencyDiffResultHelper` and derives `R*.dex` for that namespace from the host's current main R `*.dex`. It emits one set per namespace and does not duplicate the application main R package. If the namespace cannot be resolved at all, throw a compile exception naming the dependency and ask for a full Gradle build; do not guess or silently succeed.
+- External AAR R namespace moves only as dependency metadata (`LibraryDependency.rPackageName`), not in dependency file sets or CRC diffs. Filling that field in an old project-info cache is therefore not mistaken for a dependency update. If the symbol artifact is unavailable, fall back to AAR Manifest `package`; symbol wins if they conflict.
+- Jugg performs Compose preparation rather than Gradle Compose-resource tasks. Kotlin generation calls the official generator API in the project's Compose plugin JAR. It currently supports the legacy single-task API and the modern converter/accessor/collector API; missing APIs return a structured unsupported reason.
+- Legacy Android runtime loads classpath resources such as `values/...` and `drawable/...` from the APK root. Incremental overlays must use explicit `CompileFile.Type.ClasspathResource` to retain those same root paths; ordinary Android asset's `assets/` prefix is wrong. Modern Compose resources continue to use `CompileFile.Type.Asset` and the asset-relative path supplied by Gradle metadata.
+- Compose-resource compilation restarts the process only when this run has nonempty deployment data. An ordinary Android asset does not automatically require an app restart merely because it lives under `assets/**`.
+- The modern pipeline supports string, string-array, plurals, drawable, and font, passing through the Res class name and content hash. The legacy pipeline supports string, drawable, and font according to upstream capability. `files/` is copied as an asset but has no typed accessor.
+- A deleted Compose-resource file is ignored by the current incremental entry because a nonexistent file cannot reveal resource type or `baseDir`. This run emits no removal data for accessor, asset, classpath resource, or old class; existing outputs remain. Run a full Gradle build only when deletion must take effect. There is currently no deletion graph, generated-source/cache reuse, or complete source-set dependency graph.
+
+### 5.1 Test Placement
+
+- L1: `ComposeValueResourceConverterTest`, `ComposeResourceScannerTest`, and `ComposeResourceGeneratorBridgeTest` cover CVR/scanning results, missing roots, diagnostic remapping, source-set identity, and official golden Kotlin output.
+- L1 (external AAR R namespace): `RDexForSubmoduleCompilerTest` covers generation for several namespaces, same-namespace deduplication, exclusion of application namespace, explicit failure for missing namespace, and target-APK regression for ordinary feature/project modules. `DependencyDiffResultTest` covers symbol preference, Manifest fallback, null when both are missing, and no false dependency update when metadata is completed.
+- L2 (external AAR R namespace): `JuggCompilerTest.external AAR resource update generates library namespace R dex` checks that staging contains `R.dex` / `R$string.dex` under the external namespace after an AAR resource change and that `R$string` carries the newly added field.
+- L2: `FileChangesHandlerTest` checks mapping of default/custom/unsupported/first-created directories to `ComposeResource` with the correct `baseDir`, and filters file/directory events from traditional/centralized build directories. `KmpComposeFlowReproTest` checks real Gradle metadata, compilation, D8, staging, and generated-accessor writeback for corresponding Compose generators in Kotlin 1.9/2.1/2.3, including no duplicate class when both a resource and Gradle-generated accessor are reported in one run. The Kotlin 1.7 demo profile remains for non-Compose-Multiplatform regression and explicitly excludes `kmpCompose`.
+- L3: `KmpComposeDeployFlowTest` uses a real demo full install, baseline resource-cache warm-up, resource-only incremental compile/deploy/run, and logcat on a representative Compose profile to verify accessor consumption after process restart, target APK, and absence of incremental Gradle Compose tasks. L2 covers the multi-version artifact-path matrix instead of duplicating it in L3.
+
+### 5.2 Android Studio E2E Verification Criteria
+
+Android Studio E2E should establish three layers of evidence: first Jugg Run completes a Gradle baseline; adding a resource key makes Jugg generate and compile an accessor incrementally; then changing only the value makes runtime read the new content. Before verifying the value update, read that resource in the baseline process to form a cache. A nonempty Compose-resource increment restarts the app process after overlay completion; `Always restart app after deployment` need not be enabled. Version 1.9 uses `src/commonMain/composeResources`; 2.1/2.3 use `composeResourcesExtended` and additionally cover `src/androidMain/customComposeResources`. Gradle Sync is required after each profile switch; restore 1.9 at the end. In automation, `KmpComposeFlowReproTest` (L2) owns the 1.9/2.1/2.3 compilation and artifact-path matrix, while `KmpComposeDeployFlowTest` (L3) checks the real runtime flow of a representative profile only.
+
+---
+## 6. Investigation Entry Points
+
+| Symptom | First entry point |
 |---|---|
-| aapt2 compile 失败 | `ResourceCompiler.aapt2Compile()`：看 `compile --legacy` 命令与 flat 输出是否存在 |
-| aapt2 link / arsc 失败 | `ArscCompiler.doApkCompile()` 和 `incLinkCompile()`：看 `loadTable`、`inclink` errorOutput、invoker 是否重建 |
-| `multiply apk load not supported` | 检查是否仍有调用方把整条命令按空格拆参；所有路径参数必须作为 `Aapt2DaemonInvoker.invoke(List<String>)` 的独立元素传入 |
-| `no cache data found, run with --load first` | 先找同一 invoker 的 `loadTable failed`；失败实例不应进入 `aapt2InvokerMap` |
-| dynamic feature 资源 ID 异常 | `ArscCompiler.isBaseApkArscUpdate` / `baseApkUpdateFlatFiles`：确认 base 更新是否参与 feature link |
-| 新增 styleable 后 ID 冲突或找不到属性 | `StyleableFileGenerator` 与 `ArscCompiler.loadTable()` 的 `--styleables` 输入 |
-| release/AabResGuard 资源引用仍是原始名称 | `ResGuardMappingFileGenerator`、`AabResGuardHandler.writeAapt2IncLinkMappingFile()` |
-| 删除 `res/` 或 `assets/` 文件后仍能读取旧内容 | 删除事件不生成移除数据，这是预期的增量结果；只有需要让旧内容消失时才执行完整 Gradle build 刷新基线 |
-| 移除高 API 属性后仍看到旧 entry | `inclink` 只增量覆盖；检查是否生成了覆盖旧配置的额外产物 |
-| 资源 overlay 输出到错误 APK | `BaseCompiler.splitApkAndCompile()` 与 `CompileOutput.apkPath`：确认 module 到 APK 的归属和输出 apkPath |
-| manifest 无变更却触发重打包 | `ResourceOverlayCompiler.filterResources(...)`：确认 `isNeedOutputManifest=false` 时根 manifest 是否被过滤 |
-| layout 相关 generated source 未参与源码编译 | `ResourceCompiler.processViewBinding()` 和 `SourceCompiler.prepareSourceCompile()` |
-| R 引用异常 | `ArscCompiler.incLinkCompile()` 生成的 `R.java` 与 `RJavaFixer.fixIfNeeded()` |
-| 外部 AAR 新增资源后运行时 `NoSuchFieldError` / 连带 `NoClassDefFoundError` | `DependencyDiffResultHelper.resolveRPackageName()` 与 `RDexForSubmoduleCompiler.doTempModuleCompile()`：确认该资源变更是否带 `r_package_name`、宿主主 R.dex 是否本轮更新、外部 namespace 下 `R*.dex` 是否生成且包含新增字段 |
-| 增量编译报 “Can not resolve R package name for external dependencies” | symbol artifact 与 AAR Manifest `package` 都不可用；按提示执行完整 Gradle 构建刷新基线 |
+| aapt2 compile failure | `ResourceCompiler.aapt2Compile()`: inspect the `compile --legacy` command and whether flat output exists |
+| aapt2 link / arsc failure | `ArscCompiler.doApkCompile()` and `incLinkCompile()`: inspect `loadTable`, `inclink` errorOutput, and whether the invoker was recreated |
+| `multiply apk load not supported` | Check for a caller still splitting an entire command on spaces; every path argument must be a separate element of `Aapt2DaemonInvoker.invoke(List<String>)` |
+| `no cache data found, run with --load first` | First find `loadTable failed` for the same invoker; a failed instance must not enter `aapt2InvokerMap` |
+| Wrong dynamic-feature resource ID | Inspect `ArscCompiler.isBaseApkArscUpdate` / `baseApkUpdateFlatFiles` and confirm that base updates enter the feature link |
+| ID conflict or missing attribute after adding a styleable | Inspect `StyleableFileGenerator` and `--styleables` input to `ArscCompiler.loadTable()` |
+| Release/AabResGuard resource references still use original names | `ResGuardMappingFileGenerator` and `AabResGuardHandler.writeAapt2IncLinkMappingFile()` |
+| Old content remains readable after deleting a `res/` or `assets/` file | Deletion emits no removal data; this is the expected incremental result. Refresh the baseline with a full Gradle build only when old content must disappear |
+| Old entry remains after removing a high-API attribute | `inclink` overwrites incrementally; check whether an additional output was generated to overwrite the old configuration |
+| Resource overlay goes to the wrong APK | `BaseCompiler.splitApkAndCompile()` and `CompileOutput.apkPath`: confirm module-to-APK ownership and output apkPath |
+| Unchanged manifest triggers repackaging | `ResourceOverlayCompiler.filterResources(...)`: check that root manifest is filtered when `isNeedOutputManifest=false` |
+| Layout-generated source does not enter source compilation | `ResourceCompiler.processViewBinding()` and `SourceCompiler.prepareSourceCompile()` |
+| R-reference error | `R.java` generated by `ArscCompiler.incLinkCompile()` and `RJavaFixer.fixIfNeeded()` |
+| Runtime `NoSuchFieldError` / knock-on `NoClassDefFoundError` after adding a resource in an external AAR | `DependencyDiffResultHelper.resolveRPackageName()` and `RDexForSubmoduleCompiler.doTempModuleCompile()`: confirm that the resource change carries `r_package_name`, the host main R.dex changed this run, and external-namespace `R*.dex` was generated with the new field |
+| Incremental compilation reports “Can not resolve R package name for external dependencies” | Both symbol artifact and AAR Manifest `package` are unavailable; follow the prompt to run a full Gradle build and refresh the baseline |
 
 ---
 
-## 7. 关联文档
+## 7. Related Documents
 
-- Manifest 增量合并：`02_compile_manifest.md`
-- 混淆映射：`02_compile_obfuscation.md`
-- 源码编译：`02_compile_source.md`
-- DataBinding：`02_compile_databinding.md`
-- 部署核心：`03_deploy_core.md`
+- Incremental Manifest merge: `02_compile_manifest.md`
+- Obfuscation mapping: `02_compile_obfuscation.md`
+- Source compilation: `02_compile_source.md`
+- DataBinding: `02_compile_databinding.md`
+- Deployment core: `03_deploy_core.md`

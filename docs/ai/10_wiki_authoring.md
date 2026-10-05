@@ -1,27 +1,27 @@
-# Wiki 文章编写准则
+# Wiki Article Authoring Guidelines
 
-> 最后核对：2026-08-10
-> 一致性规则：文档与代码冲突时，以代码为准。
-
----
-
-## 1. 文档定位
-
-本页面向维护 Jugg 用户 Wiki 的 AI 和开发者，回答：
-
-- 正式用户文章应该如何组织页面元数据、标题、正文、链接和提示块。
-- 正式用户文章应该如何控制实现细节边界，避免写成源码维护文档。
-- Markdown 与工程语义块应该怎么使用。
-- 中英文页面如何同步。
-- 写能力篇前应该读取哪份专门规范。
-
-本页不描述 Wiki 工程如何运行；开发服务、构建、预览与发布见 `10_wiki_architecture.md`。
+> Last verified: 2026-08-10
+> Consistency rule: If documentation conflicts with code, code takes precedence.
 
 ---
 
-## 2. 页面 frontmatter 规范
+## 1. Purpose of This Document
 
-Wiki 页面顶部可以使用 frontmatter 描述页面元数据：
+This page is for AI and developers maintaining the Jugg user Wiki. It answers:
+
+- How official user articles should organize page metadata, headings, body text, links, and callouts.
+- How official articles should bound implementation detail so they do not become source-maintainer documentation.
+- How to use Markdown and engineering-semantic blocks.
+- How to synchronize English and Chinese pages.
+- Which dedicated standard to read before writing a capability page.
+
+For Wiki development, build, preview, and publication operations, see `10_wiki_architecture.md`.
+
+---
+
+## 2. Page Frontmatter
+
+A Wiki page may use frontmatter for metadata:
 
 ```yaml
 ---
@@ -35,92 +35,92 @@ tags:
 ---
 ```
 
-常用字段：
+Common fields:
 
-| 字段 | 是否推荐 | 说明 |
+| Field | Recommendation | Meaning |
 |---|---|---|
-| `title` | 推荐 | 页面标题，可用于目录、搜索和后续自动索引。 |
-| `description` | 推荐 | 页面摘要，可用于搜索结果说明。 |
-| `visibility` | 按需 | `dev` 表示仅开发环境可见。正式用户页面不需要写。 |
-| `status` | 按需 | `draft` / `active` / `deprecated`，用于标记维护状态。 |
-| `tags` | 按需 | 用于未来搜索、聚合或批量维护。 |
+| `title` | Recommended | Page title; useful in navigation, search, and future automatic indexes. |
+| `description` | Recommended | Page summary; useful in search results. |
+| `visibility` | As needed | `dev` means visible only in development. Omit it on official user pages. |
+| `status` | As needed | `draft` / `active` / `deprecated` maintenance state. |
+| `tags` | As needed | For future search, aggregation, or bulk maintenance. |
 
-约束：
+Constraints:
 
-- dev-only 页面必须写 `visibility: dev`。
-- dev-only 页面必须放在 `docs/wiki/dev/` 或 `docs/wiki/zh/dev/` 下。
-- 正式用户页面不要使用 `visibility: dev`。
-- 修改已有页面时，默认保留 `frontmatter.title` 和 H1。只有用户明确要求改名，或标题与页面职责明显冲突并得到确认后才修改；`description` 可以随正文更新。
+- Dev-only pages must set `visibility: dev`.
+- Dev-only pages must live under `docs/wiki/dev/` or `docs/wiki/zh/dev/`.
+- Official user pages must not use `visibility: dev`.
+- When editing an existing page, preserve `frontmatter.title` and H1 by default. Change them only when the user explicitly requests a rename, or when the title clearly conflicts with the page's role and the change has been confirmed. The `description` may change with the body.
 
 ---
 
-## 3. 支持的 Markdown 基础元素
+## 3. Supported Basic Markdown Elements
 
-Wiki 页面优先使用 Markdown 原生或 VitePress 稳定支持的元素：
+Prefer native Markdown or elements with stable VitePress support:
 
-| 元素 | 写法 | 说明 |
+| Element | Syntax | Guidance |
 |---|---|---|
-| 页面标题 | `# Title` | 每页只保留一个 H1。 |
-| 多级标题 | `##` / `###` / `####` | 用于生成页面结构和锚点。 |
-| 段落 | 普通文本 | 不要用过长段落堆叙述。 |
-| 加粗 / 斜体 / 删除线 | `**bold**` / `*italic*` / `~~deleted~~` | 用于局部强调。 |
-| 行内代码 | `` `value` `` | 用于命令、配置项、产物名、日志关键词和用户可见参数。正式用户页不要用它标注内部类名、方法名或源码路径。 |
-| 代码块 | ```` ```kotlin ```` | 用于命令、配置、伪代码、调用链。 |
-| 无序列表 | `- item` | 用于规则和要点。 |
-| 有序列表 | `1. item` | 用于必须按顺序执行的步骤。 |
-| 任务列表 | `- [ ] item` | 用于 TODO、验收清单、迁移清单。 |
-| 表格 | Markdown table | 用于状态机、能力矩阵、行为差异、边界说明和排查入口。 |
-| 链接 | `[text](path)` | 优先使用相对路径或站内绝对路径。 |
-| 图片 | `![alt](path)` | 必须提供有意义的 alt。 |
-| 引用 | `> quote` | 用于普通引用，不要冒充提示块。 |
-| 分割线 | `---` | 只在长页面大段分隔时使用。 |
-| 目录 | `[[toc]]` | 仅长页面需要。 |
+| Page title | `# Title` | Keep one H1 per page. |
+| Nested headings | `##` / `###` / `####` | Define page structure and anchors. |
+| Paragraph | Ordinary text | Avoid overlong blocks of prose. |
+| Bold / italic / strikethrough | `**bold**` / `*italic*` / `~~deleted~~` | Use for local emphasis. |
+| Inline code | `` `value` `` | Use for commands, configuration, artifact names, log keywords, and user-visible parameters. Do not use it to label internal class or method names or source paths on official user pages. |
+| Code block | ```` ```kotlin ```` | Use for commands, configuration, pseudocode, and flows. |
+| Unordered list | `- item` | Use for rules and key points. |
+| Ordered list | `1. item` | Use for steps that must run in sequence. |
+| Task list | `- [ ] item` | Use for TODOs, acceptance checklists, and migration checklists. |
+| Table | Markdown table | Use for state machines, capability matrices, behavior differences, boundaries, and investigation entry points. |
+| Link | `[text](path)` | Prefer relative or site-absolute paths. |
+| Image | `![alt](path)` | Always provide meaningful alt text. |
+| Blockquote | `> quote` | Use for ordinary quotations, not as a substitute for a callout. |
+| Divider | `---` | Use only to separate major parts of a long page. |
+| Table of contents | `[[toc]]` | Use only on long pages. |
 
-不建议在正式用户页大量使用原生 HTML；确有必要时，应保证 VitePress build 通过且移动端可读。
+Avoid extensive raw HTML on official user pages. Where necessary, ensure the VitePress build passes and the result remains readable on mobile devices.
 
 ---
 
-## 4. 提示块写法
+## 4. Callouts
 
-提示块统一使用 GitHub Alert 风格的 blockquote，保持 Markdown 可读和可降级：
+Use GitHub Alert-style blockquotes for callouts, keeping the Markdown readable and degradable:
 
 ```markdown
 > [!NOTE]
-> 普通说明。
+> Ordinary note.
 ```
 
-支持等级：
+Supported levels:
 
-| 等级 | 用途 |
+| Level | Use |
 |---|---|
-| `NOTE` | 背景说明、补充信息。 |
-| `TIP` | 推荐做法、最佳实践。 |
-| `IMPORTANT` | 重要但不一定危险的信息。 |
-| `WARNING` | 继续操作前必须注意的风险。 |
-| `CAUTION` | 严重风险或可能破坏状态的操作。 |
+| `NOTE` | Background or supplemental information. |
+| `TIP` | Recommended practice or best practice. |
+| `IMPORTANT` | Important information that is not necessarily dangerous. |
+| `WARNING` | Risk to consider before proceeding. |
+| `CAUTION` | Severe risk or an operation that may corrupt state. |
 
-带标题写法：
+With a title:
 
 ```markdown
 > [!WARNING]
-> **缓存一致性风险**
+> **Cache consistency risk**
 >
-> scoped data 只能用于 transport，不能直接更新全局 deploy state。
+> Scoped data is for transport only and must not directly update the global deploy state.
 ```
 
-约束：
+Constraints:
 
-- 不新增自定义等级，优先使用上表五类。
-- 风险类内容优先使用 `WARNING` 或 `CAUTION`，不要只用普通加粗文字。
-- 提示块内容可以包含列表和代码块，但应保持短小。
+- Do not add custom levels; use the five listed above.
+- Use `WARNING` or `CAUTION` for risks instead of only bold text.
+- A callout may contain a list or code block, but should remain short.
 
 ---
 
-## 5. 工程语义块写法
+## 5. Engineering-Semantic Blocks
 
-Jugg Wiki 除了普通 Markdown，还可以使用固定工程语义块，让读者快速理解能力、流程、边界和排查入口。正式用户页不写源码索引；源码入口、类名和路径应留在 `docs/ai_knowledge`。
+In addition to ordinary Markdown, the Jugg Wiki may use fixed engineering-semantic blocks to help readers identify capabilities, flows, boundaries, and investigation entry points. Official user pages must not contain a source index; put source entry points, class names, and paths in `docs/ai`.
 
-### 5.1 能力 / 机制索引
+### 5.1 Capability / Mechanism Index
 
 ```markdown
 ## Capability Index
@@ -130,15 +130,15 @@ Jugg Wiki 除了普通 Markdown，还可以使用固定工程语义块，让读�
 | Incremental resource link | Reuses the last Gradle baseline and links only changed resource inputs. |
 ```
 
-适用场景：页面涉及多项能力、技术机制或用户可感知行为时。
+Use this when a page covers several capabilities, technical mechanisms, or user-observable behaviors.
 
-约束：
+Constraints:
 
-- 不写源码文件、包名、类名、接口名、方法名或字段名。
-- 不用“某类负责”“某接口调用”“某路径下实现”这类维护者视角。
-- 如果需要记录源码入口，写入 `docs/ai_knowledge`，不要放进正式 Wiki。
+- Do not list source files, package names, classes, interfaces, methods, or fields.
+- Avoid a maintainer viewpoint such as “class X is responsible for,” “interface Y calls,” or “implemented under path Z.”
+- Record source entry points in `docs/ai`, not in the official Wiki.
 
-### 5.2 调用链 / 流程
+### 5.2 Call Chains / Flows
 
 ```text
 user action
@@ -147,9 +147,9 @@ user action
   -> state boundary
 ```
 
-写流程时必须突出业务含义，不要机械罗列方法名。正式用户页的流程应描述用户动作、系统决策、产物流转和状态边界，不描述源码调用关系。
+A flow must convey business meaning rather than list method names mechanically. In an official user page, describe user actions, system decisions, artifact movement, and state boundaries, not source-code call relationships.
 
-### 5.3 隐形约束
+### 5.3 Hidden Constraints
 
 ```markdown
 ## Hidden Constraints
@@ -158,9 +158,9 @@ user action
 - Production builds must not expose dev pages through nav, search, or direct routes.
 ```
 
-适合记录用户容易误判、但又会影响行为判断的规则。不要把内部维护规则、源码组织方式或测试落点写进正式用户页。
+Use these for rules users may misjudge that affect behavior. Keep internal maintenance rules, source organization, and test placement off official user pages.
 
-### 5.4 排查入口
+### 5.4 Troubleshooting Entry Points
 
 ```markdown
 ## Troubleshooting
@@ -170,248 +170,252 @@ user action
 | Incremental run falls back to Gradle | Check whether Gradle files, dependencies, or target device changed. |
 ```
 
-只给第一跳，不把页面写成完整排查剧本。正式用户页的第一跳应是用户可观察现象、日志关键词、配置项或下一步操作，不应是源码类或文件路径。
+Give only the first hop, not a complete investigation script. On an official user page, a first hop should be an observable symptom, log keyword, setting, or next action, never a source class or file path.
 
 ---
+### 5.5 Extracting High-Value Technical Content and Writing Objectively
 
-### 5.5 高价值技术提炼与客观叙事准则
-核心概念、编译核心或底层模块页面应先补齐理解 Jugg 机制所需的背景。读者熟悉基础机制时可以直接解释问题；读者不熟悉时先建立最小工作模型，再解释 Jugg 的差异和边界。目标是信息密度高、技术可信、语气克制。
+A page on a core concept, compilation core, or low-level module should first supply the background needed to understand Jugg's mechanism. If readers know the basic mechanism, explain the issue directly; if they do not, establish the smallest useful working model before explaining Jugg's differences and boundaries. Aim for high information density, technical credibility, and a restrained tone.
 
-#### 5.5.1 首屏入口
-H1 之后、首个 H2 之前必须有一段独立入口说明。入口优先补齐读者理解正文所缺少的信息：
+#### 5.5.1 Opening the Page
 
-- 读者熟悉目标机制，且页面围绕真实失败展开时，说明具体操作、用户可见结果和 Jugg 的处理方式。
-- 读者不了解目标机制的输入、阶段和产物时，先简要说明标准工作模式，再说明 Jugg 复用、替代或补充了哪些环节。
+A standalone opening paragraph is required between H1 and the first H2. It should first supply what readers need to understand the body:
 
-领域介绍只需支撑后续 Jugg 论证，不扩写成通用框架教程。具体失败可以在建立基础模型后展开，不强制占据开场。子页也必须能独立阅读，不能依赖父页上下文补齐背景。
+- If readers know the target mechanism and the page centers on a real failure, state the specific operation, user-visible result, and Jugg's response.
+- If readers do not know the mechanism's inputs, stages, and outputs, briefly explain the standard working model before stating which steps Jugg reuses, replaces, or supplements.
 
-#### 5.5.2 选择叙事起点
-问题驱动是常用论证方式，不是所有 concept 页的固定入口。根据读者的前置知识选择叙事起点：
+Introduce only enough domain background to support the later Jugg explanation; do not turn it into a general framework tutorial. A concrete failure can appear after the basic model and need not dominate the opening. A child page must stand on its own without requiring context from its parent page.
 
-- 读者熟悉基础机制，且存在真实局部方案或可观察故障时，可以从问题、Jugg 机制和边界展开。
-- 读者不熟悉基础机制时，先说明标准输入、阶段和产物，再说明 Jugg 改变的环节、关键状态和回退边界。
-- 首个 H2 应承接入口建立的认知，可以是具体问题，也可以是标准工作模式。
-- 标题必须描述内容，不写“痛点”“解法”“核心解法”“边界与代价”“瓶颈”这类元结构词。
-- 只在存在真实架构摩擦点的核心页展开三段论证；导航页、入口说明、并列分流类简单页按内容自然组织。
-- 不要用“这页按一条主线展开：...”替代叙事导入。
-- 比较表和完整流程只在存在真实映射或多个依赖阶段时使用，不作为陌生领域的固定格式。
-- 不要把需要多个阶段协作的完整外部机制拆成“只处理其中一步”的半成品流程，再用该半成品的失败建立论点；只有这种局部流程是真实实现选择、历史方案或稳定复现时才保留。
+#### 5.5.2 Choose the Narrative Starting Point
 
-#### 5.5.3 明确复用关系和行为 owner
+Problem-driven writing is a common way to argue a point, not a fixed opening for every concept page. Choose a starting point based on readers' prior knowledge:
 
-正文使用“复用、替代、绕过、接管”等表述时，必须同时说明三个对象：被操作的具体机制、原本负责用户可见行为的 owner，以及 Jugg 新增的判断、修正或降级。不能因为这些对象位于同一条部署链路，就把它们合并成一个模糊主体。
+- When readers know the basic mechanism and a real local solution or observable failure exists, begin with the problem, Jugg's mechanism, and its boundary.
+- When readers do not know the basic mechanism, first explain standard inputs, stages, and outputs, then the steps Jugg changes, key state, and fallback boundary.
+- The first H2 should extend the mental model established in the opening. It can be a concrete problem or a standard working model.
+- Headings must describe content. Avoid meta-structure labels such as “Pain point,” “Solution,” “Core solution,” “Boundaries and costs,” or “Bottleneck.”
+- Develop a three-part argument only on core pages with real architectural friction. Organize simple pages such as navigation, introductory, or parallel-routing pages naturally by content.
+- Do not replace an introduction with “This page follows one main thread: ...”.
+- Use comparison tables and complete flows only when there is a real mapping or several dependent stages, not as a mandatory format for unfamiliar domains.
+- Do not split a complete external mechanism that requires several cooperating stages into a nonfunctional “only one step” flow and use that invented failure to argue for the current design. Retain a local flow only if it is a real implementation choice, historical approach, or reproducible stable case.
 
-叙述主体发生变化后，禁止用“这套能力”“这条链路”“继续复用它”等指代承担关键结论。应重复准确术语，使读者能够判断最终行为仍由原机制执行，还是已经由 Jugg 接管。
+#### 5.5.3 Identify Reuse and the Behavior Owner
 
-例如：
+When the body says “reuse,” “replace,” “bypass,” or “take over,” name three things together: the specific mechanism affected, the original owner of the user-visible behavior, and Jugg's added decision, correction, or fallback. Do not merge them into a vague actor simply because they share one deployment flow.
 
-- 模糊：`Jugg 继续复用这套在线替换。`
-- 明确：`Jugg 目前直接复用 Apply Changes 的热重载通道。普通类重定义仍由 Apply Changes Agent 执行；Jugg Agent 负责检测 JVMTI 可用性并安装运行时修正。`
+After the narrative subject changes, avoid pronouns such as “this capability,” “this flow,” or “continue reusing it” in a key conclusion. Repeat precise terms so readers can tell whether the original mechanism still executes the final behavior or Jugg has taken it over.
 
-#### 5.5.4 高价值技术点识别
-重写或扩写页面时，必须主动从现有文档或代码中提炼高价值技术点。优先关注三类信号：
+For example:
 
-- **深度定制**：如定制 aapt2、自建隔离 ClassLoader、自有 JVMTI Agent。
-- **环境对抗**：如特定 Android Studio 版本差异、设备厂商兼容、HarmonyOS / HyperOS 等定制系统处理。
-- **时序与依赖冲突**：如初始化时机提前、类冲突、Smart Cast 失败、运行时状态对齐。
+- Vague: `Jugg continues reusing this online replacement mechanism.`
+- Clear: `Jugg currently reuses the Apply Changes hot-reload channel directly. The Apply Changes Agent still performs ordinary class redefinition; the Jugg Agent detects JVMTI availability and installs runtime corrections.`
 
-这些内容应提升为主体结构中的关键机制或边界，不要埋在流水账里。
+#### 5.5.4 Identify High-Value Technical Points
 
-#### 5.5.5 语气与修辞
-坚持数据与原理叙事，用量化指标和技术原理解释收益与取舍，例如“10 至 15 秒固定耗时”“100~200 毫秒”“局部状态缓存缺失”“内存级覆盖”。
+When rewriting or expanding a page, actively extract high-value technical points from the existing documentation or code. Prioritize three kinds of signals:
 
-禁止使用主观情绪词与焦虑渲染，例如“哪怕”“纯粹”“死死卡在”“绝望”“惊人”“断崖式”。避免把技术方案写成宣传文案。
+- **Deep customization**: custom aapt2, an isolated ClassLoader, or Jugg's own JVMTI Agent.
+- **Hostile environment differences**: specific Android Studio version differences, device-vendor compatibility, or customized systems such as HarmonyOS / HyperOS.
+- **Timing and dependency conflicts**: early initialization, class conflicts, Smart Cast failure, or runtime-state alignment.
 
-出现“契约、保障、上下文、一致性、能力、链路”等抽象词时，检查它是否隐藏了可以直接说明的对象或结果。能写成方法签名、字段类型、继承结构、DEX 引用、Gradle 构建产物或运行时异常时，优先使用具体概念；这些词有明确技术含义时可以保留。不要为了变化句式而替换已经准确、统一的技术术语，也不要加入第一人称、幽默、情绪、个性化表达或题外内容。
+Elevate these to key mechanisms or boundaries in the page structure; do not bury them in a chronological activity log.
 
-不要用模糊副词或脑补场景替代准确边界。正式用户页中的“基本”“可能”“也可能”“不一定”“如果每次都”“如果只看”这类表述，必须满足以下条件之一：
+#### 5.5.5 Tone and Rhetoric
 
-- 对应真实触发条件、真实系统行为或用户可见结果。
-- 属于排查页的分支判断，并给出下一步动作。
-- 是能力边界本身，例如设备、Gradle task 或第三方环境确实无法由 Jugg 完全控制。
+Explain benefits and tradeoffs using measurements and technical principles, such as “10 to 15 seconds of fixed overhead,” “100–200 milliseconds,” “missing local-state cache,” and “in-memory overlay.”
 
-不满足上述条件时，改成可验证事实：说明产物来自哪里、进入哪条生效路径、为什么需要该路径、失败后系统如何收口。不要先假设一个错误实现，再用“如果……”证明当前方案必要；直接写真实机制和代价。
+Do not use subjective emotional language or anxiety-driven phrasing, such as “even if,” “purely,” “stuck fast,” “desperate,” “astonishing,” or “cliff-like.” Do not turn a technical explanation into marketing copy.
 
-描述能力边界时必须区分三类结果：操作不受支持并失败或回退、操作被忽略且旧状态保持不变、操作已被处理但需要后续重启或重装才能生效。对于被忽略的操作，先写本轮不会生成什么结果，以及旧内容是否继续存在或可访问；完整 Gradle 构建、重装等只作为让目标变化真正生效的后续方式。不能只写“需要完整构建”，以免读者误解为操作不受支持、增量编译失败或系统已经自动回退。
+For abstractions such as “contract,” “guarantee,” “context,” “consistency,” “capability,” and “flow,” check whether they conceal a specific object or result. Prefer a method signature, field type, inheritance structure, DEX reference, Gradle build artifact, or runtime exception when one can be named. Retain abstract terms when they have a precise technical meaning. Do not vary already accurate and consistent terminology merely for style. Avoid first-person language, humor, emotion, personalization, and digressions.
 
-### 5.6 正式用户页的信息边界
+Do not substitute vague adverbs or invented scenarios for exact boundaries. In official user pages, qualifiers such as “basically,” “possibly,” “it may also,” “not necessarily,” “if it happens every time,” and “if one only looks at” must meet at least one condition:
 
-正式 Wiki 面向产品用户和普通 Android 开发者，不面向源码维护者。页面可以解释机制、取舍、边界和用户可感知行为，但不写源码视角。
+- They correspond to a real trigger, system behavior, or user-visible result.
+- They express a branch in a troubleshooting page with a next action.
+- They state an actual capability boundary, such as a device, Gradle task, or third-party environment that Jugg cannot fully control.
 
-统一约束：
+Otherwise, replace them with verifiable facts: where an artifact originates, which effective path receives it, why that path is needed, and how the system contains failure. Do not invent an incorrect implementation with “if ...” and then use it to justify the current design; describe the real mechanism and cost directly.
 
-- 不写源码索引。
-- 不列源码文件、包名、类名、接口名、方法名、字段名。
-- 不使用“某类负责”“某接口调用”“某路径实现”这类维护者视角。
-- 不把内部模块划分直接暴露给用户，除非它已经是用户能理解的产品能力或公开概念。
-- 不把源码排查入口写进正式用户页；排查入口应面向现象、日志、配置、操作结果和下一步动作。
+When describing a capability boundary, distinguish three outcomes: an unsupported operation that fails or falls back; an ignored operation that leaves old state unchanged; and an operation that has been processed but needs a later restart or reinstall to take effect. For an ignored operation, first state which result is not produced in this run and whether old content remains present or accessible. Mention a full Gradle build or reinstall only as a later way to make the desired change effective. Saying only “requires a full build” could wrongly imply that the operation is unsupported, incremental compilation failed, or an automatic fallback already occurred.
 
-允许保留：
+### 5.6 Information Boundary for Official User Pages
 
-- 用户能感知的产品能力、运行阶段和技术机制。
-- Android 开发者熟悉的通用概念，例如 Gradle、APK、DEX、Manifest、resources.arsc、aapt2、Apply Changes、JVMTI。
-- 用户会在日志、UI、配置或错误信息中看到的名称。
-- 能解释行为差异的工程事实，例如“需要重新建立 Gradle 基线”“设备状态不可信时会重新安装”。
+The official Wiki addresses product users and ordinary Android developers, not source maintainers. It may explain mechanisms, tradeoffs, boundaries, and user-observable behavior, but must avoid a source-code viewpoint.
 
-改写原则：
+Rules:
 
-- 把内部实现名改成机制描述。
-- 把源码路径改成能力边界。
-- 把调用关系改成用户能理解的流程。
-- 把维护者排查入口改成用户可观察现象和下一步动作。
+- Do not include a source index.
+- Do not list source files, package names, classes, interfaces, methods, or fields.
+- Avoid maintainer phrasing such as “a class is responsible for,” “an interface calls,” or “implemented under a path.”
+- Do not expose internal module boundaries to users unless they are already an understandable product capability or public concept.
+- Do not put source-code investigation entry points on official user pages; direct users to symptoms, logs, settings, operation results, and next actions.
 
-### 5.7 Prompt 与规范分工
+Allowed content:
 
-长期稳定的写作规则应写入本文档，不应依赖每次 prompt 重复列出。prompt 只负责指定目标页面、读者、主标准和交付动作。
+- Product capabilities, runtime stages, and technical mechanisms visible to users.
+- General Android concepts familiar to developers: Gradle, APK, DEX, Manifest, resources.arsc, aapt2, Apply Changes, and JVMTI.
+- Names users see in logs, UI, configuration, or errors.
+- Engineering facts that explain behavior differences, such as “a Gradle baseline must be re-established” or “the app is reinstalled when device state is untrustworthy.”
 
-推荐短 prompt：
+Rewriting principles:
 
-```text
-按 docs/ai_knowledge/10_wiki_authoring.md 重写 <目标文档>。先写英文基准页，再同步中文镜像。
+- Replace internal implementation names with mechanism descriptions.
+- Replace source paths with capability boundaries.
+- Replace call relationships with a flow users can understand.
+- Replace maintainer investigation entry points with observable symptoms and next actions.
 
-根据普通 Android 开发者对主题的熟悉程度，先建立必要的工作模型或从真实问题切入，再解释 Jugg 机制和边界。不要写源码视角。保留既有标题、H1、站内链接和用户可见事实。完成后 build 并 commit。
-```
+### 5.7 Division of Labor Between Prompts and Rules
 
-多页面改造时：
+Keep stable authoring rules in this document instead of repeating them in every prompt. A prompt should specify only the target page, audience, main standard, and delivery action.
+
+Suggested short prompt:
 
 ```text
-按 docs/ai_knowledge/10_wiki_authoring.md 重写以下 Wiki 页面：<页面列表>。先写英文基准页，再同步中文镜像。
+Rewrite <target document> according to docs/ai/10_wiki_authoring.md. Write the English source page first, then synchronize its Chinese mirror.
 
-统一面向普通 Android 开发者，根据每个主题所需的前置知识选择叙事起点，移除源码视角，保留用户可理解的技术机制、边界和站内链接。完成后 build 并 commit。
+Depending on ordinary Android developers' familiarity with the topic, establish the necessary working model or start from a real problem, then explain Jugg's mechanism and boundaries. Avoid a source-code viewpoint. Preserve the existing title, H1, internal links, and user-visible facts. Build and commit when done.
 ```
 
-### 5.8 concepts 与 capabilities 分工
+For multiple pages:
 
-`concepts` 和 `capabilities` 可以指向同一技术主题，但不能重复承载同一段解释。两类页面按用户意图分工：
+```text
+Rewrite these Wiki pages according to docs/ai/10_wiki_authoring.md: <page list>. Write the English source pages first, then synchronize their Chinese mirrors.
 
-| 目录 | 读者问题 | 内容边界 |
+Write consistently for ordinary Android developers. Choose a narrative starting point based on each topic's prerequisites, remove the source-code viewpoint, and preserve understandable technical mechanisms, boundaries, and internal links. Build and commit when done.
+```
+
+### 5.8 Distinct Roles of `concepts` and `capabilities`
+
+`concepts` and `capabilities` can discuss the same technical topic, but must not repeat the same explanation. Separate them by reader intent:
+
+| Directory | Reader question | Content boundary |
 |---|---|---|
-| `concepts` | 为什么需要这套机制，Jugg 如何保证正确性 | 问题成因、常规方案瓶颈、Jugg 机制、关键状态/数据流、时序约束、代价与边界 |
-| `capabilities` | 我的修改或操作是否支持，会触发什么结果 | 支持范围、触发条件、用户可见结果、前置条件、常见降级或回退、继续阅读入口 |
+| `concepts` | Why is this mechanism needed, and how does Jugg preserve correctness? | Causes of the problem, limitations of conventional approaches, Jugg's mechanism, key state/data flows, timing constraints, costs, and boundaries |
+| `capabilities` | Is my change or operation supported, and what result will it trigger? | Supported scope, trigger conditions, user-visible results, prerequisites, common degradation/fallback, and further reading |
 
-判断标准：
+Decision rules:
 
-- 如果内容回答“为什么必须这样做 / 机制如何保证正确”，放在 `concepts`。
-- 如果内容回答“这个场景支不支持 / 会得到什么结果”，放在 `capabilities`。
-- 如果内容回答“我现在该怎么操作”，放在 `guide`。
-- 如果内容回答“遇到某个现象下一步看哪里”，放在 `troubleshooting`。
+- Put explanations of “why this must be done / how the mechanism preserves correctness” in `concepts`.
+- Put “is this scenario supported / what result will I get” in `capabilities`.
+- Put “what should I do now” in `guide`.
+- Put “where should I look next for this symptom” in `troubleshooting`.
 
-能力页不得把概念页的机制解释换一种说法重复一遍。能力页可以保留短流程，但应只描述用户可理解的触发和结果，通常控制在 5-8 行；更深的机制通过“相关页面”链接到对应 `concepts` 页面。
+A capability page must not rephrase and repeat its corresponding concept page. It may retain a short flow limited to user-understandable triggers and results, typically 5–8 lines. Link deeper mechanism explanations to the relevant `concepts` page under “Related Pages.”
 
-### 5.9 能力页推荐结构
+### 5.9 Recommended Capability Page Structure
 
-具体能力页优先使用以下结构：
+For a specific capability, prefer:
 
 ```markdown
 # Capability Name
 
-一句话说明用户场景和本页范围。
+One sentence explaining the user scenario and scope of this page.
 
-## 支持范围
+## Supported Scope
 
-| 场景 | 当前支持情况 | 用户可见结果 |
+| Scenario | Current support | User-visible result |
 |---|---|---|
 
-## 触发与结果
+## Triggers and Results
 
-短流程或短列表，只写触发条件和用户可见结果，不展开深层机制。
+A short flow or list describing only triggers and user-visible results, without the deep mechanism.
 
-## 使用边界
+## Usage Boundaries
 
-- 前置条件。
-- 会回退、重启、重装或要求 Gradle 基线的情况。
-- 用户容易误判的限制。
+- Prerequisites.
+- Cases that fall back, restart, reinstall, or require a Gradle baseline.
+- Limitations users may misjudge.
 
-## 相关页面
+## Related Pages
 ```
 
-能力页写作约束：
+Capability-page rules:
 
-- 表格第三列优先写“用户可见结果”，不要写内部执行类或内部数据字段。
-- “触发与结果”用于连接支持矩阵和结果，不用于解释完整机制。
-- 需要解释底层原因时，只写一句结论并链接概念页。
-- 同一主题已有概念页时，能力页正文不重复概念页的核心段落。
-- 边界场景必须先写当前增量路径的实际结果，再写恢复方式。例如删除被忽略时，应说明旧内容仍然存在，而不是只写“删除需要完整构建”。
+- Prefer “User-visible result” for the third table column, not an internal executor class or data field.
+- “Triggers and Results” connects the support matrix to outcomes; it does not explain the entire mechanism.
+- When an underlying cause needs explaining, give one conclusion and link to the concept page.
+- If a concept page exists for the topic, do not repeat its core paragraphs in the capability page.
+- For a boundary scenario, describe the current incremental path's actual result before its recovery action. For example, if deletion is ignored, state that old content still exists instead of only saying “deletion requires a full build.”
 
-### 5.10 概念页推荐结构
+### 5.10 Recommended Concept Page Structure
 
-概念页不统一规定开场和章节顺序。读者熟悉基础机制时可以从真实问题切入；读者缺少背景时，先用最少篇幅说明标准输入、阶段和产物。两类页面通常都需要覆盖 Jugg 的处理方式、关键状态或时序、适用边界和相关页面，但标题应根据实际内容命名。
+There is no mandated opening or section order for concept pages. When readers know the basic mechanism, a page can begin with a real problem. When they lack the background, explain standard inputs, stages, and outputs as briefly as possible. Both types of page usually cover Jugg's response, key state or timing, applicable boundaries, and related pages; name headings for their actual content.
 
-概念页写作约束：
+Concept-page rules:
 
-- 不写支持矩阵；支持矩阵属于能力页。
-- 不写操作步骤；操作步骤属于指南。
-- 不把每个能力拆成清单式入口；入口分流属于能力概览页。
-- 可以解释机制细节，但仍然面向普通 Android 开发者，不写源码路径、类名或方法名。
+- Do not include a support matrix; that belongs on a capability page.
+- Do not include operation steps; those belong in a guide.
+- Do not turn each capability into a list-style entry point; routing belongs on the capability overview page.
+- Mechanism details are allowed, but address ordinary Android developers without source paths, class names, or method names.
 
-### 5.11 guide、concepts 与 capabilities 的跨目录关联
+### 5.11 Cross-Directory Links Among `guide`, `concepts`, and `capabilities`
 
-跨目录链接的目标是让读者在“怎么做”、“为什么这样做”和“当前支持什么”之间切换，不是让同一技术大类下的所有页面相互链接。
+Cross-directory links let readers move among “how to do it,” “why it works,” and “what is supported.” They are not a reason to interlink every page in the same broad technical category.
 
-先判断两个页面是否为**同主题对应页**：
+First determine whether two pages are **corresponding pages for the same topic**:
 
-- `guide` 页提供某项功能的直接操作、判断和恢复入口。
-- `concepts` 页解释同一功能背后的问题、机制、状态或时序。
-- `capabilities` 页说明同一功能的支持范围、触发条件和用户可见结果。
+- A `guide` page gives direct operation, judgment, and recovery steps for a feature.
+- A `concepts` page explains the same feature's underlying problem, mechanism, state, or timing.
+- A `capabilities` page states the same feature's supported scope, triggers, and user-visible results.
 
-同主题对应页必须双向链接：
+Corresponding pages must link both ways:
 
-- 同时存在 `guide` 与 `concepts` 时，两页相互链接。
-- 同时存在 `concepts` 与 `capabilities` 时，两页相互链接。
-- 同时存在 `guide` 与 `capabilities` 时，两页相互链接。
-- 三类页面都存在时，优先形成完整三角，不要要求读者经过第三页中转。
-- `guide`、`concepts` 和 `capabilities` 的目录首页也应相互提供模块入口。
+- If both `guide` and `concepts` exist, link them to each other.
+- If both `concepts` and `capabilities` exist, link them to each other.
+- If both `guide` and `capabilities` exist, link them to each other.
+- If all three exist, prefer the complete triangle; do not require readers to pass through a third page.
+- The directory homepages of `guide`, `concepts`, and `capabilities` should also offer entry points to one another.
 
-以下链接不强制反向链接：
+The following links do not require a reverse link:
 
-- 当前机制依赖的上游基线或下游部署步骤。
-- 页面中用于解释某个产物、限制或失败分支的背景页。
-- 总览页指向子页、排查页或参考页的导航链接。
+- An upstream baseline or downstream deployment step required by the current mechanism.
+- A background page used to explain an artifact, limitation, or failure branch.
+- Navigation from an overview to a child, troubleshooting, or reference page.
 
-整理“相关页面”或“关联能力”时遵守以下边界：
+When editing “Related Pages” or “Related Capabilities”:
 
-- 只因同属“编译”、“部署”或“工具”大类不构成关联。
-- 没有精确对应页时，不为了对称链接泛化的大类页；保留缺口，待真正建立对应页后再补齐。
-- 一个已确认的同主题对应只有单向链接时，视为文档关联缺口；补齐反向入口。
-- 补链接前先核对两页的读者问题和正文，不按标题相似度机械配对。
-- 新增或删除跨目录链接后，同时检查对应页的反向链接，并执行相对路径解析与 production Wiki build。
+- Merely sharing a broad “compilation,” “deployment,” or “tools” category does not establish a relationship.
+- Do not link to a broad generic page for symmetry when there is no exact corresponding page. Leave the gap until a real corresponding page exists.
+- If a confirmed same-topic pair has only a one-way link, treat that as a documentation gap and add the reverse link.
+- Compare the reader question and body of both pages before adding links; do not pair mechanically by similar titles.
+- After adding or removing cross-directory links, check reverse links, resolve relative paths, and run the production Wiki build.
 
-## 6. 中英文页面同步规则
+## 6. English and Chinese Page Synchronization
 
-Jugg Wiki 以英文根路径页面为唯一内容基准，中文 `/zh/` 页面是英文页面的严格镜像：
+The Jugg Wiki uses English root-route pages as its sole content source. Chinese `/zh/` pages are strict mirrors:
 
-- 去掉 `zh/` 前缀后，中英文 Markdown 路径集合必须完全一致，包括 dev-only 页面。
-- 页面类型、章节顺序、表格条目、提示块、代码块和相关页面结构保持一致。
-- `title`、`description`、H1 和导航文字翻译为中文；`status`、`tags`、`visibility` 保持一致。
-- nav/sidebar 的层级、顺序和目标页面保持镜像，只翻译显示文字。
-- 新增、删除、移动或重命名页面时，同一任务内同时处理两个语言版本，不保留单一语言独有页面。
-- 修改事实、结构、边界或链接时，先更新英文，再在同一 diff 和 commit 中更新中文。
-- 只有不改变事实、结构、路由和链接的纯语言修正可以只修改受影响的语言版本。
+- After removing the `zh/` prefix, the English and Chinese Markdown path sets must match exactly, including dev-only pages.
+- Page type, section order, table rows, callouts, code blocks, and Related Pages structure must match.
+- Translate `title`, `description`, H1, and navigation labels into Chinese; keep `status`, `tags`, and `visibility` identical.
+- Mirror nav/sidebar hierarchy, order, and target pages; translate only the displayed labels.
+- Add, delete, move, or rename both language versions in the same task; do not leave a page in only one language.
+- Update English first when facts, structure, boundaries, or links change, then update Chinese in the same diff and commit.
+- A purely linguistic fix that changes no facts, structure, routes, or links may update only the affected language.
 
-英译中直接以英文页面为准，不重新核对实现。翻译可以按自然中文调整句式，但不得增加、删除、重排或弱化英文页面中的事实与边界。发现英文内容矛盾、链接失效或原意无法确定时，先报告问题，不在中文版自行补充解释。
+Translate from the English page into Chinese directly without rechecking the implementation. Natural Chinese sentence structure is fine, but do not add, remove, reorder, or weaken English facts or boundaries. If English content conflicts, a link is broken, or the intended meaning is unclear, report the issue first rather than adding your own explanation to the Chinese page.
 
-英文统一使用美式英语和 sentence case 标题。术语以中英文 `reference/glossary.md` 为准；命令、参数、路径、配置值、日志关键词和实际 UI 文案保持原样。
+Use American English and sentence case headings consistently in English. Follow the English and Chinese `reference/glossary.md` pages for terminology. Keep commands, parameters, paths, configuration values, log keywords, and actual UI strings unchanged.
 
-术语表是列结构例外：中文 `zh/reference/glossary.md` 使用“中文术语 / 英文术语 / 含义”三列，没有中文名称的术语写 `-`；英文 `reference/glossary.md` 只使用“Term / Meaning”两列，不反向加入中文。两页的术语条目、顺序和含义仍须对应。
-
----
-
-## 7. 不推荐写法
-
-- 不要把内部维护规则放进正式用户 Wiki 页面。
-- 不要为了视觉效果大量使用自定义 HTML。
-- 不要在正式页面暴露 dev-only demo、AI 维护流程、内部任务计划。
-- 不要在正式页面写源码索引、源码路径、内部类名或方法名。
-- 不要把维护者排查入口放进用户页。
-- 不要用截图替代表格、代码块或可搜索文本。
-- 不要把代码实现逐句翻译成 Wiki 内容；应提炼入口、链路、状态和约束。
-- 不要用“基本”“也可能”“不一定”等弱限定词兜底未核实的机制描述。
-- 不要用“如果每次都...”“如果只看...”这类反事实错误实践来制造论证前提。
+The glossary is a column-structure exception: Chinese `zh/reference/glossary.md` has three columns, “Chinese term / English term / meaning”; use `-` where there is no Chinese term. English `reference/glossary.md` has only “Term / Meaning” and should not gain a Chinese column. The entry set, order, and meanings must still correspond.
 
 ---
 
-## 8. 关联文档
+## 7. Discouraged Practices
 
-- `10_wiki_architecture.md`：Wiki 工程结构、本地运行、构建、预览和发布边界。
-- `97_maintenance_manual.md`：AI 知识库维护质量标准。
-- `99_index.md`：AI 文档检索入口和专题目录。
+- Do not put internal maintenance rules on official user Wiki pages.
+- Do not use extensive custom HTML merely for visual effect.
+- Do not expose dev-only demos, AI maintenance workflows, or internal task plans on official pages.
+- Do not include source indexes, source paths, internal class names, or method names on official pages.
+- Do not put maintainer investigation entry points on user pages.
+- Do not use screenshots instead of tables, code blocks, or searchable text.
+- Do not translate code implementations line by line into Wiki prose; extract entry points, flows, states, and constraints.
+- Do not hide unverified mechanism descriptions behind weak qualifiers such as “basically,” “may also,” or “not necessarily.”
+- Do not manufacture an argument from counterfactual bad practices such as “if it happened every time ...” or “if one looked only at ...”.
+
+---
+
+## 8. Related Documents
+
+- `10_wiki_architecture.md`: Wiki project structure, local operation, build, preview, and publishing boundaries.
+- `97_maintenance_manual.md`: AI knowledge-base maintenance quality standard.
+- `99_index.md`: AI documentation search entry point and topic catalog.

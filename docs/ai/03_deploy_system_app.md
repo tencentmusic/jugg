@@ -1,221 +1,221 @@
-# 系统应用部署约束
+# System-App Deployment Constraints
 
-> 最后核对：2026-09-15
-> 一致性规则：文档与代码冲突时，以代码为准。
+> Last checked: 2026-09-15
+> Consistency rule: when documentation conflicts with code, follow the code.
 
-## 1. 文档定位
+## 1. Scope
 
-本页只回答：
+This page answers:
 
-- Jugg 当前部署链路能不能把 App 变成系统应用 / 特权应用。
-- 普通系统应用与特权应用在设备上的充分条件分别是什么。
-- 首次落盘失败时，哪些现象能证明是安装路径问题，而不是 Jugg compile / Apply Changes 故障。
+- Whether Jugg's current deployment flow can turn an app into a system or privileged app.
+- The sufficient device-side conditions for ordinary system and privileged apps.
+- Which observations after an initial placement failure establish an install-path issue rather than a Jugg compile/Apply Changes defect.
 
-不展开 Jugg install / overlay 的一般机制，见 `03_deploy_core.md`。
+For general Jugg install/overlay mechanics, see `03_deploy_core.md`.
 
-Jugg **没有内置**把普通 APK 首次安装成系统应用的 installer、`priv-app` push 或权限白名单逻辑。Run Configuration 可启用 `Enable custom APK install script`，让项目自己的 Gradle task 或脚本接管普通 App 的 install/reinstall；系统分区写入、白名单和重启仍完全由该脚本负责。需要平台签名或服务器签名时，另用 `Enable custom APK sign script` 替换 Jugg 增量改写 APK 后的默认本地 keystore 签名；两个脚本相互独立，安装脚本不因为启用了签名脚本而改变职责。已经安装的 debuggable 应用如果不满足 Android Studio Deployer 的 `run-as`、普通 UID 与 SELinux label 前提，但 shell、root adbd 或非交互 `su` 能完整访问其 data 目录，class、资源和 assets 增量部署可走 Jugg Direct transport。
+Jugg has **no built-in** installer for initially placing an ordinary APK as a system app, pushing to `priv-app`, or installing permission allowlists. A Run Configuration can enable `Enable custom APK install script` so a project's Gradle task or script takes over ordinary-app install/reinstall. That script remains fully responsible for writing system partitions, allowlists, and rebooting. If platform or server signing is needed, independently use `Enable custom APK sign script` to replace Jugg's default local-keystore signing after an incremental APK rewrite. The install and signing scripts have separate responsibilities. For an already installed debuggable app that fails Android Studio Deployer's `run-as`, ordinary-UID, or SELinux-label prerequisites, Jugg Direct transport can incrementally deploy classes, resources, and assets if shell, root adbd, or noninteractive `su` can fully access its data directory.
 
-## 2. 核心源码索引
+## 2. Core Source Index
 
-| 类/接口 | 文件 | 作用 |
+| Class/interface | File | Role |
 |---|---|---|
-| `JuggDeployer.install()` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/applychanges/JuggDeployer.kt` | 统一安装入口。普通 App 可选择自定义脚本，否则调用 Apply Changes executor；成功后统一写 deployment cache 与 overlay id。 |
-| `CustomApkInstallScriptRunner` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/applychanges/CustomApkInstallScriptRunner.kt` | 在本地工程根目录执行用户脚本，补齐 Android SDK platform-tools 路径，并在脚本后校验已安装 APK。 |
-| `CustomApkSignScriptRunner` | `main/src/main/java/com/sickworm/intellij/jugg/apk/CustomApkSignScriptRunner.kt` | 在本地工程根目录执行用户签名脚本，把待签名临时 APK 绝对路径作为最后一个位置参数传入，用于平台签名或服务器签名。 |
-| `IAsDeployerCompat.install()` | `deploy_compat/*/AsDeployerCompat.kt` | 实际执行 AS install session。失败文案来自 PackageManager，不能据此推断“已经按系统应用安装”。 |
-| `AppSandboxExecutor` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/AppSandboxExecutor.kt` | app 私有目录统一入口。以唯一成功标记、UID 范围和探针 SELinux context 判断 Apply Changes 兼容性；不兼容时依次探测普通 shell、root adbd 和非交互 `su`，并固定本轮使用的真实 `dataDir` 与权限模式。 |
-| `DirectAppSandboxDeployTransport` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/hotreload/DirectAppSandboxDeployTransport.kt` | 在 AS deployer 前接管 `run-as` 不兼容应用的 class、资源和 assets 增量部署：先写 Direct Overlay，新增 class 追加 in-memory dex elements，纯方法体尝试在线 redefine；Android 11+ 的普通资源及混合变化刷新运行中 Resources，并按 deploy mode 重建 Activity，失败时请求重启应用。 |
-| `DirectOverlayWriter` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/direct/DirectOverlayWriter.kt` | 通过 `AppSandboxExecutor` 原子写 `code_cache/.overlay`，新 overlay id 最后提交。 |
-| `RootlessCompatDeployStaging` / `RootlessCompatImportConfirmer` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/hotreload/RootlessCompatDeployStaging.kt` | 无 sandbox 时把兼容 payload 暂存到 App 专属 external files 目录，并在 App 重启后按 requestId 读取导入结果。 |
-| `RootlessCompatDeployArchive` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/direct/RootlessCompatDeployArchive.kt` | rootless pending archive 协议：payload ZIP、`request.properties` 元数据、payload SHA-256 与导入结果行解析。 |
-| `RootlessCompatDeployImporter` | `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/hotfix/RootlessCompatDeployImporter.java` | App 启动早期导入暂存请求：校验协议/包名/摘要/expected overlay id，私有 staging 后原子提交并最后写 overlay id。 |
+| `JuggDeployer.install()` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/applychanges/JuggDeployer.kt` | Common install entry point. An ordinary app may use a custom script; otherwise it calls the Apply Changes executor. On success, both paths write deployment cache and overlay ID. |
+| `CustomApkInstallScriptRunner` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/applychanges/CustomApkInstallScriptRunner.kt` | Runs the user script at the local project root, adds Android SDK platform-tools to PATH, and verifies the installed APK afterward. |
+| `CustomApkSignScriptRunner` | `main/src/main/java/com/sickworm/intellij/jugg/apk/CustomApkSignScriptRunner.kt` | Runs the signing script at the local project root, passing the temporary APK's absolute path as its final positional argument for platform/server signing. |
+| `IAsDeployerCompat.install()` | `deploy_compat/*/AsDeployerCompat.kt` | Executes the actual AS install session. Failure wording comes from PackageManager and does not establish that installation as a system app was attempted. |
+| `AppSandboxExecutor` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/AppSandboxExecutor.kt` | Unified access to private app directories. Uses a unique success marker, UID range, and probe SELinux context to test Apply Changes compatibility. If incompatible, probes ordinary shell, root adbd, and noninteractive `su` in order, then fixes the actual `dataDir` and privilege mode for this run. |
+| `DirectAppSandboxDeployTransport` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/hotreload/DirectAppSandboxDeployTransport.kt` | Takes over incremental class/resource/asset deployment for `run-as`-incompatible apps before AS deployer. It writes Direct Overlay, appends new classes as in-memory Dex elements, attempts live redefine for method-body-only changes, and on Android 11+ refreshes running Resources for ordinary resources or mixed changes and recreates the Activity according to deploy mode. Failures request app restart. |
+| `DirectOverlayWriter` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/direct/DirectOverlayWriter.kt` | Atomically writes `code_cache/.overlay` through `AppSandboxExecutor`, committing the new overlay ID last. |
+| `RootlessCompatDeployStaging` / `RootlessCompatImportConfirmer` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/hotreload/RootlessCompatDeployStaging.kt` | Without sandbox access, stages compat payload in the app's external-files directory and reads its import result by requestId after app restart. |
+| `RootlessCompatDeployArchive` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/direct/RootlessCompatDeployArchive.kt` | Rootless pending-archive protocol: payload ZIP, `request.properties` metadata, payload SHA-256, and import-result line parsing. |
+| `RootlessCompatDeployImporter` | `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/hotfix/RootlessCompatDeployImporter.java` | Imports a staged request early in app startup: validates protocol/package/digest/expected overlay ID, then atomically commits private staging and writes overlay ID last. |
 
-## 3. 关键模型
+## 3. Key Models
 
-### 3.1 三类系统应用
+### 3.1 Three Kinds of System App
 
-| 类型 | 落盘路径 | 设备可见结果 | 特权权限（如 `INSTALL_PACKAGES`） |
+| Type | Placement | Device-visible result | Privileged permissions, e.g. `INSTALL_PACKAGES` |
 |---|---|---|---|
-| 普通系统应用 | `/system/app/<Name>/<Name>.apk` | `FLAG_SYSTEM=true`，无 `PRIVILEGED` | 证书不匹配平台时 denied |
-| 特权应用 | `/system/priv-app/<Name>/<Name>.apk` + `/system/etc/permissions/privapp-permissions-*.xml` | `FLAG_SYSTEM=true` 且 `privateFlags` 含 `PRIVILEGED` | `signature\|privileged` 可经 priv-app + 白名单 granted |
-| sharedUserId 系统应用 | `/system/app/<Name>/<Name>.apk` 且 `android:sharedUserId="android.uid.system"` | 证书匹配时 UID 1000；无 `PRIVILEGED` | 凭 **平台签名** granted，不依赖 priv-app |
+| Ordinary system app | `/system/app/<Name>/<Name>.apk` | `FLAG_SYSTEM=true`, without `PRIVILEGED` | Denied when certificate does not match the platform. |
+| Privileged app | `/system/priv-app/<Name>/<Name>.apk` + `/system/etc/permissions/privapp-permissions-*.xml` | `FLAG_SYSTEM=true` with `PRIVILEGED` in `privateFlags` | `signature\|privileged` can be granted through priv-app plus an allowlist. |
+| sharedUserId system app | `/system/app/<Name>/<Name>.apk` with `android:sharedUserId="android.uid.system"` | UID 1000 when certificates match; no `PRIVILEGED` | Granted through **platform signing**, independent of priv-app. |
 
-判定入口：
+Verification entry point:
 
 ```text
 dumpsys package <pkg>
   -> codePath=
   -> flags=[ SYSTEM ... ]
   -> privateFlags=[ ... PRIVILEGED ... ]
-  -> android.permission.INSTALL_PACKAGES: granted=true   # priv-app 白名单或平台签名匹配时会出现
+  -> android.permission.INSTALL_PACKAGES: granted=true   # present with a priv-app allowlist or matching platform signature
 ```
 
-`FLAG_SYSTEM` 只证明扫描到了系统分区 APK，不证明特权权限。`sharedUserId="android.uid.system"` 只证明想加入 UID 1000；证书必须与设备 `android` 共享用户一致，否则包会被拒绝扫描，而不是装上后 UID 不是 1000。UID 1000 验证应使用 AOSP `default` 镜像；Google APIs 镜像上 AOSP test-keys 对不上。
+`FLAG_SYSTEM` proves only that an APK was scanned from the system partition, not that it has privileged permissions. `sharedUserId="android.uid.system"` merely requests UID 1000; its certificate must match the device's `android` shared user, or scanning rejects the package rather than installing it with another UID. Verify UID 1000 on an AOSP `default` image; AOSP test keys do not match the Google APIs image.
 
-签名一致的 `pm install -r` 成功后，`dumpsys package` 会同时出现 `/system/...` 基线和 `/data/app/...` 更新项，更新项带 `UPDATED_SYSTEM_APP`。此时有效 `codePath` 指向 `/data/app`，**仍是系统应用更新**，不是变回第三方应用；`FLAG_SYSTEM` / `PRIVILEGED` 应保留。
+After a same-signature `pm install -r`, `dumpsys package` shows both the `/system/...` baseline and a `/data/app/...` update, marked `UPDATED_SYSTEM_APP`. The effective `codePath` then points to `/data/app`; this is **still a system-app update**, not conversion to a third-party app. `FLAG_SYSTEM` / `PRIVILEGED` should remain.
 
-### 3.2 权限保护级与签名
+### 3.2 Permission Protection Levels and Signing
 
-- `signature`：必须与声明该权限的平台证书一致。
-- `signature|privileged`：平台签名 **或** 特权应用（`priv-app` + Android 8+ 白名单）。
-- 仅 platform 签名、仍用 `pm install` 装到 `/data/app`，得到的是第三方应用，不会出现 `FLAG_SYSTEM`。
+- `signature`: certificate must match the platform certificate declaring that permission.
+- `signature|privileged`: requires **either** platform signing **or** a privileged app (`priv-app` plus Android 8+ allowlist).
+- Platform signing alone with `pm install` into `/data/app` produces a third-party app, without `FLAG_SYSTEM`.
 
-白名单 XML 只作用于 `priv-app`。普通 `/system/app` 即使声明同一权限，也不会因为这份 XML 被授权。
+The XML allowlist applies only to `priv-app`. An ordinary `/system/app` is not granted the same permission merely because that XML names it.
 
-## 4. 核心调用链路
+## 4. Core Call Chain
 
-默认 installer 场景下，系统应用要先“成为系统包”，Jugg 才能按普通包做后续更新或 overlay。启用自定义 APK 安装脚本后，首次系统化可以由项目脚本在 Jugg install 边界完成。
+With the default installer, an app must first become a system package before Jugg can update it or apply overlays like an ordinary package. With a custom APK install script, a project script can perform that first system placement at Jugg's install boundary.
 
 ```text
-首次成为系统/特权应用（由外部流程或 Jugg 调用的自定义脚本负责）
-  -> 设备必须是 userdebug/eng，且模拟器以 -writable-system 冷启动
-  -> adb root + adb remount 让 /system 可写
-  -> 把 platform 签名后的 APK push 到 /system/app 或 /system/priv-app
-  -> 特权应用额外 push privapp-permissions XML 到 /system/etc/permissions/
-  -> restorecon 后 reboot，让 PackageManager 扫描系统分区
-  -> dumpsys 确认 FLAG_SYSTEM / PRIVILEGED / 权限 granted
+first placement as a system/privileged app (external flow or custom script invoked by Jugg)
+  -> device must be userdebug/eng, and emulator cold-started with -writable-system
+  -> adb root + adb remount make /system writable
+  -> push platform-signed APK to /system/app or /system/priv-app
+  -> for privileged app, also push privapp-permissions XML to /system/etc/permissions/
+  -> restorecon then reboot for PackageManager to scan the system partition
+  -> confirm FLAG_SYSTEM / PRIVILEGED / permission grants with dumpsys
 
-Jugg 部署
+Jugg deployment
   -> JuggDeployerHelper.deploy
   -> JuggDeployer.install / codeSwap / fullSwap
-  -> 启用自定义安装脚本且目标是普通 App APK: 项目脚本执行系统化或厂商安装流程
-  -> 否则 AS deployer: pm install 到 /data/app
-  -> 增量阶段: Manifest / native library 等写回 APK 时，启用自定义签名脚本则由项目脚本签名，否则用本地 keystore
-  -> 增量阶段: Direct Overlay / Apply Changes
-  -> 系统应用结论仍必须由 dumpsys 的 codePath / flags / privateFlags 证明
+  -> when custom install script enabled for ordinary App APK: project script performs system placement or vendor install flow
+  -> otherwise AS deployer: pm install into /data/app
+  -> incremental stage: when rewriting Manifest/native library into APK, project script signs if custom signing enabled; otherwise use local keystore
+  -> incremental stage: Direct Overlay / Apply Changes
+  -> determine system-app status from dumpsys codePath / flags / privateFlags
 ```
 
-未启用自定义脚本时，先 `Jugg deploy` / `adb install` 再期望它变成系统应用不会发生；系统化必须由外部流程先 push 进系统目录并重启。启用自定义脚本时，Jugg 只负责在 install/reinstall 边界调用脚本并验证结果，不替脚本决定系统目录、白名单或重启方式。
+Without a custom script, `Jugg deploy` or `adb install` cannot be followed by an expectation that the app becomes a system app. An external flow must push it into a system directory and reboot first. With the script enabled, Jugg invokes and verifies it at install/reinstall; it does not choose the system directory, allowlist, or reboot behavior for the script.
 
-要**每次都改写 `/system` 基线**，不能用 `adb install` / IDE Run。正确循环是：卸掉 `/data/app` 更新层（`adb uninstall` 对系统应用只删更新）→ `remount` + `push` 覆盖 `/system/.../*.apk` → reboot 或 `stop`/`start` 让 PackageManager 重新扫描。中间如果点过 Run，不先 uninstall 就 push，运行中的仍是 `/data/app` 那份。
+To **rewrite the `/system` baseline every time**, do not use `adb install` or IDE Run. The correct loop is: remove the `/data/app` update layer (`adb uninstall` on a system app only removes its update), then `remount` + `push` over `/system/.../*.apk`, then reboot or `stop`/`start` so PackageManager rescans. If Run was used in between, pushing without uninstalling leaves the `/data/app` version active.
 
-系统包已经存在后，Android 允许 `pm install` 作为更新并保留原 `FLAG_SYSTEM`。这条路径要求**新 APK 与 `/system` 里那份基线 APK 签名一致**。Android Studio / Jugg 默认 debug keystore 与 platform 签名不同，会得到 `INSTALL_FAILED_UPDATE_INCOMPATIBLE`，看起来像“无法 update”。处理是让 debug/release 都使用首次 push 时的同一套 platform 密钥，而不是 uninstall 后改用 debug 包重装（系统分区 APK 卸不掉）。
+After the system package exists, Android permits `pm install` as an update while preserving `FLAG_SYSTEM`. The **new APK must have the same signature** as the baseline APK under `/system`. Android Studio/Jugg's default debug keystore differs from the platform signature and yields `INSTALL_FAILED_UPDATE_INCOMPATIBLE`, appearing as an inability to update. Use the same platform keys for debug and release as for the initial push; uninstalling and reinstalling a debug-signed APK cannot remove the system-partition baseline.
 
-Jugg 默认 install 走同一条 AS installer，签名对齐后**预期**可以更新已有系统包。平台签名与 debug keystore 不一致时，可启用自定义 APK 签名脚本，让项目脚本在 Jugg 写回 Manifest/native library 后按平台证书重新签名，再进入安装。启用自定义安装脚本后，Gradle install、APK 更新和 recover reinstall 都可重新执行项目脚本；脚本必须安装 Jugg 本轮提供的 APK，否则 checksum 校验失败。校验成功后，Jugg 会在 app sandbox 可用时清理旧 `code_cache/.overlay`，再记录新 base deployment cache，避免系统应用重装保留 app data 后反复出现 overlay state mismatch。class、资源和 assets 可进入 Direct app sandbox transport；Manifest/native library 继续由既有 APK 更新、签名和安装流程处理，随后重放 overlay。
+Jugg's default install uses the same AS installer and is **expected** to update an existing system package after signatures match. If the platform signature differs from the debug keystore, a custom APK signing script can have the project resign Jugg's rewritten Manifest/native-library APK with the platform certificate before install. With a custom install script, Gradle install, APK updates, and recovery reinstall may each rerun it. The script must install the APK supplied by Jugg this run or checksum verification fails. After verification, Jugg clears old `code_cache/.overlay` when the app sandbox is accessible, then records a new base deployment cache so a system-app reinstall retaining app data does not repeatedly cause overlay-state mismatch. Classes, resources, and assets may use Direct app sandbox transport. Manifest/native libraries continue through the existing APK-update, signing, and install flow, then overlays are replayed.
 
-### 4.1 自定义 APK 安装脚本契约
+### 4.1 Custom APK Install Script Contract
 
-- UI 开关未启用时仅显示 switch，默认安装行为不变；启用后显示单行高度的输入面板和项目脚本示例占位提示。
-- 脚本在本地工程根目录执行。macOS/Linux 使用 Bash shell，Windows 使用 `cmd.exe`；远程编译产物拉取完成后仍在本地主机执行。
-- Jugg 不注入设备、applicationId 或 APK 路径变量。脚本继承 IDE/Gradle 环境，Android SDK 的 `platform-tools` 会加入 `PATH`；Bash 不加载用户 shell 启动文件。
-- 普通 App APK 的 install/reinstall 按每台设备、每个 applicationId 执行脚本；androidTest APK 继续使用默认 installer。
-- 脚本安装结果校验成功后，Jugg 会在 app sandbox 可用时清理旧 Direct Overlay；系统应用脚本不能假设 `adb uninstall` 会删除 app data。
-- 脚本触发 reboot 时应自行等待设备启动和 PackageManager 扫描完成后再退出；Jugg 只复用现有短暂 ADB offline 恢复窗口。
-- 退出码非零、用户取消、ADB 未恢复、包不存在或实际 APK checksum 不匹配时失败。脚本自身失败不可 deploy retry 或 Gradle fallback；脚本成功后的其它部署失败沿用原有 retry/fallback 策略，可能重新执行脚本，重复执行的处理由业务方负责。
+- With the UI switch disabled, show only the switch and retain default installation. Enabling it shows a single-line-height input panel with a project-script example placeholder.
+- Run the script at the local project root. Use Bash on macOS/Linux and `cmd.exe` on Windows. Even after remote compilation outputs are fetched, execute on the local host.
+- Jugg injects no device, applicationId, or APK-path variables. The script inherits the IDE/Gradle environment, and Android SDK `platform-tools` is added to `PATH`. Bash does not load the user's shell startup files.
+- Run per device and applicationId for ordinary-app APK install/reinstall; androidTest APKs continue with the default installer.
+- After verifying script installation, Jugg clears old Direct Overlay if the app sandbox is available. A system-app script must not assume `adb uninstall` deletes app data.
+- If the script triggers reboot, it must wait for device startup and PackageManager scanning before exiting. Jugg only reuses the existing short ADB-offline recovery window.
+- Fail on nonzero exit, user cancellation, ADB not recovering, absent package, or installed APK checksum mismatch. A script failure itself is ineligible for deploy retry or Gradle fallback. Other deployment failures after script success retain their retry/fallback policies and may rerun the script; business owners handle repeat execution.
 
-### 4.2 自定义 APK 签名脚本契约
+### 4.2 Custom APK Signing Script Contract
 
-平台证书与 Gradle `SigningConfig` 不一致时，Jugg 改写 Manifest/native library 后按默认 keystore 重签会得到 `INSTALL_FAILED_UPDATE_INCOMPATIBLE`。Run Configuration 可启用 `Enable custom APK sign script`，用项目脚本替换这一步签名，典型用法是把 APK 发送到签名服务器。
+If platform certificate and Gradle `SigningConfig` differ, default-keystore resigning after Jugg rewrites Manifest/native libraries yields `INSTALL_FAILED_UPDATE_INCOMPATIBLE`. Run Configuration can enable `Enable custom APK sign script`, substituting a project script for this signing step; sending the APK to a signing server is a typical use.
 
-- UI 开关未启用时仅显示 switch，默认签名行为不变；启用后显示单行高度的输入面板和项目脚本示例占位提示。
-- 脚本在本地工程根目录执行，macOS/Linux 使用 Bash，Windows 使用 `cmd.exe`；远程编译产物在本地 IDE 主机完成改写，脚本也在该主机执行。Bash 不加载用户 shell 启动文件。
-- Jugg 把 zipalign 后的临时 APK **绝对路径**作为最后一个位置参数传入，并按宿主 shell 规则安全转义；路径含空格、括号或 Unicode 时仍是单个参数。Jugg 不注入设备、applicationId 或其它变量。
-- 脚本必须原地覆盖传入的临时 APK；签名服务返回到其它文件时，脚本需在退出前自行替换该路径。
-- 退出码 `0` 只表示脚本执行完成；Jugg 随后仍用 `apksigner verify` 校验，只有校验通过才原子替换原 APK。校验失败或脚本非零退出时原 APK 保持不变，且当次更新不会进入安装。
-- 不要求本地 `SigningConfig` 有效，也绝不在脚本失败后回退到本地 keystore 签名，避免产生签名身份错误的 APK。
-- 脚本输出转发到 Run 窗口，取消 Run 会终止脚本进程；不对已知失败自动重试，上传、等待、下载及其重试策略由业务脚本负责。
-- 生效范围只包括 Jugg 改写 APK 的场景：Manifest、native library、embedded dex 以及 Embedded APK 路径。Gradle 完整构建的签名流程不变，CLI `BuildIncrementalApkCommand` 与手工导出增量 APK 继续使用默认签名。
-- 部署 retry 和 recover/reinstall 安装的是已经签好的 APK，不会重复执行签名脚本；多设备 Run 可能对同一 APK 重复执行脚本，重复执行的语义由业务脚本负责。
-- 脚本内容属于敏感配置，日志与 `toSafeString()` 只输出 `(configured)` / `(not_configured)`，不得打印脚本原文。
+- With the UI switch disabled, show only the switch and retain default signing. Enabling it shows a single-line-height input panel with a project-script example placeholder.
+- Run the script at the local project root with Bash on macOS/Linux or `cmd.exe` on Windows. Remote compilation outputs are rewritten on the local IDE host, so the script also runs there. Bash does not load user shell startup files.
+- Pass the zipaligned temporary APK's **absolute path** as the last positional argument, safely escaped for the host shell. A path containing spaces, parentheses, or Unicode remains one argument. Jugg injects no device, applicationId, or other variables.
+- The script must overwrite that temporary APK in place. If a signing service returns another file, the script must replace the supplied path before exiting.
+- Exit code `0` means only that the script finished; Jugg still runs `apksigner verify`, replacing the original APK atomically only after verification. On verification failure or nonzero script exit, retain the original APK and do not install this update.
+- A valid local `SigningConfig` is not required. Never fall back to local-keystore signing after script failure, which could produce an APK with the wrong signing identity.
+- Forward script output to the Run window; cancelling Run terminates the process. Do not automatically retry known failures. Upload, wait, download, and their retry policies belong to the business script.
+- Apply only when Jugg rewrites an APK: Manifest, native library, embedded Dex, and the Embedded APK path. Full Gradle-build signing is unchanged; CLI `BuildIncrementalApkCommand` and manual incremental APK export still use default signing.
+- Deployment retry and recovery/reinstall install an already signed APK and do not rerun the signing script. A multi-device Run may invoke it repeatedly on the same APK; business scripts own the semantics of repetition.
+- Script content is sensitive configuration. Logs and `toSafeString()` print only `(configured)` / `(not_configured)`, never the script text.
 
-### 4.3 run-as 不兼容应用增量链路
+### 4.3 Incremental Path for run-as-Incompatible Apps
 
 ```text
-run-as package 执行可回滚写入探测
-  -> 唯一成功标记、UID 在 10000..19999，且探针与 code_cache 的 SELinux context 一致：保留 Android Studio Apply Changes
-  -> 无成功标记、UID 越界或 SELinux context 不一致：进入 Direct app sandbox transport
-      -> 解析 PackageManager 真实 dataDir
-      -> 依次探测普通 shell、一次 adb root + 重连、非交互 su（含命令直传形式）
-      -> 固定并复用本轮 AppSandboxExecutor
-      -> 安装现有 Jugg startup agent，并把 instrumentation JAR 复制为 app 可读文件
-      -> 写 code_cache/.overlay
-      -> 新增 class：生成 in-memory dex elements 并追加到 Application ClassLoader
-          -> 当前进程可加载新 class；已提交 overlay 供后续进程启动复用
-      -> 纯方法体变更：am attach-agent + RedefineClasses
-          -> APPLY_CHANGES：成功后仅更新 class
-          -> APPLY_CHANGES_AND_RESTART_ACTIVITY：成功后在主线程调度 Activity.recreate()，保留进程
-          -> 失败：重启应用，由 startup agent 加载 overlay
-      -> Android 11+ 普通资源/asset 或方法体与资源混合变化：刷新宿主 Resources，再重建 Activity
-          -> 失败：重启应用，由 startup agent 加载已提交 overlay
-      -> 结构变化、APK 根目录资源或 Android 8～10 普通资源：重启并加载 overlay
-      -> 兼容部署继续加载资源 APK
+probe run-as package with a rollback-safe write
+  -> unique success marker, UID in 10000..19999, and matching probe/code_cache SELinux contexts: retain Android Studio Apply Changes
+  -> absent marker, UID out of range, or SELinux context mismatch: enter Direct app sandbox transport
+      -> resolve actual PackageManager dataDir
+      -> probe ordinary shell, one adb root + reconnect, then noninteractive su (including direct-command form)
+      -> fix and reuse this run's AppSandboxExecutor
+      -> install existing Jugg startup agent and copy instrumentation JAR as an app-readable file
+      -> write code_cache/.overlay
+      -> new class: build in-memory dex elements and append to Application ClassLoader
+          -> current process can load new class; committed overlay is reusable on later process starts
+      -> method-body-only change: am attach-agent + RedefineClasses
+          -> APPLY_CHANGES: update class only after success
+          -> APPLY_CHANGES_AND_RESTART_ACTIVITY: schedule Activity.recreate() on main thread after success, retaining process
+          -> failure: restart app and let startup agent load overlay
+      -> Android 11+ ordinary resource/asset or mixed method-body/resource change: refresh host Resources, then recreate Activity
+          -> failure: restart app and let startup agent load committed overlay
+      -> structural change, APK-root resource, or Android 8–10 ordinary resource: restart and load overlay
+      -> compat deployment continues to load resource APK
 ```
 
-能力判断不依赖 system/privileged flag、`sharedUserId` 或具体 `run-as` 错误文本。ADB transport/offline 异常直接传播；Direct 权限不可用或 deployment cache 缺失时提前失败，不再进入必然失败的 Android Studio Deployer。Activity relaunch 也由 Direct JVMTI 请求独立完成，不重新调用 Android Studio `fullSwap/overlaySwap`，且不使用会杀进程的 `am start -S`。该路径只接管已经安装后的增量部署；首次系统化仍只能由外部流程或自定义 APK 安装脚本完成。Direct 与官方 Apply Changes 的剩余能力差异统一见 `03_deploy_core.md` §6.4。
+Capability detection does not depend on system/privileged flags, `sharedUserId`, or a particular `run-as` error string. ADB transport/offline exceptions propagate directly. If Direct privilege is unavailable or deployment cache is missing, fail early rather than entering an Android Studio Deployer that must fail. The Direct JVMTI request performs Activity relaunch independently, without reentering Android Studio `fullSwap/overlaySwap` or using process-killing `am start -S`. This path takes over incremental deployment only after the app has been installed; initial system placement still requires an external flow or custom APK install script. See `03_deploy_core.md` §6.4 for the remaining differences between Direct and official Apply Changes.
 
-### 4.4 Rootless 兼容部署（普通 shell、root adbd、`su` 全部不可用）
+### 4.4 Rootless Compat Deployment (Ordinary Shell, Root adbd, and `su` All Unavailable)
 
-量产 `user` ROM（`ro.debuggable=0`）上的可调试系统应用可能同时满足：`run-as` 探测不通过、`adb root` 返回 `adbd cannot run as root in production builds`、没有可用的非交互 `su`。此时 Host 无法写入 App data 目录，`AppSandboxExecutor` 的 `mode` 固定为 `UNAVAILABLE`。
+A debuggable system app on a production `user` ROM (`ro.debuggable=0`) can fail the `run-as` probe while `adb root` says `adbd cannot run as root in production builds` and no noninteractive `su` is available. The Host then cannot write the app data directory; `AppSandboxExecutor.mode` is fixed to `UNAVAILABLE`.
 
 ```text
 JuggDeployer.optimisticSwap
   -> DirectAppSandboxDeployTransport.tryDeploy
       -> sandbox.mode == UNAVAILABLE
-          -> 非兼容 payload：抛 REDEPLOY_WITH_COMPAT_MESSAGE
-              -> DeployRetryHandler 复用既有 compat retry
-              -> DeployFileManager.appendCompatDeployFiles(原始数据)
-          -> 兼容 payload：RootlessCompatDeployStaging
-              -> 复用 DirectOverlayWriteRequestBuilder 生成 overlay id 与文件集合
+          -> non-compat payload: throw REDEPLOY_WITH_COMPAT_MESSAGE
+              -> DeployRetryHandler reuses existing compat retry
+              -> DeployFileManager.appendCompatDeployFiles(original data)
+          -> compat payload: RootlessCompatDeployStaging
+              -> reuse DirectOverlayWriteRequestBuilder for overlay ID and file set
               -> adb push /sdcard/Android/data/<package>/files/jugg/rootless-compat/<requestId>/
-                   payload.zip -> request.properties -> ready（最后写入）
-              -> chmod 755 目录 / 644 文件，不使用 777
-  -> 返回 pendingRequest，本轮不写 deployment cache
-  -> JuggDeployerHelper 重启 App 一次
-  -> RootlessCompatImportConfirmer 按 requestId 等待 App 导入结果（默认 30s 上限）
-      -> 成功：storeEntry + 后续 deployHistory/DeployFileManager.commit
-      -> 失败或超时：抛错，不提交任何状态，best-effort 清理暂存目录
+                   payload.zip -> request.properties -> ready (written last)
+              -> chmod 755 directories / 644 files, never 777
+  -> return pendingRequest; do not write deployment cache this run
+  -> JuggDeployerHelper restarts app once
+  -> RootlessCompatImportConfirmer waits by requestId for app import result (default maximum 30s)
+      -> success: storeEntry + subsequent deployHistory/DeployFileManager.commit
+      -> failure or timeout: throw, commit no state, best-effort clear staging directory
 ```
 
-App 侧由 `BootstrapApplication.attachBaseContext()` 在 `HotfixLoader.init()` 之后、`isNeedEnableHotfix()` 之前调用 `RootlessCompatDeployImporter.importPending()`，因此导入和加载发生在同一次进程启动。导入规则与 Direct Overlay 保持一致：先校验协议版本、包名、requestId、payload SHA-256 与 expected overlay id，再解压到 `code_cache/rootless_import/<requestId>/` 私有 staging，最后按 Direct Overlay 的 cleanup、full resource push 与 overlay id 规则提交，`id` 最后写入。任何校验、解压或空间失败都保留旧 overlay，并通过 `jugg-agent` tag 输出一行 `__JUGG_ROOTLESS_IMPORT__ FAILED <requestId> <stage> <reason>`。
+On the app side, `BootstrapApplication.attachBaseContext()` calls `RootlessCompatDeployImporter.importPending()` after `HotfixLoader.init()` and before `isNeedEnableHotfix()`, so import and load occur during the same process start. Import follows Direct Overlay rules: validate protocol version, package name, requestId, payload SHA-256, and expected overlay ID; extract into private `code_cache/rootless_import/<requestId>/` staging; then commit using Direct Overlay's cleanup, full-resource push, and overlay-ID rules, writing `id` last. Any validation, extraction, or space failure preserves the old overlay and emits one `jugg-agent` log line: `__JUGG_ROOTLESS_IMPORT__ FAILED <requestId> <stage> <reason>`.
 
-导入按 request 幂等：metadata 与 payload 摘要校验通过后，如果当前 `code_cache/.overlay/id` 已等于本 request 的 `nextOverlayId`（例如上一次启动在导入完成后、Host 读取结果前崩溃），会再次输出同一行 `__JUGG_ROOTLESS_IMPORT__ OK <requestId>` 并直接返回，不重复提交。overlay id 不是 `nextOverlayId` 时仍按状态不匹配失败，不能把任意已提交 overlay 当成本 request 的成功结果。
+Import is idempotent per request. After metadata and payload-digest verification, if `code_cache/.overlay/id` already equals this request's `nextOverlayId` (for example, the prior start crashed after import but before Host read the result), emit `__JUGG_ROOTLESS_IMPORT__ OK <requestId>` again and return without recommitting. If overlay ID is not `nextOverlayId`, fail on state mismatch; an arbitrary committed overlay cannot count as this request's success.
 
-约束：
+Constraints:
 
-- 这条路径只接受兼容 payload，结果类型为 `COMPAT_HOT_FIX`。
-- 不调用 `prepareStartupAgent()`、`pushAgentToApp()`、`DirectHotReloadWriter` 或 `am attach-agent`，不产生为 agent 准备的第二次重启。
-- 该路径依赖 APK 已注入 Jugg compat runtime；缺少运行时会在等待导入结果时超时并明确失败，首版不自动重建安装状态机。
-- 暂存目录固定使用 `/sdcard/Android/data/<package>/files/jugg/rootless-compat`，App 侧通过 `Context.getExternalFilesDir(null)` 定位；避免 `system_app` 等 SELinux domain 无法读取 `/data/local/tmp` 的请求。
-- Manifest 与 native library 仍走完整 APK 更新链路。
+- This path accepts compat payloads only and reports `COMPAT_HOT_FIX`.
+- Do not call `prepareStartupAgent()`, `pushAgentToApp()`, `DirectHotReloadWriter`, or `am attach-agent`; do not introduce a second restart to prepare an agent.
+- This path requires a Jugg compat runtime already injected into the APK. Without it, waiting for import times out and fails explicitly; the initial version does not automatically rebuild the install state machine.
+- Staging is fixed at `/sdcard/Android/data/<package>/files/jugg/rootless-compat`; the app finds it through `Context.getExternalFilesDir(null)`. This avoids request files under `/data/local/tmp`, which SELinux domains such as `system_app` cannot read.
+- Manifest and native libraries remain on the full APK-update path.
 
-## 5. 隐形约束
+## 5. Hidden Constraints
 
-- Play Store 镜像不能作为系统应用试验场：通常不能 `adb root`，`/system` 只读。应使用 Google APIs 或 AOSP `userdebug` 镜像。
-- 未加 `-writable-system` 时，`adb remount` 在 API 35 Google APIs 模拟器上会失败，文案可以是 `Device must be bootloader unlocked`。这不能证明镜像选错，只证明本次启动没有可写 system overlay。
-- `disable-verity` 后 overlayfs remount 可能提示 `Now reboot your device for settings to take effect`。push 前若 `/system` 仍只读，必须先 reboot 再 `adb root && adb remount`，不能把 APK 推到会在重启时丢掉的临时挂载。
-- Android Studio 自带 Google APIs 镜像的 platform 证书 **不是** 公开 AOSP test-keys。API 35 Google APIs 镜像（`android-35/google_apis/arm64-v8a`）上，`framework-res.apk` SHA-256 为 `301aa3cb081134501c45f1422abc66c24224fd5ded5fdc8f17e697176fd866aa`，AOSP `platform.x509.pem` 为 `c8a2e9bccf597c2fb6dc66bee293fc13f2fc47ec77bc6b2b0d52c11f51192ab8`。DN 都写成 Android/android.com，不能凭 DN 判断私钥匹配。
-- 证书不匹配时，`android:sharedUserId="android.uid.system"` 会在扫描期被拒，表现为包根本没装上，而不是 UID 不是 1000。Google APIs 镜像上应先去掉 sharedUserId，用路径验证 `FLAG_SYSTEM` / `PRIVILEGED`。UID 1000 需要能拿到该镜像真正的 platform 私钥，或改用 AOSP `default` / 自编译 userdebug 镜像。
-- AOSP platform test-key 是 MD5withRSA。Java 17 `jarsigner` / Gradle signing 可能拒签；应用 Android SDK `apksigner --key platform.pk8 --cert platform.x509.pem`。
-- AGP debug 包默认 `android:testOnly="true"`，系统扫描后可能无法从启动器打开。首次落盘到系统分区应使用非 testOnly 的 release 包（可保持 `debuggable`）。
-- 隐藏 API / `framework.jar` 只影响编译能否引用 `@hide` 接口，不能代替系统目录安装，也不是 `FLAG_PRIVILEGED` 的充分条件。
-- Apply Changes 兼容性只由 `run-as` 可回滚探测的唯一成功标记、原始 UID `10000..19999`，以及探针与既有 `code_cache` 相同的 SELinux context 决定。仅 UID 相同不足以证明应用进程能读取 `run-as` 创建的文件。未兼容时 Direct transport 必须实际验证 data 目录写入、owner 修复、SELinux label 恢复和清理能力；普通文件继承既有 `code_cache` 的动态 MCS context，JVMTI `.so` 使用 appdomain 可执行的 `apk_data_file:s0`。不能用 root 输出文本、应用 flags 或错误字符串代替能力探测。
-- Rootless 兼容部署只在 compat payload 且 `AppSandboxExecutor.mode == UNAVAILABLE` 时生效。普通 payload（包含 recover 的空 dry payload）在 sandbox 不可用时抛出 `REDEPLOY_WITH_COMPAT_MESSAGE`，`DeployStateRecover.tryDryDeploy` 会忽略该信号并返回成功，让真正的增量 payload 走一次 compat redeploy，而不是在必然失败的 recover 上循环。
-- Rootless 的提交点是 App 的导入确认：`JuggDeployer.optimisticSwap` 不写 deployment cache，`JuggDeployerHelper` 只有在收到匹配 requestId 的 `OK` 结果后才 `storeEntry` 并清理 external files 请求目录。超时不等于成功，进程启动或 `am start` 成功都不能代替导入结果。
-- 系统包已存在后，Android Studio Run / `adb install` / Jugg install 都是更新，不是首次安装。签名必须与 `/system` 内 APK 相同。`adb uninstall` 只能去掉 `/data` 里的更新，系统分区基线仍在；随后再用 debug 证书安装，照样会签名冲突。
-- Google APIs 镜像上，按 `/system/app` / `/system/priv-app` 路径可以得到 `FLAG_SYSTEM` / `PRIVILEGED`，但证书不匹配平台时 `signature|privileged` 权限仍会 denied。AOSP `default` / `test-keys` 镜像上，平台签名匹配的 `/system/app` 也可获得 `INSTALL_PACKAGES`，不依赖 priv-app；`sharedUserId="android.uid.system"` 且证书匹配时进程 UID 为 1000。
+- A Play Store image is unsuitable for system-app experiments: typically `adb root` is unavailable and `/system` is read-only. Use a Google APIs or AOSP `userdebug` image.
+- Without `-writable-system`, `adb remount` fails on an API 35 Google APIs emulator and may say `Device must be bootloader unlocked`. That proves only that this boot lacks a writable system overlay, not that the image choice itself is wrong.
+- After `disable-verity`, overlayfs remount may say `Now reboot your device for settings to take effect`. If `/system` remains read-only before pushing, reboot, then run `adb root && adb remount`; do not push the APK onto a temporary mount that disappears on reboot.
+- Android Studio's bundled Google APIs image does **not** use public AOSP test keys for its platform certificate. On API 35 Google APIs (`android-35/google_apis/arm64-v8a`), `framework-res.apk` SHA-256 is `301aa3cb081134501c45f1422abc66c24224fd5ded5fdc8f17e697176fd866aa`; AOSP `platform.x509.pem` is `c8a2e9bccf597c2fb6dc66bee293fc13f2fc47ec77bc6b2b0d52c11f51192ab8`. Both DNs say Android/android.com, so a DN does not prove private keys match.
+- With a certificate mismatch, scanning rejects `android:sharedUserId="android.uid.system"`: the package is absent, not merely installed under a UID other than 1000. On Google APIs images, remove sharedUserId first and verify `FLAG_SYSTEM` / `PRIVILEGED` from the path. UID 1000 requires that image's true platform private key, or an AOSP `default` / self-built userdebug image.
+- The AOSP platform test key uses MD5withRSA. Java 17 `jarsigner` / Gradle signing may refuse it; use Android SDK `apksigner --key platform.pk8 --cert platform.x509.pem`.
+- AGP debug APKs default to `android:testOnly="true"`; after a system scan they may not open from the launcher. Use a non-testOnly release APK for initial system-partition placement (it may remain `debuggable`).
+- Hidden APIs / `framework.jar` affect whether compilation can reference `@hide` interfaces. They do not replace installation in a system directory and are not sufficient for `FLAG_PRIVILEGED`.
+- Apply Changes compatibility depends only on the unique success marker from a rollback-safe `run-as` write probe, raw UID `10000..19999`, and a probe SELinux context matching existing `code_cache`. UID alone does not prove the app process can read files created by `run-as`. If incompatible, Direct transport must actually verify data-directory write, owner repair, SELinux-label restoration, and cleanup. Ordinary files inherit existing `code_cache`'s dynamic MCS context; JVMTI `.so` uses executable `apk_data_file:s0` for appdomain. Do not substitute root output, app flags, or error strings for capability probes.
+- Rootless compat deployment applies only to compat payloads with `AppSandboxExecutor.mode == UNAVAILABLE`. An ordinary payload, including an empty recovery dry payload, throws `REDEPLOY_WITH_COMPAT_MESSAGE` without sandbox access. `DeployStateRecover.tryDryDeploy` ignores that signal and returns success, allowing the real incremental payload to take one compat redeploy instead of looping in recovery that must fail.
+- Rootless commits only on app import confirmation. `JuggDeployer.optimisticSwap` does not write deployment cache. `JuggDeployerHelper` calls `storeEntry` and clears the external-files request directory only after matching requestId `OK`. Timeout is not success; starting a process or successful `am start` cannot substitute for an import result.
+- Once a system package exists, Android Studio Run, `adb install`, and Jugg install all update it rather than installing it for the first time. The signature must match the APK under `/system`. `adb uninstall` removes only the `/data` update, leaving the system baseline; a later debug-signed install still conflicts.
+- On a Google APIs image, `/system/app` / `/system/priv-app` placement can produce `FLAG_SYSTEM` / `PRIVILEGED`, but a platform-certificate mismatch still denies `signature|privileged` permission. On an AOSP `default` / `test-keys` image, a platform-signed `/system/app` can receive `INSTALL_PACKAGES` without priv-app; with matching certificate, `sharedUserId="android.uid.system"` gives process UID 1000.
 
-## 6. 排查入口
+## 6. Investigation Entry Points
 
-| 观察结果 | 能证明 | 不能证明 | 下一项区分证据 |
+| Observation | Proves | Does not prove | Next distinguishing evidence |
 |---|---|---|---|
-| `adb install` / Jugg 默认 install 成功 | 包进入 `/data/app` | 它是系统应用 | `dumpsys package` 的 `codePath` 是否以 `/system/` 开头 |
-| 自定义 APK 安装脚本成功 | 脚本退出为 0、包存在且 APK checksum 与输入一致 | 它是系统应用或特权应用 | `dumpsys package` 的 `codePath`、`flags`、`privateFlags` 与权限状态 |
-| `FLAG_SYSTEM=true` 但特权权限 denied | 落在系统分区 | 它是特权应用 | `privateFlags` 是否含 `PRIVILEGED`，路径是否 `/system/priv-app` |
-| `priv-app` 仍无 `INSTALL_PACKAGES` | 扫描到了 priv-app APK | 白名单已生效 | `/system/etc/permissions/` 是否有对应 package 的 XML；logcat `privapp-permissions` |
-| `sharedUserId` 后包消失或扫描失败 | 签名与 `android.uid.system` 不一致，或解析失败 | Jugg compile 失败 | 对比 `framework-res.apk` 与 APK 的 cert SHA-256；去掉 sharedUserId 后能否被扫描 |
-| `adb remount` 失败 / `/system` 只读 | 本次启动没有可写 system | Play 镜像或 root 方案整体不可用 | 是否 `-writable-system` 冷启动；`getprop ro.debuggable`；`pm path com.android.vending` |
-| Direct Overlay / app sandbox 失败 | overlay transport 写不进该包数据目录 | 系统化没做成 | `dumpsys package` flags、`debuggable`、`run-as <pkg> id`、`adb shell id -u` |
-| `INSTALL_FAILED_UPDATE_INCOMPATIBLE` / 无法 update | 设备上已有同名包，且签名与本次 APK 不同 | compile 失败或 `/system` 不可写 | 对比 `pm path` 指向 APK 与本地产物的 cert SHA-256；确认 Gradle `signingConfig` 不是 debug keystore |
-| 更新成功但 `codePath` 变成 `/data/app` | 这是系统应用的 data 更新（应有 `UPDATED_SYSTEM_APP`） | 系统化丢失 | `flags` 是否仍含 `SYSTEM`；特权应用是否仍含 `PRIVILEGED` |
+| Successful `adb install` / default Jugg install | Package entered `/data/app`. | It is a system app. | Does `codePath` from `dumpsys package` begin with `/system/`? |
+| Successful custom APK install script | Script exited 0; package exists and its APK checksum matches input. | It is a system or privileged app. | `codePath`, `flags`, `privateFlags`, and permission status from `dumpsys package`. |
+| `FLAG_SYSTEM=true` but privileged permission denied | APK is on system partition. | It is privileged. | Does `privateFlags` contain `PRIVILEGED`, and is path `/system/priv-app`? |
+| `priv-app` still lacks `INSTALL_PACKAGES` | PackageManager scanned the priv-app APK. | Allowlist took effect. | Is there an XML for this package in `/system/etc/permissions/`? Check logcat `privapp-permissions`. |
+| Package disappears or scanning fails after `sharedUserId` | Signature differs from `android.uid.system`, or parsing failed. | Jugg compilation failed. | Compare cert SHA-256 of `framework-res.apk` and the APK; can it scan without sharedUserId? |
+| `adb remount` fails / `/system` read-only | This boot has no writable system. | Play image or root approach is wholly unavailable. | Was it cold-started with `-writable-system`? Check `getprop ro.debuggable` and `pm path com.android.vending`. |
+| Direct Overlay / app sandbox fails | Overlay transport cannot write this package's data directory. | System placement failed. | `dumpsys package` flags, `debuggable`, `run-as <pkg> id`, `adb shell id -u`. |
+| `INSTALL_FAILED_UPDATE_INCOMPATIBLE` / cannot update | A same-name package exists on device with a different signature from this APK. | Compilation failed or `/system` is unwritable. | Compare cert SHA-256 of the APK at `pm path` and local output; check that Gradle `signingConfig` is not debug keystore. |
+| Update succeeds but `codePath` becomes `/data/app` | This is a system-app data update (should have `UPDATED_SYSTEM_APP`). | System status was lost. | Does `flags` still contain `SYSTEM`; for privileged app, does `privateFlags` still contain `PRIVILEGED`? |
 
-结论前反证：
+Counterevidence before concluding:
 
-- 领先结论如果是“Jugg 不会装系统应用”，反例是 `codePath` 已在 `/system/` 且本轮只是更新已有系统包。
-- 领先结论如果是“已经是特权应用”，反例是 `privateFlags` 无 `PRIVILEGED`，或特权权限没有 `granted=true`。
-- 缺少 `dumpsys package` 时，只报告安装命令成功，不要升级成系统应用结论。
+- If the leading conclusion is “Jugg cannot install system apps,” check whether `codePath` is already under `/system/` and this run only updated an existing system package.
+- If the leading conclusion is “this is privileged,” check for missing `PRIVILEGED` in `privateFlags` or privileged permission without `granted=true`.
+- Without `dumpsys package`, report only that the install command succeeded; do not claim system-app status.
 
-## 7. 关联文档
+## 7. Related Documents
 
-- 部署 install / overlay：`03_deploy_core.md`
-- Run 到部署完成：`03_deploy_complete.md`
-- 运行时排查入口：`09_plugin_runtime_debug.md`
+- Install/overlay deployment: `03_deploy_core.md`
+- Run through deployment completion: `03_deploy_complete.md`
+- Runtime investigation entry point: `09_plugin_runtime_debug.md`

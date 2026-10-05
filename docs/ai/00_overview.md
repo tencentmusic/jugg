@@ -1,78 +1,78 @@
-# Jugg 项目概览（AI 速读版）
+# Jugg Project Overview (Quick Read for AI)
 
-> 最后核对：2026-09-05
-> 一致性规则：文档与代码冲突时，以代码为准。
-
----
-
-## 1. 文档定位
-
-本页用于让 AI 在最短时间建立全局认知：
-- Jugg 是什么
-- 主要模块在哪里
-- 典型任务应从哪个入口开始
-
-不承载实现细节；细节请转到 `02/03/04/05/08` 专题。
+> Last verified: 2026-09-05
+> Consistency rule: If documentation conflicts with code, code takes precedence.
 
 ---
 
-## 2. 项目一句话
+## 1. Purpose of This Document
 
-**Jugg** 是 Android Studio / IntelliJ 插件，核心目标是：在保留 Gradle 构建产物前提下，尽量走旁路增量编译与部署，减少完整 Gradle 构建频次。
+This page gives AI the shortest path to a general understanding of:
+- What Jugg is
+- Where its main modules are
+- Where to begin a typical task
 
----
-
-## 3. 模块总览（按代码目录）
-
-| 模块 | 目录 | 职责 |
-|------|------|------|
-| IDE 插件层 | `idea/src/main` + `idea/src/ide_entry` | 运行配置、任务编排、IDE 事件、UI 与 MCP runtime |
-| 核心逻辑层 | `main/src/main/java/com/sickworm/intellij/jugg` | 编译、部署、项目模型、Gradle/远端编译、MCP 协议与工具 |
-| Android Studio 兼容层 | `deploy_compat/*` | 多版本 deploy API 适配（chipmunk/giraffe/hedgehog/iguana/meerkat/narwhal 等） |
-| 平台兼容桩 | `platform_compat/base_api` | IntelliJ/Android API mock，支撑 `main` 脱离 IDE 编译 |
-| 命令行入口 | `cmd_line/src/main/java` | 无 IDE 场景的基础构建/增量构建命令 |
-| Standalone Bootstrap | `cmd_line/standalone_bootstrap/src/main/java` | Java 11 固定启动边界；读取 standalone manifest、按序加载 Runtime、ready 前失败回退与手工 rollback |
-| 自定义编译器示例 | `custom_compilers/src/main/java` | `ICompilerCreator` SPI 扩展示例 |
-| JVMTI Agent | `jvmti_agent/src/main/cpp` | 兼容部署场景下的 agent 能力 |
-| AAPT2 增量链接二进制 | `aapt2-inclink/src/main/resources/tools` | 三平台（darwin/linux/windows）工具资源 |
+It does not cover implementation details; see the `02/03/04/05/08` topic documents for those.
 
 ---
 
-## 4. 核心运行链路
+## 2. Jugg in One Sentence
 
-1. IDE 侧通过 `JuggManager` 初始化项目上下文与运行能力。  
-2. `JuggRunningTask` 统一编排“编译 -> 部署”。  
-3. `JuggCompilerHelper` 决定增量或 Gradle 回退。  
-4. 增量路径由 `JuggCompiler` 执行多阶段编译；Gradle 路径由 `LocalGradleCompileClient` / `RemoteGradleCompileClient` 执行。  
-5. `JuggDeployerHelper` 经 `JuggDeployTask` 调用 `JuggDeployer` 完成 install / code swap / full swap。
+**Jugg** is an Android Studio / IntelliJ plugin whose main goal is to reduce the frequency of full Gradle builds by using a side-path incremental compilation and deployment flow where possible, while retaining Gradle build artifacts.
 
 ---
 
-## 5. 工作模式（实务视角）
+## 3. Module Overview (by Code Directory)
 
-- 增量编译 + 增量部署：默认优先路径。
-- 兼容部署：当设备/JVMTI/结构变化不满足条件时切换策略。
-- Gradle 回退：强制回退或自动回退时走完整 Gradle 构建。
-
----
-
-## 6. 能力边界（避免误判）
-
-- Jugg 旁路编译不等价于完整 Gradle pipeline。
-- 涉及注解处理、字节码插桩、复杂构建脚本改动时，通常需要 Gradle 回退验证。
-- MCP 工具能力以 `tools/list` 返回的 schema 与 `ai/mcp/actions` 实现为准。
-- Jugg 默认 installer 不会把应用首次安装进 `/system/app` 或 `/system/priv-app`；Run Configuration 可启用自定义 APK 安装脚本接管 install/reinstall，但 remount、push、白名单和重启仍由项目脚本负责。增量改写 APK 后的签名步骤可用自定义 APK 签名脚本替换，以支持平台证书或服务器签名；两条脚本能力相互独立。系统应用约束见 `03_deploy_system_app.md`。
-
----
-
-## 7. AI 任务入口建议
-
-AI 任务路由（任务类型 → 最小必读文档 → 代码入口）详见 `99_index.md §3`。
+| Module | Directory | Responsibility |
+|--------|-----------|----------------|
+| IDE plugin layer | `idea/src/main` + `idea/src/ide_entry` | Run configurations, task orchestration, IDE events, UI, and MCP runtime |
+| Core logic layer | `main/src/main/java/com/sickworm/intellij/jugg` | Compilation, deployment, project model, Gradle/remote compilation, MCP protocol and tools |
+| Android Studio compatibility layer | `deploy_compat/*` | Deploy API adapters for multiple versions (Chipmunk/Giraffe/Hedgehog/Iguana/Meerkat/Narwhal, etc.) |
+| Platform compatibility stubs | `platform_compat/base_api` | IntelliJ/Android API mocks that let `main` compile outside the IDE |
+| Command-line entry point | `cmd_line/src/main/java` | Basic build and incremental-build commands without an IDE |
+| Standalone bootstrap | `cmd_line/standalone_bootstrap/src/main/java` | Fixed Java 11 startup boundary; reads the standalone manifest, loads the Runtime in order, falls back on failure before ready, and supports manual rollback |
+| Custom compiler examples | `custom_compilers/src/main/java` | Examples of the `ICompilerCreator` SPI extension |
+| JVMTI agent | `jvmti_agent/src/main/cpp` | Agent capabilities for compatible deployment |
+| AAPT2 incremental-link binaries | `aapt2-inclink/src/main/resources/tools` | Tool resources for Darwin, Linux, and Windows |
 
 ---
 
-## 8. 延伸阅读
+## 4. Core Runtime Flow
 
-- 架构：`01_architecture.md`
-- AI 检索入口与专题目录：`99_index.md`
-- 代码路径总表：`98_code_map.md`
+1. On the IDE side, `JuggManager` initializes the project context and runtime capabilities.
+2. `JuggRunningTask` orchestrates “compile -> deploy.”
+3. `JuggCompilerHelper` chooses incremental compilation or a Gradle fallback.
+4. On the incremental path, `JuggCompiler` performs multi-stage compilation; on the Gradle path, `LocalGradleCompileClient` / `RemoteGradleCompileClient` runs the build.
+5. `JuggDeployerHelper` invokes `JuggDeployer` through `JuggDeployTask` to perform install / code swap / full swap.
+
+---
+
+## 5. Operating Modes (Practical View)
+
+- Incremental compilation + incremental deployment: the default preferred path.
+- Compatible deployment: switches strategy when the device, JVMTI, or structural changes do not meet the conditions.
+- Gradle fallback: performs a full Gradle build when fallback is forced or automatic.
+
+---
+
+## 6. Capability Boundaries (Avoid Misdiagnosis)
+
+- Jugg's side-path compilation is not equivalent to the complete Gradle pipeline.
+- Annotation processing, bytecode instrumentation, and complex build-script changes usually require verification through the Gradle fallback.
+- The schema returned by `tools/list` and the `ai/mcp/actions` implementations define MCP tool capabilities.
+- Jugg's default installer does not initially install an app into `/system/app` or `/system/priv-app`. A Run Configuration can enable a custom APK installation script to take over install/reinstall, but the project script remains responsible for remount, push, allowlisting, and restart. A separate custom APK signing script can replace the signing step after incremental APK rewriting to support platform certificates or server-side signing. These two script capabilities are independent. See `03_deploy_system_app.md` for system-app constraints.
+
+---
+
+## 7. Suggested AI Task Entry Points
+
+For AI task routing (task type → minimum required documents → code entry point), see `99_index.md §3`.
+
+---
+
+## 8. Further Reading
+
+- Architecture: `01_architecture.md`
+- AI search entry point and topic catalog: `99_index.md`
+- Code-path map: `98_code_map.md`

@@ -1,179 +1,178 @@
-# 部署系统：影响分析与部署数据生成
+# Deployment System: Impact Analysis and Deployment-Data Generation
 
-> 最后核对：2026-09-10
-> 一致性规则：文档与代码冲突时，以代码为准。
-
----
-
-## 1. 文档定位
-
-本页只回答一件事：Jugg 拿到增量编译产物后，如何判断哪些 class/resource/lib 进入本轮 `JuggDeployData`，以及哪些源码或字节码需要补偿更新。
-
-本页不展开部署执行、设备状态恢复、常量引用数据库细节；对应入口见 `03_deploy_core.md`、`03_deploy_complete.md`、`03_deploy_const_ref.md`。
+> Last checked: 2026-09-10
+> Consistency rule: when documentation conflicts with code, follow the code.
 
 ---
 
-## 2. 核心源码索引
+## 1. Scope
 
-| 类/接口 | 文件 | 作用 |
-|---|---|---|
-| `DeployDataGenerator` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/data/DeployDataGenerator.kt` | 从 `DeployItem` 和部署历史生成 `JuggDeployData`，集中决定 hot reload / hot fix / reinstall 输入 |
-| `DeployDataDatabase` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/data/DeployDataDatabase.kt` | APK 与增量部署索引 facade，聚合 SQLite helper 的引用查询和 commit |
-| `DeployDataDatabaseSqLiteHelper` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/data/DeployDataDatabaseSqLiteHelper.kt` | method/field/subclass/source 索引的 SQLite 查询实现，是 effectedSource 传播的主要事实来源 |
-| `ApkParserProcessLauncher` / `ApkParserProcess` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/data/` | 在独立 JVM 中解析 APK/Dex 并直接更新 SQLite，隔离大工程解析时的瞬时堆占用 |
-| `DexFileNodeCollector` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/data/DexFileNodeCollector.kt` | 收集 class 结构及 method/field/subclass 引用；方法 visitor 必须继续委托声明注解解析，避免丢失成员 generic signature |
-| `ClassNodeComparator` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/data/ClassNodeComparator.kt` | 比较新旧 `ClassNode`，输出结构变化、abstract 变化和 generic signature 变化 |
-| `InlineMethodDetector` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/data/InlineMethodDetector.kt` | release/minify 场景从 mapping 里找 R8 inline 调用方，补齐字节码补偿类 |
-| `EffectedClassNode` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/data/EffectedClassNode.kt` | 受影响类模型，区分源码重编译、inline 补偿、minify 移除补偿 |
-| `ConstRefEffectProvider` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/data/ConstRefEffectProvider.kt` | 常量引用影响分析入口；结果走 `constRefEffectedSourcePaths`，不混入 `effectedClassNodes` |
-| `ClassFileParser` / `CompileEffectAnalyzer` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/` | 复用 pre-D8 program class 分析，收集默认接口、外部父类与 Transformer 必要依赖，为增量 class 构造完整 D8 classpath |
+This page explains how, after receiving incremental compilation outputs, Jugg decides which classes, resources, and libraries enter this run's `JuggDeployData`, and which source files or bytecode need compensating updates.
+
+For deployment execution, device-state recovery, and constant-reference database details, see `03_deploy_core.md`, `03_deploy_complete.md`, and `03_deploy_const_ref.md`.
 
 ---
 
-## 3. 核心数据模型
+## 2. Core Source Index
 
-### 3.1 `JuggDeployData` 的关键字段
-
-| 字段 | 来源 | 部署语义 |
+| Class/interface | File | Role |
 |---|---|---|
-| `newClasses` | 旧 DB 中不存在的新 class | 无需 JVMTI 重定义，作为新 class overlay 延迟加载 |
-| `hotReloadModifiedClasses` | `ClassNodeComparator.isCanHotReload = true` | 结构未变，可走更轻量的 class 更新 |
-| `hotFixModifiedClasses` | 多 dex / library dex / 结构变化 class | 结构或归属更复杂，走 hot fix 路径 |
-| `effectedSourceAndClassNodes` | method/field/subclass/generic/minify/inline 分析 | 需要源码重编译或字节码补偿的调用方 |
-| `overlays` / `isFullRes` | resource/asset 变更 + 首次 overlay 历史 | 首次资源部署会补齐全量 res，避免设备端缺资源 |
-| `updateApkFiles` | manifest、`resources.arsc`、native lib | 需要改 APK 并重签/重装的产物 |
-| `constRefEffectedSourcePaths` | `ConstRefEffectProvider` | 常量引用命中的源码路径，独立于 class 引用传播 |
+| `DeployDataGenerator` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/data/DeployDataGenerator.kt` | Builds `JuggDeployData` from `DeployItem` and deployment history; centrally chooses hot-reload, hot-fix, or reinstall inputs. |
+| `DeployDataDatabase` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/data/DeployDataDatabase.kt` | Facade for APK and incremental-deployment indexes, combining reference queries and commits from SQLite helpers. |
+| `DeployDataDatabaseSqLiteHelper` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/data/DeployDataDatabaseSqLiteHelper.kt` | SQLite method/field/subclass/source index queries; primary source of facts for effectedSource propagation. |
+| `ApkParserProcessLauncher` / `ApkParserProcess` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/data/` | Parse APK/Dex in a separate JVM and update SQLite directly, isolating transient heap demand from large-project parsing. |
+| `DexFileNodeCollector` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/data/DexFileNodeCollector.kt` | Collect class structure and method/field/subclass references. The method visitor must keep delegating declaration-annotation parsing so member generic signatures are retained. |
+| `ClassNodeComparator` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/data/ClassNodeComparator.kt` | Compares old and new `ClassNode` objects for structural, abstract, and generic-signature changes. |
+| `InlineMethodDetector` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/data/InlineMethodDetector.kt` | Finds R8-inlined callers in mapping for release/minify builds, adding classes needing bytecode compensation. |
+| `EffectedClassNode` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/data/EffectedClassNode.kt` | Affected-class model distinguishing source recompilation, inline compensation, and minify-removal compensation. |
+| `ConstRefEffectProvider` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/data/ConstRefEffectProvider.kt` | Constant-reference impact entry point; its result goes into `constRefEffectedSourcePaths`, separate from `effectedClassNodes`. |
+| `ClassFileParser` / `CompileEffectAnalyzer` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/` | Reuse pre-D8 program-class analysis to collect default interfaces, external superclasses, and Transformer dependencies for a complete incremental D8 classpath. |
 
-这三类 class 不是同一失败链路的不同名字，而是在部署前就按基线和结构差异主动分流：
+---
 
-- `newClasses` 尚未被旧 APK/历史部署定义，写入 overlay 后可在首次引用时由 ClassLoader 加载。
-- `hotReloadModifiedClasses` 保持可重定义结构，`OverlayUpdateBuilder` 将其作为 `modifiedClasses` 交给 Android Studio deployer/JVMTI。
-- `hotFixModifiedClasses` 是已经存在但结构不满足 JVMTI 约束的 class。它和真正的新 class 一起走 deployer 的 `newClasses` transport，并由 `JuggDeployData.isNeedRestartApp` 要求重启进程，从 overlay 加载替代版本。
+## 3. Core Data Model
 
-因此 Jugg 的“热重载 + 热修复”复用同一份 overlay 数据通道，但分别使用 JVMTI redefine 和重启后 ClassLoader 覆盖。设备或运行时不适合 JVMTI 时，compat deploy 会进一步切为 push-only 并补入兼容运行时文件；若前置结构判断漏掉设备特有限制，`DeployRetryHandler` 仍会在 `JVMTI_ERROR_UNMODIFIABLE_CLASS`、redefiner/internal error 等确定信号下把全部 modified class 转为 HOT_FIX 重试一次。
+### 3.1 Key Fields of `JuggDeployData`
 
-### 3.2 `ClassNodeDiffResult` 到下游的映射
-
-| 字段 | 触发条件 | 下游集合 |
+| Field | Source | Deployment semantics |
 |---|---|---|
-| `effectMethods` | 方法删除、DEX descriptor 或方法级 generic signature 变化、`private` 与非 private 切换、其他有效 access flag 变化 | `changedMethodRef` |
-| `deletedFields` | 字段删除 | `changedFieldRef` |
-| `modifiedGenericSignatureFields` | 字段的 DEX descriptor 不变，但字段级 generic signature 变化 | `changedFieldRef` |
-| `isAddedAbstractMethodForNonAbstractClass` 或父类/接口列表变化 | 抽象类/接口新增 abstract 方法，或 class hierarchy 变化 | `changedAbstractClasses` |
-| `modifiedGenericSignature` | 类级泛型 signature 变化 | `changedGenericSignatureClasses` |
+| `newClasses` | New classes absent from the old DB | No JVMTI redefinition; load lazily from a new-class overlay. |
+| `hotReloadModifiedClasses` | `ClassNodeComparator.isCanHotReload = true` | Unchanged structure permits a lighter class update. |
+| `hotFixModifiedClasses` | Multiple Dex / library Dex / structurally changed classes | More complex structure or ownership requires the hot-fix path. |
+| `effectedSourceAndClassNodes` | Method/field/subclass/generic/minify/inline analysis | Callers requiring source recompilation or bytecode compensation. |
+| `overlays` / `isFullRes` | Resource/asset changes + initial overlay history | First resource deployment fills in all res entries so device resources are not missing. |
+| `updateApkFiles` | Manifest, `resources.arsc`, native libraries | Outputs requiring APK modification and resign/reinstall. |
+| `constRefEffectedSourcePaths` | `ConstRefEffectProvider` | Source paths hit by constant references, separate from class-reference propagation. |
 
-方法和字段的引用身份仍使用擦除后的 owner/name/descriptor，generic signature 不参与 `equals`/引用索引 key；只有新旧声明比较会检查 generic signature。这样成员泛型变化可以复用既有 `method_refs` / `field_refs` 找直接调用方，同时不破坏 DEX 引用匹配。仅方法体变化不会进入 `effectMethods`。`R$xxx` class 会整体跳过 method/field 引用传播，避免资源修复流程制造大量误重编译。
+These three class categories are deliberately split by baseline and structural difference before deployment; they are not alternate names for one failure chain:
+
+- `newClasses` have no definition in the old APK or deployment history; after writing the overlay, ClassLoader can load them at first reference.
+- `hotReloadModifiedClasses` retain a redefinable structure. `OverlayUpdateBuilder` sends them as `modifiedClasses` to Android Studio deployer/JVMTI.
+- `hotFixModifiedClasses` already exist but have structures that violate JVMTI constraints. Along with truly new classes, they use the deployer's `newClasses` transport, and `JuggDeployData.isNeedRestartApp` requires process restart to load their replacement versions from the overlay.
+
+Thus Jugg's hot reload and hot fix share an overlay-data channel but use JVMTI redefine and post-restart ClassLoader replacement, respectively. When device/runtime JVMTI is unsuitable, compat deployment further switches to push-only and adds compatible runtime files. If the preliminary structural check misses a device-specific restriction, `DeployRetryHandler` still converts every modified class to HOT_FIX and retries once for definite signals such as `JVMTI_ERROR_UNMODIFIABLE_CLASS` or redefiner/internal errors.
+
+### 3.2 Mapping `ClassNodeDiffResult` Downstream
+
+| Field | Trigger | Downstream set |
+|---|---|---|
+| `effectMethods` | Deleted method, changed DEX descriptor or method-level generic signature, switch between `private` and non-private, or another effective access-flag change | `changedMethodRef` |
+| `deletedFields` | Deleted field | `changedFieldRef` |
+| `modifiedGenericSignatureFields` | Unchanged field DEX descriptor but changed field-level generic signature | `changedFieldRef` |
+| `isAddedAbstractMethodForNonAbstractClass` or changed superclass/interface list | New abstract method on an abstract class/interface, or changed class hierarchy | `changedAbstractClasses` |
+| `modifiedGenericSignature` | Changed class-level generic signature | `changedGenericSignatureClasses` |
+
+Method and field reference identity still uses erased owner/name/descriptor. Generic signature is not part of `equals` or the reference-index key; only comparison of old and new declarations checks it. This lets member generic changes use existing `method_refs` / `field_refs` to find direct callers without breaking DEX-reference matching. Method-body-only changes do not enter `effectMethods`. `R$xxx` classes skip method/field reference propagation entirely, avoiding mass false recompilation during resource repair.
 
 ### 3.3 `EffectedType`
 
-| 类型 | 检测来源 | 处理路径 |
+| Type | Detection source | Handling |
 |---|---|---|
-| `SOURCE` | method/field/subclass/abstract/generic 传播 | 源码重编译 |
-| `INLINE_IMPL_CHANGE` | `InlineMethodDetector` 解析 R8 mapping inline 调用方 | `DexMinifyCompiler` 字节码补偿 |
-| `MINIFY_MEMBER_REMOVED` | `getEffectedClassNodesForMinify` 发现类或成员被 R8/ProGuard 移除 | `DexMinifyCompiler` 字节码补偿 |
+| `SOURCE` | Method/field/subclass/abstract/generic propagation | Recompile source. |
+| `INLINE_IMPL_CHANGE` | R8-mapping inline callers found by `InlineMethodDetector` | `DexMinifyCompiler` bytecode compensation. |
+| `MINIFY_MEMBER_REMOVED` | `getEffectedClassNodesForMinify` finds a class or member removed by R8/ProGuard | `DexMinifyCompiler` bytecode compensation. |
 
 ---
 
-## 4. 核心调用链路
+## 4. Core Call Chain
 
 ```text
-编译产物成为 DeployItem
+compilation outputs become DeployItem
   -> DeployDataGenerator.buildDeployData(items)
-     解析 changed dex，按 resource / asset / native lib 分组
+     parse changed Dex and group resources / assets / native libraries
   -> ClassNodeComparator.compare(oldClassNode, newClassNode)
-     把结构变化压缩为 changedMethodRef / changedFieldRef / abstract / generic 四类信号
+     compress structural changes into four signal groups: changedMethodRef / changedFieldRef / abstract / generic
   -> DeployDataDatabase.getEffectedSourceAndClass(...)
-     用历史引用索引找调用方、子类、generic 受影响类，并可附加 minify 移除补偿
+     find callers, subclasses, and generic-affected classes in the historical reference index; optionally add minify-removal compensation
   -> InlineMethodDetector.findInlineEffectedClasses(...)
-     release/minify 场景补齐持有旧 inline 副本的类
+     in release/minify, include classes retaining old inlined copies
   -> ConstRefEffectProvider.ensureReadyForRecompile() + getEffectedFiles()
-     常量引用独立查询，失败只退化为 completed cache / empty result
+     independent constant-reference query; failure degrades only to completed cache / empty result
   -> JuggDeployData
-     交给后续 deploy/run 决定 install、apply changes、restart 和 commit
+     pass to deploy/run to decide install, Apply Changes, restart, and commit
 ```
 
-不能把 `buildDeployData()` 的结果视为已提交状态。部署历史只在后续成功部署后由 `commitDeployedData()` 写回；失败轮的 staging / deploy data 不能污染下一轮。
+Do not treat `buildDeployData()` as committed state. `commitDeployedData()` writes deployment history only after downstream deployment succeeds. Staging/deploy data from a failed run must not contaminate the next run.
 
-### 4.1 D8 desugar classpath
+### 4.1 D8 Desugar Classpath
 
-受影响源码重新编译时，`DexCompiler` 单次读取 program class，并用 `ClassFileParser` 建立显式 `ClassPreparation`。`TransformerCompiler` 消费并更新该 preparation，`DeployDataGenerator.getDesugarInfo()` 直接使用其中的 batch analysis 识别含默认方法的接口及其接口继承链；`CompileEffectAnalyzer.getDesugarInfo()` 使用其中的外部直接父类，并以 header-only 读取递归补齐完整父类层级。正常链路和兼容调用均不再通过 `CompileFile.extraInfo` 隐式传递或分别 fallback 完整解析 program class。
+When recompiling affected sources, `DexCompiler` reads program classes once and uses `ClassFileParser` to build an explicit `ClassPreparation`. `TransformerCompiler` consumes and updates that preparation. `DeployDataGenerator.getDesugarInfo()` uses its batch analysis to identify interfaces with default methods and their interface-inheritance chains. `CompileEffectAnalyzer.getDesugarInfo()` uses its external direct superclasses and recursively completes the superclass hierarchy through header-only reads. Neither the normal path nor compatibility calls implicitly pass this through `CompileFile.extraInfo` or separately fall back to full reparsing of program classes.
 
-父类层级不能省略：若子类同时继承父类实现、实现带默认方法的接口，而 D8 只能看到接口却看不到父类，D8 可能在子类中生成调用接口默认实现的 synthetic bridge，绕过父类中的真实 override。当前 program input 内已有的父类无需重复复制，Android boot classpath 类型也会过滤。Hilt 转换读取到的 `Hilt_*` 生成父类通过同一 preparation 进入必要 classpath，即使本轮没有 default interface 也会复制，避免转换阶段和 D8 preparation 重复查找。
+The superclass hierarchy cannot be omitted. If a subclass inherits a superclass implementation and implements an interface with a default method, but D8 sees the interface without seeing the superclass, D8 may generate a synthetic bridge in the subclass that calls the interface default and bypasses the real superclass override. Superclasses already present in current program input are not recopied, and Android boot-classpath types are filtered. A generated `Hilt_*` superclass read during Hilt transformation enters the required classpath through the same preparation even without a default interface this run, avoiding duplicate searches during transformation and D8 preparation.
 
-### 4.2 APK 基线索引与解析边界
+### 4.2 APK Baseline Index and Parsing Boundary
 
-APK database 不只是“class 是否存在”的缓存。Jugg 需要持久化 class 结构（包括 class/method/field generic signature）、method/field 引用、父子类关系、source 映射，以及 APK 内 dex/resource entry 的 checksum，才能同时支撑 HOT_RELOAD/HOT_FIX 分类、影响传播、资源补全和下一次 APK 更新 diff。把这些数据长期留在 IDE heap 中会让大 APK 的解析峰值和 GC 直接影响 Android Studio，因此当前 `ApkParserProcessLauncher` 的隔离门槛为 0 MB，正常体积的 APK 会启动独立 JVM 解析；子进程直接更新 app-scoped SQLite，退出后释放解析期内存。
+The APK database is more than a cache for class existence. Jugg must persist class structure, including class/method/field generic signatures; method/field references; parent-child class relationships; source mapping; and checksums of Dex/resource entries in the APK. These support HOT_RELOAD/HOT_FIX classification, impact propagation, resource completion, and the next APK-update diff. Keeping them long term in IDE heap would expose Android Studio to parsing peaks and GC for large APKs. The current `ApkParserProcessLauncher` isolation threshold is 0 MB, so ordinary APKs are parsed in a separate JVM. The subprocess updates app-scoped SQLite directly and releases parsing memory when it exits.
 
-解析仍按 Best-effort 收口：独立进程启动、classpath 或执行失败时会 warn，并回退当前 IDE 进程解析，而不是直接让完整构建后的上下文初始化失败。数据库更新先按 APK `lastModified` 快速判断，再用 entry checksum 找新增、删除和变化的 dex/overlay；变化 dex 超过 3 个或达到现有 dex 数量 20% 时重建该 app 数据库，否则只解析变化部分。这个阈值是性能策略，不是部署语义，调整时必须保留“少量变化增量更新、大量变化完整重建”的契约。
+Parsing still follows best-effort behavior: if subprocess launch, classpath, or execution fails, warn and fall back to parsing in the IDE process rather than failing post-build context initialization outright. Database updates first use APK `lastModified` as a fast check, then entry checksums to identify new, deleted, and changed Dex/overlay entries. Rebuild that app's database when changed Dex exceeds 3 or reaches 20% of existing Dex count; otherwise parse changed entries only. This threshold is a performance policy, not deployment semantics. Changes must preserve incremental update for small changes and full rebuild for large ones.
 
-查询时 `IncrementalDeployDataDatabase` 中已成功部署的 class/overlay 优先于 APK SQLite 基线。否则连续两次增量修改会一直和最初 APK 比较，既会误判 class 结构，也会让影响传播引用已经过时的数据。
+On queries, successfully deployed classes/overlays in `IncrementalDeployDataDatabase` take precedence over the APK SQLite baseline. Otherwise, two consecutive incremental changes keep comparing against the initial APK, misclassifying class structures and propagating impact from stale references.
 
 ---
+## 5. effectedSource Propagation Rules
 
-## 5. effectedSource 传播规则
+`DeployDataDatabaseSqLiteHelper.getEffectedClassNodes()` currently converges through six steps to `EffectedClassNode(SOURCE)`:
 
-`DeployDataDatabaseSqLiteHelper.getEffectedClassNodes()` 当前按 6 个阶段收敛到 `EffectedClassNode(SOURCE)`：
-
-| 阶段 | 作用 | 关键约束 |
+| Step | Role | Constraint |
 |---|---|---|
-| Step 1 | 将 changed method/field/abstract/generic class 转成 DB classId | 后续 SQL 都依赖历史 APK / deploy DB 中已有 classId |
-| Step 2 | 对非 static changed method 的 owner 查 `subclass_refs`，构造子类虚拟 method ref | 只模拟虚方法分发；static 方法保留给 Step 3，但不能启动子类遍历 |
-| Step 3 | 查 `method_refs` / `field_refs`，找到直接调用或访问变更成员的类 | `changedMethodRefsWithSubclasses` 包含 static 方法，保证 static 直接调用仍会命中 |
-| Step 4 | 对新增 abstract method 或 class hierarchy 变化的 class/interface 递归找子类 | 所有直接子类必须重编；abstract 子类继续向下传播 |
-| Step 5 | 对 generic signature 变化类及其子类，查直接 member callers 并递归找子类 | 解决 DEX 擦除后 descriptor 不变但源码泛型约束改变的问题 |
-| Step 6 | 将受影响 classId 反查 class name/source，生成 `EffectedClassNode(SOURCE)` | 这里才形成 SourceCompiler 可消费的源码路径 |
+| Step 1 | Convert changed method/field/abstract/generic classes to DB classId values. | Later SQL depends on classId values already present in the historical APK/deploy DB. |
+| Step 2 | For owners of non-static changed methods, query `subclass_refs` and construct virtual method references for subclasses. | Simulate virtual dispatch only. Static methods remain for Step 3 but must not begin subclass traversal. |
+| Step 3 | Query `method_refs` / `field_refs` for classes directly calling or accessing changed members. | `changedMethodRefsWithSubclasses` includes static methods so direct static calls still match. |
+| Step 4 | Recursively find subclasses of a class/interface with a newly added abstract method or changed hierarchy. | Every direct subclass must recompile; abstract subclasses propagate further. |
+| Step 5 | For classes with changed generic signatures and their subclasses, find direct member callers and recurse through subclasses. | Addresses changed source generic constraints despite an unchanged descriptor after DEX erasure. |
+| Step 6 | Resolve affected classId values back to class names/sources and build `EffectedClassNode(SOURCE)`. | Only here are source paths consumable by SourceCompiler created. |
 
-Step 2 的 static 过滤是高风险边界：`changedMethodRefsWithSubclasses` 必须保留全部 method，供 Step 3 查直接引用；但 `currentSuperClassIds` 只能来自 `access == MISS_ACCESS || non-static` 的 method owner。否则 Kotlin lambda / `$r8$lambda$` 这类 static 方法会误触发整棵子类级联重编译。
+The static filter in Step 2 is a high-risk boundary. `changedMethodRefsWithSubclasses` must retain all methods for Step 3's direct-reference query, but `currentSuperClassIds` may come only from owners of methods with `access == MISS_ACCESS || non-static`. Otherwise, static methods such as Kotlin lambdas / `$r8$lambda$` spuriously trigger recompilation cascading through a whole subclass tree.
 
-Generic signature 传播只能覆盖两类确定场景：子类声明链，以及对变化类/受影响子类的 direct method/field caller。纯源码泛型约束但 DEX 中没有 direct member ref 的间接场景，不能假定一定命中。
+Generic-signature propagation covers only two established cases: the subclass declaration chain, and direct method/field callers of the changed class or affected subclasses. An indirect scenario based solely on source generic constraints, without a direct member reference in DEX, cannot be assumed to match.
 
-成员级 generic signature 变化不进入 Step 5 的整类泛型传播：方法变化作为旧方法引用进入 Step 3，字段变化作为旧字段引用进入 Step 3，只重编直接调用或访问该成员的源码。典型场景是 Kotlin 属性 getter 的 descriptor 仍为 `GenericEvent`，但返回 generic signature 从 `GenericEvent<Boolean>` 变成 `GenericEvent<Unit>`；若调用方仍保留旧 lambda bridge，运行时可能发生类型转换异常，因此必须在部署前重编该 getter 的直接调用方。
-
----
-
-## 6. release/minify 补偿
-
-`isNeedCheckRecompileMinifyRemovedClass = true` 时，`DeployDataGenerator` 会把 `parsedDex` 传入 DB 查询和 inline 检测：
-
-- `getEffectedClassNodesForMinify()` 检查增量 dex 引用的类或成员是否已被 APK 中的 R8/ProGuard 结果移除，命中后标为 `MINIFY_MEMBER_REMOVED`。
-- `InlineMethodDetector` 读取 mapping，找“被改方法曾经 inline 到哪些类”，命中后标为 `INLINE_IMPL_CHANGE`。
-- `DeployDataGenerator.merge()` 合并 inline 结果时，同一 class 如果已是 `SOURCE`，必须保留 `SOURCE`。源码重编译能力强于字节码补偿，反向不成立。
-
-`isCompilingEffectedSourceFiles = true` 时会跳过 inline 检测，避免“正在补偿受影响源码”又继续制造下一轮 inline 补偿循环。
+Member-level generic-signature changes do not enter Step 5's whole-class generic propagation. A method change enters Step 3 as an old-method reference; a field change enters Step 3 as an old-field reference. Only source directly calling or accessing that member is recompiled. For example, a Kotlin property getter can retain descriptor `GenericEvent` while its return generic signature changes from `GenericEvent<Boolean>` to `GenericEvent<Unit>`. A caller retaining an old lambda bridge may then fail a runtime cast, so its direct callers must recompile before deployment.
 
 ---
 
-## 7. 隐形约束
+## 6. Release/Minify Compensation
 
-- `isNeedCheckRecompile = false` 会同时跳过 class 引用传播和 constRef 查询；此时 `effectedSourceAndClassNodes` 与 `constRefEffectedSourcePaths` 都应为空。
-- constRef readiness 失败不会中断部署数据生成，只会记录 warn 并退化查询；这类运行时风险应去 `03_deploy_const_ref.md` 查缓存准备状态。
-- 首次 overlay 部署会通过 `addFullRes()` 补全资源；不要只根据本轮 changed resource 数量判断设备端资源完整性。
-- `updateApkFiles` 只收 manifest、配套 `resources.arsc` 和 native lib；普通 overlay 不等价于需要改 APK。
-- `deletedNormalMethodClasses` 会过滤方法名含 `$` 的合成方法，避免把编译器生成方法删除当作用户代码删除信号。
-- APK 解析独立进程只是内存隔离边界；SQLite 文件仍由 applicationId 归属。多 APK 同属一个 applicationId 时必须共享同一个 helper，废弃 applicationId 的 DB 只在新一轮初始化完成后清理。
+When `isNeedCheckRecompileMinifyRemovedClass = true`, `DeployDataGenerator` passes `parsedDex` to DB queries and inline detection:
+
+- `getEffectedClassNodesForMinify()` checks whether R8/ProGuard in the APK removed a class or member referenced by incremental Dex, then marks a hit as `MINIFY_MEMBER_REMOVED`.
+- `InlineMethodDetector` reads mapping to find classes into which a changed method was previously inlined, marking hits as `INLINE_IMPL_CHANGE`.
+- When `DeployDataGenerator.merge()` combines inline results, a class already marked `SOURCE` must remain `SOURCE`. Source recompilation is stronger than bytecode compensation; the reverse is not true.
+
+With `isCompilingEffectedSourceFiles = true`, inline detection is skipped so recompiling affected source does not generate another round of inline compensation.
 
 ---
 
-## 8. 排查入口
+## 7. Hidden Constraints
 
-| 现象 | 优先入口 |
+- `isNeedCheckRecompile = false` skips both class-reference propagation and ConstRef queries; `effectedSourceAndClassNodes` and `constRefEffectedSourcePaths` should both be empty.
+- Failed ConstRef readiness does not interrupt deployment-data generation. It warns and degrades the query; consult `03_deploy_const_ref.md` for cache-preparation state in this runtime case.
+- First overlay deployment completes resources through `addFullRes()`. Do not judge device resource completeness solely from the number of resources changed in this run.
+- `updateApkFiles` contains only Manifest, its paired `resources.arsc`, and native libraries; an ordinary overlay is not equivalent to APK modification.
+- `deletedNormalMethodClasses` filters synthetic methods with `$` in their names so deleting a compiler-generated method is not treated as a user-code deletion signal.
+- The APK parser subprocess provides memory isolation only; SQLite files still belong to applicationId. Multiple APKs with one applicationId must share a helper. Clean up databases for obsolete applicationIds only after new-round initialization completes.
+
+---
+
+## 8. Investigation Entry Points
+
+| Symptom | Start with |
 |---|---|
-| 改动很小却触发大量 `effectedSource` | `DeployDataDatabaseSqLiteHelper.getEffectedClassNodes()` Step 2，检查 changed method 是否 static / `$r8$lambda$` |
-| 调用方没重编译导致运行异常 | `ClassNodeComparator.compare()` 输出，以及 Step 3 `method_refs` / `field_refs` 是否命中 |
-| 修改类级泛型约束但 effectedSource 为空 | `ClassNodeComparator.modifiedGenericSignature` 与 Step 5 generic propagation |
-| 修改方法/字段泛型但直接调用方未重编 | 检查 `DexFileNodeCollector` 是否保留成员 `dalvik.annotation.Signature`，以及 `modifiedGenericSignatureMethods` / `modifiedGenericSignatureFields` 是否进入 Step 3 引用查询 |
-| release 增量后缺类/缺成员 | `getEffectedClassNodesForMinify()` 与 `EffectedType.MINIFY_MEMBER_REMOVED` |
-| release 方法体修改但调用方仍旧逻辑 | `InlineMethodDetector.findInlineEffectedClasses()` 和 mapping 文件是否存在 |
-| 常量改动未触发调用方 | `ConstRefEffectProvider.ensureReadyForRecompile()`，再转 `03_deploy_const_ref.md` |
-| `Isolated process parsing failed` 且 `ClassNotFoundException: ApkParserProcess` | `ApkParserProcessLauncher` 的 classpath 构建，检查是否用了 URL 编码路径 |
-| 完整构建后 APK DB 初始化导致 IDE 内存突增 | 确认是否进入独立进程；若已回退 in-process，先查 Java home、plugin classpath 与子进程输出 |
+| A small edit produces extensive `effectedSource` | Step 2 in `DeployDataDatabaseSqLiteHelper.getEffectedClassNodes()`; check whether a changed method is static / `$r8$lambda$`. |
+| A caller is not recompiled and fails at runtime | Output of `ClassNodeComparator.compare()` and whether Step 3 hits `method_refs` / `field_refs`. |
+| Changed class-level generic constraints but empty effectedSource | `ClassNodeComparator.modifiedGenericSignature` and Step 5 generic propagation. |
+| Changed method/field generics but a direct caller is not recompiled | Check whether `DexFileNodeCollector` retains member `dalvik.annotation.Signature` and whether `modifiedGenericSignatureMethods` / `modifiedGenericSignatureFields` enter Step 3 reference queries. |
+| Missing class/member after release increment | `getEffectedClassNodesForMinify()` and `EffectedType.MINIFY_MEMBER_REMOVED`. |
+| Release method-body change but a caller runs old logic | `InlineMethodDetector.findInlineEffectedClasses()` and presence of the mapping file. |
+| Constant change does not trigger callers | `ConstRefEffectProvider.ensureReadyForRecompile()`, then `03_deploy_const_ref.md`. |
+| `Isolated process parsing failed` with `ClassNotFoundException: ApkParserProcess` | Classpath construction in `ApkParserProcessLauncher`; check for URL-encoded paths. |
+| IDE memory spikes during APK DB initialization after a full build | Confirm whether a subprocess was used; if parsing fell back in-process, check Java home, plugin classpath, and subprocess output first. |
 
 ---
 
-## 9. 关联文档
+## 9. Related Documents
 
-- 部署核心：`03_deploy_core.md`
-- 完整部署流程：`03_deploy_complete.md`
-- 常量引用影响分析：`03_deploy_const_ref.md`
-- 编译主流程：`02_compile_core.md`
-- 级联重编译案例：`docs/task/2026-03/recompile_cascade_bug_analysis.md`
+- Deployment core: `03_deploy_core.md`
+- Complete deployment flow: `03_deploy_complete.md`
+- Constant-reference impact analysis: `03_deploy_const_ref.md`
+- Main compilation flow: `02_compile_core.md`
+- Cascading-recompilation case: `docs/task/2026-03/recompile_cascade_bug_analysis.md`

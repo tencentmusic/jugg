@@ -1,154 +1,152 @@
-# 公共工具模块（Utilities）
+# Shared Utilities Module
 
-> 最后核对：2026-09-08
-> 一致性规则：文档与代码冲突时，以代码为准。
-
----
-
-## 1. 文档定位
-
-本页只记录 `main` 中被编译、部署、MCP、远端能力共同复用的公共能力：源码入口、跨模块数据流、隐形约束与排查第一跳。编译/部署主流程细节分别看 `02_compile_core.md`、`03_deploy_core.md`、`08_mcp_design.md`。
+> Last checked: 2026-09-08
+> Consistency rule: when documentation conflicts with code, follow the code.
 
 ---
 
-## 2. 核心源码索引
+## 1. Scope
 
-| 能力 | 核心入口 | 作用 |
+This page records shared `main` capabilities reused by compilation, deployment, MCP, and remote operations: source entry points, cross-module data flow, hidden constraints, and first investigation steps. For main compile/deploy flows, see `02_compile_core.md`, `03_deploy_core.md`, and `08_mcp_design.md`.
+
+---
+
+## 2. Core Source Index
+
+| Capability | Core entry | Role |
 |------|----------|------|
-| 日志 | `main/src/main/java/com/sickworm/intellij/jugg/logger/JuggLogger.kt`、`FileLogger.kt`、`TimeLogger.kt` | 项目级 / 全局日志分发、`compile_latest.log` 快捷入口、阶段耗时埋点 |
-| 路径与临时产物 | `main/src/main/java/com/sickworm/intellij/jugg/project/runtime/JuggPathManager.kt`、`JuggGlobalPathManager.kt`、`main/src/main/java/com/sickworm/intellij/jugg/project/ExpiredArtifactCleaner.kt` | 项目级 `build/jugg`、稳定 `.gradle/jugg`、用户级全局 root（优先 `~/.jugg`，不可写时 `${java.io.tmpdir}/jugg-<user>`），以及项目级过期产物清理 |
-| APK 修改 | `main/src/main/java/com/sickworm/intellij/jugg/apk/ApkFileModifier.kt`、`ResourceApkModifier.kt` | APK 插入、替换、zipalign、签名与资源 APK 增量更新 |
-| APK 签名脚本 | `main/src/main/java/com/sickworm/intellij/jugg/apk/CustomApkSignScriptRunner.kt` | 用项目脚本替换 `ApkFileModifier` 的默认 keystore 签名，透传待签名 APK 绝对路径并转发脚本输出 |
-| Git worktree | `main/src/main/java/com/sickworm/intellij/jugg/git/GitManager.kt`、`WorktreeFileRepository.kt` | Git 变更识别；worktree 下把 HEAD 操作定向到 worktree-local HEAD |
-| 平台桥接 | `main/src/main/java/com/sickworm/intellij/jugg/platform/IPlatformApi.kt`、`PlatformApi.kt`、`idea/.../ide/logic/IdeaPlatformApi.kt` | core 层调用进程级 UI、Gradle、MCP host 能力的抽象边界；项目设备选择和 ADB 适配由 `IDeployTargetManager` 负责；hot update 时实现类及接口 JVM 描述符中的直接 Jugg 类型固定由宿主加载 |
-| 远端服务 | `main/src/main/java/com/sickworm/intellij/jugg/server/JuggServer.kt`、`JuggServerChooser.kt`、`JuggEventLocalStore.kt`、`JuggRemoteCompileApplier.kt` | 上报、版本检测、server failover、全局本地事件记录与远端编译 apply；缺少内置配置时仅明确设置的自定义服务器可启用后台 |
-| 问题诊断 | `main/src/main/java/com/sickworm/intellij/jugg/diagnostics/IssueReportBundleBuilder.kt`、`IssueReportUploader.kt` | 白名单诊断包、脱敏、manifest 校验与单一 HTTPS endpoint 上传 |
-| Runtime 信息 | `project/runtime/RuntimeInfo.kt` | Host 显式提供 runtime type/version、host version 与 build time，供 Server、锁和 hot update 使用 |
-| Hot update | `server/JuggHotUpdateManager.kt`、`idea/.../server/IdeaHotUpdateCoordinator.kt`、`idea/.../loader/JuggHotUpdateBootstrap.kt` | 共享下载校验、原子发布与清理；IDEA 检查和安装编排；Loader 启动前只读 manifest |
-| 配置模型 | `main/src/main/java/com/sickworm/intellij/jugg/ide/bean/JuggSettings.kt`、`project/runtime/JsonRuntimeSettingsRepository.kt`、`ProjectCustomConfigManager.kt`、`JuggGradleCompileOptions.kt` | IDEA/standalone 共享设置、project custom config 生命周期、运行参数与 Gradle task 派生 |
+| Logging | `main/src/main/java/com/sickworm/intellij/jugg/logger/JuggLogger.kt`, `FileLogger.kt`, `TimeLogger.kt` | Project/global log dispatch, `compile_latest.log` shortcut, phase timing. |
+| Paths and temporary artifacts | `main/src/main/java/com/sickworm/intellij/jugg/project/runtime/JuggPathManager.kt`, `JuggGlobalPathManager.kt`, `main/src/main/java/com/sickworm/intellij/jugg/project/ExpiredArtifactCleaner.kt` | Project `build/jugg`, stable `.gradle/jugg`, user-global root (`~/.jugg`, falling back to `${java.io.tmpdir}/jugg-<user>` if unwritable), and project-expired-artifact cleanup. |
+| APK modification | `main/src/main/java/com/sickworm/intellij/jugg/apk/ApkFileModifier.kt`, `ResourceApkModifier.kt` | APK insertion, replacement, zipalign, signing, and incremental resource-APK update. |
+| APK signing script | `main/src/main/java/com/sickworm/intellij/jugg/apk/CustomApkSignScriptRunner.kt` | Replaces `ApkFileModifier` default keystore signing with a project script, passes absolute APK path, and forwards script output. |
+| Git worktree | `main/src/main/java/com/sickworm/intellij/jugg/git/GitManager.kt`, `WorktreeFileRepository.kt` | Detects Git changes; directs HEAD operations to worktree-local HEAD. |
+| Platform bridge | `main/src/main/java/com/sickworm/intellij/jugg/platform/IPlatformApi.kt`, `PlatformApi.kt`, `idea/.../ide/logic/IdeaPlatformApi.kt` | Abstraction for process-level UI, Gradle, and MCP Host capabilities called by core. `IDeployTargetManager` owns project device selection and ADB adapters. During hot update, implementation classes and direct Jugg types in interface JVM descriptors stay host-loaded. |
+| Remote service | `main/src/main/java/com/sickworm/intellij/jugg/server/JuggServer.kt`, `JuggServerChooser.kt`, `JuggEventLocalStore.kt`, `JuggRemoteCompileApplier.kt` | Reporting, version check, server failover, global local event history, and remote compile apply. Without bundled configuration, only an explicitly set custom server can enable backend. |
+| Issue diagnostics | `main/src/main/java/com/sickworm/intellij/jugg/diagnostics/IssueReportBundleBuilder.kt`, `IssueReportUploader.kt` | Allowlisted, redacted diagnostics bundle with manifest verification and upload to one HTTPS endpoint. |
+| Runtime info | `project/runtime/RuntimeInfo.kt` | Explicit Host-provided runtime type/version, Host version, and build time for Server, locks, and hot update. |
+| Hot update | `server/JuggHotUpdateManager.kt`, `idea/.../server/IdeaHotUpdateCoordinator.kt`, `idea/.../loader/JuggHotUpdateBootstrap.kt` | Shared download verification, atomic publication, and cleanup; IDEA check/install orchestration; read-only manifest before Loader startup. |
+| Configuration model | `main/src/main/java/com/sickworm/intellij/jugg/ide/bean/JuggSettings.kt`, `project/runtime/JsonRuntimeSettingsRepository.kt`, `ProjectCustomConfigManager.kt`, `JuggGradleCompileOptions.kt` | Shared IDEA/standalone settings, project custom-config lifecycle, runtime options, and derived Gradle tasks. |
 
 ---
 
-## 3. 核心数据流
+## 3. Core Data Flow
 
 ```text
-JuggManager 初始化
-  -> JuggPathManager 定义 project-local build/jugg、database、log、tmp、mcp_fetch
-  -> IDEA Runtime 注册 pathManager.logDir；standalone Runtime 注册 pathManager.standaloneCliLogDir
-  -> 编译/部署/MCP 共享同一 Logger 与路径对象
-  -> FileLogger 写 compile_*.log，并维护 compile_latest.log / compile_latest-1.log
+JuggManager initialization
+  -> JuggPathManager defines project-local build/jugg, database, log, tmp, mcp_fetch
+  -> IDEA Runtime registers pathManager.logDir; standalone Runtime registers pathManager.standaloneCliLogDir
+  -> compilation / deployment / MCP share one Logger and path object
+  -> FileLogger writes compile_*.log and maintains compile_latest.log / compile_latest-1.log
 ```
 
 ```text
-需要 IDE / 用户交互能力的 core 逻辑
-  -> 调用 PlatformApi
-  -> PlatformApi 只转发到已注入的 IPlatformApi host 实现
-  -> main 模块避免直接依赖 IDE 实现，测试可使用 platform_compat 桩
+core logic needs IDE/user interaction
+  -> call PlatformApi
+  -> PlatformApi only forwards to injected IPlatformApi Host implementation
+  -> main avoids direct IDE dependency; tests can use platform_compat stubs
 ```
 
 ```text
-需要项目设备能力的 core 逻辑
-  -> IDeployTargetManager 返回当前项目的选中设备和在线设备
-  -> 设备选择完成后通过 createDeviceAdb() 创建同一项目域的 ADB 适配器
-  -> 禁止把项目设备或 ADB 适配重新挂回进程级 PlatformApi
+core logic needs project device capabilities
+  -> IDeployTargetManager returns selected and online devices for this project
+  -> after selection, createDeviceAdb() builds an ADB adapter in the same project domain
+  -> do not attach project devices or ADB adapter back to process-level PlatformApi
 ```
 
 ```text
-需要 Jugg 自有全局文件
-  -> JuggGlobalPathManager 优先落到 ~/.jugg，家目录不可写时回退到 ${java.io.tmpdir}/jugg-<user>
-  -> settings.json / action.db / resources / hot_update / skills / library_test_build_records 等跨项目状态集中管理
-  -> CLI / skills / hooks / test_flag 等也复用同一 active global root
-  -> 写入统一通过 <global-root>/locks/global.lock 串行，文件快照使用临时文件和原子替换
-  -> 项目级编译缓存、日志、DB 仍由 JuggPathManager 留在 build/jugg
+Jugg-owned global files needed
+  -> JuggGlobalPathManager prefers ~/.jugg, falling back to ${java.io.tmpdir}/jugg-<user> if home is unwritable
+  -> centralize cross-project settings.json / action.db / resources / hot_update / skills / library_test_build_records
+  -> CLI / skills / hooks / test_flag use the same active global root
+  -> serialize writes through <global-root>/locks/global.lock; snapshot files use temporary file + atomic replacement
+  -> project compilation cache, logs, and DB remain under build/jugg via JuggPathManager
 ```
 
 ```text
-IDEA Runtime settings 初始化
-  -> JuggManager 的 Init Jugg 后台任务读取旧 PropertiesComponent 并转换为 legacy fields，不阻塞 init 调用线程
-  -> JuggSettings.migrateLegacyJuggSettings() 通过 IDEA adapter 读取旧属性，只回填 settings.json 缺失字段，已有 JSON 值优先
-  -> 成功后在 PropertiesComponent 记录迁移完成；失败不阻断启动且不清理旧属性，下次启动继续重试
-  -> 首次 persisted setting get/set 自动加载 JSON，之后按字段同步持久化修改
+IDEA Runtime settings initialization
+  -> JuggManager Init Jugg background task reads old PropertiesComponent and converts legacy fields without blocking init caller
+  -> JuggSettings.migrateLegacyJuggSettings() reads old properties through IDEA adapter; fills only fields absent from settings.json; existing JSON wins
+  -> after success, record migration complete in PropertiesComponent; failure does not block startup or clear old properties, and next startup retries
+  -> first persisted setting get/set automatically loads JSON; later field changes persist synchronously
 
 Standalone/CLI Runtime settings
-  -> 首次 persisted setting get/set 通过 JsonRuntimeSettingsRepository 读取同一 settings.json
-  -> 文件缺失时使用 JuggSettings 默认值且不创建文件
-  -> TaskRunner 确认 Runtime owner 切换时丢弃进程内 settings snapshot，接管方下一次读取使用最新磁盘值
+  -> first persisted setting get/set reads the same settings.json through JsonRuntimeSettingsRepository
+  -> missing file uses JuggSettings defaults without creating one
+  -> on confirmed Runtime-owner change, TaskRunner discards in-process settings snapshot; next read by new owner uses latest disk values
 
 Project custom config
-  -> ProjectCustomConfigManager 私有持有 ProjectCustomConfigStore
-  -> local custom_config.json 优先于 server default_custom_config.json
-  -> refresh/updateDefaultConfig 统一应用 server、文件规则、classpath、custom compiler 与 embedded APK
+  -> ProjectCustomConfigManager privately owns ProjectCustomConfigStore
+  -> local custom_config.json outranks server default_custom_config.json
+  -> refresh/updateDefaultConfig applies server, file rules, classpath, custom compiler, and embedded APK together
 ```
 
 ```text
 Runtime info
-  -> Host 创建 RuntimeInfo(runtimeType/runtimeVersion/hostVersion/buildTime)
-  -> JuggServer 只消费注入 info，不读取 Project、plugin manifest 或 PlatformApi
-  -> TaskRunner 从 info 中使用 runtime type/version 建立锁 owner identity
+  -> Host creates RuntimeInfo(runtimeType/runtimeVersion/hostVersion/buildTime)
+  -> JuggServer consumes only injected info, without reading Project, plugin manifest, or PlatformApi
+  -> TaskRunner uses runtime type/version for lock-owner identity
 ```
 
 ```text
 Hot update
-  -> JuggHotUpdateManager 在固定全局锁内下载、MD5 校验并原子发布 immutable jar 与 hot_update_data.json
-  -> compatible update 分别发布 IDEA load_manifest.json 与 standalone_load_manifest.json
-  -> isNeedReinstall=true 只保存 JAR、candidate Bundle 和 metadata，不替换 active manifest
-  -> 新插件启动后仅在 releaseBuildId 精确一致时激活 candidate standalone snapshot
-  -> IDEA JuggHotUpdateBootstrap 与 standalone StandaloneBootstrap 分别只读取自己的 manifest
+  -> JuggHotUpdateManager downloads, verifies MD5, and atomically publishes immutable JARs and hot_update_data.json under fixed global lock
+  -> compatible update publishes IDEA load_manifest.json and standalone standalone_load_manifest.json separately
+  -> isNeedReinstall=true saves only JARs, candidate Bundle, and metadata; active manifest stays unchanged
+  -> after new plugin starts, activate candidate standalone snapshot only on exact releaseBuildId match
+  -> IDEA JuggHotUpdateBootstrap and standalone StandaloneBootstrap read only their own manifests
 ```
 
 ---
+## 4. Hidden Constraints
 
-## 4. 隐形约束
-
-- `JuggLogger.getInstance(...)` 要求对应 project key 已注册；未注册会 fail fast，排查“拿不到 logger”先看初始化时机，而不是补空 logger。
-- `FileLogger` 的 `compile_latest.log` 是 best-effort 快捷入口；真实滚动文件仍是 `compile_yyyy-MM-dd_HH-mm-ss.%g.log`，日志丢失排查要同时看当前主文件和 `compile_latest-1.log`。
-- IDEA 日志位于 `build/jugg/log/`，standalone 日志位于 `build/jugg/log/standlone_cli/`；两个目录各自最多保留 10 份日志。Issue Report 按两目录的修改时间合并，只带最新 10 份，并保留 `standlone_cli/` 目录层级。
-- `TimeLogger.start/end` 以字符串 tag 配对；同一 tag 被跨阶段复用会污染耗时判断，新增高频埋点前先确认 tag 唯一性。
-- `TaskRunnerManager.runTaskSafe` 仅在后台任务失败时上报任务名、耗时与异常信息；成功任务不发送事件。
-- 每次 `JuggServer.report()` 都先 Best-effort 写入全局 `action.db`（默认 `~/.jugg/action.db`）；无服务器或远端失败不影响本地记录，本地写入失败也不阻止远端上报。
-- 普通 `buildPlugin` 不携带 `config/servers.json`；`buildPluginInternal` 才校验并打包本地忽略文件。缺少内置配置时，历史自动选服地址无效，只有用户明确设置的 Custom Server 继续生效。
-- 问题报告不复用 server failover：客户端只上传白名单生成且已脱敏的 zip，并固定请求 `https://jugg.sickworm.com/report_issue`；确认窗口展示固定、单一的 HTTPS 目标地址，不持久化地址且不尝试 fallback。
-- 问题报告忽略请求 serial，并按全部目标设备 Best-effort 采集 logcat；单台设备读取失败时只省略该设备条目，不阻断其他设备日志和诊断信息生成。
-- 问题报告把现存的 `project_infos.json`、`gradle_project_infos.json` 和 `gradle_include_builds.txt` 当前记录的 `include_build_*_gradle_project_infos.json` 作为默认勾选、可取消的高敏感度候选项，结构化脱敏副本位于 `diagnostics/project-info/`；`applicationId` 等诊断字段保留，SigningConfig 凭据、keystore、keyAlias、Manifest placeholders、APT/KAPT 参数和通用敏感键的值替换为占位符。JSON 解析失败时只跳过对应快照，目录残留的 included build 文件和其他 `project_infos.db` 文件不进入诊断包。必选 Jugg 日志仍排在最前。
-- MCP 拉取产物保留 30 天，问题诊断临时产物保留 7 天；两者在项目启动后使用独立后台任务调用 `ExpiredArtifactCleaner`，局部失败不会阻断另一类清理。
-- `JuggPathManager` 同时暴露 project-local 与 global root：编译产物、deployment cache、DB、日志优先 project-local；跨项目复用的 hot update、history、hook / resource 文件优先 `JuggGlobalPathManager`，写事务进入 active global root 下的固定锁。`~/.jugg` 探测失败时，全局 root 改为 `${java.io.tmpdir}/jugg-<user>`，后续编译不应再因家目录权限失败。
-- `settings.json` 写入使用固定全局锁、临时文件和原子替换；同进程更新由 `JuggSettings` 串行，字段修改会在锁内基于最新磁盘快照更新，避免双 Runtime 的不同字段互相覆盖；IDEA legacy migration 只补缺失字段，不能覆盖已存在 JSON 值。Runtime owner 切换后必须丢弃进程内 settings snapshot，避免 IDEA/standalone 接管项目时继续使用另一进程更新前的兼容记录和用户开关。CLI 强制 backup classpath 使用进程级 override，不修改共享用户设置。`JuggGlobalPathManager.rootDir` 切换后 `JuggSettings` 会自动丢弃旧 root 缓存，测试通过独立 root 隔离真实用户设置。
-- `PlatformApi.impl` 是 host 注入边界；core 代码不要绕过它直接调用 IDE / Android Studio API，否则 `main` 模块测试和 CLI 场景会失效。hot update 时 `PlatformApi`、`IPlatformApi`、`IdeaPlatformApi` 及 `IPlatformApi` JVM 方法描述符中的直接 Jugg 类型必须由同一宿主 ClassLoader 加载，`JuggLoader` 自动从接口签名生成这组类型，避免跨加载器的静态副本和 loader constraint violation。
-- `IDeployTargetManager` 是项目设备边界；设备枚举、请求级选择和 `IDevice` 到 `IDeviceAdb` 的转换必须使用同一项目 Runtime 的 manager，避免 standalone 多项目进程误用全局状态。
-- `JuggSettings` 的远程命令历史按 `user + host + port + remoteProjectPath` 保存，每个目标只保留最近 10 条并按完整命令去重。读取损坏数据或写入失败时返回空历史，不影响远程命令执行；命令正文不得写入 Jugg 持久日志。`RemoteUserCommand` 将正文编码后交给子 shell，并用每次执行唯一的完成标记解析退出码，避免用户命令中的注释、`exit` 或输出内容干扰协议。
-- `JuggServer` 的 runtime identity 必须由 Host 注入 `RuntimeInfo`；IDEA、CI、standalone 不得在共享 Server 内推断 plugin/IDE metadata。事件保留后端兼容的 `version/ide_version` 字段，实际值分别来自 `runtimeVersion/hostVersion`；`runtimeType` 仅用于 Runtime 锁 owner identity，不进入事件上报。
-- `JuggServer` 使用挂在 Runtime Scope 下的 `SupervisorJob` 执行更新检查、上报和自定义编译器下载等辅助任务；Runtime dispose 仍会取消这些任务，但任一辅助任务的未捕获异常不得反向取消编译、部署和 TaskRunner 共用的 Runtime Scope。
-- hot update jar 和 metadata 写入必须经过 `JuggHotUpdateManager` 的全局锁与原子替换；IDEA 与 standalone 共享 immutable JAR 内容池但使用独立 manifest。`isNeedReinstall=true` 不得更新任一 active manifest，只有新插件 `releaseBuildId` 与 candidate 精确一致才能激活 standalone snapshot；旧 Gson JSON 的 nullable standalone 字段统一以 `orEmpty()` 消费。
-- 未引用 hot update jar 保留 90 天；MCP fetch artifact 独立按 30 天清理。Standalone Deployer 固定使用 `~/.jugg/resources/deployer/quail` 单份资源，每次准备时在全局写锁内原子覆盖；tooling 完整安装停止旧 daemon 后删除历史 `~/.jugg/runtime`。AAPT2 仍使用 `resources/tools/<os>/aapt2-inclink-<version>`，不复用 deployer 的覆盖策略。
-- APK 修改链路依赖 `PlatformApi.allAvailableJavaHomes()` 寻找可用签名 JDK；每次重试会移除已有的 `JAVA_HOME` 并写入当前候选，即使原环境未设置该变量也能真正切换 JDK。签名失败不要只看 apksigner 输出，也要检查 host Java home 列表。
-- `ApkFileModifier.insertAndResign()` 在同目录临时副本上完成插入、对齐、签名和校验，校验复用实际签名成功时的 JDK 环境，全部成功后才替换原 APK；任一阶段失败时保留原 APK，并 best-effort 清理临时文件。
-- `ApkFileModifier` 调用 zipalign 和 apksigner 时按宿主 shell 逐项转义参数（`shellEscapeArgument`）；SDK、APK、keystore 路径包含空格、括号或 Unicode 字符时仍作为单个参数传递。`CustomApkSignScriptRunner` 复用同一转义规则拼接 `<configured command> '<apk 绝对路径>'`。
-- `ApkFileModifier` 的可空 `customApkSignScriptRunner` 决定签名阶段走自定义脚本还是默认 keystore：走脚本时 `signConfig` 可以为空，签名后仍统一执行 `verifyApk()` 和原子替换。脚本命令使用 `isSecureCommand`，因此 `CmdExecutor` 的 debug 日志只打印 `(secure)`，脚本原文不进入日志。
-- 兼容资源 APK 修改在 JVM 14+ 继续使用 ZipFS；`ResourceApkModifier` 为每轮写入创建唯一同目录临时文件，成功关闭后优先原子替换正式 `resource.ap_`，平台不支持时回退普通替换，避免异常遗留的 ZipFS URI 和半成品污染后续 Run。日志记录条目数、内容总字节、最大条目、APK 字节及导出前后 heap，用于区分 ZIP 生成峰值与 deployer payload 包装峰值。
-- 远端编译的 Exclude patterns 控制 local-to-remote 源文件同步中的可配置排除规则。`.gradle` 和 `build` 保持原有固定 include/exclude 顺序：默认排除目录，同时放行 `.gradle/jugg/**`、`build/jugg/config/**` 等 Jugg 必需文件，用户不能通过该字段移除这两项。未自定义时使用并展示 `local.properties`、`.idea/`、`*.iml`、`.git/objects/`、`.git/modules/`、`.cxx/`；用户修改后只使用保存的可配置列表，明确清空表示不应用这些可配置默认排除。旧版本 Additional exclude patterns 没有自定义标记，升级后按未设置处理。配置用分号或换行分隔 rsync glob（逗号仅用于输入兼容），所有同步模式都将 pattern 按用户输入原样交给 rsync，作用域以本次实际传输根为准；`.git/` 可匹配任意层级的同名目录，`/.git/` 仅匹配传输根目录。它不是 gitignore 语义，`..`、引号和 Windows 绝对路径始终不支持。
+- `JuggLogger.getInstance(...)` requires the project key already registered. An unregistered key fails fast; investigate initialization order before adding an empty logger.
+- `FileLogger`'s `compile_latest.log` is a best-effort shortcut. Real rolling files are `compile_yyyy-MM-dd_HH-mm-ss.%g.log`; for missing logs inspect both current main file and `compile_latest-1.log`.
+- IDEA logs live under `build/jugg/log/`; standalone logs under `build/jugg/log/standlone_cli/`. Each directory keeps at most 10 files. Issue Report merges by modification time and includes the latest 10, retaining `standlone_cli/` hierarchy.
+- `TimeLogger.start/end` pair by string tag. Reusing one tag across phases corrupts timing; check uniqueness before high-frequency instrumentation.
+- `TaskRunnerManager.runTaskSafe` reports task name, duration, and exception only on background-task failure; success sends no event.
+- Every `JuggServer.report()` best-effort writes global `action.db` first (default `~/.jugg/action.db`). Missing server or remote failure does not affect local record; local write failure does not prevent remote report.
+- Ordinary `buildPlugin` excludes `config/servers.json`; only `buildPluginInternal` validates and packages this local ignored file. Without bundled configuration, historical automatic server-selection URLs are inactive; only an explicitly configured Custom Server remains usable.
+- Issue reporting does not reuse server failover. Client uploads only an allowlisted, redacted ZIP to fixed `https://jugg.sickworm.com/report_issue`. Confirmation displays that one fixed HTTPS destination; do not persist the address or try fallback.
+- Issue report ignores requested serial and best-effort collects logcat from all target devices. Failure on one device omits only its entry, not other device logs or diagnostics generation.
+- Issue report offers existing `project_infos.json`, `gradle_project_infos.json`, and `include_build_*_gradle_project_infos.json` named by current `gradle_include_builds.txt` as default-selected removable high-sensitivity candidates. Their structured redacted copies live under `diagnostics/project-info/`. Keep diagnostic fields such as `applicationId`, but replace SigningConfig credentials, keystore, keyAlias, Manifest placeholders, APT/KAPT parameters, and generic sensitive-key values with placeholders. On JSON parse failure skip only that snapshot. Stray included-build files and other `project_infos.db` files do not enter bundle. Required Jugg logs remain first.
+- MCP fetched artifacts live 30 days; temporary issue diagnostics live seven days. Separate background tasks after project startup call `ExpiredArtifactCleaner`; failure of one cleanup does not block the other.
+- `JuggPathManager` exposes project-local and global roots. Compilation outputs, deployment cache, DB, and logs prefer project-local. Cross-project hot update, history, hooks, and resource files use `JuggGlobalPathManager` and writes under active global root's fixed lock. If `~/.jugg` probe fails, global root switches to `${java.io.tmpdir}/jugg-<user>`; later compilation should not fail again on home permissions.
+- Write `settings.json` under fixed global lock with temporary file + atomic replacement. `JuggSettings` serializes same-process updates and applies field changes against latest disk snapshot under lock so different fields from two Runtimes do not overwrite one another. IDEA legacy migration only fills missing fields, never replaces existing JSON values. After Runtime-owner switch, discard in-process settings snapshot so IDEA/standalone takeover does not use compatibility records or switches from before another process's update. CLI forced backup classpath uses a process-level override without modifying shared settings. Changing `JuggGlobalPathManager.rootDir` causes `JuggSettings` to discard its old-root cache automatically, allowing tests to isolate real user settings with separate roots.
+- `PlatformApi.impl` is a Host-injection boundary. Core must not call IDE/Android Studio API around it or `main` tests and CLI will fail. During hot update, `PlatformApi`, `IPlatformApi`, `IdeaPlatformApi`, and direct Jugg types in `IPlatformApi` JVM method descriptors must load from the same Host ClassLoader. `JuggLoader` derives this set from interface signatures, preventing cross-loader static copies and loader-constraint violations.
+- `IDeployTargetManager` is the project device boundary. Device enumeration, request-level selection, and `IDevice` → `IDeviceAdb` conversion must use that project's Runtime manager, so standalone multi-project processes cannot misuse global device state.
+- `JuggSettings` saves remote-command history by `user + host + port + remoteProjectPath`, keeping the latest 10 unique full commands per target. Corrupt history or write failure returns an empty history without blocking command execution. Never persist command bodies in Jugg logs. `RemoteUserCommand` encodes the body for a subshell and parses exit code using a unique completion marker per execution, so comments, `exit`, or command output cannot disrupt protocol.
+- `JuggServer` Runtime identity is injected by Host through `RuntimeInfo`; shared Server must not infer plugin/IDE metadata for IDEA, CI, or standalone. Events retain backend-compatible `version/ide_version` fields populated from `runtimeVersion/hostVersion`; `runtimeType` is only for Runtime lock-owner identity and is not reported in events.
+- `JuggServer` runs update checks, reports, and custom-compiler downloads as auxiliary tasks under a `SupervisorJob` attached to Runtime Scope. Runtime disposal cancels them, but an uncaught exception in one must not cancel compilation, deployment, or TaskRunner's shared Runtime Scope.
+- Hot-update JAR and metadata writes must go through `JuggHotUpdateManager` global lock and atomic replacement. IDEA and standalone share an immutable JAR content pool but use separate manifests. `isNeedReinstall=true` must not change either active manifest. Activate candidate standalone snapshot only if new plugin `releaseBuildId` exactly matches it. Consume nullable standalone fields in old Gson JSON using `orEmpty()`.
+- Keep unreferenced hot-update JARs 90 days; separately clean MCP fetch artifacts after 30. Standalone Deployer keeps one resource copy at `~/.jugg/resources/deployer/quail`, atomically overwriting under global write lock each preparation. After complete tooling install stops old daemon, remove historical `~/.jugg/runtime`. AAPT2 keeps `resources/tools/<os>/aapt2-inclink-<version>` and does not share deployer's overwrite policy.
+- APK modification finds signing JDKs through `PlatformApi.allAvailableJavaHomes()`. Each retry removes existing `JAVA_HOME` and writes current candidate, truly switching JDK even if the original environment lacked that variable. On signing failure, inspect host Java-home list as well as apksigner output.
+- `ApkFileModifier.insertAndResign()` inserts, aligns, signs, and verifies on a temporary copy in the same directory, reusing the JDK environment that actually signed for verification. Replace original APK only after every step succeeds. Retain original and best-effort delete temporary file on any failure.
+- `ApkFileModifier` escapes each zipalign/apksigner argument for host shell with `shellEscapeArgument`. SDK, APK, or keystore paths with spaces, parentheses, or Unicode remain one argument. `CustomApkSignScriptRunner` uses the same rule to append `<configured command> '<absolute APK path>'`.
+- Nullable `customApkSignScriptRunner` in `ApkFileModifier` chooses custom script versus default-keystore signing. With a script, `signConfig` may be empty; still run common `verifyApk()` and atomic replacement. Script command uses `isSecureCommand`, so `CmdExecutor` debug logs show `(secure)` only, never script text.
+- Compatible resource-APK modification retains JVM 14+ ZipFS. `ResourceApkModifier` creates a unique same-directory temporary file for each write, replacing final `resource.ap_` atomically after close if supported, otherwise with ordinary replacement. This avoids stale ZipFS URI after exception and a partial cache contaminating later Run. Logs record entry count, total content bytes, largest entry, APK bytes, and heap before/after export, distinguishing ZIP-generation peaks from deployer-payload wrapping peaks.
+- Remote compilation Exclude patterns configure exclusions in local-to-remote source sync. `.gradle` and `build` retain fixed include/exclude order: directories excluded by default while required `.gradle/jugg/**`, `build/jugg/config/**`, and similar Jugg files remain allowed. Users cannot remove these two fixed exclusions. Before customization, display and use `local.properties`, `.idea/`, `*.iml`, `.git/objects/`, `.git/modules/`, and `.cxx/`. After user edits, use only saved configurable patterns; explicitly empty means no configurable default exclusions. Old Additional exclude patterns lack a customization marker and are treated as unset on upgrade. Split configured rsync globs by semicolon or newline (comma only for input compatibility); pass each pattern verbatim to rsync in every sync mode, scoped to the actual transfer root. `.git/` matches a same-name directory at any level; `/.git/` matches only transfer root. These are not gitignore rules; `..`, quotes, and Windows absolute paths are always unsupported.
 
 ---
+## 5. Investigation Entry Points
 
-## 5. 排查入口
-
-| 现象 | 优先入口 |
+| Symptom | Start with |
 |------|----------|
-| `compile_latest.log` 不更新或只看到旧日志 | `JuggLogger.register/unregister`、`FileLogger.recreateIfDeleted()`、`FileLogger.resetLatestCompileLog()` |
-| 需要判断日志来自哪个 Runtime | `build/jugg/log/`（IDEA）或 `build/jugg/log/standlone_cli/`（standalone）；锁竞争再查看 `Runtime lock contention` |
-| 日志里缺某个阶段耗时 | 对应调用点是否成对调用 `TimeLogger.start/end` |
-| APK 修改后安装无效或签名异常 | `ApkFileModifier.insertAndResign()`、`alignApk()`、`signApk()` |
-| worktree 下变更识别错乱 | `GitManager` 与 `WorktreeFileRepository` |
-| `main` 测试中平台能力报错 | `PlatformApi.impl` 注入点与 `platform_compat/base_api` 桩 |
-| 远端服务地址异常或频繁切换 | `JuggServerChooser`、`JuggSettings.serverUrl/serverExpireTimeMill` |
-| report issue 缺项目信息或日志 | `ProjectInfoReader.printInfo()`、`DeployTargetManager.dumpErrorLogs()`、`JuggServer.reportAndUploadLogs()` |
-| hot update 下载成功但下次启动未加载 | `JuggHotUpdateManager.loadManifestFile`、`JuggHotUpdateBootstrap`、runtime `buildTime` 与 loader embedded build time 是否一致 |
+| `compile_latest.log` does not update or shows old logs | `JuggLogger.register/unregister`, `FileLogger.recreateIfDeleted()`, `FileLogger.resetLatestCompileLog()`. |
+| Need to identify log Runtime | `build/jugg/log/` for IDEA or `build/jugg/log/standlone_cli/` for standalone; on lock contention check `Runtime lock contention`. |
+| Phase timing absent from log | Whether call sites pair `TimeLogger.start/end`. |
+| APK modification has no install effect or signing fails | `ApkFileModifier.insertAndResign()`, `alignApk()`, `signApk()`. |
+| Worktree change detection wrong | `GitManager`, `WorktreeFileRepository`. |
+| Platform capability fails in `main` tests | `PlatformApi.impl` injection and `platform_compat/base_api` stubs. |
+| Remote service address wrong or changes repeatedly | `JuggServerChooser`, `JuggSettings.serverUrl/serverExpireTimeMill`. |
+| Issue report lacks project info or logs | `ProjectInfoReader.printInfo()`, `DeployTargetManager.dumpErrorLogs()`, `JuggServer.reportAndUploadLogs()`. |
+| Hot-update download succeeds but is not loaded next startup | `JuggHotUpdateManager.loadManifestFile`, `JuggHotUpdateBootstrap`, and whether runtime `buildTime` matches Loader's embedded build time. |
 
 ---
 
-## 6. 关联文档
+## 6. Related Documents
 
-- 编译：`02_compile_core.md`
-- 部署：`03_deploy_core.md`
-- 工程与路径：`04_engineering_project.md`
-- 兼容层：`04_engineering_compat.md`
-- MCP：`08_mcp_design.md`
+- Compilation: `02_compile_core.md`
+- Deployment: `03_deploy_core.md`
+- Engineering and paths: `04_engineering_project.md`
+- Compatibility layer: `04_engineering_compat.md`
+- MCP: `08_mcp_design.md`

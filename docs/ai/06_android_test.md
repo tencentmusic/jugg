@@ -1,185 +1,185 @@
-# androidTest 支持指南
+# androidTest Support Guide
 
-> 最后核对：2026-08-29
-> 一致性规则：文档与代码冲突时，以代码为准。
-
----
-
-## 1. 能力范围
-
-Jugg 目前支持 **app 模块的 androidTest**，并已接入 **library-style self-targeting Test APK** 的 sourcePath 精确选择、缺失 APK 懒加载补齐与多 APK 归属部署：
-
-- app RunConfig 开启 `enableAndroidTest` 后，编译目标切到 `BuildTarget.ANDROID_TEST`。
-- Gradle full compile 会同时产出 app APK 与 app test APK。
-- 后续 app 源码与 `app/src/androidTest` 源码变更都可以进入 Jugg 增量编译。
-- 部署阶段不引入 test APK 专用协议，继续复用当前 `install / code swap / full swap` 策略，并按 applicationId 拆分 scoped deploy data。
-- 部署成功后执行 `am instrument`，并把 instrumentation 输出渲染到 Jugg console。
-- androidTest Run 面板接入 SM Test Runner，显示 `Test Results` 树，支持测试节点源码跳转与 rerun failed tests。
-- library-style Test APK 缺失时，只对当前 `sourcePath` 命中的 androidTest module 派生并执行 `:<module>:assemble<Variant>AndroidTest`，再把新增 Test APK 合入本轮 APK 列表。
-
-当前不覆盖：
-
-- androidTest resource 增量编译。
-- `androidTestAnnotationProcessor` / `androidTestKapt`。
-- app-style other-targeting test APK 的懒加载补齐。
-- Debug Executor。
-- 常驻 test harness 或保活 test 进程内 redefine。
+> Last checked: 2026-08-29
+> Consistency rule: when documentation conflicts with code, follow the code.
 
 ---
 
-## 2. 核心模型
+## 1. Capability Scope
+
+Jugg currently supports **androidTest in app modules**, and has integrated **library-style self-targeting Test APKs** for exact sourcePath selection, lazy backfill of missing APKs, and multi-APK ownership deployment:
+
+- When app RunConfig enables `enableAndroidTest`, compilation targets `BuildTarget.ANDROID_TEST`.
+- A full Gradle compile produces both app APK and app test APK.
+- Later changes to app sources and `app/src/androidTest` sources can enter Jugg incremental compilation.
+- Deployment adds no Test-APK-specific protocol: it reuses `install / code swap / full swap` and splits scoped deploy data by applicationId.
+- After successful deployment, run `am instrument` and render instrumentation output in Jugg console.
+- androidTest Run Panel uses SM Test Runner for a `Test Results` tree, source navigation from test nodes, and rerun failed tests.
+- If a library-style Test APK is missing, derive and run `:<module>:assemble<Variant>AndroidTest` only for the androidTest module matching current `sourcePath`, then add the new Test APK to this run's APK set.
+
+Current exclusions:
+
+- Incremental compilation of androidTest resources.
+- `androidTestAnnotationProcessor` / `androidTestKapt`.
+- Lazy backfill of app-style other-targeting Test APKs.
+- Debug Executor.
+- Persistent test harness or in-process redefine of a kept-alive test process.
+
+---
+
+## 2. Core Models
 
 ### 2.1 BuildTarget
 
-入口：`main/src/main/java/com/sickworm/intellij/jugg/compiler/BuildTarget.kt`
+Entry: `main/src/main/java/com/sickworm/intellij/jugg/compiler/BuildTarget.kt`
 
-| Target | 编译范围 |
+| Target | Compilation scope |
 |--------|----------|
-| `APP` | app variant |
-| `ANDROID_TEST` | app variant + androidTest variant |
+| `APP` | App variant. |
+| `ANDROID_TEST` | App variant plus androidTest variant. |
 
-`BuildTarget` 只描述编译范围，不决定本轮启动方式。App RunConfig 开启 `enableAndroidTest` 后，即使执行普通 App Run，也会使用 `BuildTarget.ANDROID_TEST` 维护 app APK 与 test APK baseline；是否执行 `am instrument` 由本轮 `AndroidTestRunSpec` 是否非空决定，为空时仍执行普通 app launch。
+`BuildTarget` describes compilation scope only; it does not choose how this run starts. When app RunConfig enables `enableAndroidTest`, even ordinary App Run maintains app and Test APK baselines under `BuildTarget.ANDROID_TEST`. Running `am instrument` depends on this run having a nonempty `AndroidTestRunSpec`; with none, launch app normally.
 
-因此，无文件变化时只有 `BuildTarget.ANDROID_TEST` 且本轮存在 `AndroidTestRunSpec` 才能走 androidTest 直接部署分支；普通 App Run 不能仅根据 `BuildTarget` 跳过无文件变化确认。
+Thus a no-file-change androidTest direct-deploy branch requires both `BuildTarget.ANDROID_TEST` and an `AndroidTestRunSpec` this run. An ordinary App Run must not bypass no-change confirmation based only on `BuildTarget`.
 
-### 2.2 test APK 识别
+### 2.2 Identifying Test APKs
 
-入口：
+Entries:
 
 - `main/src/main/java/com/sickworm/intellij/jugg/apk/ApkInfo.kt`
 - `main/src/main/java/com/sickworm/intellij/jugg/apk/ApkInfoReader.kt`
 
-`ApkInfo` 通过 APK manifest 的 `<instrumentation>` 元素识别 test APK：
+`ApkInfo` identifies a Test APK from the APK Manifest's `<instrumentation>` element:
 
-| 字段 | 含义 |
+| Field | Meaning |
 |------|------|
-| `instrumentationTargetPackage` | 被测 app package；非空表示这是 test APK |
-| `instrumentationRunner` | test APK manifest 中声明的 runner |
-| `isTestApk` | `instrumentationTargetPackage != null` |
+| `instrumentationTargetPackage` | Package of the app under test; nonempty means Test APK. |
+| `instrumentationRunner` | Runner declared in Test APK Manifest. |
+| `isTestApk` | `instrumentationTargetPackage != null`. |
 
-下游不要靠路径或文件名猜测 test APK，应优先使用 `ApkInfo.isTestApk`。
+Downstream code should prefer `ApkInfo.isTestApk`, not guess from path or filename.
 
 ### 2.3 androidTest ModuleInfo
 
-入口：
+Entries:
 
 - `main/src/main/java/com/sickworm/intellij/jugg/project/info/JuggProjectInfo.kt`
 - `main/src/main/java/com/sickworm/intellij/jugg/gradle/script/GradleProjectInfoReader.kt`
 - `idea/src/main/java/com/sickworm/intellij/jugg/compiler/context/IdeaProjectModelSource.kt`
 - `main/src/main/java/com/sickworm/intellij/jugg/project/info/ProjectModelSource.kt`
 
-androidTest 使用 **独立 synthetic ModuleInfo**，不合入 owner module：
+androidTest uses a **separate synthetic ModuleInfo**, not merged into its owner:
 
-| 字段 | 当前约定 |
+| Field | Current convention |
 |------|----------|
-| `name` | `${ownerModuleName}.androidTest` |
-| `moduleType` | `ModuleInfo.Type.Library` |
-| `buildVariant` | `${ownerVariant}AndroidTest` |
-| `applicationId` | app androidTest 使用 test APK applicationId；self-targeting library androidTest 默认使用 `${owner namespace}.test` |
-| `instrumentationTargetPackage` | app androidTest 使用 app applicationId；self-targeting library androidTest 使用 `${owner namespace}.test`，与 Gradle 产出的 self-targeting Test APK manifest 对齐 |
-| `sourceDirs` | owner module 的 `src/androidTest` Java/Kotlin 源码目录 |
-| `moduleDependencies` | owner module |
+| `name` | `${ownerModuleName}.androidTest`. |
+| `moduleType` | `ModuleInfo.Type.Library`. |
+| `buildVariant` | `${ownerVariant}AndroidTest`. |
+| `applicationId` | App androidTest uses Test APK applicationId; self-targeting library androidTest defaults to `${owner namespace}.test`. |
+| `instrumentationTargetPackage` | App androidTest uses app applicationId; self-targeting library androidTest uses `${owner namespace}.test`, matching the produced self-targeting Test APK Manifest. |
+| `sourceDirs` | Owner module's `src/androidTest` Java/Kotlin roots. |
+| `moduleDependencies` | Owner module. |
 
-判断 androidTest module 使用 `ModuleInfo.isAndroidTestModule`，即 `instrumentationTargetPackage != null`；`.androidTest` 后缀只作为 IDE module 补齐候选，不作为最终身份判断。
+Identify androidTest modules through `ModuleInfo.isAndroidTestModule`, meaning `instrumentationTargetPackage != null`. The `.androidTest` suffix is only a candidate for completing IDE module data, not final identity.
 
-当 Gradle project info 不可用或缺少 androidTest synthetic module 时，`IdeaProjectModelSource#readProjectInfoFromIde()` 会在创建 IDE project info 阶段逐个处理 IDE 侧 `.androidTest` module：
+When Gradle project info is absent or lacks a synthetic androidTest module, `IdeaProjectModelSource#readProjectInfoFromIde()` handles each IDE `.androidTest` module during IDE project-info creation:
 
-- `.androidTest` 后缀只用于 `ModulePathMergePolicy` 判定 IDE module 创建候选；最终身份仍由补齐后的 `instrumentationTargetPackage != null` 表示。
-- `sourceDirs` 来自 IDE module source roots，并额外纳入 androidTest IDE module 的 test source root 类型，因此支持自定义 androidTest source root，不再硬编码标准目录。
-- Gradle 与 IDE 生成的 `.androidTest` synthetic module 的 `buildVariant` 与 `ModuleBuildPathInfo.buildVariant` 使用 `${ownerVariant}AndroidTest`，例如 `debugAndroidTest` / `jooxDebugAndroidTest`，确保 full build 后同步 `build/tmp/kotlin-classes/<variant>AndroidTest`、`intermediates/javac/<variant>AndroidTest/classes` 等 test classpath。
-- test package / target package 来自 `AsDeployerCompat#getIdeModuleInfo` 暴露的 IDE Android 模型。Chipmunk / Narwhal feature / Otter / Panda 继承链统一读取 AndroidTest artifact 与 main artifact 的 applicationId，并在 library self-targeting 场景下 fallback 到 `selectedBasicVariant.testApplicationId`、`androidProject.testNamespace` 或 `${androidProject.namespace}.test`，target package 使用 test package。
-- IDE project info 不再用已保存 Test APK manifest 信息反推缺失字段；IDE module info 只有 test package 与 target package 都有效时才标记为 androidTest module，`uninitialized.application.id` 会视为无效。
-- `BuildTarget.APP` 下仍过滤 IDE `.androidTest` module；`BuildTarget.ANDROID_TEST` 下 IDE-only `.androidTest` module 会进入 merge 结果，避免首次切换 target 且 Gradle 快照尚未完成 merge 时丢失 source root。
-- Gradle merge 时 test 相关字段仍以 Gradle 非空值优先；Gradle-only androidTest module 也只在 `BuildTarget.ANDROID_TEST` 下追加。
+- `.androidTest` suffix only identifies an IDE-module creation candidate in `ModulePathMergePolicy`. Final identity is a completed nonnull `instrumentationTargetPackage`.
+- `sourceDirs` comes from IDE module source roots and additionally includes androidTest IDE-module test-source-root types, supporting custom androidTest roots without hard-coded standard directories.
+- Gradle and IDE synthetic `.androidTest` modules use `${ownerVariant}AndroidTest` for both `buildVariant` and `ModuleBuildPathInfo.buildVariant` (e.g. `debugAndroidTest` / `jooxDebugAndroidTest`), syncing test classpaths such as `build/tmp/kotlin-classes/<variant>AndroidTest` and `intermediates/javac/<variant>AndroidTest/classes` after a full build.
+- Test and target packages come from IDE Android model exposed by `AsDeployerCompat#getIdeModuleInfo`. Chipmunk / Narwhal feature / Otter / Panda inheritance chain reads AndroidTest and main artifact applicationIds consistently. For a self-targeting library, fall back to `selectedBasicVariant.testApplicationId`, `androidProject.testNamespace`, or `${androidProject.namespace}.test`; target package uses test package.
+- IDE project info no longer infers missing fields from a saved Test APK Manifest. Mark an IDE module as androidTest only when test and target packages are both valid; `uninitialized.application.id` is invalid.
+- Under `BuildTarget.APP`, filter IDE `.androidTest` modules. Under `BuildTarget.ANDROID_TEST`, include IDE-only `.androidTest` in merge so source roots are retained when first switching target before Gradle snapshot merge finishes.
+- Gradle nonempty test fields still take priority at merge, and Gradle-only androidTest modules are appended only for `BuildTarget.ANDROID_TEST`.
 
 ---
 
-## 3. 编译链路
+## 3. Compilation Path
 
-### 3.1 Gradle full compile
+### 3.1 Full Gradle Compile
 
-入口：
+Entries:
 
 - `main/src/main/java/com/sickworm/intellij/jugg/gradle/compile/AndroidTestCommandDeriver.kt`
 - `main/src/main/java/com/sickworm/intellij/jugg/deploy/FullBuildInfo.kt`
 - `main/src/main/java/com/sickworm/intellij/jugg/compiler/JuggCompilerHelper.kt`
 
-关键不变式：
+Key invariants:
 
-- 不改写已有 RunConfig 中的 compile command 或 output APK 路径；IDE model 的 build folder 只用于新建配置。
-- `BuildTarget.ANDROID_TEST` 通过 Gradle init script 注入 `-Pjugg.buildTarget=ANDROID_TEST`，并把同 variant 的 `assemble<Variant>AndroidTest` 挂到用户请求的 Gradle task 前执行。
-- 若 `LibraryTestApkBuildHistory` 命中近期 self-targeting library Test APK 记录，Gradle compile 会通过 `-Pjugg.libraryTestTasks=...` 传递历史 task 列表，init script 在同一 `projectsEvaluated` 阶段把这些 library androidTest task 也挂到用户请求的 Gradle task 前执行；`BuildTarget.APP` 不参与该逻辑。
-- Gradle client 先按用户配置命中 app APK，再从实际 app APK 路径中的 `/outputs/apk/` 片段派生同 variant 的 `<actual-build-dir>/outputs/apk/androidTest/<variant>/*.apk`；若 app APK 位于 module `build` 目录下的自定义路径且不包含 `/outputs/apk/`，则保持原有查找与 APK 存储流程，依次在同 module 的 `build/outputs/apk/androidTest/*.apk` 与 `build/intermediates/apk/androidTest/*.apk` 中递归查找。history library Test APK output 同样从 `ModuleBuildPathInfo.buildDir` 派生，作为 optional APK 收集，命中则追加到本轮 APK 结果，缺失只记录日志，不进入 `failedApkPaths`。
-- `full_build_info.json` 记录 `FullBuildInfo{compileCommand, buildTarget, createdAt}`；target 切换或文件缺失时触发 Gradle full compile，避免 app/test 模式复用错误产物。
-- Gradle project info 读取阶段仅在 `-Pjugg.buildTarget=ANDROID_TEST` 时为存在 `androidTest` source set 的 Application 与 Library 模块生成 synthetic `.androidTest` ModuleInfo；`APP`/未传时不写入快照。synthetic module 同时保留 AndroidTest compile classpath 中的外部 `LibraryDependency` 与工程 `ModuleDependency`，并显式依赖 owner module，保证 `androidTestImplementation(project(...))` 的类输出进入增量编译 classpath。project-info merge 与 localFetch 必须显式使用当前 run 的 `BuildTarget`，不能再从旧 `FullBuildInfo` 推断。首次从 `APP` 切到 `ANDROID_TEST` 且本地 Gradle full compile 成功后，`JuggCompilerHelper` 会在 install/deploy 前按本次 target 立即执行一次 localFetch merge；remote compile 不走该补偿路径。Library 模块用 `${namespace}.test` 建立 self-targeting Test APK 归属，保证 `sourcePath` 可命中后续缺失 APK 懒加载流程。
+- Do not rewrite compile command or APK-output path in an existing RunConfig. IDE model build folder is only for new configurations.
+- `BuildTarget.ANDROID_TEST` injects `-Pjugg.buildTarget=ANDROID_TEST` through Gradle init script and puts same-variant `assemble<Variant>AndroidTest` before the user-requested Gradle task.
+- If `LibraryTestApkBuildHistory` finds recent self-targeting library Test APK records, Gradle compile passes historical task list via `-Pjugg.libraryTestTasks=...`. In the same `projectsEvaluated` phase, init script adds those library androidTest tasks before user-requested task. `BuildTarget.APP` does not participate.
+- Gradle client first finds app APK by user configuration, then derives same-variant `<actual-build-dir>/outputs/apk/androidTest/<variant>/*.apk` from `/outputs/apk/` in actual app APK path. If app APK has a custom location under module `build` without `/outputs/apk/`, preserve existing lookup/storage and recursively search same module's `build/outputs/apk/androidTest/*.apk`, then `build/intermediates/apk/androidTest/*.apk`. History-based library Test APK outputs likewise derive from `ModuleBuildPathInfo.buildDir` as optional APKs: append hits to this run; log misses without adding to `failedApkPaths`.
+- `full_build_info.json` records `FullBuildInfo{compileCommand, buildTarget, createdAt}`. A target switch or missing file triggers full Gradle compile to avoid reusing outputs from wrong app/test mode.
+- During Gradle project-info read, only `-Pjugg.buildTarget=ANDROID_TEST` creates synthetic `.androidTest` ModuleInfo for Application and Library modules with androidTest source set. `APP`/absent property creates none. Synthetic module retains external `LibraryDependency` and project `ModuleDependency` from AndroidTest compile classpath, plus explicit owner dependency, so outputs from `androidTestImplementation(project(...))` enter incremental classpath. Merge and localFetch must use this run's `BuildTarget` explicitly, not infer it from old `FullBuildInfo`. After first switch from `APP` to `ANDROID_TEST` with successful local full Gradle compile, `JuggCompilerHelper` performs one localFetch merge for this target immediately before install/deploy; remote compile skips this compensation. Library uses `${namespace}.test` for self-targeting Test APK ownership, enabling subsequent missing-APK lazy backfill by `sourcePath`.
 
-### 3.2 增量编译
+### 3.2 Incremental Compilation
 
-入口：
+Entries:
 
 - `main/src/main/java/com/sickworm/intellij/jugg/compiler/context/CompileContextManager.kt`
 - `main/src/main/java/com/sickworm/intellij/jugg/project/info/ProjectModelSource.kt`
 - `main/src/main/java/com/sickworm/intellij/jugg/ModuleApkBelongsUtils.kt`
 - `main/src/main/java/com/sickworm/intellij/jugg/ModuleApkBelongs.kt`
 
-`CompileContextManager` 的过滤规则：
+`CompileContextManager` filters:
 
-- `BuildTarget.APP`：继续过滤 `.androidTest` module。
-- `BuildTarget.ANDROID_TEST`：纳入 `.androidTest` module。
-- `.test` / `.unitTest` 在两种 target 下都继续过滤。
+- `BuildTarget.APP`: keep filtering `.androidTest` modules.
+- `BuildTarget.ANDROID_TEST`: include `.androidTest` modules.
+- Keep filtering `.test` / `.unitTest` in both targets.
 
-androidTest 源码编译优先使用 synthetic module 自身 test variant 的 aggregate R.jar，再加入 owner module 及其他依赖。该顺序保证 self-targeting Library Android Test 能读取完整构建基线中已有的 test resource 字段，而不会被同 namespace 的 Library 主 variant R 遮蔽；这只提供既有 test resource 的源码 classpath，不改变“androidTest resource 增量编译暂不覆盖”的边界。
+For androidTest source compilation, use the synthetic module's own test-variant aggregate R.jar before owner module and other dependencies. This lets a self-targeting Library Android Test resolve existing test-resource fields in the full-build baseline without being shadowed by the Library main-variant R in the same namespace. It only supplies source classpath for existing test resources; incremental androidTest resource compilation remains unsupported.
 
-androidTest 重跑不复用普通 app run 的 no-changes fallback 语义。下一次 androidTest 运行如果没有新的文件变更、且没有 uncompiled 文件，`JuggCompilerHelper` 会直接返回增量成功进入部署：存在 compiled/staging pending outputs 时复用这批产物；不存在 pending outputs 时直接进入空部署 / instrumentation，不重新执行 Kotlin / D8，也不把测试重跑误判为 Gradle fallback。
+Rerunning androidTest does not use ordinary App Run's no-change fallback semantics. On the next androidTest run with no changed files and no uncompiled files, `JuggCompilerHelper` returns incremental success straight into deployment. Reuse compiled/staging pending outputs if present; otherwise enter empty deployment/instrumentation without rerunning Kotlin/D8 or misclassifying rerun as Gradle fallback.
 
-`ModuleApkBelongsUtils` 返回 `ModuleApkBelongs` 封装类，默认通过 `getBelongsApk()` 保留现有单 APK 语义，同时用 `getAllBelongsApk()` 暴露多 APK 归属视图。androidTest module 按 runtime classloader 归属路由：app-style other-targeting androidTest 运行在 `instrumentationTargetPackage` 对应的 main APK 进程内，因此归属 main APK；self-targeting / library-style androidTest 的 `applicationId == instrumentationTargetPackage`，归属匹配的 Test APK。普通 library module 在存在 self-targeting library Test APK 时，`getAllBelongsApk()` 会同时包含 base APK 与 library Test APK。
+`ModuleApkBelongsUtils` returns wrapper `ModuleApkBelongs`. `getBelongsApk()` retains single-APK behavior; `getAllBelongsApk()` exposes multi-APK ownership. Route androidTest modules by runtime classloader ownership: app-style other-targeting androidTest runs in main-APK process named by `instrumentationTargetPackage`, so belongs to main APK. Self-targeting/library-style androidTest has `applicationId == instrumentationTargetPackage` and belongs to matching Test APK. With a self-targeting library Test APK, `getAllBelongsApk()` for an ordinary library module includes both base APK and library Test APK.
 
-`CompileOutput.targetApkPaths` 与 `DeployItem.targetApkPaths` 会把多 APK 归属传到部署层，并保证在有真实 `apkPath` 时至少包含它；Dex merge、resource APK、APK 内嵌更新和 overlay update 都必须优先读取 target paths，旧的 `allTargetApkPaths` 视图已经删除。
+`CompileOutput.targetApkPaths` and `DeployItem.targetApkPaths` carry multi-APK ownership into deployment and include a real `apkPath` when present. Dex merge, resource APK, embedded APK update, and overlay update must prioritize target paths. The old `allTargetApkPaths` view has been removed.
 
 ---
 
-## 4. 运行入口
+## 4. Run Entry Points
 
-### 4.1 IDE RunConfig 与 gutter
+### 4.1 IDE RunConfig and Gutter
 
-入口：
+Entries:
 
 - `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/JuggRunConfigurationOptions.kt`
 - `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/JuggAndroidTestRunConfiguration.kt`
 - `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/JuggAndroidTestLineMarkerContributor.kt`
 
-入口分层：
+Entry-point layers:
 
-| 配置 | 职责 |
+| Configuration | Responsibility |
 |------|------|
-| `JuggRunConfiguration.enableAndroidTest` | 控制 app RunConfig 是否允许 androidTest 编译与运行 |
-| `JuggAndroidTestRunConfiguration` | General 页对齐 Android Instrumented Tests：Module 行、两种 Test scope、动态字段、可编辑 Instrumentation class 与原有 Instrumentation arguments |
-| `JuggAndroidTestLineMarkerContributor` | 在 `src/androidTest` 的 JUnit test 上提供 Jugg gutter，并把测试文件路径写入 `sourcePath` |
+| `JuggRunConfiguration.enableAndroidTest` | Controls whether app RunConfig permits androidTest compilation/running. |
+| `JuggAndroidTestRunConfiguration` | General page mirrors Android Instrumented Tests: Module row, two Test scopes, dynamic fields, editable Instrumentation class, and existing Instrumentation arguments. |
+| `JuggAndroidTestLineMarkerContributor` | Adds Jugg gutter to JUnit tests under `src/androidTest` and stores test-file path as `sourcePath`. |
 
-`JuggAndroidTestRunConfiguration` 支持两种执行 scope：
+`JuggAndroidTestRunConfiguration` supports two execution scopes:
 
-| Scope | 配置字段 | 运行映射 | 校验 |
+| Scope | Configuration fields | Run mapping | Validation |
 |-------|----------|----------|------|
-| `CLASS` | `testClass` | 追加 `-e class <testClass>` | testClass 必填 |
-| `METHOD` | `testClass` + `testMethod` | 追加 `-e class <testClass>#<testMethod>` | testClass/testMethod 必填 |
+| `CLASS` | `testClass` | Append `-e class <testClass>`. | testClass required. |
+| `METHOD` | `testClass` + `testMethod` | Append `-e class <testClass>#<testMethod>`. | Both required. |
 
-`sourcePath` 是目标锚点，用于解析测试 class/method、androidTest module 与 test APK；package / regex 不再作为 target 入口。`instrumentationRunner` 为空时使用 test APK manifest runner/default runner；非空时覆盖为 `<testPkg>/<instrumentationRunner>`。
+`sourcePath` anchors target resolution for test class/method, androidTest module, and Test APK. Package/regex are no longer target entries. If `instrumentationRunner` is empty, use Test APK Manifest runner/default runner; otherwise override with `<testPkg>/<instrumentationRunner>`.
 
-gutter 默认值：class gutter 生成 `sourcePath + CLASS + testClass`，method gutter 生成 `sourcePath + METHOD + testClass/testMethod`。rerun failed 仍使用 `AndroidTestRunSpec.testFilters`，不会反写 General 页 scope。
+Gutter defaults: a class gutter creates `sourcePath + CLASS + testClass`; a method gutter creates `sourcePath + METHOD + testClass/testMethod`. Rerun failed uses `AndroidTestRunSpec.testFilters` and does not write back into General-page scope.
 
-gutter 约束：
+Gutter constraints:
 
-- 支持路径包含 `/src/androidTest/` 的测试；library test APK 通过 `sourcePath` 进入后续 target resolver。
-- 识别 `org.junit.Test` 与 `org.junit.jupiter.api.Test`。
-- Java / Kotlin PSI 都支持，gutter 通过测试注解 owner 判定，不依赖单一 PSI 类型。
-- 未开启 `enableAndroidTest` 时只弹 Notification，引导用户打开 App RunConfig，不自动修改配置。
-- gutter debug 日志不按 `hasMarker=true/false` 跳变逐条输出；`JuggAndroidTestLineMarkerContributor` 只在文件级 scan 达到阈值、单次慢 scan、marker 命中去重后、以及用户点击 gutter 执行或被配置拦截时打印可定位日志，避免普通 PSI miss 造成低价值噪声。
+- Support test paths containing `/src/androidTest/`; library Test APK resolves later through `sourcePath`.
+- Recognize `org.junit.Test` and `org.junit.jupiter.api.Test`.
+- Support both Java and Kotlin PSI; determine marker by test-annotation owner, not one PSI type.
+- With `enableAndroidTest` off, show a Notification directing user to enable it in app RunConfig, without changing configuration automatically.
+- Do not log every `hasMarker=true/false` transition. `JuggAndroidTestLineMarkerContributor` emits actionable logs only at file-scan threshold, a single slow scan, deduplicated marker hit, gutter click execution, or configuration blocking, avoiding low-value ordinary PSI misses.
 
-Agent / CLI 场景中，如果用户要求执行 androidTest 或 instrumented unit tests，但 `jugg status` 返回 `enabledAndroidTest=false`，应停止执行 `instrument` 并提示用户：打开 Jugg App Run Configuration，开启 Android Test / `enableAndroidTest`，对该配置执行一次 full build / `gradle-build` 建立 AndroidTest full-build baseline，然后重新检查 `status.data.enabledAndroidTest=true` 后再继续。若仍直接调用 `instrument`，MCP 层返回 `INVALID_PARAMS`，并在错误信息中携带同一组开启方式。
+For Agent/CLI requests to run androidTest or instrumented unit tests, if `jugg status` reports `enabledAndroidTest=false`, stop before `instrument` and tell the user to open the Jugg App Run Configuration, enable Android Test / `enableAndroidTest`, run one full build / `gradle-build` for the AndroidTest full-build baseline, then check `status.data.enabledAndroidTest=true` before continuing. Calling `instrument` anyway returns MCP `INVALID_PARAMS` with the same instructions.
 
-### 4.2 AndroidTestRunSpec 传递
+### 4.2 AndroidTestRunSpec Propagation
 
-入口：
+Entries:
 
 - `main/src/main/java/com/sickworm/intellij/jugg/deploy/instrument/AndroidTestRunSpec.kt`
 - `idea/src/main/java/com/sickworm/intellij/jugg/JuggManager.kt`
@@ -187,50 +187,50 @@ Agent / CLI 场景中，如果用户要求执行 androidTest 或 instrumented un
 - `idea/src/main/java/com/sickworm/intellij/jugg/ide/logic/JuggRunningTask.kt`
 - `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/DeployOptions.kt`
 
-gutter 触发后由 `JuggAndroidTestRunSpecFactory` 生成 `AndroidTestRunSpec`，再经 `JuggManager.runTask(...)`、`JuggConfigurationRunner`、`JuggRunningTask` 写入 `DeployOptions.androidTestRunSpec`。普通 app run 的 `androidTestRunSpec = null`，行为不变。
+A gutter invocation creates `AndroidTestRunSpec` through `JuggAndroidTestRunSpecFactory`, then passes it via `JuggManager.runTask(...)`, `JuggConfigurationRunner`, and `JuggRunningTask` into `DeployOptions.androidTestRunSpec`. Ordinary app Run has `androidTestRunSpec = null` and unchanged behavior.
 
 ### 4.3 Test Results UI
 
-入口：
+Entries:
 
 - `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/JuggAndroidTestConsoleProperties.kt`
 - `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/JuggAndroidTestRerunFailedTestsAction.kt`
 - `idea/src/main/java/com/sickworm/intellij/jugg/ide/logic/JuggConfigurationRunner.kt`
 - `main/src/main/java/com/sickworm/intellij/jugg/deploy/instrument/InstrumentationSmRunnerBridge.kt`
 
-androidTest run 会在 `JuggConfigurationRunner` 中创建 SM Test Runner console；普通 app run 仍使用普通 text console。SM Runner 只负责 UI，不接管 Jugg 的编译、部署和 instrumentation 执行。
+For androidTest, `JuggConfigurationRunner` creates an SM Test Runner console; ordinary app Run keeps the text console. SM Runner owns UI only, not Jugg compilation, deployment, or instrumentation execution.
 
-UI 事件链路压缩为：`InstrumentationOutputParser` 生成 `InstrumentationEvent`，`InstrumentationSmRunnerBridge` 转成 TeamCity service message，最终由 `SMTestRunnerConnectionUtil` 驱动 Test Results tree。
+UI event chain: `InstrumentationOutputParser` produces `InstrumentationEvent`; `InstrumentationSmRunnerBridge` converts it to TeamCity service messages; `SMTestRunnerConnectionUtil` drives Test Results tree.
 
-一次 androidTest run 只创建一个 `InstrumentationSmRunnerBridge`；多设备按设备顺序创建 sink，但共享同一个 SM runner session，避免每台设备各自输出一段独立 `enteredTheMatrix`。
+Create one `InstrumentationSmRunnerBridge` per androidTest run. Multiple devices create sinks in device order but share one SM Runner session, so each device does not emit a separate `enteredTheMatrix` block.
 
-androidTest 的 SM Runner process output 与普通 text console 一样接收 Jugg 项目级 `info/warn` 日志，保证编译阶段的文件列表、编译错误与失败摘要可以直接在 Run 窗口看到；Test Results 节点仍只通过 instrumentation service message 和 method 级 logcat 输出展示测试相关内容。
+SM Runner process output receives project-level Jugg `info/warn` logs like the text console, so compilation file lists, errors, and failure summaries remain visible in Run window. Test Results nodes show test material only through instrumentation service messages and method-level logcat.
 
-关键节点约定：
+Node conventions:
 
-| 节点 | name | locationHint |
+| Node | name | locationHint |
 |------|------|--------------|
-| device suite | 设备展示名 | 空 |
-| class suite | FQCN | `java:suite://FQCN` |
-| method test | methodName | `java:test://FQCN/methodName` |
+| Device suite | Display name | Empty. |
+| Class suite | FQCN | `java:suite://FQCN`. |
+| Method test | methodName | `java:test://FQCN/methodName`. |
 
-设备 suite 展示规则：
+Device-suite display:
 
-- **单设备运行**：隐藏 device suite，仅展示 class/method 节点，减少一层无效树层级。
-- **多设备运行**：展示 device suite，按设备分组 class/method 节点，避免不同设备结果混在同一层。
-- **设备展示名**：由 `TestLauncher` 统一生成，优先使用设备品牌/型号，并追加 `API xx`，用于对齐 Android Test 的设备维度可读信息。
-- **设备详情**：右侧详情面板展示设备 Serial、Name、API 和该设备的 instrumentation 原始日志。
-- **结果矩阵**：多设备运行时会补一段矩阵文本，按 `Test | device1 | device2 ...` 展示每个测试在各设备上的 `Pass / Fail / Ignored / Running / -` 状态。
+- **One device:** hide device suite and show class/method nodes directly.
+- **Multiple devices:** show device suites to group class/method nodes per device.
+- **Display name:** `TestLauncher` prefers device brand/model and appends `API xx` for a readable Android Test device dimension.
+- **Device detail:** right pane shows Serial, Name, API, and raw instrumentation log for that device.
+- **Result matrix:** in multi-device runs, add a text matrix `Test | device1 | device2 ...` showing each test's `Pass / Fail / Ignored / Running / -` state by device.
 
-`JuggAndroidTestConsoleProperties` 使用 IntelliJ `JavaTestLocator` 处理 source navigation，并通过 `JuggAndroidTestRerunFailedTestsAction` 把 failed leaf tests 转回 `AndroidTestRunSpec.testFilters` 后重跑。rerun failed 会保留原 `runnerOverride` 与 `extraArgs`。
+`JuggAndroidTestConsoleProperties` uses IntelliJ `JavaTestLocator` for source navigation. `JuggAndroidTestRerunFailedTestsAction` converts failed leaf tests into `AndroidTestRunSpec.testFilters` and reruns, preserving original `runnerOverride` and `extraArgs`.
 
 ---
 
-## 5. 部署与 instrumentation
+## 5. Deployment and Instrumentation
 
-### 5.1 部署策略
+### 5.1 Deployment Policy
 
-入口：
+Entries:
 
 - `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/applychanges/JuggDeployTask.kt`
 - `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployerHelper.kt`
@@ -238,31 +238,30 @@ androidTest 的 SM Runner process output 与普通 text console 一样接收 Jug
 - `main/src/main/java/com/sickworm/intellij/jugg/deploy/ApkInstallOrder.kt`
 - `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployData.kt`
 
-部署阶段继续按 `applicationId` 分组，install 顺序由 `ApkInstallOrder.sortedForInstall()` 保证 app APK 先于 test APK。关键差异：
+Group by `applicationId` during deployment; `ApkInstallOrder.sortedForInstall()` puts app APK before Test APK. Key differences:
 
-- **base APK**：继续走完整部署策略（install / code swap / full swap），参与 JVMTI agent push/attach 与 compat 检测。
-- **app-style other-targeting test APK**：测试代码增量应通过 main APK overlay 生效；非 INSTALL 方式进入 package deploy loop 时只 warning 并跳过，不强制改写为 INSTALL。
-- **library-style self-targeting test APK**：有自己的 runtime package 和安装目标，继续走完整部署策略。
-- **multi APK scoped data**：每个 applicationId 部署前调用 `JuggDeployData.filterForApks(...)`，只保留属于当前 APK 集合的 class / overlay / updateApkFiles，避免 base/test APK 互相错投。
-- **instrumentation 结果与部署状态分离**：Jugg 部署成功后再执行 `am instrument`；如果 instrumentation 断言失败，本轮 run 仍返回测试失败，但 deploy history、staging commit 与 direct overlay id 会按已成功部署的结果推进，避免下次 androidTest 重跑再次重新编译或因 stale overlay id 触发 reinstall。
+- **Base APK:** retain full deployment policy (install / code swap / full swap) and JVMTI agent push/attach and compatibility checks.
+- **App-style other-targeting Test APK:** incremental test code should take effect through main-APK overlay. If it reaches package deployment loop by non-INSTALL mode, warn and skip; do not force INSTALL.
+- **Library-style self-targeting Test APK:** separate runtime package and install target; retain full deployment policy.
+- **Multi-APK scoped data:** before each applicationId deployment, call `JuggDeployData.filterForApks(...)` to retain only classes, overlays, and updateApkFiles belonging to current APK set, preventing base/Test APK cross-deployment.
+- **Instrumentation result separate from deployment state:** run `am instrument` after successful Jugg deployment. A failing instrumentation assertion makes this run a test failure, but deployment history, staging commit, and Direct Overlay ID advance with already successful deployment. Next androidTest rerun should neither recompile again nor reinstall because of stale overlay ID.
 
-原因：app-style `am instrument` 在主 APK 进程内运行测试代码，other-targeting test APK 无独立进程；self-targeting library Test APK 是独立 runtime package，需要保留完整部署能力。
+App-style `am instrument` runs test code in main APK process without a separate other-targeting Test APK process. Self-targeting library Test APK is its own runtime package and needs full deployment capability.
 
-library-style self-targeting Test APK 是例外：它有自己的 runtime package 和安装目标。`LibraryTestApkBackfillHelper` 只在以下条件同时满足时补齐缺失 APK：
+`LibraryTestApkBackfillHelper` fills a missing library-style self-targeting Test APK only if all conditions hold:
 
-- `sourcePath` 已唯一命中某个 androidTest `ModuleInfo`。
-- 当前 APK 列表中无法解析出该 module 对应的 test APK。
-- `module.applicationId == module.instrumentationTargetPackage`，即 self-targeting / library-style Test APK。
+- `sourcePath` uniquely matches an androidTest `ModuleInfo`.
+- Current APK list cannot resolve that module's Test APK.
+- `module.applicationId == module.instrumentationTargetPackage`, indicating self-targeting/library-style Test APK.
 
-增量部署分支中，补齐成功后会先把 Gradle 产出的 Test APK 作为完整 APK 安装一次，并立即把新 package 的 overlay id 合并到 deploy history，避免后续 dry deploy 把新安装的 library Test APK 误判为跨项目状态；随后同步更新 deploy target、deploy data database 与 compile context 的 APK 列表。full install 分支中，backfill 会在最终 install `runTask` 前把 Test APK 合入本轮 install APK 列表。该 APK 已包含本轮最新源码产物，不再消费本轮 Jugg 增量 deploy items。
+On incremental deployment, after backfill succeeds, install the Gradle-produced Test APK once as a full APK and immediately merge its new overlay ID into deployment history, so subsequent dry deployment does not mistake the new library Test APK for cross-project state. Update deploy target, deployment-data database, and compile-context APK lists synchronously. On full install, backfill adds Test APK to this run's install list before final install `runTask`. The APK already includes latest source outputs this run and does not consume this run's Jugg incremental deploy items.
 
-当 Gradle compile 成功、Test APK 路径解析成功，且用合并后的 APK 列表完成 `AndroidTestTargetResolver` 校验后，`LibraryTestApkBuildHistory` 会记录该 library androidTest module 的 Gradle task、compile time 与 APK output pattern；记录不再保存完整 compile command 或实际 APK path，也不要求本轮最终 install 成功。记录写入 `~/.jugg/library_test_build_records/{projectName}_hash{0:8}.json`，有 git 仓库时 hash 使用仓库 URL，否则使用工程绝对路径；每次读取普通 `BuildTarget.ANDROID_TEST` Gradle build 历史时，只选择最近 30 天、同 variant 的最近 3 条记录用于回放。
-
-命中缺失分支时，Jugg 会通过 Run tool window balloon 提示 `Library Test APK missing. Run Gradle compile once to build the test APK.`，让用户知道需要一次 Gradle 编译来生成 Test APK baseline。
+After Gradle compilation succeeds, Test APK path resolves, and `AndroidTestTargetResolver` validates the merged APK list, `LibraryTestApkBuildHistory` stores that library androidTest module's Gradle task, compile time, and APK-output pattern. It no longer records entire compile command or actual APK path and does not require final install success. Records live in `~/.jugg/library_test_build_records/{projectName}_hash{0:8}.json`, with hash from repo URL when Git exists, otherwise project absolute path. For ordinary `BuildTarget.ANDROID_TEST` Gradle-build history, select only the latest three same-variant records within 30 days for replay.
+When this missing-APK branch is hit, Jugg displays the Run tool window balloon `Library Test APK missing. Run Gradle compile once to build the test APK.` to tell the user that one Gradle build is needed to establish the Test APK baseline.
 
 ### 5.2 am instrument
 
-入口：
+Entry points:
 
 - `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/instrument/TestLauncher.kt`
 - `main/src/main/java/com/sickworm/intellij/jugg/deploy/AdbCmdHelper.kt`
@@ -271,72 +270,72 @@ library-style self-targeting Test APK 是例外：它有自己的 runtime packag
 - `main/src/main/java/com/sickworm/intellij/jugg/deploy/instrument/InstrumentationConsoleRenderer.kt`
 - `main/src/main/java/com/sickworm/intellij/jugg/deploy/instrument/InstrumentationSmRunnerBridge.kt`
 
-`InstrumentCommandBuilder` 输出形态：
+`InstrumentCommandBuilder` produces this command form:
 
 ```text
 am instrument -w -r [-e class <testClass>[#<testMethod>][,<testClass>#<testMethod>...]] [-e <key> <value>]* <testPkg>/<runner>
 ```
 
-`AndroidTestRunSpec.sourcePath` 非空时，运行入口会先用 source file 解析单 class/多 class 与 method 有效性，部署阶段再用 source file 精确解析 androidTest module 与 test APK；无 `sourcePath` 的 app androidTest 路径仍回退到首个 test APK。`AndroidTestRunSpec.testFilters` 非空时优先生成逗号分隔的 `-e class` 参数，用于 rerun failed；为空时沿用 `testClass` / `testMethod`。
+When `AndroidTestRunSpec.sourcePath` is nonempty, the run entry point first uses the source file to validate the single or multiple classes and methods. The deployment stage then uses the file to resolve the precise androidTest module and Test APK. The app androidTest path without `sourcePath` still falls back to the first Test APK. When `AndroidTestRunSpec.testFilters` is nonempty, it takes priority and generates a comma-separated `-e class` argument for rerun failed. Otherwise, the command uses `testClass` / `testMethod`.
 
-当需要执行大范围 androidTest 回归时，先用一次 `jugg instrument --source-path ...` 让 Jugg 完成编译、部署和目标 APK 刷新。该命令成功后，app 源码变更与 androidTest 源码变更都已经写入对应 APK；此时可以使用普通 `adb shell am instrument` 执行更大范围的 class/package/suite 回归，不再要求通过 jugg cli 使用 `sourcePath` 做目标锚定。
+For a broad androidTest regression, first run `jugg instrument --source-path ...` once so Jugg compiles, deploys, and refreshes the target APK. After that succeeds, both app-source and androidTest-source changes are in their respective APKs. You can then run a broader class, package, or suite regression with ordinary `adb shell am instrument`; the Jugg CLI no longer needs `sourcePath` as a target anchor for that run.
 
-### 5.3 日志捕获与归类
+### 5.3 Log capture and attribution
 
-入口：
+Entry points:
 
 - `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/instrument/TestLauncher.kt`
 - `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/instrument/AndroidTestLogAttributor.kt`
 - `main/src/main/java/com/sickworm/intellij/jugg/deploy/instrument/AndroidTestResultModel.kt`
 - `main/src/main/java/com/sickworm/intellij/jugg/deploy/instrument/InstrumentationSmRunnerBridge.kt`
 
-AndroidTest 日志捕获方案：
+AndroidTest log capture:
 
-1. `TestLauncher` 在每台设备执行 instrumentation 前读取设备侧 `date '+%m-%d %H:%M:%S.000'` 作为 logcat 起点，格式为 `MM-dd HH:mm:ss.SSS`；设备时间读取失败或格式异常时才回退本机时间。
-2. 每台设备启动独立 `logcat -T <deviceRunStartTime> -v threadtime` 流；Run 窗口与 debug 日志都会输出 `Capturing logcat since <deviceRunStartTime>`，用于验证本轮采集起点。
-3. `InstrumentationOutputParser` 只解析 `am instrument` 协议并生成 `TestStarted` / `TestFinished` / `Aborted` 等事件，不负责 logcat 采样；当 `class` 与 `test` status 都已到达时即打开 `TestStarted` 窗口，后续 `STATUS_CODE: 1` 只作为兼容确认，避免 method 开头的 logcat 早于 code=1 到达时丢失。
-4. `TestLauncher` 把所有 logcat 行先写入 `AndroidTestResultModel.recordLog(...)` 作为设备级完整日志；设备级日志用于 device detail / 原始排查视图，不直接作为 method detail 展示。采集结束后仍会在 debug 日志打印 run 级 logcat buffer 统计并释放缓存引用。
-5. `AndroidTestLogAttributor` 只确定 method 窗口，并从 method start 起输出最多 10000 bytes 的 method 级 logcat；超出部分直接截断，不按 tag/message 做通用筛选。失败 stack 由 instrumentation 事件追加在 method detail 的 logcat 后面，不计入 10000 bytes。PID 来自 `pidof <targetPackage>` / `pidof <testPackage>`，失败时回退到 `ps -A` 精确匹配 package name；若 PID 获取失败则降级为时间窗口归类，避免 method 日志全丢。
-6. `InstrumentationSmRunnerBridge` 把 method 级短日志输出为 SM Runner `testStdOut`；输出前补齐末尾换行。失败事件输出 `testFailed` 时，`message` 使用异常首行，`details` 只保留后续 stack trace，避免 IntelliJ 详情面板重复展示同一条失败摘要。class / suite 级节点不承载 logcat，保持无日志视图；Jugg 编译与部署日志仍保留在 Run 输出中。
+1. Before instrumentation on each device, `TestLauncher` reads the device-side `date '+%m-%d %H:%M:%S.000'` as the logcat starting point, in `MM-dd HH:mm:ss.SSS` format. It falls back to host time only if reading or formatting the device time fails.
+2. Each device starts its own `logcat -T <deviceRunStartTime> -v threadtime` stream. The Run window and debug log both print `Capturing logcat since <deviceRunStartTime>` to verify this run's capture start.
+3. `InstrumentationOutputParser` parses only the `am instrument` protocol and emits events such as `TestStarted`, `TestFinished`, and `Aborted`; it does not sample logcat. The `TestStarted` window opens as soon as both `class` and `test` statuses arrive. A later `STATUS_CODE: 1` serves only as compatibility confirmation, so logs emitted at the start of a method are not lost while waiting for code 1.
+4. `TestLauncher` first writes every logcat line to `AndroidTestResultModel.recordLog(...)` as the full device-level log. That log supports device details and raw troubleshooting, and is not shown directly as method details. At capture end, it still prints run-level logcat buffer statistics in the debug log and releases its cache reference.
+5. `AndroidTestLogAttributor` determines method windows and emits at most 10000 bytes of method-level logcat from each method start. Excess bytes are truncated directly; there is no general tag or message filter. The failure stack is appended by instrumentation events after logcat in the method details and does not count toward the 10000-byte limit. PIDs come from `pidof <targetPackage>` / `pidof <testPackage>`, with exact package-name matching in `ps -A` as fallback. If PID lookup fails, attribution falls back to the time window so method logs are not lost entirely.
+6. `InstrumentationSmRunnerBridge` emits the short method-level log as SM Runner `testStdOut`, adding a trailing newline if needed. For a `testFailed` event, `message` is the first exception line and `details` contains only the remaining stack trace, avoiding a duplicate failure summary in IntelliJ's details pane. Class and suite nodes carry no logcat and retain an empty log view. Jugg compile and deployment logs remain in the Run output.
 
-归类边界：
+Attribution boundaries:
 
-- method 日志优先使用 AndroidX TestRunner 的 `TestRunner: started/finished: method(class)` logcat marker 做边界，并限定为 marker 所在 PID 的日志。该路径用于覆盖 logcat 早于 `InstrumentationEvent.TestStarted` 到达的场景，避免 instrumentation 协议回调滞后导致 method 日志漏归类。
-- 没有完整 TestRunner marker 时，method 日志窗口回退到 `InstrumentationEvent.TestStarted(className, testName)` / `TestFinished(className, testName)` 生命周期边界。`TestStarted` 可早于 `INSTRUMENTATION_STATUS_CODE: 1` 发出，但必须等 `class` 与 `test` status 都齐备。
-- method 外 logcat 只进入设备详情，不进入任一 method；active method 窗口内 PID 不属于当前 test process 的全局设备噪声也只进入设备详情。
-- 多设备各自维护 active method，不共享归属状态。
-- `Aborted`、instrumentation 非 0 退出或设备异常时，已收到且处于 active method 窗口内的 10000 bytes 内日志保留在 result model；后续日志不再猜测补归属。
-- 禁止从业务 logcat tag、message 或时间戳反推 method；method 归属只以 instrumentation lifecycle 或 AndroidX TestRunner marker 为准。
+- Prefer AndroidX TestRunner `TestRunner: started/finished: method(class)` logcat markers as method boundaries, and include only logs from the marker's PID. This covers logcat that arrives before `InstrumentationEvent.TestStarted`, preventing lost method logs when instrumentation protocol callbacks lag.
+- Without complete TestRunner markers, fall back to the `InstrumentationEvent.TestStarted(className, testName)` / `TestFinished(className, testName)` lifecycle window. `TestStarted` may be emitted before `INSTRUMENTATION_STATUS_CODE: 1`, but both `class` and `test` statuses must have arrived.
+- Logcat outside a method goes only to device details. Global device noise whose PID does not belong to the current test process also goes only to device details, even during an active method window.
+- Each device maintains its own active method; attribution state is not shared across devices.
+- On `Aborted`, a nonzero instrumentation exit, or a device exception, logs already received within an active method window and its 10000-byte limit remain in the result model. Subsequent logs are not assigned by guesswork.
+- Never infer the method from an application logcat tag, message, or timestamp. Only the instrumentation lifecycle or AndroidX TestRunner markers establish method ownership.
 
-使用 `logcat -T` 的原因：设备 logcat buffer 会残留旧运行日志。若直接使用 `logcat -v threadtime`，旧日志可能在本轮启动后立即吐出，并被误归入第一个 active method。`-T <deviceRunStartTime>` 让采集只关注本轮启动后的日志，避免历史 buffer 污染测试方法详情。`-T` 必须使用设备侧时间；若使用主机时间，主机与设备时钟偏移会导致本轮测试 logcat 被整体过滤。
+`logcat -T` is necessary because the device logcat buffer retains logs from older runs. Plain `logcat -v threadtime` could immediately emit those old logs after this run starts and incorrectly attach them to the first active method. `-T <deviceRunStartTime>` limits capture to this run. The timestamp must come from the device: host/device clock skew could otherwise filter out all of this run's logcat.
 
-`TestLauncher` 对每台设备串行执行 instrumentation。任一设备出现以下情况，整体 Run 失败：
+`TestLauncher` executes instrumentation serially on each device. The overall Run fails if any device has:
 
-- instrumentation command 非 0 退出。
-- `INSTRUMENTATION_ABORTED`。
-- test result 为 `FAILURE` / `ERROR` / `ASSUMPTION_FAILURE`。
-- 设备执行过程中抛异常。
+- A nonzero instrumentation-command exit.
+- `INSTRUMENTATION_ABORTED`.
+- A test result of `FAILURE` / `ERROR` / `ASSUMPTION_FAILURE`.
+- An exception during device execution.
 
 ---
 
-## 6. 测试入口
+## 6. Test entry points
 
-禁止运行完整测试套件。androidTest 支持相关回归优先跑定向测试。
+Do not run the full test suite. Prefer targeted regressions for androidTest support.
 
-按能力域搜索测试，避免维护易漂移的静态文件清单：
+Search for tests by capability area instead of maintaining a static file list that drifts:
 
 ```bash
 rg --files main/src/test idea/src/test | rg 'AndroidTest|Instrumentation|ApkInstallOrder|TestLauncher|RunSpec'
 ```
 
-常用跑法：先用上面的 `rg` 定位目标测试类，再替换 `--tests` 参数。
+For a typical run, use the `rg` command above to locate the target test class, then replace the `--tests` argument:
 
 ```bash
 ./gradlew :main:test --tests "com.sickworm.intellij.jugg.<MainModuleTestClass>"
 ./gradlew :idea:test --tests "com.sickworm.intellij.jugg.<IdeaModuleTestClass>"
 ```
 
-必要时可做编译验证：
+Compile when needed for verification:
 
 ```bash
 ./gradlew :idea:compileKotlin
@@ -344,48 +343,48 @@ rg --files main/src/test idea/src/test | rg 'AndroidTest|Instrumentation|ApkInst
 
 ---
 
-## 7. 排查口径
+## 7. Troubleshooting criteria
 
-### 7.1 gutter 不出现
+### 7.1 No gutter icon
 
-优先确认：
+Check first:
 
-1. 文件路径是否在 `/app/src/androidTest/` 下。
-2. test 方法或类是否有 `org.junit.Test` / `org.junit.jupiter.api.Test`。
-3. 文件是否位于 app 或 library 模块的 `src/androidTest` source root 下。
-4. 如果是 Kotlin 文件，确认 PSI 能正确识别注解 owner；当前实现同时兼容 `getAnnotations()` 与 `getAnnotationEntries()`。
+1. Is the file path under `/app/src/androidTest/`?
+2. Does the test method or class have `org.junit.Test` / `org.junit.jupiter.api.Test`?
+3. Is the file under an app or library module's `src/androidTest` source root?
+4. For Kotlin files, can PSI identify the annotation owner? The current implementation supports both `getAnnotations()` and `getAnnotationEntries()`.
 
-### 7.2 点击 gutter 后没有真正跑 test
+### 7.2 Clicking the gutter does not run the test
 
-优先确认：
+Check first:
 
-1. App RunConfig 是否开启 `enableAndroidTest`。
-2. 是否已经用 `BuildTarget.ANDROID_TEST` 做过一次 Gradle full compile。
-3. `DeployOptions.androidTestRunSpec` 是否非空。
-4. `deployData.apks` 中是否存在 `ApkInfo.isTestApk == true` 的 test APK。
+1. Is `enableAndroidTest` enabled in the App RunConfig?
+2. Has `BuildTarget.ANDROID_TEST` had one Gradle full compile?
+3. Is `DeployOptions.androidTestRunSpec` nonempty?
+4. Does `deployData.apks` contain a Test APK with `ApkInfo.isTestApk == true`?
 
-### 7.3 增量变更没有进入目标 APK
+### 7.3 Incremental changes do not reach the target APK
 
-优先确认：
+Check first:
 
-1. 当前 `FullBuildInfo.buildTarget` 是否为 `ANDROID_TEST`。
-2. `CompileContextManager` 是否纳入 `.androidTest` module。
-3. `ModuleInfo.instrumentationTargetPackage` 是否非空。
-4. `ModuleApkBelongsUtils` 是否按 classloader 归属路由：app-style other-targeting androidTest 到 main APK，self-targeting androidTest 到 Test APK。
+1. Is the current `FullBuildInfo.buildTarget` `ANDROID_TEST`?
+2. Does `CompileContextManager` include the `.androidTest` module?
+3. Is `ModuleInfo.instrumentationTargetPackage` nonempty?
+4. Does `ModuleApkBelongsUtils` route by classloader ownership: app-style other-targeting androidTest to the main APK and self-targeting androidTest to the Test APK?
 
-### 7.4 instrumentation 失败
+### 7.4 Instrumentation fails
 
-优先确认：
+Check first:
 
-1. test APK manifest 中是否有正确的 `instrumentationRunner`。
-2. `InstrumentCommandBuilder` 生成的 `<testPkg>/<runner>` 是否正确。
-3. `InstrumentationOutputParser` 是否解析到了 `ABORTED`、`FAILURE`、`ERROR` 或 `ASSUMPTION_FAILURE`。
+1. Does the Test APK manifest specify the correct `instrumentationRunner`?
+2. Does `InstrumentCommandBuilder` produce the correct `<testPkg>/<runner>`?
+3. Did `InstrumentationOutputParser` parse `ABORTED`, `FAILURE`, `ERROR`, or `ASSUMPTION_FAILURE`?
 
-### 7.5 Test Results 树或 rerun failed 异常
+### 7.5 Test Results tree or rerun failed is abnormal
 
-优先确认：
+Check first:
 
-1. `JuggConfigurationRunner` 是否收到了非空 `androidTestRunSpec`、`executor` 与 `runProfile`。
-2. `JuggAndroidTestConsoleProperties.TEST_FRAMEWORK_NAME` 是否与 `SMTestRunnerConnectionUtil.createAndAttachConsole()` 的 framework name 一致。
-3. `InstrumentationSmRunnerBridge` 是否输出了 `java:suite://FQCN` 与 `java:test://FQCN/method` locationHint。
-4. rerun failed 生成的 `AndroidTestRunSpec.testFilters` 是否非空，且 `InstrumentCommandBuilder` 是否优先使用 `testFilters`。
+1. Did `JuggConfigurationRunner` receive nonempty `androidTestRunSpec`, `executor`, and `runProfile`?
+2. Does `JuggAndroidTestConsoleProperties.TEST_FRAMEWORK_NAME` match the framework name in `SMTestRunnerConnectionUtil.createAndAttachConsole()`?
+3. Did `InstrumentationSmRunnerBridge` emit `java:suite://FQCN` and `java:test://FQCN/method` location hints?
+4. Are the rerun-failed `AndroidTestRunSpec.testFilters` nonempty, and does `InstrumentCommandBuilder` prioritize `testFilters`?

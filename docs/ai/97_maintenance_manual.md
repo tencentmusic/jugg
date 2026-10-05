@@ -1,244 +1,244 @@
-# AI 知识库维护手册
+# AI Knowledge-Base Maintenance Manual
 
-## 1. 目标
+## 1. Goal
 
-维护 `docs/ai_knowledge` 下的专题文档时，目标不是把代码复述一遍，而是让 AI 在少读代码的情况下获得三类高价值信息：
+When maintaining topic documents under `docs/ai`, the goal is not to retell the code. It is to let AI obtain three kinds of high-value information without reading as much code:
 
-1. **源码索引**：快速知道核心类是哪些、在哪里、各自负责什么。
-2. **调用链路 / 状态机**：把跨十几个类才能跳明白的主流程写成文档。
-3. **细节信息**：记录代码不显眼或代码没有携带的信息，例如隐形约束、设计思路、已知缺陷、容易误判的边界。
+1. **Source index**: Quickly identify the core classes, their locations, and their responsibilities.
+2. **Call chains / state machines**: Document main flows that would otherwise require jumping across a dozen classes.
+3. **Subtle details**: Record information that is unobvious in code or absent from it, such as hidden constraints, design rationale, known defects, and boundaries easily misdiagnosed.
 
-## 2. 质量标准
+## 2. Quality Standard
 
-每一段新增内容都要能回答以下至少一个问题：
+Every new paragraph should answer at least one question:
 
-- AI 是否能因此少跳几个源码文件？
-- AI 是否能因此理解跨类调用链或状态迁移？
-- AI 是否能因此知道直接读代码不容易看出的约束、意图、风险？
-- AI 是否能因此避免一个高概率误判？
+- Does it save AI from opening several source files?
+- Does it explain a cross-class call chain or state transition?
+- Does it reveal a constraint, intent, or risk that is hard to see from code alone?
+- Does it avert a likely misdiagnosis?
 
-如果答案都是否定的，不要写。
+If every answer is no, omit the paragraph.
 
-## 3. 内容取舍原则
+## 3. Content Selection
 
-### 3.1 应保留
+### 3.1 Keep
 
-- 核心入口类、关键协作者、关键数据模型。
-- 业务主链路、关键分支、失败恢复链路。
-- 状态机、生命周期、数据流转顺序。
-- 隐形约束，例如“某个 scoped data 只能用于 transport，不能用于 commit”。
-- 设计意图，例如“该旁路只替换 transport，不接管生命周期”。
-- 已知缺陷、排查入口、容易误判的日志或现象。
-- 当前代码与旧认知不一致的地方，必须按当前代码更新。
+- Core entry classes, key collaborators, and key data models.
+- Main business flows, important branches, and failure-recovery flows.
+- State machines, lifecycles, and data-flow order.
+- Hidden constraints, such as “scoped data may be used only for transport, not for commit.”
+- Design intent, such as “this side path replaces only transport, not lifecycle management.”
+- Known defects, investigation entry points, and logs or symptoms that are easily misread.
+- Where current code differs from old understanding, update the document to match current code.
 
-### 3.2 应删除或压缩
+### 3.2 Remove or Compress
 
-- 机械罗列所有类、所有方法、所有参数。
-- 把代码里的 if/else 换成自然语言逐句复述。
-- “AI 何时需要读代码”这类模板化低信息列。
-- 已经由其他文档承载的内容，例如测试细则应尽量指向 `06_testing.md`。
-- 无明确业务含义的背景介绍。
-- 纯概念解释，但不能帮助定位、理解链路或规避误判。
+- Mechanical lists of every class, method, or parameter.
+- Sentence-by-sentence natural-language renditions of code's if/else branches.
+- Low-information boilerplate columns such as “When AI needs to read code.”
+- Material already covered by another document; testing rules should generally point to `06_testing.md`.
+- Background without clear business meaning.
+- Pure concept explanations that do not help locate code, understand a flow, or avoid a misdiagnosis.
 
-## 4. 推荐结构
+## 4. Recommended Structure
 
-专题文档优先使用以下结构；不需要每篇都完全一致，但要保持信息密度。
+Prefer the following structure for topic documents. Individual documents need not match it exactly, but should maintain information density.
 
 ```markdown
-# 专题名
+# Topic name
 
-> 最后核对：YYYY-MM-DD
-> 一致性规则：文档与代码冲突时，以代码为准。
+> Last verified: YYYY-MM-DD
+> Consistency rule: If documentation conflicts with code, code takes precedence.
 
-## 1. 文档定位
+## 1. Purpose of This Document
 
-本页只回答哪些问题；明确不展开哪些内容，并指向其他专题。
+State which questions this page answers, which details it leaves out, and where to find those details.
 
-## 2. 核心源码索引
+## 2. Core Source Index
 
-| 类/接口 | 文件 | 作用 |
+| Class/interface | File | Role |
 |---|---|---|
 
-## 3. 核心状态模型 / 数据模型
+## 3. Core State Model / Data Model
 
-用表格或短文本说明关键状态、数据结构、生命周期。
+Explain key states, data structures, and lifecycles with a table or short text.
 
-## 4. 核心调用链路
+## 4. Core Call Chain
 
-用 `text` 代码块写主链路，突出决策节点，不逐句复述代码。
+Use a `text` code block for the main flow, emphasizing decision points rather than paraphrasing code line by line.
 
-## 5. 隐形约束 / 设计思路 / 已知缺陷
+## 5. Hidden Constraints / Design Rationale / Known Defects
 
-只写代码不显眼、跨文件难推断、或历史上容易误判的信息。
+Include only information unobvious in code, hard to infer across files, or historically easy to misread.
 
-## 6. 排查入口
+## 6. Investigation Entry Points
 
-| 现象 | 优先入口 |
+| Symptom | First entry point |
 |---|---|
 
-## 7. 关联文档
+## 7. Related Documents
 ```
 
-如果某专题没有状态机，可以把第 3 节改成“核心数据流”或“关键模型”。如果某专题是纯排查手册，可以把排查入口提前。
+If a topic has no state machine, rename §3 to “Core Data Flow” or “Key Models.” For a pure investigation manual, move investigation entry points earlier.
 
-## 5. 行数与密度控制
+## 5. Length and Density
 
-- 不追求短，但每一节都必须有明确用途。
-- 通常不应从 100 行扩到 300 行，除非新增内容大多是调用链、状态机、隐形约束。
-- 普通专题建议控制在 150-250 行。
-- 大专题可以超过 250 行，但必须能说明新增内容为什么不能只靠读代码获得。
-- 一张源码索引表优先于多张分组表；只有类很多且职责边界确实不同，才拆分。
+- Brevity is not a goal by itself, but every section must have a clear use.
+- A 100-line document should not usually grow to 300 lines unless most added content explains call chains, state machines, or hidden constraints.
+- A typical topic document should be about 150–250 lines.
+- A large topic may exceed 250 lines, but its added information must be justified by what cannot be learned easily from code alone.
+- Prefer one source-index table to several grouped tables; split only when many classes have genuinely different responsibility boundaries.
 
-## 6. 调用链写法
+## 6. Writing Call Chains
 
-推荐写成：
+Prefer:
 
 ```text
-入口方法()
-  -> 关键决策 A
-  -> 关键协作者 B
-  -> 关键状态更新 C
-  -> 成功/失败后的收口动作
+entryMethod()
+  -> key decision A
+  -> key collaborator B
+  -> key state update C
+  -> completion action after success/failure
 ```
 
-不要写成：
+Avoid:
 
 ```text
-方法1()
-  -> 方法2()
-  -> 方法3()
-  -> 方法4()
+method1()
+  -> method2()
+  -> method3()
+  -> method4()
 ```
 
-后者只是源码跳转列表，没有解释业务含义。调用链必须突出：
+The second example merely lists source-code jumps without explaining business meaning. A call chain must show:
 
-- 为什么走这个分支。
-- 哪个状态被改变。
-- 哪个动作不能乱序。
-- 失败时如何恢复或停止。
+- Why a branch is taken.
+- Which state changes.
+- Which actions cannot be reordered.
+- How a failure is recovered or stopped.
 
-### 6.1 调用链写入边界
+### 6.1 What Belongs in a Call Chain
 
-调用链优先写跨文件、跨模块、跨阶段、跨状态对象的链路。主调用链的每个箭头，至少应满足以下条件之一：
+Prioritize flows that cross files, modules, stages, or state objects. Each arrow in the main chain should meet at least one condition:
 
-- 跨到另一个核心类 / 模块 / 子系统。
-- 进入另一个业务阶段，例如资源阶段产物进入源码阶段，编译产物进入部署 staging。
-- 读写了跨轮状态、缓存、history、deploy state、staging、全局 context 等状态对象。
-- 解释了分支原因、失败恢复、回退、重试、异步等待或不能乱序的约束。
-- 说明某个产物从哪里来、被谁消费、为什么不能只看当前文件。
+- It crosses into another core class, module, or subsystem.
+- It enters another business stage, such as resource outputs feeding the source stage or compiled outputs entering deployment staging.
+- It reads or writes state that spans runs: caches, history, deploy state, staging, global context, and similar objects.
+- It explains a branch, failure recovery, fallback, retry, asynchronous wait, or ordering constraint.
+- It identifies an output's origin, consumer, or why the current file alone is insufficient.
 
-以下内容默认不要写进主调用链：
+Normally omit from the main chain:
 
-- 同一个类 / 同一个文件内顺着源码即可读完的方法顺序。
-- 没有说明状态变化、产物交接、分支原因或失败收口的方法跳转。
-- 只用于证明“这个方法调用了下一个方法”的细节。
-- 把刚读到的源码顺序压成 `methodA -> methodB -> methodC`。
+- Method order that can be read directly within one class or file.
+- Method jumps that do not explain state changes, output handoffs, branches, or failure containment.
+- Details included only to prove that one method calls another.
+- A compressed `methodA -> methodB -> methodC` copy of the source order.
 
-单文件内部步骤只有满足以下条件之一才保留：
+Keep a step within one file only if:
 
-- 该步骤产物会被另一个阶段或文件消费。
-- 该步骤修改了跨轮状态、缓存、staging、history、deploy state 等状态对象。
-- 该步骤存在不能乱序的约束，且代码本身不容易看出原因。
-- 该步骤是高频排查第一跳。
+- Another stage or file consumes its output.
+- It changes cross-run state, caches, staging, history, deploy state, or a similar object.
+- It has a non-obvious ordering constraint.
+- It is a frequent first investigation hop.
 
-写法上：
+For presentation:
 
-- 主链路写跨边界流转，例如 `SourceCompiler -> SourceDataBindingProcessor -> DataBindingGenMapperCompiler -> JavaCompilerInvoker`。
-- 单文件细节改写成“产物 / 约束 / 排查入口”，不要展开成方法顺序。
+- Write the main chain across boundaries, for example `SourceCompiler -> SourceDataBindingProcessor -> DataBindingGenMapperCompiler -> JavaCompilerInvoker`.
+- Recast details within one file as “output / constraint / investigation entry point,” rather than expanding method order.
 
-## 7. 源码索引写法
+## 7. Writing the Source Index
 
-源码索引只保留“AI 查这个专题时必须知道”的类：
+Include only classes AI must know to investigate the topic:
 
-- 入口类。
-- 数据模型。
-- 状态管理类。
-- 关键策略 / planner / transport。
-- 失败恢复或兼容处理类。
+- Entry classes.
+- Data models.
+- State managers.
+- Key strategy, planner, or transport implementations.
+- Failure-recovery and compatibility handlers.
 
-每个类的说明写业务职责，不写“用于处理 xxx 的工具类”这种空泛描述。路径必须是当前真实路径；如果只是目录级路径，必须能让 AI 快速定位。
+Describe each class's business responsibility, not a vague “utility for handling xxx.” Paths must reflect current code; a directory-level path must still let AI locate the class quickly.
 
-## 8. 隐形约束写法
+## 8. Writing Hidden Constraints
 
-隐形约束优先写成可执行判断：
+Express hidden constraints as actionable judgments:
 
-- “只能在整轮成功后 commit。”
-- “scoped data 只能给 transport 用，不能更新全局状态。”
-- “writer 进入 dirty 状态后不能 fallback 旧流程。”
-- “history/cache/device 三路不一致会触发 recover 或 reinstall。”
+- “Commit only after the entire run succeeds.”
+- “Scoped data is for transport only; it must not update global state.”
+- “Once a writer is dirty, it cannot fall back to the old flow.”
+- “Disagreement among history, cache, and device triggers recovery or reinstall.”
 
-不要写成抽象原则：
+Avoid abstract principles:
 
-- “注意状态一致性。”
-- “需要考虑异常情况。”
-- “这里逻辑比较复杂。”
+- “Mind state consistency.”
+- “Consider exceptional cases.”
+- “The logic here is complex.”
 
-### 8.1 聚合错误与诊断语义
+### 8.1 Aggregated Errors and Diagnostic Meaning
 
-当用户可见错误、日志或状态会聚合多个底层结果时，专题文档必须写清解释边界，不能只复述文案或记录某次历史根因。优先使用以下结构：
+When a user-visible error, log, or state aggregates several lower-level results, explain its interpretation boundary. Do not merely repeat the message or a root cause from one historical incident. Prefer:
 
-| 观察结果 | 能证明 | 不能证明 | 下一项区分证据 |
-|----------|--------|----------|----------------|
-| 用户可见错误或聚合状态 | 生成方已做出的分类 | 尚未被直接观察的底层原因 | 生成实现、原始输入、下层状态或异常栈 |
+| Observation | What it proves | What it does not prove | Next discriminating evidence |
+|-------------|----------------|------------------------|------------------------------|
+| User-visible error or aggregated state | The classification made by its producer | A lower-level cause not directly observed yet | Producer implementation, raw input, lower-level state, or exception stack |
 
-写作要求：
+Writing requirements:
 
-- 区分原始证据、派生结果和调查结论，避免把 wrapper message 当作底层事实。
-- 记录能够跨版本成立的解释边界，不把单次 Issue 的具体类名、错误码或修复提交扩写成通用规则。
-- 涉及版本差异时，说明当前实现、现场版本和历史实现的适用范围。
-- “日志中未出现”只有在收集与检索范围明确时才有诊断意义；文档不得默认将缺失输出解释为行为未发生。
+- Distinguish raw evidence, derived results, and investigation conclusions; do not treat a wrapper message as an underlying fact.
+- Record interpretation boundaries that hold across versions. Do not inflate a specific class name, error code, or fix commit from one Issue into a general rule.
+- For version differences, specify where the current implementation, incident version, and historical implementation apply.
+- “Absent from the log” has diagnostic meaning only when collection and search scope are clear. Do not infer that behavior never occurred solely from missing output.
 
-### 8.2 结论前反证门禁写法
+### 8.2 Counter-Evidence Gate Before Conclusions
 
-排查型专题应要求结论在输出前经过最小反证检查：明确领先结论、可能推翻它的可观察证据、已出现的冲突信号和结论适用边界。门禁应约束证据完整性，不规定最少工具调用、推理 token 或必须穷举的假设数量。
+An investigation topic should require a minimal counter-evidence check before presenting a conclusion: state the leading explanation, observable evidence that could refute it, conflicting signals already seen, and the boundary where the conclusion applies. This gate constrains evidence completeness; it does not prescribe a minimum number of tool calls, reasoning tokens, or hypotheses to enumerate.
 
-如果缺少直接证据，文档应指导 AI 输出可确认的最小事实、推断链和缺失项，而不是在“完全确定”和“完全未知”之间二选一。
+If direct evidence is missing, guide AI to present the smallest confirmed facts, the inference chain, and the missing evidence, instead of choosing between “fully certain” and “entirely unknown.”
 
-## 9. 排查入口写法
+## 9. Writing Investigation Entry Points
 
-排查入口只给第一跳，不写完整排查剧本：
+Give only the first hop, not a full investigation script:
 
-| 现象 | 优先入口 |
-|---|---|
-| 具体日志或用户可见现象 | 类 / 方法 / 文档小节 |
+| Symptom | First entry point |
+|---------|-------------------|
+| Specific log or user-visible symptom | Class / method / document section |
 
-如果排查需要固定日志或路径，可以写在现象里。不要把整篇文档变成 FAQ。
+If investigation requires a fixed log or path, put it in the symptom. Do not turn the entire document into an FAQ.
 
-## 10. 维护流程
+## 10. Maintenance Process
 
-1. 先读目标文档，标出低密度内容：机械索引、代码复述、重复测试说明、泛泛背景。
-2. 再读 `99_index.md` 和 `98_code_map.md`，确认该专题边界和核心代码入口。
-3. 只核对当前专题需要的源码，不做全量工程扫描。
-4. 重写结构：文档定位 -> 核心源码索引 -> 状态/数据模型 -> 调用链 -> 隐形约束 -> 排查入口 -> 关联文档。
-5. 自审每段是否满足第 2 节质量标准。
-6. 涉及错误或排查结论时，检查是否写清“能证明 / 不能证明 / 下一项区分证据”，并包含最小反证门禁。
-7. 对主调用链做跨边界审计：每个箭头是否跨文件 / 跨阶段 / 跨状态对象，或解释产物交接、失败恢复、不能乱序的约束。
-8. 执行 `git diff --check`。
-9. 如果文档中写了源码路径或测试入口，抽查路径存在。
+1. Read the target document and mark low-density content: mechanical indexes, code paraphrases, duplicate testing rules, and generic background.
+2. Read `99_index.md` and `98_code_map.md` to confirm the topic boundary and core code entry points.
+3. Check only source needed for the current topic; do not scan the whole project.
+4. Rewrite the structure: document purpose -> core source index -> state/data model -> call chain -> hidden constraints -> investigation entry points -> related documents.
+5. Check every paragraph against the quality standard in §2.
+6. For errors or investigation conclusions, check whether “what it proves / what it does not prove / next discriminating evidence” and the minimal counter-evidence gate are clear.
+7. Audit each arrow in the main chain for a cross-file, cross-stage, or cross-state-object boundary, or an explanation of an output handoff, failure recovery, or ordering constraint.
+8. Run `git diff --check`.
+9. If the document names source paths or test entry points, spot-check their existence.
 
-## 11. 自审清单
+## 11. Self-Review Checklist
 
-提交前逐项确认：
+Check each item before committing:
 
-- 是否删掉了低价值的类/方法罗列？
-- 是否避免把代码逐句翻译成中文？
-- 是否保留了 AI 最需要的第一跳源码索引？
-- 是否写清楚跨类调用链或状态机？
-- 主调用链中每个箭头是否至少跨文件、跨阶段、跨状态对象之一，或解释了产物/状态/失败恢复的交接？
-- 单文件内部方法顺序是否已移到“隐形约束 / 排查入口”，或压缩成产物说明？
-- 是否包含代码不显眼的约束、设计意图或已知缺陷？
-- 聚合错误是否写清能证明、不能证明和下一项区分证据？
-- 排查结论是否要求检查反例、冲突信号和适用边界？
-- 是否把其他专题已覆盖的内容改为引用，而不是重复展开？
-- 是否有任何新增内容无法从当前代码或已知事实支撑？
-- 是否通过 `git diff --check`？
+- Have low-value class/method lists been removed?
+- Have line-by-line paraphrases of code been avoided?
+- Is the source index for AI's essential first hops intact?
+- Are cross-class call chains or state machines clear?
+- Does each arrow in the main chain cross a file, stage, or state object, or explain an output/state/failure-recovery handoff?
+- Has method order within one file been moved into “hidden constraints / investigation entry points” or reduced to an output description?
+- Are non-obvious code constraints, design intent, or known defects included?
+- Do aggregated errors explain what they prove, what they do not prove, and the next discriminating evidence?
+- Must an investigation conclusion check counterexamples, conflicting signals, and scope?
+- Is content already covered by another topic linked instead of repeated?
+- Is every new claim supported by current code or known facts?
+- Does `git diff --check` pass?
 
-## 12. 交付标准
+## 12. Delivery Standard
 
-整理完成后，应能用一句话说明这篇文档比原来强在哪里，例如：
+After restructuring, explain in one sentence how the page improved, for example:
 
-- “AI 不读代码即可知道核心类和主链路。”
-- “跨类 recover 状态机已经压缩成一张流程图。”
-- “新增内容主要是代码不显眼的约束，而不是代码复述。”
+- “AI can identify core classes and the main flow without reading code.”
+- “The cross-class recovery state machine is condensed into one flowchart.”
+- “The additions are mainly hidden constraints rather than code paraphrases.”
 
-如果说不出来，说明文档还需要继续裁剪或重组。
+If you cannot do that, the document still needs pruning or restructuring.

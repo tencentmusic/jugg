@@ -1,164 +1,165 @@
-# Jugg 常量引用影响分析（ConstRefEngine / ConstRefAnalyzer）
+# Jugg Constant-Reference Impact Analysis (ConstRefEngine / ConstRefAnalyzer)
 
-> 最后核对：2026-05-23
-> 一致性规则：文档与代码冲突时，以代码为准。
-
----
-
-## 1. 文档定位
-
-本页只回答常量引用影响分析如何接入增量重编译：
-
-- 哪些类负责扫描、缓存和影响查询。
-- 保存/删除/编译前各阶段如何推进索引。
-- SQLite / fingerprint 缓存为什么能跨 worktree 复用。
-- 出现漏重编或耗时时应从哪里第一跳排查。
-
-不展开普通类结构影响分析；那部分看 `03_deploy_data_generator.md`。
+> Last checked: 2026-05-23
+> Consistency rule: when documentation conflicts with code, follow the code.
 
 ---
 
-## 2. 核心源码索引
+## 1. Scope
 
-| 类/接口 | 文件 | 作用 |
+This page describes how constant-reference impact analysis feeds incremental recompilation:
+
+- Which classes handle scanning, caching, and impact queries.
+- How the index advances on save, delete, and before compilation.
+- Why the SQLite/fingerprint cache can be reused across worktrees.
+- Where to begin investigating missed recompilation or excessive analysis time.
+
+For ordinary class-structure impact analysis, see `03_deploy_data_generator.md`.
+
+---
+
+## 2. Core Source Index
+
+| Class/interface | File | Role |
 |---|---|---|
-| `DeployFileManager` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/DeployFileManager.kt` | ConstRef 接入 deploy 的 facade：保存/删除事件、full scan 初始化、编译前 readiness、effected files 查询。 |
-| `DeployDataGenerator` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/data/DeployDataGenerator.kt` | 构建 `JuggDeployData` 时等待 ConstRef 分析，并把结果写入 `constRefEffectedSourcePaths`。 |
-| `ConstRefEffectProvider` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/data/ConstRefEffectProvider.kt` | `DeployDataGenerator` 与 `ConstRefEngine` 之间的窄接口，便于禁用 ConstRef 或测试替换。 |
-| `ConstRefEngine` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/constref/ConstRefEngine.kt` | 生命周期协调器：编辑态延迟、full scan、pre-compile flush、on-demand 分析、readiness 和影响查询。 |
-| `ConstRefAnalyzer` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/constref/ConstRefAnalyzer.kt` | 语言无关解析封装，分发 Java/Kotlin parser 并串行化 Kotlin PSI 访问。 |
-| `JavaConstParser` / `KotlinConstParser` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/constref/*ConstParser.kt` | 解析常量定义与 syntax-only 引用候选。 |
-| `ConstRefChangeTracker` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/constref/ConstRefChangeTracker.kt` | 记录真实变更的 definition key 和被删除 key，避免空白改动触发误重编。 |
-| `ConstRefImpactResolver` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/constref/ConstRefImpactResolver.kt` | 消费 changed/removed definition keys，从 DB 还原受影响源码文件。 |
-| `ConstRefCacheDatabase` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/constref/ConstRefCacheDatabase.kt` | 共享 SQLite 索引：strings 字典、mtime checksum、analysis head、definitions、reference candidates。 |
-| `RepoSharedFingerprintStore` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/constref/RepoSharedFingerprintStore.kt` | Git repo/worktree 间共享 checksum 指纹，减少冷启动重复解析。 |
-| `ConstRefSessionCache` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/constref/ConstRefSessionCache.kt` | 会话级 LRU/TTL 热点缓存。 |
-| `ConstRefCacheCleaner` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/constref/ConstRefCacheCleaner.kt` | 后台 TTL、版本上限、checkpoint/vacuum 清理。 |
+| `DeployFileManager` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/DeployFileManager.kt` | Deployment-facing ConstRef facade for save/delete events, full-scan initialization, pre-compile readiness, and affected-file queries. |
+| `DeployDataGenerator` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/data/DeployDataGenerator.kt` | Waits for ConstRef analysis while building `JuggDeployData`, then writes results to `constRefEffectedSourcePaths`. |
+| `ConstRefEffectProvider` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/data/ConstRefEffectProvider.kt` | Narrow interface between `DeployDataGenerator` and `ConstRefEngine`, allowing ConstRef to be disabled or substituted in tests. |
+| `ConstRefEngine` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/constref/ConstRefEngine.kt` | Lifecycle coordinator for edit-state delay, full scan, pre-compile flush, on-demand analysis, readiness, and impact queries. |
+| `ConstRefAnalyzer` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/constref/ConstRefAnalyzer.kt` | Language-neutral parsing wrapper that dispatches Java/Kotlin parsers and serializes Kotlin PSI access. |
+| `JavaConstParser` / `KotlinConstParser` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/constref/*ConstParser.kt` | Parse constant definitions and syntax-only reference candidates. |
+| `ConstRefChangeTracker` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/constref/ConstRefChangeTracker.kt` | Records genuinely changed and removed definition keys so whitespace changes do not cause spurious recompilation. |
+| `ConstRefImpactResolver` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/constref/ConstRefImpactResolver.kt` | Consumes changed/removed definition keys and restores affected source files from the DB. |
+| `ConstRefCacheDatabase` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/constref/ConstRefCacheDatabase.kt` | Shared SQLite index for string dictionary, mtime/checksum, analysis head, definitions, and reference candidates. |
+| `RepoSharedFingerprintStore` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/constref/RepoSharedFingerprintStore.kt` | Shares checksum fingerprints across a Git repo and its worktrees, reducing repeated cold-start parsing. |
+| `ConstRefSessionCache` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/constref/ConstRefSessionCache.kt` | Session-level LRU/TTL hot cache. |
+| `ConstRefCacheCleaner` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/constref/ConstRefCacheCleaner.kt` | Background TTL, version-cap, and checkpoint/vacuum cleanup. |
 
 ---
 
-## 3. 核心数据模型
+## 3. Core Data Model
 
-| 数据 | 来源 | 消费者 | 关键含义 |
+| Data | Source | Consumer | Meaning |
 |---|---|---|---|
-| `ConstDefinition` | Java/Kotlin parser | `ConstRefChangeTracker`, DB | 一个可内联常量定义：文件、包、类、常量名、类型、值。 |
-| `ConstReferenceCandidate` | Java/Kotlin parser | `ConstRefImpactResolver`, DB | syntax-only 引用事实；不要求目标 const 已被扫描。 |
-| `changedDefinitionKeys` | `ConstRefChangeTracker` | `ConstRefImpactResolver` | 本轮真实变化的 `(fqClassName, constName)`。 |
-| `removedDefinitionKeys` | `ConstRefChangeTracker` | `ConstRefImpactResolver` | `const -> val` 或删除常量时的旧 key，用旧候选索引继续找引用方。 |
-| `ConstDefinitionChange` | `ConstRefChangeTracker` | `ConstRefEngine` 日志 | 结构化保存常量变化前后签名，用于排查“谁触发了跟编”。 |
-| `AnalysisReadiness` | `ConstRefEngine.awaitAnalysis()` | `DeployDataGenerator` | 编译前目标文件是否已完成本轮分析；未 ready 时允许降级。 |
-| `JuggDeployData.constRefEffectedSourcePaths` | `DeployDataGenerator` | 编译循环 / 日志 | ConstRef 额外要求重编译的源码路径。 |
+| `ConstDefinition` | Java/Kotlin parser | `ConstRefChangeTracker`, DB | One inlinable constant definition: file, package, class, constant name, type, and value. |
+| `ConstReferenceCandidate` | Java/Kotlin parser | `ConstRefImpactResolver`, DB | Syntax-only reference fact; target const need not have been scanned. |
+| `changedDefinitionKeys` | `ConstRefChangeTracker` | `ConstRefImpactResolver` | `(fqClassName, constName)` keys genuinely changed this run. |
+| `removedDefinitionKeys` | `ConstRefChangeTracker` | `ConstRefImpactResolver` | Old keys for `const -> val` or a removed constant; old candidate index still finds references. |
+| `ConstDefinitionChange` | `ConstRefChangeTracker` | `ConstRefEngine` log | Structured before/after constant signatures for identifying which change triggered dependent recompilation. |
+| `AnalysisReadiness` | `ConstRefEngine.awaitAnalysis()` | `DeployDataGenerator` | Whether target files finished this run's analysis before compilation; degradation is permitted if not ready. |
+| `JuggDeployData.constRefEffectedSourcePaths` | `DeployDataGenerator` | Compilation loop / logs | Additional source paths ConstRef requires recompiling. |
 
-`ConstReferenceCandidate.ownerKind` 使用整数枚举写入 DB：显式 const import、显式 class import、包星号导入、类星号导入、owner-qualified 表达式、同包裸引用。
+`ConstReferenceCandidate.ownerKind` is stored as an integer enum in the DB: explicit const import, explicit class import, package wildcard import, class wildcard import, owner-qualified expression, or unqualified same-package reference.
 
 ---
 
-## 4. 核心调用链路
+## 4. Core Call Chain
 
-### 4.1 保存 / 删除 / full scan 接入
+### 4.1 Save / Delete / Full-Scan Integration
 
 ```text
 DeployFileManager.addChangedFile()
-  -> Java/Kotlin 文件: ConstRefEngine.onFileSaved()
-  -> 只把前一个 editing 文件推入 pending，当前文件先标记 editing
+  -> Java/Kotlin file: ConstRefEngine.onFileSaved()
+  -> enqueue only the previous editing file as pending; mark the current file editing first
 
 DeployFileManager.removeChangedFile()
   -> ConstRefEngine.onFileDeleted()
-  -> 仅源码根内 `.java` / `.kt` 或源码目录候选进入 ConstRef cleanup
-  -> 清内存状态 + change tracker + session cache
-  -> DB 删除清理进入后台队列；非源码构建产物删除会跳过
+  -> only `.java` / `.kt` within source roots or source-directory candidates enter ConstRef cleanup
+  -> clear memory state + change tracker + session cache
+  -> enqueue DB deletion cleanup in the background; skip deletion of non-source build outputs
 
 DeployFileManager.updateModuleInfos()
   -> sourceFileManager.init(sourceDirs)
   -> ConstRefEngine.initializeFullScan(sourceDirs)
-  -> 首次 full scan 延迟 10s，避免 IDE 启动期资源竞争
+  -> delay first full scan by 10s to avoid resource contention during IDE startup
 ```
 
-`onFileSaved()` 的“当前文件延迟、前一个文件入队”是为了降低高频保存时的重复分析；编译前 `awaitAnalysis()` 会 flush 当前 editing 文件。
+`onFileSaved()` delays the current file and queues the previous one to reduce repeated analysis during frequent saves. Before compilation, `awaitAnalysis()` flushes the current editing file.
 
-### 4.2 编译前影响查询
+### 4.2 Pre-Compile Impact Query
 
 ```text
 DeployFileManager.getRecompileFiles()
   -> DeployDataGenerator.buildDeployData(..., constRefChangedSourcePaths)
   -> ConstRefEffectProvider.ensureReadyForRecompile()
       -> ConstRefEngine.awaitAnalysis(timeout=5s)
-      -> flush editing file + PRE_COMPILE 分析目标文件
-  -> readiness 未 ready: warn 后继续用已完成缓存
+      -> flush editing file + analyze target files in PRE_COMPILE
+  -> readiness not ready: warn, then use completed cache
   -> ConstRefEffectProvider.getEffectedFiles()
       -> ConstRefChangeTracker.peekDefinitionDiff()
       -> ConstRefImpactResolver.getEffectedFiles()
-      -> DB 按 constName 找 candidates，再按 owner/package 规则保守匹配
-  -> 写入 JuggDeployData.constRefEffectedSourcePaths
-  -> 部署成功后 DeployFileManager.commit()
+      -> query DB candidates by constName, then conservatively match owner/package rules
+  -> write JuggDeployData.constRefEffectedSourcePaths
+  -> after successful deployment, DeployFileManager.commit()
       -> ConstRefEngine.acknowledgeEffectedFilesAfterDeployCommit()
       -> ConstRefChangeTracker.consumeDefinitionDiff()
 ```
 
-`FULL_SCAN` 不再作为编译前硬门槛；`awaitAnalysis()` 只要求目标变更文件达到本轮分析时间线。查询异常返回空列表，不阻断部署主流程。
-递归跟编轮次（`isCompilingEffectedSourceFiles=true`）不会再次传入 `constRefChangedSourcePaths`；ConstRef 只消费用户本轮原始源码变更，避免由结构影响跟编出的源码再次触发同一批 const-ref 查询。
-`getEffectedFiles()` 只查询并登记待确认的 definition diff，不在查询阶段清理；只有部署成功 commit 后才 ack 清理，避免“跟编失败后下一次编译漏掉同一批 const-ref 影响”。
+`FULL_SCAN` is no longer a hard pre-compile gate; `awaitAnalysis()` requires only that changed target files reach this run's analysis timeline. Query exceptions return an empty list without blocking the main deployment path.
 
-### 4.3 缓存命中链路
+Recursive dependent-compilation rounds (`isCompilingEffectedSourceFiles=true`) do not pass `constRefChangedSourcePaths` again. ConstRef consumes only the user's original source changes this run, so source files recompiled for structural impact do not trigger another query for the same const-reference batch.
+
+`getEffectedFiles()` only queries and registers a definition diff awaiting acknowledgment; it does not clear it during the query. Only a successful deployment commit acknowledges and clears it, so a failed dependent compilation does not make the next run miss the same const-reference impact.
+
+### 4.3 Cache-Hit Path
 
 ```text
 analyzeFiles()
-  -> file_checksum_mtime_map 命中: 直接取得 checksum
-  -> RepoSharedFingerprintStore 命中: 跨 worktree 复用 checksum
-  -> 都 miss: 计算 CRC32 并回写 fingerprint
-  -> file_analysis_head 命中: touch 现有分析结果
-  -> analysis miss: parser 解析 definitions + reference candidates 后落库
+  -> file_checksum_mtime_map hit: obtain checksum directly
+  -> RepoSharedFingerprintStore hit: reuse checksum across worktrees
+  -> both miss: compute CRC32 and write fingerprint back
+  -> file_analysis_head hit: touch existing analysis result
+  -> analysis miss: parse definitions + reference candidates and store them in DB
 ```
 
-`ConstRefEngine` 不直接拼 DB 路径；`DeployFileManager` 从 `JuggPathManager.constRefSharedDbFile` 和 `repoFingerprintDbFile` 注入，并可在构造期直接创建 `ConstRefEngine` 对象。SQLite database、repo fingerprint store 与 impact resolver 属于 `ConstRefEngine` 内部 runtime，不能在 `ConstRefEngine` 构造期初始化；它们在 `updateModuleInfos()`、保存/删除事件、on-demand 分析、影响查询或 commit ack 首次需要时懒初始化。runtime 初始化失败后本轮进程熔断为 no-op；已初始化的共享 SQLite 缓存若在运行期报损坏，会关闭连接、删除或移走 DB/WAL/SHM、重建 schema，并对原操作重试一次。其他运行期分析、影响查询、full scan、cleanup 或调度异常只降级当前操作，编译/部署主流程继续，后续 ConstRef 调用仍可重试。
+`ConstRefEngine` does not construct DB paths directly. `DeployFileManager` injects `JuggPathManager.constRefSharedDbFile` and `repoFingerprintDbFile`, and may create the `ConstRefEngine` object at construction time. The SQLite database, repo fingerprint store, and impact resolver belong to `ConstRefEngine`'s internal runtime and must not be initialized in its constructor. They initialize lazily at first need during `updateModuleInfos()`, save/delete events, on-demand analysis, impact query, or commit acknowledgment. If runtime initialization fails, ConstRef is short-circuited to a no-op for this process. If an initialized shared SQLite cache becomes corrupt at runtime, close its connection, delete or move aside DB/WAL/SHM, rebuild the schema, and retry the original operation once. Other runtime exceptions in analysis, impact queries, full scan, cleanup, or scheduling degrade only the current operation; compile/deploy continues and later ConstRef calls may retry.
 
 ---
-
-## 5. SQLite 与缓存设计
+## 5. SQLite and Cache Design
 
 ### 5.1 `ConstRefCacheDatabase`
 
-核心表：
+Core tables:
 
-| 表 | 用途 |
+| Table | Purpose |
 |---|---|
-| `strings` | 全局字符串字典，存放 repo/worktree/path/package/class/const/type/value/import 等重复字符串 |
-| `file_checksum_mtime_map` | `(worktree_id, path_id) -> (last_modified, checksum)`，每 worktree 每文件仅一行 |
-| `file_analysis_head` | `(repo_id, path_id, checksum)` 的分析版本头，并提供 `file_id` 给子表引用 |
-| `const_definitions` | 按 `file_id` 存定义，package/class/const/type/value 使用 `string_id` |
-| `const_references` | 旧精确引用表，保留兼容历史查询与测试 |
-| `const_reference_candidates` | 按 `file_id` 存 syntax-only 候选引用，package/const/owner/import 使用 `string_id`，`owner_kind` 使用整数枚举 |
-| `maintenance_meta` | 清理节流元数据 |
+| `strings` | Global string dictionary for repeated repo/worktree/path/package/class/const/type/value/import strings. |
+| `file_checksum_mtime_map` | `(worktree_id, path_id) -> (last_modified, checksum)`, one row per file per worktree. |
+| `file_analysis_head` | Analysis-version head keyed by `(repo_id, path_id, checksum)`, supplying `file_id` to child tables. |
+| `const_definitions` | Definitions by `file_id`; package/class/const/type/value use `string_id`. |
+| `const_references` | Legacy exact-reference table retained for historical queries and tests. |
+| `const_reference_candidates` | Syntax-only candidate references by `file_id`; package/const/owner/import use `string_id`, while `owner_kind` uses an integer enum. |
+| `maintenance_meta` | Cleanup-throttling metadata. |
 
-关键行为：
+Key behaviors:
 
-- `file_analysis_head` / `const_definitions` / `const_reference_candidates` 通过 `file_id` 共享分析结果，避免在高频引用索引里重复保存长路径。
-- `file_checksum_mtime_map` 通过 `worktree_id + path_id` 隔离项目本地基线。
-- 写入侧先预热当前批次的字符串 ID，减少 full scan / batch analysis 的逐行 `strings` 查询；进程内 `stringIdCache` 是有上限的 LRU 辅助缓存。
-- 同 IDE 进程内按 DB path 共享写锁，public 写入口和 maintenance 写入串行，降低多 Project 多 connection 写同一全局 DB 的锁竞争；读查询不额外串行。
-- 受影响文件查询先定位 definition key，再匹配 latest candidate rows，最后按当前 worktree 还原绝对路径，仅返回本地存在文件。
-- 支持 `queryClassesBySimpleNames` 通过 `simple_class_id + const_name_id` 索引实现点查，避免全表扫描。
-- 使用共享 SQLite 长连接，避免高频建连；latest 版本选择追加 `checksum` 作为稳定 tie-breaker。
-- `PRAGMA schema_version=7`，不兼容时重建；parser 可见性规则或索引语义变化必须 bump version，避免旧库中的 stale definition/candidate 继续参与影响分析。
-- 初始化和运行期 DB 操作均识别 `SQLITE_CORRUPT` / `SQLITE_NOTADB` / `database disk image is malformed` 等损坏信号。运行期命中后会删除或旁路旧 DB 后重建，并只重试原操作一次；若重建或重试失败，上层按当前操作降级，不阻断正常编译/部署。
+- `file_analysis_head`, `const_definitions`, and `const_reference_candidates` share analysis results through `file_id`, avoiding repeated long paths in the high-frequency reference index.
+- `file_checksum_mtime_map` separates worktree-local baselines by `worktree_id + path_id`.
+- The write path preloads string IDs for the current batch, reducing per-row `strings` queries during full scan/batch analysis. In-process `stringIdCache` is a bounded LRU auxiliary cache.
+- Within one IDE process, writes share a lock by DB path. Public write entry points and maintenance writes run serially, reducing lock contention when multiple Projects/connections write one global DB. Reads are not additionally serialized.
+- An affected-file query first locates definition keys, matches the latest candidate rows, then reconstructs absolute paths for the current worktree; it returns only locally existing files.
+- `queryClassesBySimpleNames` supports point lookup through a `simple_class_id + const_name_id` index, avoiding a full-table scan.
+- A shared long-lived SQLite connection avoids frequent reconnects. Latest-version selection adds `checksum` as a stable tie-breaker.
+- `PRAGMA schema_version=7`; rebuild on incompatibility. Parser visibility-rule or index-semantic changes must bump the version so stale definitions/candidates from the old DB do not enter impact analysis.
+- Initialization and runtime DB operations recognize corruption signals such as `SQLITE_CORRUPT`, `SQLITE_NOTADB`, and `database disk image is malformed`. On runtime corruption, delete or bypass the old DB, rebuild, and retry the original operation only once. If rebuild or retry fails, the caller degrades the current operation without blocking normal compilation/deployment.
 
 ### 5.2 `RepoSharedFingerprintStore`
 
-- key 由 `repo_key + relative_path + file_size + head/tail(+middle)签名` 组成。
-- 支持 Git worktree 共享命中（通过 `commondir` 归一 repo_key）。
-- 中段内容变化可避免“同头同尾误命中”。
-- 支持独立 cleanup（TTL + 每文件版本上限 + checkpoint/vacuum）。
+- The key combines `repo_key + relative_path + file_size + head/tail(+middle) signature`.
+- Git worktrees can share hits because `commondir` normalizes `repo_key`.
+- A change in middle content avoids a false hit when head and tail are unchanged.
+- Independent cleanup supports TTL, a per-file version cap, and checkpoint/vacuum.
 
-### 5.3 会话缓存与 IO 限频
+### 5.3 Session Cache and I/O Throttling
 
-`ConstRefSessionCache` 使用 LRU + TTL：
+`ConstRefSessionCache` uses LRU + TTL:
 
-- `fileCache` 缓存会话内已访问文件的 definitions / legacy references。
-- `lookupCache` 缓存 constName、class+const、package+const、simpleClassName 点查结果。
+- `fileCache` stores definitions / legacy references for files accessed in this session.
+- `lookupCache` stores point-query results for constName, class+const, package+const, and simpleClassName.
 
-IO 限频默认只影响后台任务；用户等待链路默认不 sleep：
+I/O throttling normally affects background tasks only; user-waiting paths do not sleep by default:
 
-| 属性 | 默认值 |
+| Property | Default |
 |---|---|
 | `jugg.constref.fullscan.io.throttle.ms` | `3000` |
 | `jugg.constref.fullscan.io.throttle.every` | `50` |
@@ -172,70 +173,70 @@ IO 限频默认只影响后台任务；用户等待链路默认不 sleep：
 | `jugg.constref.session.lookup.cache.max` | `4000` |
 | `jugg.constref.session.cache.ttl.ms` | `900_000` |
 
-`jugg.constref.io.throttle.ms` / `jugg.constref.io.throttle.every` 作为兼容兜底仍可使用，但优先级低于各场景专属属性。
+`jugg.constref.io.throttle.ms` / `jugg.constref.io.throttle.every` remain available as compatibility fallback, at lower priority than scenario-specific properties.
 
 ---
 
-## 6. 隐形约束
+## 6. Hidden Constraints
 
-- 引用扫描不查询 definitions，也不要求目标 const 已经被扫描；影响查询阶段用变更后的 definition 与 syntax candidate 保守匹配，原则是允许多编译，不能漏编译。
-- companion const 会同时匹配 `Owner.CONST` 与 `Owner.Companion.CONST` 形态。
-- 同包嵌套 class/object 的限定引用会以相对 owner（如 `Outer.Inner.CONST`）匹配定义侧的全限定 owner。
-- `const` 被降级为普通 `val` 或删除时，`removedDefinitionKeys` 会继续命中旧候选索引。
-- `awaitAnalysis()` 成功条件是目标文件 `analyzedAt >= 等待开始时间`；full scan ready 不再阻塞编译。
-- `ensureReadyForRecompile()` / `analyzeOnDemand()` / `getEffectedFiles()` 等用户主动等待或查询链路异常时 warning，并按降级语义继续。
-- 未就绪时 warning，仍用当前缓存查询。
-- `getEffectedFiles()` 异常时 warning 后返回空列表，不阻断部署主流程。
-- const-ref definition diff 的清理时机是成功部署后的 commit ack，而不是影响查询本身；编译失败、跟编失败或部署失败时，同一批 const diff 应在下一次编译继续可查。
-- `private const val` 与 `private static final` 不进入 definition 索引和 diff；它们只影响声明所在源码文件，本文件已在首批编译内，不需要额外跟编引用方。
-- full scan、file change 分析、cache cleanup、delete cleanup 等后台链路异常仅 debug，不影响增量编译；删除 cleanup 遇到 SQLite busy/locked 会在后台有限重试，仍失败时去重后延迟重新入队。
-- ConstRef 是可选系统：DB / fingerprint store 初始化失败会把本进程 ConstRef runtime 降级为 no-op；运行期 SQLite 损坏会先执行一次删除重建和原操作重试，仍失败时 full scan、保存/删除分析、pre-compile readiness、on-demand 分析、effected files 查询、cleanup、commit ack 等操作只影响当前操作，不允许影响 Run / compile / deploy 主流程，也不应永久禁用已初始化 runtime。调度取消（如 `CancellationException`）属于正常重排/释放信号，不视为 runtime 故障。
-- Java 只记录可内联类型的 `static final` 字段；Kotlin 支持 top-level、object、companion、嵌套 class/object 的 `const val`。
-- Java/Kotlin parser 都忽略注释和字符串文本中的伪引用。
+- Reference scanning does not query definitions or require the target const to have been scanned. The impact query conservatively matches changed definitions with syntax candidates: extra compilation is acceptable, missed compilation is not.
+- A companion const matches both `Owner.CONST` and `Owner.Companion.CONST` forms.
+- A qualified reference to a nested class/object in the same package uses a relative owner, such as `Outer.Inner.CONST`, to match the definition's fully qualified owner.
+- If `const` becomes an ordinary `val` or is deleted, `removedDefinitionKeys` still hits the old candidate index.
+- `awaitAnalysis()` succeeds when target-file `analyzedAt >= wait start time`; full-scan readiness no longer blocks compilation.
+- Exceptions on user-waiting or query paths such as `ensureReadyForRecompile()`, `analyzeOnDemand()`, and `getEffectedFiles()` emit warnings and continue with degraded behavior.
+- If not ready, emit a warning and query the current cache anyway.
+- If `getEffectedFiles()` throws, warn and return an empty list without blocking the main deployment path.
+- A const-reference definition diff clears on commit acknowledgment after successful deployment, not on the impact query itself. After compilation, dependent compilation, or deployment fails, the same diff remains queryable on the next compile.
+- `private const val` and `private static final` do not enter the definition index or diff. They affect only their declaring source file, which is already in the first compilation batch, so no additional dependent recompilation is needed.
+- Exceptions in background full scan, file-change analysis, cache cleanup, or delete cleanup are debug-only and do not affect incremental compilation. SQLite busy/locked during delete cleanup gets bounded background retries; if it still fails, deduplicate and requeue it later.
+- ConstRef is optional. Failed DB/fingerprint-store initialization degrades this process's ConstRef runtime to a no-op. Runtime SQLite corruption first triggers one delete/rebuild and retry of the original operation. If that still fails, full scan, save/delete analysis, pre-compile readiness, on-demand analysis, affected-file query, cleanup, and commit acknowledgment affect only their current operations: they must not break the main Run/compile/deploy path or permanently disable an initialized runtime. Scheduling cancellation, such as `CancellationException`, is normal rescheduling/release rather than a runtime fault.
+- Java records only `static final` fields of inlinable types. Kotlin supports top-level, object, companion, and nested class/object `const val`.
+- Java/Kotlin parsers ignore pseudo-references inside comments and string literals.
 
 ---
 
-## 7. 排查入口
+## 7. Investigation Entry Points
 
-| 现象 | 优先入口 |
+| Symptom | Start with |
 |---|---|
-| `constRefEffectedSourcePaths` 为空 | `DeployFileManager.getRecompileFiles()` 是否传入 changed source；`DeployDataGenerator` 的 `constRefEffectProvider.getEffectedFiles()` |
-| 结果疑似滞后 | `ConstRefEngine.awaitAnalysis()`，日志 `analysis not ready` / `awaitAnalysis timeout` 的 `unreadyPathCount` |
-| 删除或 `const -> val` 未触发重编 | `ConstRefChangeTracker` 的 removed keys，`ConstRefImpactResolver.getEffectedFiles()` |
-| 空白改动触发大量重编译 | `ConstRefChangeTracker.consumeDefinitionDiff()` 是否产生 changed keys |
-| 同一批 effected source 反复出现 | `ConstRefChangeTracker` 清理时机，DB 复用命中分支是否 stale |
-| 大仓库 cold scan 耗时高 | `RepoSharedFingerprintStore` 命中与写入、`ConstRefCacheDatabase.findReusablePathsByLastModified()` |
-| 全局缓存不生效 | `JuggPathManager.constRefSharedDbFile`、`repoFingerprintDbFile` 是否创建 |
-| IDE 卡死疑似 ConstRef | `09_plugin_runtime_debug.md`，对齐 `compile_latest.log`、`idea.log` / freeze dump、`ConstRefEngine` 时间线 |
+| `constRefEffectedSourcePaths` is empty | Check whether `DeployFileManager.getRecompileFiles()` passed changed source, and `constRefEffectProvider.getEffectedFiles()` in `DeployDataGenerator`. |
+| Result appears stale | `ConstRefEngine.awaitAnalysis()`, and `unreadyPathCount` in `analysis not ready` / `awaitAnalysis timeout` logs. |
+| Delete or `const -> val` does not trigger recompilation | Removed keys in `ConstRefChangeTracker`, and `ConstRefImpactResolver.getEffectedFiles()`. |
+| Whitespace changes trigger excessive recompilation | Whether `ConstRefChangeTracker.consumeDefinitionDiff()` produced changed keys. |
+| The same affected sources recur | When `ConstRefChangeTracker` clears changes, and whether the DB-reuse hit is stale. |
+| Cold scan is slow in a large repo | Hits/writes in `RepoSharedFingerprintStore`, and `ConstRefCacheDatabase.findReusablePathsByLastModified()`. |
+| Global cache has no effect | Whether `JuggPathManager.constRefSharedDbFile` and `repoFingerprintDbFile` were created. |
+| IDE appears frozen by ConstRef | `09_plugin_runtime_debug.md`; align `compile_latest.log`, `idea.log` / freeze dump, and the `ConstRefEngine` timeline. |
 
-排查关键日志（`build/jugg/log/compile_latest.log`）：
+Key logs (`build/jugg/log/compile_latest.log`):
 
 - `ConstRefEngine checksum resolve stats`
-- `ConstRefEngine effected definition changes`：打印 `fqClass.const: [type:old] -> [type:new]`；如果旧基线缺失会显示 `<missing> -> [type:new]`，表示本轮无法证明它是实际代码编辑造成的值变化。
+- `ConstRefEngine effected definition changes`: prints `fqClass.const: [type:old] -> [type:new]`; a missing old baseline shows `<missing> -> [type:new]`, meaning this run cannot establish that a real source edit changed the value.
 - `const ref effected source files`
 - `Compile success, but found effected source files, continue compile`
 - `analysis not ready` / `awaitAnalysis timeout`
 
 ---
 
-## 8. 测试落点
+## 8. Test Locations
 
-| 测试文件 | 重点验证 |
+| Test file | Focus |
 |---|---|
-| `main/src/test/java/com/sickworm/intellij/jugg/compiler/constref/ConstRefEngineTest.kt` | 编辑态延迟、await 冲刷、删除清理、removed keys、full scan 不阻塞就绪、on-demand 降级。 |
-| `main/src/test/java/com/sickworm/intellij/jugg/compiler/constref/ConstRefIntegrationTest.kt` | 冷启动 full scan、companion const、同包嵌套 object const、无关类不误报。 |
-| `main/src/test/java/com/sickworm/intellij/jugg/compiler/constref/ConstRefAnalyzerTest.kt` | Java/Kotlin parser 并发访问串行化。 |
-| `main/src/test/java/com/sickworm/intellij/jugg/compiler/constref/JavaConstParserTest.kt` | Java 定义/引用解析、注解常量、忽略注释/字符串。 |
-| `main/src/test/java/com/sickworm/intellij/jugg/compiler/constref/KotlinConstParserTest.kt` | Kotlin alias/星号导入、同包解析、忽略注释/字符串。 |
-| `main/src/test/java/com/sickworm/intellij/jugg/compiler/constref/ConstRefCacheDatabaseTest.kt` | DB upsert/query、mtime 映射、cleanup、DB-first 批量查询。 |
-| `main/src/test/java/com/sickworm/intellij/jugg/compiler/constref/RepoSharedFingerprintStoreTest.kt` | mtime 命中、中段变化 miss、worktree 共享、cleanup。 |
+| `main/src/test/java/com/sickworm/intellij/jugg/compiler/constref/ConstRefEngineTest.kt` | Edit-state delay, await flush, deletion cleanup, removed keys, full scan not blocking readiness, on-demand degradation. |
+| `main/src/test/java/com/sickworm/intellij/jugg/compiler/constref/ConstRefIntegrationTest.kt` | Cold-start full scan, companion const, same-package nested object const, no false positives from unrelated classes. |
+| `main/src/test/java/com/sickworm/intellij/jugg/compiler/constref/ConstRefAnalyzerTest.kt` | Serialized concurrent access to Java/Kotlin parsers. |
+| `main/src/test/java/com/sickworm/intellij/jugg/compiler/constref/JavaConstParserTest.kt` | Java definitions/references, annotation constants, ignoring comments/strings. |
+| `main/src/test/java/com/sickworm/intellij/jugg/compiler/constref/KotlinConstParserTest.kt` | Kotlin aliases/wildcard imports, same-package resolution, ignoring comments/strings. |
+| `main/src/test/java/com/sickworm/intellij/jugg/compiler/constref/ConstRefCacheDatabaseTest.kt` | DB upsert/query, mtime mapping, cleanup, DB-first batch query. |
+| `main/src/test/java/com/sickworm/intellij/jugg/compiler/constref/RepoSharedFingerprintStoreTest.kt` | mtime hit, miss on middle-content change, worktree sharing, cleanup. |
 
 ---
 
-## 9. 关联文档
+## 9. Related Documents
 
-- 部署核心：`03_deploy_core.md`
-- 影响分析与部署数据生成：`03_deploy_data_generator.md`
-- 编译主流程：`02_compile_core.md`
-- 运行时排查：`09_plugin_runtime_debug.md`
-- 测试策略：`06_testing.md`
+- Deployment core: `03_deploy_core.md`
+- Impact analysis and deployment-data generation: `03_deploy_data_generator.md`
+- Main compilation flow: `02_compile_core.md`
+- Runtime investigation: `09_plugin_runtime_debug.md`
+- Test strategy: `06_testing.md`
