@@ -34,7 +34,7 @@ Never treat a changelog-only request as a version bump. Never create a second `[
 
 Apply these rules to RC YAML and HTML in every workflow. A hash range, an uncommitted draft, or “only continue later commits” does not freeze existing lines or create a second inclusion policy.
 
-Draft `change_log/change_log_rc_cn.yaml` first. Mirror meaning into `change_log_rc.yaml` and both HTML pages. Do not write four independent summaries. Within one patch version, YAML and HTML include the same capability points. HTML still aggregates across patches inside one `X.Y` `<ol>`.
+Draft `change_log/change_log_rc.yaml` first. Mirror meaning into `change_log_rc_cn.yaml` and both HTML pages. Do not write four independent summaries. Within one patch version, YAML and HTML include the same capability points. HTML still aggregates across patches inside one `X.Y` `<ol>`.
 
 ### What to list
 
@@ -61,7 +61,7 @@ Examples:
 
 ### Write for users
 
-Rewrite; do not transcribe git. Chinese RC is the content baseline.
+Rewrite; do not transcribe git. English RC is the content baseline.
 
 - Feature: `支持` / `兼容` + object, then the scene. Do not lead with pipeline steps.
 - Optimize: the user-perceived result (`耗时`, `更简洁的警告`). Not heartbeat, D8, JVMTI, or similar internals.
@@ -95,7 +95,7 @@ Rewrite; do not transcribe git. Chinese RC is the content baseline.
 5. Update RC changelog YAML with Changelog Entry Rules:
    - Update `change_log/change_log_rc.yaml`.
    - Update `change_log/change_log_rc_cn.yaml`.
-   - Draft `change_log/change_log_rc_cn.yaml` first, then mirror meaning into `change_log/change_log_rc.yaml`.
+   - Draft `change_log/change_log_rc.yaml` first, then mirror meaning into `change_log/change_log_rc_cn.yaml`.
    - Keep exactly one top-level `- version: X.Y.Z` declaration per patch version.
    - If the target version does not exist, prepend a new top-level entry.
    - If the target version already exists, amend that entry's `date`, `isNeedReinstall`, and `updates` as needed. Never create a second entry for the same patch version.
@@ -116,7 +116,7 @@ Rewrite; do not transcribe git. Chinese RC is the content baseline.
    - For a patch-only change within the same `X.Y` series, reuse the existing `<ol>` and update its `<h2>` version and date, for example `3.0.21` to `3.0.22 (2026.06.27)`.
    - If the exact target version section already exists, amend that section instead of creating a duplicate.
    - Keep one aggregated HTML section per minor series.
-   - Mirror the Chinese RC capability points. Within one patch version, do not give HTML a different inclusion set from YAML.
+   - Mirror the English RC capability points. Within one patch version, do not give HTML a different inclusion set from YAML.
    - Before adding an entry, compare its user-facing behavior with the existing entries in the active minor-series section. If the commit only fixes, optimizes, or refines a feature point already described there, do not add another HTML entry. Apply this rule equally to the English and Chinese HTML pages, and to RC YAML for the same patch.
    - Sort entries by category within the section: `[feature]`, then `[optimize]`, then `[bugfix]`. Preserve reasonable order inside each category.
    - If an entry has another recognized prefix from the repository's commit convention, place it after the three main product categories unless the user says otherwise.
@@ -150,7 +150,7 @@ Use this workflow when the plugin version stays `X.Y.Z`. The version-update comm
 3. Move the version-update commit to `HEAD` without squashing later commits. Replay `<version-commit>..HEAD` onto the version commit's parent, then cherry-pick the original version-update commit onto the new tip. Keep each later commit separate and in its original order.
 4. After the move, update changelog files from the newly included commits using Changelog Entry Rules:
    - Re-audit any existing draft for this version, then append only later commits that are not already covered.
-   - Draft Chinese RC first; mirror meaning into English RC and both HTML pages.
+   - Draft English RC first; mirror meaning into Chinese RC and both HTML pages.
    - Update `date` to the local date. Amend the matching RC declaration and follow the HTML aggregation and category-sort rules from the version workflow. Never create a second RC declaration or HTML section for the same patch version.
 5. Amend only those changelog file changes into the version-update commit now at `HEAD`. Keep the original subject, author, and author date. Do not change `versionName`. Do not squash `<version-commit>..ORIG_HEAD` into the version commit.
 6. Recreate the lightweight `X.Y.Z` tag on the amended `HEAD` only if the old tag pointed at the version commit that was moved. If it pointed elsewhere, stop and report the conflict. Do not push.
@@ -164,7 +164,7 @@ Use this workflow when the user says `版本提交收尾` or asks to summarize c
 
 1. Resolve the version commit and original `HEAD`, then verify the version commit is an ancestor of `HEAD` and the working tree is clean.
    - Resolve the exact version tag before rewriting. If it points to the version commit being finalized, recreate it on the amended successor only after the rewrite succeeds. If it points elsewhere, stop and report the conflict.
-2. Summarize the user-visible changes in `<version-commit>..HEAD` with Changelog Entry Rules. Draft Chinese RC first, then mirror into English RC and HTML. Amend the matching RC version entry and follow the same-patch inclusion and HTML aggregation rules.
+2. Summarize the user-visible changes in `<version-commit>..HEAD` with Changelog Entry Rules. Draft English RC first, then mirror into Chinese RC and HTML. Amend the matching RC version entry and follow the same-patch inclusion and HTML aggregation rules.
 3. Keep one RC declaration per patch: amend it when the version exists, or prepend it when the version does not exist.
 4. Commit only the changelog summary as a temporary standalone commit.
 5. Rewrite the commit order so every commit after the version commit remains a separate commit in its original order, followed by the version commit at the tip.
@@ -184,7 +184,7 @@ Git amend changes the commit hash. Report the new hash as the amended successor 
 | Copy commit subjects (`AGP D8`, heartbeat, `注入运行时脱糖`) | Rewrite the user-visible result and scope |
 | Promote a commit `[feature]` (hot reload) when users only see latency | Classify by user perception |
 | Absorb profile/debug metadata into Flutter/C++ source support | Keep distinct wrong behavior on its own line |
-| Update one changelog file and leave the other three stale | Chinese RC first, then mirror the other three |
+| Update one changelog file and leave the other three stale | English RC first, then mirror the other three |
 
 ## File Checklist
 

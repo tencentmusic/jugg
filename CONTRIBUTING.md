@@ -19,7 +19,7 @@ Please search [existing issues](https://github.com/tencentmusic/jugg/issues) bef
 
 ## Report a bug
 
-Use the [Bug Report](https://github.com/tencentmusic/jugg/issues/new?template=04_bug_report_en.yml) template.
+Use the [Bug Report](https://github.com/tencentmusic/jugg/issues/new?template=01_bug_report_en.yml) template.
 
 1. Describe the unexpected behavior, the expected result, and the shortest reproduction steps.
 2. Attach the highest-priority diagnostic material you can provide:
@@ -40,7 +40,7 @@ Do not post credentials, private diagnostic dumps, or suspected security vulnera
 
 ## Request a feature
 
-Use the [Feature Request](https://github.com/tencentmusic/jugg/issues/new?template=05_feature_request_en.yml) template.
+Use the [Feature Request](https://github.com/tencentmusic/jugg/issues/new?template=02_feature_request_en.yml) template.
 
 Describe the real use case and the user-visible result you want. You do not need to design the internal implementation.
 
@@ -151,7 +151,7 @@ Do not include secrets, local IDE files, `build/` outputs, or unrelated formatti
 
 ## Documentation
 
-- **User Wiki** lives in `docs/wiki`. Chinese pages under `docs/wiki/zh/` are the content source; English pages should stay in sync.
+- **User Wiki** lives in `docs/wiki`. English pages at the Wiki root are the content source; Chinese pages under `docs/wiki/zh/` must stay in sync.
 - **Maintainer notes** live in `docs/ai_knowledge`. Update them when a change affects plugin internals, compile/deploy behavior, or AI task routing.
 - Do not copy internal class names into user-facing Wiki pages unless the page is explaining a user-visible name.
 

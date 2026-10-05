@@ -44,4 +44,4 @@ This policy covers Jugg itself: the Android Studio / IntelliJ plugin, the `jugg`
 
 It does not cover ordinary compile or deploy bugs, or defects in apps built with Jugg, unless they expose a security problem in Jugg.
 
-For non-security bugs, use a [Bug Report](https://github.com/tencentmusic/jugg/issues/new?template=04_bug_report_en.yml).
+For non-security bugs, use a [Bug Report](https://github.com/tencentmusic/jugg/issues/new?template=01_bug_report_en.yml).

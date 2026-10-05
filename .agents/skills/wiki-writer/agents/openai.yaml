@@ -1,4 +1,4 @@
 interface:
-  display_name: "Jugg Wiki 写作"
-  short_description: "编写并严格同步中英文 Jugg Wiki 用户文章"
-  default_prompt: "使用 $wiki-writer 编写或重写这篇 Jugg Wiki 文章；以中文为内容基准，同步生成严格镜像的英文页面。"
+  display_name: "Jugg Wiki writer"
+  short_description: "Write English-first Jugg Wiki pages with strict Chinese mirrors"
+  default_prompt: "Use $wiki-writer to write or rewrite this Jugg Wiki page in English first, then synchronize its strict Chinese mirror."

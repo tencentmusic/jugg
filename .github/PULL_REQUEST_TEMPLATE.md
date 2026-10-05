@@ -11,6 +11,7 @@ See CONTRIBUTING.md / CONTRIBUTING.zh-CN.md.
 <!--
 What user-visible problem or capability does this change?
 Describe the scenario and observable result, not the internal implementation.
+Write the factual summary in English first. Add a Chinese translation when useful for reviewers.
 
 改了什么用户可观察问题或能力？请写场景和可观察结果，不要写内部实现。
 -->
@@ -54,7 +55,7 @@ If the change cannot be asserted automatically without binding private implement
 ## Documentation / 文档
 
 - [ ] No user-facing or architecture change / 不涉及用户文档或架构变更
-- [ ] Updated user Wiki (`docs/wiki/zh/` source, English pages in sync) / 已更新用户 Wiki（中文为基准，英文同步）
+- [ ] Updated user Wiki (English root source, `docs/wiki/zh/` in sync) / 已更新用户 Wiki（英文为基准，中文同步）
 - [ ] Updated maintainer notes (`docs/ai_knowledge`) / 已更新维护者说明
 
 ## Checklist / 检查项

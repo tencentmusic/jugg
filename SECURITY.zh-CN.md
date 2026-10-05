@@ -44,4 +44,4 @@
 
 普通编译或部署缺陷，以及用 Jugg 构建的应用自身问题，不在本策略范围内，除非它们暴露了 Jugg 的安全问题。
 
-非安全缺陷请使用 [Bug 反馈](https://github.com/tencentmusic/jugg/issues/new?template=01_bug_report_zh.yml)。
+非安全缺陷请使用 [Bug 反馈](https://github.com/tencentmusic/jugg/issues/new?template=04_bug_report_zh.yml)。

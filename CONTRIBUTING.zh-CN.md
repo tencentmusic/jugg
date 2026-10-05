@@ -19,7 +19,7 @@
 
 ## 反馈缺陷
 
-请使用 [Bug 反馈](https://github.com/tencentmusic/jugg/issues/new?template=01_bug_report_zh.yml) 模板。
+请使用 [Bug 反馈](https://github.com/tencentmusic/jugg/issues/new?template=04_bug_report_zh.yml) 模板。
 
 1. 说明非预期行为、期望结果，以及最短复现步骤。
 2. 按优先级提供你能给出的最高优先级诊断材料：
@@ -40,7 +40,7 @@
 
 ## 提出功能建议
 
-请使用 [功能建议](https://github.com/tencentmusic/jugg/issues/new?template=02_feature_request_zh.yml) 模板。
+请使用 [功能建议](https://github.com/tencentmusic/jugg/issues/new?template=05_feature_request_zh.yml) 模板。
 
 描述真实使用场景和期望的用户可观察结果即可，不必设计内部实现。
 
@@ -151,7 +151,7 @@ logger.warn("message bla bla bla" +
 
 ## 文档
 
-- **用户 Wiki** 位于 `docs/wiki`。`docs/wiki/zh/` 下的中文页面是内容基准，英文页面需要保持同步。
+- **用户 Wiki** 位于 `docs/wiki`。英文根路径页面是内容基准，`docs/wiki/zh/` 下的中文页面需要保持同步。
 - **维护者说明** 位于 `docs/ai_knowledge`。改动影响插件内部、编译/部署行为或 AI 任务路由时，请同步更新。
 - 不要把内部类名写进面向普通用户的 Wiki，除非该名称本身对用户可见。
 

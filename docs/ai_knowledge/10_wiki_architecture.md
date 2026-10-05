@@ -25,7 +25,6 @@
 | `.github/workflows/release.yml` | 版本 tag 触发正式 GitHub Release；仅 tag commit 已包含在 `main` 时构建，避免 develop tag 发布正式包。 |
 | `.github/workflows/canary.yml` | 每日或手工检查触发本次运行的分支；仅在其 HEAD 与 `canary-nightly` tag 不同时构建，并更新 Canary prerelease、插件包和 SHA-256。 |
 | `.github/workflows/dev.yml` | 仅手工触发的构建验证；按 `<versionName>-dev.<日期>.<run number>` 构建被触发 ref，并更新 `dev-latest` 滚动 prerelease、`jugg-dev.zip` 与 SHA-256。 |
-| `~/Documents/shell/publish_jugg_wiki.sh` | Wiki 后台发布脚本：打包 production 产物并同步到 `ali` / `yun` 后台 Wiki 根目录。 |
 | `docs/wiki/dev/elements-demo.md` | 英文 dev-only 元素样板页，只用于开发环境视觉验收。 |
 | `docs/wiki/zh/dev/elements-demo.md` | 中文 dev-only 元素样板页，只用于开发环境视觉验收。 |
 | `docs/wiki/dev/assets/wiki-elements-demo.svg` | Demo 页使用的示例图片资源。 |
@@ -55,7 +54,7 @@ docs/wiki/
     troubleshooting/
 ```
 
-英文页面位于根路径，中文页面位于 `/zh/` 路径。中文是唯一内容基准；去掉 `zh/` 前缀后，中英文 Markdown 路径集合必须完全一致，nav/sidebar 的层级、顺序和目标页面也必须严格镜像。
+英文页面位于根路径，中文页面位于 `/zh/` 路径。英文是唯一内容基准；去掉 `zh/` 前缀后，中英文 Markdown 路径集合必须完全一致，nav/sidebar 的层级、顺序和目标页面也必须严格镜像。
 
 ### 3.1 GA4 页面统计
 
@@ -188,10 +187,10 @@ VitePress 的公开路径由 `JUGG_WIKI_BASE` 控制：
 
 ```text
 GitHub Pages build -> JUGG_WIKI_BASE=/jugg/
-默认本地或后台 build -> /
+默认本地 build -> /
 ```
 
-不要将 `base` 直接写死为 `/jugg/`，否则同步到后台根目录的产物会错误引用 `/jugg/assets/**`。首次发布前需要在 `tencentmusic/jugg` 的 `Settings -> Pages` 中将 Source 设为 `GitHub Actions`，再手工运行 `Deploy wiki to GitHub Pages` 或向 `main` 推送 Wiki 变更。GitHub 不会将仓库转移前的 Pages 地址自动重定向到新地址。
+不要将 `base` 直接写死为 `/jugg/`，以免本地构建错误引用 `/jugg/assets/**`。首次发布前需要在 `tencentmusic/jugg` 的 `Settings -> Pages` 中将 Source 设为 `GitHub Actions`，再手工运行 `Deploy wiki to GitHub Pages` 或向 `main` 推送 Wiki 变更。GitHub 不会将仓库转移前的 Pages 地址自动重定向到新地址。
 
 GitHub Pages 发布验证：
 
@@ -201,51 +200,7 @@ GitHub Pages 发布验证：
 
 ---
 
-## 9. 后台发布约定
-
-后台项目 `jugg_backend` 约定以运行目录下的相对目录 `./wiki` 作为 Wiki 静态根目录。后台启动后不会缓存静态文件列表，发布脚本用 `rsync --delete` 更新该目录后，请求会读取最新文件。
-
-后台路由约定：
-
-```text
-/      -> ./wiki/index.html
-/wiki  -> redirect /zh/
-其他路径 -> ./wiki 下同名文件、目录 index.html 或 .html 文件
-```
-
-`/` 必须保留给英文根页面，因为 VitePress 的英文 locale 默认位于根路径；`/wiki` 作为中文默认入口跳转到 `/zh/`。不要只把 `zh/index.html` 内容直接返回给 `/wiki`，否则 VitePress 客户端会按浏览器当前路径 `/wiki` 查找页面并渲染 404。
-
-本机发布脚本：
-
-```bash
-~/Documents/shell/publish_jugg_wiki.sh
-```
-
-脚本执行内容：
-
-1. 进入 `docs/wiki`。
-2. 执行 `npm ci` 与 `npm run build`。
-3. 校验 `docs/wiki/.vitepress/dist/zh/index.html` 存在。
-4. 同步 production 产物到两台后台服务器：
-
-```text
-ali:/var/www/jugg_backend/wiki
-yun:~/jugg_backend/wiki
-```
-
-其中 `ali` 的 `/var/www/jugg_backend/wiki` 通常需要 sudo 权限。脚本会先同步产物到登录用户 home 下的临时目录，再通过交互式 `sudo` 在服务器内更新 `/var/www/jugg_backend/wiki`，执行时可能提示输入 `ali` 用户的 sudo 密码。
-
-发布前检查：
-
-1. 在 `docs/wiki` 下执行 `npm run build` 成功。
-2. 在 `docs/wiki` 下执行 `npm run preview` 检查中英文首页、nav/sidebar、搜索和新增页面。
-3. 确认 production 产物不包含 `dev/elements-demo` 与 `zh/dev/elements-demo`。
-4. 若改动了 nav/sidebar，同时检查英文根路径和中文 `/zh/` 路径。
-5. 发布后检查后台 `/`、`/wiki`、`/zh/` 和至少一个静态资源路径。
-
----
-
-## 10. 公开插件下载
+## 9. 公开插件下载
 
 正式版和 Canary 使用不同发布语义：
 
@@ -257,7 +212,7 @@ yun:~/jugg_backend/wiki
 
 触发运行的分支有新 commit 时才会重新发布 Canary，版本为 `${baseVersion}-canary.<日期>.<run>`。Canary 可能包含未经完整验证的改动，下载页必须明确标记不稳定属性。
 
-## 11. 关联文档
+## 10. 关联文档
 
 - `10_wiki_authoring.md`：普通 Wiki 文章写作规则。
 - `docs/wiki/.vitepress/config.mts`：站点配置、路由、导航和 production 排除规则。
