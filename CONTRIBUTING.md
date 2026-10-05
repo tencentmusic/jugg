@@ -155,6 +155,8 @@ Do not include secrets, local IDE files, `build/` outputs, or unrelated formatti
 - **Maintainer notes** live in `docs/ai_knowledge`. Update them when a change affects plugin internals, compile/deploy behavior, or AI task routing.
 - Do not copy internal class names into user-facing Wiki pages unless the page is explaining a user-visible name.
 
+When integrating another branch into `develop/4.0`, run `python3 tools/check_english_first_diff.py --base <pre-integration-commit> --head <resulting-commit> --report /tmp/jugg-language-review.md`. Classify reported additions before completing the integration: move verified new product facts into the maintained English source without losing branch-only details, give new non-English task plans a short English `Purpose / Decision / Impact` abstract, and record justified localization, diagnostic, or test-input exceptions. See `docs/ai/97_maintenance_manual.md` §13 for the review process. The report is advisory; unchanged Chinese archives do not block integration.
+
 ## Community
 
 Be respectful in issues, pull requests, and the WeChat group. Assume good intent, keep discussion about the problem, and do not share other people's private logs or project files.

@@ -255,6 +255,7 @@ If source defaults differ from on-scene logs, check the installed plugin version
 | `NoClassDefFoundError` | Check whether `const-class`, arrays, exception tables, and other type references in caller DEX still use original names. |
 | `IllegalAccessError` / `IncompatibleClassChangeError` | Compare member access flags, direct/virtual sections, and invocation form. |
 | `AbstractMethodError` for a new class, anonymous class, or lambda | Check whether method mapping can be inferred from interfaces/superclasses when the class has no mapping of its own. |
+| `AbstractMethodError` after repeatedly incrementally compiling an implementation while its default-method interface is unchanged | Identify the actual receiver class and compare the installed, baseline-APK, and staging DEX method signatures and forwarding methods. Check `$-CC` / `$DefaultImpls`, the D8 owner variant `minApi`, resolved default interfaces, and the external superclass chain in the temporary D8 classpath. An unchanged interface source or the exception name alone does not identify the failed boundary; if only release fails, compare method mapping before attributing the crash to desugaring. |
 | `NoSuchMethodError` in a Kotlin facade or keep class | Inspect R8 synthesized entry method names, argument format, and identity-mapping coverage. |
 | An unminified variant still produces obfuscated names | A residual `mapping.txt` from an earlier minified build exists in that variant directory; verify `variants[].minifyEnabled` is `false` and project info came from this Gradle read. |
 

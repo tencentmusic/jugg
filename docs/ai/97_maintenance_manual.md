@@ -242,3 +242,11 @@ After restructuring, explain in one sentence how the page improved, for example:
 - “The additions are mainly hidden constraints rather than code paraphrases.”
 
 If you cannot do that, the document still needs pruning or restructuring.
+
+## 13. Integrating Documentation From Another Branch
+
+Before merging a branch into `develop/4.0`, identify the pre-integration base and run `python3 tools/check_english_first_diff.py --base <base-commit> --head <candidate-tip> --report /tmp/jugg-language-review.md`. After resolving the merge, rerun it against the final integration commit. The script reports only newly added or replaced Chinese lines; it is a review aid, not a CI failure based on character detection. Unchanged archives are outside its scope.
+
+Review each reported row against **both** branch versions and current implementation. Record its final classification, English landing page (or exemption), and unresolved factual questions in the integration review. A Chinese current-rule or product-fact addition goes into the matching English `docs/ai/` topic or other maintained English source. Do not replace a branch's unique new facts with an older English translation. For an existing bilingual Wiki page, edit the English source and synchronize `docs/wiki/zh/` in the same integration. New non-English `docs/task/YYYY-MM/` records keep the reviewer's language and start with a concise English `Purpose / Decision / Impact` abstract; old task and `docs/superpowers` records remain archival evidence, not automatic authority. Localized pages, genuine Chinese diagnostics or parser matches, and meaningful test inputs are language exceptions, though their behavior still needs ordinary review.
+
+For a proposed historical conclusion, check whether the behavior exists in current code and whether an English topic already covers it. Promote only a verified, durable constraint or investigation distinction; retain the original task record. Mark unimplemented proposals and claims lacking current evidence as unresolved instead of silently making them normative.
