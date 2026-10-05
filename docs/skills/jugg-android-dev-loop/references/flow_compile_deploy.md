@@ -146,7 +146,7 @@ scenario=`{{compile_only|compile_deploy}}`, command=`{{jugg compile|jugg deploy|
 Result: `{{pass|fail|inconclusive}}`. compile=`{{true|false|unknown}}`, deploy=`{{true|false|skip|unknown}}`, verify=`{{skip|light-check|inconclusive}}`. {{short reason}}
 ```
 
-中文模板：
+Chinese output template:
 
 ```
 # Jugg 编译结果

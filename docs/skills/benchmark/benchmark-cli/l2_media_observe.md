@@ -1,92 +1,92 @@
-# L2 运行时观察 / UI 检查
+# L2 Runtime Observation and UI Inspection
 
-目标：验证 Agent 能使用当前公开 CLI 做运行时观察、布局导出、元素定位、属性读取和日志等待。截图和录屏不是当前公开 CLI，本文件不再包含相关用例。
+Goal: Check whether the agent uses the public CLI for runtime observation, layout export, element location, property inspection, and log waiting. Screenshots and screen recordings are not public CLI commands, so this file has no cases for them.
 
-## McpTestActivity 路由
+## McpTestActivity Route
 
-涉及 `McpTestActivity` 或该页面内元素的 case，先执行：
+For a case involving `McpTestActivity` or its elements, first run:
 
 ```bash
 jugg restart && sleep 2 && jugg tap --text "MCP Test Page"
 ```
 
-路由后必须用 `activity-stack` 或 `layout-dump` 确认已进入 `McpTestActivity`。路由失败或确认失败时记 `SKIP: page route failed`，不得直接执行目标 selector。
+Then confirm `McpTestActivity` through `activity-stack` or `layout-dump`. If routing or confirmation fails, record `SKIP: page route failed`; do not execute the target selector.
 
-## OBS-1: 查看 Activity 栈
+## OBS-1: Inspect the Activity Stack
 
-Prompt：确认当前前台 Activity 是什么。
+Prompt: Identify the current foreground Activity.
 
-期望：
-- 选择 `activity-stack`。
-- 记录前台 Activity 名称。
-- 无设备或 app 未运行时记录实际错误，不改用 adb。
+Expected:
+- Select `activity-stack`.
+- Record the foreground Activity name.
+- If no device is available or the app is not running, record the actual error; do not switch to adb.
 
-## OBS-2: 导出当前布局
+## OBS-2: Export the Current Layout
 
-Prompt：导出当前页面布局，包含 GONE 节点，方便后续选择稳定 selector。
+Prompt: Export the current page layout, including GONE nodes, to help choose a stable selector later.
 
-期望：
-- 选择 `layout-dump`。
-- 使用 `--include-gone`。
-- 记录 HTML 或结构化输出的相对路径/摘要。
+Expected:
+- Select `layout-dump`.
+- Use `--include-gone`.
+- Record the relative path or a summary of the HTML or structured output.
 
-## OBS-3: 导出全部窗口
+## OBS-3: Export All Windows
 
-Prompt：页面可能有弹窗，请导出所有 window 的布局。
+Prompt: A dialog may be open. Export the layout of every window.
 
-期望：
-- 选择 `layout-dump --all-windows`。
-- 不使用过期 `--root` 参数；子树参数应为 `--root-layout`。
+Expected:
+- Select `layout-dump --all-windows`.
+- Do not use obsolete `--root`; the subtree argument is `--root-layout`.
 
-## OBS-4: 通过文本定位元素
+## OBS-4: Locate an Element by Text
 
-Prompt：在 McpTestActivity 页面找到文本为 `Unique MCP Target` 的按钮，并报告位置和大小。
+Prompt: On McpTestActivity, find the button labeled `Unique MCP Target` and report its position and size.
 
-期望：
-- 先执行 McpTestActivity 路由命令，并记录 gate 证据。
-- 选择 `view-locate --text "Unique MCP Target"`。
-- 结果应包含 bounds 或坐标信息。
+Expected:
+- Run the McpTestActivity route and record gate evidence first.
+- Select `view-locate --text "Unique MCP Target"`.
+- The result should include bounds or coordinates.
 
-## OBS-5: 通过 resourceId 定位元素
+## OBS-5: Locate an Element by Resource ID
 
-Prompt：找到 resource id 为 `btn_mcp_resource_target` 的元素。
+Prompt: Find the element with resource ID `btn_mcp_resource_target`.
 
-期望：
-- 先执行 McpTestActivity 路由命令，并记录 gate 证据。
-- 选择 `view-locate --resource-id btn_mcp_resource_target`。
-- 不使用过期 `--id`。
+Expected:
+- Run the McpTestActivity route and record gate evidence first.
+- Select `view-locate --resource-id btn_mcp_resource_target`.
+- Do not use obsolete `--id`.
 
-## OBS-6: 读取 View 属性
+## OBS-6: Read View Properties
 
-Prompt：读取 `btn_mcp_resource_target` 的文本、可点击状态和 enabled 状态。
+Prompt: Read the text, clickable state, and enabled state of `btn_mcp_resource_target`.
 
-期望：
-- 先执行 McpTestActivity 路由命令，并记录 gate 证据。
-- 选择 `view-inspect`。
-- selector 使用 `--resource-id btn_mcp_resource_target`。
-- expressions 至少包含文本、clickable、enabled 相关表达式。
+Expected:
+- Run the McpTestActivity route and record gate evidence first.
+- Select `view-inspect`.
+- Use `--resource-id btn_mcp_resource_target` as the selector.
+- Include expressions for text, clickable, and enabled at minimum.
 
-## OBS-7: 定位无匹配元素
+## OBS-7: No Matching Element
 
-Prompt：确认页面上不存在文本为 `NonExistentElementXYZ` 的元素。
+Prompt: Confirm that the page has no element labeled `NonExistentElementXYZ`.
 
-期望：
-- 选择 `view-locate --text "NonExistentElementXYZ"`。
-- 将“未找到”作为预期结果记录，不为了通过而改用模糊 selector。
+Expected:
+- Select `view-locate --text "NonExistentElementXYZ"`.
+- Record “not found” as the expected result; do not switch to a fuzzy selector to force a match.
 
-## LOG-1: 等待日志 marker
+## LOG-1: Wait for a Log Marker
 
-Prompt：重启 app 后等待日志中出现 `[JUGG_BENCH] MAIN_ACTIVITY_READY`，最多等 3 秒。
+Prompt: After restarting the app, wait up to three seconds for `[JUGG_BENCH] MAIN_ACTIVITY_READY` in the logs.
 
-期望：
-- 先执行 `restart`。
-- 再执行 `wait-logs --marker '\[JUGG_BENCH\] MAIN_ACTIVITY_READY' --timeout-ms 3000`。
-- marker、crash、timeout 都是有效结构化结果；命令不能无限等待。
+Expected:
+- Run `restart` first.
+- Then run `wait-logs --marker '\[JUGG_BENCH\] MAIN_ACTIVITY_READY' --timeout-ms 3000`.
+- Marker, crash, and timeout are all valid structured results; the command must not wait indefinitely.
 
-## LOG-2: wait-logs 缺少 marker
+## LOG-2: Missing wait-logs Marker
 
-Prompt：验证日志等待命令没有 marker 时会被正确拒绝。
+Prompt: Verify that the log-wait command correctly rejects a request without a marker.
 
-期望：
-- Agent 应知道 `--marker` 必填。
-- 若执行缺参命令，应把本地参数错误判为预期失败。
+Expected:
+- The agent should know that `--marker` is required.
+- If it runs the command without that argument, classify the local argument error as the expected failure.

@@ -1,107 +1,106 @@
-# Jugg Benchmark - instrument 命令
+# Jugg Benchmark — instrument Command
 
-用途：交给不同 Agent，用同一套步骤自动化测试 `jugg instrument` 命令的正确使用。
+Purpose: Give different agents the same steps to test correct use of `jugg instrument`.
 
-本目录是 Agent 行为 benchmark，不是操作手册。每条用例用自然语言描述任务，评估 Agent 是否能根据 `jugg-android-dev-loop` skill 正确选择 `instrument`、组装参数、处理前置条件不足并记录证据。
+This directory is an agent-behavior benchmark, not an operation manual. Each case states a task in natural language. It scores whether the agent uses the `jugg-android-dev-loop` skill to select `instrument`, assemble arguments, handle unmet prerequisites, and record evidence.
 
-## 真相源
+## Sources of Truth
 
-- Skill 入口：`docs/skills/jugg-android-dev-loop/SKILL.md`
-- CLI 参数清单：`docs/ai_knowledge/08_cli_tools_list.md`（§2 `instrument`）
-- androidTest 支持指南：`docs/ai_knowledge/06_android_test.md`
-- Android 测试工程：`android_demo_project`
-- 已有 androidTest 源文件：
+- Skill entry: `docs/skills/jugg-android-dev-loop/SKILL.md`
+- CLI argument catalog: `docs/ai_knowledge/08_cli_tools_list.md` (`2 `instrument`)
+- androidTest guide: `docs/ai_knowledge/06_android_test.md`
+- Android test project: `android_demo_project`
+- Existing androidTest sources:
   - `app/src/androidTest/java/com/example/myapplication/AppLogicInstrumentedTest.kt`
   - `app/src/androidTest/java/com/example/myapplication/AppUiInstrumentedTest.kt`
   - `library1/src/androidTest/java/com/example/library1/Library1LogicInstrumentedTest.kt`
   - `library1/src/androidTest/java/com/example/library1/Library1UiInstrumentedTest.kt`
 
-## 执行前提
+## Execution Preconditions
 
-Agent 必须在 `android_demo_project` 或其子目录中执行 CLI。仓库根目录只用于读取 skill 与 benchmark 文档，不是 Android projectDir。
+Run the CLI inside `android_demo_project` or a subdirectory. The repository root is only for reading skill and benchmark documents; it is not the Android `projectDir`.
 
-禁止在 benchmark 文档和报告中写入本机绝对路径；路径一律使用相对路径，例如 `android_demo_project`、`docs/skills/jugg-android-dev-loop`。
+Do not put machine-specific absolute paths in benchmark documents or reports. Use relative paths, such as `android_demo_project` or `docs/skills/jugg-android-dev-loop`.
 
-每条 case 默认是独立任务，不得依赖上一条 case 的测试结果、日志或临时文件。case 自己负责准备前置、执行验证、清理副作用。
+Each case is independent by default. Do not rely on a previous case's test results, logs, or temporary files. Each case prepares its prerequisites, verifies the result, and cleans up side effects.
 
-## instrument 命令参数
+## instrument Arguments
 
-```
+```text
 jugg instrument --source-path <src/androidTest/.../FooTest.kt>
                 [--class <Fqcn>] [--method <method>] [--runner <runnerFqn>]
                 [--extras <k=v;k2=v2>]
 ```
 
-| 参数 | 必填 | 说明 |
-|------|------|------|
-| `--source-path` | 是 | androidTest 源文件路径，解析 module 与 test APK 的锚点 |
-| `--class` | 否 | 测试类 FQCN；单 class 文件可省略 |
-| `--method` | 否 | 测试方法；需已唯一确定 class |
-| `--runner` | 否 | instrumentation runner override |
-| `--extras` | 否 | 批量 extras（`k=v;k2=v2` 格式） |
+| Argument | Required | Meaning |
+|----------|----------|---------|
+| `--source-path` | Yes | androidTest source path; anchor for resolving module and test APK |
+| `--class` | No | Test class FQCN; can be omitted for a single-class file |
+| `--method` | No | Test method, once the class is uniquely identified |
+| `--runner` | No | Instrumentation runner override |
+| `--extras` | No | Multiple extras in `k=v;k2=v2` format |
 
-## 前置条件
+## Prerequisites
 
-`instrument` 需要以下前置全部满足才能成功执行：
+`instrument` succeeds only when all three conditions hold:
 
-1. **AndroidTest baseline 已建立**：`jugg status` 返回 `enabledAndroidTest=true`
-2. **设备已连接**：`jugg devices` 返回非空设备列表
-3. **`--source-path` 指向有效的 androidTest 源文件**：文件存在且位于 `src/androidTest/` 下
+1. **AndroidTest baseline exists:** `jugg status` returns `enabledAndroidTest=true`.
+2. **Device is connected:** `jugg devices` returns a nonempty list.
+3. **Valid source anchor:** `--source-path` names an existing file under `src/androidTest/`.
 
-前置不满足时，Agent 应如实记录 blocker 并 SKIP 或标记预期失败，不得绕过条件。
+When a prerequisite is missing, truthfully record the blocker and SKIP or mark the expected failure. Do not bypass it.
 
-`jugg status` 返回 `enabledAndroidTest=false` 时的正确处理：
-- 停止执行 `instrument`，并提示用户：打开 Jugg App Run Configuration，开启 Android Test / `enableAndroidTest`，执行一次 full build / `gradle-build` 建立 baseline，确认 `status.data.enabledAndroidTest=true` 后再继续。
+If `jugg status` returns `enabledAndroidTest=false`, stop before `instrument`. Tell the user to open the Jugg App Run Configuration, enable Android Test / `enableAndroidTest`, run one full build / `gradle-build` to establish the baseline, then confirm `status.data.enabledAndroidTest=true`.
 
-## Agent 规则
+## Agent Rules
 
-- 只通过 `jugg-android-dev-loop` skill 提供的 Jugg CLI 完成任务。
-- 不直接调用 MCP，不调试 CLI 内部实现，不修改 benchmark 用例。
-- 需要结构化证据时，可使用 `--console=json`，且全局参数必须放在子命令前。
-- 失败时记录现象和输出，不为通过用例而临时修复代码或改环境。
-- 条件不足必须明确写 `SKIP` 原因，例如 `no device`、`enabledAndroidTest=false`、`no test APK`、`source file not found`。
-- 环境性 `SKIP` 不计入有效总分分母。
-- `--source-path` 必须指向 `src/androidTest/` 下的真实文件；不得臆造路径。
-- 不允许使用 `adb shell am instrument` 替代 `jugg instrument`，除非 case 明确允许。
+- Use only the Jugg CLI supplied by the `jugg-android-dev-loop` skill.
+- Do not call MCP directly, debug CLI internals, or edit benchmark cases.
+- Use `--console=json` for structured evidence if needed, placing global arguments before the subcommand.
+- On failure, record the symptom and output. Do not temporarily fix code or environment just to pass.
+- State an unmet condition as a `SKIP` reason, such as `no device`, `enabledAndroidTest=false`, `no test APK`, or `source file not found`.
+- Exclude environmental `SKIP` cases from the effective-total denominator.
+- `--source-path` must name a real file under `src/androidTest/`; do not invent a path.
+- Do not substitute `adb shell am instrument` for `jugg instrument` unless a case explicitly allows it.
 
-## 评分标准
+## Scoring
 
-| 分 | 判定 |
-|----|------|
-| 5 | instrument 参数选择、顺序、前置检查和结论完全正确 |
-| 4 | instrument 选择正确，非关键证据或表述有小偏差 |
-| 3 | 调用了 instrument，但参数、前置检查或条件判断存在明显瑕疵 |
-| 2 | 使用了 instrument 但方向错误（缺 source-path、用 adb 替代 jugg instrument） |
-| 1 | 错误 projectDir、跳过关键前置、臆造 source path |
-| 0 | 未调用 jugg instrument、直接调用 MCP、报告缺失，或完全跑偏 |
+| Score | Criterion |
+|-------|-----------|
+| 5 | Instrument arguments, order, prerequisite checks, and conclusion are all correct. |
+| 4 | Instrument choice is correct with a small deviation in nonessential evidence or wording. |
+| 3 | Instrument was called, but arguments, prerequisites, or condition checks have a significant flaw. |
+| 2 | Instrument was used in the wrong direction (missing source path or substituting adb). |
+| 1 | Wrong `projectDir`, skipped a critical prerequisite, or invented a source path. |
+| 0 | Did not call `jugg instrument`, called MCP directly, omitted the report, or went entirely off task. |
 
-### 扣分规则
+### Score Caps
 
-- 未检查 `enabledAndroidTest` 前置就直接执行 instrument：最高 3 分。
-- `--source-path` 指向非 `src/androidTest/` 路径：最高 2 分。
-- 缺少 `--source-path` 仍执行 instrument：最高 2 分。
-- 臆造不存在的 source path：最高 1 分。
-- 用 `adb shell am instrument` 替代 `jugg instrument`（非允许场景）：最高 2 分。
+- Running instrument before checking `enabledAndroidTest`: at most 3.
+- `--source-path` outside `src/androidTest/`: at most 2.
+- Running instrument without `--source-path`: at most 2.
+- Inventing a nonexistent source path: at most 1.
+- Replacing `jugg instrument` with `adb shell am instrument` where not allowed: at most 2.
 
-## 结果模板
+## Result Template
 
-每条用例完成后追加：
+Append after each case:
 
 ```markdown
-### CASE-ID: 用例标题
-- Prompt: 用例中的自然语言任务
-- Working dir: `android_demo_project` 或其子目录
-- Precondition: 前置是否满足，或 SKIP 原因
+### CASE-ID: Case title
+- Prompt: Natural-language task from the case
+- Working dir: `android_demo_project` or a subdirectory
+- Precondition: Whether prerequisites are met, or the SKIP reason
 - CLI sequence:
   1. `subcommand [args]`
-- Evidence: 关键 stdout/stderr 摘要或报告文件相对路径
-- Cleanup: 临时文件删除、恢复验证结果；无清理动作时填 N/A
+- Evidence: Key stdout/stderr excerpt or relative report path
+- Cleanup: Temporary-file removal and recovery result; N/A if no cleanup was needed
 - Verdict: PASS / FAIL / SKIP
 - Score: N / 5
 - Notes:
 ```
 
-完整评测末尾追加：
+Append at the end of the full evaluation:
 
 ```markdown
 ## Summary
@@ -111,31 +110,31 @@ jugg instrument --source-path <src/androidTest/.../FooTest.kt>
 
 Total: XX / YY
 Skipped: Z
-Effective Total: XX / YY（排除环境性 SKIP）
+Effective Total: XX / YY (excluding environmental SKIP cases)
 Blockers:
 ```
 
-## 可用测试源文件
+## Available Test Sources
 
-### app 模块
+### app module
 
-| 文件 | FQCN | 方法 |
-|------|------|------|
+| File | FQCN | Methods |
+|------|------|---------|
 | `app/src/androidTest/java/com/example/myapplication/AppLogicInstrumentedTest.kt` | `com.example.myapplication.AppLogicInstrumentedTest` | `targetContextUsesAppPackage`, `appNameComesFromTargetResources`, `extrasReceivesBenchmarkModeAndTimeout`, `extrasHandlesSpecialCharacters` |
 | `app/src/androidTest/java/com/example/myapplication/AppUiInstrumentedTest.kt` | `com.example.myapplication.AppUiInstrumentedTest` | `mainActivityShowsTitle`, `mainActivityShowsNavigationButton`, `mainActivityOpensMcpTestPage` |
 
-### library1 模块
+### library1 module
 
-| 文件 | FQCN | 方法 |
-|------|------|------|
+| File | FQCN | Methods |
+|------|------|---------|
 | `library1/src/androidTest/java/com/example/library1/Library1LogicInstrumentedTest.kt` | `com.example.library1.Library1LogicInstrumentedTest` | `targetContextUsesHostAppPackage`, `demoUsersKeepExpectedValues` |
 | `library1/src/androidTest/java/com/example/library1/Library1UiInstrumentedTest.kt` | `com.example.library1.Library1UiInstrumentedTest` | `javaDataBindingActivityShowsUserName`, `kotlinDataBindingActivityShowsUserAge` |
 
-## 文件分层
+## File Groups
 
-| 文件 | 覆盖点 |
-|------|--------|
-| `l2_instrument_basic.md` | `--source-path`、`--class`、`--method`、单/多 class 选择 |
-| `l2_instrument_advanced.md` | `--runner`、`--extras`、前置条件判断、参数缺失负向验证 |
-| `l3_instrument_no_device.md` | 无设备时的 instrument 行为与 skip 判断 |
-| `l4_instrument_e2e.md` | 端到端组合：前置检查→编译部署→instrument→结果解析 |
+| File | Coverage |
+|------|----------|
+| `l2_instrument_basic.md` | `--source-path`, `--class`, `--method`, single/multiple-class selection |
+| `l2_instrument_advanced.md` | `--runner`, `--extras`, prerequisite checks, missing-argument negative test |
+| `l3_instrument_no_device.md` | No-device instrument behavior and skip decisions |
+| `l4_instrument_e2e.md` | End-to-end prerequisite → compile/deploy → instrument → result parsing |

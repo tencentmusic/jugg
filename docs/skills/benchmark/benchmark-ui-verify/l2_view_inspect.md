@@ -1,89 +1,89 @@
 # L2 Unit: view-inspect
 
-目标：验证 Agent 能用 `view-inspect` 读取 View 属性，并选择正确 selector 与 expression。
+Goal: Check that the agent reads View properties with `view-inspect` using the right selector and expression.
 
-## INSPECT-1: 读取文本
+## INSPECT-1: Read Text
 
-Prompt：读取 `tv_mcp_body_text` 的文本。
+Prompt: Read the text of `tv_mcp_body_text`.
 
-期望：
-- 选择 `view-inspect --resource-id tv_mcp_body_text getText().toString()`。
-- 结论包含 `Body Text Sample` 或实际返回值。
+Expected:
+- Select `view-inspect --resource-id tv_mcp_body_text getText().toString()`.
+- Include `Body Text Sample` or the actual returned value in the conclusion.
 
-## INSPECT-2: 读取文字颜色
+## INSPECT-2: Read Text Color
 
-Prompt：读取 `tv_mcp_style_title` 的文字颜色。
+Prompt: Read the text color of `tv_mcp_style_title`.
 
-期望：
-- 选择 `view-inspect --resource-id tv_mcp_style_title getCurrentTextColor()`。
-- 不用 `view-locate` 的静态字段替代 getter。
+Expected:
+- Select `view-inspect --resource-id tv_mcp_style_title getCurrentTextColor()`.
+- Do not substitute a static `view-locate` field for the getter.
 
-## INSPECT-3: 读取字号
+## INSPECT-3: Read Text Size
 
-Prompt：读取 `tv_mcp_style_title` 的 textSize。
+Prompt: Read the textSize of `tv_mcp_style_title`.
 
-期望：
-- 选择 `view-inspect --resource-id tv_mcp_style_title getTextSize()`。
-- 报告实际数值和单位不确定性。
+Expected:
+- Select `view-inspect --resource-id tv_mcp_style_title getTextSize()`.
+- Report the numeric value and any uncertainty about its unit.
 
-## INSPECT-4: 读取背景
+## INSPECT-4: Read Background
 
-Prompt：读取 `view_mcp_bg_block` 的背景对象。
+Prompt: Read the background object of `view_mcp_bg_block`.
 
-期望：
-- 选择 `view-inspect --resource-id view_mcp_bg_block getBackground()`。
-- 记录返回摘要。
+Expected:
+- Select `view-inspect --resource-id view_mcp_bg_block getBackground()`.
+- Record a summary of the return value.
 
-## INSPECT-5: 读取尺寸
+## INSPECT-5: Read Dimensions
 
-Prompt：读取 `iv_mcp_icon` 的宽高。
+Prompt: Read the width and height of `iv_mcp_icon`.
 
-期望：
-- 选择 `view-inspect --resource-id iv_mcp_icon getWidth() getHeight()`。
-- 一次调用可传多个 expression。
+Expected:
+- Select `view-inspect --resource-id iv_mcp_icon getWidth() getHeight()`.
+- Multiple expressions may be passed in one call.
 
-## INSPECT-6: 读取 padding
+## INSPECT-6: Read Padding
 
-Prompt：读取 `tv_mcp_label` 的左 padding。
+Prompt: Read the left padding of `tv_mcp_label`.
 
-期望：
-- 选择 `view-inspect --resource-id tv_mcp_label getPaddingLeft()`。
+Expected:
+- Select `view-inspect --resource-id tv_mcp_label getPaddingLeft()`.
 
-## INSPECT-7: 批量读取样式属性
+## INSPECT-7: Batch Style Properties
 
-Prompt：一次性读取 `tv_mcp_style_title` 的文本、文字颜色和字号。
+Prompt: Read the text, text color, and text size of `tv_mcp_style_title` in one call.
 
-期望：
-- 选择 `view-inspect --resource-id tv_mcp_style_title getText().toString() getCurrentTextColor() getTextSize()`。
-- 不拆成多次调用，除非 CLI 返回表达式级失败。
+Expected:
+- Select `view-inspect --resource-id tv_mcp_style_title getText().toString() getCurrentTextColor() getTextSize()`.
+- Do not split the call unless the CLI reports an expression-level failure.
 
-## INSPECT-8: 读取 clickable/enabled/alpha
+## INSPECT-8: Read Clickable, Enabled, and Alpha
 
-Prompt：验证 `btn_mcp_resource_target` 的文本、可点击、enabled 和 alpha。
+Prompt: Check the text, clickable state, enabled state, and alpha of `btn_mcp_resource_target`.
 
-期望：
-- 选择 `view-inspect --resource-id btn_mcp_resource_target getText().toString() isClickable() isEnabled() getAlpha()`。
+Expected:
+- Select `view-inspect --resource-id btn_mcp_resource_target getText().toString() isClickable() isEnabled() getAlpha()`.
 
-## INSPECT-9: 读取 INVISIBLE 节点 visibility
+## INSPECT-9: Read an INVISIBLE Node
 
-Prompt：读取 `btn_mcp_visibility_hidden` 的 visibility。
+Prompt: Read the visibility of `btn_mcp_visibility_hidden`.
 
-期望：
-- 选择 `view-inspect --resource-id btn_mcp_visibility_hidden getVisibility()`。
-- 允许 inspect `INVISIBLE` 节点，但结论必须说明它不是可点击目标。
+Expected:
+- Select `view-inspect --resource-id btn_mcp_visibility_hidden getVisibility()`.
+- Inspecting an `INVISIBLE` node is allowed, but the conclusion must state it is not a tappable target.
 
-## INSPECT-10: className 辅助过滤
+## INSPECT-10: className Filter
 
-Prompt：读取文本为 `Resource Tap Target` 的 Button 是否 enabled。
+Prompt: Check whether the Button labeled `Resource Tap Target` is enabled.
 
-期望：
-- 选择 `view-inspect --text "Resource Tap Target" --class-name android.widget.Button isEnabled()` 或等价 selector。
-- 不把 className 写成独立命令。
+Expected:
+- Select `view-inspect --text "Resource Tap Target" --class-name android.widget.Button isEnabled()` or an equivalent selector.
+- Do not turn className into a separate command.
 
-## INSPECT-11: expression 缺失
+## INSPECT-11: Missing Expression
 
-Prompt：验证属性读取没有表达式时不会成功。
+Prompt: Verify that property inspection without an expression cannot succeed.
 
-期望：
-- Agent 应知道 `view-inspect` 需要 selector 加至少一个 expression。
-- 若执行缺参命令，应把参数错误判为预期失败。
+Expected:
+- Know that `view-inspect` requires a selector and at least one expression.
+- If it is run without the expression, classify the argument error as the expected failure.

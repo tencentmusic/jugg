@@ -1,119 +1,116 @@
-# ADK_RULES — Agent Dev Kit: Skill 内容治理标准
+# ADK_RULES — Agent Dev Kit Skill Content Governance
 
-> **目标**：在 context 膨胀 / 注意力集中 / 高效稳定决策 三者之间取得最佳平衡。
-> **适用范围**：jugg-android-dev-loop 目录下的所有文件。
-
----
-
-## 1. 预算硬约束
-
-| 层级 | 行数上限 | 理由 |
-|------|---------|------|
-| **SKILL.md** (Agent 入口) | **≤ 200 行** | Agent 首次加载全文，必须在模型单次注意力窗口的高效区内；超 200 行后关键指令遵从率明显下降 |
-| **单个 Reference 文件** | **≤ 150 行** | 按需加载，但加载后与 SKILL.md 共存上下文；单文件过长会稀释主指令权重 |
-| **SKILL.md + 峰值加载** | **≤ 500 行** | 单次同时加载的 SKILL.md + Reference 总行数；峰值上下文是影响 Agent 决策质量的真实变量 |
-
-> **度量方式**：`wc -l`，空行和注释行计入。Frontmatter 不计入正文行数。
+> **Goal:** Balance context size, attention, and reliable decisions.
+> **Scope:** Every file under `jugg-android-dev-loop`.
 
 ---
 
-## 2. 核心 vs 非核心判定标准
+## 1. Hard Budgets
 
-### 2.1 核心内容（必须在 SKILL.md 中）
+| Layer | Line limit | Reason |
+|-------|------------|--------|
+| **SKILL.md** (agent entry) | **≤ 200 lines** | The agent loads it in full at activation; longer entries dilute essential instructions. |
+| **Individual reference** | **≤ 150 lines** | Loaded on demand, but it shares the context with SKILL.md. |
+| **SKILL.md + peak reference load** | **≤ 500 lines** | The simultaneous load is the actual decision context. |
 
-满足 **任一** 条件即为核心：
-
-| 判定条件 | 举例 |
-|---------|------|
-| **控制流**：决定 Agent 下一步做什么 | Pipeline 步骤定义、entry gate、checkpoint、失败回退路径 |
-| **决策规则**：决定 Agent 是否/如何自动行动 | auto-apply 阈值、重试预算、compile-only 分支判定 |
-| **安全护栏**：违反会导致任务失败或用户损失 | 不可跳步、Gate 前置、Deploy 使上下文失效 |
-| **触发判定**：决定 Skill 是否被激活 | Frontmatter description + Skip Rule |
-
-### 2.2 非核心内容（必须下沉到 References）
-
-满足 **任一** 条件即为非核心：
-
-| 判定条件 | 举例 |
-|---------|------|
-| **工具参数细节**：Agent 只在使用该工具时才需要 | MCP 工具的输入/输出字段、返回值结构 |
-| **诊断知识库**：Agent 只在出错时才需要 | error_patterns 的具体 pattern 条目 |
-| **操作规程**：具体怎么做（步骤性操作指南） | UI 验证断言的 Figma/手动两条路径详细步骤 |
-| **示例/模板**：帮助理解但不参与决策 | Quick Example、Report 模板 |
-| **策略细节**：边界判定的展开说明 | 增量编译限制的具体 processor 列表 |
-
-### 2.3 灰色地带处理原则
-
-当一段内容同时具备核心和非核心特征时：
-
-1. **拆分**：将决策规则（1-2 行摘要）留在 SKILL.md，将展开说明下沉到 Reference。
-2. **指针**：SKILL.md 中用 `→ see reference_file.md §N` 做单向引用。
-3. **禁止反向依赖**：Reference 不得反向引用 SKILL.md 的章节号（避免耦合）。
+Measure with `wc -l`, counting blank and comment lines. Frontmatter does not count toward the SKILL.md body.
 
 ---
 
-## 3. 内容密度标准
+## 2. Core vs. Supporting Content
 
-### 3.1 SKILL.md 写作规则
+### 2.1 Core Content: Keep in SKILL.md
 
-| 规则 | 说明 |
-|------|------|
-| **一句话一个规则** | 每条规则/约束用一行表达，禁止段落式描述 |
-| **表格优于段落** | 多维信息用表格，不用列表嵌套 |
-| **代码块必须极短** | SKILL.md 中的代码块 ≤ 5 行；长模板/示例下沉到 Reference |
-| **去除语气修辞** | 禁止"请注意"/"务必"/"非常重要"/"NOTICE"/"IMPORTANT"等语气强调词 |
-| **粗体用于语义** | 粗体仅用于标记操作路径、必填/禁用条件；不用于普通强调 |
-| **不重复说**| 同一规则只出现一次；如果 Pipeline Step 已经说了 gate，Rules 章节只引用不复述 |
+Content is core when **any** condition applies:
 
-### 3.2 Reference 写作规则
+| Criterion | Example |
+|-----------|---------|
+| **Control flow:** Determines the agent's next step | Pipeline steps, entry gates, checkpoints, failure fallback |
+| **Decision rule:** Determines whether or how to act automatically | Auto-apply threshold, retry budget, compile-only branch |
+| **Guardrail:** Violation can fail the task or harm the user | No skipped gates; deploy invalidates prior runtime context |
+| **Activation:** Determines whether the skill runs | Frontmatter description and skip rule |
 
-| 规则 | 说明 |
-|------|------|
-| **自包含** | 每个 Reference 独立可用，不需要阅读其他 Reference |
-| **按使用场景组织** | 按 Agent 的行动时刻组织，不按技术分类组织 |
-| **速查优先** | 工具卡片用表格/YAML，不用叙述文字 |
-| **示例内联** | 示例紧跟规则，不单独成章 |
+### 2.2 Supporting Content: Move to References
 
----
+Content is supporting when **any** condition applies:
 
-## 4. 精简决策框架
+| Criterion | Example |
+|-----------|---------|
+| **Tool parameter detail:** Needed only when using that tool | MCP input/output fields and response structure |
+| **Diagnostic knowledge:** Needed only on error | Entries in `error_patterns.md` |
+| **Procedure:** How to perform a particular operation | Detailed Figma/manual UI verification paths |
+| **Example or template:** Clarifies but does not govern decisions | Quick example or report template |
+| **Policy detail:** Expands a boundary decision | Specific processors unsupported by incremental compile |
 
-当 SKILL.md 超出预算时，按以下优先级依次裁剪：
+### 2.3 Mixed Content
 
-| 优先级 | 裁剪对象 | 操作 |
-|--------|---------|------|
-| **P0 先裁** | 示例（Quick Examples） | 整体移到独立 Reference 或删除 |
-| **P1** | 模板（Report Generator） | 仅保留 1 行摘要 + 指针，模板本体移到 Reference |
-| **P2** | 工具使用细节 | 仅保留工具选择决策树，参数/返回值/示例全部移到 Reference |
-| **P3** | 规则展开说明 | 规则保留一句话，展开说明移到 Reference |
-| **P4 最后裁** | 控制流和安全护栏 | 不可裁剪——这是 Agent 的"操作系统" |
+1. **Split:** Keep the decision in one or two SKILL.md lines; move the explanation to a reference.
+2. **Point:** Link from SKILL.md to the relevant reference section.
+3. **Avoid reverse section dependencies:** A reference must not depend on a SKILL.md section number.
 
 ---
 
-## 5. 迭代守则
+## 3. Content Density
 
-### 5.1 新增内容前的三问
+### 3.1 SKILL.md Writing Rules
 
-1. **这是控制流/决策/护栏吗？** → 是：加到 SKILL.md；否：加到 Reference。
-2. **加完后 SKILL.md 超 200 行吗？** → 是：必须同时精简等量旧内容（零和原则）。
-3. **加完后对应 Reference 超 150 行吗？** → 是：考虑拆分为两个 Reference 或精简旧内容。
-4. **加完后 SKILL.md + 峰值加载超 500 行吗？** → 是：精简加载量最大的 Reference。
+| Rule | Meaning |
+|------|---------|
+| **One rule per line** | Express each constraint on one line; avoid paragraph-length rules. |
+| **Tables over prose** | Use tables for multiple dimensions; avoid nested lists. |
+| **Very short code blocks** | Keep SKILL.md code blocks within five lines; move long templates and examples to references. |
+| **No rhetorical emphasis** | Avoid tonal labels such as “please note”, “very important”, or “NOTICE”. |
+| **Semantic bold only** | Use bold for an action path or required/prohibited condition, not general emphasis. |
+| **No repetition** | State a rule once; refer to an earlier gate instead of restating it. |
 
-### 5.2 零和原则
+### 3.2 Reference Writing Rules
 
-SKILL.md 的每一次新增，都必须伴随等量或更多的移除/下沉。行数预算是硬约束，不可透支。
+| Rule | Meaning |
+|------|---------|
+| **Self-contained** | A reference should work without reading another reference. |
+| **Organize by use moment** | Follow the agent's action point, not a broad technical taxonomy. |
+| **Quick lookup first** | Use tables or YAML for tool cards rather than long prose. |
+| **Inline examples** | Place an example next to the rule it illustrates. |
+
+---
+
+## 4. Trimming Priority
+
+If SKILL.md exceeds its budget, trim in this order:
+
+| Priority | Content | Action |
+|----------|---------|--------|
+| **P0 first** | Examples | Move to a reference or remove. |
+| **P1** | Report templates | Keep a one-line summary and pointer; move the template. |
+| **P2** | Tool usage details | Keep selection criteria; move parameters, responses, and examples. |
+| **P3** | Rule explanations | Keep one-line rules; move their explanation. |
+| **P4 last** | Control flow and guardrails | Preserve; these govern safe operation. |
+
+---
+
+## 5. Iteration Rules
+
+### 5.1 Questions Before Adding Content
+
+1. **Is it control flow, a decision, or a guardrail?** Put it in SKILL.md; otherwise use a reference.
+2. **Will SKILL.md exceed 200 lines?** Remove or move at least as many old lines.
+3. **Will a reference exceed 150 lines?** Split or trim it.
+4. **Will SKILL.md plus the peak loaded references exceed 500 lines?** Reduce the largest load.
+
+### 5.2 Zero-Sum Rule
+
+Each addition to SKILL.md must be offset by removing or moving at least as much old content. Do not exceed the line budget.
 
 ### 5.3 Review Checklist
 
-每次迭代后，执行以下检查：
+After each revision, verify:
 
 ```
-- [ ] SKILL.md 正文 ≤ 200 行
-- [ ] 每个 Reference ≤ 150 行
-- [ ] SKILL.md + 峰值加载 ≤ 500 行
-- [ ] SKILL.md 中无工具参数细节（应在 Reference）
-- [ ] SKILL.md 中无完整代码示例（应在 Reference）
-- [ ] SKILL.md 中无完整报告模板（应在 Reference）
-- [ ] 同一规则只在一处表述（无重复）
-- [ ] 所有下沉内容有指针引用
+- [ ] SKILL.md body ≤ 200 lines
+- [ ] Every reference ≤ 150 lines
+- [ ] SKILL.md + peak reference load ≤ 500 lines
+- [ ] SKILL.md has no tool parameter details that belong in a reference
+- [ ] SKILL.md has no full code example or report template
+- [ ] Each rule is stated once
+- [ ] Every moved section has a pointer
 ```

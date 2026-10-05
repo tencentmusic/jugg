@@ -1,107 +1,107 @@
-# jugg-android-dev-loop — Skill 设计指南
+# jugg-android-dev-loop — Skill Design Guide
 
-> 本文档面向 Skill 维护者/迭代者。**Agent 运行时不读取此文件**。
-> 内容治理标准见 [ADK_RULES.md](ADK_RULES.md)。
-
----
-
-## 1. 设计目标
-
-让 AI Agent 用 Jugg CLI，以**确定性闭环**完成 Android 应用的"改 → 编译 → 部署 → 验证"全流程：
-
-- **可控**：Phase 0 收集上下文变量，Phase 1 路由到对应流程，流程内步步有 checkpoint。
-- **高效**：Reference 按需加载，SKILL.md ≤ 200 行，单次峰值上下文 ≤ 500 行。
-- **可扩展**：新增场景只需新增 Reference + 更新路由表，SKILL.md 无需大改。
+> This document is for skill maintainers. **Agents do not read it at runtime.**
+> See [ADK_RULES.md](ADK_RULES.md) for content governance.
 
 ---
 
-## 2. 架构模式：场景路由（Scenario Routing）
+## 1. Design Goal
 
-SKILL.md 采用"**Context Interview → Scenario Route → Load Reference**"三段式架构：
+Enable an AI agent to use the Jugg CLI for a deterministic Android development loop: change → compile → deploy → verify.
+
+- **Controlled:** Phase 0 collects context variables; Phase 1 routes to a flow with checkpoints.
+- **Efficient:** Load references on demand; keep SKILL.md within 200 lines and peak loaded context within 500 lines.
+- **Extensible:** Add a reference and update the routing table for a new scenario, without substantially rewriting SKILL.md.
+
+---
+
+## 2. Architecture: Scenario Routing
+
+SKILL.md uses three stages: **Context Interview → Scenario Route → Load Reference**.
 
 ```
-Phase 0: 收集变量（projectDir, hasAutoRunEntry, enabledAndroidTest）
+Phase 0: Collect variables (projectDir, hasAutoRunEntry, enabledAndroidTest)
     ↓
-Phase 1: 匹配场景 → 加载对应 Primary Reference
+Phase 1: Match scenario → load the primary reference
     ↓
-Reference: 执行具体流程（步骤、checkpoint、错误处理）
+Reference: Execute the flow (steps, checkpoints, error handling)
 ```
 
-SKILL.md 只负责**路由决策**和**全局共享内容**（CLI Quick Reference、Build Fallback Chain）；具体执行步骤全部在 Reference 中。
+SKILL.md contains routing decisions and shared rules (CLI Quick Reference and Build Fallback Chain). References contain the scenario-specific steps.
 
 ---
 
-## 3. 核心决策
+## 3. Core Decisions
 
-| 决策 | 判定变量 | 位置 |
-|------|---------|------|
-| **D1** Skill 是否触发 | 用户提到 Jugg / Android 源码被修改 | Frontmatter description |
-| **D2** 路由到哪个流程 | `hasAutoRunEntry` + `enabledAndroidTest` + 用户意图 | Phase 1 路由树 |
-| **D3** 加载哪些 Reference | 场景 + 当前步骤需求 | Phase 1 Scenario 表 |
-| **D4** 编译失败如何处理 | JSON `status`/`message` + 重试次数 | Build Fallback Chain |
+| Decision | Input | Location |
+|----------|-------|----------|
+| **D1** Whether the skill activates | User mentions Jugg or Android source is being edited | Frontmatter description |
+| **D2** Which flow to use | `hasAutoRunEntry`, `enabledAndroidTest`, and user intent | Phase 1 route |
+| **D3** Which references to load | Scenario and current step | Phase 1 scenario table |
+| **D4** How to handle compile failure | JSON `status`/`message` and retry count | Build Fallback Chain |
 
 ---
 
-## 4. 内容结构
+## 4. Content Structure
 
-### 4.1 文件树
+### 4.1 File Tree
 
 ```
 jugg-android-dev-loop/
-├── SKILL.md                              ← Agent 入口 (≤200行)
-├── README.md                             ← 本文件（维护者指南）
-├── ADK_RULES.md                          ← 内容治理标准
-└── references/                           ← 按需加载（单个≤150行）
-    ├── cli_manual.md                     ← UI/高级命令参数详情
-    ├── error_patterns.md                 ← 编译/运行时错误诊断
-    ├── flow_android_test.md              ← androidTest / instrument 流程
-    ├── flow_compile_deploy.md            ← 编译/部署流程
-    ├── flow_with_auto_run.md             ← 有 auto-run entry 流程
-    ├── guide_auto_run_entry.md           ← auto-run entry 配置指南
-    ├── guide_install_cli.md              ← Jugg CLI 安装指南
-    └── policy_incremental_compile_limits.md  ← 增量编译限制策略
+├── SKILL.md                               ← Agent entry (≤200 lines)
+├── README.md                              ← This maintainer guide
+├── ADK_RULES.md                           ← Content governance
+└── references/                            ← Loaded on demand (each ≤150 lines)
+    ├── cli_manual.md                      ← UI/advanced command parameters
+    ├── error_patterns.md                  ← Compile/runtime error diagnosis
+    ├── flow_android_test.md               ← androidTest / instrument flow
+    ├── flow_compile_deploy.md             ← Compile/deploy flow
+    ├── flow_with_auto_run.md              ← Flow with an auto-run entry
+    ├── guide_write_auto_run_entry_code.md ← Auto-run entry coding guide
+    ├── guide_install_cli.md               ← Jugg CLI installation guide
+    └── policy_incremental_compile_limits.md ← Incremental compile limits
 ```
 
-### 4.2 SKILL.md 内部结构
+### 4.2 SKILL.md Structure
 
 ```
-Frontmatter        → 触发条件 + 元数据
-Phase 0            → Context Interview（变量收集）
-Phase 1            → Scenario Route & Load（路由树 + 场景表）
-Mandatory Rules    → 全局约束（2条）
-CLI Quick Reference → 所有场景必用的 CLI 命令（入口、build/deploy、runtime）
-Build Fallback Chain → 编译失败回退路径（两个 flow 共用）
+Frontmatter          → Activation conditions and metadata
+Phase 0              → Context Interview (variable collection)
+Phase 1              → Scenario Route & Load (route and scenario table)
+Mandatory Rules      → Shared constraints
+CLI Quick Reference  → CLI commands needed across scenarios
+Build Fallback Chain → Failure fallback shared by the flows
 ```
 
 ---
 
-## 5. 迭代指南
+## 5. Iteration Guide
 
-**所有迭代必须遵守 [ADK_RULES.md](ADK_RULES.md)**，核心规则：
+Follow [ADK_RULES.md](ADK_RULES.md) for every revision:
 
-1. **三问法**：新增前问——是控制流/决策/护栏吗？加完 SKILL.md 超 200 行吗？Reference 超 150 行吗？峰值上下文超 500 行吗？
-2. **零和原则**：SKILL.md 新增必须伴随等量移除/下沉。
-3. **Review Checklist**：见 ADK_RULES.md §5.3。
+1. **Four checks:** Is it control flow, a decision, or a guardrail? Will SKILL.md exceed 200 lines? Will a reference exceed 150 lines? Will peak context exceed 500 lines?
+2. **Zero-sum rule:** Offset new SKILL.md content by removing or moving at least as much existing content.
+3. **Review checklist:** See ADK_RULES.md §5.3.
 
-### 常见场景
+### Common Changes
 
-| 场景 | 操作 |
-|------|------|
-| 新增错误模式 | 只改 `error_patterns.md`，SKILL.md 无需改动 |
-| 新增 CLI 命令（高频/必须了解） | 改 SKILL.md §CLI Quick Reference |
-| 新增 CLI 命令（低频/参数复杂） | 改 `cli_manual.md` + 在 SKILL.md §UI Commands 补指针 |
-| 修改 CLI 脚本、help 或 skill 文案 | 必须递增 `scripts/py/cmd/cmd_version.py` 的 `CLI_VERSION`，以及本 skill `SKILL.md` 的 `version`/`date`；自动刷新只比较 `SKILL.md` 版本 |
-| 新增场景流程 | 新建 `flow_*.md` + 更新 Phase 1 路由树和场景表 |
-| 修改路由决策 | 改 SKILL.md Phase 1 + 本 README §3 决策表 |
+| Scenario | Action |
+|----------|--------|
+| Add an error pattern | Edit `error_patterns.md` only. |
+| Add a high-frequency or essential CLI command | Edit SKILL.md §CLI Quick Reference. |
+| Add a low-frequency command with complex parameters | Edit `cli_manual.md` and add a pointer in SKILL.md §UI Commands. |
+| Change CLI scripts, help, skill text, or references | Increment `scripts/py/cmd/cmd_version.py` `CLI_VERSION` and this skill's `SKILL.md` `version`/`date`; auto-refresh compares only the SKILL.md version. |
+| Add a scenario flow | Add `flow_*.md` and update the Phase 1 route and scenario table. |
+| Change routing | Edit SKILL.md Phase 1 and this README §3. |
 
 ---
 
-## 6. 设计原则备忘
+## 6. Design Principles
 
-| 原则 | 违反信号 |
-|------|---------|
-| **按需加载** | 出现"先全部读取 references" |
-| **信息完备再动手** | 跳过 Phase 0 |
-| **路由优先** | 直接执行步骤而不经过 Phase 1 路由 |
-| **场景不混用** | 同时引用 flow_compile_deploy 和 flow_with_auto_run |
-| **SKILL.md 只管路由** | 在 SKILL.md 中写具体执行步骤 |
+| Principle | Warning sign |
+|-----------|--------------|
+| **Load on demand** | Instructions say to read all references first. |
+| **Collect context before acting** | Phase 0 is skipped. |
+| **Route first** | Steps start without the Phase 1 route. |
+| **Keep scenarios separate** | Both flow_compile_deploy and flow_with_auto_run are loaded together. |
+| **Keep SKILL.md for routing** | Scenario-specific execution steps are added to SKILL.md. |

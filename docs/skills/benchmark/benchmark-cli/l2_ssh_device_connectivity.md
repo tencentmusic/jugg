@@ -1,57 +1,57 @@
-# L2 SSH / 连通性 / 设备
+# L2 SSH, Connectivity, and Devices
 
-目标：验证 Agent 能在正确 Android projectDir 下完成基础 CLI 探测，并区分 no MCP、no device 与 SSH 授权类结果。
+Goal: Check whether the agent probes the basic CLI from the correct Android `projectDir` and distinguishes no MCP, no device, and SSH authorization outcomes.
 
-## CONNECT-1: 确认 CLI 和插件版本
+## CONNECT-1: Confirm CLI and Plugin Versions
 
-Prompt：确认当前 Jugg CLI 与 IDE 插件版本，并记录结构化证据。
+Prompt: Confirm the current Jugg CLI and IDE plugin versions, and record structured evidence.
 
-期望：
-- 在 `android_demo_project` 或其子目录执行。
-- 选择 `version`。
-- 如需 JSON 证据，使用全局 `--console=json` 且放在 `version` 前。
-- 报告 CLI version 与 plugin version；MCP 端口不可用时记 `SKIP: no MCP port`。
+Expected:
+- Run inside `android_demo_project` or one of its subdirectories.
+- Select `version`.
+- For JSON evidence, place the global `--console=json` before `version`.
+- Report the CLI and plugin versions; record `SKIP: no MCP port` if no MCP endpoint is available.
 
-## CONNECT-2: 查看当前状态
+## CONNECT-2: Inspect Current Status
 
-Prompt：查看当前 Jugg 状态，判断是否有设备、是否需要 fallback、最近 full build 基线是否启用 androidTest。
+Prompt: Inspect Jugg status to determine whether a device is available, fallback is required, and the latest full-build baseline enabled androidTest.
 
-期望：
-- 选择 `status`。
-- 记录 `hasDevice`、`needFallback`、`enabledAndroidTest`、`stateMessage` 等可见字段。
-- 不把 status 失败误判为设备失败；先区分 MCP 端口是否可用。
+Expected:
+- Select `status`.
+- Record visible fields such as `hasDevice`, `needFallback`, `enabledAndroidTest`, and `stateMessage`.
+- Do not mistake a status failure for a device failure; first distinguish whether an MCP endpoint is available.
 
-## CONNECT-3: 列出设备
+## CONNECT-3: List Devices
 
-Prompt：列出当前可用设备，并说明是否存在已选设备。
+Prompt: List available devices and say whether one is selected.
 
-期望：
-- 选择 `devices`。
-- 有设备时记录设备列表与 selected 标记。
-- 无设备时仍应接受 `devices` 正常返回空列表，不应直接失败。
+Expected:
+- Select `devices`.
+- When devices exist, record the list and selected marker.
+- An empty list is still a normal `devices` result; do not fail solely because there is no device.
 
-## CONNECT-4: 在错误目录下执行
+## CONNECT-4: Starting in the Wrong Directory
 
-Prompt：从仓库根目录执行一次需要 projectDir 的命令，验证 Agent 是否能发现应该切到 Android 工程。
+Prompt: Start at the repository root and run a command requiring `projectDir`; check whether the agent recognizes that it should move to the Android project.
 
-期望：
-- 初始目录是仓库根目录时，不把仓库根目录当 Android projectDir。
-- Agent 应切换到 `android_demo_project` 后再执行 `status` 或 `devices`。
-- 如果坚持在仓库根目录执行并把失败当成 CLI bug，得分不超过 2。
+Expected:
+- Do not treat the repository root as the Android `projectDir`.
+- Change to `android_demo_project` before running `status` or `devices`.
+- If the agent insists on running at the repository root and calls the result a CLI bug, award no more than 2.
 
-## SSH-1: 请求 SSH 信息
+## SSH-1: Request SSH Information
 
-Prompt：申请远程排障 SSH 信息，理由是 benchmark connectivity check。
+Prompt: Request remote troubleshooting SSH information for a benchmark connectivity check.
 
-期望：
-- 选择 `ssh-info`。
-- 传入 `--reason`，不要省略理由。
-- 用户同意、拒绝、远程编译未启用都可以成为有效结果；必须记录实际输出和授权结果。
+Expected:
+- Select `ssh-info`.
+- Supply `--reason`; do not omit the reason.
+- User consent, refusal, or remote compilation being disabled are all valid outcomes; record the actual output and authorization result.
 
-## SSH-2: SSH 缺少 reason 的负向验证
+## SSH-2: Missing SSH Reason
 
-Prompt：验证 `ssh-info` 缺少理由时不会被 Agent 当成正常请求。
+Prompt: Verify that the agent does not treat an `ssh-info` request without a reason as valid.
 
-期望：
-- Agent 应指出 `ssh-info` 需要 `--reason`。
-- 若实际执行缺参命令，应把非 0 退出或错误输出判为预期失败。
+Expected:
+- State that `ssh-info` requires `--reason`.
+- If actually running the command without it, classify a nonzero exit or error output as the expected failure.

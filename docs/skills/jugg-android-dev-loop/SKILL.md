@@ -1,7 +1,7 @@
 ---
 name: jugg-android-dev-loop
-version: 1.0.36
-date: 2026-09-20
+version: 1.0.37
+date: 2026-10-05
 description: >-
   Use when editing source files (Java/Kotlin/XML/layout/AndroidManifest/Gradle)
   in a Android project, or when user asks to build/deploy/verify an Android app.
@@ -20,7 +20,7 @@ This skill use Jugg CLI to drive development loop for Android: modify → build 
 
 An **auto-run entry** is a user-designated method (e.g. `com.myapp.Test.run`) that runs automatically after app launch. Agent writes verification code into it and inspects logs/UI to confirm behavior. It is the primary verification mechanism in the Jugg dev loop.
 
-> **⚠️ Entry location is NOT auto-discoverable.** The user must declare the fully-qualified method name in the prompt (中文或 English 均可). If not declared and not visible in context, **stop and ask** — do not guess or search the codebase. To author the entry body, see `references/guide_write_auto_run_entry_code.md`.
+> **⚠️ Entry location is NOT auto-discoverable.** The user must declare the fully-qualified method name in the prompt (in any language). If not declared and not visible in context, **stop and ask** — do not guess or search the codebase. To author the entry body, see `references/guide_write_auto_run_entry_code.md`.
 
 ---
 
