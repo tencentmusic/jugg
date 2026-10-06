@@ -1,232 +1,59 @@
-# figma-layout-verify Internals
+# Figma Layout Verification Internals
 
-> Last checked: 2026-05-23
-> Consistency rule: when documentation conflicts with code, code is authoritative.
+> Last verified: 2026-10-07
+> Consistency rule: If documentation conflicts with code, code takes precedence.
 
----
+## 1. Scope and Ownership
 
-## 1. Scope
+`FigmaLayoutVerifyMcpToolAction` exists but is **absent from `McpToolActionRegistry.defaultActions()`**. Neither IDEA nor Standalone advertises `figma-layout-verify` through `tools/list`; this page describes internal Kotlin behavior for maintenance, not a callable public MCP contract. App-side `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/viewhierarchy/LayoutVerifier.java` belongs to the older ViewHierarchy/layout-verify direction and does not run this Figma relationship algorithm.
 
-This page explains only the Figma JSON parsing, relationship extraction, IoU matching, and tolerance-verification algorithms in the Kotlin implementation of `figma-layout-verify`.
+| Stage | Owner |
+|---|---|
+| Internal action and Android dump | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/` (`FigmaLayoutVerifyMcpToolAction.kt`, `LayoutDumpHelper.kt`) |
+| Orchestration and report count | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/layout/FigmaLayoutVerifier.kt` |
+| Figma parsing and DFS flattening | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/layout/parser/FigmaJsonParser.kt` |
+| Spacing/alignment extraction | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/layout/extractor/RelationExtractor.kt` |
+| Bounds matching and relation checks | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/layout/matcher/ElementMatcher.kt`; `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/layout/verifier/RelationVerifier.kt` |
 
-Current boundary: the `FigmaLayoutVerifyMcpToolAction` class exists but is not registered in `McpToolActionRegistry.defaultActions()`, so it is not currently a public MCP tool. See [`08_mcp_tools_list.md`](08_mcp_tools_list.md) and runtime `tools/list` for public tools.
+## 2. Actual Action Boundary
 
----
+`FigmaLayoutVerifyMcpToolAction.execute()` first obtains an internal Android hierarchy JSON through `LayoutDumpHelper.dumpInternal()` and returns its failure unchanged. It then reads the Figma file, calls `FigmaJsonParser.validate()` on the **top-level JSON object**, reads Android `windows[].root` nodes and `deviceInfo.screenWidth/screenHeight`, derives a Figma canvas size, and calls `FigmaLayoutVerifier.verify()` with both node sets. The Android bounds and screen size from the internal dump are in dp; Figma values are pixel coordinates until spacing conversion. The action defaults `dpr` to `1.0` and does not check that a supplied value is positive.
 
-## 2. Core source index
+`FigmaJsonParser.parse()` can extract a direct node (`id` plus `layout` or `bounds`), the first entry of a `nodes` wrapper, or the first child of a `document` wrapper. **The action's earlier top-level `validate()` check requires a direct node**, and its canvas-size read also expects top-level `layout` or `bounds`. Consequently, wrapper support in the parser does not mean either wrapper works through the current action. Root validation checks `id`, presence of `layout`/`bounds`, and four coordinates; malformed children can still fail later during parsing. Invalid top-level shape returns `INVALID_FIGMA_FORMAT`; later parsing/size failures become `INTERNAL_ERROR`.
 
-| Class | File | Role |
-|-------|------|------|
-| `FigmaLayoutVerifyMcpToolAction` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/FigmaLayoutVerifyMcpToolAction.kt` | Experimental action: reads Figma JSON, internally dumps Android layout, and calls verifier for a report. |
-| `LayoutDumpHelper` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/actions/LayoutDumpHelper.kt` | Generates internal Android-layout JSON for matching actual nodes. |
-| `FigmaLayoutVerifier` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/layout/FigmaLayoutVerifier.kt` | Algorithm orchestration: parse → extract → match → verify. |
-| `FigmaJsonParser` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/layout/parser/FigmaJsonParser.kt` | Recognizes Figma JSON formats and parses a `FigmaNode` tree. |
-| `RelationExtractor` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/layout/extractor/RelationExtractor.kt` | Extracts spacing/alignment relationships from the Figma node tree. |
-| `ElementMatcher` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/layout/matcher/ElementMatcher.kt` | Normalizes Figma and Android nodes to 1000x1000, then matches by IoU. |
-| `RelationVerifier` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/layout/verifier/RelationVerifier.kt` | Verifies spacing and alignment against fixed tolerances. |
-| `FigmaNode` / `AndroidNode` / `Relation` / `VerifyResult` | `main/src/main/java/com/sickworm/intellij/jugg/ai/mcp/layout/model/*` | Algorithm data models. |
+`layout` means `[x, y, width, height]` and becomes `[x, y, x+width, y+height]`; `bounds` means `[left, top, right, bottom]` and is retained. The action uses top-level `layout[2..3]` or `bounds[2..3]` as the Figma canvas width/height. For nonzero-offset root `bounds`, right/bottom are not necessarily width/height, so matching can be distorted. Zero canvas dimensions also make normalization invalid. Verify the actual root coordinates before interpreting an IoU score.
 
----
+## 3. Relation Extraction
 
-## 3. Core data flow
+`FigmaLayoutVerifier.verify()` obtains preorder nodes from `FigmaJsonParser.flattenNodes()` for endpoint lookup, then calls `RelationExtractor.extractRelations()`, which separately flattens the tree for relation generation; both include containers and leaves. Its `extractSpacingRelations()` considers only **consecutive flattened nodes**, including parent–child neighbors; visual neighbors elsewhere in the hierarchy are omitted. Horizontal spacing requires their top coordinates to differ by less than `(20*dpr).toInt()` and the second left edge to be at or beyond the first right edge. Vertical spacing uses the analogous left-coordinate and top/bottom test. Expected gap is the edge difference divided by `dpr` and truncated to integer dp. A missing spacing relation is therefore not evidence that the visual gap is correct.
 
-```text
-FigmaLayoutVerifyMcpToolAction.execute()
-  -> validate figmaJsonPath and read dpr (default 1.0)
-  -> LayoutDumpHelper.dumpInternal()
-       produce internal Android-layout JSON; return dump error directly on failure
-  -> FigmaJsonParser.validate()
-       validate root-node format only; return INVALID_FIGMA_FORMAT if invalid
-  -> FigmaLayoutVerifier.verify()
-       parse Figma JSON
-       extract spacing/alignment relations
-       IoU-match endpoints of each relation
-       verify actual relations using Android dp bounds
-  -> structuredContent.data.results
-```
+`RelationExtractor.extractAlignmentRelations()` groups nodes by `(top / tolerance) * tolerance` for the y axis and `(left / tolerance) * tolerance` for the x axis, where `tolerance=(5*dpr).toInt()`. Each bucket with at least two nodes yields one relation. Verification compares **centers**, not the top/left coordinates that formed the bucket; differently sized nodes can fail despite sharing a bucket. With `dpr` small enough to truncate tolerance to zero, extraction can fail instead of producing an empty/failed report.
 
-App-side `jvmti_agent/.../LayoutVerifier.java` belongs to the old `layout-verify` / ViewHierarchy-server direction. `figma-layout-verify` relationship extraction and verification run in IDE-side Kotlin.
+## 4. Matching and Verification
 
----
+For each extracted relation, `FigmaLayoutVerifier.verify()` calls `ElementMatcher.match()` for its endpoints and then `RelationVerifier.verifySpacing()` or `verifyAlignment()` for matched Android nodes. `ElementMatcher.match()` normalizes each Figma and Android rectangle to integer coordinates on a 1000×1000 canvas using its own screen width/height. It ranks Android candidates by intersection-over-union and accepts only scores **strictly greater than 0.7**. The highest candidate is used; at most three alternatives are stored by the matcher but `FigmaLayoutVerifier` does not try them. Names, text, class, ID, and content description do not affect matching. The matcher makes no one-to-one assignment, so different Figma endpoints may select the same Android node or an overlapping container.
 
-## 4. Figma JSON parsing
+| Relation | Actual Android value | Pass rule |
+|---|---|---|
+| Horizontal/vertical spacing | Second left minus first right, or second top minus first bottom, in dp | `abs(actual - expected) <= 2` **or** `abs(actual - expected) / expected <= 0.05`. |
+| x/y alignment | Maximum minus minimum center coordinate among matched nodes, in dp | Difference `<= 2`. |
 
-`FigmaJsonParser.parse()` accepts three input formats:
+The percentage branch uses raw `expected`: when it is zero, the code substitutes percentage difference `0`. A negative expected value, possible for direct verifier callers but not produced by current adjacency extraction, makes the percentage negative. Thus a zero-gap relation can pass despite exceeding 2 dp. An unmatched spacing endpoint drops that relation entirely. An alignment relation is checked only if at least two endpoints matched; its reported description still counts the original group. `total`, `passed`, and `failed` count **evaluated relations**, not all extracted relations or all Figma nodes.
 
-| Format | Detection condition | Root node |
-|--------|---------------------|-----------|
-| Direct node | `json.has("id") && (json.has("layout") || json.has("bounds"))` | JSON itself. |
-| Nodes wrapper | `json.has("nodes")` | `nodes.entrySet().first().value`. |
-| Document wrapper | `json.has("document")` | `document.children[0]`. |
+The internal action returns tool `status=OK` even when `report.failed > 0`, and can report `0` verified relations as OK. Consumers must inspect `data.total`, `data.failed`, and each `results[].match`; the tool-level status does not establish layout equivalence. Color, typography, and corner radius are outside this algorithm. For publicly callable UI evidence, use a Runtime that advertises `view-locate` and `view-inspect` in its `tools/list`.
 
-Bounds rules:
+## 5. Diagnostic Start Points
 
-| Field | Input meaning | Parsed result |
-|-------|---------------|---------------|
-| `layout` | `[x, y, width, height]` | `[x, y, x + width, y + height]`. |
-| `bounds` | `[left, top, right, bottom]` | Used unchanged. |
+| Observation | Discriminating evidence |
+|---|---|
+| MCP says tool not found | `defaultActions()` and the connected Runtime's `tools/list`; class existence is insufficient. |
+| Wrapper JSON fails despite parser support | Action's top-level `validate()` and canvas-size access before `FigmaLayoutVerifier.verify()`. |
+| No relation or suspiciously small `total` | DFS order, adjacent spacing pairs, alignment buckets, and unmatched endpoint drops. |
+| Wrong Android node or false pass | Canvas dimensions, normalized rectangles, competing IoU scores, and reused Android match. |
+| Counterintuitive spacing success | `dpr`, truncated expected dp, and `expected <= 0` percentage branch. |
+| Alignment failure among same-edge nodes | Bucketed top/left versus verified center coordinates. |
 
-`flattenNodes()` flattens the tree with preorder DFS, retaining container and leaf nodes. Later spacing extraction scans only adjacent indices of this flattened list, so Figma hierarchy order directly affects relationship coverage.
+## 6. Related Documents
 
----
-
-## 5. Relationship extraction
-
-`RelationExtractor` determines relationships in Figma pixel space, then divides spacing expected values by `dpr` to obtain dp.
-
-### 5.1 spacing
-
-Only adjacent nodes `(nodes[i], nodes[i + 1])` in the flattened list are checked.
-
-Horizontal adjacency:
-
-```text
-tolerance = (20 * dpr).toInt()
-abs(node1.top - node2.top) < tolerance
-AND node2.left >= node1.right
-expected = ((node2.left - node1.right) / dpr).toInt()
-axis = "x"
-```
-
-Vertical adjacency:
-
-```text
-tolerance = (20 * dpr).toInt()
-abs(node1.left - node2.left) < tolerance
-AND node2.top >= node1.bottom
-expected = ((node2.top - node1.bottom) / dpr).toInt()
-axis = "y"
-```
-
-Implementation uses `toInt()` to truncate fractional values, not rounding.
-
-### 5.2 alignment
-
-Bucket nodes by top / left coordinate; a bucket with at least two nodes produces one alignment relation.
-
-```text
-tolerance = (5 * dpr).toInt()
-yBucket = (top / tolerance) * tolerance
-xBucket = (left / tolerance) * tolerance
-```
-
-| Bucket key | axis | Verification meaning |
-|------------|------|----------------------|
-| `top` | `y` | Are multiple node centerY values aligned? |
-| `left` | `x` | Are multiple node centerX values aligned? |
-
-Note that bucketing uses top/left but verification uses centers. This can reduce the effect of simple size differences, but nodes with near-equal tops and substantially different centers can fail in verification.
-
----
-
-## 6. Element matching
-
-`ElementMatcher` ignores name, text, and resourceId; only relative bounds position and size count.
-
-```text
-normalized.left   = bounds.left   / screenWidth  * 1000
-normalized.top    = bounds.top    / screenHeight * 1000
-normalized.right  = bounds.right  / screenWidth  * 1000
-normalized.bottom = bounds.bottom / screenHeight * 1000
-```
-
-Screen-size sources:
-
-| Side | Source | Unit |
-|------|--------|------|
-| Figma | Root `layout[2], layout[3]` or `bounds[2], bounds[3]`. | Figma px. |
-| Android | `deviceInfo.screenWidth/screenHeight` in internal `layout-dump` JSON. | dp. |
-
-IoU matching:
-
-```text
-iou = intersectArea / (area1 + area2 - intersectArea)
-match if iou > 0.7
-```
-
-The highest-IoU Android node becomes matched, with at most three alternatives retained.
-
----
-
-## 7. Relationship verification
-
-`AndroidNode.bounds` are already dp, converted from px by IDE-side `layout-dump`.
-
-### 7.1 spacing
-
-Actual values:
-
-```text
-axis=x: actual = element2.left - element1.right
-axis=y: actual = element2.top  - element1.bottom
-diff = actual - expected
-```
-
-Pass condition:
-
-```text
-abs(diff) <= 2
-OR abs(diff) / expected <= 0.05
-```
-
-Counterintuitive implementation details:
-
-- With `expected == 0`, percentage difference is 0, so the percentage condition can pass even when absolute tolerance fails; this is current code behavior.
-- With `expected < 0`, percentage difference is negative and also meets `<= 0.05`; overlapping relationships may therefore be too permissive.
-
-### 7.2 alignment
-
-```text
-axis=x: centerX = (left + right) / 2
-axis=y: centerY = (top + bottom) / 2
-maxDiff = max(center) - min(center)
-pass if maxDiff <= 2
-```
-
----
-
-## 8. Unit transitions
-
-| Stage | Figma side | Android side |
-|-------|------------|--------------|
-| After JSON parsing | Figma px | dp |
-| spacing expected | Figma px / dpr → dp | — |
-| IoU matching | Figma px / canvas size → 1000 space | dp / screen dp → 1000 space |
-| Relationship verification | expected dp | actual dp |
-
----
-
-## 9. Hidden constraints and limitations
-
-| Constraint / limitation | Effect |
-|-------------------------|--------|
-| Action absent from `defaultActions()`. | Do not promise direct `figma-layout-verify` calls in public MCP/CLI docs. |
-| Spacing sees only DFS-flattened adjacent nodes. | Visually related but nonadjacent gaps can be missed. |
-| Alignment buckets by top/left, then verifies centers. | It may extract alignment that ultimately fails. |
-| Fixed IoU threshold `> 0.7`. | Overlapping containers, FrameLayout, or similarly sized nodes may mismatch. |
-| Matching ignores semantics. | Element name, text, and resourceId do not participate. |
-| Color, font size, and corner radius are unverified. | Use public `view-inspect` for these properties; use `view-locate` for position and size. |
-| Spacing percentage tolerance divides by raw `expected`. | `expected <= 0` produces results unlike ordinary percentage-tolerance intuition. |
-
----
-
-## 10. Troubleshooting entry points
-
-| Symptom | First place to inspect |
-|---------|------------------------|
-| Tool cannot be called through MCP. | `McpToolActionRegistry.defaultActions()` to confirm registration. |
-| Figma JSON rejected. | `FigmaJsonParser.validate()`. |
-| Missing spacing relationship. | `RelationExtractor.extractSpacingRelations()` and Figma flattening order. |
-| Too many alignment relationships. | `RelationExtractor.extractAlignmentRelations()`'s `5 * dpr` bucket. |
-| Element matched to the wrong Android View. | Normalized bounds and IoU score in `ElementMatcher.match()`. |
-| Spacing diff looks unreasonable. | dp actual/expected and `dpr` in `RelationVerifier.verifySpacing()`. |
-
----
-
-## 11. Related documents
-
-- MCP design: `08_mcp_design.md`.
-- MCP tool arguments: `08_mcp_tools_list.md`.
-- UI layout-verification design: `08_mcp_layout_verify_design.md`.
-- UI verification checklist: `08_mcp_ui_verify_checklist.md`.
-- Code paths: `98_code_map.md`.
+- `08_mcp_design.md` and `08_mcp_tools_list.md` — current public registration and response boundaries.
+- `08_mcp_layout_verify_design.md` and `08_mcp_ui_verify_checklist.md` — callable UI observation workflow.

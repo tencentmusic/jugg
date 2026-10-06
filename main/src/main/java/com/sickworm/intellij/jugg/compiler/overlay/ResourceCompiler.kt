@@ -44,6 +44,7 @@ class ResourceCompiler(
             val resourceRoot = if (compileFile.file.isDirectory) compileFile.file else compileFile.baseDir
             resourceRoot.absoluteFile.normalize().path
         }.map { (resourceRootPath, compileFiles) ->
+            // Keep equal relative resource names from different roots from sharing one flat output.
             val outputSubDir = outputDir.resolve(resourceRootPath.md5)
             logger.debug("res root $resourceRootPath, output $outputSubDir")
             ResCompileSet(

@@ -1,136 +1,70 @@
-# Compilation System: Custom Compilers and Compilation Interaction
+# Compilation System: Custom Compilers and Host Interaction
 
-> Last verified: 2026-05-23
+> Last verified: 2026-10-07
 > Consistency rule: If documentation conflicts with code, code takes precedence.
 
----
+## 1. Purpose
 
-## 1. Purpose of This Document
-
-This page describes two extension surfaces:
-
-- How a custom compiler becomes an `ICompiler` from a configured JAR and where it enters incremental compilation stages.
-- How compilation interacts with IDE/CLI through `CompileUiHandler`.
-
-For the built-in compilation flow, see `02_compile_core.md`; for IDE Run Configuration and task scheduling, see `04_engineering_ide.md`.
-
----
+This page locates the custom compiler SPI, its JAR and instance lifecycle, stage insertion, and the interaction boundary between shared compilation and IDE or CLI hosts. For built-in stage order, see `02_compile_core.md`.
 
 ## 2. Core Source Index
 
-| Class | File | Role |
-|-------|------|------|
-| `CustomCompilerManager` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/custom/CustomCompilerManager.kt` | Receives server configuration, resolves local/remote JARs, checks MD5, and lazily loads SPI compilers |
-| `ICompilerCreator` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/custom/ICompilerCreator.kt` | SPI entry point creating an `ICompiler` for the current `ICompileContext` and `Disposable` |
-| `BaseCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/BaseCompiler.kt` | Runs custom compilers before or after built-in stages according to `CompileOrder` |
-| `CompileOrder` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/CompileOrder.kt` | Defines `before/after asset/res/source/minify/dex` and `atFirst/atLast` insertion ranges |
-| `CompileUiHandler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/CompileUiHandler.kt` | Compilation-side interaction abstraction hiding IDE UI, CLI defaults, and androidTest event sink |
-| `CustomCompilerInfo` | `main/src/main/java/com/sickworm/intellij/jugg/server/protocols/Protocols.kt` | Server-provided JAR name, path, and MD5 configuration model |
-| `Example*CustomCompiler` | `custom_compilers/src/main/java/com/sickworm/intellij/jugg/compiler/demo/` | Example SPI implementations for common insertion forms such as assemble, delay, and hook initialization |
+| Entry | Location | Responsibility |
+|---|---|---|
+| `ProjectCustomConfigManager` | `main/src/main/java/com/sickworm/intellij/jugg/project/runtime/ProjectCustomConfigManager.kt` | Applies the effective local/server configuration to runtime collaborators. |
+| `CustomCompilerManager` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/custom/CustomCompilerManager.kt` | Resolves JARs, loads SPI instances, and owns their `Disposable` scope and classloader. |
+| `ICompilerCreator` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/custom/ICompilerCreator.kt` | ServiceLoader entry that creates an `ICompiler` for one compile context. |
+| `BaseCompiler` / `CompileOrder` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/` | Insert custom compilers before or after ranges exposed by built-in stages. |
+| `CompileUiHandler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/CompileUiHandler.kt` | Carries confirmations, cancellation, status/output, and deploy-related choices across the Host boundary. |
+| `JuggCompileUiHandler` / `StandaloneCompileUiHandler` | `idea/src/main/java/com/sickworm/intellij/jugg/compiler/JuggCompileUiHandler.kt`; `cmd_line/src/main/java/com/sickworm/intellij/jugg/cmdline/standalone/StandaloneCompileUiHandler.kt` | Supply IDE or noninteractive standalone behavior. |
 
----
-
-## 3. Core Data Model
-
-| Object | Origin | Key meaning |
-|--------|--------|-------------|
-| `CustomCompilerInfo.jarFileName` | Server config | Filename for downloading a remote JAR into `customCompilerDir` |
-| `CustomCompilerInfo.path` | Server config | May be an absolute path, path relative to `projectDir`, or `http(s)` URL |
-| `CustomCompilerInfo.md5` | Server config | Existing local JARs must match; remote downloads must also match or be deleted |
-| `customCompilerJars` | `CustomCompilerManager` memory state | Current valid JAR list; obsolete JARs are removed from `customCompilerDir` |
-| `customCompilers` | Lazy `CustomCompilerManager` cache | Created through `ServiceLoader` on first `getCustomCompilers()`. Each compiler batch registers in a manager-owned `Disposable` compatibility scope. On configuration/JAR-list changes, completed download, or manager `close()`, old instances are disposed before the old classloader closes |
-| `ICompiler.order` | Custom compiler implementation | Determines which `BaseCompiler` before/after hook runs it |
-
----
-
-## 4. Loading and Execution Flow
-
-### 4.1 From Configuration to JAR State
-
-`ProjectCustomConfigManager` passes local/server custom config to `CustomCompilerManager` for consistent JAR-state management. The method order within a file is less important than these rules:
-
-- A `null` config does not clear old state; only a non-null list recomputes valid JARs.
-- A local JAR enters `customCompilerJars` only if it exists and its MD5 matches.
-- A remote JAR first reuses a cached copy; if missing, it downloads in the background and is checked by MD5 afterward.
-- Successful download, configuration changes, or explicit JAR-list changes clear instantiated `customCompilers` and close the old `URLClassLoader`; the next `getCustomCompilers()` lazily reloads the SPI. Manager `close()` also releases the loader.
-- `CustomCompilerManager` publicly implements `AutoCloseable` and accepts only `ICompileContext` during initialization; `Disposable` remains an internal compatibility scope for the `ICompilerCreator` SPI.
-- Applying runtime custom config enters the project write lock to avoid releasing the old compiler scope or classloader during an active compilation.
-
-### 4.2 From SPI Instance to Compilation Stage
+## 3. JAR and Instance Lifecycle
 
 ```text
-BaseCompileContext.customCompilers
-  -> CustomCompilerManager.getCustomCompilers()
-     -> URLClassLoader(customCompilerJars, current classloader)
-     -> ServiceLoader.load(ICompilerCreator)
-     -> creator.create(context, parent)
-  -> BaseCompiler.compile(task)
-     -> executeBeforeCustomCompilers(beforeCompileOrderRange, task)
-        -> consumeFiles() filters later inputs first
-        -> compile(filteredTask)
-     -> built-in doCompile(filteredTask)
-     -> executeAfterCustomCompilers(afterCompileOrderRange, filteredTask, result)
-        -> convert built-in outputs back to CompileFile for the custom compiler
+ProjectCustomConfigManager applies effective configuration
+  -> CustomCompilerManager resolves local/project-relative JARs or cached remote JARs
+  -> missing remote JARs download asynchronously
+  -> changed configuration/JAR list or completed download releases the old
+     compiler scope, closes the child URLClassLoader, and invalidates instances
+  -> BaseCompileContext.customCompilers requests lazy ServiceLoader instances
+     through ICompilerCreator.create(context, disposableScope)
+  -> Runtime disposal closes the manager and its loaded resources
 ```
 
----
+`CustomCompilerInfo` supplies JAR filename, path, and MD5. Configured existing JARs are checked before entering the current list; a newly downloaded JAR is checked after download. The HTTP download reset scans cached `.jar` files, so when diagnosing an unexpected SPI provider, inspect the actual loaded JAR list rather than inferring it only from the config. A missing remote JAR can leave the current compilation without its compiler; it becomes available on a later run after download and reload.
 
-## 5. Compilation Interaction Protocol
+`CustomCompilerManager.updateCustomCompilers(null)` itself retains prior state, but the normal `ProjectCustomConfigManager` caller passes `config.customCompilers.orEmpty()`. An absent list in the effective project config therefore clears configured compilers. The separate `BuildIncrementalApkCommand` CLI path supplies explicit `customCompilerJars` directly to the manager.
 
-`CompileUiHandler` is the only interaction surface the compilation flow should depend on. IDE, CLI, and test default implementations all supply behavior through it; compilation core does not manipulate a concrete UI directly.
+The loader uses Jugg's classloader as parent, so custom JARs should use the host Jugg API types. `ICompilerCreator` receives a manager-owned `Disposable` for SPI compatibility; the manager disposes that scope before closing the old loader. The IDEA server-update path applies configuration under the project write lock; the background download can invalidate loaded compilers separately.
 
-| Object | File | Purpose |
-|--------|------|---------|
-| `isForceGradleCompile` | `CompileUiHandler` | User switch to force Gradle compilation |
-| `isSkipDeploy` / `isAlwaysRestartApp` | `CompileUiHandler` | Post-compilation deployment-policy inputs |
-| `createCompileStatusHolder()` | `CompileUiHandler` | Creates cancellation and current-file state object |
-| `createOutputParser()` | `CompileUiHandler` | Gradle compilation-output parsing entry point |
-| `confirmBuildChanges()` / `confirmDependencyChanges()` / `confirmTooManyChanges()` | `CompileUiHandler` | User confirmation for build-file changes, dependency changes, or too many source changes |
-| `notifyByBalloon()` / `updateIndicatorText()` | `CompileUiHandler` | User-visible progress prompts |
-| `testEventSinkFactory` | `CompileUiHandler` | Connects instrumentation events to Test Results during androidTest runs |
-| `RunResult` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/ui/RunResult.kt` | Final compilation/deployment state |
-| `BuildChangesConfirmResult` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/ui/BuildChangesConfirmResult.kt` | Result of build-change confirmation |
-| `TooManyChangesConfirmResult` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/ui/TooManyChangesConfirmResult.kt` | Result of too-many-source-changes confirmation |
+## 4. Stage Insertion and Results
 
----
+```text
+BaseCompiler.compile(task)
+  -> before hooks whose ICompiler.order falls in this stage's before range
+     filter downstream inputs through consumeFiles() and add custom outputs
+  -> built-in stage runs only if the accumulated result succeeded
+  -> after hooks whose order falls in the after range receive accumulated
+     outputs converted to CompileFile; their outputs join the result
+```
 
-## 6. Hidden Constraints / Design Rationale
+The range belongs to the *built-in compiler instance*, not merely to the global names in `CompileOrder`. Check the target stage's `beforeCompileOrderRange` or `afterCompileOrderRange` when a hook does not run. Before hooks can change the files seen by the built-in stage. After hooks receive accumulated outputs, including successful before-hook outputs; each after hook receives the same converted task rather than a chain of previous after-hook outputs. A before-hook failure suppresses built-in and after work; an after-hook failure marks the result failed while the loop still visits other after hooks. Thrown exceptions produce developer diagnostics and user-visible warnings.
 
-- `updateCustomCompilers(null)` does not clear the old configuration; only a non-null list recomputes JARs and removes obsolete cache entries.
-- Remote JAR download is asynchronous. On the first `getCustomCompilers()` after a configuration update, the list may still be empty if the JAR is absent; after download, `resetCompilerJars()` makes the next run reload it.
-- `BaseCompiler` catches a custom compiler exception, emits a user-visible warning, and ends the current task as failed; the exception does not propagate into the IDE process.
-- A before hook can alter later built-in compilation inputs through `consumeFiles()`; an after hook sees only built-in outputs converted to `CompileFile`.
-- `order` must lie within the range exposed by a particular compiler to execute. For example, use `CompileOrder.afterSource` for outputs after Java/Kotlin compilation, and confirm that `JavaCompiler` / `KotlinCompiler` / `SourceCompiler` exposes the target stage.
-- `URLClassLoader` uses Jugg's current classloader as parent. A custom JAR can reuse Jugg APIs, but packaging a conflicting version may make class loading unpredictable.
-- `CompileUiHandler.DEFAULT` is a safe no-UI default for CLI/tests; it does not open confirmation dialogs or show a Run window.
+To provide a compiler, package an `ICompilerCreator` implementation and `META-INF/services/com.sickworm.intellij.jugg.compiler.custom.ICompilerCreator`, choose an order exposed by the intended stage, then provide the JAR path and MD5 in project custom configuration. The `custom_compilers` module contains example providers.
 
----
+## 5. Host Interaction Boundary
 
-## 7. Suggested Steps for a New Custom Compiler
+Shared compilation calls `CompileUiHandler` for fallback and change confirmations, progress, cancellation, Gradle output parsing, and run/deploy policy. Its `testEventSinkFactory` connects androidTest instrumentation events to the Test Results UI; see `06_android_test.md` for that flow. `JuggCompileUiHandler` can display IDE dialogs and Run UI; RPC mode resolves confirmations without dialogs. `StandaloneCompileUiHandler` supplies noninteractive choices and cancellation/progress state. `CompileUiHandler.DEFAULT` is a no-UI fallback used by specific noninteractive and test paths; it is not the behavior to assume for an ordinary IDE Run.
 
-1. Implement `ICompilerCreator` and a custom `ICompiler` in a separate module.
-2. Configure `META-INF/services/com.sickworm.intellij.jugg.compiler.custom.ICompilerCreator`.
-3. Choose a clear `CompileOrder` range for the custom `ICompiler.order`.
-4. Declare the JAR path and MD5 in server configuration.
-5. Update through `CustomCompilerManager` and inspect logs for JAR resolution, download, and `initCompilers finished`.
+| Symptom | First evidence to compare |
+|---|---|
+| Configured compiler absent | Effective config, actual JAR list and MD5, completed background download, then ServiceLoader registration. |
+| Hook ran at the wrong point | Hook `order` and the chosen built-in stage's exposed range. |
+| Custom compiler failed | `BaseCompiler` warning and underlying debug exception; check whether built-in work was suppressed. |
+| Prompt or cancellation differed by entry point | Concrete Host `CompileUiHandler`, RPC mode, and its current process/status holder. |
 
----
+## 6. Related Documents
 
-## 8. Investigation Entry Points
-
-| Symptom | First entry point |
-|---------|-------------------|
-| JAR configured but ineffective | `CustomCompilerManager.updateCustomCompiler()`; check path type and MD5 |
-| Remote JAR downloaded but did not run this time | `downloadCompilers()` / `resetCompilerJars()`; check whether a later compilation must reload it |
-| `ServiceLoader` did not find an implementation | `META-INF/services/com.sickworm.intellij.jugg.compiler.custom.ICompilerCreator` inside the JAR |
-| Compiler ran in the wrong stage | `ICompiler.order` and `CompileOrder` ranges, and the built-in compiler's `beforeCompileOrderRange` / `afterCompileOrderRange` |
-| Custom compiler failure caused the entire run to fail | Warning logs from `BaseCompiler.executeBeforeCustomCompilers()` / `executeAfterCustomCompilers()` |
-| UI confirmation or cancellation differs from expectations | Current `CompileUiHandler` implementation, not `CompileUiHandler.DEFAULT` |
-
----
-
-## 9. Related Documents
-
-- Core compilation: `02_compile_core.md`
-- IDE execution flow: `04_engineering_ide.md`
-- Project/configuration: `04_engineering_project.md`
+- `02_compile_core.md` — built-in stage orchestration.
+- `04_engineering_project.md` — project configuration and context.
+- `04_engineering_ide.md` — IDE run and task lifecycle.

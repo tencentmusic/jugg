@@ -85,6 +85,7 @@ class ResourceApkModifier(
 
     private fun updateAtomically(copyPublishedApk: Boolean, update: (File) -> Unit) {
         resourceApkFile.parentFile.mkdirs()
+        // A fresh path avoids reusing a stale ZipFS URI after a failed update; publish only after it closes.
         val tempApk = Files.createTempFile(
             resourceApkFile.parentFile.toPath(),
             ".${resourceApkFile.name}.",

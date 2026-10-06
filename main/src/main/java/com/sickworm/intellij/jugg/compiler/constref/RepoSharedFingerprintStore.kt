@@ -192,6 +192,7 @@ class RepoSharedFingerprintStore(
         val tailSize = headSize
         val headBytes = ByteArray(headSize)
         val tailBytes = ByteArray(tailSize)
+        // Include a middle sample so equal-size worktree files with unchanged ends cannot share a stale checksum.
         val middleSize = if (fileSize > sampleSize.toLong() * 2) {
             sampleSize
         } else {

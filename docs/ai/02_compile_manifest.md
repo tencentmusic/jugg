@@ -1,84 +1,60 @@
 # Compilation System: Incremental Manifest Merge
 
-> Last verified: 2026-08-10
+> Last verified: 2026-10-07
 > Consistency rule: If documentation conflicts with code, code takes precedence.
 
----
+## 1. Scope
 
-## 1. Purpose of This Document
-
-This page covers only incremental AndroidManifest merging: from a changed manifest to an APK-scoped `AndroidManifest.xml` overlay.
-
-For resource flat/link details, see `02_compile_resource.md`; for source-to-dex order, see `02_compile_source.md`; for release obfuscation mapping, see `02_compile_obfuscation.md`.
-
----
+This page explains how a changed Android manifest becomes an APK-scoped overlay, which edits the incremental patch can represent, and how to interpret an unchanged or failed result. Resource linking is covered in `02_compile_resource.md`.
 
 ## 2. Core Source Index
 
-| Class/interface | File | Role |
+| Owner | Path | Responsibility |
 |---|---|---|
-| `AndroidManifestCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/manifest/AndroidManifestCompiler.kt` | Manifest compilation entry point; reads the baseline merged manifest by APK ownership, fills placeholders, and emits a deployable manifest overlay |
-| `AndroidManifestMerger` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/manifest/AndroidManifestMerger.kt` | Applies a changed diff to an already merged manifest; does not rerun standard ManifestMerger2 |
-| `ManifestDiffer` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/manifest/ManifestDiffer.kt` | Compares original and changed manifests, producing nodes/attributes to patch into the merged manifest |
-| `ManifestNodeMatcher` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/manifest/ManifestDiffer.kt` | Finds relative nodes in the merged-manifest subtree and decides between adding a node and recursive updating |
+| `AndroidManifestCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/manifest/AndroidManifestCompiler.kt` | Chooses the APK's merged baseline, resolves the changed file's old counterpart and placeholders, and persists a successful patch |
+| `ManifestDiffer` and `ManifestNodeMatcher` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/manifest/ManifestDiffer.kt` | Compare old/new manifest nodes by relative identity and record additions or changed attributes |
+| `AndroidManifestMerger` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/manifest/AndroidManifestMerger.kt` | Applies the diff to the final merged baseline; does not rerun Gradle ManifestMerger2 |
+| `ResourceOverlayCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/overlay/ResourceOverlayCompiler.kt` | Joins manifest output with resource linking and suppresses an unchanged root manifest overlay |
 
----
+## 3. Baselines and Output
 
-## 3. Core Data Flow
+| Input or state | Meaning |
+|---|---|
+| Final merged manifest | Prefer Jugg's prior `tempModule/res/AndroidManifest.xml`; otherwise use the application module's last Gradle merged manifest. Patching this APK-level result retains variant, source-set, and dependency contributions. Missing baseline is a compile failure. |
+| Old counterpart of a changed manifest | For a Gradle module, `getLastBuildAndroidManifest()` supplies the relative old file, with the module's merged manifest as a warned fallback. For a library held in the temporary module, use `oldManifest`; an unchanged CRC skips it. This counterpart is for calculating the local diff, not the APK baseline. |
+| Placeholder context | Application, dynamic-feature, and test manifests use the target APK `applicationId`. A library keeps an explicitly configured `applicationId` placeholder; otherwise it gets the target APK value. A known Gradle namespace supplies the package context for relative `android:name`. |
+| Successful changed result | `AndroidManifestMerger` writes the patched XML; `AndroidManifestCompiler` copies it to `tempModule/res/AndroidManifest.xml` for the next increment and emits an APK-scoped `Res` output for resource linking. An empty diff emits no manifest output. |
 
-| Data | Producer | Consumer | Key constraint |
-|---|---|---|---|
-| Baseline merged manifest | Last Gradle build output, or `tempModule/res/AndroidManifest.xml` written by Jugg in the previous run | `AndroidManifestCompiler` | Jugg patches the final merged manifest so raw manifest inputs cannot discard variant-merge results |
-| `ChangedManifestFile` | `AndroidManifestCompiler` | `ManifestDiffer` | An application manifest uses the target APK's `applicationId`. For a library, preserve an explicitly configured same-name placeholder; otherwise fill in the target APK value. Add `JUGG_NAMESPACE_IN_GRADLE` when a namespace exists |
-| Manifest diff element | `ManifestDiffer` | `AndroidManifestMerger` | Carries only new nodes and new/updated attributes; deleted nodes/attributes and `tools:node="remove"` do not enter the patch |
+`ModuleBuildPathInfo.mergedManifest` selects the newest existing candidate among AGP merged-manifest locations. A later increment may use Jugg's copied result instead, so inspecting only Gradle's file can misidentify the active baseline.
 
----
-
-## 4. Core Call Chain
+## 4. Call Chain and Patch Boundary
 
 ```text
 ResourceOverlayCompiler.doApkCompile()
-  -> call AndroidManifestCompiler.doApkCompile() for an APK-scoped task
-  -> choose baseline manifest: prefer Jugg's previous merged manifest, otherwise the application module's merged manifest
-  -> fill applicationId / namespace placeholders for the changed manifest from the target APK and find the previous-build relative manifest for a library
-  -> ManifestDiffer.diff() extracts only truly new/changed nodes
-  -> AndroidManifestMerger.merge() patches the diff into the baseline merged manifest
-  -> on success, write back tempModule/res/AndroidManifest.xml and emit CompileOutput.Type.Res bound to apkPath
+  → AndroidManifestCompiler.doApkCompile(): select Jugg/Gradle baseline and old counterparts
+      → AndroidManifestMerger.merge(): apply representable changes to the final baseline
+          → ManifestDiffer.diff(): expand placeholders and relative names, record additions/updates
+    changed result: persist Jugg baseline; return APK-scoped manifest for AAPT2 link
+  → ResourceOverlayCompiler.filterResources(): omit an unchanged root manifest from link output
 ```
 
-The essential point is “patch the merged manifest,” not rerun the full Gradle manifest merge. Standard `ManifestMerger2` needs the complete placeholders, variant/flavor manifests, dependency manifests, and merge-feature context. An incremental run cannot guarantee that these inputs match the last Gradle build exactly. Jugg therefore treats the last final merged manifest as a stable baseline and applies only local changes it can recover deterministically.
+The final merged manifest does not retain enough context to replay `tools:replace`, source-set priority, and other full-merge directives. The incremental path therefore adds new declarations and updates supported attributes only. It does not infer ownership of a declaration already present in the APK baseline.
 
-Manifest patching is deliberately conservative. `ManifestDiffer` traverses only nodes and attributes present in the new manifest. New nodes or changed attributes enter `DiffElement.changedChildren/changedAttributes`, while nodes or attributes present only in the old manifest create no delete operation. `tools:node="remove"` becomes no patch, and other `tools:*` attributes do not enter the final merged manifest. These deletions or full-merge directives alone do not fail incremental compilation or trigger automatic fallback. The installed APK retains its prior merged-manifest content. Use a full Gradle merge to refresh the baseline only when removal must really take effect.
+Deleted nodes and attributes produce no patch. `tools:node="remove"` also produces no removal, and other `tools:*` attributes are excluded. These edits alone can return success with no output while the previous APK declaration remains; a full Gradle merge is required for removal semantics. This is a supported boundary, not proof that the changed input was ignored.
 
----
+The patch also excludes root `package`, root version attributes, `<uses-sdk>`, and updates to application `android:name`. These identities can be contributed or controlled outside the changed source manifest. A requested change to one of them must be checked against the Gradle merged result instead of assuming the incremental overlay applied it.
 
-## 5. Hidden Constraints / Design Rationale / Known Boundaries
+## 5. Diagnostic Boundaries
 
-- Empty Manifest output is valid: an unchanged library manifest or an empty diff emits no `AndroidManifest.xml`, avoiding meaningless APK repackaging.
-- `AndroidManifestCompiler` copies a successful merged result back to `tempModule/res/AndroidManifest.xml`; later manifest increments prefer this file as baseline, so do not inspect only Gradle's merged manifest.
-- `ModuleBuildPathInfo.mergedManifest` chooses the newest `AndroidManifest.xml` among `merged_manifests` / `merged_manifest` candidates so an old path cannot shadow a new AGP output after an upgrade.
-- A library manifest is CRC-compared with `oldManifest` first; unchanged input is skipped to avoid repatching dependency-library manifests.
-- Manifest merge ignores `tools:*` attributes, manifest `package`, and updates to application `android:name`. This prevents an incremental patch from overwriting critical runtime identity; it is not an accidental omission.
-- Deleted nodes, deleted attributes, and `tools:node="remove"` are intentionally ignored. The incremental path applies only certain additions/updates, avoiding accidental deletion of declarations contributed by other source sets or dependencies in the final merged manifest.
-- Full context for merge directives such as `tools:replace` is gone in the final merged manifest. They cannot be patched as ordinary attributes; use a Gradle fallback when their complete semantics are needed.
-- Preserving old declarations can yield development-time false positives, such as an Activity remaining registered in the baseline manifest after its source is deleted. This is a known cost of conservative incremental work, not something to fix by guessing a declaration's origin in the patch layer.
+| Observation | What it establishes | Next discriminating evidence |
+|---|---|---|
+| No `AndroidManifest.xml` overlay after a manifest edit | No deployable patch was emitted; it does not by itself mean the file was never examined. | Compare CRC, old/new diff, ignored attributes or directives, and `ResourceOverlayCompiler.filterResources()` only if a root output existed. |
+| A removed declaration remains registered | The incremental patch did not delete it; its origin in the merged baseline is unknown from this result. | Run a full Gradle merge and inspect its merged manifest before attributing ownership. |
+| `Compile AndroidManifest.xml failed` | The manifest stage failed; the wrapper message does not identify whether baseline selection, XML parsing, diffing, or writing failed. | Inspect the logged exception and selected baseline path; check the raw XML and old counterpart. |
+| AAPT2 link fails after manifest compilation | Link rejected combined inputs; a successful manifest patch alone does not prove the new XML is valid for the full resource table. | Inspect AAPT2 diagnostics and the patched manifest emitted by `AndroidManifestCompiler`. |
 
----
-
-## 6. Investigation Entry Points
-
-| Symptom | First entry point |
-|---|---|
-| Manifest change does not take effect | `AndroidManifestCompiler.doApkCompile()`; check CRC, empty diff, and `filterResources` filtering |
-| Declaration remains after deleting a node or using `tools:remove` | Incremental patch does not handle deletion; run a full Gradle build to refresh the merged-manifest baseline |
-| Manifest merge overwrites a field that should remain | `AndroidManifestMerger.merge()`; check ignore rules for `tools:*`, `package`, and `android:name` |
-| aapt2 link triggers unnecessary repackaging | `ResourceOverlayCompiler.filterResources(...)`; check whether root `AndroidManifest.xml` is emitted despite no manifest change |
-
----
-
-## 7. Related Documents
+## 6. Related Documents
 
 - Resource compilation: `02_compile_resource.md`
-- Source compilation: `02_compile_source.md`
-- Core compilation scheduling: `02_compile_core.md`
-- Obfuscation mapping: `02_compile_obfuscation.md`
+- Core compilation: `02_compile_core.md`
+- Verification policy: `06_testing.md`

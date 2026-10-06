@@ -1,97 +1,72 @@
-# Compilation System: Obfuscation Mapping
+# Compilation System: Release Obfuscation
 
-> Last verified: 2026-09-16
+> Last verified: 2026-10-07
 > Consistency rule: If documentation conflicts with code, code takes precedence.
 
----
+## 1. Purpose
 
-## 1. Purpose of This Document
-
-This page covers mapping consistency only for release/minified builds: converting unobfuscated class/dex output into obfuscated output consistent with the installed APK, and generating `_jugg_fix` bridge classes.
-
-For source-to-dex order, see `02_compile_source.md`; for incremental Manifest merge, see `02_compile_manifest.md`; for release runtime investigations, see `09_plugin_runtime_debug.md`.
-
----
+This page explains how incremental DEX output keeps the installed minified APK's names, how inline effects produce `_jugg_fix` bridges, and what release runtime failures establish. General source-to-DEX order is in `02_compile_source.md`; effect analysis is in `03_deploy_data_generator.md`.
 
 ## 2. Core Source Index
 
-| Class/interface | File | Role |
+| Entry | Location | Responsibility |
 |---|---|---|
-| `ClassMinifyCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/obfuscation/ClassMinifyCompiler.kt` | Rewrites mapping at class level; copies the original class when no mapping applies |
-| `DexMinifyCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/obfuscation/DexMinifyCompiler.kt` | Rewrites mapping at dex level, reads inline-effect information, generates `_jugg_fix` DEX, and rewrites `usage.txt` compatibility stubs |
-| `ClassObfuscator` / `DexObfuscator` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/obfuscation/` | Remaps class/dex names, fields, methods, and internal references |
-| `R8MappingReader` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/obfuscation/R8MappingReader.kt` | Reads `mapping.txt` and exposes class/method/field mapping queries |
-| `R8UsageReader` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/obfuscation/R8UsageReader.kt` | Reads `usage.txt` and records classes, methods, and fields removed by R8 |
+| `SourceCompiler.compileDexOutputs()` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/source/SourceCompiler.kt` | Sends minified variants through D8 and DEX remapping. |
+| `DexMinifyCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/obfuscation/DexMinifyCompiler.kt` | Loads mapping and optional usage data, asks deployment analysis for inline effects, and emits ordinary and bridge DEX. |
+| `DexObfuscator` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/obfuscation/DexObfuscator.kt` | Maps DEX definitions and references, redirects eligible inline effects, and renames bridge declarations. |
+| `R8MappingReader` / `R8UsageReader` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/obfuscation/` | Read R8 name mappings and removed-member records. |
+| `CompileEffectAnalyzer.getMinifyInfo()` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/CompileEffectAnalyzer.kt` | Uses deployment data to identify affected classes and locate original `.class` inputs for bridges. |
 
----
+`ClassMinifyCompiler` and `ClassObfuscator` provide class-file remapping in the same directory, but no production compilation call site currently constructs `ClassMinifyCompiler`. Follow `SourceCompiler` → `DexMinifyCompiler` for the active path.
 
-## 3. Core Data Flow
+## 3. Data and State Boundaries
 
-| Data | Producer | Consumer | Key constraint |
-|---|---|---|---|
-| `mapping.txt` | Installed APK / incremental-data directory | `ClassMinifyCompiler`, `DexMinifyCompiler` | Required when the variant enables minify; absence fails, never silently skip |
-| `usage.txt` | R8/ProGuard output | `DexMinifyCompiler` | Enhances compatibility rewriting only for `_jugg_fix` input classes; if absent or unparseable, continue without pruning deleted methods |
-| `MinifyInfo` | Deployment-data/effect-analysis chain | `DexMinifyCompiler` | Identifies classes affected by inline changes and original class inputs to `_jugg_fix` |
+| Input or state | Origin | Consequence |
+|---|---|---|
+| `ModuleInfo.minifyEnabled` | Selected `buildVariant` in project info | `ICompileContext.isMinified` is true only for explicit `true`; an old mapping file cannot enable minify. |
+| `mapping.txt` | Application module's `build/outputs/mapping/<variant>/` | Required for a minified run. Missing mapping fails the incremental task before DEX remapping. |
+| `usage.txt` | Same variant mapping directory | Optional for replacing R8-removed methods in bridge inputs with compatibility stubs. Its absence or read failure does not stop ordinary remapping. |
+| `MinifyInfo` | `CompileEffectAnalyzer` and deployment database | Carries affected class names plus original `.class` files. Redirect targets are limited to affected classes with a matching class file. |
 
-Only the selected variant's actual `minifyEnabled` decides whether obfuscation runs. `GradleProjectInfoReader` / `GradleVariantCollector` write `Variant.minifyEnabled` to project info, `ModuleInfo.minifyEnabled` derives it from `buildVariant`, and `ICompileContext.isMinified` checks only whether it is `true`. The presence of `outputs/mapping/<variant>/mapping.txt` does not decide: an old mapping can remain on disk after a user disables minify for a previously minified variant. Using its existence would misclassify unobfuscated output as obfuscated.
+At the application Gradle boundary, `GradleApplicationInjector` writes `build/jugg/proguard-rules.pro` and attaches it to build types it judges minified. The rules keep `Application` and `AppComponentFactory` subclasses and suppress R8 warnings for selected bundled Dragonfly Kotlin references and `org.jetbrains.annotations.NotNull`/`Nullable`, which may be absent from a Java-only app classpath. A warning suppressed there does not establish that a later incremental DEX reference was correctly remapped; use the selected variant's mapping and staged/APK DEX for that diagnosis.
 
----
-
-## 4. Core Call Chain
+## 4. Cross-Stage Flow
 
 ```text
-SourceCompiler.compileDexOutputs()
-  -> DexCompiler generates unobfuscated dex; minified cases write to temp/un_minify
-  -> DexMinifyCompiler.initIfNeeded() loads mapping.txt and optionally usage.txt
-  -> preObfuscateForMinifyInfo() temporarily obfuscates dex so getMinifyInfo() can query DB using obfuscated class names in the installed APK
-  -> context.getMinifyInfo() returns classes affected by inline changes and original class files
-  -> generateJuggFixClasses() rewrites original classes into usage.txt stubs, runs D8, obfuscates, and calls renameDexClassDeclaration
-  -> ordinary incremental dex then runs obfuscateWithInlineRedirect() or obfuscate()
-  -> output dex / `_jugg_fix` dex consistent with APK mapping
+Selected variant enables minify
+  -> SourceCompiler writes D8 output under temp/un_minify
+  -> DexMinifyCompiler.initIfNeeded() requires mapping.txt from that variant
+  -> preObfuscateForMinifyInfo(): temporary plain remapping gives CompileEffectAnalyzer APK-compatible class names
+  -> deployment analysis returns MinifyInfo and available original class files
+  -> generateJuggFixClasses(): rewrite usage.txt-removed methods, run D8, fully remap DEX,
+     then renameDexClassDeclaration() changes only the declared class name to <obfuscated-name>_jugg_fix
+  -> DexObfuscator.obfuscateWithInlineRedirect() redirects eligible inline effects to those bridge names
+  -> source compilation hands both output sets to deployment staging
 ```
 
-`_jugg_fix` uses a bridge strategy of “fully obfuscate first, then change only the declared class name.” After the declaration gains the `_jugg_fix` suffix, internal calls still target the original obfuscated class, so the bridge does not become an independent implementation outside the APK mapping.
+Temporary remapping matters because deployment data describes classes by the installed APK's obfuscated names, while D8 first emits original names. A failed temporary remap falls back to original DEX for that query; a surprising “missing class” result therefore needs the temporary input and database names checked together.
 
----
+The bridge keeps code-body references to the original obfuscated class while changing its own declaration. `renameDexClassDeclaration()` also strips bridge fields and `<clinit>`; the bridge is not a second independently initialized copy of the class.
 
-## 5. Hidden Constraints / Design Rationale / Known Boundaries
+## 5. Failure and Diagnostic Boundaries
 
-- When a variant enables minify but `mapping.txt` is missing, fail hard: `ClassMinifyCompiler` / `DexMinifyCompiler` emit a user-visible `warn` and fail this incremental run without wrapping the original task result. Without mapping, output names must diverge from the installed APK, and silently continuing would deploy an artifact bound to crash at runtime. Check for this warning first when investigating a release failure.
-- When the variant disables minify, skip obfuscation even if old `mapping.txt` remains in its directory from a previous minified build. Jugg neither deletes nor cleans that file; it routes only by actual configuration.
-- `usage.txt` participates only in compatibility rewriting of `_jugg_fix` input-class method bodies. Removed methods keep their signatures but become empty implementations/default returns. The reader also records deleted fields, while the current chain primarily consumes removed methods.
-- Some R8 versions erase parameter information for Kotlin property accessors in `usage.txt`. If an exact signature does not match, fall back by name only when the method name is unique in both usage and class bytecode. If either side has an overload, retain the original method to avoid pruning the wrong same-name member.
-- `preObfuscateForMinifyInfo()` lets DB queries use the APK's obfuscated class names. Skipping it can falsely suggest that a class is absent from DB.
+- When minify is enabled and `mapping.txt` is absent, `DexMinifyCompiler` warns and fails the incremental task. When minify is disabled, `SourceCompiler` skips this stage even if an old mapping remains. Check variant metadata before treating file presence as evidence.
+- `usage.txt` only affects `_jugg_fix` input methods. Exact signatures are preferred; name-only matching is used only when both the usage record and bytecode have one method of that name. The reader records removed fields too, but this bridge rewrite consumes removed methods. An unreadable file produces a warning and disables this rewrite; individual unrecognized lines may yield no matching record.
+- Bridge generation catches failures and can return fewer outputs while ordinary DEX processing continues. `MinifyInfo` still drives redirect selection, so a “Generated N _jugg_fix DEX files” message alone does not prove every redirected target exists. Compare `MinifyInfo.classFiles`, generated bridge paths, and staged DEX when a redirect target is missing.
+- `Obfuscated:` is a debug summary of successfully processed DEX files. It does not prove that every definition or reference was remapped; DEX with no remapping is copied to output. A runtime exception is a lead for inspecting the relevant DEX position, not proof of a particular visitor defect.
 
-### 5.1 DEX Mapping-Completeness Boundary
+| Observation | Candidate mapping boundary | Next discriminating evidence |
+|---|---|---|
+| Annotation or reflection lookup fails | Annotation type and nested `DexType` values | Compare the staged annotation descriptor with APK DEX and `mapping.txt`. |
+| `NoClassDefFoundError` | Class literals, arrays, field/method prototypes, invoke-custom arguments, exception types, or type instructions | Locate the unresolved reference in staged DEX, then compare its APK counterpart. |
+| `IllegalAccessError` or `IncompatibleClassChangeError` | Access widening relative to R8 `-allowaccessmodification`; same-class non-constructor direct invoke must become virtual when widened | Compare access flags and invoke opcode in staged and APK DEX. |
+| `AbstractMethodError` on a new class or lambda | A declaration without its own mapping may need the interface/superclass method name | Compare implemented method names against the mapped hierarchy. |
+| `NoSuchMethodError` on a Kotlin facade or kept class | Synthesized entries can contain qualified names or intermediate parameter types; identity entries must not replace real renames | Compare the actual method prototype with the normalized mapping entry and APK method. |
 
-`DexObfuscator` uses a dex2jar visitor and cannot automatically cover every type reference as ASM `ClassRemapper` does. For release runtime crashes, locate a possible mapping gap according to its DEX position:
+For these runtime comparisons, first confirm the selected variant and mapping loaded, then compare staged and APK DEX (for example with `dexdump -a`). Preserve the exact exception and referenced descriptor; the exception category does not establish which mapping step failed.
 
-| Failure pattern | Current mapping constraint | Key entry point |
-|-----------------|----------------------------|-----------------|
-| Annotation/reflection lookup failure | Type descriptors on class, field, and method annotations must all pass through `mapType()` | `visitAnnotation()` |
-| `NoClassDefFoundError` | Map `const-class`, field/method owner and proto, invoke-custom arguments, arrays, exception tables, and type statements | `visitCode()` overrides in each `DexCodeVisitor` |
-| `IllegalAccessError` / `IncompatibleClassChangeError` | Member access flags must match the R8 `-allowaccessmodification` baseline. A non-constructor, non-static direct invoke on the current class must match the widened virtual form | `widenAccessFlags()`, `visitMethodStmt()` |
-| `AbstractMethodError` on a new class or lambda | When the class has no mapping, derive a method name from its interface/superclass first, then fall back to the class itself | `mapMethodForCurrentClass()` |
-| `NoSuchMethodError` on a Kotlin facade / kept class | Normalize qualified method names and intermediate parameter types in R8 synthesized entries; identity mappings must not overwrite real renames | `normalizeMethodParams()`, `methodNameMap` construction |
+## 6. Related Documents
 
-First confirm `mapping.txt` loaded and the log contains `Obfuscated:`, then compare staging DEX with APK DEX using `dexdump -a`. The exception type helps choose where to compare; it does not prove that a particular visitor or mapping entry failed.
-
----
-
-## 6. Investigation Entry Points
-
-| Symptom | First entry point |
-|---|---|
-| Class/method name mismatch after release increment | `DexMinifyCompiler.initIfNeeded()` and `DexObfuscator`; first confirm mapping loaded |
-| Annotation/type/access/method mapping failure after release increment | §5.1 here; compare staging/APK DEX and mapping before locating a `DexObfuscator` point |
-| `_jugg_fix` exists but runtime calls fail | `generateJuggFixClasses()`; check D8 output class name, post-obfuscation path, and `renameDexClassDeclaration()` |
-| Abnormal effect analysis for a member removed by minify | `03_deploy_data_generator.md` §5.6; check `effectedType=MINIFY_MEMBER_REMOVED` |
-
----
-
-## 7. Related Documents
-
-- Source compilation: `02_compile_source.md`
-- Incremental Manifest merge: `02_compile_manifest.md`
-- Effect analysis and minify types: `03_deploy_data_generator.md`
-- Release runtime investigation: `09_plugin_runtime_debug.md`
+- `02_compile_source.md` — source and D8 stages.
+- `03_deploy_data_generator.md` — minify effect types and deployment-data analysis.
+- `09_plugin_runtime_debug.md` — runtime evidence and investigation scope.

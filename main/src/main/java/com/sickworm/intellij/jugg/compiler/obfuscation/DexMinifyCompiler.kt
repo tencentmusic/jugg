@@ -17,27 +17,8 @@ import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import java.io.File
 
 /**
- * Compiler that re-obfuscates dex files based on mapping.txt.
- *
- * This compiler reads the mapping file from the deployed APK and applies
- * the obfuscation mapping to incremental dex files, ensuring consistency
- * with the original obfuscated APK.
- *
- * ## R8 Inline Handling (Phase 1)
- *
- * When R8 inlines methods, it copies the method body into the caller class.
- * If the inlined method implementation changes, we need to detect which classes
- * contain the inlined code to avoid runtime errors.
- *
- * **Phase 1 (Current)**: Detection only
- * - Detects classes affected by inline changes via MinifyInfo
- * - Logs warnings about inline-affected classes
- * - Does NOT yet implement full redirection (Phase 2)
- *
- * **Phase 2 (Future)**: Full redirection
- * - Generate _jugg_fix classes for inline-affected classes
- * - Redirect calls in DEX to _jugg_fix classes
- * - Enable hot-reload without recompiling inline-affected classes
+ * Remaps incremental DEX with the selected variant's mapping and creates `_jugg_fix` bridges
+ * for inline-affected classes whose original class files are available.
  */
 class DexMinifyCompiler(
     context: ICompileContext,

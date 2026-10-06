@@ -45,6 +45,7 @@ class JavaCompilerInvoker {
     ): CompileResult {
         logger.debug("compile options: $options")
 
+        // A fresh manager releases classpath JAR handles after this run, allowing Gradle clean on Windows.
         val fileManager = compiler.getStandardFileManager(null, null, null)
         val compileItems = task.files.map {
             val fileObject = fileManager.getJavaFileObjectsFromFiles(listOf(it.file)).first()

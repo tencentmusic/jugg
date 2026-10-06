@@ -1,78 +1,27 @@
-# Jugg Project Overview (Quick Read for AI)
+# Jugg at a Glance
 
-> Last verified: 2026-09-05
+> Last verified: 2026-10-07
 > Consistency rule: If documentation conflicts with code, code takes precedence.
 
----
+Jugg is an Android Studio plugin and standalone runtime that reuses a Gradle-built baseline for incremental compilation and deployment where supported. Full Gradle builds establish or replace that baseline. After this overview, read `99_index.md`; then use `98_code_map.md` to locate the owner before reading the smallest relevant topic and verifying behavior in code.
 
-## 1. Purpose of This Document
+| Boundary | Directory | Responsibility |
+|---|---|---|
+| IDE Host | `idea/src/ide_entry/`, `idea/src/main/` | Stable plugin entry, project lifecycle, Run/Debug/UI, Android Studio adapters, and MCP Host. |
+| Shared runtime | `main/src/main/` | Project model, compile/deploy state, Gradle clients, MCP protocol/actions, and utilities. |
+| Studio deploy adapters | `deploy_compat/` | Version-specific Apply Changes and debugger compatibility; includes standalone deployer. |
+| IDE-free Host | `cmd_line/`, `platform_compat/base_api/` | Daemon/CLI, Bundle bootstrap, and minimal API surface for shared code without IDEA. |
+| App runtime | `jvmti_agent/` | Startup agent, compat loader, ViewHierarchy service, and runtime update support. |
+| Compiler extension and tools | `custom_compilers/`, `aapt2-inclink/` | SPI examples and incremental resource-link binaries. |
 
-This page gives AI the shortest path to a general understanding of:
-- What Jugg is
-- Where its main modules are
-- Where to begin a typical task
+```text
+IDE Run or Standalone request
+  -> shared JuggCompilerHelper chooses incremental work or a full Gradle build
+  -> JuggCompiler stages changed classes, resources, assets, and APK outputs
+  -> JuggDeployerHelper selects install or incremental transport per target
+  -> successful deployment advances cache, overlay, and history state
+```
 
-It does not cover implementation details; see the `02/03/04/05/08` topic documents for those.
+The IDEA `JuggRunningTask` owns the user Run across compilation, per-device deployment, and fallback. Standalone exposes only the capabilities in its current MCP registry. For either Host, a source action's existence does not make it callable: use that process's `tools/list`. See `01_architecture.md`, `02_compile_core.md`, `03_deploy_core.md`, `04_engineering_compat.md`, and `08_mcp_design.md` for the cross-file boundaries.
 
----
-
-## 2. Jugg in One Sentence
-
-**Jugg** is an Android Studio / IntelliJ plugin whose main goal is to reduce the frequency of full Gradle builds by using a side-path incremental compilation and deployment flow where possible, while retaining Gradle build artifacts.
-
----
-
-## 3. Module Overview (by Code Directory)
-
-| Module | Directory | Responsibility |
-|--------|-----------|----------------|
-| IDE plugin layer | `idea/src/main` + `idea/src/ide_entry` | Run configurations, task orchestration, IDE events, UI, and MCP runtime |
-| Core logic layer | `main/src/main/java/com/sickworm/intellij/jugg` | Compilation, deployment, project model, Gradle/remote compilation, MCP protocol and tools |
-| Android Studio compatibility layer | `deploy_compat/*` | Deploy API adapters for multiple versions (Chipmunk/Giraffe/Hedgehog/Iguana/Meerkat/Narwhal, etc.) |
-| Platform compatibility stubs | `platform_compat/base_api` | IntelliJ/Android API mocks that let `main` compile outside the IDE |
-| Command-line entry point | `cmd_line/src/main/java` | Basic build and incremental-build commands without an IDE |
-| Standalone bootstrap | `cmd_line/standalone_bootstrap/src/main/java` | Fixed Java 11 startup boundary; reads the standalone manifest, loads the Runtime in order, falls back on failure before ready, and supports manual rollback |
-| Custom compiler examples | `custom_compilers/src/main/java` | Examples of the `ICompilerCreator` SPI extension |
-| JVMTI agent | `jvmti_agent/src/main/cpp` | Agent capabilities for compatible deployment |
-| AAPT2 incremental-link binaries | `aapt2-inclink/src/main/resources/tools` | Tool resources for Darwin, Linux, and Windows |
-
----
-
-## 4. Core Runtime Flow
-
-1. On the IDE side, `JuggManager` initializes the project context and runtime capabilities.
-2. `JuggRunningTask` orchestrates “compile -> deploy.”
-3. `JuggCompilerHelper` chooses incremental compilation or a Gradle fallback.
-4. On the incremental path, `JuggCompiler` performs multi-stage compilation; on the Gradle path, `LocalGradleCompileClient` / `RemoteGradleCompileClient` runs the build.
-5. `JuggDeployerHelper` invokes `JuggDeployer` through `JuggDeployTask` to perform install / code swap / full swap.
-
----
-
-## 5. Operating Modes (Practical View)
-
-- Incremental compilation + incremental deployment: the default preferred path.
-- Compatible deployment: switches strategy when the device, JVMTI, or structural changes do not meet the conditions.
-- Gradle fallback: performs a full Gradle build when fallback is forced or automatic.
-
----
-
-## 6. Capability Boundaries (Avoid Misdiagnosis)
-
-- Jugg's side-path compilation is not equivalent to the complete Gradle pipeline.
-- Annotation processing, bytecode instrumentation, and complex build-script changes usually require verification through the Gradle fallback.
-- The schema returned by `tools/list` and the `ai/mcp/actions` implementations define MCP tool capabilities.
-- Jugg's default installer does not initially install an app into `/system/app` or `/system/priv-app`. A Run Configuration can enable a custom APK installation script to take over install/reinstall, but the project script remains responsible for remount, push, allowlisting, and restart. A separate custom APK signing script can replace the signing step after incremental APK rewriting to support platform certificates or server-side signing. These two script capabilities are independent. See `03_deploy_system_app.md` for system-app constraints.
-
----
-
-## 7. Suggested AI Task Entry Points
-
-For AI task routing (task type → minimum required documents → code entry point), see `99_index.md §3`.
-
----
-
-## 8. Further Reading
-
-- Architecture: `01_architecture.md`
-- AI search entry point and topic catalog: `99_index.md`
-- Code-path map: `98_code_map.md`
+Jugg's incremental path covers selected changes, not every Gradle transformation. A missing baseline, unsupported input, or explicit Force Gradle may require a full build; an ordinary incremental source error can instead fail the current Run. Deleting a source or resource does not by itself remove old installed content through an incremental overlay. For system apps, the default installer does not place an APK in `/system`; a project install script can own that placement and a separate signing script can sign rewritten APKs. See `02_compile_core.md` and `03_deploy_system_app.md` before attributing those outcomes to compilation.

@@ -1,218 +1,55 @@
-# Wiki Architecture and Operation
+# Wiki Architecture and Publication Boundaries
 
-> Last verified: 2026-09-12
+> Last verified: 2026-10-07
 > Consistency rule: If documentation conflicts with code, code takes precedence.
 
----
+## 1. Scope and Owners
 
-## 1. Purpose of This Document
+`docs/wiki/` is the VitePress source root for Jugg's user documentation. This page records site routing, local verification, and publication constraints. Article content and English-first mirroring rules are in `10_wiki_authoring.md`.
 
-This page describes the Jugg user Wiki's project structure, local development, build preview, and publishing boundaries.
-
-For article-writing rules, see `10_wiki_authoring.md`.
-
----
-
-## 2. Core File Index
-
-| File | Role |
+| Boundary | Owner |
 |---|---|
-| `docs/wiki/package.json` | Entry point for npm scripts to develop, package, and preview the Wiki; run all subsequent npm commands under `docs/wiki`. |
-| `docs/wiki/.vitepress/config.mts` | VitePress site configuration: base/nav/sidebar/search, GA4 first-page tracking, and dev-only page exclusion. |
-| `docs/wiki/.vitepress/theme/index.ts` | Extends the default VitePress theme, loads existing styles, and adds browser-side GA4 tracking for single-page navigation. |
-| `.agents/skills/wiki-writer/scripts/validate_wiki.py` | Checks English/Chinese Markdown paths, nav/sidebar route order, relative links, configured routes, and build outputs. |
-| `.github/workflows/wiki-pages.yml` | Builds and publishes GitHub Pages when the Wiki changes on `main`. |
-| `.github/workflows/release.yml` | Builds an official GitHub Release from a version tag only when the tag commit is already in `main`, avoiding official releases from develop tags. |
-| `.github/workflows/canary.yml` | Daily or manual check of the branch that triggered the run; builds only when its HEAD differs from the `canary-nightly` tag, then updates the Canary prerelease, plugin archive, and SHA-256. |
-| `.github/workflows/dev.yml` | Manually triggered build verification only; builds the triggered ref as `<versionName>-dev.<date>.<run number>` and updates the rolling `dev-latest` prerelease, `jugg-dev.zip`, and SHA-256. |
-| `docs/wiki/dev/elements-demo.md` | English dev-only element showcase page, used only for visual acceptance in development. |
-| `docs/wiki/zh/dev/elements-demo.md` | Chinese dev-only element showcase page, used only for visual acceptance in development. |
-| `docs/wiki/dev/assets/wiki-elements-demo.svg` | Sample image asset used on the demo page. |
+| Scripts and locked dependencies | `docs/wiki/package.json`, `docs/wiki/package-lock.json` |
+| Routes, locales, assets, dev exclusion, analytics | `docs/wiki/.vitepress/config.mts`, `docs/wiki/.vitepress/theme/index.ts` |
+| Mirror, link, nav, and built-route checks | `.agents/skills/wiki-writer/scripts/validate_wiki.py` |
+| Rendered home-page regression | `docs/wiki/scripts/check-homepage-render.mjs` |
+| Pages build and deployment | `.github/workflows/wiki-pages.yml` |
+| Plugin download assets linked from Wiki | `.github/workflows/release.yml`, `.github/workflows/canary.yml`, `.github/workflows/dev.yml` |
 
----
+## 2. Route and Content Model
 
-## 3. Site Structure
+English pages use root routes, and their Chinese mirrors use `/zh/`. After stripping `zh/`, Markdown path sets must match. `config.mts` defines separate English and Chinese navigation/sidebar trees that should preserve the same route hierarchy and order. `validate_wiki.py` compares route order after locale-prefix removal, checks configured routes and relative links, and can assert built routes or text when given expectation flags. A passing default validator establishes those structural checks, not translation equivalence of the prose. The site's `cleanUrls: true` means links use page routes without `.html`.
 
-The Wiki uses VitePress, with `docs/wiki` as its source root.
+`config.mts` also treats historical `zh/articles/` content specially: bare HTML-like tokens are escaped and older relative image sources are normalized during Markdown rendering. This is scoped to Chinese historical articles; a generic Markdown change should not be inferred to share that behavior.
 
-```text
-docs/wiki/
-  .vitepress/
-    config.mts
-  capabilities/
-  concepts/
-  guide/
-  onboarding/
-  reference/
-  troubleshooting/
-  zh/
-    capabilities/
-    concepts/
-    guide/
-    onboarding/
-    reference/
-    troubleshooting/
-```
+Development showcase pages live under `docs/wiki/dev/` and `docs/wiki/zh/dev/`. `JUGG_WIKI_DEV=true` or `vitepress dev` adds their nav/sidebar entries and disables production `srcExclude`; ordinary builds exclude `dev/**` and `zh/dev/**`. The demo pages carry `visibility: dev` frontmatter as an authoring convention, but the build gate is their path plus `config.mts`, not a frontmatter parser. Keep English/Chinese dev paths mirrored. An accidental `JUGG_WIKI_DEV=true` on a publication build can include those pages.
 
-English pages live at the root route, while Chinese pages live under `/zh/`. English is the sole content source. After removing the `zh/` prefix, the English and Chinese Markdown path sets must match exactly; nav/sidebar hierarchy, order, and target pages must also be strict mirrors.
+GA4's measurement ID appears in both `config.mts` and `theme/index.ts`. The head script initializes the first page; the theme's client-side route callback tracks later VitePress navigation. If the ID changes, update both owners. The first callback is intentionally skipped to avoid a duplicate initial page event.
 
-### 3.1 GA4 Page Tracking
+## 3. Local and CI Verification
 
-`docs/wiki/.vitepress/config.mts` loads the Google tag in the page `head` and initializes GA4 with measurement ID `G-GNEQK6VECM`. That initialization tracks the first page.
+Run npm commands from `docs/wiki/` after `npm ci`. `npm run dev` serves source pages and includes the dev showcase. `npm run build` produces `.vitepress/dist/` with the default local base `/`; `npm run preview` serves that already-built output. `npm run check:homepage` performs a production build and then checks the rendered English/Chinese home-page assets and CSS assumptions. `JUGG_WIKI_DEV=true npm run build` is a development-only acceptance build, not a publication artifact.
 
-Later VitePress route changes do not reload the browser page. `docs/wiki/.vitepress/theme/index.ts` extends the default theme and listens for browser-side route changes. Initialization covers the first route callback; subsequent callbacks invoke `gtag('config', ...)` again with the new path. When changing the measurement ID, update both files.
+For content or route changes, use `.agents/skills/wiki-writer/scripts/validate_wiki.py` from the repository root to check mirrors, navigation order, source links, and configured routes. Pass its `--expect-html-route`, `--expect-removed-route`, or `--expect-html-text` options after a build when checking a route migration; it does not build the site itself. A green VitePress build alone does not establish locale mirror or route-order consistency. A green validator alone does not establish that the home-page components rendered correctly, which is why CI runs `check:homepage`.
 
----
+## 4. Publication and Download Boundaries
 
-## 4. Dev-Only Page Rules
+`wiki-pages.yml` runs on `main` when `docs/wiki/**` or the workflow changes, and supports manual dispatch. Its build job runs `npm ci` and `npm run check:homepage` under `docs/wiki/` with `JUGG_WIKI_BASE=/jugg/`, uploads `.vitepress/dist/`, and the dependent job deploys it through GitHub Pages. The configured public project-site path is `https://tencentmusic.github.io/jugg/`. Local builds intentionally use `/`; hardcoding `/jugg/` into VitePress config would break their asset URLs. For a publication check, inspect both Actions jobs and load root, `/zh/`, and one body route per language with assets under `/jugg/`.
 
-Place pages needed for visual acceptance but not for publication under the dev-only paths:
+Wiki installation links point to GitHub Release assets, not Pages or expiring Actions artifacts. Official `release.yml` builds a version tag only when its commit is reachable from `main` and its version matches `build.gradle`; rolling Canary and Dev tags are excluded. `canary.yml` publishes `canary-nightly` only when the triggered ref's HEAD differs from the published tag, replacing the fixed Canary ZIP/SHA-256 Release assets. Its workflow artifact has 14-day retention and is for build investigation; the Wiki's Canary link uses the stable Release asset URL. `dev.yml` is manual and similarly updates `dev-latest` assets, but is separate from Wiki deployment. A download-page change should preserve the distinction between official versioned releases and rolling prereleases and identify Canary as potentially unverified.
 
-```text
-docs/wiki/dev/
-docs/wiki/zh/dev/
-```
+## 5. Diagnostic Start Points
 
-All four conditions must hold:
+| Observation | Inspect first |
+|---|---|
+| One locale route is missing | Mirror Markdown path, `config.mts` nav/sidebar pair, then `validate_wiki.py` output. |
+| Local page works but Pages assets fail | `JUGG_WIKI_BASE`, generated `/jugg/assets/` references, and the workflow build artifact. |
+| Dev showcase appears in production | `JUGG_WIKI_DEV` at build time and `srcExclude`; frontmatter alone does not exclude it. |
+| Home page builds but a component displays as code | `check-homepage-render.mjs` and the built home-page page asset. |
+| SPA navigation is absent from analytics | Theme route callback and GA ID in both config and theme. |
+| Download link disappears after a workflow run | Verify it targets a Release asset and that the corresponding release workflow published the expected fixed filename. |
 
-1. The file is under a dev-only directory.
-2. Its frontmatter contains `visibility: dev`.
-3. `docs/wiki/.vitepress/config.mts` excludes the path from production builds through `srcExclude`.
-4. Nav/sidebar links appear only in dev mode.
+## 6. Related Documents
 
-Current dev-only detection:
-
-```text
-JUGG_WIKI_DEV=true or vitepress dev
-  -> include dev pages
-
-production build
-  -> exclude dev/** and zh/dev/**
-```
-
-After a production build, confirm that the dist output contains no dev-only page titles.
-
----
-
-## 5. Local Operation
-
-The Wiki uses VitePress; run all npm operations from `docs/wiki`. Install dependencies after the first checkout or a dependency change:
-
-```bash
-cd docs/wiki
-npm ci
-```
-
-Use the dev server while editing Wiki pages:
-
-```bash
-npm run dev
-```
-
-This starts the VitePress dev server by default and hot-reloads Markdown or configuration changes. To set a host or port, pass VitePress arguments after `--`:
-
-```bash
-npm run dev -- --host 127.0.0.1 --port 5173
-```
-
-Dev mode includes dev-only pages automatically because `isWikiDev` in `docs/wiki/.vitepress/config.mts` recognizes `vitepress dev`. Local visual acceptance can therefore use:
-
-```text
-/dev/elements-demo
-/zh/dev/elements-demo
-```
-
----
-
-## 6. Production Build
-
-Run a production build before publishing:
-
-```bash
-npm run build
-```
-
-Build output is written to:
-
-```text
-docs/wiki/.vitepress/dist/
-```
-
-Do not set `JUGG_WIKI_DEV=true` for a production build. The default configuration excludes these paths through `srcExclude`:
-
-```text
-dev/**
-zh/dev/**
-```
-
-To check temporarily whether dev-only pages can build independently, run:
-
-```bash
-JUGG_WIKI_DEV=true npm run build
-```
-
-Use that command only for development acceptance, not to produce a publication artifact.
-
----
-
-## 7. Preview the Build Output
-
-`npm run dev` previews the source in development mode. Before publishing, also preview the generated static output:
-
-```bash
-npm run preview
-```
-
-To set a host or port:
-
-```bash
-npm run preview -- --host 127.0.0.1 --port 4173
-```
-
-`npm run preview` reads `docs/wiki/.vitepress/dist/`, so run `npm run build` first.
-
----
-
-## 8. GitHub Pages Publishing
-
-GitHub Pages uses the project-site path:
-
-```text
-https://tencentmusic.github.io/jugg/
-```
-
-`.github/workflows/wiki-pages.yml` runs when `docs/wiki/**` or the workflow itself changes on `main`, and it also supports manual dispatch. In `docs/wiki`, the build job runs `npm ci` and `npm run check:homepage`. After the production build and homepage-render check, it publishes `.vitepress/dist` as a Pages artifact.
-
-The public VitePress path is controlled by `JUGG_WIKI_BASE`:
-
-```text
-GitHub Pages build -> JUGG_WIKI_BASE=/jugg/
-default local build -> /
-```
-
-Do not hardcode `base` as `/jugg/`: that would make local builds incorrectly reference `/jugg/assets/**`. Before the first publication, set Source to `GitHub Actions` under `Settings -> Pages` in `tencentmusic/jugg`, then manually run `Deploy wiki to GitHub Pages` or push a Wiki change to `main`. GitHub does not automatically redirect the Pages address of the repository's previous owner to the new address.
-
-Verify GitHub Pages publication by:
-
-1. Confirming both the build and deploy jobs of `Deploy wiki to GitHub Pages` succeeded in Actions.
-2. Opening `/jugg/`, `/jugg/zh/`, and at least one body page in each language.
-3. Checking that CSS, JavaScript, font, and image requests use `/jugg/assets/**` or the appropriate `/jugg/` subpath.
-
----
-
-## 9. Public Plugin Downloads
-
-Official and Canary releases have different publishing semantics:
-
-- A version tag triggers `release.yml` for an official release; it builds only if the tag commit is in `main`, and each version receives a separate GitHub Release.
-- `canary.yml` updates the movable `canary-nightly` tag and overwrites the `Jugg Canary` prerelease.
-- Canary Actions artifacts are retained for only 14 days and serve build investigations; public download links must target a GitHub Release asset, not a workflow-run page.
-- README and Wiki use the fixed Canary Release asset URL, so the page link need not change after each build.
-- `release.yml` must exclude the Canary tag, so the official-release workflow does not try to validate a rolling tag as a version number.
-
-Canary is republished only when the triggering branch has a new commit. Its version is `${baseVersion}-canary.<date>.<run>`. Canary may contain changes without full verification; download pages must clearly identify it as unstable.
-
-## 10. Related Documents
-
-- `10_wiki_authoring.md`: Rules for ordinary Wiki articles.
-- `docs/wiki/.vitepress/config.mts`: Site configuration, routes, navigation, and production-exclusion rules.
+- `10_wiki_authoring.md` — article content, bilingual mirror, and writing rules.
+- `97_maintenance_manual.md` — current knowledge-base maintenance and placement rules.

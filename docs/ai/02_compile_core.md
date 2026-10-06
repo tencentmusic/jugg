@@ -1,220 +1,140 @@
-# Compilation System: Core Architecture
+# Compilation System: Control Flow
 
-> Last verified: 2026-09-15
+> Last verified: 2026-10-07
 > Consistency rule: If documentation conflicts with code, code takes precedence.
 
----
+## 1. Scope
 
-## 1. Purpose of This Document
-
-This page answers the control-plane questions of incremental compilation:
-
-- The decision chain from an IDE compile request to incremental compilation or a Gradle fallback.
-- How one incremental run connects asset/resource/source/dex/minify stages.
-- Why another compilation round may follow success, and why a failed run may retry or fall back.
-
-It does not detail individual subcompilers. See `02_compile_source.md` for Java/Kotlin/Dex, `02_compile_resource.md` for resources, and `02_compile_databinding.md` for DataBinding.
-
----
+This page explains the incremental-versus-Gradle decision, stage and deployment handoffs, and recompilation/recovery boundaries. For stage internals, see `02_compile_source.md`, `02_compile_resource.md`, `02_compile_databinding.md`, and `02_compile_custom_ui.md`.
 
 ## 2. Core Source Index
 
-| Entry class | File | Role |
-|-------------|------|------|
-| `JuggCompilerHelper` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/JuggCompilerHelper.kt` | Shared compile entry; waits for initialization/file processing, selects incremental or Gradle, and handles Git checks and fallback prompts |
-| `IncrementalCompilerHelper` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/IncrementalCompilerHelper.kt` | Incremental-round loop; updates undeployed/staging state and drives effect-propagation recompilation and one-time failure retry |
-| `JuggCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/JuggCompiler.kt` | Composes Flutter/C++ external builds and Compose resource, asset/resource/R.dex/source/dex/minify substages, ending quickly on stage failure |
-| `ExternalBuildCompiler` / `ExternalBuildTaskRunner` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/external/` | Runs current-variant Flutter/native Gradle tasks for Dart/C/C++ changes and converts new assets/`.so` files into existing incremental outputs |
-| `ComposeResourceCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/compose/ComposeResourceCompiler.kt` | Prepares CVR/assets for supported Compose Multiplatform resources, generates accessor Kotlin, and compiles generated expect/actual |
-| `BaseCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/BaseCompiler.kt` | Template for all compilers: type checks, module/AndroidTest grouping, APK routing, and custom-compiler hooks |
-| `CompileOrder` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/CompileOrder.kt` | Ordering ranges for custom-compiler insertion, not a direct representation of all built-in stage scheduling code |
-| `CompileTask` / `CompileResult` / `CompileOutput` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/ICompiler.kt` | Compile inputs, per-file results, artifact ownership, and APK-routing model |
-| `GitChangesCompileChecker` / `GitChangesRetryResolver` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/` | Asynchronous Git missing-file checks before/after compile and retry for unresolved-reference failures |
+| Owner | Location | Responsibility |
+|---|---|---|
+| `JuggCompilerHelper` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/JuggCompilerHelper.kt` | Shared IDEA/standalone entry; chooses incremental compilation or Gradle and owns the Run fallback boundary |
+| `IncrementalCompilerHelper` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/IncrementalCompilerHelper.kt` | Runs compilation rounds, records pending/staged results, and controls effect propagation and one repair retry |
+| `JuggCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/JuggCompiler.kt` | Connects Compose resources, external builds, overlays, R classes, and source/dex compilation |
+| `BaseCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/BaseCompiler.kt` | Groups inputs by module or owning APK and runs concrete compiler extension ranges |
+| `CompileTask`, `CompileResult`, `CompileOutput` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/ICompiler.kt` | Carry inputs, per-file outcomes, outputs, cancellation, and APK ownership across stages |
+| `DeployFileStateTracker`, `DeployFileManager` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/` | Own pending, compiled, undeployed, and staging state across rounds and Runs |
+| `ExternalBuildCompiler`, `ExternalBuildTaskRunner` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/external/` | Run current-variant Flutter/native Gradle tasks and return deployable assets/native libraries |
+| `GitChangesCompileChecker`, `GitChangesRetryResolver` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/` | Detect missed Git changes or repair a missing-source failure |
+| `GradleWrapperRepairer` | `main/src/main/java/com/sickworm/intellij/jugg/gradle/compile/GradleWrapperRepairer.kt` | Repairs a declared local Gradle Wrapper before either Host starts a full build |
 
----
+## 3. State and Output Contracts
 
-## 3. Core State and Data Model
+| State | Meaning at the boundary |
+|---|---|
+| `CompileTask` | Each stage has its own input/output directory; `parentTask` shares cancellation, progress notifications, and the Gradle command. |
+| `CompileResult.details` | Per-input success/failure moves upward. A failed stage marks unexecuted inputs through `quickFailedOthers()`; outputs alone do not certify the whole run. |
+| `CompileResult.outputs` | Stage artifacts enter `DeployFileManager.addStagingFiles()`; deployment reads staging, not the compiler's temporary directories. |
+| `CompileOutput.apkPath` / `targetApkPaths` | `apkPath` anchors an APK artifact; `targetApkPaths` routes artifacts affecting several APKs. Resource/manifest outputs remain APK-scoped, while class/dex outputs can target several APKs. |
+| `CompileLoopStatus` | One incremental call tracks first round, repair retry, previous-round files, and satisfied effect triggers, allowing new causes to propagate without cycling on the same cause. |
+| `DeployFileStateTracker` | First-round success moves original changes from uncompiled to compiled. Derived rounds do not redefine the original pending files. Compiled files remain available for deployment/retry until commit. |
 
-| Object | Lifecycle | Key meaning |
-|--------|-----------|-------------|
-| `CompileTask` | New for each subcompiler stage | `parentTask` carries cancellation state, compiled-file notifications, and the current Gradle command; `outputDir` changes by stage among staging/classes/overlays/tmp directories |
-| `CompileResult.details` | Merged upward after a substage returns | Records success/failure per input file; on failure, `quickFailedOthers()` marks unexecuted files as skipped failures |
-| `CompileResult.outputs` | Set of substage outputs | Later written to `DeployFileManager.addStagingFiles()`; deployment consumes only valid staging outputs |
-| `CompileOutput.apkPath` | Artifact ownership anchor | Retains legacy single-APK meaning; a real APK artifact includes at least itself |
-| `CompileOutput.targetApkPaths` | Multi-APK routing | Set of APKs actually affected by the output; resources/manifest/assets receive APK-scoped outputs through `splitApkAndCompile()` |
-| `CompileLoopStatus` | One incremental compile call | Marks first round/retry and records files already compiled this run to prevent infinite effect-propagation loops |
-| `CompileStatusHolder` | Shared by UI/task | Cancellation signal and current compiling-file list; substages stop quickly through `task.isShouldCancel` |
+## 4. Main Flows
 
----
-
-## 4. Core Call Chains
-
-### 4.1 From IDE Compile to Incremental/Gradle Decision
+### 4.1 Run decision and fallback
 
 ```text
-JuggCompilerHelper.compile(options, uiHandler)
-  -> record LastCompileTimestampRegistry as MCP/status/hook baseline
-  -> wait for initialization and pending file processing so file events are queued before deciding
-  -> preprocessIncrementalCompile()
-     -> start asynchronous Git missing-file check; it does not decide this run's Gradle fallback
-     -> evaluate in fixed priority:
-        1. Force Gradle Compile
-        2. external source changed while using remote compilation, a nonstandard Gradle command, or unresolved/deleted external inputs
-        3. BuildTarget switch (APP <-> ANDROID_TEST)
-        4. compile command differs from full-build baseline
-        5. no full-build baseline (`not gradle compile yet`)
-        6. wait for project-info reconstruction of an existing full-build baseline, then check project info availability
-        7. INVALID_DEVICE
-        8. require full compile directly if the previous Gradle compile failed
-        9. roll back files whose content did not change
-        10. confirm excessive changed-file count; only Continue proceeds to later checks
-        11. check build-file/dependency changes and complete user confirmation
-        12. return full compile when build-file confirmation requires rebuild
-     -> Continue in the excessive-change prompt affects only this run; Gradle or any forcing condition yields a fallback result
-     -> enter incrementalCompile() only if the result is null
-  -> incremental success: return directly
-  -> incremental failure without fallback: prompt that a direct next run will fall back; return failure now
-  -> fallback needed: log `Fallback to gradle compile. Reason: ...` at info level, notify fallback, run gradleCompile()
+JuggCompilerHelper.compile()
+  -> record LastCompileTimestampRegistry before either compile path; MCP status exposes lastCompileTime
+  -> wait for initialization and pending file events before reading change state
+  -> preprocessIncrementalCompile(): start nonblocking Git check
+     -> explicit Force Gradle / incompatible external-build inputs
+     -> BuildTarget or full-build command changed
+     -> missing full-build baseline or unavailable project info
+     -> invalid device or previous failed Gradle build
+     -> roll back unchanged file events
+     -> excessive-change choice, then build-file/dependency confirmation
+     -> final deploy-state check
+  -> if canceled after precheck: return canceled before either compilation path
+  -> null result: IncrementalCompilerHelper.compile()
+     -> success: return; ordinary compiler failure: keep this Run failed
+     -> result permitting immediate fallback: run Gradle in this Run
+  -> non-null precheck result: run Gradle and refresh baseline
 ```
 
-`checkFallback()` is a side-effect-free precheck for MCP/status. It cannot read Run options or show a dialog, so its priority differs: `no full-build baseline -> project info unavailable -> INVALID_DEVICE -> other DeployState requiring full compile -> excessive changed-file count`. If both baseline and project info are missing on first run, it reports `not gradle compile yet` first. It does not report Force Gradle, BuildTarget/command switches, dependency-difference confirmation, or no-file-change confirmation. A status reason does not replace the actual Run decision.
+The excessive-change prompt's **Continue** applies only to this Run; later build/dependency checks can still require Gradle. A previous failed full build and a missing baseline force a build directly. Incremental source errors normally fail the current Run and do not automatically start Gradle. The next Run may choose fallback under the no-change policy. A no-change Run can instead deploy directly for first run on a device, project switch, Debug, or androidTest, or follow the user's fallback/dry-deploy choice. Direct zero-file paths notify `Compiling 0 files...`.
 
-MCP/CLI `compile` uses `isSkipDeploy` only to skip actual deployment, not `updateDeployState()`. Compile-only and Run share the same state decision: device selection safely handles multiple devices, while compilation still consumes the fallback result from build files, previous Gradle failure, baseline, and device state.
+`checkFallback()` is a side-effect-free status precheck: baseline, project info, device/deploy state, then excessive changes. It has no Run options or dialogs, so it cannot report Force Gradle, a BuildTarget/command switch, or dependency confirmation. Interpret its reason as a status prediction, not the actual Run decision. MCP/CLI `isSkipDeploy` skips deployment after compilation; it does not bypass `updateDeployState()` or the compile fallback decision.
 
-### 4.2 One Incremental Run and Effect Propagation
+Manual Force Gradle and the no-change fallback confirmation can request `--no-build-cache --rerun-tasks` for that build only. The compile command comparison logs `last=` and `current=`; a mismatch may reflect a different task or Jugg configuration.
+
+Before a full build, shared `JuggCompilerHelper.gradleCompile()` repairs missing Wrapper launch files only when the command names a project-local `gradlew`/`gradlew.bat` and wrapper properties exist. It can restore the bundled scripts/JAR and executable bit; Windows-to-remote builds also normalize `gradlew` line endings, except result-only fetches. This runs before remote project-info preparation and before the Gradle client, so an incomplete declared Wrapper can be fixed in both IDEA and standalone flows. A command using another executable or lacking wrapper properties is left alone.
+
+### 4.2 Compilation, staging, and further rounds
 
 ```text
-IncrementalCompilerHelper.compile(undeployedFiles)
-  -> convert ChangedFile to CompileFile; set current files in CompileStatusHolder
-  -> asyncCheckBeforeCompile() warms up the wait for const-ref analysis
-  -> JuggCompiler.compile(CompileTask(stagingDir))
-  -> update uncompiled state in DeployFileManager on the first round
-  -> write all outputs to staging
-  -> after success, getRecompileFiles()
-     -> restore effectedSourceFiles as ChangedFile through IFileChangesHandler
-        -> filter paths under each module's actual build directory and traditional `${moduleRootDir}/build`
-     -> convert redexClasses to class inputs under tempModule
-     -> recursively enter another round if files remain
-  -> on failure without a previous retry: let the retryResolver chain attempt repair, then retry once
+IncrementalCompilerHelper.compile()
+  -> convert undeployed ChangedFile inputs to CompileFile; expose current files to UI
+  -> JuggCompiler.compile(CompileTask(..., stagingDir)) enters JuggCompiler.doCompile()
+     -> ComposeResourceCompiler: accessors/classes and changed Compose assets
+     -> ExternalBuildCompiler: current Flutter/native task outputs
+     -> AssetOverlayCompiler: assets, APK-root classpath resources, native libraries
+     -> ResourceOverlayCompiler: manifest + res -> .flat -> arsc/R.java/overlay
+     -> compile R.java and route module/external-library R.dex
+     -> SourceCompiler: generated sources + user sources/classes -> dex/minify
+  -> DeployFileManager.updateUncompiledFiles() for original pending inputs; add outputs to staging
+  -> success: DeployFileManager.getRecompileFiles() -> affected sources/redex classes
+     -> another round only for a new effect trigger
+  -> failure: a resolver may repair context/missing Git inputs and retry once
 ```
 
-### 4.3 Built-In Stage Order in `JuggCompiler`
+Compose-generated classes and DataBinding/ViewBinding sources reenter source compilation; changed Compose/Flutter assets and native libraries enter the asset overlay. A failed or cancelled stage stops later stages and marks remaining inputs failed/cancelled. `CompileOrder` supplies custom-compiler ranges (`atFirst`, before/after asset, res, source, minify, dex, `atLast`); it is not the built-in stage scheduler. Pre-D8 `ClassPreparation` and the connected Hilt transformer run inside `DexCompiler`, with no separate custom-compiler slot.
 
-```text
-JuggCompiler.doCompile(task)
-  -> ComposeResourceCompiler: prepare Compose resources, generate and compile accessor Kotlin first
-     -> changed Compose assets go to AssetOverlayCompiler
-     -> generated classes go to later SourceCompiler/DexCompiler
-  -> ExternalBuildCompiler: run Flutter/native Gradle tasks for Dart/C/C++ changes
-     -> convert Flutter assets and Flutter/C++ .so files to Asset/NativeLib
-  -> AssetOverlayCompiler: put assets/native libraries (including Compose and external-build outputs) into overlays
-  -> ResourceOverlayCompiler: compile resources/manifest into tmp_resource first
-     -> move overlay resources to overlays
-     -> pass R.java to SourceCompiler
-     -> stage DataBinding/ViewBinding generated sources for the next source input
-  -> RDexForSubmoduleCompiler: generate R.dex from R.class where needed
-  -> SourceCompiler: Kotlin/Java/DataBinding mapper/JuggApt/class -> dex/minify
-     -> DexCompiler first performs common pre-D8 class preparation; currently only Hilt Android entry transformation is connected
-  -> on failure or cancellation in any stage: stop later stages and finish remaining inputs as failed/cancelled results
-```
+Effect propagation uses `DeployFileManager`'s class/dex impact result. `ContinueCompileEffectFilter` excludes the previous round's source, except Kotlin top-level facade callers identified from `.kotlin_module`, and suppresses an effect key already satisfied in this session. A new structural trigger can recompile the same caller later; recursive recompilation does not feed those callers back into const-reference analysis as new user edits. Too many propagated files can make this Run fall back. If cancellation interrupts a recursive round, the first round rolls back its original files and clears staging.
 
-## 5. Stage Order and Extension Points
+The asynchronous Git check reads changed paths since the last full build; it does not validate the APK or deployment history. A failed query only loses that auxiliary check and cannot invalidate deploy history or Compile Context. After compilation, only a completed result is consumed, and it starts another incremental pass only for files still **newly pending** in `DeployFileManager`; an unfinished query is not awaited or carried into the next Run. `GitChangesRetryResolver` can refresh Git after an unresolved-reference failure; the resolver chain then retries once. Kotlin compiler compatibility retries occur inside `KotlinCompilerInvoker`, outside this chain.
 
-### 5.1 Built-In Stages
+## 5. Cross-File Boundaries
 
-- `compose resource`
-- `asset`
-- `res`
-- `source`
-- `minify`
-- `dex`
+### 5.1 File identity, ownership, and deletion
 
-`JuggCompiler.doCompile()` explicitly orchestrates Compose resource/asset/resource/source. The Compose stage must finish first so generated assets can enter `AssetOverlayCompiler` and generated classes can enter the source/dex chain. The source stage then handles DataBinding mapper, JuggApt, Kotlin, Java, Dex, and Minify. `CompileOrder` primarily defines custom-compiler insertion points.
+`FileChangesHandler` filters each module's actual Gradle build directory and traditional `build/` directory before recognizing changes, including events arriving through Git reconciliation and effect propagation. Sources generated directly within this compilation are handed to later stages without reentering file monitoring. A pending file records a `lastModified + length` snapshot; duplicate IDE/Git events with the same snapshot preserve its compile state. A changed snapshot reopens it as pending.
 
-Pre-D8 class preparation is internal to `DexCompiler`: it is not a new `BaseCompiler` sibling and consumes no `CompileOrder` extension point. After determining actual D8 inputs, `DexCompiler` reads and analyzes program classes once, passing the same result via explicit `ClassPreparation` to `TransformerCompiler`, `getDesugarInfo`, and D8 in sequence. The Transformer only replaces matching Hilt Android entry-point classes; it no longer parses program classes. Do not create a Transformer SPI or registry before a second real transformation requirement exists.
+An asset/resource event first delivered during a full Gradle build remains queued for the following incremental Run according to event arrival, not the source file's `lastModified`: a copy operation can preserve an old timestamp while producing a new file after its Gradle merge task has already run.
 
-### 5.2 Custom-Compiler Insertion Points
+An absent file does not become a normal compilation input. Deleting or renaming a source, `res/`, asset, Manifest, or Compose resource produces no removal overlay; old APK/overlay content can remain until a full Gradle baseline replaces it. Rename compiles only the new path. For a previously queued external-build input that is now missing, the Run precheck explicitly requests a full build. Do not infer successful removal from a zero-file incremental result.
 
-`CompileOrder` offers these ranges: `atFirst`, `beforeAsset/afterAsset`, `beforeRes/afterRes`, `beforeSource/afterSource`, `beforeMinify/afterMinify`, `beforeDex/afterDex`, and `atLast`.
+`BaseCompiler.splitApkAndCompile()` runs APK-scoped work against each owning APK rather than copying one result to all APKs. Ownership must survive the output handoff. In particular, `RDexForSubmoduleCompiler` uses `ModuleApkBelongs` for module `R.dex`; losing it can distribute a feature's R classes to unrelated APKs. AndroidTest module grouping includes module root so equal names cannot merge separate modules.
 
-Each concrete `BaseCompiler` implementation runs its own before/after ranges. `JuggCompiler` itself uses `atFirst` and `atLast`; subcompilers such as `ResourceOverlayCompiler`, `JavaCompiler`, `KotlinCompiler`, and `DexCompiler` expose the corresponding stage insertion points.
+### 5.2 External Flutter/native builds
 
----
-## 6. Hidden Constraints / Design Rationale
+`FileChangesHandler` can watch external source roots outside module directories. Its one `ChangedFile.module` is only an anchor: precheck and `ExternalBuildCompiler` resolve **all** matching current modules. Each input directory carries its own accepted file rules; exclusions and toolchain caches (`.dart_tool`, `.cxx`, `.externalNativeBuild`) win first. Keep separate directory/rule pairs even when roots overlap, or a broad Flutter asset root can mask a stricter native source root. Gradle metadata determines task-confirmed files and roots; `pubspec.yaml` contributes asset directories and `l10n.yaml`'s `arb-dir`, without unrestricted disk or `package_config.json` fallback.
 
-- `DeployFileManager.updateUncompiledFiles()` removes first-round successful files from the pending-compilation set. Later effect-propagation rounds do not update that set, avoiding confusion between derived recompilation and the user's original changes.
-- When a file becomes pending, Jugg records a `lastModified + length` snapshot. A late IDE/Git file event with the same snapshot is ignored and preserves its compile count; only an actual content change makes it pending again. Successful compilation refreshes the snapshot so duplicate events do not reopen compiled-but-undeployed files.
-- Git missing-file checks have two layers. On failure, a resolver may refresh Git to discover a missed new file and retry once. After success, `GitChangesCompileChecker` starts another round only if new pending files appear.
-- The Git check reads only Git changes through `IDeployHistoryManager.getChangedFilesSinceLastFullCompiled()`; it does not load or validate the APK, module build path, or deployed data. A runtime query failure skips only this check and must not delete deploy history or compile context. Only project-initialization recovery through `tryGetContextRecoverInfoFromDb(isOnInit = true)` may invalidate unrecoverable old history.
-- Effect propagation excludes files compiled in the previous round, except for Kotlin top-level file-facade cases. `getRecompileFiles()` reads the file-facade list from `.kotlin_module`; if a caller source's `effectedByClasses` matches a facade, `topLevelFacadeEffectedSourcePaths` allows it to be compiled one more time.
-- `BaseCompiler` is the template layer for all subcompilers. It handles type validation, module/androidTest batching, APK routing, and custom-compiler hooks. Read each subcompiler's implementation for its internal order.
-- `splitModuleAndCompile()` batches androidTest modules separately, using a grouping key that includes module root to avoid merging test modules with the same name.
-- `splitApkAndCompile()` routes APK-scoped outputs. Subclasses must retain current APK ownership in `doApkCompile()` output or multi-APK deployment loses its target.
-- Module `R.dex` generated by `RDexForSubmoduleCompiler` must carry `apkPath` / `targetApkPaths` from `ModuleApkBelongs`. In a Dynamic Feature case, omitting ownership turns the output into generic class dex distributed to every APK, so R classes sharing a package name but not resource sets overwrite one another.
-- DataBinding/ViewBinding sources from the resource stage in `JuggCompiler` do not end as final artifacts immediately; they become input to the following `SourceCompiler` stage.
-- Dart/C/C++ sources, including Flutter assets, local-path packages inside or outside the project, and `.cmake`/assembly inputs confirmed by task metadata, become `ExternalBuildSource` when they match a module's `externalBuildInfos`. `FileChangesHandler` still creates only one `ChangedFile` per physical file; its `module` is just an anchor for compatibility with the existing model. Precheck and compilation must call `resolveExternalBuilds()` across all current modules to resolve every matching target, rather than treating the anchor as the sole execution basis. Each `inputDirs` entry is a “directory + accepted `filterRules` for that directory.” Rules are ORed: `Dart` matches `.dart`; `FlutterAsset` matches any ordinary file; `CppSource`/`CppHeader` match explicit suffixes; `NativeDirectory` matches any non-hidden ordinary file but rejects symlink files and paths through symlink directories. `configFiles` still match exactly; `excludedDirs` and toolchain cache directories (`.dart_tool`/`.cxx`/`.externalNativeBuild`) take highest precedence. After collection, normalize and remove only exact duplicates with the same path and rule set. Do not collapse subdirectories under an ancestor or combine different rule sets on the same directory; a broad root must not swallow stricter subdirectory semantics. Sources of `inputDirs` are native configuration roots (`CppSource + CppHeader`), include roots and parent directories of explicit Header sources in metadata (`CppHeader`), parent directories of metadata-confirmed non-Header sources (`NativeDirectory`, without widening when the parent equals a configuration root), Flutter package roots (`Dart`), and configured asset directories or task-confirmed subdirectory inputs (`FlutterAsset`). This model tolerates a few extra triggers; Gradle's own up-to-date check decides actual work. `pubspec.yaml` is used only to extract directory declarations from `flutter.assets` and `arb-dir` from `l10n.yaml`. Individual asset/font/shader files still depend on task inputs; Jugg neither reads `package_config.json` nor scans the disk as a fallback.
-- Every external change runs the corresponding Gradle task. If one physical source matches several Native modules, tasks are deduplicated by `moduleRootDir + variant + taskPath + type`, run together in one Gradle invocation, and outputs are collected per module afterward. If any target lacks metadata, a task, or an output contract, or task execution/output collection fails, the source as a whole fails or falls back. Partial success must not remove it from pending files. Artifact CRC skips repeated deployment only, never Flutter/C++ compilation. The derived command includes the Jugg init script, explicitly appends the always-running `juggCollectExternalBuildInfo`, and uses invocation arguments to reread external metadata only for this run's module/variant/type. The collector atomically writes a temporary result directory without triggering a full project-info local fetch. After task success, the IDE merges the targeted patch into the latest Gradle snapshot, reruns the existing project-info merge, then updates active modules through `ICompileContext`. `FileChangesHandler` listens for context updates and atomically replaces the scan scope, so a new input directory takes effect immediately after this run. Missing, incomplete, or unpersistable collector results fail the run; continuing with the old monitoring scope would fabricate success.
-- Jugg records only one native output location and dispatches collection by file/directory. Flutter's native task is `packJniLibsflutterBuild<Variant>` / `packLibsflutterBuild<Variant>` (archive) or `copyJniLibsflutterBuild<Variant>` (directory), depended on by `compileFlutterBuild<Variant>`. For an archive, read only `lib/<abi>/*.so`; for a directory, read only `<abi>/*.so` from the actual `destinationDir`. Neither recursively scans Flutter intermediate directories. `flutter_assets` enter the asset overlay separately from the assets output directory. For C++, collect only stripped outputs from this invocation: the collector obtains the `strip<Variant>DebugSymbols` configuration of the APK owner (base app or dynamic feature), reproduces AGP's per-file strip semantics within Gradle, and writes into the invocation directory. `ExternalBuildCompiler` never falls back to unstripped output from `merge<Variant>NativeLibs`. The preferred source of this configuration is the local `build/jugg/classpath/native_strip` cache published by an ordinary full Gradle build. Under Gradle Configuration on Demand, a derived C++ invocation requests the selected library native task and collector, but does not request an APK-owner task merely to read strip configuration. The owner may therefore be unconfigured and its strip task unreadable; the cache must be used, and strip must not be skipped. Cache entries match uniquely by normalized `moduleRootDir + variant`; the tool preferentially uses a backup executable copied with the baseline. Missing cache, damaged JSON, invalid fields, duplicate entries, or an invalid recorded tool path permits only one fallback to a live read. If the owner is unconfigured or the live read still fails, preserve the final exception and ask for a full Gradle build to refresh the cache. A project snapshot retains the unsupported state when an external input is detected but a task, assets output, or native output is missing; a matching Run precheck falls back to full Gradle. A failed external task, missing/unreadable output path, absent stripped output in a C++ invocation, unreadable strip configuration, or a damaged native archive or one with unsafe/duplicate entries explicitly fails this run. `ExternalBuildCompiler` records the concrete cause in both `CompileError` and a `warn` log, without relying on a common exit point to emit the warning. If a task succeeds and its contracted output path is accessible, the run succeeds even when it produces no assets/`.so` files or the artifact set shrinks; it emits no corresponding deployment artifact. Old content in the installed APK or overlay remains until the next full Gradle build.
-- `AssetOverlayCompiler` output retains the source module in `CompileOutput.relativeModule`. Flutter external-build `flutter_assets` and Compose assets both enter staging through it. Deployment uses that ownership to distinguish Flutter JIT runtime assets actually compiled this run from same-name old files in the APK baseline. Only this compiler performs the `CompileFile` -> `CompileOutput` conversion; other subcompilers are unaffected.
-- `FileChangesHandler` excludes both every module's actual Gradle build directory and traditional `${moduleRootDir}/build`. File monitoring, Git missing-file checks, recovery events, and source-effect propagation all pass through this boundary, so Gradle-generated source, resources, assets, manifests, native libraries, and build files under these paths do not enter the change list. Directory events are pruned before recursion. This does not affect JuggApt/Resource/Compose generated sources registered and handed off directly by compilers within the current run.
-- External source roots may lie outside Android module directories, so they are added to the scan roots. `.dart_tool`, `.cxx`, `.externalNativeBuild`, module build directories, and metadata-declared `excludedDirs` (such as Flutter SDK and pub cache roots) always remain excluded, preventing generated files or dependency caches from being recognized as source changes. Directory rules handle only ordinary files that currently exist. Deletion of a recognized Dart/C/C++ source, Flutter asset, or configuration input is ignored directly, without recovering the input type from history or adapting deletion. Removing old Native code or Flutter assets from a device requires a full Run; a new path moved into the monitored scope is recognized as an ordinary add event.
-- A deletion event removes a previously registered pending item only by path. A nonexistent file does not become a `ChangedFile` or produce class, resource, asset, or Manifest removal data. Deletion alone therefore neither fails incremental compilation nor automatically falls back; the device retains old content from the installed APK and overlays. A rename is split into old-path deletion and new-path add/modify, and only the new path can compile. Use a full Gradle build to refresh the APK baseline only when old content must truly disappear.
-- Compose resource support is recognized from generator API structure exposed by project Gradle tasks, not an exact Compose/Kotlin version allowlist. The project snapshot retains “detected but unsupported” state, configured resource roots, and a user-visible reason. Resource changes still enter compilation and fail, followed by the existing next-run Gradle fallback behavior; `composeResourceInfo=null` must not silently filter them.
-- Deleting a Compose resource likewise creates no compilation input. There is currently no deletion graph, generated-source/cache reuse, or complete source-set dependency graph; old generated classes and deployed resources remain until a full Gradle build refreshes the baseline.
-- If cancellation interrupts recursive effect propagation, the first round rolls back changed files and clears staging so the next run can recompile them.
+| External input rule | Meaning of a matching directory |
+|---|---|
+| `Dart` / `FlutterAsset` | `.dart` files / ordinary Flutter asset files; local package and configured asset roots can extend beyond the project. |
+| `CppSource` / `CppHeader` | Explicit source/header suffixes from native configuration or include metadata. |
+| `NativeDirectory` | Existing, non-hidden ordinary files under metadata-confirmed native directories; symlink files and paths through symlink directories are excluded. |
 
----
-## 7. Fallback and Retry Mechanisms
+Exact configuration files match separately. Keep the directory and its rule set paired during normalization: remove only identical pairs, without collapsing a stricter subdirectory into an ancestor. The accepted scope can be slightly broad because Gradle's own up-to-date check decides task work.
 
-### 7.1 Gradle Fallback Boundary
+Every changed external input runs its matching variant task; artifact CRC suppresses repeated deployment, not compilation. Matching tasks are deduplicated by module root, variant, task path, and type, then run in one Gradle invocation. The Jugg init script and `juggCollectExternalBuildInfo` collect a targeted metadata patch after task execution. The Host merges and persists the patch, updates `ICompileContext`, and `FileChangesHandler` replaces its scan scope; an incomplete or unpersistable patch fails the whole input rather than reporting partial success. Remote builds, non-derivable commands, missing/unsupported task or output metadata, and queued removed inputs fall back before this side path. A failed task or unreadable/unsafe contracted artifact fails the current Run.
 
-See §4.1 for the full priority of pre-Run decisions. Fallback conditions fall into three groups:
+Flutter assets go to the asset overlay; its native artifact is either the task's archive (`lib/<abi>/*.so`) or output directory (`<abi>/*.so`). Neither path licenses scanning unrelated Flutter intermediate directories. C++ deploys only stripped libraries from this invocation, using the owning app/feature's strip configuration. The preferred configuration is the full-build `build/jugg/classpath/native_strip` cache because Gradle Configuration on Demand may leave the APK owner unconfigured during a library task. Entries must uniquely match module root and variant, with a valid recorded or backed-up strip tool; missing, damaged, or ambiguous cache data permits one live read. If that also fails, request a full build instead of using unstripped merge output. A successful task with an accessible output path may legitimately produce no assets or libraries: success without a new deployment artifact, while old installed content can remain. `AssetOverlayCompiler` retains `relativeModule` so deployment can distinguish this Run's Flutter assets from baseline assets.
 
-- User or baseline forcing: Force Gradle, BuildTarget switch, compile-command change, unavailable project info; or external-source changes with remote compilation, a nonstandard Gradle command from which tasks cannot be derived safely, an external input missing metadata/task/artifact contract, metadata marked unsupported, or deletion of Dart/C/C++ source or configuration input. Deleting a Flutter asset or shrinking the external-build artifact set does not trigger fallback.
-- State forcing: Without a baseline, or after a failed previous Gradle build, require a full compile directly rather than show a useless confirmation dialog. Whether a changed build file requires rebuilding is chosen by the user after the excessive-change confirmation.
-- Performance policy: When Java/Kotlin file count or module count exceeds a threshold, the IDE defaults to Gradle but lets the user choose Continue for this run only. It checks build-file/dependency changes only after Continue. MCP/CLI and `checkFallback()` show no dialog and report fallback directly.
+### 5.3 Lifecycle
 
-Fallback semantics after incremental compilation begins are separate from the pre-Run check. An uninitialized compiler, no-file-change confirmation, unexpected exception, too many recursively recompiled files, or a device becoming invalid during the run can switch to Gradle in this run. Ordinary source compilation failure fails this run directly and does not automatically run Gradle. Failed files remain pending changes marked as previously compiled; only the next Run decides whether to use Gradle under the no-file-change policy. On a compile-command change, logs include both `last=` and `current=` to distinguish a task switch from selecting another Jugg Configuration.
+`JuggCompilerHelper` owns `JuggCompiler` as the root of a `Disposer` tree. Rebinding Compile Context or closing the helper disposes registered children, including compiler daemons/loaders; invoking only the root object's `dispose()` would not release the child tree.
 
-Both the no-file-change fallback confirmation and manual `Force Gradle Compile` confirmation let the user ignore the Gradle build cache. If selected, this run appends `--no-build-cache --rerun-tasks` to the Gradle command. The option affects only this fallback, is not saved into Run Configuration, and clears after task startup.
+## 6. Diagnostic Boundaries
 
-When no files changed but the Jugg flow continues, it consistently displays `Compiling 0 files...`. This includes first run, project switch, Debug, the direct-deploy branch of androidTest, and a dry-deploy branch where the user chose `Don't fallback`. It does not display this message after switching to Gradle fallback or cancelling.
+| Observation | What it establishes | Next discriminating evidence |
+|---|---|---|
+| `checkFallback()` reports a reason | The status precheck's current state, without Run options/prompts | `preprocessIncrementalCompile()` result and Run target/command |
+| `found effected source files, continue compile` | An effect pass scheduled another round, not a new user edit | `getRecompileFiles()` result and `ContinueCompileEffectFilter` trigger keys |
+| Git check says `compile again` | A completed Git query found files still newly pending | Current `DeployFileManager` snapshots; a stale cached `ChangedFile` alone is insufficient |
+| Incremental compile failed | This Run failed unless its result permits immediate fallback | `CompileResult.details`, resolver result, `CompileTaskResult.isCanFallback` |
+| External task succeeded with no new `.so`/asset | Task/output contract succeeded, not old-device-content removal | Contracted output path, collected artifacts, installed baseline |
 
-### 7.2 Retries Within Incremental Compilation
+Before concluding that a missing file event, effect loop, or fallback is the cause, check the producer result and counter-evidence at its boundary: current pending snapshot, target APK ownership, and actual Run decision. For runtime log collection scope, start with `09_plugin_runtime_debug.md`.
 
-- Retry strategy interface: `IIncrementalCompileRetryResolver`, whose implementations are chained by `IncrementalCompileRetryResolverChain`.
-- Current chain order:
-  1. `GitChangesRetryResolver` (`idea` layer): detects errors like `unresolved reference / cannot find symbol` → invokes `GitFileChangesDetector.updateChangedFiles()` → retries once if a new file is found.
-  2. `IncrementalCompileRetryResolver`: detects dependency-missing keywords → updates compile context → retries once if it changes.
-- Internal language-compiler fallback is outside this chain. Metadata, plugin options, IDE filesystem conflict, compiler recreation, and moving SDK `android.jar` to the end (`AndroidJarClasspathRetry`) are handled by `KotlinCompilerInvoker` within one invocation, sharing a single automatic-retry budget rather than using `IIncrementalCompileRetryResolver`.
-- Effect-propagation recompilation uses `DeployFileManager.getRecompileFiles(...)`. `IncrementalCompilerHelper` filters continued compilation in two layers: (1) exclude sources compiled in the **previous round** (`lastRoundCompiledPaths`), except Kotlin top-level file-facade callers marked by `RecompileFiles.topLevelFacadeEffectedSourcePaths`; (2) exclude sources already recompiled for the same effect-trigger key in this session (`ContinueCompileEffectFilter.resolveUncompiledEffectedFiles`). Before dispatch, `schedulePendingEffectTriggers` writes `pendingEffectTriggerKeys`; the child frame consumes pending keys into `satisfiedEffectTriggers` before filtering. A key is `effectedPath + effectedByClasses` or the first-round const-ref batch. A **new** trigger from an earlier round (for example, a structural change in definition B newly requiring recompilation of caller A) still enters another round; the same `CrashDataSource -> SafeMode` key does not ping-pong. Recursive recompilation propagates only class/dex structural effects and does not feed those sources back to `ConstRefEngine` as new changed-source inputs.
-- The post-success Git check (`GitChangesCompileChecker`) starts a second incremental compile only when a Git refresh finds **new pending** files (`!hasCompiledOnce`). A file already compiled in this round that merely changed membership in the undeployed set (for example, Kuikly rewriting `KuiklyCoreEntry.kt` without a snapshot change) does not trigger it. After compilation, `getAsyncResultIfCompleted()` consumes only an asynchronous task that has finished; it does not wait for an ongoing Git query. Incomplete queries are logged at debug level and the current flow continues, and late results are not misread by a later Run. A completed result is rechecked by path against current `DeployFileManager` state so a cached `ChangedFile` with `compiledTimes=0` does not wrongly trigger `compile again`.
+## 7. Related Documents
 
-### 7.3 Compiler Resource Lifecycle
-
-`JuggCompiler` held by `JuggCompilerHelper` is the root of an IntelliJ `Disposer` tree. When a Compile Context change rebinds the compiler or the helper closes, release registered children recursively through `Disposer.dispose()`; calling only the root object's `dispose()` is insufficient. The `platform_compat` Disposer used by standalone preserves identity-based registration, parent-relation cleanup after proactive child disposal, reverse-registration order for siblings, and cleanup of remaining subtrees and the parent even if one node throws.
-
----
-
-## 8. Investigation Entry Points
-
-| Symptom | First entry point |
-|---------|-------------------|
-| User reports “this run skipped incremental and went straight to Gradle” | `JuggCompilerHelper.preprocessIncrementalCompile()` and `checkFallback()` |
-| Log shows `found effected source files, continue compile` after success | `unCompiledEffectedFiles` after `getRecompileFiles()` in `IncrementalCompilerHelper.compile()` |
-| Git check causes `compile again` after success | `GitChangesCompileChecker.getAsyncResultIfCompleted()` |
-| Resource/manifest/asset output affects the wrong APK | `BaseCompiler.splitApkAndCompile()` and `targetApkPaths` in subclass `doApkCompile()` output |
-| R-related runtime missing class or `R.styleable` error | `R.java` -> `SourceCompiler` -> `RDexForSubmoduleCompiler` flow in `JuggCompiler` |
-| Files do not recompile next time after cancellation | `rollbackChangedFile()` / `clearStagingFiles()` in the `IncrementalCompilerHelper` cancellation branch |
-| Custom compiler does not enter the expected stage | Numeric `CompileOrder` range and concrete compiler's `beforeCompileOrderRange` / `afterCompileOrderRange` |
-| Background resources remain or are disposed twice after Compile Context switch | `JuggCompilerHelper.juggCompiler` setter, `close()`, and the `Disposer` registration tree |
-
----
-
-## 9. Related Documents
-
-- Source compilation: `02_compile_source.md`
-- Resource compilation: `02_compile_resource.md`
-- DataBinding/ViewBinding: `02_compile_databinding.md`
-- Custom compilers and interaction: `02_compile_custom_ui.md`
-- Deployment effect analysis: `03_deploy_data_generator.md`
+- Resource and Compose handoffs: `02_compile_resource.md`
+- Source/Kotlin retries and Dex: `02_compile_source.md`
+- External metadata and project model: `04_engineering_project.md`
+- Deployment impact and staging: `03_deploy_data_generator.md`, `03_deploy_core.md`
+- Verification authority: `06_testing.md`

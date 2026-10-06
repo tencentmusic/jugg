@@ -1,428 +1,176 @@
 # Testing and Verification Strategy (Authoritative Rules)
 
-> Last checked: 2026-09-11
-> Consistency rule: when documentation conflicts with code, follow the code.
-> **Relationship to AGENTS.md / CLAUDE.md:** Top-level rules retain only non-negotiable constraints. **This page is the sole authority for verification evidence, test value, layers, TDD, test placement, and existing-test maintenance.** If another `docs/task/YYYY-MM/*` conflicts, this page prevails.
+> Last checked: 2026-10-07
+> If this page conflicts with current code, follow the code. This page is the sole current knowledge-base authority for verification evidence, test value, TDD, L0–L3 layers, test placement, and existing-test maintenance; historical `docs/task/YYYY-MM/` plans are context, not policy.
 
----
+## 0. Scope and decision order
 
-## 0. Scope
+Every development task needs evidence proportional to its risk. An automated test is one possible form of evidence, not a requirement for every change. Decide in this order:
 
-This page answers testing/verification questions in a fixed order:
+1. State the failure or regression risk and the result that must be proved.
+2. Apply the **test-value gate** before adding or retaining a test. It takes precedence over formal TDD, layer rules, reuse of an existing test file, and coverage targets.
+3. If a valuable automated assertion exists, identify its behavior owner, obtain a failing test for a feature/bug fix, then change production code and run the targeted regression.
+4. Otherwise preserve the failure reproduction, explain why automation is unsuitable, and verify at the real boundary with compilation, artifact/bytecode inspection, logs, or a manual IDE/device matrix. “No new test” never means “no verification.”
+5. Compare the final result with the original failure and an unaffected normal path.
 
-1. What verification evidence this change needs.
-2. Whether a new automated test is valuable.
-3. Which behavior owner is responsible if it is worth testing.
-4. Whether a valuable test belongs at L1, L2, or L3.
-5. Which alternative evidence to use when no valuable automated assertion is possible.
+JOOX Android work follows its separate no-unit-test rule. Do not use a Jugg test policy to override it.
 
-**Never skip the test-value judgment and create a test solely because of change type, coverage, or a formal TDD demand.**
+## 1. Evidence and test value
 
----
+| Evidence | Appropriate claim |
+|---|---|
+| Targeted automated test | Stable observable behavior has a deterministic regression decision. |
+| Targeted compilation or static analysis | API wiring, dependency direction, and type compatibility. |
+| Build/artifact or bytecode inspection | Generated script, plugin ZIP, APK/DEX, or binary compatibility actually contains the expected result. |
+| Logs plus stable reproduction | External IDE, device, process, or toolchain failure and its trigger. |
+| L3 Flow or documented real-environment matrix | Run → compile → deploy and other user-visible end-to-end results. |
 
-## 1. Common Decision Order
+Compilation does not prove runtime behavior. Source-string checks do not prove user behavior. Logs may establish the observed branch without proving the final user outcome.
 
-### 1.1 Governing Principles
+A test passes the gate when it protects an independent, stable contract that a real change could break; a contract break would fail a deterministic, adjudicable assertion; it has a clear owner without duplicating another test at the same granularity; and it asserts observable result rather than freely changeable private structure. Typical contracts include behavior, protocol, serialization, naming, compatibility, recovery, concurrency, and critical ordering.
 
-- Every development task needs **verification evidence** appropriate to its risk.
-- Automated tests are one evidence type; not every change needs a new automated test.
-- Apply the **test-value gate** before adding or retaining an automated test.
-- The value gate outranks formal TDD, L0–L3 layers, and placement rules such as “reuse an existing test file.”
-- TDD applies only to behavior that passes the value gate and supports a stable automated assertion.
-- No new automated test does not mean no verification. Record failure evidence, why automation is unsuitable, and alternative verification.
+Do **not** add or retain a test by default for fields/defaults/path constants, simple forwarding, mock calls without an outcome, coverage alone, private methods/constructors/delegates, ordinary log wording, reflective implementation shape, or output printed for manual inspection. A benchmark needs a stable baseline, threshold, or defined regression decision. When “does not throw” is genuinely the contract, assert that outcome explicitly.
 
-### 1.2 Decision Flow
+A source/dependency guard is justified only when the *contract itself* is a module/public API boundary, a forbidden dependency, or a generated/mirror artifact invariant. Name it as an architecture/contract test, prefer compilation or dependency analysis, and scan source only where those cannot express the rule. Do not use `readText().contains(...)` on private helper bodies as a TDD substitute.
 
-```text
-What must this change prove?
-  -> Is there independent, stable, observable behavior that a real change could break?
-     -> No: add no test; run compilation, static checks, or other needed verification
-     -> Yes: Can it be automated stably without binding to private implementation or adding a test-only seam?
-        -> Yes: identify behavior owner -> write failing test first / confirm existing regression -> choose L1/L2/L3
-        -> No: do not manufacture implementation-detail tests -> preserve failure reproduction -> choose alternative verification
-```
+## 2. L0–L3 and behavior ownership
 
-### 1.3 Verification Evidence Types
+The layer locates a test **after** it passes the value gate:
 
-| Evidence | Applies to | Proves |
-|------|----------|------------|
-| Automated test | Stable, deterministic, observable behavior | Behavioral regression can be detected continuously. |
-| Targeted compilation | API wiring, type compatibility, module dependencies | Current sources compile against target dependencies. |
-| Build/artifact inspection | Plugin package, APK, DEX, generated script | Final artifact exists with expected structure. |
-| Bytecode/API inspection | Android Studio / Gradle binary compatibility | Compiled output actually links to intended API shape. |
-| Logs and stable reproduction | External runtime, real device, IDE-internal failure | Original problem occurred and its trigger is established. |
-| L3 Flow | Main path such as Run → compile → deploy | User-visible process works end to end. |
-| Manual regression matrix | Real device/IDE combinations without stable automation | Final behavior works in specified environments. |
+| Layer | Owner and assertion |
+|---|---|
+| L0 | No valuable automation; use the appropriate alternative evidence. |
+| L1 | Deterministic domain rule, parser, serialization, generated artifact, DEX/APK transform, or narrow transport algorithm; prefer `main/src/test` for IDE-independent behavior. |
+| L2 | Multi-class recovery, retry, compatibility, concurrent state, or IDE orchestration; usually `idea/src/test`. Mockito can isolate external dependencies while asserting a business result. |
+| L3 | User-visible main Flow such as Run → compile → deploy or instrumentation; `idea/src/test/.../manager/*FlowTest` or a documented real-device matrix. |
 
-Alternative verification should approach the actual failure boundary. Successful compilation cannot substitute for runtime behavior; source-string inspection cannot substitute for user behavior.
+One primary owner should protect each behavior. Extend it for a new state, exception, or compatibility branch; do not create a test for every intermediate class or retest forwarding through factory, carrier, manager, action, and HTTP layers. Keep static architecture guards in `*ArchitectureTest` / `*ContractTest` files separate from behavioral tests. Create a new test file only for independent behavior with no suitable owner.
 
----
+When maintaining existing tests, remove or merge tests that have no adjudicable result, target unreachable capability, mirror implementation, or duplicate another owner. A test already living in a file does not make a new source-string assertion valuable. Keep real offline retry, state wake-up, atomic replacement order, and module-boundary guards when they protect independent contracts.
 
-## 2. Test-Value Gate
+Never add a production-only-for-tests `provider`, `supplier`, `factory`, `override` lambda, function-type parameter, mutable closure, or default lambda merely to mock a dependency. Use an existing business-meaningful interface or class and ordinary dependency injection. Do not change production code solely to enable a test.
 
-### 2.1 Passing Conditions
+## 3. Workflow by change type
 
-A test worth keeping usually satisfies all of these:
+- **Feature/bug fix:** obtain a failing test, stable reproduction, exception log, or external-API comparison first. For a valuable automated assertion, write and confirm the failing test at its owner before the code change, then run it after. If automation would require an implementation-detail assertion or test-only seam, record why and use evidence at the actual failure boundary.
+- **Refactor/optimization:** identify and run existing regression owners before changing behavior; add only uncovered stable behavior. Compile/deploy orchestration requires L3 or an existing equivalent Flow regression. Performance work needs a baseline, threshold, or defined L3 benchmark scenario.
+- **Documentation only:** automated tests are normally unnecessary; check `git diff --check`, references/paths, index consistency, and a documentation build when the edit affects rendered output.
 
-1. Protects a stable contract such as user-visible behavior, business rule, external protocol, naming convention, compatibility, recovery policy, concurrent state, or critical execution order.
-2. A real contract break makes the test fail consistently with a deterministic assertion explaining it.
-3. Has a clear behavior owner, without another test proving the same responsibility at the same granularity.
-4. Asserts observable results rather than freely changeable private structure.
+For a task report, record failure evidence, test-value judgment, owner/layer if applicable, alternative evidence, and the final result. Follow the repository's `AGENTS.md` execution checklist as the response format.
 
-Mockito, test layer, number of classes, and coverage cannot alone establish test value.
+## 4. Demo testcase and artifact ownership
 
-### 2.2 Do Not Test by Default
+A demo testcase belongs under `android_demo_project/app/src/main/java/com/sickworm/jugg/demo/testcase/<scenario>/`. Keep one scenario per directory with role-revealing classes such as parent, child, and invoker. `AssembleAndroidProjectOnce` supplies the assembled demo artifact to L1 `DeployDataGeneratorTest` and L3 Flow tests. After changing a testcase, remove `~/.jugg/test_flag/skip_assemble` or assemble manually, then rerun both relevant owners; otherwise a stale APK can make tests pass against old code. When `~/.jugg` is unwritable, `JuggGlobalPathManager` uses a temporary Jugg root.
 
-Normally do not add or retain automated tests merely for:
+For deployment-effect assertions, use the real D8/APK `ParsedDex` shape and compare affected source files; hand-constructed `MethodNode` graphs can omit synthetic R8 details. This is an L1 evidence rule, not a requirement to duplicate the same graph assertion at every orchestration layer.
 
-- Existence of a class, field, getter, constant, path, or simple data carrier.
-- Unchanged parameter forwarding or only verifying a mock call, with no business result, state change, or critical order.
-- Increasing coverage, traversing branches, or freezing current implementation shape.
-- Reflectively inspecting private fields/methods, internal signatures, or ordinary UI properties.
-- Reading production source and using `contains`, regex, or strings to lock down private method bodies, constructor overloads, concrete calls, class names, or delegates.
-- Exact strings in ordinary logs or non-contract wording.
-- Printing output or relying on manual observation without an adjudicable result. If “does not throw” is itself the contract, assert it explicitly with `assertDoesNotThrow` or equivalent.
-- Benchmarks without a stable baseline, threshold, or regression decision.
+## 5. Layer selection examples
 
-If “write a test first” can only be satisfied this way, automation failed the value gate; use alternative verification.
+| Behavior | Owner/layer |
+|---|---|
+| Graph propagation and affected sources | `DeployDataGeneratorTest` (L1). |
+| Direct Overlay checkpoint and write ordering | `DirectOverlayStateCheckerTest` / `DirectOverlayWriterTest` (L1). |
+| Deploy recovery, retry, offline install | `JuggDeployerHelperRecoverTest`, `DeployRetryHandlerTest`, `JuggDeployerInstallTest` (L2). |
+| Complete Run or androidTest route | `TopLevelFlowTest`, `TopLevelFlowWithGitTest`, `AndroidTestTopLevelFlowTest` (L3). |
+| Forbid old deployer runtime types in main path | `DeployCompatArchitectureTest` (static boundary guard). |
 
-### 2.3 Source and Static Architecture Guards
+These examples identify existing owners; they do not bypass the value gate.
 
-Source checks are not ordinary behavior tests. Allow them only when the **contract itself is a source/dependency boundary**:
+## 6. Special evidence boundaries
 
-- A module must not import or expose a runtime type.
-- A public compatibility interface must not leak version-specific APIs.
-- Generated scripts, protocol text, or mirror files must stay synchronized to one source.
-- A forbidden dependency is documented architecturally but cannot be expressed directly by the build system.
+### 6.1 AndroidTest
 
-Source guards must satisfy:
+The test-value gate still governs instrumentation work. `06_android_test.md` defines current app/library capability and result boundaries; historical `docs/task/2026-04/androidtest_support_design.md` is background. `TestLauncherResultTest` and `LibraryTestApkBackfillHelperTest` own their stable L2 branches; `AndroidTestTopLevelFlowTest` protects the end-to-end path. Do not add `DeployOptions*Test` or path-constant tests merely because a new field carries the spec.
 
-1. Name describes the architecture contract, not a private method implementation.
-2. Assertion spans module, public boundary, generated artifact, or forbidden dependency—not a helper body.
-3. Prefer compilation, dependency constraints, or static analysis; scan source only when those cannot express the rule.
-4. Do not present a source guard as TDD replacement for a feature/bug fix.
+### 6.2 Compose resources
 
-For example, “IDE main path must not depend on old deployer runtime types” may be an architecture guard. “`createAdbClient` must invoke a particular three-argument constructor” is not.
+Separate metadata/generator correctness from runtime freshness. Existing L1 owners are `ComposeValueResourceConverterTest`, `ComposeResourceScannerTest`, and `ComposeResourceGeneratorBridgeTest`; `FileChangesHandlerTest` covers source classification/build-directory exclusion. Inspect metadata, generated accessors/classes, and target APK with targeted integration/artifact evidence. Do not claim a Flow test unless that file exists and actually ran.
 
----
+For device verification, first establish a Gradle baseline Run. Add a key and verify incremental accessor generation/compilation. For a value-only change, read the value in the baseline process before editing it, then confirm the new runtime value and necessary restart, target APK, and absence of incremental Gradle Compose-resource tasks. The demo Kotlin 1.9 profile uses `src/commonMain/composeResources`; 2.1/2.3 use `composeResourcesExtended` plus `src/androidMain/customComposeResources`. Sync after each profile switch and restore the original. Choose L2 for multi-version metadata/artifact behavior and L3 or a documented device matrix for runtime freshness; do not duplicate the whole matrix at both layers.
 
-## 3. Automated Test Layers
+### 6.3 External AAR R namespace
 
-Layers decide **where** a test that passed the value gate belongs, not whether to write one.
+`DependencyDiffResultTest` owns symbol-over-Manifest namespace precedence and the no-source case. `RDexForSubmoduleCompilerTest` owns deduplication, app-package exclusion, missing-namespace failure, and APK routing. `JuggCompilerTest` covers the stage handoff into staged `R*.dex`. For runtime `NoSuchFieldError`, inspect the changed AAR's `r_package_name`, current Run host R output, and target APK staged namespace DEX before blaming one producer.
 
-```text
-                    ┌─────────────────────────────┐
-              L3    │  *FlowTest / release matrix │  real demo compile → deploy/run
-                    ├─────────────────────────────┤
-              L2    │  multi-class + Mockito API   │  recovery/retry/orchestration/compatibility
-                    ├─────────────────────────────┤
-              L1    │  domain test + real artifact │  algorithm/parser/serialization/output
-                    ├─────────────────────────────┤
-              L0    │  no automated test           │  pure data/forwarding/implementation details
-                    └─────────────────────────────┘
-```
+### 6.4 Constant references
 
-| Layer | Typical location | Proves |
-|------|----------|----------|
-| **L3** | `idea/src/test/.../manager/TopLevelFlowTest`, `TopLevelFlowWithGitTest`, `AndroidTestTopLevelFlowTest` | User-visible main path and equivalence before/after refactoring. |
-| **L2** | `idea/.../deploy/run/*Test`, `JuggCompileHelperTest` | Recovery, retry, concurrency, compatibility, and IDE orchestration branches. |
-| **L1** | `main/.../DeployDataGeneratorTest`, `main/.../deploy/direct/*Test`, parser/output tests | Deterministic transformations, complex structures, and real artifacts. |
-| **L0** | — | Add no test; choose necessary alternative evidence. |
+`ConstRefEngineTest` and `ConstRefIntegrationTest` own edit-to-impact behavior, including a removed constant within an existing file; `ConstRefCacheDatabaseTest` owns persisted indexing; `RepoSharedFingerprintStoreTest` owns cross-worktree reuse. A source-file deletion removes state through a different path from an in-file removed-definition query. Verify affected-source output and the post-deploy commit boundary; a cache hit alone does not prove recompilation. See `03_deploy_const_ref.md`.
 
-### 3.1 Allowed L1 Scope
+### 6.5 Source classpath and Kotlin opt-in
 
-After passing the value gate, these behaviors commonly fit L1:
+`02_compile_source.md` owns the compatibility behavior and diagnostic boundaries. Use these existing regressions when changing the corresponding source-compilation contract:
 
-| Type | Example | Module |
-|------|------|------|
-| Impact analysis / graph propagation | `DeployDataGenerator`, `DeployDataDatabase` | main |
-| Bytecode / Dex / APK parsing | `ParsedDex`, `ApkInfoReader` | main |
-| Protocol / log parsing | `InstrumentationOutputParser`, `AdbLogWrapper` | main |
-| Timing / buffering algorithms | `AndroidTestLogAttributor`, `TestLauncher` logcat attribution | idea |
-| Pure-function derivation | `AndroidTestCommandDeriver`, `InstrumentCommandBuilder` | main |
-| External naming / compatibility convention | IDE module to Gradle variant mapping | main / idea |
-| Direct Overlay checks | `DirectOverlayStateChecker`, `DirectOverlayWriter` | main |
-| Serialization round trip | `ApkInfoSerializer`, `JuggDeploymentCacheStore` | main / idea |
-| Generated artifacts | Gradle init script, APT output, Manifest, R files | main / idea |
-| Init-script generation contract | `ReadProjectInfoScriptContentTest` (trailing commas, companion, disabled APIs, etc.) | main |
+| Contract | Existing owner | Fixture and evidence |
+|---|---|---|
+| Recover Kotlin compilation when SDK `android.jar` shadows a framework-JAR supertype | `SourceCompileTest.romHiddenApi_shouldRecoverWhenSdkAndroidJarShadowsFrameworkJar` in `main/src/test/java/com/sickworm/intellij/jugg/compiler/SourceCompileTest.kt` | Demo `testcase/romhiddenapi/RomHiddenApiChild.kt` and `android_demo_project/app/romlibs/` JARs declared as `compileOnly`; asserts successful compilation of that fixture. |
+| Preserve the Gradle module's opt-in for incremental KMP common source | `JuggCompilerTest.compileCommonSourceWithHiddenFromObjCRequiringOptIn` in `idea/src/test/java/com/sickworm/intellij/jugg/manager/JuggCompilerTest.kt` | Demo `kmpCompose` common/Android `ObjCRefinementCase` sources; verifies compilation, the `ExperimentalObjCRefinement` opt-in argument, staged `ObjCRefinementCaseKt.dex`, and no Compose Gradle task. |
 
-Outside L1:
+Keep the ROM fixture's framework JARs on the compile classpath. The opt-in fixture deliberately has no file-level opt-in, so adding one would bypass the module-argument contract. Apply §4's baseline refresh rule after fixture changes; compile/staging assertions alone do not prove device runtime behavior.
 
-- Collaboration branches in `JuggDeployerHelper`, `DeployStateRecover`, and `DeployRetryHandler` belong at L2; user main path belongs at L3.
-- `DeployOptions` fields, path constants, and simple getters belong at L0.
-- A one-line pure syntax conversion belongs at L0; if it encodes an external protocol or naming contract, add it to an existing owner.
-
----
-
-## 4. Behavior Owner and Test Placement
-
-### 4.1 Owner Principles
-
-- One primary owner should protect each stable behavior. Test names/assertions describe behavioral responsibility, not repeat a production method name.
-- Add the same behavior to an existing owner instead of creating a `*Test.kt` at every production layer.
-- L3 owns external main path; L2 covers exceptional, recovery, compatibility, and concurrent branches too numerous for L3; L1 covers deterministic domain rules.
-- A data flow need not be retested for forwarding at factory, carrier, manager, action, and HTTP layers.
-- An existing source-scan test in a file does not make a new source-string assertion valuable automatically; apply the value gate again.
-
-### 4.2 Module Priority
-
-1. Put deterministic IDE-independent behavior in `main/src/test` first.
-2. Put IDE APIs, RunConfig, `JuggRunningTask`, and deploy/run orchestration in `idea/src/test`.
-3. Name architecture guards separately as `*ArchitectureTest` / `*ContractTest`, not within behavior owners.
-4. Create a test file only for new independent behavior without a suitable owner.
-
-### 4.3 Existing-Test Maintenance
-
-Delete, migrate, or merge first when a test:
-
-- Has no adjudicable result and only prints content or inspects a real environment by hand.
-- Verifies only fields, defaults, paths, getters, forwarding, or mock calls.
-- Freezes only a private method, concrete delegate, construction shape, reflection signature, ordinary log, or non-contract wording.
-- Mixes behavior tests with static architecture guards in one owner file.
-- Duplicates an owner without a new exception, compatibility, state, or boundary branch.
-- Targets a production capability no longer reachable or registered.
-
-Examples:
-
-| Case | Decision | Reason |
-|------|------|------|
-| `JuggDeployerInstallTest#install retries once after offline exception and succeeds` | Keep (L2) | Protects ADB-offline recovery and retry count. |
-| `DeployStateManagerTest#waitForPendingFileProcessing...` | Keep (L2) | Protects timeout and condition wake-up. |
-| `DirectOverlayWriterTest#write should remove payload targets before unzip` | Keep (L1) | Protects atomic replacement order. |
-| `DeployCompatArchitectureTest` forbidding old deployer types in main path | Keep (static architecture guard) | Contract is the module boundary itself. |
-| Assertion of which `AdbClient` constructor a private Quail helper uses | Delete / do not add | Freezes implementation, not install behavior. |
-| `DeployTargetManagerTest#test` | Delete | No assertion, only accesses a real device. |
-
----
-
-## 5. Workflow by Change Type
-
-### 5.1 Feature / Bug Fix
-
-1. Obtain **failure evidence** of the missing behavior first: failing test, stable reproduction, exception log, crash stack, or external-API comparison.
-2. Apply the test-value gate.
-3. For a valuable automated assertion, identify owner, write and confirm a failing test, then change production code.
-4. If automation would bind to details or require a test-only seam, add no test; record why and choose alternative verification.
-5. After fix, run targeted test or alternative verification and compare with failure evidence to confirm disappearance.
-
-### 5.2 Refactor / Optimize
-
-- List existing regression owners and confirm they pass before change.
-- Add tests only for stable behavior lacking protection, not internal structural changes.
-- Deploy/compile orchestration changes require L3 or an existing equivalent Flow regression.
-- Performance optimization needs a stable baseline, threshold, or defined L3 benchmark scenario.
-
-### 5.3 Documentation Only
-
-- Automated tests are not required.
-- Run `git diff --check`, sample paths, index consistency, or documentation build according to risk.
-
-### 5.4 Execution Checklist
-
-Record as applicable in a development task:
-
-```text
-- Failure evidence: test / log / stable reproduction / N/A
-- Automated-test value judgment: add / reuse / no new test + reason
-- Test owner and layer: Class#method (L1/L2/L3) / N/A
-- Alternative verification: compile / build / artifact / bytecode / manual matrix / N/A
-```
-
----
-
-## 6. Testcase Class Rules (L1 / L3)
-
-### 6.1 Directory Convention
-
-```text
-android_demo_project/app/src/main/java/com/sickworm/jugg/demo/testcase/
-└── <feature>/
-    ├── TargetClass.kt
-    └── InvokerClass.kt
-```
-
-- One scenario per directory; class names show roles such as `Parent` / `Child` / `Invoker`.
-- After adding/changing a testcase, delete `~/.jugg/test_flag/skip_assemble` or assemble manually.
-
-### 6.2 Relationship to L3
-
-L3 Flow depends on `AssembleAndroidProjectOnce`; L1 `DeployDataGeneratorTest` uses the same demo artifact. Rerun both after changing a testcase.
-
----
-
-## 7. Typical Test Locations by Path
+## 7. Typical test locations by path
 
 ### 7.1 Compile → Deploy
 
-| Goal | Layer | File |
-|------|------|------|
-| Real deployment after user clicks Run | **L3** | `TopLevelFlowTest`, `TopLevelFlowWithGitTest` |
-| androidTest deployment + instrumentation | **L3** | `AndroidTestTopLevelFlowTest` |
-| Dry deploy / recover / retry | L2 | `JuggDeployerHelperRecoverTest`, `DeployRetryHandlerTest` |
-| Direct Overlay full chain with virtual device | L2 | `JuggDeployerHelperDeployFlowTest` + `VirtualDeployDevice` |
-| Early deployment exits | L2 | `JuggDeployerHelperDeployTest` |
-| Install offline / retry / mode escalation | L2 | `JuggDeployerInstallTest` |
-| Deploy-compat source dependency boundary | Static architecture guard | `DeployCompatArchitectureTest` |
-| Narrow transport script | L1 | `DirectOverlaySwapTransportTest` |
-| Three-way overlay / writer algorithm | L1 | `DirectOverlayStateCheckerTest`, `DirectOverlayWriterTest` |
+| Goal | Existing owner / layer |
+|---|---|
+| Run → compile → deploy | `TopLevelFlowTest` / `TopLevelFlowWithGitTest` (L3). |
+| androidTest deployment and instrumentation | `AndroidTestTopLevelFlowTest` (L3). |
+| Recovery, retry, early exits | `JuggDeployerHelperRecoverTest` / `DeployRetryHandlerTest` / `JuggDeployerHelperDeployTest` (L2). |
+| Direct Overlay full chain | `JuggDeployerHelperDeployFlowTest` with `VirtualDeployDevice` (L2); writer/checker tests (L1). |
+| Install/offline/mode escalation | `JuggDeployerInstallTest` (L2). |
+| Deploy-compat dependency boundary | `DeployCompatArchitectureTest` (static guard). |
 
-A change to `JuggDeployerHelper.deploy` dispatch or recovery→deployment order must include at least one L3 in its execution checklist, or identify an equivalent existing Flow regression.
+A change to compile/deploy dispatch or recovery-to-deployment order needs L3 execution or an existing equivalent Flow regression. The branch-specific L2/L1 tests complement that evidence; they do not replace it.
 
 ### 7.2 AndroidTest
 
-Scenario tables in `docs/task/2026-04/androidtest_support_design.md` are background. Test value, verification, and layers follow this page. See `06_android_test.md` for capability details.
+Use `06_android_test.md` for capability constraints, then the test-value gate and `6.1` here for placement.
 
-### 7.3 Existing L2 Owners
+### 7.3 Existing L2 owners
 
-Add new deploy/run branches to these first:
-
-- `DeployRetryHandlerTest` / `JuggDeployerHelperRecoverTest`
-- `JuggDeployerInstallTest`
-- `TestLauncherResultTest`
-- `LibraryTestApkBackfillHelperTest`
-
-Do not add `DeployOptions*Test`, path-constant tests, or equivalent L0 files.
+Extend the existing Retry/Recover/Install, `TestLauncherResultTest`, or `LibraryTestApkBackfillHelperTest` owner for a new stable branch before creating another test file.
 
 ### 7.4 Gradle Init Script (`readProjectInfo.gradle.kts`)
 
-When a change enters inputs to `buildReadProjectInfoScript` (`main/.../gradle/script/**`, embedded `project/data/**`, `DependencyDiffResult`, or `buildReadProjectInfoScript.gradle`), cover **generated-script syntax** independently; higher-version functional compatibility cannot substitute:
+Changes to `buildReadProjectInfoScript` inputs—`main/.../gradle/script/**`, embedded `project/data/**`, `DependencyDiffResult`, or `buildReadProjectInfoScript.gradle`—need independent **generated-script syntax** evidence. Gradle 7/9 functional success cannot establish Kotlin DSL 1.3/1.5 syntax compatibility.
 
-| Goal | Layer | Owner | Notes |
-|------|------|-------|------|
-| Generation contract (trailing commas, companion, APIs unavailable under Kotlin 1.3/1.5, etc.) | L1 / static guard | `ReadProjectInfoScriptContentTest` | Required by default; needs neither Java 8 nor a real Gradle process. |
-| Real script compilation (Kotlin DSL language version < 1.4) | L2 | `ReadProjectInfoGradle5CompatTest`, `ReadProjectInfoGradle6CompatTest` | Run with compatible JDK; catches syntax holes missed by Gradle 7+. |
-| Higher-version functionality / AGP behavior | L2 | `ReadProjectInfoGradle7CompatTest`, `ReadProjectInfoGradle9CompatTest` | Proves functional behavior only; **cannot** replace syntax regressions from 5/6 or `ScriptContentTest`. |
+| Evidence | Owner and prerequisite |
+|---|---|
+| Generated content contract: trailing commas, companion/inner-class adjustments, unavailable older APIs | `ReadProjectInfoScriptContentTest` (L1/static guard), required by default and independent of a real Gradle process. |
+| Actual older script compilation | `ReadProjectInfoGradle5CompatTest` / `ReadProjectInfoGradle6CompatTest` (L2), with a compatible JDK. |
+| Higher-version functional behavior | `ReadProjectInfoGradle7CompatTest` / `ReadProjectInfoGradle9CompatTest` (L2); useful for AGP behavior, not a replacement for older syntax checks. |
 
-Missed-regression pattern: if init-script changes run only Gradle 7/9 compatibility checks, pre-1.4 syntax defects such as trailing commas pass silently. See `04_engineering_project.md` §6 for engineering constraints.
+See `04_engineering_project.md` for why generated script source and embedded resource both matter.
 
----
+## 8. Test infrastructure and speed flags
 
-## 8. DeployDataGeneratorTest Pattern (L1 Example)
+The test support `mock/Commons.kt` provides demo root, temporary build output, compile context, and project info. Enable `~/.jugg/test_flag/enabled` and `skip_assemble` only when intentionally reusing a known-current demo artifact; remove `skip_assemble` after any testcase change. `TestModeManager` reads the master flag once per process, so start a fresh test process after changing it. Do not trade away a required assembled-artifact check for speed.
 
-Use real D8 output; do not hand-build `MethodNode` and omit details such as `$r8$lambda$`.
+## 9. Selecting a verification run
 
-### 8.1 Extract ParsedDex from APK
-
-```kotlin
-private fun getParsedDex(className: String): ParsedDex {
-    val classSigName = className.classSigName
-    return ParsedDex(
-        parsedApk.classes.filter { it.key == classSigName }.map {
-            ClassDeployItem(
-                DeployItem(it.key, CompileOutput.Type.Dex, 0, byteArrayOf(), DeployItem.FLAG_CLASS),
-                listOf(it.value),
-            )
-        },
-        parsedApk.methodRefs.filter { it.value.contains(classSigName) }.mapValues { listOf(classSigName) },
-        parsedApk.fieldRefs.filter { it.value.contains(classSigName) }.mapValues { listOf(classSigName) },
-        parsedApk.subclassRefs.filter { it.value.contains(classSigName) }.mapValues { listOf(classSigName) },
-    )
-}
-```
-
-### 8.2 Assert Affected Sources
-
-```kotlin
-val data = generator.buildDeployData(modifiedParsedDex, emptyList())
-assertEquals(listOf("SubClass1.java", "SubClass2.java").sorted(), data.effectedSourceFileNames.sorted())
-```
-
----
-
-## 9. Test Infrastructure
-
-### 9.1 Prerequisites
-
-```kotlin
-fun clearBuild() {
-    AssembleAndroidProjectOnce.ensure()
-    buildDir.clearDir()
-}
-```
-
-### 9.2 Key Globals (`mock/Commons.kt`)
-
-| Variable | Meaning |
-|------|------|
-| `buildDir` | Temporary compilation output. |
-| `assetsAndroidDir` | Root of `android_demo_project`. |
-| `context` | `SimpleCompileContext`. |
-| `projectInfo` | APK metadata. |
-
----
-
-## 10. Running Tests and Verification
-
-This repository and `android_demo_project` set `org.gradle.daemon=false` and idle timeout to 10 seconds. CLI tests leave no Gradle daemon after completion; IDE/Tooling API may still start one that exits after about 10 seconds idle. Test fixtures additionally pass `--no-daemon` to `./gradlew` so user-level `~/.gradle/gradle.properties` cannot override project settings.
-
-Never run unfiltered full `:main:test` / `:idea:test`.
-
-For a full JVM test run that explicitly skips real-device tests, set `JUGG_TEST_SKIP_DEVICE=true`. Every class using `RequiresDeviceRule` skips before probing adb or launching an emulator, with no test-class inventory to maintain.
+Run targeted owners and the necessary artifact/Flow checks after development. Never run unfiltered `:main:test` or `:idea:test`. Typical targeted commands are:
 
 ```bash
-JUGG_TEST_SKIP_DEVICE=true ./gradlew test --continue
-```
-
-Use this mode for batch runs containing ordinary tests. Do not select only one real-device test class with `--tests`: after the whole class skips, Gradle may report `No tests found` because the filter saw no test events.
-
-```bash
-# L3
-./gradlew :idea:test --tests "com.sickworm.intellij.jugg.manager.TopLevelFlowTest"
-
-# L2
-./gradlew :idea:test --tests "com.sickworm.intellij.jugg.deploy.run.DeployRetryHandlerTest"
-
-# L1
-./gradlew :main:test --tests "com.sickworm.intellij.jugg.deploy.data.DeployDataGeneratorTest"
-
-# Compilation / build as alternative verification
+./gradlew :main:test --tests 'com.sickworm.intellij.jugg.deploy.data.DeployDataGeneratorTest'
+./gradlew :idea:test --tests 'com.sickworm.intellij.jugg.deploy.run.DeployRetryHandlerTest'
+./gradlew :idea:test --tests 'com.sickworm.intellij.jugg.manager.TopLevelFlowTest'
 ./gradlew :idea:compileKotlin
-./gradlew :idea:buildPlugin
 ```
 
----
+`JUGG_TEST_SKIP_DEVICE=true` can run a deliberately selected broader JVM suite while `RequiresDeviceRule` skips before ADB/emulator probing. Do not select only one real-device class with `--tests` in that mode: after a whole-class skip, Gradle may say “No tests found.” Project and demo Gradle properties disable daemon and set a 10-second idle timeout; Tooling API can still start a short-lived daemon, and fixtures pass `--no-daemon` to protect against user-level overrides.
 
-## 11. Skipping Assemble for Speed
+## 10. Running tests and verification
 
-```bash
-mkdir -p ~/.jugg/test_flag
-touch ~/.jugg/test_flag/enabled
-touch ~/.jugg/test_flag/skip_assemble
-```
+For an agent-bundle failure at `:jvmti_agent:buildInstrumentJar`, compare the same build under JDK 17 with a JDK 21 failure and inspect the D8 exception. Bundled AGP 7.2.2 D8 may reject JDK 21-generated metadata; JDK 17 success diagnoses build-tool compatibility, not device startup-agent correctness. Verify both relocated Dragonfly/private Kotlin runtime artifacts and the actual device behavior at their own boundaries.
 
-If `~/.jugg` is unwritable, flags live under `${java.io.tmpdir}/jugg-<user>/test_flag`. Delete `skip_assemble` after adding a testcase.
+For release packaging, run `:idea:verifyThirdPartyCompliance` against the plugin ZIP. It checks notices, licenses, source revision/checksums, the 104-component inventory, and SPDX SBOM *inside the distribution*; repository files alone are insufficient. After `third_party/components.csv` changes, regenerate notices, modification records, and SBOM with `ruby tools/generate_third_party_compliance.rb`, then verify the package.
 
----
-## 12. Common Pitfalls
+Targeted compilation (`./gradlew :idea:compileKotlin`) proves wiring only. `./gradlew :idea:buildPlugin` and artifact inspection prove packaging; they do not establish an IDE/device runtime result.
 
-| Problem | Cause | Remedy |
-|------|------|------|
-| A source-string test added to satisfy TDD | Value gate skipped. | Delete the test, record failure evidence, and select alternative verification. |
-| `readText().contains(...)` freezes private helper | Implementation mistaken for contract. | Keep only explicit module/protocol/generated-artifact guards. |
-| L2 passes but production still breaks | L3 absent. | Add a Flow or release regression matrix. |
-| `getParsedDex` empty | Demo not assembled / wrong class name. | Delete `skip_assemble`. |
-| SQLite and in-memory DB differ | Only in-memory DB tested. | Add coverage to SQLite owner. |
-| Third `*Test` for a Helper | Existing owner ignored. | Merge into Recover/Retry/Flow owner. |
-| Every intermediate class has a test | Tests mirror code structure. | Retain final behavior, exceptional branch, or protocol owner. |
-| Test only checks a mock call | No business result or critical order. | Assert observable behavior or delete if impossible. |
-| Manual logs described as an automated test | No continuous decision mechanism. | Classify as alternative verification with environment and result. |
+## 11. Pitfalls and historical context
 
----
-
-## 13. Investigation Entry Points
-
-| Question | Start with |
-|------|----------|
-| Unsure whether automation is needed | §1 decision flow and §2 value gate. |
-| Cannot write failing test but have stable reproduction | §5.1 Feature / Bug Fix. |
-| Unsure of L1/L2/L3 | §3 layers and §4 owner. |
-| Unsure whether source scan is appropriate | §2.3 static architecture guards. |
-| deploy/run branch reproduced only at L2 | §7.1; check whether L3 is also needed. |
-| androidTest test placement unclear | `06_android_test.md` and §7.2. |
-| New testcase reads stale artifact | §6.1 and §11. |
-
----
-
-## 14. Historical Documents
-
-Historical proposals such as `docs/task/2026-03/TDD_UNIT_TEST_COVERAGE_GAP_REPORT_*.md` and `docs/task/2026-04/androidtest_support_design.md` provide scenario background only. If they imply “every bug fix needs a new unit test,” “more unit tests is always better,” or “unit tests outrank the user main path,” apply this page's verification evidence, value gate, and owner rules instead.
+- L2 success cannot substitute for a needed L3 regression; a mock interaction alone does not prove deployment.
+- An in-memory database test cannot prove SQLite persistence. Keep the persisted-state owner where the contract needs it.
+- A source-string test that freezes a helper is not failure evidence merely because it was written before a fix.
+- Manual logs or a one-time demo Run are alternative evidence, not an automated regression suite; record environment and result.
+- Historical `docs/task/2026-03/TDD_UNIT_TEST_COVERAGE_GAP_REPORT_*.md` and `docs/task/2026-04/androidtest_support_design.md` provide scenarios, not a mandate to add unit tests to every fix.

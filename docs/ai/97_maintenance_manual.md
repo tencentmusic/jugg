@@ -32,6 +32,7 @@ Decide where the information belongs before applying this quality standard. Code
 - Design intent, such as “this side path replaces only transport, not lifecycle management.”
 - Known defects, investigation entry points, and logs or symptoms that are easily misread.
 - Where current code differs from old understanding, update the document to match current code.
+- When a claim's owner or current truth cannot be verified, retain it with the uncertainty stated; do not silently move or delete it.
 
 ### 3.2 Remove or Compress
 
@@ -145,6 +146,8 @@ Keep a step within one file only if:
 For presentation:
 
 - Write the main chain across boundaries, for example `SourceCompiler -> SourceDataBindingProcessor -> DataBindingGenMapperCompiler -> JavaCompilerInvoker`.
+- Name the stable method at an important cross-file entry, state owner, or failure-recovery boundary when the class alone leaves multiple plausible starting points. Pair the method with the relevant decision, state change, or output; do not list every call.
+- Show actual caller-to-callee order in a call chain. Label a sequence as data flow when its arrows describe conceptual output order rather than direct calls.
 - Recast a necessary single-file step as a cross-file output or ordering contract, or as a core navigation entry; otherwise omit it rather than expanding method order.
 
 ## 7. Writing the Source Index
@@ -211,15 +214,12 @@ In ordinary topic documents, keep a pure symptom-to-code jump only when its dest
 
 ## 10. Maintenance Process
 
-1. Read the target document and mark low-density content: mechanical indexes, code paraphrases, duplicate testing rules, and generic background.
-2. Read `99_index.md` and `98_code_map.md` to confirm the topic boundary and core code entry points.
-3. Check only source needed for the current topic; do not scan the whole project.
-4. Update only the affected sections. When the user requests a rewrite or the current structure obscures the topic, organize it as document purpose -> core source index -> state/data model -> call chain -> hidden constraints -> investigation entry points -> related documents.
-5. Check every paragraph against the quality standard in §2.
-6. For errors or investigation conclusions, check whether “what it proves / what it does not prove / next discriminating evidence” and the minimal counter-evidence gate are clear.
-7. Audit each arrow in the main chain for a cross-file, cross-stage, or cross-state-object boundary, or an explanation of an output handoff, failure recovery, or ordering constraint.
-8. Run `git diff --check`.
-9. If the document names source paths or test entry points, spot-check their existence.
+1. Follow `AGENTS.md` reading order: `00_overview.md`, `99_index.md`, then `98_code_map.md` to locate the topic. Read this manual and only the relevant target pages before source code.
+2. Mark mechanical indexes, code paraphrases, duplicate testing rules, and generic background. Check the current implementation for each affected capability, flow, state, and diagnostic claim; do not scan unrelated code.
+3. For a targeted update, change only affected sections. For an explicit rewrite, classify the whole page, consolidate duplicates, and use the §4 structure where it helps.
+4. Before removing, compressing, or replacing existing content in a targeted update or rewrite, record the destination of each **distinct fact or useful core navigation anchor**: retained in the changed page; already covered in a named current document; moved to an English comment beside its implementation owner; or excluded because code disproves it or a specific placement rule rejects it. Preserve an unverified claim with its uncertainty until it can be resolved. Audit diagnostic meanings and verification prerequisites separately. A retained behavior summary does not replace a useful method-level first hop, and searchable code or an existing test does not by itself replace diagnostic interpretation or a non-obvious verification condition. Put durable verification policy in `06_testing.md`.
+5. Check every remaining paragraph against §2, every main-chain arrow against §6.1, and each error/conclusion against the interpretation and counter-evidence rules in §§8.1–8.2.
+6. Check `99_index.md` and `98_code_map.md` when a topic, entry class, or path changes. Run `git diff --check` and spot-check named source paths, test owners, and commands.
 
 ## 11. Self-Review Checklist
 
@@ -228,13 +228,16 @@ Check each item before committing:
 - Have low-value class/method lists been removed?
 - Have line-by-line paraphrases of code been avoided?
 - Is the source index for AI's essential first hops intact?
+- Where a core boundary needs a method-level first hop, is its verified method still named?
 - Are cross-class call chains or state machines clear?
+- Do call-chain arrows reflect actual calls, with conceptual data flow labeled separately?
 - Does each arrow in the main chain cross a file, stage, or state object, or explain an output/state/failure-recovery handoff?
 - Has method order within one file been omitted unless it explains a cross-file output, state, or ordering contract?
 - Are non-obvious code constraints, design intent, or known defects included?
 - Does each hidden constraint have effects across files that cannot be understood from one file alone? Have local reasons been left beside the code only when they need explanation?
 - Do navigation-only jumps lead to main-flow entry points, owners of key state, or main failure-recovery entry points?
 - Is each cross-file constraint stated once in the most useful section rather than repeated?
+- Does every distinct removed, compressed, or replaced fact or useful core navigation anchor have a verified destination, including diagnostic interpretation and verification prerequisites?
 - Do aggregated errors explain what they prove, what they do not prove, and the next discriminating evidence?
 - Must an investigation conclusion check counterexamples, conflicting signals, and scope?
 - Is content already covered by another topic linked instead of repeated?

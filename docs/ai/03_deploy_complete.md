@@ -1,131 +1,80 @@
-# Deployment System: End-to-End Flow (Run to Device)
+# Deployment System: Run to Device
 
-> Last checked: 2026-09-23
-> Consistency rule: when documentation conflicts with code, follow the code.
-
----
+> Last verified: 2026-10-07
+> Consistency rule: If documentation conflicts with code, code takes precedence.
 
 ## 1. Scope
 
-This page answers how compilation results enter deployment after a user clicks Run, and how those results become user-visible feedback.
-
-For transport, Direct Overlay, and impact-analysis details, see `03_deploy_core.md`, `03_deploy_data_generator.md`, and `03_deploy_const_ref.md`, respectively.
-
----
+This page follows one user-triggered Run from compilation to per-device deployment and final UI state. Install, Apply Changes, Direct transport, retry, and recovery internals are in `03_deploy_core.md`.
 
 ## 2. Core Source Index
 
-| Class/interface | File | Role |
+| Owner | Path | Responsibility |
 |---|---|---|
-| `JuggRunningTask` | `idea/src/main/java/com/sickworm/intellij/jugg/ide/logic/JuggRunningTask.kt` | Orchestrates Run: prepares UI/logging, invokes compilation, deploys to each device, aggregates results, and decides on Gradle fallback. |
-| `JuggCompilerHelper` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/JuggCompilerHelper.kt` | Produces `CompileTaskResult` and chooses incremental or Gradle compilation for this run. |
-| `JuggDeployerHelper` / `JuggDeployOrchestrator` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployerHelper.kt`, `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployOrchestrator.kt` | The helper selects install, embedded, or incremental deployment; the orchestrator runs the shared single-device lifecycle. |
-| `DeployOptions` / `DeployTaskResult` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployHelperBean.kt` | Request/result contract between Run orchestration and the deploy helper. |
-| `LaunchContext.customApkInstallScript` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/LaunchContext.kt` | Optional install script for the current Run Configuration. It flows through `DeployOptions`, deploy/recovery requests, and `LaunchContextFactory`, then runs on the IDEA Host. |
-| `DeployOptions.customApkSignScript` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployHelperBean.kt` | Optional APK-signing script for the current Run Configuration; passed only to the APK-update boundary, not to the installer. |
-| `JuggDeployData` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployData.kt` | Source of deployment payload and final deploy type. |
-| `DeployStateManager` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/DeployStateManager.kt` | Per-device state indicating current incremental-deployment eligibility and whether recovery is needed. |
-| `DeployHistoryManager` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/DeployHistoryManager.kt` | Records the previous deployment checkpoint; advances after successful install/incremental deployment. |
-| `JuggServer` | `main/src/main/java/com/sickworm/intellij/jugg/server/JuggServer.kt` | Reports compile/deploy telemetry; does not participate in deployment decisions. |
+| `JuggRunningTask` | `idea/src/main/java/com/sickworm/intellij/jugg/ide/logic/JuggRunningTask.kt` | Holds the project write lock, runs compile then device deployment, aggregates results, and publishes UI/events |
+| `JuggCompilerHelper` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/JuggCompilerHelper.kt` | Returns the compilation result and incremental/Gradle choice |
+| `IDeployTargetManager` / IDEA `DeployTargetManager` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/IDeployTargetManager.kt`, `idea/src/main/java/com/sickworm/intellij/jugg/deploy/DeployTargetManager.kt` | Resolve this request's connected targets without booting an AVD or mutating persisted selection |
+| `JuggDeployerHelper` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployerHelper.kt` | Turns one device's `DeployOptions` into a `DeployTaskResult`; owns deploy/recovery fallback eligibility |
+| `JuggDeployOrchestrator` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployOrchestrator.kt` | Runs the shared device lifecycle after the helper chooses a payload |
+| `DeployOptions` / `DeployTaskResult` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployHelperBean.kt` | Request/result boundary between Run and the device helper |
 
----
+## 3. Run State and Handoffs
 
-## 3. End-to-End State Model
-
-| State/data | Producer | Consumer | Meaning |
-|---|---|---|---|
-| `CompileTaskResult.isGradleCompile` | `JuggCompilerHelper.compile()` | `JuggRunningTask.deployDevice()` | Successful Gradle compilation leads to install; successful incremental compilation leads to incremental changes. |
-| `CompileTaskResult.isSuccess` | `JuggCompilerHelper.compile()` | `JuggRunningTask.doRun()` | On failure, end immediately without deploying to devices. |
-| `CompileUiHandler.isSkipDeploy` | UI / MCP caller | `JuggRunningTask.doRun()` | Compilation succeeded but deployment is explicitly skipped. Reset hasRun so the next run does not incorrectly report no file changes. |
-| `DeployTaskResult` | `JuggDeployerHelper.deploy()` | `JuggRunningTask.doRun()` | Per-device success, deploy type, fallback eligibility, and failure reason. |
-| `RunResult` | `JuggRunningTask.doRun()` | `JuggRunningTask.run()` | Final feedback to UI, dependency-change manager, and hasRun state. |
-
----
-
-## 4. Core Call Chain
-
-### 4.1 Main Run Path
+| State | Producer → consumer | Consequence |
+|---|---|---|
+| `CompileTaskResult.isSuccess` | `JuggCompilerHelper` → `JuggRunningTask` | Failure ends before any device deployment. |
+| `CompileTaskResult.isGradleCompile` | Compile → `DeployOptions.isInstall` | Gradle result installs; incremental result applies changes. A successful Gradle compile may also rebuild incremental context after a skipped or failed deploy. |
+| `CompileUiHandler.isSkipDeploy` | UI/MCP → Run | Compile can succeed without deployment. `RunResult.isDeploySuccess=false` and `hasRun` is reset so a later Run will not assume no changes. |
+| `DeployTaskResult` | Per-device helper → Run | Carries success, actual deploy type, failure reason, and whether that result permits Run-level Gradle fallback. |
+| `RunResult` | Run → UI/dependency-change manager/status | Gradle compile success is enough to stage compile state; an incremental run requires deploy success. Cancellation and `hasRun` reset are resolved at task end. |
+| `DeployHistoryManager.isLastFullCompileFailed` | Run → next compile/deploy-state check | After a non-canceled Gradle Run, records compilation success or failure independently of installation. A failed full compile blocks incremental compilation; a successful full compile clears this gate even if deployment later fails. |
 
 ```text
-JuggRunningTask.run()
-  -> prepare Run Tool Window / JuggLogger / juggServer.onCompile()
-  -> JuggCompilerHelper.compile()
-  -> compile failure: show Run window + return failed RunResult
-  -> skip deploy: return RunResult with compile success but no deployment
-  -> read one snapshot of IDE-selected running devices
-  -> no devices: rebuild incremental context after Gradle compilation, return deployment failure
-  -> call deployDevice() per device in snapshot order
-  -> aggregate DeployTaskResult list
-  -> all succeed: print final success log, call initIncrementalCompileTask() after Gradle compilation
-  -> partial failure with fallback allowed: force Gradle and recurse into doRun()
-  -> partial failure without fallback: return failed RunResult
+JuggRunningTask.run() → runLocked() under project write lock
+  → refresh configuration/owner state; start logs, progress, and compile event
+  → doRun() → JuggCompilerHelper.compile()
+  → compile failure: return without device deployment
+  → skip deploy: preserve compile result, reset hasRun, finish
+  → IDeployTargetManager.getTargetDevices(request serial) once
+  → no targets: report deploy failure; rebuild incremental context after Gradle compile
+  → for each target: deployDevice() builds DeployOptions(isInstall = isGradleCompile) → JuggDeployerHelper.deploy()
+  → aggregate device results and select final deploy type
+  → eligible failure with automatic fallback: force Gradle and rerun the Run flow
+  → otherwise finish UI, dependency/build state, and hasRun checkpoint
 ```
 
-The Run layer decides whether to deploy, whether to fall back for the entire run, and how to aggregate UI results. Install/recovery/retry details live elsewhere. The Debug executor additionally sets `CompileUiHandler.isAlwaysRestartApp` to true, causing both ordinary incremental deployment and empty-change deployment to restart the app after success; the IDE layer then attaches the Java debugger.
+With no explicit serial, the IDEA manager uses the IDE's selected, already-running devices. An explicit serial is matched against online connected devices for this request and does not alter Host selection. Device lookup is side-effect-free and does not start a stopped emulator. The Run flow takes one target list before deploying, so later selection changes do not silently change this run's target set.
 
-### 4.2 Single-Device Deployment Path
+For each target, `DeployOptions` carries the current Run Configuration's custom APK install and signing scripts. The install script runs only for ordinary-app install/reinstall on the IDEA Host; androidTest APKs use the default installer. The signing script reaches only the incremental APK rewrite boundary. Remote compilation changes artifact origin, not the local install-script execution host. See `03_deploy_system_app.md` for script behavior.
 
-```text
-deployDevice()
-  -> set DeployOptions.isInstall from CompileTaskResult.isGradleCompile
-  -> JuggDeployerHelper.deploy()
-  -> for install/reinstall, group by applicationId; ordinary apps may run a custom APK install script, while androidTest uses the default installer
-  -> report deploy_failed_reason / deploy_type / device in detail
-  -> on success, show user-visible notification for the deploy type
-```
+## 4. Multi-Device Result and Fallback
 
-Gradle compilation maps to `isInstall=true`; incremental compilation maps to `isInstall=false`. This boundary selects `deployInstall()` or `deployIncrementalChanges()` downstream.
+The Run layer reports the highest-priority device result: `INSTALL > EMBEDDED > COMPAT_HOT_FIX > HOT_FIX > HOT_RELOAD`. Failure reasons from multiple devices are joined for the final result. Core deployment decides whether a device failure can fall back; the Run layer reads the `isCanFallback` flags and the automatic fallback setting.
 
-Incremental deployment has another transport type: a current non-warm-up, nonempty payload that does not need an app restart sets `isNeedRestartActivity=true`, mapping to `APPLY_CHANGES_AND_RESTART_ACTIVITY`. Android Studio transport performs Full Swap; Direct app sandbox transport performs a separate Activity relaunch after successful class redefinition. Both preserve the process and rerun `onCreate()`. Only `isNeedRestartActivity=false` retains `APPLY_CHANGES` semantics without Activity recreation. Do not infer the Activity lifecycle from the final reported `HOT_RELOAD` name.
+The current aggregation uses `deployTaskResultList.all { it.isCanFallback }`, including successful results. A successful `DeployTaskResult` normally has `isCanFallback=false`, so a mixed success/failure run does not enter automatic Gradle fallback. If every result permits fallback, Run forces Gradle compilation and reruns the entire target list; it does not retry only failed devices. This distinction matters when investigating a partial success that ended without fallback.
 
-### 4.3 Multiple Devices and Fallback
+The per-device helper advances shared deployment history and file state when the last target succeeds, before Run aggregates all target results. An earlier target's failure can therefore coexist with an advanced global checkpoint. Inspect per-device cache/overlay IDs and the last-target result when investigating a later mismatch after partial success.
 
-```text
-selected and running devices snapshot
-  -> any selected device not running: treat whole run as no devices; do not start an AVD or deploy to a subset
-  -> deploy per device in selection order
-  -> deploy type takes highest priority: INSTALL > EMBEDDED > COMPAT_HOT_FIX > HOT_FIX > HOT_RELOAD
-  -> any device fails: check whether every failure has isCanFallback
-  -> isCanFallback && automatic fallback enabled: force Gradle compilation and rerun doRun()
-  -> otherwise retain failure reasons and end this run
-```
+On full Gradle compilation, `initIncrementalCompileTask()` is called after successful deployment and also after several nondeployment exits, including skip-deploy, no target, and a failed deployment with no fallback. This preserves the newly built baseline for the next Run. A failed Gradle install also resets `hasRun`; skip-deploy and cancellation reset it for their own reasons. The final `hasRun` status and target serials are written in `runLocked()`'s `finally` block.
 
-For multiple devices, individual failure causes combine into one `failedReason`. Fallback applies to the whole Run, rather than retrying only failed devices.
+`JuggDeployData.deployType=HOT_RELOAD` is a payload category, not proof that the Activity survived. A nonempty payload without process restart selects APPLY_CHANGES_AND_RESTART_ACTIVITY; official transport runs Full Swap and Direct app sandbox requests Activity recreation. If transport or policy actually restarts the process, the per-device result becomes `HOT_FIX`. A Debug run requests a process restart before debugger attach, including empty-change deployment.
 
----
+`juggServer.report(action="compile"/"deploy")` and Control Panel events describe the run; successful telemetry submission does not establish compilation or deployment success. The reported deploy type is an aggregate, whereas `notifyLaunched()` uses each device result for its notification.
 
-## 5. Hidden Constraints
+## 5. Investigation Boundaries
 
-- `CompileTaskResult.isGradleCompile` affects deployment path, whether to call `initIncrementalCompileTask()` after success, and `isLastFullCompileFailed` state.
-- After successful Gradle compilation but failed deployment, incremental context may still need rebuilding; otherwise the next run loses incremental capability.
-- `isSkipDeploy` is not deployment success. It sets `isDeploySuccess=false` and requires the next user-triggered run to avoid treating hasRun as proof of no changes.
-- Device selection is side-effect-free. On Meerkat–Panda and Quail, Run, status refresh, or MCP queries do not automatically start a stopped AVD.
-- The main Run path reads the device snapshot once to avoid selection changing between `hasDevice` and actual deployment.
-- For multiple devices, some global state advances only after the last device succeeds; see `03_deploy_core.md` for core deployment behavior.
-- The Run layer receives `DeployTaskResult.isCanFallback`; `DeployRetryHandler` / deployment core decide which failures qualify.
-- The custom APK install script belongs to Run Configuration. It reaches `LaunchContext` through the deployment request and covers ordinary-app install/reinstall in the current Run. Remote compilation changes only the artifact source; the script still runs on the local IDE host connected to the device.
-- The custom APK-signing script replaces only the resigning step for incrementally modified APKs. A full Gradle build, CLI, and manual export do not use this parameter. Script failure does not fall back to local keystore signing.
-- `juggServer.report(action="compile"/"deploy")` is telemetry; successful reporting does not establish successful compilation or deployment.
+| Observation | What it establishes | Next discriminating evidence |
+|---|---|---|
+| Compilation succeeded but no device deploy began | Run took skip-deploy or no-target branch; this is not proof of an incremental compiler defect. | Check `CompileUiHandler.isSkipDeploy`, request serial, and `getTargetDevices()` result at the compile/deploy boundary. |
+| Some devices succeeded, some failed, with no Gradle fallback | At least one result did not permit fallback under the current `all` aggregation. | Compare each `DeployTaskResult.isCanFallback`, including successful results, and the automatic fallback setting. |
+| A deployment failure caused a full Gradle rerun | Every result permitted fallback and auto-fallback was enabled. | Compare per-device failure reasons with `DeployRetryHandler` classification; do not infer all failures had the same cause. |
+| `HOT_RELOAD` was followed by Activity `onCreate()` | Process-preserving deployment may still recreate the Activity. | Check `isNeedRestartActivity`, selected transport, and whether `needsRestartApp` promoted the actual result to `HOT_FIX`. |
+| Incremental state after a Gradle build looks stale | A rebuild or status reset may be missing at a Run exit, independent of the install outcome. | Inspect the relevant `initIncrementalCompileTask()` branch and the final `runLocked()` status update. |
 
----
+## 6. Related Documents
 
-## 6. Investigation Entry Points
-
-| Symptom | Start with |
-|---|---|
-| Run hangs at the compile/deploy boundary | The `isSkipDeploy`, device-snapshot, and `deployDevice()` branches after compile success in `JuggRunningTask.doRun()` |
-| Compilation succeeds but nothing deploys | `CompileUiHandler.isSkipDeploy`, `deployTargetManager.getSelectedDevices()`, `CompileTaskResult.isGradleCompile` |
-| Only some devices succeed | Fallback aggregation of `deployTaskResultList` in `JuggRunningTask.doRun()` |
-| The whole run switches to Gradle compilation after failure | `DeployTaskResult.isCanFallback` and `JuggSettings.isAutoFallbackToGradleWhenDeployError` |
-| Incremental state is wrong after Gradle install | `initIncrementalCompileTask()` call site and `deployHistoryManager.isLastFullCompileFailed` |
-| UI success notification is unexpected | `notifyLaunched()` and `buildDeploySuccessLogLines()` |
-
----
-
-## 7. Related Documents
-
-- Deployment core: `03_deploy_core.md`
-- Impact analysis: `03_deploy_data_generator.md`
-- Constant-reference impact analysis: `03_deploy_const_ref.md`
-- IDE orchestration: `04_engineering_ide.md`
-- Runtime investigation: `09_plugin_runtime_debug.md`
+- Deployment internals: `03_deploy_core.md`
+- Effect analysis: `03_deploy_data_generator.md`
+- IDE lifecycle: `04_engineering_ide.md`
+- Android test flow: `06_android_test.md`
+- Verification strategy: `06_testing.md` §7.1
