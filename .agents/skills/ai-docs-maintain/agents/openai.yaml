@@ -1,0 +1,7 @@
+interface:
+  display_name: "Jugg AI docs maintain"
+  short_description: "Maintain Jugg AI knowledge pages on explicit request"
+  default_prompt: "Use $ai-docs-maintain to rewrite the specified Jugg AI knowledge-base pages."
+
+policy:
+  allow_implicit_invocation: false

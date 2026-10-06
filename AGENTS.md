@@ -109,4 +109,4 @@ Every completed task must include this exact section. Combine verification evide
 
 ### 4. Update documentation when needed
 
-For a functional or architectural change, update the [knowledge base](docs/ai) and check [docs/wiki](docs/wiki) for affected user pages; update those pages too when applicable.
+For a functional or architectural change, check the [knowledge base](docs/ai) for affected facts and synchronize them in the same task. Add new knowledge only when it meets the placement rules in `97_maintenance_manual.md`; a code change alone does not require a knowledge-base addition. If no knowledge-base change is needed, explain why in the task checklist. Check [docs/wiki](docs/wiki) for affected user pages and update them when applicable.

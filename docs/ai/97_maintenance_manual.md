@@ -19,6 +19,8 @@ Every new paragraph should answer at least one question:
 
 If every answer is no, omit the paragraph.
 
+Decide where the information belongs before applying this quality standard. Code that already expresses a local rule clearly needs no additional prose. Explain a non-obvious reason confined to one implementation in a nearby English code comment. Put a hidden constraint in this knowledge base when its effects span multiple files and one file cannot convey the complete rule. A constraint already explained in a call chain or state model should appear there once, not again in a hidden-constraints list.
+
 ## 3. Content Selection
 
 ### 3.1 Keep
@@ -138,13 +140,12 @@ Keep a step within one file only if:
 
 - Another stage or file consumes its output.
 - It changes cross-run state, caches, staging, history, deploy state, or a similar object.
-- It has a non-obvious ordering constraint.
-- It is a frequent first investigation hop.
+- It has a non-obvious ordering constraint that another file or stage must respect.
 
 For presentation:
 
 - Write the main chain across boundaries, for example `SourceCompiler -> SourceDataBindingProcessor -> DataBindingGenMapperCompiler -> JavaCompilerInvoker`.
-- Recast details within one file as “output / constraint / investigation entry point,” rather than expanding method order.
+- Recast a necessary single-file step as a cross-file output or ordering contract, or as a core navigation entry; otherwise omit it rather than expanding method order.
 
 ## 7. Writing the Source Index
 
@@ -157,6 +158,8 @@ Include only classes AI must know to investigate the topic:
 - Failure-recovery and compatibility handlers.
 
 Describe each class's business responsibility, not a vague “utility for handling xxx.” Paths must reflect current code; a directory-level path must still let AI locate the class quickly.
+
+For navigation-only entries, include main-flow entry points, owners of key state, and main failure-recovery entry points. Do not use presumed frequency as an admission criterion; a single task cannot establish it reliably.
 
 ## 8. Writing Hidden Constraints
 
@@ -204,12 +207,14 @@ Give only the first hop, not a full investigation script:
 
 If investigation requires a fixed log or path, put it in the symptom. Do not turn the entire document into an FAQ.
 
+In ordinary topic documents, keep a pure symptom-to-code jump only when its destination meets the core-entry criteria in §7. Diagnostic interpretations and evidence boundaries are different content; assess them under §8.1–§8.2. `09_plugin_runtime_debug.md` has its own investigation criteria and does not inherit this navigation-only gate.
+
 ## 10. Maintenance Process
 
 1. Read the target document and mark low-density content: mechanical indexes, code paraphrases, duplicate testing rules, and generic background.
 2. Read `99_index.md` and `98_code_map.md` to confirm the topic boundary and core code entry points.
 3. Check only source needed for the current topic; do not scan the whole project.
-4. Rewrite the structure: document purpose -> core source index -> state/data model -> call chain -> hidden constraints -> investigation entry points -> related documents.
+4. Update only the affected sections. When the user requests a rewrite or the current structure obscures the topic, organize it as document purpose -> core source index -> state/data model -> call chain -> hidden constraints -> investigation entry points -> related documents.
 5. Check every paragraph against the quality standard in §2.
 6. For errors or investigation conclusions, check whether “what it proves / what it does not prove / next discriminating evidence” and the minimal counter-evidence gate are clear.
 7. Audit each arrow in the main chain for a cross-file, cross-stage, or cross-state-object boundary, or an explanation of an output handoff, failure recovery, or ordering constraint.
@@ -225,8 +230,11 @@ Check each item before committing:
 - Is the source index for AI's essential first hops intact?
 - Are cross-class call chains or state machines clear?
 - Does each arrow in the main chain cross a file, stage, or state object, or explain an output/state/failure-recovery handoff?
-- Has method order within one file been moved into “hidden constraints / investigation entry points” or reduced to an output description?
+- Has method order within one file been omitted unless it explains a cross-file output, state, or ordering contract?
 - Are non-obvious code constraints, design intent, or known defects included?
+- Does each hidden constraint have effects across files that cannot be understood from one file alone? Have local reasons been left beside the code only when they need explanation?
+- Do navigation-only jumps lead to main-flow entry points, owners of key state, or main failure-recovery entry points?
+- Is each cross-file constraint stated once in the most useful section rather than repeated?
 - Do aggregated errors explain what they prove, what they do not prove, and the next discriminating evidence?
 - Must an investigation conclusion check counterexamples, conflicting signals, and scope?
 - Is content already covered by another topic linked instead of repeated?
