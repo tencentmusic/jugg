@@ -182,7 +182,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - License/source reference: https://dl.google.com/dl/android/maven2/androidx/databinding/databinding-compiler/7.4.2/databinding-compiler-7.4.2.pom
 - Download/source: https://dl.google.com/dl/android/maven2/androidx/databinding/databinding-compiler/7.4.2/databinding-compiler-7.4.2.jar
 - Modified by Jugg: No
-- Notes: Distributed as separate compiler, compiler-common, common, and baseLibrary JARs in the cmd_line standalone distribution.
+- Notes: Distributed with the plugin and cmd_line as separate compiler, compiler-common, common, and baseLibrary JARs. Jugg uses 7.4.2 instead of 8.7.3 because the latter contains class file version 61.0, which cannot load in Java 11 IDEs.
 
 ## 21. Android Data Binding compiler suite 8.7.3
 
@@ -191,7 +191,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - License/source reference: https://dl.google.com/dl/android/maven2/androidx/databinding/databinding-compiler/8.7.3/databinding-compiler-8.7.3.pom
 - Download/source: https://dl.google.com/dl/android/maven2/androidx/databinding/databinding-compiler/8.7.3/databinding-compiler-8.7.3.jar
 - Modified by Jugg: No
-- Notes: Distributed with the plugin as separate compiler, compiler-common, common, and baseLibrary JARs; embedded ANTLR Runtime is listed separately.
+- Notes: Not distributed in the current plugin or cmd_line release; replaced by 7.4.2 (see component 20). Version 8.7.3 contains Java 17 bytecode, so XMLParser$ElementContext cannot load in Java 11 IDEs such as Electric Eel.
 
 ## 22. Android Tools Annotations 30.4.2
 
@@ -704,7 +704,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - License/source reference: https://github.com/antlr/antlr4/blob/4.5.3/LICENSE.txt
 - Download/source: https://repo1.maven.org/maven2/org/antlr/antlr4-runtime/4.5.3/antlr4-runtime-4.5.3.jar
 - Modified by Jugg: No
-- Notes: Relocated code is embedded in Data Binding compiler-common 8.7.3 and distributed with it; packaged by upstream Data Binding.
+- Notes: Relocated code is embedded in Data Binding compiler-common 7.4.2 and distributed with it; packaged by upstream Data Binding.
 
 ## 79. ASM 9.6
 

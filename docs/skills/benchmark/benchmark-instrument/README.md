@@ -7,7 +7,7 @@ This directory is an agent-behavior benchmark, not an operation manual. Each cas
 ## Sources of Truth
 
 - Skill entry: `docs/skills/jugg-android-dev-loop/SKILL.md`
-- CLI argument catalog: `docs/ai/08_cli_tools_list.md` (`2 `instrument`)
+- CLI argument catalog: `docs/ai/08_cli_tools_list.md` (§6, `instrument`)
 - androidTest guide: `docs/ai/06_android_test.md`
 - Android test project: `android_demo_project`
 - Existing androidTest sources:
