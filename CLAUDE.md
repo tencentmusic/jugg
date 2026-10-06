@@ -109,4 +109,12 @@ Every completed task must include this exact section. Combine verification evide
 
 ### 4. Update documentation when needed
 
-For a functional or architectural change, update the [knowledge base](docs/ai) and check [docs/wiki](docs/wiki) for affected user pages; update those pages too when applicable.
+After changing code, check whether affected facts in the [knowledge base](docs/ai) need updating; synchronize them in the same task. Add new knowledge only when it provides:
+
+- An essential code entry point or behavior owner.
+- A cross-file flow or state transition.
+- A non-obvious cross-file constraint or diagnostic interpretation boundary.
+
+Keep implementation-local reasons in nearby English code comments. A code change alone does not justify a knowledge-base addition. Read `docs/ai/97_maintenance_manual.md` when editing `docs/ai/` or when placement is unclear. If no knowledge-base change is needed, explain why in the task checklist.
+
+For functional or architectural changes, check [docs/wiki](docs/wiki) for affected user pages and update them when applicable.
