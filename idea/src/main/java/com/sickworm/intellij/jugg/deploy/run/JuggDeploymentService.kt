@@ -10,6 +10,9 @@ import com.sickworm.intellij.jugg.project.JuggGlobalPathManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import java.io.File
+import java.io.FileNotFoundException
+import java.nio.file.Files
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.system.measureTimeMillis
 
@@ -55,15 +58,21 @@ object JuggDeploymentService : IJuggDeploymentService, IJuggDeployerDeploymentSe
     }
 
     override fun loadCachedOverlayId(deviceSerial: String, packageName: String, logger: Logger): CachedOverlayId? {
-        return loadEntry(deviceSerial, packageName, AdbLogWrapper(logger))
-            ?.overlayId
-            ?.let { CachedOverlayId(sha = it.sha, isBaseInstall = it.isBaseInstall) }
+        val entry = try {
+            loadEntry(deviceSerial, packageName, AdbLogWrapper(logger))
+        } catch (e: FileNotFoundException) {
+            logger.debug("Cached deployment APK is missing for $deviceSerial: ${e.message}")
+            null
+        }
+        return entry?.overlayId?.let { CachedOverlayId(sha = it.sha, isBaseInstall = it.isBaseInstall) }
     }
 
     override fun loadEntry(deviceSerial: String, packageName: String, logger: ILogger): JuggDeploymentCacheEntry? {
         // load from memory
         val memCache = memoryCache[String.format("%s:%s", deviceSerial, packageName)]
         if (memCache != null) {
+            memCache.apks.firstOrNull { Files.notExists(File(it.path).toPath()) }
+                ?.let { throw FileNotFoundException(it.path) }
             logger.info("JuggDeploymentService.loadEntry, load from memory cache")
             return memCache
         }

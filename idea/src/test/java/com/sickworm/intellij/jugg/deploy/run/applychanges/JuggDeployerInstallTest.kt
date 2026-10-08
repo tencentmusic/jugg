@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.deploy.run.applychanges
 
 import com.android.ddmlib.IDevice
+import com.android.sdklib.AndroidVersion
 import com.android.tools.deploy.proto.Deploy
 import com.android.tools.deployer.ClassRedefiner
 import com.android.tools.deployer.DexComparator
@@ -42,9 +43,39 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.mockito.Mockito
 import java.io.File
+import java.io.FileNotFoundException
 import java.io.IOException
 
 class JuggDeployerInstallTest {
+
+    @Test
+    fun `missing cached APK requests deploy state recovery`() {
+        val fixture = newFixture()
+        Mockito.`when`(fixture.launchContext.device.version).thenReturn(AndroidVersion(30))
+        Mockito.`when`(fixture.deploymentService.loadEntry("emulator-5554", PACKAGE_NAME, fixture.logger))
+            .thenAnswer { throw FileNotFoundException("/tmp/old.apk") }
+
+        val thrown = assertThrows(JuggDeployerException::class.java) {
+            fixture.deployer.fullSwap(listOf("/tmp/demo.apk"), JuggDeployData.forDryDeploy(emptyList()))
+        }
+
+        assertEquals("overlay id mismatch", thrown.message)
+    }
+
+    @Test
+    fun `other cached APK parsing failures remain errors`() {
+        val fixture = newFixture()
+        Mockito.`when`(fixture.launchContext.device.version).thenReturn(AndroidVersion(30))
+        val parseFailure = IllegalStateException("invalid APK metadata")
+        Mockito.`when`(fixture.deploymentService.loadEntry("emulator-5554", PACKAGE_NAME, fixture.logger))
+            .thenThrow(parseFailure)
+
+        val thrown = assertThrows(IllegalStateException::class.java) {
+            fixture.deployer.fullSwap(listOf("/tmp/demo.apk"), JuggDeployData.forDryDeploy(emptyList()))
+        }
+
+        assertEquals(parseFailure, thrown)
+    }
 
     @Test
     fun `configured script installs app while test APK uses default installer`() {

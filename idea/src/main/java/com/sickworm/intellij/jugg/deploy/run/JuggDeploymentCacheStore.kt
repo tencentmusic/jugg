@@ -8,6 +8,7 @@ import java.io.IOException
 import java.io.ObjectInputStream
 import java.io.ObjectOutputStream
 import java.io.Serializable
+import java.nio.file.Files
 import java.util.LinkedHashMap
 
 /**
@@ -37,7 +38,9 @@ internal class JuggDeploymentCacheStore(
     }
 
     fun load(deviceSerial: String, packageName: String): CacheEntry? {
-        return entries[key(deviceSerial, packageName)]
+        val entry = entries[key(deviceSerial, packageName)] ?: return null
+        entry.apkPaths.firstOrNull { Files.notExists(File(it).toPath()) }?.let { throw FileNotFoundException(it) }
+        return entry
     }
 
     private fun writeToFile() {
