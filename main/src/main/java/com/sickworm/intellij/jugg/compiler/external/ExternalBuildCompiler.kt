@@ -11,8 +11,11 @@ import com.sickworm.intellij.jugg.compiler.Result
 import com.sickworm.intellij.jugg.compiler.resolveApkOwnerModule
 import com.sickworm.intellij.jugg.compiler.toCancelResult
 import com.sickworm.intellij.jugg.gradle.compile.crc32
+import com.sickworm.intellij.jugg.project.data.ExternalBuildGeneratedLanguage
+import com.sickworm.intellij.jugg.project.data.ExternalBuildGeneratedSourceDir
 import com.sickworm.intellij.jugg.project.data.ExternalBuildInfo
 import com.sickworm.intellij.jugg.project.data.ExternalBuildInfoRequestItem
+import com.sickworm.intellij.jugg.project.data.ExternalBuildPrerequisite
 import com.sickworm.intellij.jugg.project.data.ExternalBuildType
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import java.io.File
@@ -56,6 +59,12 @@ class ExternalBuildCompiler(
         val gradleCommand = getFullBuildGradleCommand() ?: return task.failed("Gradle command not found")
         val buildNames = builds.map { it.buildInfo.type.name }.distinct().joinToString("/")
         logger.info("Compiling $buildNames sources with Gradle...")
+        val changedFiles = task.files.map { it.file }
+        val generatedSnapshot = snapshotGeneratedSourceDirs(
+            builds.flatMap { (_, buildInfo) ->
+                matchedPrerequisites(buildInfo, changedFiles).flatMap { it.generatedSourceDirs }
+            },
+        )
         val requests = builds.map { (module, buildInfo) ->
             // C++ outputs are stripped with the APK owner configuration, so the collector needs the
             // owning app or dynamic feature module instead of assuming every library belongs to app.
@@ -64,6 +73,7 @@ class ExternalBuildCompiler(
             } else {
                 null
             }
+            val matched = matchedPrerequisites(buildInfo, changedFiles)
             ExternalBuildInfoRequestItem(
                 moduleName = module.name,
                 moduleRootDir = module.moduleRootDir,
@@ -72,6 +82,9 @@ class ExternalBuildCompiler(
                 type = buildInfo.type,
                 apkOwnerModuleRootDir = apkOwner?.moduleRootDir,
                 apkOwnerBuildVariant = apkOwner?.buildVariant,
+                prerequisiteTaskPaths = matched.map { it.taskPath },
+                prerequisiteBeforeNativePrefixes = matched.flatMap { it.beforeNativeTaskPrefixes }
+                    .distinct(),
             )
         }
         val initScript = try {
@@ -112,13 +125,15 @@ class ExternalBuildCompiler(
                         update.previousTaskPath == buildInfo.taskPath &&
                         update.externalBuildInfo.type == buildInfo.type
             }
+            val resolvedInfo = update?.externalBuildInfo ?: buildInfo
             ResolvedBuild(
                 module = context.modules[module.name] ?: module,
-                buildInfo = update?.externalBuildInfo ?: buildInfo,
+                buildInfo = resolvedInfo,
                 strippedNativeOutput = update?.strippedNativeOutput,
+                matchedPrerequisites = matchedPrerequisites(resolvedInfo, task.files.map { it.file }),
             )
         }
-        val collected = updatedBuilds.map { collectArtifacts(task, it) }
+        val collected = updatedBuilds.map { collectArtifacts(task, it, generatedSnapshot) }
         collected.firstNotNullOfOrNull { it.error }?.let { error ->
             return task.failed(error)
         }
@@ -150,11 +165,43 @@ class ExternalBuildCompiler(
         return "./gradlew $command"
     }
 
-    private fun collectArtifacts(task: CompileTask, build: ResolvedBuild): CollectedArtifacts {
-        return when (build.buildInfo.type) {
+    private fun collectArtifacts(
+        task: CompileTask,
+        build: ResolvedBuild,
+        generatedSnapshot: GeneratedSourceSnapshot,
+    ): CollectedArtifacts {
+        val native = when (build.buildInfo.type) {
             ExternalBuildType.Flutter -> collectFlutterArtifacts(task, build.module, build.buildInfo)
             ExternalBuildType.Cpp -> collectCppArtifacts(build.module, build.strippedNativeOutput)
         }
+        native.error?.let { return native }
+        val generated = collectGeneratedSourceArtifacts(build, generatedSnapshot)
+        generated.error?.let { return generated }
+        return CollectedArtifacts(error = null, outputs = native.outputs + generated.outputs)
+    }
+
+    /**
+     * Collects Kotlin/Java files from declared codegen output roots after the prerequisite task.
+     * Missing directories fail the round; an empty tree is a successful no-op. Files whose size and
+     * timestamp match the pre-task snapshot stay out of SourceCompiler.
+     */
+    private fun collectGeneratedSourceArtifacts(
+        build: ResolvedBuild,
+        generatedSnapshot: GeneratedSourceSnapshot,
+    ): CollectedArtifacts {
+        if (build.matchedPrerequisites.isEmpty()) {
+            return CollectedArtifacts(error = null, outputs = emptyList())
+        }
+        val generated = collectGeneratedSourceOutputs(
+            build.module,
+            build.matchedPrerequisites.flatMap { it.generatedSourceDirs },
+            generatedSnapshot,
+        )
+        if (generated.error == null) {
+            logger.info("Generated source change detection: files=${generated.scannedCount}, " +
+                    "changed=${generated.outputs.size}")
+        }
+        return CollectedArtifacts(generated.error, generated.outputs)
     }
 
     private fun CompileTask.failed(message: String): CompileResult {
@@ -238,7 +285,7 @@ class ExternalBuildCompiler(
         }.toList()
         return CollectedArtifacts(
             error = null,
-            outputs = allOutputs.filter { isChangedNativeLib(it, module) },
+            outputs = filterChangedNativeArtifacts(allOutputs, module, outputDir),
         )
     }
 
@@ -267,7 +314,7 @@ class ExternalBuildCompiler(
             .distinctBy { it.relativeFile.invariantSeparatorsPath }
         return CollectedArtifacts(
             error = null,
-            outputs = allOutputs.filter { isChangedNativeLib(it, module) },
+            outputs = filterChangedNativeArtifacts(allOutputs, module, nativeDir),
         )
     }
 
@@ -309,7 +356,7 @@ class ExternalBuildCompiler(
             }
             CollectedArtifacts(
                 error = null,
-                outputs = outputs.filter { isChangedNativeLib(it, module) },
+                outputs = filterChangedNativeArtifacts(outputs, module, nativeOutput),
             )
         } catch (e: Exception) {
             logger.debug("Read Flutter native output $nativeOutput failed", e)
@@ -332,22 +379,57 @@ class ExternalBuildCompiler(
         }
     }
 
+    private fun filterChangedNativeArtifacts(
+        outputs: List<CompileOutput>,
+        module: ModuleInfo,
+        outputSource: File,
+    ): List<CompileOutput> {
+        val changed = outputs.filter { isChangedNativeLib(it, module) }
+        logger.debug("Native library change detection: module=${module.name}, output=$outputSource, " +
+                "candidates=${outputs.size}, changed=${changed.size}, " +
+                "skipped=${outputs.size - changed.size}")
+        return changed
+    }
+
+    /**
+     * Compare each target APK against its deployed library first, then its APK baseline. A matching
+     * baseline cannot suppress a library that was previously overlaid with different content.
+     * Missing deployed files and unreadable APKs conservatively require another deployment.
+     */
     private fun isChangedNativeLib(output: CompileOutput, module: ModuleInfo): Boolean {
         val entryName = "lib/${output.relativeFile.invariantSeparatorsPath}"
         val targets = getTargetApkPaths(module)
         if (targets.isEmpty()) {
+            logger.debug("Keep native library $entryName for module ${module.name}: no target APK")
             return true
         }
-        return targets.any { apkPath ->
+        val deployed = context.deployedFiles.filter {
+            it.type == CompileOutput.Type.NativeLib &&
+                it.relativeFile.invariantSeparatorsPath == entryName
+        }
+        val checksum = output.file.crc32
+        val matchedSources = mutableListOf<String>()
+        val changed = targets.any { apkPath ->
+            val previous = deployed.find { it.apkPath == apkPath || apkPath in it.targetApkPaths }
+            if (previous != null) {
+                val matches = previous.file.isFile && previous.file.crc32 == checksum
+                if (matches) matchedSources += "$apkPath (deployed)"
+                return@any !matches
+            }
             try {
-                ZipFile(apkPath).use { apk ->
-                    apk.getEntry(entryName)?.crc != output.file.crc32
-                }
+                val matches = ZipFile(apkPath).use { apk -> apk.getEntry(entryName)?.crc == checksum }
+                if (matches) matchedSources += "$apkPath (APK baseline)"
+                !matches
             } catch (e: Exception) {
                 logger.debug("Read native entry $entryName from $apkPath failed", e)
                 true
             }
         }
+        if (!changed) {
+            logger.debug("Skip unchanged native library $entryName for module ${module.name}, crc32=$checksum: " +
+                    matchedSources.joinToString())
+        }
+        return changed
     }
 
     private fun getTargetApkPaths(module: ModuleInfo): List<String> {
@@ -384,9 +466,96 @@ class ExternalBuildCompiler(
         val module: ModuleInfo,
         val buildInfo: ExternalBuildInfo,
         val strippedNativeOutput: File?,
+        val matchedPrerequisites: List<ExternalBuildPrerequisite>,
     )
 
     companion object {
         private val abiFolders = setOf("armeabi", "armeabi-v7a", "arm64-v8a", "x86", "x86_64")
     }
 }
+
+/** Result of walking declared codegen output roots. */
+internal data class GeneratedSourceCollection(
+    val error: String?,
+    val outputs: List<CompileOutput>,
+    val scannedCount: Int = 0,
+)
+
+/** lastModified + length of generated sources captured before the Gradle invocation. */
+internal data class GeneratedSourceFingerprint(
+    val lastModified: Long,
+    val length: Long,
+)
+
+internal data class GeneratedSourceSnapshot(
+    val files: Map<String, GeneratedSourceFingerprint> = emptyMap(),
+)
+
+/**
+ * Walks declared codegen output roots and returns Kotlin/Java compile outputs. A missing or
+ * unreadable directory fails; an empty tree is success with no files. [previous] is the pre-task
+ * snapshot: unchanged files are omitted so SourceCompiler does not rebuild an entire codegen tree.
+ */
+internal fun collectGeneratedSourceOutputs(
+    module: ModuleInfo,
+    dirs: List<ExternalBuildGeneratedSourceDir>,
+    previous: GeneratedSourceSnapshot,
+): GeneratedSourceCollection {
+    val outputs = mutableListOf<CompileOutput>()
+    var scannedCount = 0
+    dirs.forEach { dir ->
+        val listed = listGeneratedSourceFiles(dir)
+            ?: return GeneratedSourceCollection(
+                "Generated source directory is unavailable: ${dir.directory}",
+                emptyList(),
+            )
+        val outputType = when (dir.language) {
+            ExternalBuildGeneratedLanguage.Kotlin -> CompileOutput.Type.Kotlin
+            ExternalBuildGeneratedLanguage.Java -> CompileOutput.Type.Java
+        }
+        listed.forEach { file ->
+            scannedCount += 1
+            if (isGeneratedSourceChanged(file, previous)) {
+                outputs += CompileOutput(outputType, file, dir.directory, relativeModule = module)
+            }
+        }
+    }
+    return GeneratedSourceCollection(error = null, outputs = outputs, scannedCount = scannedCount)
+}
+
+/** Records existing generated sources so post-task collection can drop files codegen did not rewrite. */
+internal fun snapshotGeneratedSourceDirs(
+    dirs: List<ExternalBuildGeneratedSourceDir>,
+): GeneratedSourceSnapshot {
+    val files = linkedMapOf<String, GeneratedSourceFingerprint>()
+    dirs.forEach { dir ->
+        listGeneratedSourceFiles(dir).orEmpty().forEach { file ->
+            files[file.normalizedAbsolutePath()] = GeneratedSourceFingerprint(
+                lastModified = file.lastModified(),
+                length = file.length(),
+            )
+        }
+    }
+    return GeneratedSourceSnapshot(files)
+}
+
+private fun listGeneratedSourceFiles(dir: ExternalBuildGeneratedSourceDir): List<File>? {
+    val directory = dir.directory
+    if (!directory.isDirectory || !directory.canRead()) {
+        return null
+    }
+    val extension = when (dir.language) {
+        ExternalBuildGeneratedLanguage.Kotlin -> "kt"
+        ExternalBuildGeneratedLanguage.Java -> "java"
+    }
+    return directory.walkTopDown().filter { file ->
+        file.isFile && file.extension.equals(extension, ignoreCase = true)
+    }.toList()
+}
+
+private fun isGeneratedSourceChanged(file: File, previous: GeneratedSourceSnapshot): Boolean {
+    val prior = previous.files[file.normalizedAbsolutePath()] ?: return true
+    return prior.lastModified != file.lastModified() || prior.length != file.length()
+}
+
+private fun File.normalizedAbsolutePath(): String = absoluteFile.normalize().path

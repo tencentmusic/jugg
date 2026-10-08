@@ -12,7 +12,7 @@ tags:
 
 增量编译生成 DEX、资源、Manifest 和 native lib 后，Jugg 还不能立即把“发生变化的文件”原样发送到设备。它需要先判断未修改的调用方是否仍兼容新的 class 结构，再把最终产物按设备上的生效方式分类。
 
-这一步连接增量编译和增量部署：影响分析决定是否继续补编译源码，部署数据决定本轮使用 Apply Changes、Hot Fix、APK 更新还是兼容部署。
+这一步连接增量编译和增量部署：影响分析决定是否继续补编译源码，部署数据决定本轮使用 Apply Changes、Hot Fix、SO hot update、APK 更新还是兼容部署。
 
 ## class 结构变化会把流程送回编译阶段
 
@@ -38,7 +38,8 @@ A 的新 class 生成
 | 新增 class | APK 和已部署历史中不存在 | 作为 new class 进入 Apply Changes |
 | 需要 Hot Fix 的 class | 结构变化、library dex、multi-dex 或其它在线替换边界 | 重启 App 后由运行时加载 |
 | 资源与 assets overlay | 资源增量编译结果 | Apply Changes 或 Direct Overlay |
-| APK 更新文件 | Manifest、配套资源表、已经生成的 native lib | 写回对应 APK 并重新签名安装 |
+| SO hot update 文件 | 开关开启时已经生成的 native lib | 进入对应 APK 的 overlay，重启 App 后加载 |
+| APK 更新文件 | Manifest、配套资源表，以及关闭 SO hot update 时的 native lib | 写回对应 APK 并重新签名安装 |
 
 同一个源码修改可能同时产生多类数据。例如修改 Manifest 引用的资源时，Manifest 和配套资源表进入 APK 更新，普通资源和 class 仍可在安装后继续通过 overlay 下发。
 

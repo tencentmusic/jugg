@@ -96,6 +96,7 @@ open class JuggControlPanelController(
             Setting.CONFIRM_FALLBACK_WHEN_TOO_MANY_CHANGES -> JuggSettings.isConfirmFallbackWhenTooManyChanges = enabled
             Setting.ALWAYS_RESTART -> JuggSettings.isAlwaysRestartAppAfterDeployment = enabled
             Setting.QUICK_DEPLOY -> JuggSettings.isEnableDirectOverlayDeploy = enabled
+            Setting.SO_HOT_UPDATE -> return updateNativeSandboxDeploy(enabled)
             Setting.AUTO_FALLBACK -> JuggSettings.isAutoFallbackToGradleWhenDeployError = enabled
             Setting.EMBED_APK -> return updateEmbeddedToApk(enabled)
             Setting.PROJECT_KOTLIN -> JuggSettings.isUseProjectKotlinCompiler = enabled
@@ -157,6 +158,27 @@ open class JuggControlPanelController(
         deployHistoryManager.deleteDeployHistory()
         model.updateSettings(currentSettings())
         recordSettingChanged(Setting.BACKUP_CLASSPATH.displayName, enabled)
+    }
+
+    private fun updateNativeSandboxDeploy(enabled: Boolean) {
+        if (JuggSettings.isEnableNativeSandboxDeploy == enabled) return
+        if (enabled && !CommonConfirmDialog.showAndGetResult(
+                "Enable .so(native library) Hot Update",
+                "<html>Deploy .so files through HOT FIX without modifying the APK.<br><br>" +
+                    "This feature covers <b>System.loadLibrary</b>, but does not cover <b>System.load</b> using the original absolute path, native " +
+                    "<b>dlopen</b> / <b>android_dlopen_ext</b>, or ELF <b>DT_NEEDED</b> dependencies.<br><br>" +
+                    "Continue?</html>",
+            )) {
+            return
+        }
+        JuggSettings.isEnableNativeSandboxDeploy = enabled
+        if (!enabled) {
+            // The APK baseline may not contain native libraries deployed through overlays.
+            deployHistoryManager.deleteDeployHistory()
+        }
+        manager.forceReInstallNextTime()
+        model.updateSettings(currentSettings())
+        recordSettingChanged(Setting.SO_HOT_UPDATE.displayName, enabled)
     }
 
     private fun recordSettingChanged(name: String, enabled: Boolean) {
@@ -280,6 +302,7 @@ open class JuggControlPanelController(
             confirmFallbackWhenTooManyChanges = JuggSettings.isConfirmFallbackWhenTooManyChanges,
             alwaysRestartAppAfterDeployment = JuggSettings.isAlwaysRestartAppAfterDeployment,
             quickDeploy = JuggSettings.isEnableDirectOverlayDeploy,
+            nativeSandboxDeploy = JuggSettings.isEnableNativeSandboxDeploy,
             autoFallbackAfterDeployFailure = JuggSettings.isAutoFallbackToGradleWhenDeployError,
             embedChangesIntoApk = JuggSettings.isEmbeddedToApk,
             useProjectKotlinCompiler = JuggSettings.isUseProjectKotlinCompiler,
@@ -362,6 +385,7 @@ open class JuggControlPanelController(
         CONFIRM_FALLBACK_WHEN_TOO_MANY_CHANGES("Confirm fallback when too many changes"),
         ALWAYS_RESTART("Always restart app"),
         QUICK_DEPLOY("Quick deploy"),
+        SO_HOT_UPDATE(".so(native library) hot update"),
         AUTO_FALLBACK("Auto fallback"),
         EMBED_APK("Embed changes into APK"),
         PROJECT_KOTLIN("Project Kotlin compiler"),

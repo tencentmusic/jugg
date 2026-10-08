@@ -831,9 +831,67 @@ class GradleProjectInfoReader(
                 unsupportedReason = reason,
                 configFiles = cppConfig.configFiles,
                 excludedDirs = nativeInputs.excludedDirs,
+                prerequisites = readExternalBuildPrerequisites(project),
             ))
         }
         return result
+    }
+
+    /**
+     * Copies optional codegen contracts declared by the Gradle project. Malformed extra entries are
+     * skipped so a bad project extra cannot hide the native build metadata itself.
+     */
+    @Suppress("UNCHECKED_CAST")
+    private fun readExternalBuildPrerequisites(project: Project): List<ExternalBuildPrerequisite> {
+        val raw = try {
+            val extras = project.extensions.extraProperties
+            if (!extras.has(JUGG_EXTERNAL_BUILD_PREREQUISITES_EXTRA)) {
+                return emptyList()
+            }
+            extras.get(JUGG_EXTERNAL_BUILD_PREREQUISITES_EXTRA)
+        } catch (_: Throwable) {
+            return emptyList()
+        }
+        val entries = raw as? List<*> ?: return emptyList()
+        return entries.mapNotNull { parseExternalBuildPrerequisite(it) }
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun parseExternalBuildPrerequisite(raw: Any?): ExternalBuildPrerequisite? {
+        val entry = raw as? Map<*, *> ?: return null
+        val taskPath = entry["taskPath"]?.toString()?.takeIf { it.isNotEmpty() } ?: return null
+        val triggerGlobs = (entry["triggerGlobs"] as? List<*>).orEmpty()
+            .mapNotNull { it?.toString()?.takeIf(String::isNotEmpty) }
+        if (triggerGlobs.isEmpty()) {
+            return null
+        }
+        val prefixes = (entry["beforeNativeTaskPrefixes"] as? List<*>).orEmpty()
+            .mapNotNull { it?.toString()?.takeIf(String::isNotEmpty) }
+            .ifEmpty { listOf("merge", "buildCMake", "externalNativeBuild") }
+        return ExternalBuildPrerequisite(
+            taskPath = taskPath,
+            triggerGlobs = triggerGlobs,
+            generatedSourceDirs = parseGeneratedSourceDirs(entry["generatedSourceDirs"]),
+            beforeNativeTaskPrefixes = prefixes,
+        )
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun parseGeneratedSourceDirs(raw: Any?): List<ExternalBuildGeneratedSourceDir> {
+        val entries = raw as? List<*> ?: return emptyList()
+        return entries.mapNotNull { element ->
+            val entry = element as? Map<*, *> ?: return@mapNotNull null
+            val directory = when (val value = entry["directory"]) {
+                is File -> value.absoluteFile.normalize()
+                is String -> File(value).absoluteFile.normalize()
+                else -> return@mapNotNull null
+            }
+            val languageName = (entry["language"] ?: entry["type"])?.toString() ?: return@mapNotNull null
+            val language = runCatching {
+                ExternalBuildGeneratedLanguage.valueOf(languageName)
+            }.getOrNull() ?: return@mapNotNull null
+            ExternalBuildGeneratedSourceDir(directory, language)
+        }
     }
 
     /**
@@ -2007,6 +2065,8 @@ class GradleProjectInfoReader(
     }
 
     companion object {
+
+        const val JUGG_EXTERNAL_BUILD_PREREQUISITES_EXTRA = "juggExternalBuildPrerequisites"
 
         /**
          * Builds a synthetic ModuleInfo representing the androidTest source set of [appModuleInfo].

@@ -939,3 +939,12 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Download/source: https://github.com/pnggroup/libpng/archive/refs/tags/v1.6.40.tar.gz
 - Modified by Jugg: 否
 - Notes: 静态链接到随插件发行的 AAPT2 可执行文件；二进制包含 libpng 1.6.40。
+
+## 105. HDiffPatch and bundled native dependencies 5.1.3
+
+- License: MIT、BSD-2-Clause、BSD-3-Clause、zlib、bzip2-1.0.6、Public Domain
+- Copyright: Copyright (c) 2012-2025 housisong; component copyrights in bundled THIRD_PARTY_NOTICES.txt
+- License/source reference: https://github.com/sisong/HDiffPatch/blob/v5.1.3/LICENSE
+- Download/source: https://github.com/sisong/HDiffPatch/releases/tag/v5.1.3
+- Modified by Jugg: 否
+- Notes: 大 SO 差分部署使用独立进程工具；桌面端分发固定 SHA-256 的官方 hdiffz/hpatchz，含 libdivsufsort、zlib、libdeflate、zstd、bzip2、xxHash、libmd5 与 Public Domain LZMA SDK。Android hpatchz 从未修改上游源码以 NDK 28.2.13676358 构建，仅启用 zlib 并动态链接设备 libz；版本、构建脚本、产物摘要和许可证随源码及插件资源保存于 tools/hdiffpatch/5.1.3。

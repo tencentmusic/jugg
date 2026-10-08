@@ -163,7 +163,47 @@ class ProjectInfoSerializerInGradle(private val dataFile: File) {
                 unsupportedReason = info["unsupportedReason"] as? String,
                 configFiles = (info["configFiles"] as? List<String>).orEmpty().map(::File),
                 excludedDirs = (info["excludedDirs"] as? List<String>).orEmpty().map(::File),
+                prerequisites = parseExternalBuildPrerequisites(info["prerequisites"]),
             )
+        }
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun parseExternalBuildPrerequisites(value: Any?): List<ExternalBuildPrerequisite> {
+        return (value as? List<Map<String, Any>>).orEmpty().mapNotNull { entry ->
+            val taskPath = entry["taskPath"] as? String ?: return@mapNotNull null
+            val triggerGlobs = (entry["triggerGlobs"] as? List<String>).orEmpty().filter { it.isNotEmpty() }
+            if (taskPath.isEmpty() || triggerGlobs.isEmpty()) {
+                return@mapNotNull null
+            }
+            val prefixes = (entry["beforeNativeTaskPrefixes"] as? List<String>).orEmpty()
+                .filter { it.isNotEmpty() }
+                .ifEmpty { listOf("merge", "buildCMake", "externalNativeBuild") }
+            ExternalBuildPrerequisite(
+                taskPath = taskPath,
+                triggerGlobs = triggerGlobs,
+                generatedSourceDirs = parseGeneratedSourceDirs(entry["generatedSourceDirs"]),
+                beforeNativeTaskPrefixes = prefixes,
+            )
+        }
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun parseGeneratedSourceDirs(value: Any?): List<ExternalBuildGeneratedSourceDir> {
+        return (value as? List<Map<String, Any>>).orEmpty().mapNotNull { entry ->
+            val directory = readPrerequisiteFile(entry["directory"]) ?: return@mapNotNull null
+            val language = (entry["language"] as? String ?: entry["type"] as? String)?.let {
+                runCatching { ExternalBuildGeneratedLanguage.valueOf(it) }.getOrNull()
+            } ?: return@mapNotNull null
+            ExternalBuildGeneratedSourceDir(directory, language)
+        }
+    }
+
+    private fun readPrerequisiteFile(value: Any?): File? {
+        return when (value) {
+            is File -> value
+            is String -> File(value)
+            else -> null
         }
     }
 

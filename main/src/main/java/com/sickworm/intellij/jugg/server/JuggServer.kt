@@ -4,6 +4,10 @@ import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
+import com.sickworm.intellij.jugg.diagnostics.IssueReportBundleBuilder
+import com.sickworm.intellij.jugg.diagnostics.IssueReportDestination
+import com.sickworm.intellij.jugg.diagnostics.IssueReportAutoUpload
+import com.sickworm.intellij.jugg.diagnostics.IssueReportUploader
 import com.sickworm.intellij.jugg.git.GitManager
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.logger.JuggLogger
@@ -34,7 +38,7 @@ import java.security.MessageDigest
  * Data Contract: Request identity is derived from [projectId], [username], and [requestToken]; [afterFullCompile] increments [sessionId], and [onCompile] increments [sessionSubId].
  */
 class JuggServer(
-    private val projectName: String,
+    val projectName: String,
     private val pathManager: JuggPathManager,
     private val coroutineScope: CoroutineScope,
     loggerArg: Logger,
@@ -53,7 +57,7 @@ class JuggServer(
     private val serverUrl: String? get() = JuggSettings.serverUrl
 
 
-    private val username: String = getUserName()
+    val username: String = getUserName()
 
     val version: String = PluginInfoReader.getPluginVersion()
 
@@ -64,16 +68,13 @@ class JuggServer(
     private var sessionSubId: Int = 0
 
     val hasAvailableServer: Boolean get() = juggServerChooser.hasAvailableServer()
+    val availableServerUrl: String? get() = juggServerChooser.availableServerUrl
+    val issueReportDestination: IssueReportDestination get() = juggServerChooser.issueReportDestination
 
     private val client = OkHttpClient()
 
     init {
         logger.debug("init finished, version: $version, projectId: $projectId, userName: $username, requestToken: $requestToken, serverUrl: $serverUrl")
-        if (juggServerChooser.hasAvailableServer()) {
-            launch {
-                juggServerChooser.updateServerIfExpired(isForce = true)
-            }
-        }
     }
 
     fun afterFullCompile() {
@@ -87,6 +88,13 @@ class JuggServer(
     private var reportLock = Mutex() // report only one event in the same time
 
     fun checkUpdate(onComplete: (VersionData) -> Unit): Job = launch {
+        if (serverUrl == null) {
+            juggServerChooser.updateServerIfExpired(isForce = true)
+        } else {
+            launch {
+                juggServerChooser.updateServerIfExpired(isForce = true)
+            }
+        }
         if (!juggServerChooser.hasAvailableServer()) {
             return@launch
         }
@@ -203,6 +211,67 @@ class JuggServer(
         juggServerChooser.setCustomServer()
     }
 
+    /** Uploads failure diagnostics to the available backend without affecting the run result. */
+    fun uploadFailureLogs(failedReason: String, errorDetail: String?, projectModuleCount: Int): Job = launch {
+        try {
+            val destination = issueReportDestination
+            if (destination.backendServerUrl == null) {
+                logger.debug("Auto upload failure logs skipped: no available backend server")
+                return@launch
+            }
+            val logFiles = selectRecentFailureLogs(pathManager.logDir)
+            if (logFiles.isEmpty()) {
+                logger.debug("Auto upload failure logs skipped: no Jugg logs found")
+                return@launch
+            }
+            val builder = IssueReportBundleBuilder(
+                pathManager.diagnosticsDir,
+                pathManager.projectDir,
+                File(System.getProperty("user.home")),
+                logger.getInstance("IssueReportBundleBuilder"),
+                destination,
+            )
+            val compileSettings = JuggSettings.defaultCompileSettings
+            val knownSecrets = setOfNotNull(
+                compileSettings.remoteSshPassword,
+                compileSettings.remoteSshUser,
+                compileSettings.remoteSshIp,
+                username,
+                System.getProperty("user.name"),
+            )
+            val candidates = builder.prepare(
+                environment = mapOf(
+                    "pluginVersion" to version,
+                    "ideVersion" to PlatformApi.getIdeVersion(),
+                    "os" to System.getProperty("os.name"),
+                    "jvm" to System.getProperty("java.version"),
+                ),
+                projectSummary = mapOf("moduleCount" to projectModuleCount),
+                projectInfoDir = pathManager.projectInfosDir,
+                logFiles = logFiles,
+                logFileLimit = 2,
+                logcat = "",
+                hookDebugLog = File(JuggGlobalPathManager.rootDir, "skills/hooks/jugg-hook-debug.log"),
+                knownSecrets = knownSecrets,
+            )
+            val bundle = builder.build(candidates.map { it.path }.toSet())
+            val result = IssueReportUploader().upload(bundle, IssueReportAutoUpload(
+                failedReason = if (destination.redactLogs) builder.redactUploadText(failedReason, knownSecrets) else failedReason,
+                errorDetail = errorDetail?.let { if (destination.redactLogs) builder.redactUploadText(it, knownSecrets) else it },
+                projectName = projectName,
+                username = username,
+                pluginVersion = version,
+            ))
+            if (result.isSuccess) {
+                logger.debug("Auto upload failure logs succeeded, reportId=${result.reportId}")
+            } else {
+                logger.debug("Auto upload failure logs failed: ${result.errorMessage}")
+            }
+        } catch (e: Exception) {
+            logger.debug("Auto upload failure logs failed", e)
+        }
+    }
+
     fun checkHotUpdate(isPositiveCheckout: Boolean): HotUpdateData? {
         if (!juggServerChooser.hasAvailableServer()) {
             return null
@@ -273,6 +342,16 @@ class JuggServer(
             }
         }
     }
+}
+
+internal fun selectRecentFailureLogs(logDir: File): List<File> {
+    return logDir.listFiles().orEmpty()
+        .filter { file ->
+            file.isFile && file.name.startsWith("compile_") && file.name.endsWith(".log") &&
+                    !file.name.startsWith("compile_latest")
+        }
+        .sortedByDescending { it.lastModified() }
+        .take(2)
 }
 
 

@@ -182,6 +182,43 @@ class JuggProjectInfoSerializerAndroidTestTest {
     }
 
     @Test
+    fun `serialize and deserialize preserves external build prerequisites`() {
+        val prerequisite = ExternalBuildPrerequisite(
+            taskPath = ":app:compileMidl",
+            triggerGlobs = listOf("**/*.idl.hpp"),
+            generatedSourceDirs = listOf(
+                ExternalBuildGeneratedSourceDir(
+                    File("/project/app/build/generated/idl/kotlin/commonMain"),
+                    ExternalBuildGeneratedLanguage.Kotlin,
+                ),
+            ),
+            beforeNativeTaskPrefixes = listOf("merge", "buildCMake", "externalNativeBuild"),
+        )
+        val original = projectInfoWithoutAgpR8(
+            modules = mapOf("app" to ModuleInfo.virtualModule.copy(
+                name = "app",
+                externalBuildInfos = listOf(
+                    ExternalBuildInfo(
+                        type = ExternalBuildType.Cpp,
+                        inputDirs = listOf(cppInputDir(File("/project/native"))),
+                        taskPath = ":app:mergeDebugNativeLibs",
+                        assetsOutputDir = null,
+                        nativeOutput = File("/project/native/build/merged"),
+                        prerequisites = listOf(prerequisite),
+                    ),
+                ),
+            ))
+        )
+
+        val restored = JuggProjectInfoSerialize.deserialize(
+            JuggProjectInfoSerialize.serialize(original),
+            isSkipVersionCheck = true,
+        )
+
+        assertEquals(listOf(prerequisite), restored.modules["app"]?.externalBuildInfos?.single()?.prerequisites)
+    }
+
+    @Test
     fun `rejects project info that stores external build inputs as plain paths`() {
         val original = projectInfoWithoutAgpR8(
             modules = mapOf("app" to ModuleInfo.virtualModule.copy(
@@ -451,6 +488,30 @@ class JuggProjectInfoSerializerAndroidTestTest {
         val restored = JuggProjectInfoSerialize.deserialize(serialized, isSkipVersionCheck = true)
 
         assertEquals(emptyList<ExternalBuildInfo>(), restored.modules["app"]?.externalBuildInfos)
+    }
+
+    @Test
+    fun `deserialize old external build info without prerequisites defaults to empty list`() {
+        val original = projectInfoWithoutAgpR8(
+            modules = mapOf("app" to ModuleInfo.virtualModule.copy(
+                name = "app",
+                externalBuildInfos = listOf(externalBuildInfo()),
+            ))
+        )
+        val json = JsonParser.parseString(
+            ProjectInfoSerializer.gson.toJson(JuggProjectInfoSerialize.serialize(original))
+        ).asJsonObject
+        json.getAsJsonArray("modules")[0]
+            .asJsonObject
+            .getAsJsonObject("moduleInfoExceptLibraries")
+            .getAsJsonArray("externalBuildInfos")[0]
+            .asJsonObject
+            .remove("prerequisites")
+        val serialized = ProjectInfoSerializer.gson.fromJson(json, JuggProjectInfoSerialize::class.java)
+
+        val restored = JuggProjectInfoSerialize.deserialize(serialized, isSkipVersionCheck = true)
+
+        assertEquals(emptyList<ExternalBuildPrerequisite>(), restored.modules["app"]?.externalBuildInfos?.single()?.prerequisites)
     }
 
     @Test

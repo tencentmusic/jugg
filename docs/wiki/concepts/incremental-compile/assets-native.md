@@ -53,6 +53,8 @@ This process does not run aapt2 or generate `resources.arsc`. A Dart or confirme
 
 External builds use a directory-triggered, Gradle-decided strategy, and every watched directory carries the file kinds it accepts. A Flutter package root only accepts Dart sources, so it never widens to arbitrary files; a resource directory declared by `flutter.assets` in `pubspec.yaml` or by `arb-dir` in `l10n.yaml`, and a directory a Flutter task exposes below a package root, accept arbitrary files. For Native builds an externalNativeBuild configuration root accepts C/C++ sources and headers, a concrete source directory confirmed by the native build metadata accepts arbitrary non-hidden files, and an include root accepts headers only. Parent and child directories keep their own rules instead of one directory swallowing another, and the rules of one directory are alternatives, so a header inside an include root still matches that include root even when a wider Native directory also covers it. A few false triggers remain acceptable. A broad shared directory or include root may also trigger multiple Native modules, including a module with a large output. Gradle and Ninja up-to-date checks and real dependency information still decide which native work actually runs. Jugg no longer depends on the previous depfile's exact file list, so a newly created image, JSON file, or nested file below a watched resource directory is not missed merely because it did not exist in the previous build. Single-file assets, fonts, and shaders still rely on the Flutter task inputs rather than on `pubspec.yaml` entries, and a file deleted from a watched directory is ignored: removing old native code or assets from the device needs a full Run.
 
+Kotlin and Java sources, resources, assets, and `.so` files in ABI directories owned by an Android module take precedence over a broader Native directory. Files not classified as these Android inputs still follow the external build rules.
+
 The Flutter SDK, global pub cache, `.dart_tool`, `.cxx`, `.externalNativeBuild`, and build output directories are never watched. During each external task invocation, Jugg collects only the latest external build information for the modules and variants involved before that same Gradle invocation finishes. It does not start a separate full project-information refresh after a configuration file changes. Once the targeted information is merged into the project model, the file watcher updates immediately, so a newly added local package, shared C/C++ directory, or include root can trigger from the next file change. If the targeted information is incomplete or cannot be merged, the current incremental compilation fails and preserves the full-Gradle fallback boundary instead of continuing with a known stale watch scope.
 
 Artifact CRC checks only determine whether new output needs another deployment. They do not skip Flutter or C/C++ compilation, which prevents changed source from being judged against stale intermediate output.
@@ -69,11 +71,15 @@ asset incremental artifact
   -> read the new file through AssetManager at runtime
 
 native library incremental artifact
-  -> write it back to lib/<abi> in the target APK
-  -> re-sign and install the updated APK
+  -> Setting enabled: enter the target APK overlay and load after an app restart
+  -> Setting disabled: write it back into the target APK, re-sign, and install
 ```
 
-An asset overlay preserves its `assets/**` path for the new resource loading path. An ordinary asset or resource overlay does not become an APK native library search directory, so the current `.so` update path modifies the target APK instead of delivering the `.so` as an asset overlay.
+An asset overlay preserves its `assets/**` path. With “SO hot update” enabled, ordinary `.so` files share the same overlay batch as DEX, resources, and assets, but remain grouped by APK and ABI. At startup the runtime selects libraries for the current process ABI from committed overlays and adds their directories to the native library search path. An `.so` requires a full app restart even when other incremental files arrive in the same run. Switching from enabled to disabled makes the next Run perform a full Gradle build and install an APK containing the latest `.so` files. Enabling the setting still schedules app data clearing and reinstallation.
+
+A NativeLib of at least 256 MiB (268,435,456 bytes) uses file-backed deployment data so the IDE does not hold the whole `.so` in its heap. With the setting enabled, Jugg prefers delta transfer through the app sandbox and ultimately publishes it into the target APK overlay as well. Missing sandbox access or a failed transfer fails the round explicitly. With the setting disabled, the APK update streams the source file, replaces the same-path entry in the baseline APK, and inherits its compression method. It fails explicitly if that entry is missing or the file reaches the classic ZIP 4 GiB single-entry boundary. File size never enables SO hot update automatically.
+
+A large `.so` delta uses the last successfully deployed local file as its baseline. After generating the patch, Jugg checks the device's old file content. Only a matching baseline receives the patch. The complete new library is reconstructed in a separate temporary file, verified, and then published. The old library is never patched in place, so failure can retain or restore it. If the baseline is missing or mismatched, or delta tools are unavailable, Jugg transfers the full source file. Delta transfer reduces USB or network traffic, but the device still reads old content and writes a complete new library; a small patch does not imply an equally short deployment.
 
 ### The Flutter Debug/JIT extraction cache
 
@@ -81,7 +87,7 @@ Dart code in Debug mode lives in `assets/flutter_assets/kernel_blob.bin`, togeth
 
 An overlay update does not change the APK `lastUpdateTime`, so delivering only the asset overlay plus an ordinary restart still makes the app read the old Dart code from `app_flutter`. When the current round really compiles and deploys those Flutter JIT runtime files, Jugg therefore waits until all overlay slices succeed, deletes the `res_timestamp-*` files directly inside the target app's `app_flutter`, and then fully restarts the app so Flutter itself re-extracts from the overlay that already took effect. This path never repackages, re-signs, or installs an APK, and the deployment type users see is Hot Fix.
 
-Flutter Profile/Release use the AOT artifact `libapp.so` and keep using the native library APK update path, without entering this extraction cache invalidation. The invalidation command only deletes regular `res_timestamp-*` files directly inside `app_flutter`; it never touches `flutter_assets`, the kernel, the overlay, or other app data, and a missing timestamp counts as success.
+Flutter Profile/Release use the AOT artifact `libapp.so` and follow the native library setting to use an overlay or APK update, without entering this extraction cache invalidation. The invalidation command only deletes regular `res_timestamp-*` files directly inside `app_flutter`; it never touches `flutter_assets`, the kernel, the overlay, or other app data, and a missing timestamp counts as success.
 
 ### The AssetManager retained by a Flutter engine
 
@@ -99,7 +105,7 @@ After the overlay takes effect, the Jugg runtime supplies live Flutter engines w
 - Remote compilation and custom commands from which Jugg cannot safely derive external tasks fall back to a complete Gradle build.
 - `pubspec.yaml`, `pubspec.lock`, `l10n.yaml`, `CMakeLists.txt`, project `*.cmake`, `Android.mk`, and `Application.mk` are configuration inputs of an external build. Changing them runs the existing external task and refreshes the project model after the task finishes, without triggering a full build on its own. Only configuration that task cannot cover, such as NDK, ABI, native source sets, or packaging rules, needs a full Gradle build to refresh the APK baseline.
 - After changing asset source sets, variant, or build configuration that affects APK paths or ownership, refresh the Gradle baseline.
-- A native library update requires usable APK signing configuration. If Jugg cannot re-sign the APK, this incremental update path cannot continue.
+- The APK update path for a native library requires usable APK signing configuration. If Jugg cannot re-sign the APK, that path cannot continue.
 
 ## Related pages
 

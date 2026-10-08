@@ -1,10 +1,12 @@
 package com.sickworm.intellij.jugg.deploy
 
+import com.sickworm.intellij.jugg.apk.ApkFileUnit
 import com.sickworm.intellij.jugg.compiler.BuildTarget
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.compiler.clearDir
 import com.sickworm.intellij.jugg.compiler.isWindows
+import com.sickworm.intellij.jugg.deploy.data.IncrementalDeployDataDatabase
 import com.sickworm.intellij.jugg.git.GitManager
 import com.sickworm.intellij.jugg.mock.*
 import com.sickworm.intellij.jugg.project.ChangedFile
@@ -152,6 +154,59 @@ class DeployHistoryManagerTest {
         assertNotNull(recoverInfoNew2)
         assertEquals(2, recoverInfoNew2.deployedFiles.size)
         assertTrue(storageFile2.exists())
+    }
+
+    @Test
+    fun nativeLibraryIsRecoveredForItsApkAfterProjectRestart() {
+        gitManager.init()
+        gitManager.addAllAndCommit("first commit")
+        val historyManager = DeployHistoryManager(pathManager, fileChangesHandler, logger)
+        val baseApk = projectInfo.apkInfos.flatMap { it.files }.first { it.isBaseApk }
+        val splitApk = ApkFileUnit(baseApk.applicationId, "feature", true, File(buildDir, "feature.apk")).apply {
+            apkFile.writeText("split APK")
+        }
+        val apkInfos = projectInfo.apkInfos.map { apkInfo ->
+            if (apkInfo.files.contains(baseApk)) apkInfo.copy(files = apkInfo.files + splitApk) else apkInfo
+        }
+        historyManager.reInitAfterFullCompiled(
+            FullBuildInfo("./gradlew :app:assembleDebug", BuildTarget.APP, System.currentTimeMillis()),
+            apkInfos,
+            mapOf(mockModule.name to mockModule),
+            System.currentTimeMillis(),
+        )
+        val deployedFiles = listOf(baseApk, splitApk).map { apk ->
+            val sourceRoot = File(buildDir, "native_recovery_${apk.moduleName.ifEmpty { "base" }}")
+            val nativeFile = File(sourceRoot, "lib/arm64-v8a/libsample.so").apply {
+                parentFile.mkdirs()
+                writeText("updated ${apk.moduleName.ifEmpty { "base" }} library")
+            }
+            CompileOutput(CompileOutput.Type.NativeLib, nativeFile, sourceRoot, apk.apkFile.path)
+        }
+        historyManager.beforeIncrementalCompile(emptyList())
+        historyManager.updateHistoryOnAfterDeployed(deployedFiles)
+
+        val recovered = DeployHistoryManager(pathManager, fileChangesHandler, logger)
+            .tryGetContextRecoverInfoFromDb()!!.deployedFiles
+        assertEquals(2, recovered.size)
+        listOf(baseApk, splitApk).forEach { apk ->
+            val native = recovered.single { it.apkPath == apk.apkFile.path }
+            assertEquals(CompileOutput.Type.NativeLib, native.type)
+            assertEquals("lib/arm64-v8a/libsample.so", native.relativeFile.invariantSeparatorsPath)
+            assertEquals("updated ${apk.moduleName.ifEmpty { "base" }} library", native.file.readText())
+        }
+        // Later compiler output must not overwrite the persisted delta baseline.
+        deployedFiles.forEach { it.file.writeText("next compilation") }
+        val snapshots = historyManager.getDeployedData()!!
+        listOf(baseApk, splitApk).forEach { apk ->
+            val baseline = snapshots.single {
+                it.type == CompileOutput.Type.NativeLib && it.apkPath == apk.apkFile.path &&
+                    it.relativeFile.invariantSeparatorsPath == "lib/arm64-v8a/libsample.so"
+            }
+            assertEquals("updated ${apk.moduleName.ifEmpty { "base" }} library", baseline.file.readText())
+        }
+        val restoredDatabase = IncrementalDeployDataDatabase(logger)
+        restoredDatabase.init(recovered.map { it.toDeployItem() })
+        assertFalse(restoredDatabase.isDeployedOverlaysBefore())
     }
 
     /**

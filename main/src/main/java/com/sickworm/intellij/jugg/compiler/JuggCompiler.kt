@@ -121,13 +121,24 @@ class JuggCompiler(
             return externalBuildResult.quickFailedOthers(task)
         }
         checkQuickStop()?.let { return it }
-        val externalOutputs = externalBuildResult.outputs.mapNotNull {
-            it.toCompileFile(it.relativeModule ?: context.tempModule)
+        val generatedSourceFiles = externalBuildResult.outputs.mapNotNull { output ->
+            if (output.type == CompileOutput.Type.Kotlin || output.type == CompileOutput.Type.Java) {
+                output.toCompileFile(output.relativeModule ?: context.tempModule)
+            } else {
+                null
+            }
+        }
+        val externalOverlayFiles = externalBuildResult.outputs.mapNotNull { output ->
+            if (output.type == CompileOutput.Type.Kotlin || output.type == CompileOutput.Type.Java) {
+                null
+            } else {
+                output.toCompileFile(output.relativeModule ?: context.tempModule)
+            }
         }
 
         // compile asset
         val assetCompileTask = CompileTask(
-            files = composeAssets + externalOutputs + compileFiles.filter {
+            files = composeAssets + externalOverlayFiles + compileFiles.filter {
                 it.type == CompileFile.Type.Asset ||
                     it.type == CompileFile.Type.ClasspathResource ||
                     it.type == CompileFile.Type.NativeLib
@@ -272,7 +283,7 @@ class JuggCompiler(
 
         // compile source
         val sourceCompileTask = CompileTask(
-            files = dataBindingResultOutputs + composeClasses + compileFiles.filter {
+            files = dataBindingResultOutputs + composeClasses + generatedSourceFiles + compileFiles.filter {
                 it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin || it.type == CompileFile.Type.Class
             },
             outputDir = classesOutputDir,
@@ -302,11 +313,14 @@ class JuggCompiler(
             }
             compileResult += sourceCompileResult.copy(
                 task = task,
-                details = sourceCompileResult.details.filter { it.file !in dataBindingResultOutputs && it.file !in composeClasses },
+                details = sourceCompileResult.details.filter {
+                    it.file !in dataBindingResultOutputs && it.file !in composeClasses && it.file !in generatedSourceFiles
+                },
                 outputs = movedOutputs,
             )
             if (!sourceCompileResult.isAllSuccess) {
-                return if (dataBindingResultOutputs.isNotEmpty() || composeClasses.isNotEmpty()) {
+                return if (dataBindingResultOutputs.isNotEmpty() || composeClasses.isNotEmpty() ||
+                        generatedSourceFiles.isNotEmpty()) {
                     // mark res files as failed too (since DataBinding depends on resources)
                     compileResult.quickFailedOthers(task, otherFailedFiles = resourceCompileTask.files + composeFiles)
                 } else {

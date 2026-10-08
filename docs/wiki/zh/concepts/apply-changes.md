@@ -52,7 +52,7 @@ Jugg 在部署前比较新旧 class 结构，并把 class 变化交给 Apply Cha
 
 首次向某个部署基线发送资源 overlay 时，Jugg 会补齐完整资源集合。设备端此前没有可复用的资源 overlay，只发送单个变化文件无法构成完整的新资源视图。后续部署已经有可信资源状态时，才继续叠加本轮差异。
 
-Manifest 和 native lib 不走普通 overlay。它们需要成为安装包内容时，会进入[APK 更新与安装](./apk-update-and-install.md)路径。
+Manifest 和配套资源表需要写回安装包，进入[APK 更新与安装](./apk-update-and-install.md)路径。native lib 在 SO hot update 开启时进入 overlay，并在重启 App 后加载；关闭时才进入 APK 更新路径。详见 [so 更新](../capabilities/compile/so-update.md)。
 
 ## Code Swap 和 Full Swap 的区别
 

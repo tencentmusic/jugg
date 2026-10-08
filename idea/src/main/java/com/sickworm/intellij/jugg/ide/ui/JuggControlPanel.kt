@@ -362,6 +362,7 @@ class JuggControlPanel(
                 settingToggle("Always restart app after deployment", "Disables hot reload to ensure global state is reinitialized.", JuggControlPanelController.Setting.ALWAYS_RESTART)),
             settingGroup("Deployment", "deployment",
                 settingToggle("Quick deploy", "Skip app startup when direct overlay is available.", JuggControlPanelController.Setting.QUICK_DEPLOY),
+                settingToggle(".so(native library) hot update", "Fast hot update .so libraries instead of updating APK.", JuggControlPanelController.Setting.SO_HOT_UPDATE),
                 settingToggle("Auto fallback after deploy failure", "Recover with a full Gradle build.", JuggControlPanelController.Setting.AUTO_FALLBACK),
                 settingToggle("Embed changes into APK", "Supports Android RemoteViews with a slower deploy.", JuggControlPanelController.Setting.EMBED_APK),
                 forceCompatDevicesPanel),
@@ -408,7 +409,14 @@ class JuggControlPanel(
     ): JComponent {
         val toggle = JBCheckBox(label).apply {
             addActionListener {
-                if (!isRenderingSettings) controller.updateSetting(setting, isSelected)
+                if (!isRenderingSettings) {
+                    val enabled = isSelected
+                    if (setting == JuggControlPanelController.Setting.SO_HOT_UPDATE && enabled) {
+                        isSelected = latestSnapshot.settings.nativeSandboxDeploy
+                    }
+                    controller.updateSetting(setting, enabled)
+                    renderSettings(latestSnapshot.settings)
+                }
             }
         }
         settingToggles[setting] = toggle
@@ -726,6 +734,7 @@ class JuggControlPanel(
             JuggControlPanelController.Setting.CONFIRM_FALLBACK_WHEN_TOO_MANY_CHANGES to settings.confirmFallbackWhenTooManyChanges,
             JuggControlPanelController.Setting.ALWAYS_RESTART to settings.alwaysRestartAppAfterDeployment,
             JuggControlPanelController.Setting.QUICK_DEPLOY to settings.quickDeploy,
+            JuggControlPanelController.Setting.SO_HOT_UPDATE to settings.nativeSandboxDeploy,
             JuggControlPanelController.Setting.AUTO_FALLBACK to settings.autoFallbackAfterDeployFailure,
             JuggControlPanelController.Setting.EMBED_APK to settings.embedChangesIntoApk,
             JuggControlPanelController.Setting.PROJECT_KOTLIN to settings.useProjectKotlinCompiler,

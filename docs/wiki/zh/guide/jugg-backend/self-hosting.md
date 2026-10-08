@@ -21,7 +21,7 @@ tags:
 
 如果只需要项目配置下发，可以让 `/check_update` 返回 `isNeedUpgrade=false`，并在 `customConfigJson` 中放入项目配置。其它接口返回成功或空结果即可。
 
-用户提交问题日志不会请求自建后台。插件把诊断包上传到固定的问题报告服务，见 [报告问题](../report-issue.md)。
+有可用后台时，手工报告和失败日志自动上传都会请求该后台的 `/report_issue`，因此后台需要实现此接口。明确设置的 Custom Server 或内部包按内置列表选出的后台都会收到原文日志，可能包含工程路径、用户名及其他敏感内容；公开包不预置服务列表，不会默认走这条路径。应使用可信服务器并优先启用 HTTPS。没有可用后台时，手工报告上传脱敏诊断包到公共服务，自动上传则跳过。见 [报告问题](../report-issue.md)。
 
 ## `/check_update` 返回内容
 
@@ -44,6 +44,7 @@ tags:
 | 热更新下载 | `/check_hot_update`、`/download_hot_update` | 希望下发 jar 级别更新 |
 | 热更新状态 | `/check_hot_update_status` | 运维或灰度排查需要查看当前热更新状态 |
 | 自定义编译器下载 | `/download_custom_compiler` | 项目配置中下发自定义编译器 jar |
+| 手工问题报告与失败日志自动上传 | `/report_issue` | 接收手工诊断包和自动失败日志包 |
 | 远端机器申请 | `/remote_apply` 等交互接口 | 团队有内部云开发机申请系统 |
 
 ## 部署前检查
@@ -56,7 +57,7 @@ tags:
 
 ## 与本地能力的关系
 
-后台只负责配置、分发和使用情况事件，不接管本地编译部署流程，也不接收用户问题日志。Jugg Run、Debug、Android Test、CLI 和 MCP 的执行仍发生在本地 Android Studio 或本机命令行环境中。
+后台不接管本地编译部署；有可用后台时，它还可以接收手工问题报告。Jugg Run、Debug、Android Test、CLI 和 MCP 的执行仍发生在本地 Android Studio 或本机命令行环境中。
 
 ## 相关页面
 

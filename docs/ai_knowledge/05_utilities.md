@@ -22,7 +22,7 @@
 | Git worktree | `main/src/main/java/com/sickworm/intellij/jugg/git/GitManager.kt`、`WorktreeFileRepository.kt` | Git 变更识别；worktree 下把 HEAD 操作定向到 worktree-local HEAD |
 | 平台桥接 | `main/src/main/java/com/sickworm/intellij/jugg/platform/IPlatformApi.kt`、`PlatformApi.kt` | core 层调用 UI、设备、Gradle、MCP host 能力的抽象边界 |
 | 远端服务 | `main/src/main/java/com/sickworm/intellij/jugg/server/JuggServer.kt`、`PublicUpdateChecker.kt`、`JuggServerChooser.kt`、`JuggEventLocalStore.kt`、`JuggRemoteCompileApplier.kt` | 上报、版本检测、server failover、全局本地事件记录与远端编译 apply；缺少内置配置时仅明确设置的自定义服务器可启用后台，无自建后台时自动通过 PublicUpdateChecker 并发向 JetBrains Marketplace 与 GitHub 查询公网更新 |
-| 问题诊断 | `main/src/main/java/com/sickworm/intellij/jugg/diagnostics/IssueReportBundleBuilder.kt`、`IssueReportUploader.kt` | 白名单诊断包、脱敏、manifest 校验与单一 HTTPS endpoint 上传 |
+| 问题诊断 | `main/src/main/java/com/sickworm/intellij/jugg/diagnostics/IssueReportBundleBuilder.kt`、`IssueReportUploader.kt` | 白名单诊断包、按目标决定日志脱敏、manifest 校验与单一目标上传（公共服务 HTTPS，后台 HTTP/HTTPS） |
 | 配置模型 | `main/src/main/java/com/sickworm/intellij/jugg/ide/bean/JuggSettings.kt`、`JuggGradleCompileOptions.kt` | 持久化设置、运行参数、Gradle task 派生与远端编译参数 |
 
 ---
@@ -63,9 +63,9 @@ JuggManager 初始化
 - `TaskRunnerManager.runTaskSafe` 仅在后台任务失败时上报任务名、耗时与异常信息；成功任务不发送事件。
 - 每次 `JuggServer.report()` 都先 Best-effort 写入全局 `action.db`（默认 `~/.jugg/action.db`）；无服务器或远端失败不影响本地记录，本地写入失败也不阻止远端上报。
 - 普通 `buildPlugin` 不携带 `config/servers.json`；`buildPluginInternal` 才校验并打包本地忽略文件。缺少内置配置时，历史自动选服地址无效，只有用户明确设置的 Custom Server 继续生效。
-- 问题报告不复用 server failover：客户端只上传白名单生成且已脱敏的 zip，并固定请求 `https://jugg.sickworm.com/report_issue`；确认窗口展示固定、单一的 HTTPS 目标地址，不持久化地址且不尝试 fallback。
-- 后台可通过 `autoUploadFailureLogs` 开启最终失败日志自动上传，并用 `autoUploadFailureLogsExcludeRegex` 排除已知错误。排除正则只对本轮最终错误摘要做包含匹配，不扫描日志全文；空正则不过滤，非法正则按 fail-closed 跳过上传。
-- 自动失败诊断包只包含 `JuggPathManager.logDir` 中按修改时间排序的最近两份真实 `compile_*.log` 和 manifest；排除 `compile_latest*` 快捷入口，不包含工程快照、环境摘要、logcat 或 hook 日志。上传异步 Best-effort 执行，失败不重试也不影响 Run 结果。
+- 手动问题报告使用当前选中且可用的后台服务，对其根地址拼接 `/report_issue`，以默认勾选的诊断候选项直接打包上传，不显示文件/地址确认面板；复制结果增加 `Server Url: <后台根地址>`。后台直传允许 HTTP 或 HTTPS，请求失败时不回退公网，结果窗口可对同一 zip、同一目标重试。没有可用后台地址时仍显示确认面板并请求 `https://jugg.sickworm.com/report_issue`，可取消候选项或仅本地保存，公共服务继续仅接受 HTTPS。
+- 后台可通过 `autoUploadFailureLogs` 开启最终失败日志自动上传，并用 `autoUploadFailureLogsExcludeRegex` 排除已知错误。排除正则只对本轮最终错误摘要做包含匹配，不扫描日志全文；空正则不过滤，非法正则按 fail-closed 跳过上传。手动上传向明确设置的 Custom Server 和内置列表自动选出的后台发送 `file`、`project_name`、`username`，两者使用同一规则；公共服务仅接收 `file`。自动上传始终发送 `is_auto_upload=true`、首条非空失败摘要 `failed_reason`、`project_name`、`username`、`plugin_version`、`report_id`，有更长错误内容时发送 `error_detail`。手动和自动上报都将同一目标快照绑定到诊断包；明确设置的 Custom Server 和自动选择的后台均接收未脱敏的 Jugg 日志、logcat、hook 日志与自动上传错误文本，仅无可用后台时的公共服务和本地保存走日志脱敏。公共服务拒绝标记为未脱敏的诊断包，公共服务域名不能配置为未脱敏后台，上传不跟随重定向。manifest 对原文日志标记 `redaction=none`，结构化工程快照的敏感字段无论目标如何始终脱敏。
+- 自动失败诊断包复用手动报告的完整准备流程，包含 `JuggPathManager.logDir` 中按修改时间排序的最近两份真实 `compile_*.log`、环境信息、工程摘要、脱敏工程快照、存在时的 hook 调试日志和 manifest；排除 `compile_latest*` 快捷入口且不采集 adb logcat。仅在存在 `availableServerUrl` 时上传到该后台的 `/report_issue`，允许 HTTP 或 HTTPS；没有可用后台时直接跳过，失败不回退公网。上传异步 Best-effort 执行，失败不重试也不影响 Run 结果。
 - 问题报告把现存的 `project_infos.json`、`gradle_project_infos.json` 和 `gradle_include_builds.txt` 当前记录的 `include_build_*_gradle_project_infos.json` 作为默认勾选、可取消的高敏感度候选项，结构化脱敏副本位于 `diagnostics/project-info/`；`applicationId` 等诊断字段保留，SigningConfig 凭据、keystore、keyAlias、Manifest placeholders、APT/KAPT 参数和通用敏感键的值替换为占位符。JSON 解析失败时只跳过对应快照，目录残留的 included build 文件和其他 `project_infos.db` 文件不进入诊断包。必选 Jugg 日志仍排在最前。
 - MCP 拉取产物保留 30 天，问题诊断临时产物保留 7 天；两者在项目启动后使用独立后台任务调用 `ExpiredArtifactCleaner`，局部失败不会阻断另一类清理。
 - `JuggPathManager` 同时暴露 project-local 与 global root：编译产物、DB 优先 project-local；日志按工程隔离在 global `log/`，`build/jugg/log` 仅 best-effort 创建兼容符号链接；跨项目复用资源、deploy cache、hook / resource 文件使用 `JuggGlobalPathManager`。`~/.jugg` 探测失败时，全局 root 改为 `${java.io.tmpdir}/jugg-<user>`，后续编译不应再因家目录权限失败。
@@ -73,6 +73,7 @@ JuggManager 初始化
 - `JuggSettings` 的远程命令历史按 `user + host + port + remoteProjectPath` 保存，每个目标只保留最近 10 条并按完整命令去重。读取损坏数据或写入失败时返回空历史，不影响远程命令执行；命令正文不得写入 Jugg 持久日志。`RemoteUserCommand` 将正文编码后交给子 shell，并用每次执行唯一的完成标记解析退出码，避免用户命令中的注释、`exit` 或输出内容干扰协议。
 - APK 修改链路依赖 `PlatformApi.allAvailableJavaHomes()` 寻找可用签名 JDK；每次重试会移除已有的 `JAVA_HOME` 并写入当前候选，即使原环境未设置该变量也能真正切换 JDK。签名失败不要只看 apksigner 输出，也要检查 host Java home 列表。
 - `ApkFileModifier.insertAndResign()` 在同目录临时副本上完成插入、对齐、签名和校验，校验复用实际签名成功时的 JDK 环境，全部成功后才替换原 APK；任一阶段失败时保留原 APK，并 best-effort 清理临时文件。
+- `ApkFileModifier` 的 `ByteArray` 插入在 JVM 14+ 继续使用 ZipFS `STORED` 语义，即使同批存在 file-backed NativeLib 也保持不变。仅存在 file-backed NativeLib 时切换到流式 ZIP 重写：file-backed entry 继承基线的 `STORED` / `DEFLATED` 方法，写入后复核 CRC 与源文件状态；超过经典 ZIP 单 entry 4 GiB 边界或大型 entry 不存在于基线 APK 时明确失败。
 - `ApkFileModifier` 调用 zipalign 和 apksigner 时按宿主 shell 逐项转义参数（`shellEscapeArgument`）；SDK、APK、keystore 路径包含空格、括号或 Unicode 字符时仍作为单个参数传递。`CustomApkSignScriptRunner` 复用同一转义规则拼接 `<configured command> '<apk 绝对路径>'`。
 - `ApkFileModifier` 的可空 `customApkSignScriptRunner` 决定签名阶段走自定义脚本还是默认 keystore：走脚本时 `signConfig` 可以为空，签名后仍统一执行 `verifyApk()` 和原子替换。脚本命令使用 `isSecureCommand`，因此 `CmdExecutor` 的 debug 日志只打印 `(secure)`，脚本原文不进入日志。
 - 兼容资源 APK 修改在 JVM 14+ 继续使用 ZipFS；`ResourceApkModifier` 为每轮写入创建唯一同目录临时文件，成功关闭后优先原子替换正式 `resource.ap_`，平台不支持时回退普通替换，避免异常遗留的 ZipFS URI 和半成品污染后续 Run。日志记录条目数、内容总字节、最大条目、APK 字节及导出前后 heap，用于区分 ZIP 生成峰值与 deployer payload 包装峰值。

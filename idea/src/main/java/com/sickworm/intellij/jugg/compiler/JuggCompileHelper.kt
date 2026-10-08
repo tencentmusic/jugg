@@ -12,6 +12,7 @@ import com.sickworm.intellij.jugg.compiler.ui.BuildChangesConfirmResult
 import com.sickworm.intellij.jugg.compiler.ui.TooManyChangesConfirmResult
 import com.sickworm.intellij.jugg.compiler.external.ExternalBuildTarget
 import com.sickworm.intellij.jugg.compiler.external.deriveExternalBuildCommand
+import com.sickworm.intellij.jugg.compiler.external.matchedPrerequisites
 import com.sickworm.intellij.jugg.compiler.external.resolveExternalBuilds
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.instrument.LibraryTestApkBuildHistory
@@ -438,9 +439,12 @@ class JuggCompilerHelper(
             return CompileTaskResult.incrementalFailed(true, reason)
         }
         if (hasExternalBuildSources) {
-            val taskPaths = externalBuildSources.flatMap(::resolveExternalBuildTargets)
-                .mapNotNull { it.buildInfo.taskPath }
-                .distinct()
+            val taskPaths = externalBuildSources.flatMap { source ->
+                resolveExternalBuildTargets(source).flatMap { target ->
+                    matchedPrerequisites(target.buildInfo, listOf(source.file)).map { it.taskPath } +
+                            listOfNotNull(target.buildInfo.taskPath)
+                }
+            }.distinct()
             if (lastCompileCommand == null || deriveExternalBuildCommand(lastCompileCommand, taskPaths) == null) {
                 logger.info("External source changes require a derivable Gradle command, forcing Gradle full compile.")
                 return CompileTaskResult.incrementalFailed(true, "External build command cannot be derived")

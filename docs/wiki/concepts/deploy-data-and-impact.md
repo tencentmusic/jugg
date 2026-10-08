@@ -12,7 +12,7 @@ tags:
 
 After incremental compilation produces DEX, resources, Manifest, and native libraries, Jugg still cannot send the changed files to the device as-is. It first determines whether unchanged callers remain compatible with the new class structure, then classifies the final artifacts by how they take effect on the device.
 
-This step connects incremental compilation and incremental deployment: impact analysis determines whether more source code must be compiled, while deployment data determines whether the current Run uses Apply Changes, Hot Fix, APK update, or compatibility deployment.
+This step connects incremental compilation and incremental deployment: impact analysis determines whether more source code must be compiled, while deployment data determines whether the current Run uses Apply Changes, Hot Fix, SO hot update, APK update, or compatibility deployment.
 
 ## Class structure changes return the flow to compilation
 
@@ -38,7 +38,8 @@ After impact propagation finishes, Jugg divides deployable content into several 
 | New class | Does not exist in the APK or deployment history | Enters Apply Changes as a new class |
 | Class requiring Hot Fix | Structural change, library DEX, multi-dex, or another online replacement boundary | Loaded after the app restarts |
 | Resource and assets overlay | Result of incremental resource compilation | Apply Changes or Direct Overlay |
-| APK update file | Manifest, associated resource table, or an already generated native library | Written back to the corresponding APK, then re-signed and installed |
+| SO hot update file | Already generated native library when the setting is enabled | Enters the corresponding APK overlay and loads after an app restart |
+| APK update file | Manifest, associated resource table, or a native library when SO hot update is disabled | Written back to the corresponding APK, then re-signed and installed |
 
 One source change can produce multiple categories of data. For example, if a resource referenced by the Manifest changes, the Manifest and associated resource table enter the APK update, while ordinary resources and classes can still be delivered as overlays after installation.
 

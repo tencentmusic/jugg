@@ -115,6 +115,18 @@ class ReadProjectInfoScriptContentTest {
     }
 
     @Test
+    fun generatedScript_shouldConfigureTasksWithExplicitActionNotReceiverLambda() {
+        val scriptText = javaClass.getResource("/gradle/readProjectInfo.gradle.kts")?.readText()
+        assertNotNull(scriptText)
+
+        assertFalse(
+            Regex("""\.configureEach\s*\{\s*\w+\s*->""").containsMatchIn(scriptText),
+            "Kotlin DSL Action has an implicit receiver; configureEach with a named parameter fails to compile",
+        )
+        assertTrue(scriptText.contains("configureEach(object : org.gradle.api.Action<org.gradle.api.Task>"))
+    }
+
+    @Test
     fun sourceFiles_shouldKeepReadableCompanionEntries() {
         val injectorText = readSource("src/main/java/com/sickworm/intellij/jugg/gradle/script/GradleApplicationInjector.kt")
         assertTrue(injectorText.contains("companion object"))

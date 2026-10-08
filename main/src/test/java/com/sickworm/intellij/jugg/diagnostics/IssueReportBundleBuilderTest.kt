@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.diagnostics
 
 import com.intellij.openapi.diagnostic.Logger
+import com.google.gson.JsonParser
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -14,6 +15,46 @@ class IssueReportBundleBuilderTest {
 
     @get:Rule
     val temporaryFolder = TemporaryFolder()
+
+    @Test
+    fun `custom server bundle keeps original logs while project credentials stay masked`() {
+        val root = temporaryFolder.newFolder()
+        val projectDir = root.resolve("secret-project").apply { mkdirs() }
+        val userHome = root.resolve("user-home").apply { mkdirs() }
+        val rawLog = "project=$projectDir home=$userHome user=developer token=secret-token"
+        val log = root.resolve("compile.log").apply { writeText(rawLog) }
+        val hookLog = root.resolve("hook.log").apply { writeText(rawLog) }
+        val projectInfoDir = root.resolve("project-info").apply { mkdirs() }
+        projectInfoDir.resolve("gradle_project_infos.json").writeText("""{"storePassword":"secret-token"}""")
+        val builder = IssueReportBundleBuilder(
+            root.resolve("output"), projectDir, userHome, mock<Logger>(),
+            IssueReportDestination.backend("https://custom.example.com"),
+        )
+        val candidates = builder.prepare(
+            environment = emptyMap(), projectSummary = emptyMap(), projectInfoDir = projectInfoDir,
+            logFiles = listOf(log), logFileLimit = 1, logcat = rawLog, hookDebugLog = hookLog,
+            knownSecrets = setOf("developer", "secret-token"),
+        )
+        val bundle = builder.build(candidates.map { it.path }.toSet())
+
+        ZipFile(bundle.file).use { zip ->
+            listOf("diagnostics/logs/compile.log", "diagnostics/device/logcat.log", "diagnostics/cli/hook-debug.log")
+                .forEach { path ->
+                    assertEquals(rawLog, zip.getInputStream(zip.getEntry(path)).bufferedReader().readText())
+                }
+            val projectInfo = zip.getInputStream(zip.getEntry("diagnostics/project-info/gradle_project_infos.json"))
+                .bufferedReader().readText()
+            assertFalse("secret-token" in projectInfo)
+            val manifest = JsonParser.parseReader(zip.getInputStream(zip.getEntry("diagnostics/manifest.json")).reader())
+                .asJsonObject.getAsJsonArray("entries").associate { entry ->
+                    entry.asJsonObject.get("path").asString to entry.asJsonObject.get("redaction").asString
+                }
+            assertEquals("none", manifest["diagnostics/logs/compile.log"])
+            assertEquals("none", manifest["diagnostics/device/logcat.log"])
+            assertEquals("none", manifest["diagnostics/cli/hook-debug.log"])
+            assertEquals("completed", manifest["diagnostics/project-info/gradle_project_infos.json"])
+        }
+    }
 
     @Test
     fun `bundle contains only selected redacted candidates and matching manifest`() {
@@ -51,6 +92,7 @@ class IssueReportBundleBuilderTest {
             projectSummary = mapOf("moduleCount" to 2),
             projectInfoDir = projectInfoDir,
             logFiles = listOf(log),
+            logFileLimit = 10,
             logcat = "device log",
             hookDebugLog = hookDebugLog,
             knownSecrets = setOf("secret-value"),
@@ -86,6 +128,11 @@ class IssueReportBundleBuilderTest {
             assertTrue("\${USER_HOME}" in logText)
             assertTrue("[REDACTED]" in logText)
             assertFalse("secret-value" in logText)
+            val manifest = JsonParser.parseReader(zip.getInputStream(zip.getEntry("diagnostics/manifest.json")).reader())
+                .asJsonObject.getAsJsonArray("entries").associate { entry ->
+                    entry.asJsonObject.get("path").asString to entry.asJsonObject.get("redaction").asString
+                }
+            assertEquals("completed", manifest["diagnostics/logs/compile.log"])
             val ideProjectInfoText = zip.getInputStream(
                 zip.getEntry("diagnostics/project-info/project_infos.json"),
             ).bufferedReader().readText()
@@ -100,6 +147,63 @@ class IssueReportBundleBuilderTest {
             assertFalse("apt-secret" in gradleProjectInfoText)
             assertFalse("signing-secret" in gradleProjectInfoText)
             assertFalse("key-secret" in gradleProjectInfoText)
+        }
+    }
+
+    @Test
+    fun `selected backend bundle includes full original diagnostics without logcat and limits logs`() {
+        val root = temporaryFolder.newFolder()
+        val projectDir = root.resolve("secret-project").apply { mkdirs() }
+        val userHome = root.resolve("user-home").apply { mkdirs() }
+        val logs = listOf("compile-1.log", "compile-2.log", "compile-3.log").map { name ->
+            root.resolve(name).apply {
+                writeText("project=$projectDir home=$userHome token=secret-token")
+            }
+        }
+        val projectInfoDir = projectDir.resolve("project_infos.db").apply { mkdirs() }
+        projectInfoDir.resolve("project_infos.json").writeText("{\"projectDir\":\"$projectDir\"}")
+        val builder = IssueReportBundleBuilder(
+            root.resolve("output"), projectDir, userHome, mock<Logger>(),
+            IssueReportDestination.backend("https://selected.example.com"),
+        )
+
+        val candidates = builder.prepare(
+            environment = mapOf("pluginVersion" to "3.6.2"),
+            projectSummary = mapOf("moduleCount" to 2),
+            projectInfoDir = projectInfoDir,
+            logFiles = logs,
+            logFileLimit = 2,
+            logcat = "",
+            hookDebugLog = root.resolve("jugg-hook-debug.log").apply { writeText("hook log") },
+        )
+        val bundle = builder.build(candidates.map { it.path }.toSet())
+
+        ZipFile(bundle.file).use { zip ->
+            val entries = zip.entries().asSequence().map { it.name }.toSet()
+            assertEquals(
+                setOf(
+                    "diagnostics/logs/compile-1.log",
+                    "diagnostics/logs/compile-2.log",
+                    "diagnostics/project-info/project_infos.json",
+                    "diagnostics/environment.json",
+                    "diagnostics/project-summary.json",
+                    "diagnostics/cli/hook-debug.log",
+                    "diagnostics/manifest.json",
+                ),
+                entries,
+            )
+            assertFalse("diagnostics/device/logcat.log" in entries)
+            entries.filter { it.startsWith("diagnostics/logs/") }.forEach { path ->
+                val content = zip.getInputStream(zip.getEntry(path)).bufferedReader().readText()
+                assertTrue("project=$projectDir" in content)
+                assertTrue("home=$userHome" in content)
+                assertTrue("token=secret-token" in content)
+            }
+            val manifest = JsonParser.parseReader(zip.getInputStream(zip.getEntry("diagnostics/manifest.json")).reader())
+                .asJsonObject.getAsJsonArray("entries").associate { entry ->
+                    entry.asJsonObject.get("path").asString to entry.asJsonObject.get("redaction").asString
+                }
+            assertEquals("none", manifest["diagnostics/logs/compile-1.log"])
         }
     }
 }

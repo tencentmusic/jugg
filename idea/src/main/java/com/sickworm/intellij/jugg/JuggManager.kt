@@ -162,6 +162,7 @@ class JuggManager @TestOnly constructor(
                 val checkUpdateHandler = CheckUpdateHandler(
                     project, juggServer.version, customConfigManager,
                     JuggLogger.getInstance(project, "CheckUpdateHandler"),
+                    controlPanelController::refreshSettings,
                 )
                 checkUpdateHandler.handle(it)
                 loadCustomConfig()
@@ -876,6 +877,7 @@ class JuggManager @TestOnly constructor(
 
     override fun reportIssue() {
         controlPanelController.recordUserAction("Report Issue")
+        val destination = juggServer.issueReportDestination
         val progressDialog = ReportIssueProgressDialog("Preparing diagnostics...")
         taskRunnerManager.runBackgroundSafe("Prepare issue report") {
             try {
@@ -894,6 +896,7 @@ class JuggManager @TestOnly constructor(
                     pathManager.projectDir,
                     File(System.getProperty("user.home")),
                     logger.getInstance("IssueReportBundleBuilder"),
+                    destination,
                 )
                 val logFiles = pathManager.logDir.listFiles().orEmpty()
                     .filter { it.isFile && !it.name.startsWith("compile_latest") && !it.name.endsWith(".lck") }
@@ -911,13 +914,23 @@ class JuggManager @TestOnly constructor(
                     ),
                     projectInfoDir = pathManager.projectInfosDir,
                     logFiles = logFiles,
+                    logFileLimit = 10,
                     logcat = logcatErrorLog,
                     hookDebugLog = File(JuggGlobalPathManager.rootDir, "skills/hooks/jugg-hook-debug.log"),
                     knownSecrets = knownSecrets,
                 )
                 SwingUtilities.invokeLater {
                     progressDialog.close(DialogWrapper.OK_EXIT_CODE)
-                    showReportIssueDialog(builder, candidates, IssueReportUploader.JUGG_REPORT_URL)
+                    if (destination.backendServerUrl == null) {
+                        showReportIssueDialog(builder, candidates, destination.uploadUrl)
+                    } else {
+                        taskRunnerManager.runBackgroundSafe("Create issue report") {
+                            val selectedPaths = candidates.filter {
+                                it.isSelectedByDefault || it.path.startsWith("diagnostics/logs/")
+                            }.map { it.path }.toSet()
+                            uploadIssueReport(builder.build(selectedPaths))
+                        }
+                    }
                 }
             } catch (e: Throwable) {
                 SwingUtilities.invokeLater {
@@ -946,20 +959,22 @@ class JuggManager @TestOnly constructor(
                     ReportIssueResultDialog(null).show()
                 }
             } else {
-                uploadIssueReport(bundle, uploadUrl)
+                uploadIssueReport(bundle)
             }
         }
     }
 
-    private fun uploadIssueReport(bundle: IssueReportBundle, uploadUrl: String) {
+    private fun uploadIssueReport(bundle: IssueReportBundle) {
         SwingUtilities.invokeLater {
             val progressDialog = ReportIssueProgressDialog("Uploading logs...")
             taskRunnerManager.runBackgroundSafe("Upload issue report") {
-                val uploadResult = IssueReportUploader().upload(bundle, uploadUrl)
+                val uploadResult = IssueReportUploader().upload(
+                    bundle, projectName = juggServer.projectName, username = juggServer.username,
+                )
                 SwingUtilities.invokeLater {
                     progressDialog.close(DialogWrapper.OK_EXIT_CODE)
-                    ReportIssueResultDialog(uploadResult) {
-                        uploadIssueReport(bundle, uploadUrl)
+                    ReportIssueResultDialog(uploadResult, bundle.destination.backendServerUrl) {
+                        uploadIssueReport(bundle)
                     }.show()
                 }
             }
@@ -1072,6 +1087,9 @@ class JuggManager @TestOnly constructor(
         ): IJuggRunningTask {
             logger.debug("Create running task: ${options.toSafeString()}")
 
+            loadCustomConfig()
+            val customConfig = customConfigManager.config
+
             val startCompileTime = System.currentTimeMillis()
             val initIncrementalCompileTask = task@{
                 // do it async
@@ -1084,10 +1102,11 @@ class JuggManager @TestOnly constructor(
                 juggRunningTaskStatusManager, deployHistoryManager, juggCompilerHelper, juggDeployerHelper, initIncrementalCompileTask,
                 compileUiHandler, controlPanelController.model, androidTestRunSpec,
                 controlPanelController = controlPanelController,
+                autoUploadFailureLogs = customConfig?.autoUploadFailureLogs == true,
+                autoUploadFailureLogsExcludeRegex = customConfig?.autoUploadFailureLogsExcludeRegex,
+                projectModuleCount = compileContextManager.compileContext.modules.size,
             )
 
-            // try reload custom config if changed
-            loadCustomConfig()
             ProgressManager.getInstance().run(task)
 
             return task

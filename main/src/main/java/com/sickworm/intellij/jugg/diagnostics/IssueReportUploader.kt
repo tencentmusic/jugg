@@ -9,20 +9,43 @@ import okhttp3.RequestBody.Companion.asRequestBody
 import java.net.URI
 
 /**
- * Uploads one diagnostics bundle to a validated HTTPS endpoint without fallback.
+ * Uploads one diagnostics bundle to a validated endpoint without fallback.
  */
 class IssueReportUploader(
-    private val client: OkHttpClient = OkHttpClient(),
+    client: OkHttpClient = OkHttpClient(),
 ) {
-    fun upload(bundle: IssueReportBundle, url: String): IssueReportUploadResult {
-        val endpoint = validateUrl(url)
+    private val uploadClient = client.newBuilder().followRedirects(false).followSslRedirects(false).build()
+
+    fun upload(
+        bundle: IssueReportBundle,
+        autoUpload: IssueReportAutoUpload? = null,
+        projectName: String? = null,
+        username: String? = null,
+    ): IssueReportUploadResult {
         return try {
+            val destination = bundle.destination
+            require(!destination.redactLogs || bundle.entries.none { it.redaction == "none" }) {
+                "Unredacted diagnostics cannot be uploaded to the public service"
+            }
+            val endpoint = validateUrl(destination.uploadUrl, destination.backendServerUrl != null)
             val body = MultipartBody.Builder()
                 .setType(MultipartBody.FORM)
                 .addFormDataPart("file", bundle.file.name, bundle.file.asRequestBody("application/zip".toMediaType()))
-                .build()
+                .apply {
+                    if (autoUpload != null) {
+                        addFormDataPart("is_auto_upload", "true")
+                        addFormDataPart("failed_reason", autoUpload.failedReason)
+                        addFormDataPart("plugin_version", autoUpload.pluginVersion)
+                        addFormDataPart("report_id", bundle.reportId)
+                        autoUpload.errorDetail?.let { addFormDataPart("error_detail", it) }
+                    }
+                    (autoUpload?.projectName ?: projectName?.takeIf { destination.backendServerUrl != null })
+                        ?.let { addFormDataPart("project_name", it) }
+                    (autoUpload?.username ?: username?.takeIf { destination.backendServerUrl != null })
+                        ?.let { addFormDataPart("username", it) }
+                }.build()
             val request = Request.Builder().url(endpoint.toURL()).post(body).build()
-            client.newCall(request).execute().use { response ->
+            uploadClient.newCall(request).execute().use { response ->
                 val responseBody = response.body?.string().orEmpty()
                 if (!response.isSuccessful) {
                     return IssueReportUploadResult(false, null, "Upload failed: [${response.code}] $responseBody")
@@ -38,13 +61,12 @@ class IssueReportUploader(
     }
 
     companion object {
-        const val JUGG_REPORT_URL = "https://jugg.sickworm.com/report_issue"
-
-        fun validateUrl(value: String): URI {
+        fun validateUrl(value: String, allowHttpForBackend: Boolean = false): URI {
             val uri = runCatching { URI(value.trim()) }
                 .getOrElse { throw IllegalArgumentException("Upload URL is invalid") }
-            require(uri.isAbsolute && uri.scheme.equals("https", ignoreCase = true)) {
-                "Upload URL must use HTTPS"
+            require(uri.isAbsolute && (uri.scheme.equals("https", ignoreCase = true) ||
+                    allowHttpForBackend && uri.scheme.equals("http", ignoreCase = true))) {
+                "Upload URL must use HTTPS unless targeting a configured backend"
             }
             require(uri.rawUserInfo == null) { "Upload URL must not contain credentials" }
             require(uri.rawQuery == null) { "Upload URL must not contain a query" }
@@ -54,3 +76,12 @@ class IssueReportUploader(
         }
     }
 }
+
+/** Metadata supplied only for automatic failure reports. */
+data class IssueReportAutoUpload(
+    val failedReason: String,
+    val errorDetail: String?,
+    val projectName: String,
+    val username: String,
+    val pluginVersion: String,
+)

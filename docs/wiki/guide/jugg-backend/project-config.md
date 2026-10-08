@@ -22,8 +22,12 @@ Project configuration distribution keeps team defaults in one backend. During an
 | `moduleCustomConfigs` | Add classpaths, synchronization paths, or ignore-filtering behavior for specified modules |
 | `customCompilers` | Distribute custom compiler JARs to a project |
 | `embeddedApksSearchRules` | Configure search rules for embedded APKs |
+| `autoUploadFailureLogs` | Automatically upload the two most recent redacted logs after a final compilation or actual deployment failure |
+| `autoUploadFailureLogsExcludeRegex` | Apply a contains match to the final error summary and exclude the automatic upload when it matches |
 
 The legacy `buildFileList` field is not recommended for new use. New backends should maintain `buildFileRules` instead.
+
+Automatic failure-log uploads require both `autoUploadFailureLogs` explicitly set to `true` and an available backend. A missing or empty exclusion regex applies no filtering, while an invalid regex causes the plugin to skip that upload. Automatic diagnostic bundles go only to the currently available backend, never the public service. See [Report an issue](../report-issue.md) for bundle contents and trigger boundaries.
 
 ## Module configuration
 

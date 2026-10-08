@@ -246,8 +246,42 @@ class GradleProjectInfoReaderManager(
         if (localTaskPaths.isNotEmpty()) {
             collector.dependsOn(localTaskPaths)
         }
+        wirePrerequisiteTaskOrder(requests, collector)
         includeBuildProjects.forEach { includedBuild ->
             collector.dependsOn(includedBuild.task(COLLECT_EXTERNAL_BUILD_INFO_TASK_PATH))
+        }
+    }
+
+    /**
+     * Adds codegen tasks of this invocation before native prefixes on the owning module. Prefix
+     * matching is only applied when the request actually lists prerequisite tasks, so a C++-only
+     * round does not pull codegen into the graph.
+     */
+    private fun wirePrerequisiteTaskOrder(
+        requests: List<ExternalBuildInfoRequestItem>,
+        collector: org.gradle.api.Task,
+    ) {
+        requests.forEach { request ->
+            if (request.prerequisiteTaskPaths.isEmpty()) {
+                return@forEach
+            }
+            val project = rootProject.allprojects.firstOrNull {
+                it.projectDir.absoluteFile.normalize() == request.moduleRootDir.absoluteFile.normalize()
+            } ?: return@forEach
+            val prefixes = request.prerequisiteBeforeNativePrefixes.ifEmpty {
+                listOf("merge", "buildCMake", "externalNativeBuild")
+            }
+            request.prerequisiteTaskPaths.forEach { prePath ->
+                collector.dependsOn(prePath)
+                // Kotlin DSL Action has an implicit receiver; a one-parameter lambda cannot compile in the init script.
+                project.tasks.matching { task ->
+                    prefixes.any { prefix -> task.name.startsWith(prefix) }
+                }.configureEach(object : org.gradle.api.Action<org.gradle.api.Task> {
+                    override fun execute(task: org.gradle.api.Task) {
+                        task.dependsOn(prePath)
+                    }
+                })
+            }
         }
     }
 
@@ -329,6 +363,11 @@ class GradleProjectInfoReaderManager(
                 // explicitly instead of silently deploying unstripped module output.
                 apkOwnerModuleRootDir = (item["apkOwnerModuleRootDir"] as? String)?.let(::File),
                 apkOwnerBuildVariant = item["apkOwnerBuildVariant"] as? String,
+                prerequisiteTaskPaths = (item["prerequisiteTaskPaths"] as? List<*>).orEmpty()
+                    .mapNotNull { it?.toString()?.takeIf(String::isNotEmpty) },
+                prerequisiteBeforeNativePrefixes = (item["prerequisiteBeforeNativePrefixes"] as? List<*>)
+                    .orEmpty()
+                    .mapNotNull { it?.toString()?.takeIf(String::isNotEmpty) },
             )
         }
     }
@@ -543,19 +582,10 @@ class GradleProjectInfoReaderManager(
         ensureDeployableNativeSize(file, relativePath)
     }
 
-    /**
-     * Rejects a native library that cannot be represented by the deploy data before it reaches the
-     * IDE, instead of failing later with an out of memory error while reading it into a byte array.
-     */
     private fun ensureDeployableNativeSize(file: File, relativePath: String) {
         val size = file.length()
         if (size <= 0L) {
             throw IllegalStateException("Native library is empty and can not be deployed: $relativePath")
-        }
-        if (size > Int.MAX_VALUE) {
-            throw IllegalStateException("Native library $relativePath is $size bytes, exceeding the " +
-                    "${Int.MAX_VALUE} bytes deploy limit. Keep debug symbols or a missing strip tool can " +
-                    "cause this, run a normal Gradle build before retrying Jugg.")
         }
     }
 

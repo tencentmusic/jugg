@@ -54,6 +54,21 @@ class JuggDeployDataTest {
     }
 
     @Test
+    fun `filterForApks narrows shared native library paths to the selected application`() {
+        val native = deployItem("lib/arm64-v8a/libshared.so", CompileOutput.Type.NativeLib,
+            basePath, listOf(basePath, testPath))
+        val data = deployData(nativeLibraryOverlays = listOf(native))
+
+        val baseScoped = data.filterForApks(listOf(baseApk))
+        val testScoped = data.filterForApks(listOf(testApk))
+
+        assertEquals(listOf(basePath), baseScoped.nativeLibraryOverlays.single().targetApkPaths)
+        assertEquals(listOf(testPath), testScoped.nativeLibraryOverlays.single().targetApkPaths)
+        assertEquals(testPath, testScoped.nativeLibraryOverlays.single().apkPath)
+        assertEquals(listOf(basePath, testPath), native.targetApkPaths)
+    }
+
+    @Test
     fun `filterForApks filters hot fix and hot reload classes`() {
         val data = deployData(
             hotFixModifiedClasses = listOf(
@@ -144,6 +159,24 @@ class JuggDeployDataTest {
     }
 
     @Test
+    fun `native libraries are sent only with the final overlay slice`() {
+        val native = deployItem("lib/arm64-v8a/libdtmp.so", CompileOutput.Type.NativeLib, basePath, listOf(basePath))
+        val data = deployData(
+            overlays = (1..3).map { index ->
+                deployItem("res/layout/$index.xml", CompileOutput.Type.Res, basePath, listOf(basePath))
+            },
+            nativeLibraryOverlays = listOf(native),
+        )
+
+        val slices = data.splitData(firstMaxOverlaySize = 1, maxOverlaySize = 1)
+
+        assertEquals(3, slices.size)
+        assertTrue(slices[0].nativeLibraryOverlays.isEmpty())
+        assertTrue(slices[1].nativeLibraryOverlays.isEmpty())
+        assertEquals(listOf(native), slices[2].nativeLibraryOverlays)
+    }
+
+    @Test
     fun `apk root overlay requires app restart`() {
         val data = deployData(
             overlays = listOf(
@@ -228,6 +261,61 @@ class JuggDeployDataTest {
     }
 
     @Test
+    fun `native library overlay is deployable and restarts the app without resource full push`() {
+        val data = deployData(
+            nativeLibraryOverlays = listOf(
+                deployItem("lib/arm64-v8a/libdtmp.so", CompileOutput.Type.NativeLib, basePath, listOf(basePath)),
+            ),
+        )
+
+        assertFalse(data.isEmpty)
+        assertTrue(data.isNeedRestartApp)
+        assertFalse(data.isNeedUpdateApk)
+        assertFalse(data.isFullRes)
+        assertEquals(JuggDeployData.DeployType.HOT_FIX, data.deployType)
+        assertEquals(listOf("lib/arm64-v8a/libdtmp.so"),
+            data.filterForApks(listOf(baseApk)).nativeLibraryOverlays.map { it.name })
+        assertTrue(data.filterForApks(listOf(testApk)).nativeLibraryOverlays.isEmpty())
+    }
+
+    @Test
+    fun `native library overlay requires app restart without apk update`() {
+        val data = deployData(
+            nativeLibraryOverlays = listOf(
+                deployItem("lib/arm64-v8a/libdtmp.so", CompileOutput.Type.NativeLib, basePath, listOf(basePath)),
+            ),
+        )
+
+        assertTrue(data.isNeedRestartApp)
+        assertFalse(data.isNeedUpdateApk)
+        assertFalse(data.isEmpty)
+        assertEquals(JuggDeployData.DeployType.HOT_FIX, data.deployType)
+        val desc = data.toDescString()
+        assertEquals(
+            "JuggDeployData (HOT_FIX): [\nnative libraries:\n    lib/arm64-v8a/libdtmp.so\n]",
+            desc,
+        )
+    }
+
+    @Test
+    fun `filterForApks filters native library overlays`() {
+        val data = deployData(
+            nativeLibraryOverlays = listOf(
+                deployItem("lib/arm64-v8a/libbase.so", CompileOutput.Type.NativeLib, basePath, listOf(basePath)),
+                deployItem("lib/arm64-v8a/libtest.so", CompileOutput.Type.NativeLib, testPath, listOf(testPath)),
+            ),
+        )
+
+        val baseScoped = data.filterForApks(listOf(baseApk))
+        val testScoped = data.filterForApks(listOf(testApk))
+
+        assertEquals(listOf("lib/arm64-v8a/libbase.so"), baseScoped.nativeLibraryOverlays.map { it.name })
+        assertTrue(baseScoped.isNeedRestartApp)
+        assertEquals(listOf("lib/arm64-v8a/libtest.so"), testScoped.nativeLibraryOverlays.map { it.name })
+        assertTrue(testScoped.isNeedRestartApp)
+    }
+
+    @Test
     fun `empty replay after reinstall requires app restart`() {
         val data = deployData(isRecoverReplayAfterReinstall = true)
 
@@ -254,6 +342,7 @@ class JuggDeployDataTest {
         isComposeResourceCompiled: Boolean = false,
         isRecoverReplayAfterReinstall: Boolean = false,
         flutterJitRuntimeFiles: List<DeployItem> = emptyList(),
+        nativeLibraryOverlays: List<DeployItem> = emptyList(),
     ): JuggDeployData {
         return JuggDeployData(
             apks = listOf(baseApk, testApk),
@@ -270,6 +359,7 @@ class JuggDeployDataTest {
             isComposeResourceCompiled = isComposeResourceCompiled,
             isRecoverReplayAfterReinstall = isRecoverReplayAfterReinstall,
             flutterJitRuntimeFiles = flutterJitRuntimeFiles,
+            nativeLibraryOverlays = nativeLibraryOverlays,
         )
     }
 

@@ -16,6 +16,9 @@ class VirtualDeployDevice(
     val packageName: String,
     val serial: String = "virtual-deploy-device",
 ) {
+    var apiLevel: Int = 30
+    var processArch: String = "ARCH_64_BIT"
+    var installedPrimaryCpuAbi: String? = null
     val root: File = Files.createTempDirectory("jugg-virtual-device-").toFile()
     val shellCommands: MutableList<String> = mutableListOf()
     val shellScripts: MutableList<String> = mutableListOf()
@@ -68,7 +71,7 @@ class VirtualDeployDevice(
         Mockito.`when`(device.serialNumber).thenReturn(serial)
         Mockito.`when`(device.name).thenReturn("virtual-$serial")
         Mockito.`when`(device.isOnline).thenReturn(true)
-        Mockito.`when`(device.version).thenReturn(AndroidVersion(30, null))
+        Mockito.`when`(device.version).thenAnswer { AndroidVersion(apiLevel, null) }
         Mockito.`when`(device.clients).thenReturn(emptyArray())
         device
     }
@@ -261,9 +264,11 @@ class VirtualDeployDevice(
     private fun execShellCmd(cmd: String): String {
         shellCommands += cmd
         return when {
+            cmd.startsWith("dumpsys package ") -> "primaryCpuAbi=${installedPrimaryCpuAbi ?: "arm64-v8a"}"
             cmd.startsWith("logcat") -> appLogLines.joinToString("\n")
             cmd.startsWith("mkdir -p /data/local/tmp/jugg") -> {
-                File(root, "data/local/tmp/jugg").mkdirs()
+                val remote = cmd.removePrefix("mkdir -p ").trim()
+                File(root, remote.removePrefix("/")).mkdirs()
                 ""
             }
             cmd.startsWith("rm -f /data/local/tmp/jugg/direct-overlay-") -> {
@@ -422,7 +427,8 @@ class VirtualDeployDevice(
         private val device: VirtualDeployDevice,
     ) : IDeviceAdb {
         override val displayName: String = "virtual"
-        override val api: Int = 30
+        override val api: Int
+            get() = device.apiLevel
         override val serial: String = device.serial
         override val isOnline: Boolean = true
 
@@ -457,7 +463,7 @@ class VirtualDeployDevice(
 
         override fun getDefaultLaunchActivity(apkFile: File): String? = "${device.packageName}.MainActivity"
 
-        override fun getArch(packageName: String): String = "ARCH_64_BIT"
+        override fun getArch(packageName: String): String = device.processArch
 
         override fun getProperty(name: String): String? = when (name) {
             "ro.product.cpu.abi" -> "arm64-v8a"
