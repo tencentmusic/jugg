@@ -131,10 +131,9 @@ class BuildDiffRequestPanel(project: Project) : DiffRequestPanel {
         }
 
         override fun getToolOrderFromSettings(availableTools: MutableList<out DiffTool>): MutableList<DiffTool> {
-            availableTools.sortBy { if (it.name.contains("unified", true)) 0 else 1 }
-            @Suppress("UNCHECKED_CAST")
-            return availableTools as MutableList<DiffTool>
+            return availableTools.toMutableList().apply {
+                sortBy { if (it.name.contains("unified", true)) 0 else 1 }
+            }
         }
     }
 }
-
