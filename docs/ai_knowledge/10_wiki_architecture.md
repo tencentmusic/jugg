@@ -25,7 +25,7 @@
 | `docs/wiki/scripts/submit-indexnow.mjs` | 从本次变更的 Markdown 路径计算 Wiki URL，首次接入和手工发布时从仓库内公开页面批量提交。 |
 | `docs/wiki/public/08a7eb96f7af6347462ab624ddacefa6.txt` | GitHub Pages `/jugg/` 路径下的 IndexNow 站点验证文件。 |
 | `.github/workflows/release.yml` | 版本 tag 触发正式 GitHub Release；仅 tag commit 已包含在 `main` 时构建，避免 develop tag 发布正式包。 |
-| `.github/workflows/canary.yml` | 每日或手工检查触发本次运行的分支；仅在其 HEAD 与 `canary-nightly` tag 不同时构建，并更新 Canary prerelease、插件包和 SHA-256。 |
+| `.github/workflows/canary.yml` | 仅手工触发，检查触发本次运行的分支；仅在其 HEAD 与 `canary-nightly` tag 不同时构建，并更新 Canary prerelease、插件包和 SHA-256。 |
 | `.github/workflows/dev.yml` | 仅手工触发的构建验证；按 `<versionName>-dev.<日期>.<run number>` 构建被触发 ref，并更新 `dev-latest` 滚动 prerelease、`jugg-dev.zip` 与 SHA-256。 |
 | `~/Documents/shell/publish_jugg_wiki.sh` | Wiki 后台发布脚本：打包 production 产物并同步到 `ali` / `yun` 后台 Wiki 根目录。 |
 | `docs/wiki/dev/elements-demo.md` | 英文 dev-only 元素样板页，只用于开发环境视觉验收。 |
@@ -260,7 +260,7 @@ yun:~/jugg_backend/wiki
 正式版和 Canary 使用不同发布语义：
 
 - 正式版由版本 tag 触发 `release.yml`；仅 tag commit 已包含在 `main` 时才会构建，每个版本创建独立 GitHub Release。
-- `canary.yml` 更新可移动的 `canary-nightly` tag，并覆盖 `Jugg Canary` prerelease。
+- 手工运行 `canary.yml` 时，更新可移动的 `canary-nightly` tag，并覆盖 `Jugg Canary` prerelease。
 - Canary 的 Actions artifact 只保留 14 天，用于构建排查；公开下载入口必须指向 GitHub Release asset，不能依赖 workflow run 页面。
 - README 和 Wiki 使用固定的 Canary Release asset 地址，因此每次构建不需要更新页面链接。
 - `release.yml` 必须排除 Canary tag，避免滚动 tag 被正式发布流程校验为版本号。

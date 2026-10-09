@@ -28,7 +28,7 @@ Before installing, ensure your development environment meets the following requi
 Download the plugin package (`.zip` format) from GitHub Releases:
 
 - **[Latest stable release](https://github.com/tencentmusic/jugg/releases/latest)**: Recommended for everyday team development.
-- **[Latest Canary build](https://github.com/tencentmusic/jugg/releases/download/canary-nightly/jugg-canary-nightly.zip)**: Built automatically from the branch that triggers the Canary workflow, containing the latest features.
+- **[Latest Canary build](https://github.com/tencentmusic/jugg/releases/download/canary-nightly/jugg-canary-nightly.zip)**: Built when a maintainer manually runs the workflow, with features from the branch selected for the most recent release.
 
 > [!NOTE]
 > If your organization uses an internal distribution portal, follow your team's versioning and staged rollout policy.
