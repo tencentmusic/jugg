@@ -5,6 +5,7 @@
 # Jugg: Instant Hot Reload & Fast Incremental Compilation for Android Studio
 
 <p align="left">
+  <a href="https://plugins.jetbrains.com/plugin/34099-jugg"><img src="https://img.shields.io/jetbrains/plugin/v/34099?label=JetBrains%20Marketplace&color=blue" alt="JetBrains Marketplace"></a>
   <a href="https://github.com/tencentmusic/jugg/releases/latest"><img src="https://img.shields.io/github/v/release/tencentmusic/jugg?label=Release&color=blue" alt="Latest Release"></a>
   <a href="https://github.com/tencentmusic/jugg/stargazers"><img src="https://img.shields.io/github/stars/tencentmusic/jugg?style=flat&color=yellow" alt="GitHub Stars"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License: MIT"></a>
@@ -21,7 +22,8 @@
 
 Jugg only requires an IDE plugin; it does **not** modify Gradle scripts or require SDK integration. A Jugg Run Configuration coexists seamlessly with your native App Run Configuration: select Jugg for high-speed incremental compilation and deployment, or switch back to the native App configuration at any time for the standard Android Studio build flow. The two run completely independently. When a project change falls outside the incremental path, Jugg automatically falls back to Gradle and establishes a new baseline.
 
-- [Download the latest stable release](https://github.com/tencentmusic/jugg/releases/latest)
+- [JetBrains Marketplace](https://plugins.jetbrains.com/plugin/34099-jugg)
+- [Download latest release (.zip)](https://github.com/tencentmusic/jugg/releases/latest)
 - [Technical overview](https://juejin.cn/post/7680996030843125796)
 - [Watch the demo](https://www.bilibili.com/video/BV1W3411C7PU/)
 - [Jugg Documentation (Wiki)](https://tencentmusic.github.io/jugg/)
@@ -42,7 +44,7 @@ Ask questions, suggest features, or share feedback on [GitHub Discussions](https
 
 ## Quick start
 
-1. Download the plugin package directly from [Latest Releases (.zip)](https://github.com/tencentmusic/jugg/releases/latest), then install it in Android Studio via **Plugins -> ⚙️ -> Install Plugin from Disk...** (JetBrains Marketplace listing in progress).
+1. **Install plugin (Marketplace recommended)**: In Android Studio, go to **Settings/Preferences -> Plugins -> Marketplace**, search for `Jugg` and click **Install**, or get it from [JetBrains Marketplace](https://plugins.jetbrains.com/plugin/34099-jugg).<br>Alternatively, download the offline package from [GitHub Releases (.zip)](https://github.com/tencentmusic/jugg/releases/latest) and install via **Plugins -> ⚙️ -> Install Plugin from Disk...**.
 2. Open an Android project and wait for the Jugg Run Configuration to be created automatically.
 3. Select the Jugg Run Configuration and click Run. The first Run establishes the Gradle baseline; after that, edit source or resources and Run again for second-level bypass incremental compilation.
 

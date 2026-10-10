@@ -5,6 +5,7 @@
 # Jugg: Android Studio 秒级增量编译与即时热重载插件
 
 <p align="left">
+  <a href="https://plugins.jetbrains.com/plugin/34099-jugg"><img src="https://img.shields.io/jetbrains/plugin/v/34099?label=JetBrains%20Marketplace&color=blue" alt="JetBrains Marketplace"></a>
   <a href="https://github.com/tencentmusic/jugg/releases/latest"><img src="https://img.shields.io/github/v/release/tencentmusic/jugg?label=Release&color=blue" alt="最新版本"></a>
   <a href="https://github.com/tencentmusic/jugg/stargazers"><img src="https://img.shields.io/github/stars/tencentmusic/jugg?style=flat&color=yellow" alt="GitHub Stars"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License: MIT"></a>
@@ -21,7 +22,8 @@
 
 Jugg 仅需安装 IDE 插件，**不修改任何 Gradle 脚本，也不要求工程接入任何 SDK**。Jugg Run Configuration 与原生 App Run Configuration 同时保留：选择 Jugg 配置时享受秒级增量编译与部署；需要原生的 Android Studio 构建流程时，随时切回原生 App 配置即可，两者完全独立运行、互不影响。当工程改动超出增量处理范围时，Jugg 会自动安全回退到 Gradle 构建并重新建立基线。
 
-- [下载最新稳定版](https://github.com/tencentmusic/jugg/releases/latest)
+- [JetBrains Marketplace 插件市场](https://plugins.jetbrains.com/plugin/34099-jugg)
+- [下载 GitHub Releases 离线包](https://github.com/tencentmusic/jugg/releases/latest)
 - [技术方案介绍](https://juejin.cn/post/7680996030843125796)
 - [观看演示视频](https://www.bilibili.com/video/BV1W3411C7PU/)
 - [Jugg 官方文档 (Wiki)](https://tencentmusic.github.io/jugg/zh/)
@@ -46,7 +48,7 @@ Jugg 仅需安装 IDE 插件，**不修改任何 Gradle 脚本，也不要求工
 
 ## 快速开始
 
-1. 直接从 [GitHub Releases 最新发布页 (.zip)](https://github.com/tencentmusic/jugg/releases/latest) 下载插件安装包，然后在 Android Studio 中通过 **Plugins -> ⚙️ -> Install Plugin from Disk...** 安装（JetBrains 市场上架中）。
+1. **安装插件（推荐从插件市场安装）**：在 Android Studio 中打开 **Settings/Preferences -> Plugins -> Marketplace**，搜索 `Jugg` 点击 **Install**；或访问 [JetBrains Marketplace](https://plugins.jetbrains.com/plugin/34099-jugg) 获取。<br>也可从 [GitHub Releases (.zip)](https://github.com/tencentmusic/jugg/releases/latest) 下载离线包，通过 **Plugins -> ⚙️ -> Install Plugin from Disk...** 本地安装。
 2. 打开 Android 工程， 等待 Jugg Run Configuration 自动创建。
 3. 选择 Jugg Run Configuration，点击运行。首次 Run 需要建立 Gradle 基线；之后修改源码或资源，再次 Run 即进入秒级旁路增量编译。
 
