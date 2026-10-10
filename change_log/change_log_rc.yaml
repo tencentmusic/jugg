@@ -1,3 +1,10 @@
+- version: 3.5.3
+  date: 2026.10.10
+  updates:
+    - "[bugfix][compat] Fix compatibility with Android Studio Rabbit 2"
+    - "[bugfix][compile] Fix duplicate class errors when incrementally compiling Kotlin BindingAdapters"
+    - "[bugfix][deploy] Fix deploy failure when switching devices in projects where APK names change on each build"
+
 - version: 3.5.2
   date: 2026.09.27
   updates:

@@ -1,3 +1,10 @@
+- version: 3.5.3
+  date: 2026.10.10
+  updates:
+    - "[bugfix][compat] 兼容 Android Studio Rabbit 2"
+    - "[bugfix][compile] 修复增量编译 Kotlin BindingAdapter 时报类重复错误的问题"
+    - "[bugfix][deploy] 修复 APK 名字每次都会变化的工程，切换设备时出现部署失败的问题"
+
 - version: 3.5.2
   date: 2026.09.27
   updates:

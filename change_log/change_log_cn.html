@@ -1,5 +1,5 @@
 <h1>更新日志</h1>
-<h2>3.5.2 (2026.09.27)</h2>
+<h2>3.5.3 (2026.10.10)</h2>
 <ol>
     <li>[feature] 支持 Flutter 和 C++ 源码变更，变更调用 Gradle task 生成 so，然后走 Jugg 增量构建</li>
     <li>[feature] 支持系统应用增量更新</li>
@@ -41,6 +41,9 @@
     <li>[bugfix][compile] 修复 Mac intel 芯片，使用远程编译失败的问题</li>
     <li>[bugfix][compile] 修复 KMP 工程 JVM target 模块编译失败的问题</li>
     <li>[bugfix][ide] 修复控制面板小概率卡在初始化中状态的问题</li>
+    <li>[bugfix][compat] 兼容 Android Studio Rabbit 2</li>
+    <li>[bugfix][compile] 修复增量编译 Kotlin BindingAdapter 时报类重复错误的问题</li>
+    <li>[bugfix][deploy] 修复 APK 名字每次都会变化的工程，切换设备时出现部署失败的问题</li>
 </ol>
 <h2>3.4.3 (2026.09.09)</h2>
 <ol>
