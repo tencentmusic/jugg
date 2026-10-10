@@ -19,7 +19,7 @@ Manifest diff 见 `02_compile_manifest.md`；release 混淆见 `02_compile_obfus
 |---|---|---|
 | `ResourceOverlayCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/overlay/ResourceOverlayCompiler.kt` | 资源主协调器；按 APK scoped 任务串联 manifest、flat compile、arsc link，并过滤最终 overlay |
 | `ResourceCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/overlay/ResourceCompiler.kt` | 将资源文件或资源目录编译为 `.flat`；先处理 ViewBinding/DataBinding split XML 和生成源码 |
-| `ArscCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/overlay/ArscCompiler.kt` | 使用 aapt2 `inclink` 载入当前 APK 资源表并 link 出 `resources.arsc`、compiled res、`R.java` |
+| `ArscCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/overlay/ArscCompiler.kt` | 使用 aapt2 `inclink` 载入当前 APK 资源表并 link 出 `resources.arsc`、compiled res；新增资源时还可产出 `R.java` |
 | `AssetOverlayCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/overlay/AssetOverlayCompiler.kt` | 处理普通 `Asset`、APK 根目录 `ClasspathResource` 和 native lib 等非 res overlay |
 | `ComposeResourceCompiler` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/compose/ComposeResourceCompiler.kt` | 按 Gradle 元数据选择 legacy XML 或现代 CVR 资源模型，组织完整资源上下文，并编译 generated Kotlin |
 | `ComposeResourceGeneratorBridge` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/compose/ComposeResourceGeneratorBridge.kt` | 隔离加载项目的 Compose plugin JAR，按 generator API 形态调用 legacy 或现代官方 Kotlin generator |
@@ -85,6 +85,8 @@ ArscCompiler（每个 APK 独立）
 ```
 
 Jugg 不回读所有历史 `.flat`，而是直接从 APK 加载最终 `resources.arsc` 和编译后资源。这样既复用 Gradle 已确定的资源 ID，也避免每轮重新读取和链接全量中间产物。代价是这个 link context 成为有状态缓存：invoker 死亡、load 失败或 link 失败后必须释放，下一轮重新加载，不能把“进程仍存在”等同于“资源表已经可用”。
+
+`aapt2-inclink` 在本轮没有新增资源时不会产出 `R.java`；修改已有资源仍可产出资源 overlay，但不会仅因资源被修改就进入 `R.java` 编译和子模块 R DEX 转包。排查 R DEX 转包时，应以本轮是否实际产出 `R.java` 为触发依据，不能只看是否发生了资源编译。
 
 APK 基线还缺两类旁路信息：
 
