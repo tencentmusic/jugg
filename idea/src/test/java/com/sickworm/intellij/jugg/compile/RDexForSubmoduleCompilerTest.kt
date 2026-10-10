@@ -50,6 +50,7 @@ class RDexForSubmoduleCompilerTest {
                 parentFile.mkdirs()
                 File("src/test/assets/dex/com/example/myapplication/R.dex").copyTo(this)
             }
+            copyNonRDex(outputDir)
             val modules = listOf(app, feature, businessGift).associateBy { it.name }
             val context = SimpleCompileContext(
                 logger = Logger.getInstance("test"),
@@ -82,6 +83,7 @@ class RDexForSubmoduleCompilerTest {
             val tempModule = context.tempModule
             val outputDir = File(root, "output")
             copyMainRDexFiles(outputDir)
+            copyNonRDex(outputDir)
             val task = CompileTask(
                 files = listOf(
                     externalResource(root, tempModule, "com.example.first", "com.example:first:1.0"),
@@ -199,6 +201,12 @@ class RDexForSubmoduleCompilerTest {
         listOf("R.dex", "R\$dimen.dex").forEach { name ->
             File("src/test/assets/dex/com/example/myapplication/$name").copyTo(File(mainRDexDir, name))
         }
+    }
+
+    private fun copyNonRDex(outputDir: File) {
+        val mainPackageDir = File(outputDir, APPLICATION_ID.replace('.', '/'))
+        File("src/test/assets/dex/com/example/myapplication/R.dex")
+            .copyTo(File(mainPackageDir, "DataBinderMapper_IncrementalHolder.dex"))
     }
 
     private fun externalResource(

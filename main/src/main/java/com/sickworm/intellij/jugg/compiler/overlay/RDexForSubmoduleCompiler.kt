@@ -75,7 +75,7 @@ class RDexForSubmoduleCompiler(
         }
 
         val destRDexFiles = run convertDexFiles@{
-            val sourceRDexFiles = rDexOutputDir.listFiles()?.filter { it.isFile && it.extension == "dex" }
+            val sourceRDexFiles = rDexOutputDir.listFiles()?.filter { it.isRDexFile() }
             if (sourceRDexFiles.isNullOrEmpty()) {
                 logger.debug("Module ${module.name} has no R.dex files in $rDexOutputDir, skip generate submodule R.dex")
                 return CompileResult(task, emptyList(), emptyList())
@@ -132,7 +132,7 @@ class RDexForSubmoduleCompiler(
             throw JuggException.externalRDexPackageNameMissing(missingPackageNames)
         }
 
-        val sourceRDexFiles = rDexOutputDir.listFiles()?.filter { it.isFile && it.extension == "dex" }
+        val sourceRDexFiles = rDexOutputDir.listFiles()?.filter { it.isRDexFile() }
         if (sourceRDexFiles.isNullOrEmpty()) {
             logger.debug("Module ${module.name} has no R.dex files in $rDexOutputDir, skip generate submodule R.dex")
             return skipResult
@@ -162,5 +162,12 @@ class RDexForSubmoduleCompiler(
         }
         generatedModules.addAll(pendingPackageNames.map { "${module.name}#$it" })
         return CompileResult(task, emptyList(), destRDexFiles)
+    }
+
+    private fun File.isRDexFile(): Boolean {
+        // Only R dex belongs in each module namespace. The shared staging/classes directory also
+        // retains DataBinding dex; renaming it changes method references but can leave type
+        // instructions in the original package, causing verification failures.
+        return isFile && extension == "dex" && (nameWithoutExtension == "R" || nameWithoutExtension.startsWith("R$"))
     }
 }
