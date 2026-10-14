@@ -59,6 +59,8 @@ class IdeaRuntimeSettingsMigrationTest {
         val properties = mock<PropertiesComponent>()
         whenever(properties.isValueSet("jugg.compileOnSave")).thenReturn(true)
         whenever(properties.getValue("jugg.compileOnSave")).thenReturn("true")
+        whenever(properties.isValueSet("jugg.isConfirmFallbackWhenTooManyChanges")).thenReturn(true)
+        whenever(properties.getValue("jugg.isConfirmFallbackWhenTooManyChanges")).thenReturn("false")
         val oldRootDir = JuggGlobalPathManager.rootDir
 
         try {
@@ -66,6 +68,7 @@ class IdeaRuntimeSettingsMigrationTest {
 
             assertTrue(JuggSettings.migrateLegacyJuggSettings(properties))
 
+            assertFalse(JuggSettings.isConfirmFallbackWhenTooManyChanges)
             verify(properties).setValue(RUNTIME_SETTINGS_MIGRATION_COMPLETED_KEY, true, false)
         } finally {
             JuggGlobalPathManager.rootDir = oldRootDir

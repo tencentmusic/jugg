@@ -11,6 +11,7 @@ Copy `jugg-android-dev-loop` to your AI client's skills directory:
 | Codex       | `~/.codex/skills/`                                  |
 | Claude Code | `~/.claude/skills/` (or `~/.config/claude/skills/`) |
 | Gemini CLI  | `~/.gemini/skills/`                                 |
+| anti-gravity | `~/.gemini/config/skills/`                         |
 
 Example (Claude Code):
 
@@ -47,7 +48,8 @@ Event mapping by client:
 | Client | Start event | Stop event | Edit event | Command event | Hook style |
 |--------|-------------|------------|------------|---------------|------------|
 | Codex / Claude Code / CodeBuddy | `UserPromptSubmit` | `Stop` | `PostToolUse` | `PreToolUse` | nested event hooks |
-| Gemini CLI | `BeforeAgent` | `AfterAgent` | `AfterTool` | `BeforeTool` | nested event hooks |
+| Gemini CLI | `BeforeAgent` | `AfterAgent` | `AfterTool` | `BeforeTool` | nested event hooks in `~/.gemini/settings.json` |
+| anti-gravity | `PreInvocation` | `Stop` | `PreToolUse` | `PreToolUse` | named hook in `~/.gemini/config/hooks.json` |
 | Cursor | `beforeSubmitPrompt` | `stop` | `afterFileEdit` | `beforeShellExecution` | flat event commands |
 
 Use the matching client value in hook commands: `claude`, `cursor`, `codebuddy` or others.
@@ -60,6 +62,8 @@ Tool matcher recommendations:
 - CodeBuddy merges `~/.codebuddy/settings.json` with `settings.local.json`; register each Jugg hook command only once across both files. Do not add a second copy with `JUGG_HOOK_DEBUG_PAYLOAD=true` beside the normal command.
 - CodeBuddy `Stop` hooks must use `"matcher": ""` (empty string), not `"*"`. With `*`, the hook may run but `stopReason` is not delivered to the agent.
 - Gemini CLI: tool hooks should use matcher `write_file|replace` for `AfterTool`, and `run_shell_command` for `BeforeTool`.
+- anti-gravity: selecting Gemini also installs into an existing `~/.gemini/config/`; edit tools use `replace_file_content|write_to_file|write_file|edit_file`, commands use `run_command`, and hook payloads use the anti-gravity camelCase contract, including JSON-encoded string arguments. Every `PreToolUse` edit result explicitly returns `{"decision":"allow"}` after recording or ignoring the write.
+- anti-gravity may emit multiple `PreInvocation` events with `invocationNum=1` in one conversation. Its start hook preserves conversation write/block state across those events; command and Stop hooks clear or supersede state through their normal verification lifecycle.
 - Cursor: use matcher `Write` for `afterFileEdit` (agent file writes, excludes Tab completions) and keep `beforeShellExecution` with matcher `*`.
 
 Command hook behavior:

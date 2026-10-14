@@ -13,6 +13,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
+import java.io.File
+import java.io.FileNotFoundException
 import org.junit.Test
 import org.mockito.kotlin.any
 import org.mockito.kotlin.doAnswer
@@ -29,10 +33,10 @@ class JuggDeploymentServiceTest {
         val second = createService(pathManager, "standalone")
         val logger = mock<ILogger>()
 
-        first.service.storeEntry("device", "package", listOf(apk("first.apk")), overlay("first"), first.executor, logger)
+        first.service.storeEntry("device", "package", listOf(apk(File(pathManager.projectDir, "first.apk").apply { createNewFile() }.path)), overlay("first"), first.executor, logger)
         assertEquals("first", first.service.loadEntry("device", "package", first.executor, logger)?.overlayId?.sha)
 
-        second.service.storeEntry("device", "package", listOf(apk("second.apk")), overlay("second"), second.executor, logger)
+        second.service.storeEntry("device", "package", listOf(apk(File(pathManager.projectDir, "second.apk").apply { createNewFile() }.path)), overlay("second"), second.executor, logger)
 
         assertEquals("second", first.service.loadEntry("device", "package", first.executor, logger)?.overlayId?.sha)
     }
@@ -44,11 +48,30 @@ class JuggDeploymentServiceTest {
         val secondExecutor = createExecutor("second")
         val logger = mock<ILogger>()
 
-        first.service.storeEntry("device", "package", listOf(apk("base.apk")), overlay("stored"), first.executor, logger)
+        first.service.storeEntry("device", "package", listOf(apk(File(pathManager.projectDir, "base.apk").apply { createNewFile() }.path)), overlay("stored"), first.executor, logger)
 
         val restored = first.service.loadEntry("device", "package", secondExecutor, logger)
 
         assertEquals("second", restored?.raw)
+    }
+
+    @Test
+    fun `missing in-memory APK is rejected without invalidating another device`() {
+        val pathManager = JuggPathManager(Files.createTempDirectory("jugg-service-stale").toFile())
+        val fixture = createService(pathManager, "idea")
+        val staleApk = File(pathManager.projectDir, "stale.apk").apply { createNewFile() }
+        val currentApk = File(pathManager.projectDir, "current.apk").apply { createNewFile() }
+        val logger = mock<ILogger>()
+        fixture.service.storeEntry("old-device", "package", listOf(apk(staleApk.path)), overlay("old"), fixture.executor, logger)
+        fixture.service.storeEntry("current-device", "package", listOf(apk(currentApk.path)), overlay("current"), fixture.executor, logger)
+        fixture.service.loadEntry("old-device", "package", fixture.executor, logger)
+        staleApk.delete()
+
+        assertThrows(FileNotFoundException::class.java) {
+            fixture.service.loadEntry("old-device", "package", fixture.executor, logger)
+        }
+        assertNull(fixture.service.loadCachedOverlayId("old-device", "package", mock<Logger>()))
+        assertEquals("current", fixture.service.loadEntry("current-device", "package", fixture.executor, logger)?.overlayId?.sha)
     }
 
     private fun createService(pathManager: JuggPathManager, runtimeType: String): ServiceFixture {

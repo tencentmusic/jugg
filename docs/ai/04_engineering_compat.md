@@ -1,6 +1,6 @@
 # Engineering: Compatibility and Standalone Runtime
 
-> Last verified: 2026-10-07
+> Last verified: 2026-10-14
 > Consistency rule: If documentation conflicts with code, code takes precedence.
 
 ## 1. Scope

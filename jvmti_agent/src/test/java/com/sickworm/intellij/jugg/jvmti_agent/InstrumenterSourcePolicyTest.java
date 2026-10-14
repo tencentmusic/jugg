@@ -70,6 +70,23 @@ public class InstrumenterSourcePolicyTest {
     }
 
     @Test
+    public void compatStartupShouldNotTransformFrameworkClasses() throws Exception {
+        String source = read("src/main/cpp/instrumenter.cc");
+        int instrumentStart = source.indexOf("bool Instrument(");
+        int skipStart = source.indexOf(
+                "Compat hot fix enabled, skip all framework transforms", instrumentStart);
+        int firstApplyTransforms = source.indexOf("ApplyTransforms(", instrumentStart);
+
+        assertTrue(source.contains(".jugg_compat_deploy_enable"));
+        assertTrue(skipStart > instrumentStart);
+        assertTrue(skipStart < firstApplyTransforms);
+        String skipBranch = source.substring(
+                source.lastIndexOf("if (is_compat_hot_fix)", skipStart),
+                firstApplyTransforms);
+        assertTrue(skipBranch.contains("return true;"));
+    }
+
+    @Test
     public void flutterEngineAssetManagerShouldComeFromThePackageContextHook() throws Exception {
         String instrumenter = read("src/main/cpp/instrumenter.cc");
         String hooks = read("src/main/java/com/sickworm/intellij/jugg/instrument/InstrumentationHooks.java");

@@ -25,6 +25,7 @@ import com.sickworm.intellij.jugg.ide.JuggSettingsEditor
 import com.sickworm.intellij.jugg.ide.JuggRunSettingsComponentWrapper
 import com.sickworm.intellij.jugg.ide.JuggControlPanelHost
 import com.sickworm.intellij.jugg.ide.bean.SyncMode
+import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.ide.controlpanel.JuggControlPanelModel
 import com.sickworm.intellij.jugg.ide.controlpanel.JuggEvent
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
@@ -140,7 +141,7 @@ class JuggRunSettingsComponentTest {
         assertEquals(listOf(
             "Build" to listOf("Fallback to Gradle", "Clear Jugg Build", "Exec remote CMD"),
             "Device" to listOf("Restart App", "Clear app data"),
-            "Jugg Plugin" to listOf("Report Issue", "Check updates", "Install CLI & Skill"),
+            "Jugg Plugin" to listOf("Ask AI", "Report Issue", "Check updates", "Install CLI & Skill"),
         ), quickActionGroups)
         assertEquals(listOf(
             "settings.group.runBehavior",
@@ -155,7 +156,7 @@ class JuggRunSettingsComponentTest {
         val settingRows = settingGroupNames.flatMap { groupName ->
             descendants(findNamedComponent<JPanel>(panel, groupName)!!).mapNotNull { it.name }.toList()
         }
-        assertEquals(7, settingCheckboxes)
+        assertEquals(8, settingCheckboxes)
         assertTrue(settingRows.containsAll(listOf(
             "Install CLI and agent skills Install the Jugg CLI, agent skills, hooks, and required permissions.",
             "Check Jugg updates Check whether a newer Jugg plugin is available.",
@@ -443,6 +444,33 @@ class JuggRunSettingsComponentTest {
     }
 
     @Test
+    fun `confirm fallback when too many changes toggle updates setting and reflects in UI`() {
+        TestGlobal.init()
+        val logs = mutableListOf<String>()
+        val controller = createController(CapturingLogger("root", logs))
+        val old = JuggSettings.isConfirmFallbackWhenTooManyChanges
+        try {
+            assertTrue(JuggSettings.isConfirmFallbackWhenTooManyChanges)
+            controller.updateSetting(JuggControlPanelController.Setting.CONFIRM_FALLBACK_WHEN_TOO_MANY_CHANGES, false)
+            assertFalse(JuggSettings.isConfirmFallbackWhenTooManyChanges)
+            assertFalse(controller.model.snapshot().settings.confirmFallbackWhenTooManyChanges)
+
+            val event = controller.model.snapshot().recentEvents.single()
+            assertEquals(JuggEventCategory.USER_ACTION, event.category)
+            assertEquals("Setting changed", event.title)
+            assertEquals("Confirm fallback when too many changes: disabled", event.detail)
+
+            val panel = createPanel(model = controller.model, controller = controller)
+            SwingUtilities.invokeAndWait {}
+            val toggle = descendants(panel).filterIsInstance<JBCheckBox>()
+                .first { it.text == "Confirm fallback when too many changes" }
+            assertFalse(toggle.isSelected)
+        } finally {
+            JuggSettings.isConfirmFallbackWhenTooManyChanges = old
+        }
+    }
+
+    @Test
     fun `control panel host replaces the hot reload component`() {
         val host = JuggControlPanelHost()
         val first = JPanel()
@@ -453,6 +481,58 @@ class JuggRunSettingsComponentTest {
 
         assertEquals(1, host.componentCount)
         assertSame(second, host.getComponent(0))
+    }
+
+    @Test
+    fun `control panel host refresh updates host component when manager becomes available`() {
+        val host = JuggControlPanelHost()
+        val realPanel = JPanel()
+
+        val mockManager = Mockito.mock(com.sickworm.intellij.jugg.ide.IJuggManagerCaller::class.java)
+        Mockito.`when`(mockManager.getJuggControlPanel("overview")).thenReturn(realPanel)
+
+        val project = Mockito.mock(Project::class.java)
+        Mockito.`when`(project.basePath).thenReturn("/mock/project")
+        Mockito.`when`(project.isDisposed).thenReturn(false)
+
+        val content = Mockito.mock(Content::class.java)
+        val contentManager = Mockito.mock(ContentManager::class.java)
+        val toolWindow = Mockito.mock(ToolWindow::class.java)
+        val toolWindowManager = Mockito.mock(ToolWindowManager::class.java)
+
+        Mockito.`when`(content.component).thenReturn(host)
+        Mockito.`when`(contentManager.contents).thenReturn(arrayOf(content))
+        Mockito.`when`(toolWindow.contentManager).thenReturn(contentManager)
+        Mockito.`when`(toolWindowManager.getToolWindow(JuggControlPanelHost.TOOL_WINDOW_ID)).thenReturn(toolWindow)
+        Mockito.doReturn(toolWindowManager).`when`(project).getService(ToolWindowManager::class.java)
+
+        val loader = Mockito.mock(com.sickworm.intellij.jugg.loader.JuggLoader::class.java)
+        Mockito.`when`(loader.juggManager).thenReturn(mockManager)
+
+        val instanceSetField = com.sickworm.intellij.jugg.loader.JuggInitializer::class.java.getDeclaredField("instanceSet")
+        instanceSetField.isAccessible = true
+        @Suppress("UNCHECKED_CAST")
+        val instanceSet = instanceSetField.get(com.sickworm.intellij.jugg.loader.JuggInitializer) as MutableMap<String, com.sickworm.intellij.jugg.loader.JuggLoader>
+        instanceSet["/mock/project"] = loader
+
+        val controller = JuggControlPanelController(
+            project = project,
+            manager = Mockito.mock(JuggManager::class.java),
+            deployTargetManager = Mockito.mock(IDeployTargetManager::class.java),
+            deployHistoryManager = Mockito.mock(IDeployHistoryManager::class.java),
+            deployFileManager = Mockito.mock(DeployFileManager::class.java),
+            logger = Logger.getInstance("test"),
+        )
+
+        try {
+            controller.onManagerReady()
+            javax.swing.SwingUtilities.invokeAndWait {}
+
+            assertEquals(1, host.componentCount)
+            assertSame(realPanel, host.getComponent(0))
+        } finally {
+            instanceSet.remove("/mock/project")
+        }
     }
 
     @Test

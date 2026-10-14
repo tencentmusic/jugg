@@ -102,4 +102,7 @@ Common triggers include build target changes, project configuration beyond curre
 - [Deployment strategy](./deploy-strategy.md): Deployment levels, device capabilities, and activation methods.
 - [Deployment self-healing](./deploy-self-healing.md): How deployment artifacts continue through retry, strategy switching, and reinstallation.
 - [In-app Jugg Runtime](./jugg-runtime.md): How local code and resources are loaded in the app process.
+- [Jugg JVMTI Agent](./jugg-jvmti-agent.md): Android 8+ runtime method and class hot swap mechanics.
 - [Gradle fallback and baseline rebuild](./gradle-fallback-baseline.md): When the complete build baseline must be refreshed.
+- [Glossary](../reference/glossary.md): Core definitions for Baseline, Hot Reload, Hot Fix, etc.
+- [Technical Articles](../articles/): In-depth architectural evolution from second-level builds to agent verification.

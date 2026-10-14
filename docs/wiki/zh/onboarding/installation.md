@@ -1,6 +1,6 @@
 ---
 title: 安装
-description: 下载并安装 Jugg Android Studio 插件，确认 IDE 重启后自动生成 Jugg Run Configuration。
+description: 下载并安装 Jugg Android Studio 插件，环境兼容性要求与自动生成 Jugg Run Configuration 验证。
 status: active
 tags:
   - onboarding
@@ -9,64 +9,73 @@ tags:
 
 # 安装
 
-Jugg 以 Android Studio 插件形式安装。安装后不用修改工程代码或 Gradle 配置；IDE 重启并完成 Sync 后，插件会为 Android App 模块生成 Jugg Run Configuration。
+Jugg 以 Android Studio 插件形式提供，无需修改工程现有代码或 `build.gradle` 配置。安装并重启 IDE 后，在 Gradle Sync 完成时会自动为工程中的 Android App 模块生成 Jugg 运行配置。
 
-## 下载插件
+## 1. 环境准备与兼容性要求
 
-公开构建可以从 GitHub 下载：
+在安装前，请确认你的本地开发环境符合以下要求：
 
-- [最新稳定版](https://github.com/tencentmusic/jugg/releases/latest)
-- [最新 Canary 构建](https://github.com/tencentmusic/jugg/releases/download/canary-nightly/jugg-canary-nightly.zip)：从触发 Canary workflow 的分支自动构建，可能包含未经完整验证的改动
+| 项目 | 最低要求 | 推荐与支持版本 |
+|---|---|---|
+| **操作系统** | macOS / Linux / Windows | macOS (Apple Silicon / Intel), Linux, Windows 10/11 |
+| **Android Studio** | Android Studio Bumblebee (2021.1.1)+ | Bumblebee 至 Rabbit |
+| **Gradle / AGP** | AGP 3.4+ | AGP 3.4–9.1; Gradle 5.4.1–9.2.1 |
+| **Java 开发环境** | JDK 11+ | JDK 17 / JDK 21 |
+| **目标测试设备** | Android 8.0 (API 26)+ | 物理机或模拟器均可，开启 USB 调试 |
 
-团队有内部下载页时，优先遵循团队的版本发布与灰度安排。
+## 2. 获取 Jugg 插件安装包
 
-下载后确认文件是 Android Studio 可安装的插件包，通常是 `.zip`。
+可以从官方 GitHub Releases 获取插件包（通常为 `.zip` 格式）：
 
-## 在 Android Studio 中安装
+- **[最新稳定版 Releases](https://github.com/tencentmusic/jugg/releases/latest)**：推荐日常团队开发使用。
+- **[最新 Canary 构建](https://github.com/tencentmusic/jugg/releases/download/canary-nightly/jugg-canary-nightly.zip)**：由维护者手动触发构建，包含最近一次发布时所选分支的功能。
+
+> [!NOTE]
+> 企业内网或特定团队如果部署了内部私有分发渠道，优先遵循团队内部版本指引。
+
+## 3. 在 Android Studio 中本地安装
 
 1. 打开 Android Studio。
-2. 进入 `Settings`。
-3. 打开 `Plugins`。
-4. 点击右上角齿轮菜单。
-5. 选择 `Install Plugin from Disk...`。
-6. 选择刚下载的 Jugg 插件包。
-7. 按提示重启 IDE。
+2. 打开设置面板：
+   - macOS: `Android Studio -> Settings...`（或 `Preferences...`，快捷键 `Cmd + ,`）
+   - Windows / Linux: `File -> Settings...`（快捷键 `Ctrl + Alt + S`）
+3. 在左侧导航中选择 **Plugins**。
+4. 点击顶部齿轮图标 ⚙️，在下拉菜单中选择 **Install Plugin from Disk...**。
+5. 选择第 2 步下载的 `jugg-*.zip` 插件压缩包。
+6. 点击 **OK**，并在弹出提示框中点击 **Restart IDE** 重启 Android Studio。
 
-重启后如果工程正在 Sync，等 Sync 完成。Jugg 会在 Sync 后读取工程模块和 Gradle 产物信息，再生成运行配置。
+## 4. 验证 Jugg 运行配置生成
 
-## 确认运行配置
-
-打开运行配置下拉框，应该能看到类似下面的配置：
+IDE 重启并等待底部的 Gradle Sync 完成后，打开顶部工具栏的运行配置下拉框，确认自动出现了类似如下命名的运行配置：
 
 ```text
 jugg:app
 ```
 
-其中 `app` 是 Android App 模块名。多 App 模块工程会生成多个 Jugg 配置，选择要运行的目标模块。
+其中 `app` 为当前主 Android Application 模块名。如果工程包含多个 App 模块，Jugg 会分别为每个可运行模块生成对应的 `jugg:<moduleName>` 配置。
 
-如果没有看到 Jugg 配置，先检查：
+如果未自动生成 Jugg 运行配置，按以下顺序排查：
 
-| 现象 | 处理方式 |
+| 排查点 | 检查与处理方式 |
 |---|---|
-| IDE 刚重启，工程仍在 Sync | 等待 Sync 完成 |
-| 插件安装后没有重启 | 重启 Android Studio |
-| 工程没有可运行的 Android App 模块 | 先确认原生 App Run Configuration 是否存在 |
-| 配置仍未生成 | 重新打开工程，保留日志后反馈 |
+| **Gradle Sync 状态** | 确认右下角 Sync 是否仍在进行，待其全部完成 |
+| **原生 App 配置** | 确认工程本身是否存在可运行的原生 App Run Configuration |
+| **重启确认** | 确认安装插件后已完整重启 IDE |
+| **重新加载工程** | 尝试 `File -> Invalidate Caches / Restart` 重新加载工程 |
 
-## 可选：调整编译命令
+## 5. 可选：调整编译命令与参数
 
-多数工程不需要手动配置，Jugg 会读取 Android Studio 已经配置好的 Gradle 命令和 APK 输出信息。
+绝大多数工程在 Sync 后能自动推导正确的 Gradle 构建任务与 APK 产物路径。如需针对自定义 build variant 进行微调，可点击运行配置下拉框选择 **Edit Configurations...**：
 
-如果自动生成的命令不是你日常开发调试使用的命令，可以进入 `Edit Configurations...` 调整：
-
-| 参数 | 含义 |
+| 配置项 | 默认推导与作用 |
 |---|---|
-| `Compile command` | 生成 APK 的 Gradle 命令，应与当前 App 运行配置一致 |
-| `Output APK name` | 编译产物 APK 路径或名称，应与 `Compile command` 输出一致 |
+| **Compile command** | 用于首次建立基线的 Gradle 命令（如 `:app:assembleDebug`） |
+| **Output APK name** | 目标构建产物 APK 路径，应与编译命令产物一致 |
 
-修改后先运行一次 Gradle 编译，确认基线产物正确。
+---
 
-## 下一步
+## 下一步指引
 
-- [首次运行](./first-run.md)
-- [云开发机配置](./agent-setup.md)
+安装并确认运行配置生成后，即可开始首次运行建立构建基线：
+
+👉 **[前往首次运行与建立基线](./first-run.md)**

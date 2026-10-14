@@ -367,7 +367,8 @@ class StandaloneRuntimeTest {
 
         val runtime = registry!!.initialize(projectDir)
 
-        assertEquals("build/jugg/log/standlone_cli/compile_latest.log", runtime.compileLatestLogPath)
+        assertEquals(JuggPathManager(projectDir).standaloneCliLogDir.resolve("compile_latest.log").absolutePath,
+            runtime.compileLatestLogPath)
     }
 
     private fun call(toolName: String, arguments: Map<String, Any?> = emptyMap()): McpToolCallResult {

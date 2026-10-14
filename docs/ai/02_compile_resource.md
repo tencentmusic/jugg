@@ -1,6 +1,6 @@
 # Compilation System: Resource and Asset Chain
 
-> Last verified: 2026-10-07
+> Last verified: 2026-10-14
 > Consistency rule: If documentation conflicts with code, code takes precedence.
 
 ## 1. Scope
@@ -91,6 +91,8 @@ A deleted Compose resource is not an incremental input: no accessor, asset, APK-
 ## 6. External AAR R Namespace
 
 An AAR `classes.jar` normally lacks its R class. When an external AAR resource changes, `DependencyDiffResultHelper` attaches the library R package to the resource input. `RDexForSubmoduleCompiler` copies this Run's host main `R*.dex` into each required external namespace, deduplicates namespaces, excludes the application main package, and keeps the temporary module on the base APK. If both symbol artifact and AAR Manifest package are unavailable, it fails with the dependency name rather than guessing. Completing `LibraryDependency.rPackageName` in an older project-info snapshot does not itself count as a dependency file/CRC change.
+
+`aapt2-inclink` emits `R.java` only when this Run introduces resources. Editing an existing resource can produce an overlay without R compilation or namespace DEX generation. Inspect actual `R.java` output before diagnosing the R-DEX handoff.
 
 ## 7. Diagnostic Boundaries
 

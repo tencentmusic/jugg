@@ -41,6 +41,7 @@ internal fun readLegacyJuggSettings(propertiesComponent: PropertiesComponent): M
     addBoolean("compileOnSave", "compileOnSave")
     addBoolean("deployOnSave", "deployOnSave")
     addBoolean("isConfirmFallbackWhenNoFileChanges", "isConfirmFallbackWhenNoFileChanges")
+    addBoolean("isConfirmFallbackWhenTooManyChanges", "isConfirmFallbackWhenTooManyChanges")
     addBoolean("isAlwaysRestartAppAfterDeployment", "isAlwaysRestartAppAfterDeployment")
     addBoolean("isAutoFallbackToGradleWhenDeployError", "isAutoFallbackToGradleWhenDeployError")
     addBoolean("isEmbeddedToApk", "isEmbeddedToApk")

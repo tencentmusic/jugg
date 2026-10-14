@@ -12,6 +12,7 @@ Jugg 是腾讯音乐技术团队开源的 Android 秒级增量编译与部署工
 
 Jugg 仅需安装 IDE 插件，不修改 Gradle 脚本，也不要求工程接入 SDK。Jugg Run Configuration 与原生 App Run Configuration 同时保留：选择 Jugg 配置时使用增量编译与部署；需要原来的 Android Studio / Gradle 构建、安装和启动流程时，随时切回原生 App 配置即可，Jugg 不会接管该次 Run。重新选择 Jugg 配置即可恢复增量流程；当工程变化超出增量路径的处理范围时，Jugg 自身也会回退 Gradle 构建并重新建立基线。
 
+- [JetBrains Marketplace](https://plugins.jetbrains.com/plugin/34099-jugg)
 - [下载最新稳定版](https://github.com/tencentmusic/jugg/releases/latest)
 - [技术方案介绍](https://juejin.cn/post/7680996030843125796)
 - [观看演示视频](https://www.bilibili.com/video/BV1W3411C7PU/)
@@ -79,7 +80,7 @@ Jugg 的速度来自只处理必要输入；结果的可信度来自影响扩散
 
 ## 快速开始
 
-1. 从 [Releases](https://github.com/tencentmusic/jugg/releases/latest) 下载并安装插件。
+1. 在 Android Studio 中打开 **Settings/Preferences -> Plugins -> Marketplace**，搜索 `Jugg` 并安装；也可从 [Releases](https://github.com/tencentmusic/jugg/releases/latest) 下载 ZIP，通过 **Install Plugin from Disk...** 安装。
 2. 打开现有 Android 工程，创建或选择 Jugg Run Configuration。
 3. 首次 Run 通过 Gradle 建立可信基线；之后修改源码或资源，再次点击 Run 查看增量结果。
 
@@ -89,7 +90,7 @@ Jugg 的速度来自只处理必要输入；结果的可信度来自影响扩散
 
 Jugg 提供 `jugg-android-dev-loop` Agent Skill 和 `jugg` CLI，让 AI 编码助手、终端用户及脚本使用与 IDE 插件相同的构建、部署、测试、运行时检查和 UI 自动化能力。Skill 引导 Agent 完成完整的 **修改 -> 增量编译 -> 部署 -> 验证 -> 继续迭代** 工作流；CLI 则封装本地 Jugg MCP 服务，负责工程发现、异步任务轮询和稳定的终端输出。
 
-安装器目前支持 Codex、Claude Code、Gemini、CodeBuddy 和 Cursor：
+安装器目前支持 Codex、Claude Code、Gemini（配置目录存在时包含 Anti-gravity）、CodeBuddy 和 Cursor：
 
 1. 在 Android Studio 中打开 Android 工程并完成 Jugg 初始化。
 2. 打开 Search Everywhere，执行 `Install Jugg Skills`；也可以选择 **Jugg 面板 -> More Options -> Tools -> Install Jugg Skills**。
@@ -105,11 +106,11 @@ jugg instrument --source-path app/src/androidTest/java/com/example/FooTest.kt
 jugg layout-dump
 ```
 
-CLI 调用的是 IDE 内的本地 Jugg 插件运行时，因此目标工程必须保持打开并完成初始化。安装细节、输出模式和工作流边界见 [CLI 使用指南](https://tencentmusic.github.io/jugg/zh/guide/cli) 与 [Agent Skills](https://tencentmusic.github.io/jugg/zh/capabilities/tools/agent-skills)。
+工程在 IDE 中打开并完成初始化时，CLI 使用 IDEA Runtime；Standalone Runtime 也支持不依赖 Android Studio 执行编译和部署。安装细节、输出模式和工作流边界见 [CLI 使用指南](https://tencentmusic.github.io/jugg/zh/guide/cli) 与 [Agent Skills](https://tencentmusic.github.io/jugg/zh/capabilities/tools/agent-skills)。
 
 ## 网络与诊断隐私
 
-标准 `buildPlugin` 产物不包含预设的 Jugg 后端配置，默认离线运行。用户仍可自行配置 Custom Server。
+标准 `buildPlugin` 产物不包含预设的 Jugg 后端配置，不自动连接 Jugg 后台；主动执行 **Check updates** 时可查询 JetBrains Marketplace 和 GitHub。用户仍可自行配置 Custom Server。
 
 问题报告仅从脱敏白名单中收集诊断文件；上传前会展示准确的目标地址和文件列表，也可以只保存到本地而不发起网络请求。
 

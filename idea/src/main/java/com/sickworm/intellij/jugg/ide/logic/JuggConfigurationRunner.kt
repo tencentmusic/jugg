@@ -16,6 +16,7 @@ import com.intellij.execution.ui.RunContentDescriptor
 import com.intellij.execution.ui.RunContentManager
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
+import com.sickworm.intellij.jugg.diagnostics.AskAiInvestigation
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.compiler.BuildTarget
 import com.sickworm.intellij.jugg.compiler.ForceGradleCompileHelper
@@ -52,7 +53,8 @@ class JuggConfigurationRunner(
     private val juggRunningTaskCreator: IJuggRunningTaskCreator,
     private val gitFileChangesDetector: GitFileChangesDetector,
     private val logger: Logger,
-    private val userActions: JuggControlPanelController? = null,
+    private val userActions: JuggControlPanelController?,
+    private val askAiInvestigation: AskAiInvestigation,
 ) : IJuggConfigurationRunner {
 
     override val isCompiling: Boolean get() = currentTask?.isRunning == true
@@ -89,8 +91,10 @@ class JuggConfigurationRunner(
         }
 
         cancelCurrentTask(processHandler) {
-            currentCompileUiHandler = compileUiHandler
-            currentTask = juggRunningTaskCreator.createAndRun(options, compileUiHandler, androidTestRunSpec)
+            val taskHandler = askAiInvestigation.wrapCompileUiHandler(compileUiHandler, consoleView, options,
+                System.currentTimeMillis())
+            currentCompileUiHandler = taskHandler
+            currentTask = juggRunningTaskCreator.createAndRun(options, taskHandler, androidTestRunSpec)
         }
         ForceGradleCompileHelper.isCleanAndReinstallNextTime = false
         ForceGradleCompileHelper.isForceGradleCompileNextTime = false

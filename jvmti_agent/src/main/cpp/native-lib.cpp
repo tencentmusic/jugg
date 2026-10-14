@@ -34,7 +34,7 @@ jint HandleStartupAgent(jvmtiEnv* jvmti, JNIEnv* jni,
         return JNI_OK;
     }
 
-    if (!InstrumentApplication(jvmti, jni, app_data_dir, true)) {
+    if (!InstrumentApplication(jvmti, jni, app_data_dir)) {
         ALOGE("Could not instrument application");
         jvmti->DisposeEnvironment();
         return JNI_OK;

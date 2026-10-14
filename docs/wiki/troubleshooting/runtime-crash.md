@@ -12,6 +12,20 @@ tags:
 
 This page covers only cases where compilation and deployment complete, then the app crashes. If the app cannot be installed or launched, or deployment has already failed, see [Installation, launch, or Debug failed](./app-cannot-run.md).
 
+## Q: How can I preserve a crash and ask my Agent to investigate?
+
+Before rebuilding or reinstalling, click `Ask AI` in the `Jugg Plugin` group of `Jugg Running Panel`. Choose `Runtime crash`, describe the action that caused the crash and the expected and actual results, select the devices to collect logs from, and click `Save Evidence and Generate Prompt`.
+
+Jugg saves the current logs, logcat for each device, and existing APKs and incremental deployment artifacts. Logcat includes the crash buffer but covers only recent logs still retained by the device. If a device disconnects or collection partly fails, other usable evidence is saved and the evidence manifest records missing items for the Agent to read using the path in the prompt.
+
+After collection, select `Copy prompt` and paste it into an Agent that can access the current Android project. The prompt directs the Agent to read the Jugg knowledge base and source code and report root-cause evidence, recommendations, and the next step if the problem persists. When an Issue is recommended, it provides a draft. The prompt explicitly permits cloning Jugg into a separate investigation directory and fetching when necessary; the investigation reads existing evidence only.
+
+Evidence is saved in a separate local directory, survives later builds and Clear Jugg Build, and is retained for 30 days by default. Collect it after the Jugg task finishes. Local deployment records and artifacts alone do not prove that the device loaded the same content.
+
+The prompt uses Markdown. It is generated in Chinese when the system language is Chinese, and in English otherwise. The Agent uses the same language for its analysis and Issue content. User descriptions and original logs retain their original text; dialog instructions always use English.
+
+When the Agent recommends an Issue, it provides a prefilled bug report link and complete content organized by field. Open the link, review the title, description, and diagnostic information, sign in to GitHub, select the applicable form options, complete the submission confirmation, and submit. If the link is too long or prefilling fails, copy the full content into the corresponding fields. Local evidence files must be provided separately; the link does not attach or upload them automatically.
+
 ## Q: What should I do after a `NoSuchMethodError`, `AbstractMethodError`, or similar exception?
 
 These exceptions usually mean that the current runtime class structure does not match the caller. Similar exceptions include:

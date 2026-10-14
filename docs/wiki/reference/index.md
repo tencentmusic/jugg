@@ -24,6 +24,7 @@ Reference pages provide quick access to stable Jugg terms, command options, tool
 
 ## Common entry points
 
+- **Want a clear definition of key concepts**: See [Glossary](./glossary.md).
 - **Need the syntax for a command**: See [CLI commands](./cli-commands.md).
 - **Want an Agent to call Jugg**: See [MCP tools](./mcp-tools.md).
 - **Need to find logs**: See [Log files](./log-files.md).

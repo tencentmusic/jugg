@@ -97,7 +97,7 @@ Library Test APK 首次缺失时，也会通过远端 Gradle 构建生成对应 
 
 | 现象 | 处理方式 |
 |---|---|
-| 远端 Gradle 编译失败 | 先看远端构建日志，再确认 SDK/JDK/私服权限 |
+| 远端 Gradle 编译失败 | 查看 [远端编译失败](../troubleshooting/remote-build-failed.md)，确认 SDK/JDK/私服权限 |
 | 本地代码报红但远端能编译 | 拉回远端生成代码或重新同步 project info |
 | 修改没有同步到远端 | 检查同步目录、忽略规则和当前工程路径 |
 | include build 模块缺失 | 确认相关工程是否在同步范围内 |

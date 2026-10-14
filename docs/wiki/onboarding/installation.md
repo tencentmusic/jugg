@@ -1,6 +1,6 @@
 ---
 title: Installation
-description: Download and install the Jugg Android Studio plugin, then confirm that the IDE creates a Jugg Run Configuration after restart.
+description: Download and install the Jugg Android Studio plugin, environment compatibility requirements, and Jugg Run Configuration verification.
 status: active
 tags:
   - onboarding
@@ -9,64 +9,73 @@ tags:
 
 # Installation
 
-Jugg is installed as an Android Studio plugin. You do not need to change project code or Gradle configuration after installation. Once the IDE restarts and Sync completes, the plugin creates a Jugg Run Configuration for each Android App module.
+Jugg is distributed as an Android Studio plugin and requires no modifications to existing project code or `build.gradle` scripts. After installing and restarting the IDE, Jugg automatically creates a Jugg Run Configuration for each Android App module once Gradle Sync completes.
 
-## Download the plugin
+## 1. Environment requirements & compatibility matrix
 
-Public builds are available from GitHub:
+Before installing, ensure your development environment meets the following requirements:
 
-- [Latest stable release](https://github.com/tencentmusic/jugg/releases/latest)
-- [Latest Canary build](https://github.com/tencentmusic/jugg/releases/download/canary-nightly/jugg-canary-nightly.zip): Built automatically from the branch that triggers the Canary workflow and may contain changes that have not been fully verified
+| Item | Minimum Requirement | Supported / Recommended Versions |
+|---|---|---|
+| **Operating System** | macOS / Linux / Windows | macOS (Apple Silicon / Intel), Linux, Windows 10/11 |
+| **Android Studio** | Android Studio Bumblebee (2021.1.1)+ | Bumblebee through Rabbit |
+| **Gradle / AGP** | AGP 3.4+ | AGP 3.4–9.1; Gradle 5.4.1–9.2.1 |
+| **Java Development Kit** | JDK 11+ | JDK 17 / JDK 21 |
+| **Target Test Device** | Android 8.0 (API 26)+ | Physical devices or emulators with USB debugging enabled |
 
-If your team provides an internal download page, follow the team's release and staged-rollout policy.
+## 2. Download the plugin package
 
-After downloading, confirm that the file is an Android Studio plugin package, usually a `.zip` file.
+Download the plugin package (`.zip` format) from GitHub Releases:
 
-## Install in Android Studio
+- **[Latest stable release](https://github.com/tencentmusic/jugg/releases/latest)**: Recommended for everyday team development.
+- **[Latest Canary build](https://github.com/tencentmusic/jugg/releases/download/canary-nightly/jugg-canary-nightly.zip)**: Built when a maintainer manually runs the workflow, with features from the branch selected for the most recent release.
+
+> [!NOTE]
+> If your organization uses an internal distribution portal, follow your team's versioning and staged rollout policy.
+
+## 3. Install from disk in Android Studio
 
 1. Open Android Studio.
-2. Open `Settings`.
-3. Select `Plugins`.
-4. Click the gear menu in the upper-right corner.
-5. Select `Install Plugin from Disk...`.
-6. Select the Jugg plugin package you downloaded.
-7. Restart the IDE when prompted.
+2. Open Settings:
+   - macOS: `Android Studio -> Settings...` (or `Preferences...`, shortcut `Cmd + ,`)
+   - Windows / Linux: `File -> Settings...` (shortcut `Ctrl + Alt + S`)
+3. In the left navigation tree, select **Plugins**.
+4. Click the gear icon ⚙️ at the top and select **Install Plugin from Disk...**.
+5. Select the downloaded `jugg-*.zip` plugin package.
+6. Click **OK**, then click **Restart IDE** when prompted to restart Android Studio.
 
-If the project starts Sync after the restart, wait for Sync to finish. Jugg reads the project modules and Gradle artifact information after Sync, then creates the run configurations.
+## 4. Confirm the run configuration
 
-## Confirm the run configuration
-
-Open the run configuration selector. You should see a configuration similar to:
+After Android Studio restarts and the background Gradle Sync finishes, open the run configuration dropdown in the top toolbar. You should see an entry like:
 
 ```text
 jugg:app
 ```
 
-Here, `app` is the Android App module name. A project with multiple App modules receives multiple Jugg configurations; select the module you want to run.
+Here, `app` corresponds to your primary Android Application module. If your project contains multiple App modules, Jugg automatically creates a `jugg:<moduleName>` configuration for each runnable module.
 
-If no Jugg configuration appears, check the following:
+If no Jugg configuration appears, check the following points:
 
-| Symptom | What to do |
+| Symptom | Diagnostic and Resolution |
 |---|---|
-| The IDE has just restarted and the project is still syncing | Wait for Sync to finish |
-| The IDE was not restarted after plugin installation | Restart Android Studio |
-| The project has no runnable Android App module | Confirm that a native App Run Configuration exists |
-| The configuration is still missing | Reopen the project, preserve the logs, and report the issue |
+| **Gradle Sync in progress** | Check bottom-right status bar; wait until Sync finishes completely |
+| **Native App Configuration** | Ensure a runnable native App Run Configuration exists in the project |
+| **IDE Restart** | Ensure Android Studio was fully restarted after installing the zip |
+| **Reload Project** | Try `File -> Invalidate Caches / Restart` to reload the project |
 
-## Optional: Adjust the compile command
+## 5. Optional: Adjust compile command and parameters
 
-Most projects do not require manual configuration. Jugg reads the Gradle command and APK output information already configured in Android Studio.
+Most projects automatically infer the correct Gradle build task and APK output path after Sync. If you need to fine-tune settings for custom build variants, select **Edit Configurations...** from the run configuration dropdown:
 
-If the generated command differs from the command you use for everyday development and debugging, open `Edit Configurations...` and adjust these values:
-
-| Parameter | Meaning |
+| Parameter | Default & Purpose |
 |---|---|
-| `Compile command` | The Gradle command that produces the APK; it should match the current App run configuration |
-| `Output APK name` | The APK output path or filename; it should match the output of `Compile command` |
+| **Compile command** | Gradle command used to build the initial baseline APK (e.g. `:app:assembleDebug`) |
+| **Output APK name** | Destination APK artifact path, matching the output of the compile command |
 
-After changing the settings, run a Gradle build once to confirm that the baseline artifact is correct.
+---
 
 ## Next steps
 
-- [First run](./first-run.md)
-- [Remote build machine setup](./agent-setup.md)
+Once the plugin is installed and the run configuration is verified, proceed to your first run to establish the build baseline:
+
+👉 **[Proceed to First run and establish baseline](./first-run.md)**

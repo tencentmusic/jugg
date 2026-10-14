@@ -1,6 +1,6 @@
 # Compilation System: Source Compilation Chain (Java/Kotlin/Dex)
 
-> Last verified: 2026-10-07
+> Last verified: 2026-10-14
 > Consistency rule: If documentation conflicts with code, code takes precedence.
 
 ## 1. Scope
@@ -84,6 +84,8 @@ A raw Hilt `@AndroidEntryPoint` or `@HiltAndroidApp` class needs the same entry-
 The SDK-`android.jar` retry moves only its first occurrence behind a later framework JAR, shares the invoker's single retry budget, and remembers successful source files for the current compile context. On failed retry the original diagnostic wins. For a project plugin's `unsupported plugin option`, the invoker removes only that plugin ID's Gradle-resolved arguments and caches a successful fallback by toolchain and original arguments. A `required plugin option not present` retry disables an identified plugin only for later invocations; an unidentified plugin keeps the failure. User-supplied free compiler arguments are outside these fallbacks.
 
 For host-JDK failures, `KotlinCompilerHostCompat` presets the shaded Java version only after its probe fails; on JDK 25 or newer with `android.jar` in the classpath, the invoker adds `-no-jdk`. A complete IDE file-system-close signature is keyed by the project compiler classpath and retries once in an isolated process. That process cannot update the expect/actual tracker cache; its UTF-8 argument file avoids overflowing the source/plugin argument list, while the Java launcher's compiler classpath remains a separate command-line input.
+
+A project Kotlin compiler can request the IDE installation home while reading shaded plugin descriptors. `KotlinCompilerHostCompat.ensureIdeaHomePath()` preserves an existing directory containing `bin/idea.properties`, otherwise validates the Host `PathManager.getHomePath()` result before setting `idea.home.path`. The isolated compiler process receives that same valid value. If unavailable, keep the original compiler exception and existing fallback; do not invent an IDE installation for Standalone.
 
 ## 7. Related Documents
 

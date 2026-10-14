@@ -12,6 +12,20 @@ tags:
 
 If Jugg reports a successful run but the UI or code still behaves as before, first determine whether the change was not detected, was deployed but requires a restart, or must be updated by a full Gradle build.
 
+## Q: How can my Agent investigate changes that did not take effect?
+
+Before restarting or rebuilding, click `Ask AI` in the `Jugg Plugin` group of `Jugg Running Panel` and choose `Changes not applied`. Describe the changed files and the expected and actual effects, select the affected device, and click `Save Evidence and Generate Prompt`.
+
+Jugg saves the current logs, logcat for each device, project context, and existing APKs and incremental artifacts, keeping deployed and pending deployment records separate. The evidence manifest records collection failures for the Agent to read using the path in the prompt. A local artifact's existence does not prove that the device loaded it.
+
+Select `Copy prompt` and paste it into an Agent that can access the current Android project. The prompt requires analysis using the Jugg knowledge base, source code, and saved evidence, with a cause, recommendation, and next step if the problem persists. It provides an Issue draft when needed and identifies specific evidence to collect when information is missing.
+
+Evidence is saved in a separate local directory, survives later builds and Clear Jugg Build, and is retained for 30 days by default. Collect it after the Jugg task finishes. The prompt explicitly permits the Agent to clone Jugg into a separate investigation directory and fetch when necessary; the investigation reads existing evidence only.
+
+The prompt uses Markdown. It is generated in Chinese when the system language is Chinese, and in English otherwise. The Agent uses the same language for its analysis and Issue content. User descriptions and original logs retain their original text; dialog instructions always use English.
+
+When the Agent recommends an Issue, it provides a prefilled bug report link and complete content organized by field. Open the link, review the title, description, and diagnostic information, sign in to GitHub, select the applicable form options, complete the submission confirmation, and submit. If the link is too long or prefilling fails, copy the full content into the corresponding fields. Local evidence files must be provided separately; the link does not attach or upload them automatically.
+
 ## Q: What should I do when Jugg reports `no file changes` after I modified a file?
 
 This usually means that the IDE has not yet notified Jugg of the file change, or Jugg's project structure has not been refreshed.

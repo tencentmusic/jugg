@@ -10,7 +10,7 @@ import com.sickworm.intellij.jugg.deploy.IDeployStateManager
  */
 abstract class TestMcpRuntime : IMcpRuntime {
     override val projectDir: String = "/test-project"
-    override val compileLatestLogPath: String = CompileJobManager.COMPILE_LATEST_LOG_PATH
+    override val compileLatestLogPath: String = "/test-project/compile_latest.log"
     override val deployStateManager: IDeployStateManager? = null
     override val deployFileManager: DeployFileManager? = null
     override val incrementalCompileFallbackChecker: IIncrementalCompileFallbackChecker? = null

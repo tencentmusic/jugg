@@ -24,6 +24,7 @@ tags:
 
 ## 常用入口
 
+- **想快速理解核心概念**：看 [术语表](./glossary.md)。
 - **想确认某个命令怎么写**：看 [CLI 命令](./cli-commands.md)。
 - **想让 Agent 调用 Jugg**：看 [MCP 工具](./mcp-tools.md)。
 - **想找日志**：看 [日志文件](./log-files.md)。

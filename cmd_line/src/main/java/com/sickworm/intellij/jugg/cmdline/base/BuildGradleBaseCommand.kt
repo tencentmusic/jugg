@@ -39,6 +39,11 @@ class BuildGradleBaseCommand(private val params: Params) {
     private val coroutineScope = CoroutineScope(Dispatchers.IO)
     private val pathManager = JuggPathManager(params.baseBuildProjectDir)
     private val logger = CmdLineLogger.init("BuildGradleBaseCommand", pathManager.logDir, params.logLevel)
+
+    init {
+        CmdLineLogger.linkLegacyLogDir("BuildGradleBaseCommand", pathManager.legacyLogDir)
+    }
+
     private val compileClient = LocalGradleCompileClient(
         pathManager.projectDir,
         pathManager.localClasspathStoragePathManager.classpathDir,

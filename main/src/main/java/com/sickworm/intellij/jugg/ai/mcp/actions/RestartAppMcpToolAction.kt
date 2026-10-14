@@ -53,7 +53,7 @@ class RestartAppMcpToolAction : McpToolAction {
                 status = McpToolStatus.ERROR,
                 message = "restart failed. Reason: Failed to restart app on " +
                     failedDevices.joinToString { it.serialNumber } +
-                    ". Please check log in \\\$PROJECT_DIR/build/jugg/log/compile_latest.log",
+                    ". Please check log in ${runtime.compileLatestLogPath}",
                 data = emptyMap<String, Any>(),
                 artifacts = emptyList(),
                 errorCode = McpErrorCode.INTERNAL_ERROR,

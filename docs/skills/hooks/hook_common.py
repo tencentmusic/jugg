@@ -50,6 +50,7 @@ PROJECT_CWD_KEYS = {
     "workspacefolders",
     "workspaceroot",
     "workspaceroots",
+    "workspacepaths",
     "projectdir",
     "projectdirectory",
     "rootdir",
@@ -196,6 +197,17 @@ def collect_strings(value: Any) -> list[str]:
     return values
 
 
+def decode_json_string_argument(value: str) -> str:
+    candidate = value.strip()
+    if len(candidate) < 2 or candidate[0] != '"' or candidate[-1] != '"':
+        return value
+    try:
+        decoded = json.loads(candidate)
+    except (json.JSONDecodeError, TypeError):
+        return value
+    return decoded if isinstance(decoded, str) else value
+
+
 def _normalized_payload_key(key: str) -> str:
     return "".join(char for char in key.strip().lower() if char.isalnum())
 
@@ -328,6 +340,17 @@ def _extract_session_id_from_value(value: Any) -> str | None:
 
 def extract_session_id(payload: dict[str, Any]) -> str | None:
     return _extract_session_id_from_value(payload)
+
+
+def extract_tool_call(payload: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+    tool_call = payload.get("toolCall")
+    if isinstance(tool_call, dict):
+        name = tool_call.get("name")
+        args = tool_call.get("args")
+        return (name if isinstance(name, str) else "", args if isinstance(args, dict) else {})
+    name = payload.get("tool_name")
+    tool_input = payload.get("tool_input")
+    return (name if isinstance(name, str) else "", tool_input if isinstance(tool_input, dict) else {})
 
 
 def resolve_hooks_dir(home: Path | None = None) -> Path:

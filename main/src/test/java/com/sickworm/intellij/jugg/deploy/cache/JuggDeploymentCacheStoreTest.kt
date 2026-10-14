@@ -11,6 +11,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertThrows
+import java.io.File
+import java.io.FileNotFoundException
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -26,7 +29,7 @@ class JuggDeploymentCacheStoreTest {
     fun `cache is isolated by project and persisted with atomic replacement`() {
         val firstPathManager = JuggPathManager(Files.createTempDirectory("jugg-cache-first").toFile())
         val secondPathManager = JuggPathManager(Files.createTempDirectory("jugg-cache-second").toFile())
-        val entry = cacheEntry("first.apk")
+        val entry = cacheEntry(File(firstPathManager.projectDir, "first.apk").apply { createNewFile() }.path)
 
         createStore(firstPathManager).store("device", "package", entry)
 
@@ -52,25 +55,43 @@ class JuggDeploymentCacheStoreTest {
         val pathManager = JuggPathManager(Files.createTempDirectory("jugg-cache-shared").toFile())
         val first = createStore(pathManager)
         val second = createStore(pathManager)
+        val firstEntry = cacheEntry(File(pathManager.projectDir, "first.apk").apply { createNewFile() }.path)
+        val secondEntry = cacheEntry(File(pathManager.projectDir, "second.apk").apply { createNewFile() }.path)
         val start = CountDownLatch(1)
         val finished = CountDownLatch(2)
 
         Thread {
             start.await(5, TimeUnit.SECONDS)
-            first.store("first-device", "package", cacheEntry("first.apk"))
+            first.store("first-device", "package", firstEntry)
             finished.countDown()
         }.start()
         Thread {
             start.await(5, TimeUnit.SECONDS)
-            second.store("second-device", "package", cacheEntry("second.apk"))
+            second.store("second-device", "package", secondEntry)
             finished.countDown()
         }.start()
         start.countDown()
 
         assertTrue(finished.await(5, TimeUnit.SECONDS))
         val restored = createStore(pathManager)
-        assertEquals(cacheEntry("first.apk"), restored.load("first-device", "package"))
-        assertEquals(cacheEntry("second.apk"), restored.load("second-device", "package"))
+        assertEquals(firstEntry, restored.load("first-device", "package"))
+        assertEquals(secondEntry, restored.load("second-device", "package"))
+    }
+
+    @Test
+    fun `missing cached APK affects only its device entry`() {
+        val pathManager = JuggPathManager(Files.createTempDirectory("jugg-cache-stale").toFile())
+        val staleApk = File(pathManager.projectDir, "stale.apk").apply { createNewFile() }
+        val currentApk = File(pathManager.projectDir, "current.apk").apply { createNewFile() }
+        val store = createStore(pathManager)
+        store.store("old-device", "package", cacheEntry(staleApk.path))
+        val currentEntry = cacheEntry(currentApk.path)
+        store.store("current-device", "package", currentEntry)
+        staleApk.delete()
+
+        val restored = createStore(pathManager)
+        assertThrows(FileNotFoundException::class.java) { restored.load("old-device", "package") }
+        assertEquals(currentEntry, restored.load("current-device", "package"))
     }
 
     private fun createStore(pathManager: JuggPathManager): JuggDeploymentCacheStore {

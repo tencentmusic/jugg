@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.compiler.source.kotlin
 
+import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.diagnostic.Logger
 import java.io.File
 import java.lang.reflect.InvocationTargetException
@@ -24,6 +25,32 @@ object KotlinCompilerHostCompat {
         "org.jetbrains.kotlin.com.intellij.ide.plugins.DescriptorLoadingContext.close"
 
     private const val MIN_BROKEN_HOST_JAVA_FEATURE = 25
+
+    /** Provides the real IDE home to project compilers whose shaded IntelliJ core requests it. */
+    fun ensureIdeaHomePath(logger: Logger): String? {
+        val configured = System.getProperty("idea.home.path")
+        resolveIdeaHomePath(configured, null)?.let { return it }
+
+        val platformHome = try {
+            PathManager.getHomePath()
+        } catch (e: Exception) {
+            logger.debug("Cannot read host IDE home for project Kotlin compiler", e)
+            null
+        }
+        val resolved = resolveIdeaHomePath(configured, platformHome)
+        if (resolved == null) {
+            logger.debug("Valid IDE home is unavailable for project Kotlin compiler")
+            return null
+        }
+        System.setProperty("idea.home.path", resolved)
+        logger.debug("Set idea.home.path from host IDE home for project Kotlin compiler")
+        return resolved
+    }
+
+    internal fun resolveIdeaHomePath(configuredPath: String?, platformHomePath: String?): String? =
+        listOfNotNull(configuredPath, platformHomePath).firstOrNull { path ->
+            path.isNotBlank() && File(path).isDirectory && File(path, "bin/idea.properties").isFile
+        }
 
     /**
      * Probes the shaded JavaVersion loaded by [compilerClassLoader]. When it can not parse the

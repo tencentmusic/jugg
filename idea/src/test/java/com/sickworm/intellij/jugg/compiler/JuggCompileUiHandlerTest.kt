@@ -56,6 +56,7 @@ class JuggCompileUiHandlerTest {
         Assert.assertEquals(TooManyChangesConfirmResult.FALLBACK, result)
     }
 
+
     @Test
     fun `default handler is not rpc mode`() {
         Assert.assertFalse(CompileUiHandler.DEFAULT.isRpcMode)

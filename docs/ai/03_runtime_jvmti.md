@@ -1,6 +1,6 @@
 # Runtime Agent and JVMTI Coordination
 
-> Last verified: 2026-10-07
+> Last verified: 2026-10-14
 > Consistency rule: If documentation conflicts with code, code takes precedence.
 
 ## 1. Scope
@@ -82,6 +82,8 @@ When the Host cannot write the app sandbox, it stages a compat request in app ex
 | Direct ordinary resources | A Direct marker lets `ResourceOverlays` add a shared directory-backed `ResourcesLoader` only to host Resources. Android 11+ live updates rescan providers and recreate Activities; older Android and compat `resource.ap_` use process restart. | A ResourceLoader failure requests restart; a non-host Resource or absent marker should remain unchanged. |
 | Flutter raw assets | Startup framework hooks prepare host package contexts; running Engines receive `FlutterJNI.updateJavaAssetManager()`, while Engines whose Dart has not started replace `DartExecutor.assetManager`. | A new `ResourcesImpl` alone does not update Flutter's retained native `AAssetManager`; a pre-Dart JNI update can be overwritten at launch. |
 | Legacy Compose APK-root files | `ClassLoader#getResource` entry hook checks `code_cache/.overlay/base.apk/<name>` first, then an existing entry in `resource.ap_`, before original lookup. | A miss/exception must fall through. `JarURLConnection` or client caching makes process restart the reliable visibility boundary. |
+
+When a `.jugg_compat_deploy_enable` flag exists under `code_cache/.overlay/*/`, startup instrumentation skips all framework transforms. Java compat guards remain necessary for historical transform caches. This also means no `ClassLoader#getResource()` hook is installed: compat Dex and Android resources use Bootstrap/HotfixLoader and `resource.ap_`, but APK-root classpath resources are not guaranteed to update incrementally and need a full build/install.
 
 Before `ApplyChangesOverlayPolicy` has host APK paths, it uses the older `/data/app` path test. A decision made in that window is weaker evidence than a later host-path comparison.
 

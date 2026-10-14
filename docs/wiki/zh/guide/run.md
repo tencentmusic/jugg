@@ -76,7 +76,7 @@ Jugg HOT_RELOAD SUCCESSFUL in 3s.
 Gradle BUILD_AND_INSTALL SUCCESSFUL in 42s.
 ```
 
-Jugg 运行面板的当前运行状态和 Recent runs 也会显示本轮耗时。这里展示的是整次运行耗时，不是单独的编译阶段耗时。
+[Jugg 控制面板](./control-panel.md)的当前运行状态和 Recent runs 也会显示本轮耗时。这里展示的是整次运行耗时，不是单独的编译阶段耗时。
 
 ## 什么时候主动选别的入口
 
@@ -85,8 +85,8 @@ Jugg 运行面板的当前运行状态和 Recent runs 也会显示本轮耗时�
 | 清 App 数据并重装 | [清理数据](./clean-data.md) |
 | 完整 Gradle 构建一次 | [降级 Gradle 编译](./downgrade-gradle.md) / `jugg gradle-build` |
 | 改完后马上进断点 | Debug |
-| 跑 `src/androidTest` | 测试 gutter 或 Android Test Run Configuration |
-| 给 Agent 或脚本触发运行 | `jugg deploy` 或 Jugg CLI Skill |
+| 跑 `src/androidTest` | 测试 gutter 或 [Android Test](./android-test.md) 运行配置 |
+| 给 Agent 或脚本触发运行 | `jugg deploy` 或 [Jugg CLI 使用指南](./cli.md) |
 | App 没重启但你改了启动初始化逻辑 | [重启 App](./restart-app.md) |
 
 > [!NOTE]
@@ -101,11 +101,14 @@ Jugg 运行面板的当前运行状态和 Recent runs 也会显示本轮耗时�
 | 运行成功但修改没有生效 | 看 [改动没有生效](../troubleshooting/changes-not-applied.md) |
 | App 无法安装、启动或进入 Debug | 看 [无法安装、启动或进入 Debug](../troubleshooting/app-cannot-run.md) |
 | 部署后 App 崩溃 | 看 [部署后 App 崩溃](../troubleshooting/runtime-crash.md) |
+| 编译或运行卡顿、无响应 | 看 [Jugg 运行卡顿排查](../troubleshooting/jugg-slow-or-stuck.md) |
 
 上述恢复动作仍未解决问题时，使用[报告问题](./report-issue.md)上传现场。
 
 ## 相关页面
 
+- [Jugg 控制面板](./control-panel.md)
+- [CLI 命令行指南](./cli.md)
 - [降级 Gradle 编译](./downgrade-gradle.md)
 - [重启 App](./restart-app.md)
 - [清理数据](./clean-data.md)
@@ -118,3 +121,4 @@ Jugg 运行面板的当前运行状态和 Recent runs 也会显示本轮耗时�
 - [Jugg 工作原理](../concepts/how-jugg-works.md)
 - [部署自愈机制](../concepts/deploy-self-healing.md)
 - [Gradle 回退与基线重建](../concepts/gradle-fallback-baseline.md)
+- [Jugg 运行卡顿排查](../troubleshooting/jugg-slow-or-stuck.md)

@@ -22,6 +22,7 @@ internal class KotlinCompilerProcessRunner(private val logger: Logger) {
         compilerClasspath: List<File>,
         compilerArgs: List<String>,
         outputStream: PrintStream,
+        ideaHomePath: String?,
     ): ExitCode {
         val compilerArgsFile = File.createTempFile("jugg-kotlinc-", ".args")
         return try {
@@ -33,6 +34,7 @@ internal class KotlinCompilerProcessRunner(private val logger: Logger) {
                 compilerClasspath,
                 compilerArgsFile,
                 outputStream,
+                ideaHomePath,
             )
         } finally {
             if (!compilerArgsFile.delete()) compilerArgsFile.deleteOnExit()
@@ -47,10 +49,11 @@ internal class KotlinCompilerProcessRunner(private val logger: Logger) {
         compilerClasspath: List<File>,
         compilerArgsFile: File,
         outputStream: PrintStream,
+        ideaHomePath: String?,
     ): ExitCode {
         val javaHome = resolveJavaHome(compileEnv, System.getProperty("java.home"))
         val javaFeature = readJavaFeature(javaHome)
-        val command = buildCommand(javaHome, javaFeature, compilerClasspath, compilerArgsFile)
+        val command = buildCommand(javaHome, javaFeature, compilerClasspath, compilerArgsFile, ideaHomePath)
         logger.debug("isolated Kotlin compiler java: ${command.first()}, feature: $javaFeature")
 
         val processBuilder = ProcessBuilder(command)
@@ -126,6 +129,7 @@ internal class KotlinCompilerProcessRunner(private val logger: Logger) {
             javaFeature: Int,
             compilerClasspath: List<File>,
             compilerArgsFile: File,
+            ideaHomePath: String? = null,
         ): List<String> {
             val javaExecutable = File(javaHome, if (isWindows) "bin/java.exe" else "bin/java")
             val moduleArgs = if (javaFeature >= 9) {
@@ -138,12 +142,13 @@ internal class KotlinCompilerProcessRunner(private val logger: Logger) {
             } else {
                 emptyList()
             }
+            val ideaHomeArgs = ideaHomePath?.let { listOf("-Didea.home.path=$it") } ?: emptyList()
             return listOf(
                 javaExecutable.path,
                 "-Xmx2g",
                 "-Dfile.encoding=UTF-8",
                 "-Djava.awt.headless=true",
-            ) + moduleArgs + listOf(
+            ) + ideaHomeArgs + moduleArgs + listOf(
                 "-cp",
                 compilerClasspath.joinToString(File.pathSeparator) { it.absolutePath },
                 COMPILER_MAIN_CLASS,

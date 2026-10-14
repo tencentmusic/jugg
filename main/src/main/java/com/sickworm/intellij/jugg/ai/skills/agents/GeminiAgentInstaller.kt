@@ -19,7 +19,10 @@ object GeminiAgentInstaller : IAgentInstaller {
     }
 
     override fun resolveInternalSkillHomes(userHome: File): List<File> {
-        return listOf(File(userHome, ".gemini-internal"))
+        return listOfNotNull(
+            File(userHome, ".gemini-internal"),
+            resolveAntigravityHome(userHome),
+        )
     }
 
     override fun resolveHookTargets(userHome: File): List<AgentHookTarget> {
@@ -37,7 +40,7 @@ object GeminiAgentInstaller : IAgentInstaller {
                 commandMatcher = "run_shell_command",
             ),
         )
-        resolveInternalSkillHomes(userHome)
+        listOf(File(userHome, ".gemini-internal"))
             .filter { it.exists() }
             .forEach { internalHome ->
                 targets += AgentHookTarget(
@@ -52,7 +55,26 @@ object GeminiAgentInstaller : IAgentInstaller {
                     commandMatcher = "run_shell_command",
                 )
             }
+        resolveAntigravityHome(userHome)
+            ?.let { configHome ->
+                targets += AgentHookTarget(
+                    settingsFile = File(configHome, "hooks.json"),
+                    style = AgentHookConfigStyle.NAMED_EVENT_HOOKS,
+                    startEventName = "PreInvocation",
+                    stopEventName = "Stop",
+                    clientArgument = "antigravity",
+                    editEventName = "PreToolUse",
+                    commandEventName = "PreToolUse",
+                    editMatcher = "replace_file_content|write_to_file|write_file|edit_file",
+                    commandMatcher = "run_command",
+                    hookName = "jugg-android-dev-loop",
+                )
+            }
         return targets
+    }
+
+    private fun resolveAntigravityHome(userHome: File): File? {
+        return File(userHome, ".gemini/config").takeIf { it.exists() }
     }
 
     private fun File.isDefaultUserHome(): Boolean {

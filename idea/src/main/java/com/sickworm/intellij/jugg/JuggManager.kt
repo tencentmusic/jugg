@@ -53,10 +53,12 @@ import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.ai.mcp.*
+import com.sickworm.intellij.jugg.diagnostics.AskAiInvestigation
 import com.sickworm.intellij.jugg.diagnostics.IssueReportBundleBuilder
 import com.sickworm.intellij.jugg.diagnostics.IssueReportBundle
 import com.sickworm.intellij.jugg.diagnostics.IssueReportUploader
 import com.sickworm.intellij.jugg.git.GitManager
+import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.*
 import com.sickworm.intellij.jugg.project.change.FileChangeManager
@@ -82,6 +84,8 @@ import com.sickworm.intellij.jugg.project.runtime.migrateLegacyJuggSettings
 import com.sickworm.intellij.jugg.server.IdeaHotUpdateCoordinator
 import com.sickworm.intellij.jugg.server.JuggServer
 import com.sickworm.intellij.jugg.runtime.HostTaskExecutor
+import com.sickworm.intellij.jugg.server.PublicUpdateChecker
+import com.sickworm.intellij.jugg.server.PublicUpdateInstaller
 import kotlinx.coroutines.*
 import org.jetbrains.annotations.TestOnly
 import java.io.File
@@ -170,10 +174,13 @@ class JuggManager @TestOnly constructor(
         deployFileManager = deployFileManager,
         logger = logger.getInstance("JuggControlPanelController"),
     )
+    private val askAiInvestigation = AskAiInvestigation(project, pathManager, deployTargetManager,
+        compileContextManager, deployFileManager, deployHistoryManager, taskRunnerManager, juggServer,
+        controlPanelController, logger.getInstance("AskAiInvestigation"))
     private val juggConfigurationRunner: JuggConfigurationRunner = JuggConfigurationRunner(project, pathManager,
         deployHistoryManager, juggRunningTaskStatusManager,
         JuggRunningTaskCreator(), gitFileChangesDetector,
-        logger, controlPanelController)
+        logger, controlPanelController, askAiInvestigation)
     private val forceGradleCompileHelper: ForceGradleCompileHelper = IdeaForceGradleCompileHelper(project, juggConfigurationRunner,
         deployFileManager, taskRunnerManager,
         compileContextManager, logger, controlPanelController)
@@ -201,6 +208,7 @@ class JuggManager @TestOnly constructor(
             juggServer.initialize()
             initializeRuntime()
             tryCreateRunConfigurations(isSyncFinished = false)
+            controlPanelController.onManagerReady()
 
             // init project info async
             runTaskSafe("Init project info", ::recoverDeployContext)
@@ -235,6 +243,10 @@ class JuggManager @TestOnly constructor(
                     logger.getInstance("DiagnosticsCleaner"),
                     retentionDays = 7,
                 )
+            }
+            taskRunnerManager.runBackgroundSafe("Cleanup investigation snapshots", delayMs = 120_000) {
+                ExpiredArtifactCleaner.cleanupExpiredFiles(pathManager.investigationDir,
+                    logger.getInstance("InvestigationCleaner"), retentionDays = 30)
             }
         })
     }
@@ -661,29 +673,43 @@ class JuggManager @TestOnly constructor(
         controlPanelController.recordUserAction("Check updates")
         val dialog = CheckUpdatesProgressDialog()
         taskRunnerManager.runBackgroundSafe("Check updates") {
-            val hotUpdateData = ideaHotUpdateCoordinator.checkHotUpdate(isPositiveCheck = true)
-            dialog.setHotUpdateData(hotUpdateData) {
-                taskRunnerManager.runBackgroundSafe("Download updates") {
-                    try {
-                        ideaHotUpdateCoordinator.downloadAndInstallUpdate(hotUpdateData!!)
-                        dialog.setResult(hotUpdateData.targetVersion, true, hotUpdateData.isNeedReinstall, null) {
-                            if (hotUpdateData.isNeedReinstall) {
-                                CoroutineScope(Dispatchers.IO).launch {
-                                    ApplicationManager.getApplication().restart()
+            val hotUpdateData = if (juggServer.hasAvailableServer) {
+                ideaHotUpdateCoordinator.checkHotUpdate(isPositiveCheck = true)
+            } else {
+                null
+            }
+
+            if (hotUpdateData != null) {
+                dialog.setHotUpdateData(hotUpdateData) {
+                    taskRunnerManager.runBackgroundSafe("Download updates") {
+                        try {
+                            ideaHotUpdateCoordinator.downloadAndInstallUpdate(hotUpdateData)
+                            dialog.setResult(hotUpdateData.targetVersion, true, hotUpdateData.isNeedReinstall, null) {
+                                if (hotUpdateData.isNeedReinstall) {
+                                    CoroutineScope(Dispatchers.IO).launch {
+                                        ApplicationManager.getApplication().restart()
+                                    }
+                                } else {
+                                    JuggInitializer.reopenAllProjectsAsync()
                                 }
-                            } else {
-                                JuggInitializer.reopenAllProjectsAsync()
                             }
+                        } catch (e: Exception) {
+                            logger.warn("Download updates failed: ", e)
+                            dialog.setResult(
+                                hotUpdateData.targetVersion,
+                                isSuccess = false,
+                                isNeedReinstall = false,
+                                failedReason = e.toString(),
+                                onConfirmReopenProject = null,
+                            )
                         }
-                    } catch (e: Exception) {
-                        logger.warn("Download updates failed: ", e)
-                        dialog.setResult(hotUpdateData!!.targetVersion,
-                            isSuccess = false,
-                            isNeedReinstall = false,
-                            failedReason = e.toString(),
-                            onConfirmReopenProject = null
-                        )
                     }
+                }
+            } else {
+                val currentVersion = juggServer.version
+                val publicResult = runBlocking { PublicUpdateChecker().check(currentVersion) }
+                dialog.setPublicCheckResult(publicResult) { updateInfo ->
+                    PublicUpdateInstaller().openUpdate(project, updateInfo)
                 }
             }
         }
@@ -805,6 +831,8 @@ class JuggManager @TestOnly constructor(
         }
         progressDialog.show()
     }
+
+    fun askAi() = askAiInvestigation.askAi(juggConfigurationRunner)
 
     private fun showReportIssueDialog(
         builder: IssueReportBundleBuilder,

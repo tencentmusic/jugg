@@ -125,9 +125,9 @@ class JuggCliAutoUpdaterTest {
     fun checkAndUpdate_updatesWhenOutdated() {
         val userHome = Files.createTempDirectory("jugg-home-outdated").toFile()
         File(userHome, ".jugg/bin").mkdirs()
-        // Write old version SKILL.md into jugg skills dir
+        // Upgrade the last develop bundle rather than only a pre-release installation.
         val juggSkillDir = File(userHome, ".jugg/skills/jugg-android-dev-loop").also { it.mkdirs() }
-        File(juggSkillDir, "SKILL.md").writeText("---\nname: jugg-android-dev-loop\nversion: 0.0.1\ndate: 2026-01-01\ndescription: test\n---\n")
+        File(juggSkillDir, "SKILL.md").writeText("---\nname: jugg-android-dev-loop\nversion: 1.0.37\ndate: 2026-01-01\ndescription: test\n---\n")
 
         JuggCliAutoUpdater.checkAndUpdate(logger, userHome)
 

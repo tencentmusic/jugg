@@ -15,6 +15,8 @@ from hook_common import (
     SESSION_WRITE_SEEN_KEY,
     debug_log,
     extract_session_id,
+    emit_cursor_empty_response,
+    remember_project_cwd,
     read_hook_state,
     read_json_payload,
     state_file_path,
@@ -47,15 +49,29 @@ def main() -> int:
     cwd = str(Path.cwd())
     payload = read_json_payload()
     session_id = extract_session_id(payload)
-    state_file = state_file_path(Path.home(), cwd, session_id)
+    state = {}
+    project_cwd = cwd
+    if args.client == "antigravity":
+        project_cwd, _ = remember_project_cwd(state, payload, cwd)
+    state_file = state_file_path(Path.home(), project_cwd, session_id)
     state = read_hook_state(state_file)
+    if args.client == "antigravity":
+        project_cwd, project_cwd_changed = remember_project_cwd(state, payload, cwd)
+        if project_cwd_changed:
+            write_hook_state(state_file, state)
+        _debug_log(
+            f"hook triggered cwd={cwd} projectCwd={project_cwd}{client_part}; "
+            "preserved conversation state"
+        )
+        emit_cursor_empty_response("cursor")
+        return 0
     removed_keys = [key for key in TURN_STATE_KEYS if key in state]
     for key in removed_keys:
         state.pop(key, None)
     if removed_keys:
         write_hook_state(state_file, state)
     _debug_log(
-        f"hook triggered cwd={cwd}{client_part}; "
+        f"hook triggered cwd={cwd} projectCwd={project_cwd}{client_part}; "
         f"clearedTurnStateKeys={removed_keys!r}"
     )
     return 0

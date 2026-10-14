@@ -3,10 +3,12 @@ package com.sickworm.intellij.jugg.compiler
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.obfuscation.ClassObfuscator
 import com.sickworm.intellij.jugg.compiler.source.DexFileMerger
+import com.sickworm.intellij.jugg.compiler.ui.TooManyChangesConfirmResult
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.IDeployStateManager
 import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.sickworm.intellij.jugg.deploy.run.IdeDeployState
+import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.project.change.ChangedFile
@@ -264,9 +266,14 @@ class IncrementalCompilerHelper(
                     "kotlinSourceFiles ${tooManyChanges.kotlinFileCount}")
         }
         if (tooManyChanges != null && !skipTooManyChangesCheck) {
+            val confirm = if (!JuggSettings.isConfirmFallbackWhenTooManyChanges) {
+                TooManyChangesConfirmResult.FALLBACK
+            } else {
+                uiHandler.confirmTooManyChanges(tooManyChanges)
+            }
             TooManyChanges.applyUserChoice(
                 info = tooManyChanges,
-                confirm = uiHandler.confirmTooManyChanges(tooManyChanges),
+                confirm = confirm,
                 logger = logger,
                 onContinue = { skipTooManyChangesCheck = true },
                 onCancel = { uiHandler.cancel() },

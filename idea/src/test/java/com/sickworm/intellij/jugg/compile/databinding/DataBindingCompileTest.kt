@@ -14,6 +14,7 @@ import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.Test
 import java.io.File
+import java.nio.file.Files
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
@@ -79,7 +80,7 @@ open class DataBindingCompileTest {
 
     @Before
     fun setUp() {
-        AssembleAndroidProjectOnce.forceRecompile(isNeedClean = false)
+        AssembleAndroidProjectOnce.ensure()
         buildDir.deleteRecursively()
         context.tempModule.buildPathInfo.buildDir.deleteRecursively()
         CompileHelper.outputDir.deleteRecursively()
@@ -710,19 +711,39 @@ open class DataBindingCompileTest {
 
         private fun withPatchedFiles(vararg patches: Pair<File, String>, block: () -> Unit) {
             val backup = patches.associate { (file, _) -> file to if (file.exists()) file.readText() else null }
+            val appBuildPath = context.modules.getValue("app").buildPathInfo
+            val gradleOutputs = listOf(
+                appBuildPath.javaClassPath,
+                appBuildPath.kotlinClassPath,
+                File(appBuildPath.generatedSourcePath, "source/kapt/${appBuildPath.buildVariant}"),
+                File(appBuildPath.buildDir, "intermediates/data_binding_layout_info_type_merge/${appBuildPath.buildVariant}/out"),
+            )
+            val outputBackupDir = Files.createTempDirectory("jugg-databinding-").toFile()
             try {
-                patches.forEach { (file, newContent) ->
-                    file.parentFile?.mkdirs()
-                    file.writeText(newContent)
+                gradleOutputs.forEachIndexed { index, dir ->
+                    if (dir.exists()) dir.copyRecursively(File(outputBackupDir, "$index"))
                 }
-                block()
-            } finally {
-                backup.forEach { (file, oldContent) ->
-                    when (oldContent) {
-                        null -> if (file.exists()) file.delete()
-                        else -> file.writeText(oldContent)
+                try {
+                    patches.forEach { (file, newContent) ->
+                        file.parentFile?.mkdirs()
+                        file.writeText(newContent)
+                    }
+                    block()
+                } finally {
+                    backup.forEach { (file, oldContent) ->
+                        when (oldContent) {
+                            null -> if (file.exists()) file.delete()
+                            else -> file.writeText(oldContent)
+                        }
+                    }
+                    // Restore the Gradle classpath used by the next test after incremental compilation.
+                    gradleOutputs.forEachIndexed { index, dir ->
+                        dir.deleteRecursively()
+                        File(outputBackupDir, "$index").takeIf(File::exists)?.copyRecursively(dir)
                     }
                 }
+            } finally {
+                outputBackupDir.deleteRecursively()
             }
         }
 

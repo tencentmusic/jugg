@@ -138,6 +138,7 @@ class InstallAgentsTest {
         val userHome = Files.createTempDirectory("jugg-home-agent-hooks-others").toFile()
         File(userHome, ".codex-internal").mkdirs()
         File(userHome, ".gemini-internal").mkdirs()
+        File(userHome, ".gemini/config").mkdirs()
 
         assertEquals(
             listOf(
@@ -190,8 +191,31 @@ class InstallAgentsTest {
                     editMatcher = "write_file|replace",
                     commandMatcher = "run_shell_command",
                 ),
+                AgentHookTarget(
+                    settingsFile = File(userHome, ".gemini/config/hooks.json"),
+                    style = AgentHookConfigStyle.NAMED_EVENT_HOOKS,
+                    startEventName = "PreInvocation",
+                    stopEventName = "Stop",
+                    clientArgument = "antigravity",
+                    editEventName = "PreToolUse",
+                    commandEventName = "PreToolUse",
+                    editMatcher = "replace_file_content|write_to_file|write_file|edit_file",
+                    commandMatcher = "run_command",
+                    hookName = "jugg-android-dev-loop",
+                ),
             ),
             GeminiAgentInstaller.resolveHookTargets(userHome),
+        )
+    }
+
+    @Test
+    fun geminiAgentInstaller_shouldExposeAntigravitySkillHomeWhenConfigExists() {
+        val userHome = Files.createTempDirectory("jugg-home-antigravity-skill").toFile()
+        File(userHome, ".gemini/config").mkdirs()
+
+        assertEquals(
+            listOf(File(userHome, ".gemini-internal"), File(userHome, ".gemini/config")),
+            GeminiAgentInstaller.resolveInternalSkillHomes(userHome),
         )
     }
 

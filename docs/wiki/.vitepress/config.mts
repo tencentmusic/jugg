@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitepress'
+import { defineConfig, type HeadConfig } from 'vitepress'
 
 const GA_ID = 'G-GNEQK6VECM'
 const isWikiDev = process.env.JUGG_WIKI_DEV === 'true' || process.argv.includes('dev')
@@ -656,6 +656,69 @@ gtag('config', '${GA_ID}');`
   ],
   cleanUrls: true,
   srcExclude: productionSrcExclude,
+  sitemap: {
+    hostname: 'https://tencentmusic.github.io',
+    transformItems(items) {
+      return items.map((item) => {
+        const cleanUrl = item.url.replace(/^\/+/, '')
+        const fixLinkUrl = (u: string) => {
+          const c = u.replace(/^\/+/, '')
+          return c ? `jugg/${c}` : 'jugg/'
+        }
+        return {
+          ...item,
+          url: cleanUrl ? `jugg/${cleanUrl}` : 'jugg/',
+          links: item.links?.map((link) => ({
+            ...link,
+            url: fixLinkUrl(link.url)
+          }))
+        }
+      })
+    }
+  },
+  transformHead({ pageData }) {
+    const head: HeadConfig[] = []
+    const siteUrl = 'https://tencentmusic.github.io/jugg'
+
+    const cleanPath = pageData.relativePath
+      .replace(/\.md$/, '')
+      .replace(/(^|\/)index$/, '$1')
+    const pagePath = cleanPath ? (cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`) : '/'
+    const canonicalUrl = `${siteUrl}${pagePath.endsWith('/') || pagePath === '/' ? pagePath : pagePath}`
+
+    head.push(['link', { rel: 'canonical', href: canonicalUrl }])
+
+    const isZh = cleanPath.startsWith('zh/') || cleanPath === 'zh'
+    const purePath = isZh ? cleanPath.replace(/^zh(\/|$)/, '') : cleanPath
+    const enRelative = purePath ? `/${purePath}` : '/'
+    const zhRelative = purePath ? `/zh/${purePath}` : '/zh/'
+    const enUrl = `${siteUrl}${enRelative}`
+    const zhUrl = `${siteUrl}${zhRelative}`
+
+    head.push(['link', { rel: 'alternate', hreflang: 'en', href: enUrl }])
+    head.push(['link', { rel: 'alternate', hreflang: 'zh-CN', href: zhUrl }])
+    head.push(['link', { rel: 'alternate', hreflang: 'x-default', href: enUrl }])
+
+    const pageTitle = pageData.title || 'Jugg Wiki'
+    const title = pageData.titleTemplate === false || pageTitle === 'Jugg Wiki'
+      ? pageTitle
+      : `${pageTitle} | Jugg Wiki`
+    const description = pageData.description || (isZh
+      ? 'Jugg 是腾讯音乐工程团队开源的 Android Studio 旁路增量编译与即时热更插件，修改代码 3 秒生效。'
+      : 'Lightning-fast bypass incremental compilation & instant hot-reload plugin for Android Studio. See code changes in 3 seconds.')
+
+    head.push(['meta', { property: 'og:type', content: 'website' }])
+    head.push(['meta', { property: 'og:locale', content: isZh ? 'zh_CN' : 'en_US' }])
+    head.push(['meta', { property: 'og:site_name', content: 'Jugg Wiki' }])
+    head.push(['meta', { property: 'og:title', content: title }])
+    head.push(['meta', { property: 'og:description', content: description }])
+    head.push(['meta', { property: 'og:url', content: canonicalUrl }])
+    head.push(['meta', { name: 'twitter:card', content: 'summary' }])
+    head.push(['meta', { name: 'twitter:title', content: title }])
+    head.push(['meta', { name: 'twitter:description', content: description }])
+
+    return head
+  },
   markdown: {
     config(md) {
       const normalizeHistoricalAssets = (content: string) =>

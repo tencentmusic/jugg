@@ -264,6 +264,24 @@ class ModuleBuildPathInfoTest {
     }
 
     @Test
+    fun `allBuildPathRelative and allClassPath include KMP JVM output`() {
+        val projectRootDir = File("/tmp/jugg-project")
+        val moduleRootDir = File(projectRootDir, "foundation")
+        val info = ModuleBuildPathInfo(projectRootDir, moduleRootDir, "main", buildDirRelativePath = "")
+
+        assertTrue(
+            info.allBuildPathRelative.any {
+                it.path == File("foundation/build/classes/kotlin/jvm/main").path
+            },
+        )
+        assertTrue(
+            info.allClassPath.any {
+                it.path == File(moduleRootDir, "build/classes/kotlin/jvm/main").path
+            },
+        )
+    }
+
+    @Test
     fun `rFilePath resolves newest application R jar in AGP 8 directory`() {
         val moduleRootDir = tempFolder.newFolder("app")
         val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug", buildDirRelativePath = "")

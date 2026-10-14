@@ -10,8 +10,9 @@ import com.sickworm.intellij.jugg.ide.logic.IJuggConfigurationRunner
 import com.sickworm.intellij.jugg.loader.JuggInitializer
 import com.sickworm.intellij.jugg.ai.mcp.actions.ListProjectsMcpToolAction
 import com.sickworm.intellij.jugg.ai.mcp.actions.McpToolActionRegistry
-import com.sickworm.intellij.jugg.ai.mcp.actions.CompileJobManager
 import com.sickworm.intellij.jugg.project.change.GitFileChangesDetector
+import java.io.File
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import com.sickworm.intellij.jugg.project.runtime.ProjectDirNormalizer
 import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
 
@@ -29,7 +30,7 @@ class IdeaMcpRuntime(
     private val recoverAfterRuntimeOwnerChange: () -> Boolean,
 ) : IMcpRuntime {
 
-    override val compileLatestLogPath: String = CompileJobManager.COMPILE_LATEST_LOG_PATH
+    override val compileLatestLogPath: String = File(JuggPathManager(File(projectDir)).logDir, "compile_latest.log").absolutePath
 
     override fun refreshChangedFilesForStatus() {
         gitFileChangesDetector.updateChangedFiles()

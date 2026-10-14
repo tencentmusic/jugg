@@ -1,6 +1,6 @@
 # Compilation System: DataBinding / ViewBinding
 
-> Last verified: 2026-10-07
+> Last verified: 2026-10-14
 > Consistency rule: If documentation conflicts with code, code takes precedence.
 
 ## 1. Scope
@@ -50,9 +50,9 @@ SourceCompiler.prepareSourceCompile() → SourceDataBindingProcessor.processData
   → on Mapper APT failure with Kotlin source: compile Kotlin classes and retry Mapper once
 ```
 
-Both binding modes enter the resource stage; only DataBinding enters Mapper/BR processing. `isUseDataBinding()` can infer enablement from existing Gradle KAPT output when the project model does not say so; for changed XML, the inference also requires a `<layout` file. A normal ViewBinding layout must not trigger Mapper processing. The generated `DataBindingInfo` file triggers the processor; it is not itself a mapper or BR implementation.
+Both binding modes enter the resource stage; only DataBinding enters Mapper/BR processing. `isUseDataBinding()` can infer enablement from existing Gradle KAPT output when the project model does not say so; for nonempty changed XML, at least one `<layout` file is required even when the module explicitly enables DataBinding. A normal ViewBinding layout must not trigger Mapper processing. When no trigger is generated, ViewBinding Java must also be saved to `incrementalBaseClassOutDir`, including mixed DataBinding/ViewBinding modules: Kotlin compiles before Java and reads this generated-source directory, otherwise it sees stale baseline bindings. A trigger run still publishes generated sources through Mapper. The generated `DataBindingInfo` file triggers the processor; it is not itself a mapper or BR implementation.
 
-Mapper processing uses Java APT under the current `isFallbackApt = true` policy. Isolated KAPT runs only to produce the official store for changed Kotlin adapter declarations, with an empty layout-info directory so it does not process layouts ahead of the Mapper stage. Java adapter declarations are processed by Mapper APT. Adapter detection excludes comments and similarly named annotations, accepts supported `androidx.databinding`/`android.databinding` names and Kotlin aliases, and does not treat `Bindable` as an adapter declaration.
+Mapper processing uses Java APT under the current `isFallbackApt = true` policy. Isolated KAPT runs only to produce the official store for changed Kotlin adapter declarations, with an empty layout-info directory so it does not process layouts ahead of the Mapper stage. Adapter KAPT excludes Jugg's DataBinding generated Java roots, which may retain old Mapper, BR, and DataBindingComponent classes that collide with the current processor outputs. Java adapter declarations are processed by Mapper APT. Adapter detection excludes comments and similarly named annotations, accepts supported `androidx.databinding`/`android.databinding` names and Kotlin aliases, and does not treat `Bindable` as an adapter declaration.
 
 ## 5. Constraints and Diagnostic Boundaries
 
@@ -66,6 +66,7 @@ Mapper processing uses Java APT under the current `isFallbackApt = true` policy.
 | Observation | What it establishes | Next discriminating evidence |
 |---|---|---|
 | Mapper stage skipped despite layout info | The current module check may have rejected DataBinding; layout info alone does not prove project-model enablement. | Check `DataBindingArgsManager.isUseDataBinding()` and the serialized `useDataBinding` value. |
+| Duplicate classes during Kotlin adapter-only KAPT | Old Jugg generated Java may have entered the KAPT roots. | Check Java roots and whether the merged setter store was published; compiled/deployed Kotlin alone does not establish store publication. |
 | Missing setter or wrong parameter type after an adapter change | Mapper did not obtain a usable declaration; it does not identify which store was missing. | Inspect selected current/dependency/AAR stores, the baseline hash, and whether the current-module store was published after successful adapter compilation. |
 | Missing `DataBinderMapperImpl.java` at a KAPT path | That candidate baseline was not found; it does not prove the current processor used KAPT. | Check the matching Java APT `ap_generated_sources` file and the `runAnnotationProcessor apt output` log. |
 | Missing BR field or changed ID | The generated and merged BR differ; a processor result alone does not prove which baseline was used. | Compare Gradle BR and incremental BR at `mergeLibraryBr()` / `mergeAppBr()`. |

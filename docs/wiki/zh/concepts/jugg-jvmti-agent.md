@@ -34,6 +34,8 @@ Direct dynamic attach 当前只处理一个主进程，并重建该进程全部�
 
 系统加载 Jugg startup agent 后，它先尝试取得 JVMTI 和 JNI，并将结果记为可用或不可用；App 尚未启动或结果尚未生成时，状态保持未确定。
 
+App 启用兼容部署时，startup Agent 会跳过 Framework hook。增量 DEX 和 Android 资源在重启后由兼容加载器加载。下面的修正适用于普通部署。
+
 取得 JVMTI 后，Agent 会对 Application、Resources、ClassLoader 等 Framework 入口安装 hook，只在命中已知问题时改变行为：
 
 - 部分系统提前初始化 ClassLoader，导致已下发的增量 DEX 没有进入加载路径时，App runtime 会在启动阶段补入对应 DEX。

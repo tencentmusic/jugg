@@ -1,5 +1,5 @@
 ---
-title: Advanced options
+title: 'Advanced options: runtime settings and tools'
 description: Understand the less frequently used experience settings, tool entry points, and test diagnostics in More Options.
 status: active
 tags:

@@ -105,6 +105,16 @@ object JuggLogger {
     }
 
     @Synchronized
+    fun linkLegacyLogDir(project: Project, legacyLogDir: File) {
+        linkLegacyLogDir(project.instanceKey, legacyLogDir)
+    }
+
+    @Synchronized
+    fun linkLegacyLogDir(instanceKey: String, legacyLogDir: File) {
+        ensureKey(instanceKey).fileLogger.linkLegacyLogDir(legacyLogDir)
+    }
+
+    @Synchronized
     fun unregister(project: Project) {
         unregister(project.instanceKey)
     }
@@ -133,6 +143,16 @@ object JuggLogger {
     @Synchronized
     fun resetLatestCompileLog(instanceKey: String) {
         map[instanceKey]?.fileLogger?.resetLatestCompileLog()
+    }
+
+    /** Waits for queued file logs before evidence is copied, without holding the global lifecycle lock. */
+    fun flushProjectLog(project: Project) {
+        ensureKey(project.instanceKey).fileLogger.logger.handlers.forEach { it.flush() }
+        if (Thread.currentThread().isInterrupted) throw InterruptedException("Project log flush was interrupted")
+    }
+
+    internal fun getLogDir(project: Project): File? {
+        return map[project.instanceKey]?.fileLogger?.dir
     }
 
     private val map = ConcurrentHashMap<String, ProjectLogHolder>()

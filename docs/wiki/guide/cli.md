@@ -1,130 +1,143 @@
 ---
-title: CLI
-description: Install and use the Jugg CLI, choose an output mode, run common commands, integrate with agents, and troubleshoot failures.
+title: 'CLI guide: incremental builds and deployment'
+description: 'Practical guide to Jugg CLI: second-level terminal incremental builds, everyday deployment hot reload, parameter mapping, and AI Agent automation.'
 status: active
 tags:
   - guide
   - cli
+  - build-tools
 ---
 
 # CLI
 
-The Jugg CLI lets terminals, scripts, and agents call features provided by the Jugg plugin. It works through the Jugg plugin service in an open Android Studio project, so open the target project and finish Jugg initialization first.
+The Jugg CLI provides a unified command-line interface to invoke Jugg's bypass incremental compilation and instant hot reload capabilities from your terminal, CI scripts, or AI Coding Agents. It communicates directly with the background daemon hosted in Android Studio, enabling second-level build and deployment workflows without switching to the IDE window.
 
-## Installation
+## 1. Install Jugg CLI and Agent Skills
 
-Installing from the IDE is recommended:
+Installing directly through Android Studio's UI is recommended:
 
-1. Press Shift twice to open Search Everywhere.
-2. Search for `Install Jugg Skills`.
-3. Select the agents, CLI, and hooks to install in the dialog.
-4. Click Install.
+1. Press `Shift` twice in Android Studio to open **Search Everywhere**.
+2. Type and select `Install Jugg Skills`.
+3. In the setup modal, check the components you need:
+   - **Install CLI to `$PATH`**: Symlinks the executable `jugg` command into your system PATH (e.g., `~/.jugg/bin`).
+   - **Currently installed agents**: Automatically registers the `jugg-android-dev-loop` skill with AI assistants like Claude Code and Antigravity.
+   - **Install agent hooks**: Prompts agents to run incremental verification whenever Android source files are modified.
+4. Click **Install** to complete the environment setup.
 
-You can also open More Options in the Jugg panel, then select Tools -> Install Jugg Skills.
+Open any terminal and run `jugg version` to confirm that the installation succeeded.
 
-Typical installation options include:
+## 2. Output modes: Interactive terminal vs. script parsing (--console)
 
-| Option | Purpose |
-|---|---|
-| Currently installed agents | Install the `jugg-android-dev-loop` skill for the corresponding agents |
-| Install CLI to `$PATH` | Install the `jugg` command for direct use by people |
-| Install agent hooks | Remind an agent to use Jugg when it changes Android source code without verification |
-
-## Output modes
-
-The CLI supports three output modes:
+The CLI supports three output modes tailored for human developers and machine consumers:
 
 ```bash
+# Human-operated terminal (color spinner and dynamic progress animation)
 jugg --console=rich status
-jugg --console=plain status
+
+# AI Agent and plain log output (clean line-by-line output without escape sequences)
+jugg --console=plain compile
+
+# Automated script consumption (stdout outputs structured JSON only)
 jugg --console=json status
 ```
 
-| Mode | Intended user | Characteristics |
+| Mode | Target User | Key Characteristics |
 |---|---|---|
-| `rich` | Human-operated terminal | Includes spinners and interactive output |
-| `plain` | Agent | Stable output without spinners polluting context |
-| `json` | Script | Keeps stdout as structured JSON |
+| `rich` | Human interactive terminal | Features spinners, color highlights, and formatted status tables |
+| `plain` | AI Agents and CI runners | Clean text stream without terminal escape characters, context-friendly |
+| `json` | Scripts and automation tools | Strict structured JSON on stdout, perfect for `jq` or script assertions |
 
-> [!IMPORTANT]
-> Use `--console=plain` or `--console=json` for agents. Do not make an agent consume rich spinner output directly.
+> [!TIP]
+> When writing shell scripts or setting up automation pipelines, always use `--console=json` to reliably extract `isCompileSuccess` and `isDeploySuccess`.
 
-## Common commands
+## 3. Practical recipes for everyday workflows (Quick Recipes)
+
+Here are the four most common everyday development workflows and their CLI commands:
+
+### Recipe A: Hot reload code changes in seconds (jugg deploy)
+After modifying Java, Kotlin source files or XML layouts, trigger a bypass deploy directly from your terminal:
 
 ```bash
-jugg help
-jugg help deploy
-jugg status
+# Incrementally compile and hot swap changes to connected device (typically 1–3s)
+jugg deploy
+
+# Force an app restart when modifying Activity declarations or class signatures
+jugg deploy --always-restart-app true
+```
+
+### Recipe B: Rapid syntax and incremental compile check (jugg compile)
+Verify whether your changes compile without packaging APKs or pushing to a device:
+
+```bash
 jugg compile
-jugg deploy --always-restart-app false
+```
+
+This returns compilation diagnostics and error line numbers in about 1 second—an ideal syntax check while coding.
+
+### Recipe C: Inspect build status and pending files (jugg status)
+Check incremental baseline readiness, pending uncompiled files, and connected devices:
+
+```bash
+jugg status
+```
+
+### Recipe D: Safe rebuild and data reset
+When modifying `build.gradle` dependencies or when you want to verify against a fresh install:
+
+```bash
+# Trigger a full Gradle build, reinstall, and launch
 jugg gradle-build
+
+# Clear app internal sandbox data and reinstall APK
 jugg clean-reinstall
-jugg restart
 ```
 
-Command groups:
+## 4. Multi-project and cross-directory calls (--project-dir)
 
-| Category | Commands | Purpose |
+When run from the project root or any subfolder, the CLI automatically matches the active project in Android Studio.
+
+To execute from outside the project directory, specify the absolute path explicitly:
+
+```bash
+jugg --project-dir /path/to/android/project deploy
+```
+
+> [!NOTE]
+> Flag names support both kebab-case and camelCase (e.g., `--project-dir` and `--projectDir` are equivalent).
+
+## 5. Concurrency and interrupt strategies (--if-compiling)
+
+If a previously triggered compile task is still running, control the queue behavior with:
+
+```bash
+# Default behavior: wait for the previous task to finish before starting
+jugg --if-compiling wait deploy
+
+# Interrupt strategy: immediately cancel the running compile and start fresh
+jugg --if-compiling interrupt deploy
+```
+
+## 6. AI Agent integration best practices
+
+When pairing with AI coding agents (such as Claude Code, Cursor, or Antigravity):
+
+1. **Default to compile checks**: Instruct the agent to run `jugg --console=plain compile` first to catch compiler and type errors.
+2. **Restrict automatic deployment**: Require explicit user intent before letting the agent call `jugg deploy` or device-level UI inspection.
+3. **Verify both compile and deploy**: In script validations, check both `isCompileSuccess` and `isDeploySuccess` to prevent offline device errors from masking deployment failures.
+
+## 7. Troubleshooting common CLI issues
+
+| Symptom | Probable Cause | Recommended Resolution |
 |---|---|---|
-| Version | `version` | Show CLI and plugin versions |
-| Build and deployment | `compile` | Compile without deploying |
-| Build and deployment | `deploy` | Compile and deploy |
-| Build and deployment | `gradle-build` | Force a Gradle build |
-| Build and deployment | `clean-reinstall` | Clear app data and reinstall |
-| Testing | `instrument` | Compile, deploy, and run androidTest |
-| Runtime | `restart`, `wait-logs`, `activity-stack` | Restart, wait for logs, and inspect the Activity stack |
-| UI | `layout-dump`, `view-locate`, `view-inspect`, `tap` | Export layouts, locate elements, read properties, and perform touch actions |
-| Diagnostics | `status`, `devices`, `ssh-info` | Inspect status and devices, and request remote SSH information |
+| **`CLI cannot find project`** | Android Studio hasn't opened the project or finished Jugg init | Confirm project is open in IDE with Sync complete, or pass `--project-dir` |
+| **`Port connection refused`** | Daemon port not listening (default scan range `12320–12329`) | Verify Android Studio is running and Jugg plugin is initialized |
+| **Command hangs in waiting state** | A previous background build task is stalled | Run `jugg status` to inspect state; use `--if-compiling interrupt` if needed |
+| **Windows: Python not found** | Python 3.7+ is not present in system PATH | Verify `python3 --version` and ensure Python is added to environment PATH |
 
-## project-dir
+---
 
-When invoked inside a project directory, the CLI matches the current path to an open Jugg project. When invoked elsewhere, pass the project path explicitly:
+## Next steps
 
-```bash
-jugg --project-dir /path/to/project status
-```
-
-Flags support both kebab-case and camelCase, so `--project-dir` and `--projectDir` are equivalent.
-
-## Waiting behavior for compilation commands
-
-`compile`, `deploy`, `gradle-build`, and `instrument` can take a long time. The CLI polls automatically until the task reaches a terminal state.
-
-If a compilation task is already running, choose how to handle it:
-
-```bash
-jugg --if-compiling wait compile
-jugg --if-compiling interrupt compile
-```
-
-| Strategy | Behavior |
-|---|---|
-| `wait` | Default; wait for the existing task to finish |
-| `interrupt` | Start a new task immediately and let the server interrupt the old task |
-
-## Recommendations for agents
-
-- By default, have agents run `jugg compile` for compilation verification without deploying to a device automatically.
-- When device verification is required, explicitly ask the agent to use `jugg deploy`, `jugg instrument`, or UI tools.
-- For Android source changes, hooks can remind the agent to load the Jugg skill and run verification.
-- Use `--console=json` when the result needs to be parsed.
-- When determining whether `deploy` succeeded, check both compilation and deployment results instead of compilation success alone.
-
-## Common problems
-
-| Symptom | Action |
-|---|---|
-| CLI cannot find the project | Confirm that Android Studio has the target project open, or pass `--project-dir` |
-| Port connection fails | Confirm that the Jugg plugin is initialized; multiple IDE instances increment through the port range automatically |
-| A command waits indefinitely | Use `jugg status` to inspect `isCompiling`; use `--if-compiling interrupt` if necessary |
-| `instrument` reports that AndroidTest is disabled | Enable Android Test in the Jugg Run Configuration and establish a full-build baseline first |
-| Windows reports that Python 3.7+ was not found | Check `python3 --version`, `python --version`, and `py -3 --version` in order; `jugg.cmd` selects the first available Python 3.7+ runtime |
-| Output is noisy | Use `--console=plain` or `--console=json` for agents |
-
-## Related pages
-
-- [Jugg CLI](../capabilities/tools/cli.md)
-- [CLI commands](../reference/cli-commands.md)
-- [Agent Skills](../capabilities/tools/agent-skills.md)
-- [MCP and CLI](../concepts/mcp-and-cli.md)
-- [Agent or CLI execution failed](../troubleshooting/agent-command-failed.md)
+- 📖 **[Jugg CLI Command Reference](../reference/cli-commands.md)**: Explore all 16 subcommands and advanced parameters
+- 🚀 **[Everyday Run and Hot Reload Guide](../guide/run.md)**: Understand hot swap and compatibility deployment
+- 🤖 **[Agent Skills Integration](../capabilities/tools/agent-skills.md)**: Master automated agent-driven workflows with Jugg

@@ -8,6 +8,9 @@ import com.intellij.execution.ui.ConsoleView
 import com.intellij.openapi.util.Key
 import com.sickworm.intellij.jugg.ai.mcp.RunLogCollector
 import com.sickworm.intellij.jugg.compiler.BuildTarget
+import com.sickworm.intellij.jugg.compiler.CompileUiHandler
+import com.sickworm.intellij.jugg.compiler.ui.RunResult
+import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.deploy.FullBuildInfo
 import com.sickworm.intellij.jugg.deploy.instrument.InstrumentationEvent
 import com.sickworm.intellij.jugg.ide.JuggRunConfiguration
@@ -24,7 +27,6 @@ import org.mockito.kotlin.whenever
 import javax.swing.JPanel
 
 class JuggConfigurationRunnerTest {
-
     @Test
     fun `selected Jugg configuration is used`() {
         val settings = createJuggSettings("jugg:app:qaDebug", "./gradlew :app:assembleQaDebug")
@@ -188,10 +190,13 @@ class JuggConfigurationRunnerTest {
 
         collector.warn("\nFound incremental compile error. Please see logs for details.", null)
         collector.warn("Run again directly will fall back to gradle compile.\n", null)
+        collector.warn("Final compile exception", IllegalStateException("missing symbol"))
 
         val logs = collector.getAllLogs()
         assertTrue(logs.contains("Found incremental compile error"))
         assertTrue(logs.contains("Run again directly will fall back to gradle compile."))
+        assertTrue(logs.contains("Final compile exception"))
+        assertFalse(logs.contains("IllegalStateException: missing symbol"))
     }
 
     private class CapturingProcessHandler : IProcessHandler {

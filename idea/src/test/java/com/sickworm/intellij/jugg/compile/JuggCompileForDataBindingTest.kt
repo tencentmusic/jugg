@@ -489,6 +489,37 @@ class JuggCompileForDataBindingTest {
     }
 
     @Test
+    fun testKotlinBindingAdapterCompileAfterMapperGeneratedSourcesExist() {
+        val adapterFile = File(
+            assetsAndroidModifySourceDir,
+            "app/src/main/java/com/sickworm/jugg/demo/testcase/databinding/IncrementalBindingAdapters.kt",
+        )
+        val module = context.modules.values.first()
+        val argsManager = DataBindingArgsManager(context, module)
+        File(argsManager.dataBindingSourcesOutputDir, "com/example/myapplication/BR.java").apply {
+            parentFile.mkdirs()
+            writeText("package com.example.myapplication; public class BR {}")
+        }
+
+        val result = juggCompiler.compile(CompileTask(
+            files = listOf(CompileFile(
+                CompileFile.Type.Kotlin,
+                adapterFile,
+                File(assetsAndroidModifySourceDir, "app/src/main/java"),
+                module,
+            )),
+            outputDir = CompileHelper.outputDir,
+        ))
+
+        result.printCompileErrors()
+        assertTrue(result.isAllSuccess, "Adapter-only compilation should succeed after a mapper run")
+        assertTrue(
+            File(argsManager.setterStoreCacheDir, "current").isFile,
+            "Isolated KAPT should publish the adapter setter store",
+        )
+    }
+
+    @Test
     fun testJavaBindingAdapterAndLayoutCompileIncrementally() {
         val adapterFile = File(
             assetsAndroidModifySourceDir,

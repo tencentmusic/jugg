@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /dev/
+Disallow: /zh/dev/
+
+Sitemap: https://tencentmusic.github.io/jugg/sitemap.xml

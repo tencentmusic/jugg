@@ -1,6 +1,6 @@
 # Engineering: IDE Plugin Layer
 
-> Last checked: 2026-10-07
+> Last checked: 2026-10-14
 > If this page conflicts with implementation, follow the code.
 
 ## Scope and entry points
@@ -50,6 +50,12 @@ Update checks and Control Panel use the same manager. Invalid update responses p
 `Install Jugg Skills` joins an IDEA dialog with shared skill, CLI, and hook installers. CLI/hooks installation requires Python 3.7+ before writing their configuration. Codex selection installs the bundled CLI permission rule; Claude hook installation may offer a CC Switch Common Config export after success, without editing CC Switch directly. The installed setup guide is exported under `~/.jugg/skills/install/agent_setup.md`. Startup CLI/skill auto-refresh is gated by an installed CLI and compares the bundled skill's `version:` with the installed `SKILL.md`, not `CLI_VERSION`; see `08_cli_tools_list.md` for the version contract.
 
 The IDE diagnostics dialog merges the ten newest Jugg logs from IDE and standalone locations, pins those logs, and lets users remove higher-sensitivity IDE/Gradle/project-info candidates after redaction. It displays the exact fixed upload URL and supports saving a local ZIP instead. This UI selection and the shared bundle allowlist are separate checks; the latter is specified in `05_utilities.md`.
+
+IDE `AskAiInvestigation` owns the Panel form and the failed-compilation console entry. Runner wraps the current handler; final uncanceled non-RPC compilation failure saves a Snapshot synchronously before delegating `onEnd` in `finally`, then prints its captured hyperlink after deferred console output. Success, deployment-only failure, and successful fallback produce no compilation prompt. `JuggRunningTask.lastCompileResult` preserves compile success when device/deployment subsequently throws and resets before recursive fallback.
+
+Panel collection runs through `TaskRunnerManager.runTaskSafe`, rejects an active Run without canceling it, and copies staging/deployed records under the `DeployFileManager` monitor. It reads selected-device logcat once via DDMLib (`logcat -b all -d -v threadtime -t 20000`, five-second no-output timeout), avoiding ADB restart/retry; a failed device loses only its own evidence. See `05_utilities.md` for snapshot/flush contracts.
+
+The Running Panel Host initially shows an initializing placeholder. `JuggManager.init()` calls `controlPanelController.onManagerReady()` after shared runtime initialization to mount the real Panel; Controller clear removes it on disposal. On the first Run per project in the IDE session, `JuggRunningTask.checkAndMarkFirstRun()` actively opens the Run window; Sync/retry first-run state does not reopen it.
 
 ## Investigation guide
 

@@ -170,6 +170,11 @@ class KotlinCompilerInvoker {
         logger.debug("compile options: $options")
 
         val classpath = initKotlinCompiler(context, module, logger, options.forceUseEmbeddedKotlinCompiler)
+        val ideaHomePath = if (kotlinCompile.isUseProjectCompiler) {
+            KotlinCompilerHostCompat.ensureIdeaHomePath(logger)
+        } else {
+            null
+        }
 
         val kotlinPlugins = options.kotlinPlugins
             .filter { !disablePlugins.contains(it) && !tryDisablePlugins.contains(it) }
@@ -446,6 +451,7 @@ class KotlinCompilerInvoker {
                     compilerClasspath = classpath,
                     compilerArgs = command,
                     outputStream = outputParser.printStream,
+                    ideaHomePath = ideaHomePath,
                 )
             } else if (shouldTrackExpectActual) {
                 kotlinCompile.execWithExpectActualTracking(outputParser.printStream, command.toTypedArray())

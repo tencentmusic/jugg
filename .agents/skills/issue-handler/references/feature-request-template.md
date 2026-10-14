@@ -54,7 +54,7 @@ If no blocking product decision remains, provide the assessment directly instead
 
 - Reply in the reporter's language.
 - Keep the response concise and specific to the Issue.
-- Do not request Jugg diagnostics, report IDs, crash logs, Gradle-versus-Jugg reproduction, or a reproducible Demo unless the Issue separately claims a bug.
+- Do not request Jugg diagnostics, report IDs, crash logs, Gradle-versus-Jugg reproduction, or a reproducible Demo for a pure feature request. If the Issue separately claims a bug, apply the read-only bug workflow to that portion.
 - Do not describe an unsupported capability as a defect or search for a root cause for its absence.
 - Do not promise acceptance, priority, implementation, or delivery timing without explicit maintainer direction.
 - Do not repeat information already supplied in the Issue.

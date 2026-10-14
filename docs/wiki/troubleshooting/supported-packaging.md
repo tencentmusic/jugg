@@ -1,56 +1,69 @@
 ---
 title: Supported packaging methods
-description: Explains which debug packaging methods Jugg supports, and why it cannot be used for official release packaging.
+description: "In-depth guide to Jugg's packaging compatibility: Debug incremental builds, Minify obfuscation, AabResGuard, Dynamic Features, and official Release boundaries."
 status: active
 tags:
   - troubleshooting
   - faq
+  - packaging
   - apk
 ---
 
 # Supported packaging methods
 
-Jugg reduces how often you run a full Gradle build during daily debug work. It can deploy the current debug changes to a device or export an incremental debug APK. It does not replace Gradle packaging in GitHub Actions, official CI package builds, or app-store releases.
+In large-scale Android engineering, teams commonly maintain diverse packaging pipelines—including fast local Debug builds, internal QA channel APKs, Minified Release variants, split APKs / App Bundles (AAB), and system platform-signed builds.
 
-## Does Jugg support release packaging?
+Jugg's primary objective is to **dramatically reduce the build time spent on full Gradle runs during everyday local development and debugging cycles**. It deploys code and resource changes to devices in seconds and can export incremental Debug APKs for offline verification; however, **it cannot and should not replace full Gradle builds for official app store publishing, Google Play releases, or official CI signing pipelines**.
 
-No. Do not use Jugg to produce an official release APK. App-store listing, channel packages, and official releases must keep using the full Gradle / Android Studio packaging flow. Jugg was not designed for this scenario and cannot speed up `assembleRelease`.
+## 1. Android packaging compatibility matrix
 
-| Packaging method | Use Jugg? | What you see |
-|---|---|---|
-| Daily debugging | Yes | The installed APK is usually not rebuilt as a whole; changes take effect through incremental compilation and deployment |
-| Export an incremental debug APK for testers | Yes | Click `Export incremental APK` in the fallback confirmation dialog to write compiled incremental results into an APK and export it |
-| Daily pipeline packaging of a debug APK | Yes | Produce a debug incremental APK through the two-step `cmd_line` commands; see Pipeline debug incremental APK below |
-| App-store listing, channel packages, or official release APKs | No | Continue using full Gradle / Android Studio packaging |
+The following matrix summarizes Jugg's behavior and support status across standard Android packaging workflows and build toolchains:
+
+| Packaging Method / Toolchain | Jugg Support Status | Execution Mechanism & User-Visible Result | Dedicated Guide |
+|---|---|---|---|
+| **Standard Debug APK** (`assembleDebug`) | **Fully Supported** (Core) | Bypasses Gradle after baseline is established; code and resource changes take effect in 1–3 seconds | [Run the app](../guide/run.md) |
+| **Export Incremental APK** | **Fully Supported** | Directly overwrites compiled incremental classes and resources into the APK container for offline QA | [Export an incremental APK](../guide/export-incremental-apk.md) |
+| **Release Minified Build** (R8 / ProGuard) | **Supported for Debug** (Not for Store) | Incrementally compiles on an existing Release build via `_jugg_fix` and obfuscation mapping for rapid bug reproduction | [Release compilation](../concepts/incremental-compile/release-compile.md) |
+| **Resource Obfuscation** (AabResGuard / AndResGuard) | **Fully Supported** | Inherits and reuses original resource IDs and obfuscated symbol dictionaries during incremental packaging | [Resource incremental compilation](../concepts/incremental-compile/resource.md) |
+| **Dynamic Feature Modules** (App Bundle / AAB) | **Fully Supported** | Automatically detects split APKs and performs targeted incremental push to connected devices | [Capabilities overview](../capabilities/index.md) |
+| **System / Platform-Signed Apps** (`priv-app`) | **Supported** (Via Scripts) | Supports custom APK install scripts for remount/push and custom APK sign scripts for platform certificates | [Compatibility deployment](../guide/compat-device.md) |
+| **CI / CD Pipeline Incremental Builds** | **Supported** | Headless CLI mode (`cmd_line` two-step build) produces incremental debug APKs without opening the IDE | See details below |
+| **Official Store Release APK / AAB** | ❌ **Not Supported** | Must use native Gradle / Android Studio full build and official signing pipeline | - |
+
+## 2. Why can't Jugg produce official Release packages for app stores?
+
+Developers frequently ask: *“Since Jugg compiles so quickly, can we use it to build our production release APKs?”*
+
+The answer is unambiguously: **No**. The key architectural reasons include:
+
+1. **Build Integrity and Dead-Code Elimination (R8/ProGuard Tree Shaking)**: Jugg compiles only modified files and their direct dependencies. Production release packages require R8/ProGuard to perform whole-program dead-code elimination, aggressive method inlining, and global optimizations.
+2. **Signature Contracts and Security Verification**: Modern app stores (Google Play, OEM stores) strictly enforce V2/V3 signing blocks, zip alignment, and package integrity. Incrementally patched APK containers are designed for speed in development, not for tamper-resistant production signing.
+3. **Deterministic Builds**: Production releases demand byte-level reproducible builds from a clean checkout. Multi-iteration incremental patching does not satisfy release-grade determinism.
 
 > [!IMPORTANT]
-> Official packaging must use the existing Gradle flow. Jugg cannot speed up release package builds, and it should not replace the signing, shrinking, or full packaging steps used for store listing.
+> Production distribution and channel packaging must continue using standard Gradle `assembleRelease` or `bundleRelease`. Jugg never modifies your Gradle scripts; switching back to the native App Run Configuration instantly restores Android Studio's original build flow.
 
-Experimental [Release compilation](../capabilities/compile/release-compile.md) is only for continuing daily debugging on an already installed minified or release APK. It is not a way to produce an APK for store listing.
+## 3. CI/CD pipeline: Generating incremental Debug APKs
 
-## Pipeline debug incremental APK
-
-CI pipelines do not use the IDE [Export an incremental APK](../guide/export-incremental-apk.md) button. They produce a debug incremental APK through two commands in the `cmd_line` module:
+For automated pipelines that need to produce quick incremental testing APKs on remote build machines, use the standalone `cmd_line` toolchain in two steps:
 
 ```text
-cmd=buildGradleBase
-  -> run a full Gradle build
-  -> save the APK, classpath, and Jugg baseline
+Step 1: cmd=buildGradleBase
+  -> Run full Gradle build, saving initial base APK, classpath, and Jugg baseline
 
-cmd=buildIncrementalApk
-  -> restore the compile context from the saved baseline
-  -> compile the changedFiles explicitly provided by the pipeline
-  -> write the incremental result back to the APK output directory
+Step 2: cmd=buildIncrementalApk
+  -> Restore compilation state from the baseline directory
+  -> Incrementally compile the changedFiles explicitly supplied by the CI pipeline
+  -> Overwrite incremental classes and resources back into destination APK
 ```
 
-The pipeline must provide the `changedFiles` list itself. Jugg does not infer the CI diff automatically. Each baseline directory can be consumed only once. If a pipeline needs multiple incremental results, copy an independent baseline for each run.
+> [!NOTE]
+> The CI pipeline must provide the `changedFiles` diff explicitly. Each baseline directory can only be consumed once; copy independent baseline directories if building multiple concurrent branches.
 
-There is no dedicated Wiki guide yet. Parameter names, validation rules, and usage examples are in the source directory [`cmd_line/src/main/java/com/sickworm/intellij/jugg/cmdline/`](https://github.com/tencentmusic/jugg/tree/main/cmd_line/src/main/java/com/sickworm/intellij/jugg/cmdline).
+---
 
-## Related pages
+## Next steps
 
-- [Export an incremental APK](../guide/export-incremental-apk.md)
-- [Run an app](../guide/run.md)
-- [Limits](../reference/limits.md)
-- [Release compilation](../capabilities/compile/release-compile.md)
-- [How Jugg works](../concepts/how-jugg-works.md)
+- 📖 **[Export an Incremental APK Guide](../guide/export-incremental-apk.md)**: Export testing packages directly from Android Studio
+- ⚙️ **[Release Incremental Compilation Internals](../concepts/incremental-compile/release-compile.md)**: Efficiently debug release-specific obfuscation bugs
+- 🛡️ **[Jugg Limitations and Fallback Rules](../reference/limits.md)**: Review boundary conditions that trigger Gradle fallback

@@ -1,6 +1,8 @@
 name: Build Dev
 
 on:
+  schedule:
+    - cron: "0 18 * * *"
   workflow_dispatch:
 
 permissions:
@@ -17,30 +19,57 @@ jobs:
     timeout-minutes: 60
 
     steps:
-      - name: Check out dispatched ref
+      - name: Check out build ref
         uses: actions/checkout@v6
         with:
           fetch-depth: 1
 
+      - name: Check for unpublished commits
+        id: check
+        env:
+          RELEASE_TAG: dev-latest
+        shell: bash
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            echo "Manual Dev build requested."
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          branch_sha="$(git rev-parse HEAD)"
+          published_sha="$(git ls-remote --refs origin "refs/tags/$RELEASE_TAG" | awk '{print $1}')"
+          if [[ "$branch_sha" == "$published_sha" ]]; then
+            echo "No commits since the current $RELEASE_TAG release."
+            echo "should_build=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Branch HEAD $branch_sha differs from $RELEASE_TAG tag $published_sha."
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Set up Java
+        if: steps.check.outputs.should_build == 'true'
         uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
 
       - name: Set up Android SDK
+        if: steps.check.outputs.should_build == 'true'
         uses: android-actions/setup-android@v4
         with:
           # Default still includes the obsolete `tools` package, which Google no longer serves.
           packages: platform-tools
 
       - name: Install Android build tools
+        if: steps.check.outputs.should_build == 'true'
         run: sdkmanager "platforms;android-33" "ndk;27.0.12077973" "cmake;3.22.1"
 
       - name: Set up Gradle
+        if: steps.check.outputs.should_build == 'true'
         uses: gradle/actions/setup-gradle@v6
 
       - name: Generate dev version
+        if: steps.check.outputs.should_build == 'true'
         id: version
         shell: bash
         run: |
@@ -53,12 +82,14 @@ jobs:
           echo "value=$dev_version" >> "$GITHUB_OUTPUT"
 
       - name: Build plugin
+        if: steps.check.outputs.should_build == 'true'
         run: |
           ./gradlew :idea:buildPlugin \
             -PpluginVersion="${{ steps.version.outputs.value }}" \
             --no-daemon
 
       - name: Prepare dev assets
+        if: steps.check.outputs.should_build == 'true'
         env:
           ASSET_NAME: jugg-dev.zip
         shell: bash
@@ -73,6 +104,7 @@ jobs:
           sha256sum "$ASSET_NAME" > "$ASSET_NAME.sha256"
 
       - name: Upload dev artifact
+        if: steps.check.outputs.should_build == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: jugg-${{ steps.version.outputs.value }}
@@ -83,6 +115,7 @@ jobs:
           retention-days: 14
 
       - name: Publish rolling dev release
+        if: steps.check.outputs.should_build == 'true'
         env:
           ASSET_NAME: jugg-dev.zip
           GH_TOKEN: ${{ github.token }}
@@ -92,7 +125,7 @@ jobs:
         run: |
           commit_sha="$(git rev-parse HEAD)"
           short_sha="${commit_sha:0:7}"
-          release_notes="$(printf 'Manually published from a Dev build to verify a quick bug fix and prerelease new features. Dev builds are not verified at all and may be broken.\n\n- Version: `%s`\n- Ref: `%s`\n- Commit: [`%s`](%s/%s/commit/%s)\n- Workflow: [run %s](%s/%s/actions/runs/%s)\n' \
+          release_notes="$(printf 'Published from a Dev build to verify quick bug fixes and prerelease new features. Dev builds are not verified and may be broken.\n\n- Version: `%s`\n- Ref: `%s`\n- Commit: [`%s`](%s/%s/commit/%s)\n- Workflow: [run %s](%s/%s/actions/runs/%s)\n' \
             '${{ steps.version.outputs.value }}' \
             "$GITHUB_REF_NAME" \
             "$short_sha" \

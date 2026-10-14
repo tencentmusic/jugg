@@ -53,7 +53,10 @@ class JuggDeploymentCacheStore(
     fun load(deviceSerial: String, packageName: String): CacheEntry? {
         return taskRunnerManager.runProjectWriteLocked("Load deployment cache entry") {
             loadFromFile()
-            entries[key(deviceSerial, packageName)]
+            val entry = entries[key(deviceSerial, packageName)] ?: return@runProjectWriteLocked null
+            entry.apkPaths.firstOrNull { Files.notExists(File(it).toPath()) }
+                ?.let { throw FileNotFoundException(it) }
+            entry
         }
     }
 

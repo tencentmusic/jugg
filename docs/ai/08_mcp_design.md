@@ -1,6 +1,6 @@
 # MCP Design and Runtime Boundaries
 
-> Last verified: 2026-10-07
+> Last verified: 2026-10-14
 > Consistency rule: If documentation conflicts with code, code takes precedence.
 
 ## 1. Scope
@@ -62,6 +62,8 @@ The Standalone registry currently exposes `version`, `list-projects`, `compile`,
 `CompileJobManager` owns asynchronous compile, deploy, Gradle-build, and instrument job state. A trigger can return `data.status=running`, `jobId`, and `isFinal=false` after its soft wait; `get-compile-status(projectDir, jobId, waitTimeoutMs)` reads that job without re-executing it. Its bounded wait is at most 10 seconds; terminal states provide compile/deploy success fields when known and failure detail when available. The CLI may poll automatically, while direct MCP clients can poll themselves. Read the returned log path and `build/jugg/log/compile_latest.log` for compile/deploy diagnosis; a running response is not a failure.
 
 MCP fetch artifacts live under `build/jugg/mcp_fetch/<toolName>/`; IDEA schedules `ExpiredArtifactCleaner` to remove files after 30 days. `wait-logs` starts from per-project/per-device deploy or restart timestamps, falling back to a prior project-level record only when the device record is absent. The IDE Control Panel records `MCP request` and `MCP response`; it omits `projectDir` recursively and redacts sensitive key names before display, capping each detail at 4096 characters. That display transformation does not alter the actual request or response, so diagnostic exports require their own redaction boundary.
+
+Compile/deploy tools return the Host-provided absolute `compile_latest.log` through `logPath`. `IMcpRuntime.compileLatestLogPath` preserves IDEA versus Standalone directory ownership; shared actions must not recover an IDE Project to infer it.
 
 ## 7. ViewHierarchy Boundary
 

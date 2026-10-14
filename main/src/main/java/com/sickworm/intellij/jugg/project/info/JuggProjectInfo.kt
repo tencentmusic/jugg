@@ -360,6 +360,8 @@ data class ModuleBuildPathInfo(
     private val javaClassPathForJavaLibrary get() = File(buildDir, "classes/java/main")
     /** kotlin classpath for java library */
     private val kotlinClassPathForJavaLibrary get() = File(buildDir, "classes/kotlin/main")
+    /** kotlin classpath for Kotlin Multiplatform JVM target */
+    private val kmpJvmKotlinClassPath get() = File(buildDir, "classes/kotlin/jvm/main")
 
     // compatible with AGP 3.x 4.x
     private val oldLibraryMergedManifestDir get() = File(buildDir, "intermediates/library_manifest/$buildVariant")
@@ -394,11 +396,17 @@ data class ModuleBuildPathInfo(
      * context picks one R provider per module type and appends it, so a stale R.jar of another
      * layout can never shadow the selected one.
      */
-    val allClassPath get() = customClasspathFiles + listOf(kotlinClassPath, javaClassPath, kotlinClassPathForJavaLibrary, javaClassPathForJavaLibrary)
+    val allClassPath get() = customClasspathFiles + listOf(
+        kotlinClassPath,
+        javaClassPath,
+        kotlinClassPathForJavaLibrary,
+        kmpJvmKotlinClassPath,
+        javaClassPathForJavaLibrary,
+    )
 
     // use to fetch all class path after full build
     val allBuildPaths get() = listOf(legacyKotlinClassPath, builtInKotlinClassPath, kmpAndroidKotlinClassPath,
-        javaClassPathNew, javaClassPathOld, rFilePathDir, moduleCompileRFileDir,
+        kmpJvmKotlinClassPath, javaClassPathNew, javaClassPathOld, rFilePathDir, moduleCompileRFileDir,
         kotlinClassPathForJavaLibrary, javaClassPathForJavaLibrary, generatedSourcePath,
         oldLibraryMergedManifestDir, libraryMergedManifestDir, applicationMergedManifestDir, libraryRFileDirInLowAgp,
         dataBindingInfoDir, dataBindingDependencyInfoDir, dataBindingArtifactDir,

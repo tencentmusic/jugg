@@ -51,7 +51,7 @@ const std::string ToJniFormat(const std::string& class_name) {
 }  // namespace
 
 bool InstrumentApplication(jvmtiEnv* jvmti, JNIEnv* jni,
-                           const std::string& app_data_dir, bool overlay_swap);
+                           const std::string& app_data_dir);
 
 bool LoadInstrumentationJarForApp(jvmtiEnv* jvmti, JNIEnv* jni,
                                   const std::string& app_data_dir);

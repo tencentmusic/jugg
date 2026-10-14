@@ -114,10 +114,10 @@ Follow these steps:
 2. Open `build/jugg/log/compile_latest.log` and search for keywords such as `Found incremental compile error`, `aapt2`, or `unresolved reference`.
 3. If the source or resource itself is invalid, fix the code first.
 4. For build-script, dependency, resource-table, or release-minification issues, run one Gradle build to rebuild the baseline.
-5. Before submitting an issue, back up `build/jugg/log/` and `build/jugg/database/`.
+5. Before submitting an issue, preserve `build/jugg/database/`; logs remain accessible through `build/jugg/log/` after the next Jugg run.
 
 > [!WARNING]
-> Do not delete the entire `build/` directory before preserving the diagnostic state. Doing so removes logs and database evidence needed for later investigation.
+> Do not delete the entire `build/` directory before preserving the diagnostic state. The main logs remain available, but database evidence is still removed.
 
 ## Recommended workflow
 

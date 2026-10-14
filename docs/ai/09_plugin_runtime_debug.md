@@ -1,6 +1,6 @@
 # Plugin Runtime Investigation
 
-> Last checked: 2026-10-07
+> Last checked: 2026-10-14
 > If this page conflicts with implementation or the incident's installed version, follow that evidence.
 
 ## 1. Start with the incident, not the surface message
@@ -19,11 +19,11 @@ Before concluding, name one observable result that would weaken the leading expl
 
 ## 2. Files and logs to preserve
 
-`JuggPathManager` defines project paths. IDEA writes under `{projectDir}/build/jugg/log/`; standalone writes under its deliberately spelled `standlone_cli/` subdirectory. Read the timestamped `compile_YYYY-MM-DD_HH-mm-ss.0.log` for primary evidence; `compile_latest.log` and `compile_latest-1.log` are shortcuts whose target can change. The standalone `standalone_startup.log` captures daemon-start stdout/stderr and is overwritten on the next CLI-initiated startup. Ordinary standalone jobs append to a Runtime segment; a successful full Gradle build may start another segment. Align segments and both Runtime logs when ownership or locks matter.
+`JuggPathManager` defines project paths. IDEA writes under `<globalRoot>/log/<projectName>_<pathHash>/`; Standalone uses its deliberately spelled `standlone_cli/` subdirectory. `{projectDir}/build/jugg/log` is a best-effort compatibility symlink repaired on the next Run after clean. Old real directories migrate with rollback on failure. Prefer preserved ASK AI incident copies over a later Run's latest log. Read the timestamped `compile_YYYY-MM-DD_HH-mm-ss.0.log` for primary evidence; `compile_latest.log` and `compile_latest-1.log` are shortcuts whose target can change. The standalone `standalone_startup.log` captures daemon-start stdout/stderr and is overwritten on the next CLI-initiated startup. Ordinary standalone jobs append to a Runtime segment; a successful full Gradle build may start another segment. Align segments and both Runtime logs when ownership or locks matter.
 
 | Scene evidence | Location / use |
 |---|---|
-| Compile/deploy logs | `build/jugg/log/compile_*.log` and `build/jugg/log/standlone_cli/compile_*.log`. Millisecond timestamps, Java levels (`FINE`/`INFO`/`WARNING`/`SEVERE`), and class tags support cross-log alignment. |
+| Compile/deploy logs | `<globalRoot>/log/<projectName>_<pathHash>/compile_*.log` and its `standlone_cli/compile_*.log`. Millisecond timestamps, Java levels (`FINE`/`INFO`/`WARNING`/`SEVERE`), and class tags support cross-log alignment. |
 | Compile input/output | `build/jugg/build/staging/`; `build/jugg/classpath/{root,apk,libraries}/`. Capture before another Run replaces staging. |
 | Project and compile context | `build/jugg/database/project_infos.db/` and `compile_context.db/`, including `complete_flag`, `module_builds.json`, and `full_build_info.json`. |
 | Deploy state | `build/jugg/database/deploy_history.db/`, APK databases under `database/apk/`, deployment cache, device overlay and installed APK. |
@@ -42,6 +42,7 @@ For a standalone remote build, begin at `build/jugg/log/standlone_cli/compile_la
 | ConstRef cache exception at startup | Check DB rebuild and `fallback to no-op const-ref`. Constructor-time cache failure should not stop manager creation; initialization failure disables ConstRef for this process, while a later operation failure is local. | `ConstRefEngine`, `ConstRefCacheDatabase`; `03_deploy_const_ref.md`. |
 | Changes appear ignored or full Gradle fallback starts | Compare VFS/Git changed-file registration, `preprocessIncrementalCompile`, history, and actual compile command before deleting state. | `JuggCompilerHelper`, `DeployFileManager`; `02_compile_core.md`. |
 | R class exists but one resource field is absent | Verify the missing field in `R$...` and actual javac/kotlinc classpath order. Same-named module Gradle R jars may shadow one another; compare `compile_r_class_jar` and `compile_only_not_namespaced_r_class_jar` candidates. | `BaseCompileContext.getGradleRFilePaths()`; `02_compile_source.md` and `04_engineering_project.md`. |
+| Kotlin `INTERNAL_ERROR` with `Could not find installation home path` | Check the incident compiler and `idea.home.path` directory for `bin/idea.properties`; preserve the original exception when no valid IDE home exists. | `KotlinCompilerHostCompat.ensureIdeaHomePath()`; `02_compile_source.md`. |
 | Gradle clean cannot delete `R.jar` on Windows | First identify which process holds the JAR. If Android Studio owns the handle after Jugg javac, check whether `JavaCompilerInvoker` closed its per-compilation file manager; the symptom alone does not prove Jugg owns the handle. | `JavaCompilerInvoker`; `02_compile_source.md`. |
 | New Flutter asset ignored | Check pre-filter change detection, Git no-record result, Flutter `inputFiles` / pubspec declarations, and `excludedDirs` before assuming arbitrary assets belong to the build. | `FileChangesHandler` and Gradle Flutter input reader; `02_compile_core.md`, `04_engineering_project.md`. |
 | Compile context says `not gradle compile yet` after upgrade | Compare `complete_flag`, `module_builds.json` version, full-build info, and recovery log. A missing marker is not repaired by inventing one. | `CompileContextDb`; `04_engineering_project.md`. |

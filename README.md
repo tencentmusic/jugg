@@ -12,6 +12,7 @@ Jugg is an open-source incremental build and deployment tool from the Tencent Mu
 
 Jugg only requires an IDE plugin. It does not modify Gradle scripts or require an SDK integration. A Jugg Run Configuration coexists with the native App Run Configuration: select Jugg for incremental compilation and deployment, or switch back to the native App configuration at any time to use the original Android Studio / Gradle build, installation, and launch flow. Jugg does not take over that native Run. Select the Jugg configuration again to resume the incremental flow; when a project change falls outside the incremental path, Jugg itself can also fall back to Gradle and establish a new baseline.
 
+- [JetBrains Marketplace](https://plugins.jetbrains.com/plugin/34099-jugg)
 - [Download the latest stable release](https://github.com/tencentmusic/jugg/releases/latest)
 - [Technical overview](https://juejin.cn/post/7680996030843125796)
 - [Watch the demo](https://www.bilibili.com/video/BV1W3411C7PU/)
@@ -79,7 +80,7 @@ Versions outside these ranges may still work, but they can contain compatibility
 
 ## Quick start
 
-1. Download and install the plugin from [Releases](https://github.com/tencentmusic/jugg/releases/latest).
+1. In Android Studio, open **Settings/Preferences -> Plugins -> Marketplace**, search for `Jugg`, and install it. Alternatively, download a ZIP from [Releases](https://github.com/tencentmusic/jugg/releases/latest) and use **Install Plugin from Disk...**.
 2. Open an existing Android project and create or select a Jugg Run Configuration.
 3. The first Run uses Gradle to establish a trusted baseline. After that, modify source code or resources and click Run again to see the incremental result.
 
@@ -89,7 +90,7 @@ See [Getting started](https://tencentmusic.github.io/jugg/onboarding/) for the c
 
 Jugg provides the `jugg-android-dev-loop` Agent Skill and the `jugg` CLI so AI coding assistants, terminal users, and scripts can use the same build, deployment, testing, runtime inspection, and UI automation capabilities as the IDE plugin. The Skill guides an agent through the complete **edit -> incremental compile -> deploy -> verify -> iterate** workflow, while the CLI wraps the local Jugg MCP service with project discovery, asynchronous task polling, and stable terminal output.
 
-The installer currently supports Codex, Claude Code, Gemini, CodeBuddy, and Cursor:
+The installer currently supports Codex, Claude Code, Gemini (including Anti-gravity when its configuration directory exists), CodeBuddy, and Cursor:
 
 1. Open the Android project in Android Studio and initialize Jugg.
 2. Open Search Everywhere and run `Install Jugg Skills`, or select **Jugg panel -> More Options -> Tools -> Install Jugg Skills**.
@@ -105,11 +106,11 @@ jugg instrument --source-path app/src/androidTest/java/com/example/FooTest.kt
 jugg layout-dump
 ```
 
-The target project must remain open and initialized in the IDE because the CLI calls the local Jugg plugin runtime. See the [CLI guide](https://tencentmusic.github.io/jugg/guide/cli) and [Agent Skills](https://tencentmusic.github.io/jugg/capabilities/tools/agent-skills) for installation details, command modes, and workflow boundaries.
+The CLI uses the initialized IDEA runtime while the project is open; the standalone runtime can also compile and deploy without Android Studio. See the [CLI guide](https://tencentmusic.github.io/jugg/guide/cli) and [Agent Skills](https://tencentmusic.github.io/jugg/capabilities/tools/agent-skills) for installation details, command modes, and workflow boundaries.
 
 ## Network and diagnostic privacy
 
-The standard `buildPlugin` artifact contains no predefined Jugg backend configuration and runs offline by default. Users can still configure a Custom Server.
+The standard `buildPlugin` artifact contains no predefined Jugg backend configuration and does not automatically contact a Jugg backend. The explicit **Check updates** action can query JetBrains Marketplace and GitHub. Users can still configure a Custom Server.
 
 Issue reports collect only privacy-redacted diagnostic files from an explicit allowlist. Before upload, Jugg shows the exact destination and file list. Reports can also be saved locally without sending a network request.
 

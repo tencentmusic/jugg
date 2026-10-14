@@ -1,6 +1,6 @@
 # Compilation System: Control Flow
 
-> Last verified: 2026-10-07
+> Last verified: 2026-10-14
 > Consistency rule: If documentation conflicts with code, code takes precedence.
 
 ## 1. Scope
@@ -18,6 +18,7 @@ This page explains the incremental-versus-Gradle decision, stage and deployment 
 | `CompileTask`, `CompileResult`, `CompileOutput` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/ICompiler.kt` | Carry inputs, per-file outcomes, outputs, cancellation, and APK ownership across stages |
 | `DeployFileStateTracker`, `DeployFileManager` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/` | Own pending, compiled, undeployed, and staging state across rounds and Runs |
 | `ExternalBuildCompiler`, `ExternalBuildTaskRunner` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/external/` | Run current-variant Flutter/native Gradle tasks and return deployable assets/native libraries |
+| `GitFileChangesDetector` | `main/src/main/java/com/sickworm/intellij/jugg/project/change/GitFileChangesDetector.kt` | Synchronously publishes missed changes after a Git HEAD change and advances the HEAD baseline only after successful refresh |
 | `GitChangesCompileChecker`, `GitChangesRetryResolver` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/` | Detect missed Git changes or repair a missing-source failure |
 | `GradleWrapperRepairer` | `main/src/main/java/com/sickworm/intellij/jugg/gradle/compile/GradleWrapperRepairer.kt` | Repairs a declared local Gradle Wrapper before either Host starts a full build |
 
@@ -40,7 +41,10 @@ This page explains the incremental-versus-Gradle decision, stage and deployment 
 JuggCompilerHelper.compile()
   -> record LastCompileTimestampRegistry before either compile path; MCP status exposes lastCompileTime
   -> wait for initialization and pending file events before reading change state
-  -> preprocessIncrementalCompile(): start nonblocking Git check
+  -> preprocessIncrementalCompile(): GitFileChangesDetector.refreshChangedFilesIfHeadChanged() checks every Git root HEAD synchronously
+     -> unchanged HEAD: continue; changed HEAD: publish missed changes before reading inputs
+     -> confirmed HEAD change with failed refresh: request Gradle
+     -> start the nonblocking full Git check for uncommitted changes and missed events
      -> explicit Force Gradle / incompatible external-build inputs
      -> BuildTarget or full-build command changed
      -> missing full-build baseline or unavailable project info
@@ -55,7 +59,7 @@ JuggCompilerHelper.compile()
   -> non-null precheck result: run Gradle and refresh baseline
 ```
 
-The excessive-change prompt's **Continue** applies only to this Run; later build/dependency checks can still require Gradle. A previous failed full build and a missing baseline force a build directly. Incremental source errors normally fail the current Run and do not automatically start Gradle. The next Run may choose fallback under the no-change policy. A no-change Run can instead deploy directly for first run on a device, project switch, Debug, or androidTest, or follow the user's fallback/dry-deploy choice. Direct zero-file paths notify `Compiling 0 files...`.
+The excessive-change confirmation is enabled by default; disabling `isConfirmFallbackWhenTooManyChanges` requests Gradle directly. The prompt's **Continue** applies only to this Run; later build/dependency checks can still require Gradle. A previous failed full build and a missing baseline force a build directly. Incremental source errors normally fail the current Run and do not automatically start Gradle. The next Run may choose fallback under the no-change policy. A no-change Run can instead deploy directly for first run on a device, project switch, Debug, or androidTest, or follow the user's fallback/dry-deploy choice. A direct-deploy notification counts already compiled, undeployed files; it reports zero only when none exist and does not mean those files were recompiled in this Run.
 
 `checkFallback()` is a side-effect-free status precheck: baseline, project info, device/deploy state, then excessive changes. It has no Run options or dialogs, so it cannot report Force Gradle, a BuildTarget/command switch, or dependency confirmation. Interpret its reason as a status prediction, not the actual Run decision. MCP/CLI `isSkipDeploy` skips deployment after compilation; it does not bypass `updateDeployState()` or the compile fallback decision.
 
@@ -85,7 +89,7 @@ Compose-generated classes and DataBinding/ViewBinding sources reenter source com
 
 Effect propagation uses `DeployFileManager`'s class/dex impact result. `ContinueCompileEffectFilter` excludes the previous round's source, except Kotlin top-level facade callers identified from `.kotlin_module`, and suppresses an effect key already satisfied in this session. A new structural trigger can recompile the same caller later; recursive recompilation does not feed those callers back into const-reference analysis as new user edits. Too many propagated files can make this Run fall back. If cancellation interrupts a recursive round, the first round rolls back its original files and clears staging.
 
-The asynchronous Git check reads changed paths since the last full build; it does not validate the APK or deployment history. A failed query only loses that auxiliary check and cannot invalidate deploy history or Compile Context. After compilation, only a completed result is consumed, and it starts another incremental pass only for files still **newly pending** in `DeployFileManager`; an unfinished query is not awaited or carried into the next Run. `GitChangesRetryResolver` can refresh Git after an unresolved-reference failure; the resolver chain then retries once. Kotlin compiler compatibility retries occur inside `KotlinCompilerInvoker`, outside this chain.
+`GitFileChangesDetector.gitHeads` advances only after a successful synchronous refresh. An IDE event noticing a changed HEAD does not advance it before the delayed refresh, so an immediate Run still sees the gap. A failed refresh retains the old HEAD for a later Run. The HEAD check reuses cached repositories without scanning the working tree. The asynchronous Git check reads changed paths since the last full build; it does not validate the APK or deployment history. A failed query only loses that auxiliary check and cannot invalidate deploy history or Compile Context. After compilation, only a completed result is consumed, and it starts another incremental pass only for files still **newly pending** in `DeployFileManager`; an unfinished query is not awaited or carried into the next Run. `GitChangesRetryResolver` can refresh Git after an unresolved-reference failure; the resolver chain then retries once. Kotlin compiler compatibility retries occur inside `KotlinCompilerInvoker`, outside this chain.
 
 ## 5. Cross-File Boundaries
 

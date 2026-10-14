@@ -1,6 +1,6 @@
 ---
 title: 首次运行
-description: 说明第一次点击 Jugg Run 时会发生什么、如何判断结果，以及哪些情况需要主动回退 Gradle。
+description: 建立 Gradle 基线、验证首次 Run 的结果，并理解后续增量运行。
 status: active
 tags:
   - onboarding
@@ -9,75 +9,72 @@ tags:
 
 # 首次运行
 
-安装插件并等待工程 Sync 完成后，可以用 Jugg 跑一次 App。第一次运行要建立 Gradle 基线和部署状态，不以增量速度为目标。
+在完成 Jugg 插件安装并等待工程 Sync 结束后，即可开始首次运行。首次运行的核心目标是**构建完整 APK 并建立增量编译基线与部署状态**，此轮耗时等同于一次常规 Gradle 构建。
 
-## 点击 Run 前
+## 1. 运行前检查
 
-点击 Run 前先确认：
+点击 Run 前，请快速确认以下状态：
 
-1. 运行配置选择的是 `jugg:模块名`，不是原生 App 配置。
-2. 已选择目标设备，设备 Android 版本为 Android 8 或以上。
-3. 工程 Sync 已完成，没有正在进行的 Gradle import。
+1. **运行配置**：工具栏选中 `jugg:<moduleName>`（而非原生 App 配置）。
+2. **目标设备**：已连接 Android 8.0 (API 26) 及以上的物理设备或模拟器。
+3. **Sync 状态**：Android Studio 右下角无正在运行的 Gradle Sync 或索引任务。
 
-确认后点击 Android Studio 的 Run 按钮。Jugg Run 支持取消；如果发现选错设备或配置，直接停止本轮运行。
+确认后点击 Android Studio 工具栏的绿色 **Run** 按钮。如果选错设备或目标，可随时点击红色停止按钮中断。
 
-## 首次运行会发生什么
+## 2. 首次运行机制：建立 Gradle Baseline 基线
+
+首次执行时，Jugg 会按以下机制自动完成初始化：
 
 ```text
 点击 Jugg Run
-  -> 检查工程和设备状态
-  -> 首次缺少增量基线，回退 Gradle 编译
-  -> 编译并安装 APK
-  -> 后台收集后续增量编译需要的产物
-  -> 后续小改动优先进入增量编译和部署
+  -> 检测本地环境与设备连接状态
+  -> 检测到尚无增量基线，自动调用 Gradle 编译完整 APK
+  -> 安装并启动目标 App
+  -> 后台收集 Class 关系、资源映射与 R 文件等后续增量所需基线产物
+  -> 基线建立完毕，后续受支持的代码与资源修改可走增量编译
 ```
 
-首次运行、修改 `build.gradle`、依赖变化或切分支后，Jugg 会在基线不可信时回退到 Gradle。回退时会提示原因。
+> [!NOTE]
+> 没有可用基线时，首次 Run 需要完整 Gradle 构建。后续 Run 可在基线有效时增量编译；构建配置或依赖变化、不受支持的处理，以及主动回退，都可能需要再次完整构建。
 
-## 日常修改后怎么用
+## 3. 验证成功标志：控制台日志特征
 
-小范围修改代码、资源、layout 或 assets 后，继续点击同一个 Jugg Run Configuration。Jugg 会根据文件变化选择执行路径：
+首次运行成功后，Android Studio 底部的 **Run** 工具窗口会输出 Jugg 的编排进度：
 
-| 修改类型 | 常见结果 |
+```text
+Gradle BUILD_AND_INSTALL SUCCESSFUL in <elapsed>s.
+App launched.
+```
+
+这些日志确认 Gradle 构建、安装和启动成功。基线准备还会在后台继续；仅凭这些日志不能确认增量编译已经就绪。后续 Run 的结果见[运行 App](../guide/run.md)。
+
+## 4. 日常开发：3 秒增量热更与生效路径
+
+在基线建立后，日常对 Java、Kotlin、XML 布局或 Assets 的小范围修改，直接继续点击 **Jugg Run**（或快捷键 `Ctrl + R` / `Shift + F10`）：
+
+| 修改场景 | Jugg 决策路径 | 预期结果 |
+|---|---|---|
+| **修改方法体** | 增量编译变化的 class；受支持时走 Hot Reload | 可避免重启 App；设备兼容性或其它变化仍可能要求重启 |
+| **修改 XML Layout / 图片资源** | 编译并部署变化的资源 | 受支持时刷新 Activity，否则重启 App |
+| **新增方法 / 修改类签名 / 新增 Activity** | 受支持时走 Hot Fix 并重启 App；必要时回退 Gradle | 重启后进程状态重置；Activity 声明还可能需要处理 Manifest |
+| **修改 `build.gradle` / 依赖库** | 判断是否需要完整 Gradle 构建，并刷新基线 | 准备好完整构建；总耗时取决于工程 |
+
+## 5. 什么时候需要主动回退 Gradle
+
+在以下情况下，推荐主动使用原生 Gradle 构建刷新基线：
+
+| 场景 | 推荐操作 |
 |---|---|
-| Java / Kotlin 方法体、小范围资源修改 | 增量编译后热部署 |
-| 需要重启才能生效的代码 | 编译后重启 App |
-| Gradle、依赖或基线缺失 | 回退 Gradle 编译 |
-| 明确不支持的场景 | 提示失败或建议 Gradle 对照 |
+| **手动执行了 `clean` 或删除了 `build` 目录** | 此时增量基线已丢失，直接跑一次原生 App Run 重建基线 |
+| **切换了 Git 分支或大版本升级依赖** | 依赖版本与 Manifest 大幅变动，建议完整构建一次 |
+| **需要验证未适配的复杂注解处理器** | 先用原生 Gradle 构建验证生成代码正确性 |
 
-运行结束后，以 Run tool window 里的最终结果为准。
+---
 
-## 先记住这些限制
+## 下一步指引
 
-- Jugg 会忽略删除操作。删除类、资源或 Manifest 节点后，如果要确认旧内容真的不存在，做一次完整 Gradle 构建或重新安装。
-- 反射相关逻辑会绕过部分静态影响分析，删除验证时不要只看增量结果。
-- 注解器只支持已适配能力。已有生成代码不受影响；新增或修改未适配注解时，先用 Gradle 构建确认结果。
-- 清除 App 数据会导致部署历史丢失。重新点击一次 Run 后，Jugg 会恢复部署状态。
-- 如果增量结果不符合预期，先跑一次 Gradle 对照；确认是 Jugg 问题后再上传日志。
+基线已成功建立！继续探索 Jugg 丰富的高效开发能力：
 
-## 主动回退 Gradle
-
-遇到下面情况，先主动回退：
-
-| 场景 | 原因 |
-|---|---|
-| 手动清理过 `build` 目录 | 增量编译依赖的产物缺失 |
-| 改了构建脚本、插件、依赖版本 | 需要完整 Gradle pipeline 重新计算 |
-| 增量编译失败且无法自动恢复 | 先重建基线，再继续增量 |
-| 怀疑本轮运行结果不正确 | 用 Gradle 结果做对照 |
-
-在没有文件修改的情况下再次点击 Jugg Run，也可以选择降级到 Gradle。这个入口适合手动刷新基线。
-
-## 反馈问题
-
-遇到问题时，优先用 [报告问题](../guide/report-issue.md) 上传日志。上传完成后，把 Issue ID 和操作步骤发给维护者。
-
-本地日志入口是 `build/jugg/log/compile_latest.log`。
-
-## 下一步
-
-- [运行 App](../guide/run.md)
-- [报告问题](../guide/report-issue.md)
-- [编译失败](../troubleshooting/compile-failed.md)
-- [改动没有生效](../troubleshooting/changes-not-applied.md)
-- [无法安装、启动或进入 Debug](../troubleshooting/app-cannot-run.md)
+- 📖 **[日常运行与热更指南](../guide/run.md)**：深入了解热更模式与多设备运行
+- ⚡ **[Jugg CLI 命令行实战](../guide/cli.md)**：在终端或脚本中享受 3 秒极速构建
+- 🛠️ **[支持的打包方式与兼容性](../troubleshooting/supported-packaging.md)**：查看混淆、AabResGuard 与 Dynamic Feature 支持

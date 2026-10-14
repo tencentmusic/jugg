@@ -1,5 +1,6 @@
 ---
-title: Jugg Wiki
+title: 'Jugg: Android Studio incremental compilation and hot reload'
+titleTemplate: false
 description: See everyday changes in large Android projects take effect in 3 seconds.
 layout: page
 ---
@@ -119,6 +120,7 @@ layout: page
       <a href="./capabilities/"><strong>Check capabilities</strong><span>Source, resources, deploy, and test support</span></a>
       <a href="./troubleshooting/supported-packaging"><strong>FAQ</strong><span>Packaging limits, failure symptoms, and recovery actions</span></a>
       <a href="./capabilities/tools/agent-skills"><strong>CLI and Agent Skills</strong><span>Connect build, deploy, and verification to automation</span></a>
+      <a href="./articles/"><strong>Technical Articles</strong><span>Jugg 2.0 / 3.0 architectural evolution and build acceleration</span></a>
     </nav>
   </section>
 

@@ -177,6 +177,46 @@ class HookReminderDecisionTest(unittest.TestCase):
         self.assertNotIn("gradleBlockedFingerprint", state)
         self.assertEqual(str(Path(cwd).resolve()), state.get("projectCwd"))
 
+    def test_start_hook_preserves_antigravity_write_state_between_invocations(self):
+        script = Path(__file__).resolve().parent.parent / "start.py"
+        conversation_id = "agy-start-preserve"
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as project:
+            state_file = _state_file(home, project, conversation_id)
+            state_file.parent.mkdir(parents=True, exist_ok=True)
+            state_file.write_text(
+                json.dumps(
+                    {
+                        "projectCwd": str(Path(project).resolve()),
+                        "sessionWriteSeen": True,
+                        "lastWriteTimeMs": 4102444800000,
+                        SESSION_WRITE_FILE_NAMES_KEY: ["HookEdit.kt"],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            payload = {
+                "conversationId": conversation_id,
+                "workspacePaths": [project],
+                "invocationNum": 1,
+                "initialNumSteps": 10,
+            }
+
+            result = subprocess.run(
+                [sys.executable, str(script), "--client", "antigravity"],
+                input=json.dumps(payload),
+                capture_output=True,
+                text=True,
+                cwd=Path(home),
+                env=_hook_env(home),
+                check=False,
+            )
+            state = json.loads(state_file.read_text(encoding="utf-8"))
+
+        self.assertEqual(0, result.returncode)
+        self.assertEqual({}, json.loads(result.stdout))
+        self.assertTrue(state.get("sessionWriteSeen"))
+        self.assertEqual(["HookEdit.kt"], state.get(SESSION_WRITE_FILE_NAMES_KEY))
+
     def test_edit_hook_records_session_write_without_status_lookup(self):
         script = Path(__file__).resolve().parent.parent / "edit.py"
         session_id = "s-1"
@@ -708,6 +748,156 @@ class HookReminderDecisionTest(unittest.TestCase):
         self.assertTrue(state.get("sessionWriteSeen"))
         self.assertIsInstance(state.get("lastWriteTimeMs"), int)
         self.assertEqual(["HookEdit.kt"], state.get(SESSION_WRITE_FILE_NAMES_KEY))
+
+    def test_edit_hook_records_antigravity_write_in_workspace(self):
+        script = Path(__file__).resolve().parent.parent / "edit.py"
+        conversation_id = "agy-edit"
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as project:
+            project_path = Path(project)
+            (project_path / "settings.gradle").write_text("", encoding="utf-8")
+            source = project_path / "app/src/main/java/com/example/HookEdit.kt"
+            source.parent.mkdir(parents=True)
+            payload = {
+                "conversationId": conversation_id,
+                "workspacePaths": [project],
+                "toolCall": {
+                    "name": "write_to_file",
+                    "args": {"TargetFile": json.dumps(str(source))},
+                },
+            }
+
+            result = subprocess.run(
+                [sys.executable, str(script), "--client", "antigravity"],
+                input=json.dumps(payload),
+                capture_output=True,
+                text=True,
+                cwd=Path(home),
+                env=_hook_env(home),
+                check=False,
+            )
+            state = json.loads(_state_file(home, project, conversation_id).read_text(encoding="utf-8"))
+
+        self.assertEqual(0, result.returncode)
+        self.assertEqual("allow", json.loads(result.stdout).get("decision"))
+        self.assertTrue(state.get("sessionWriteSeen"))
+        self.assertEqual(["HookEdit.kt"], state.get(SESSION_WRITE_FILE_NAMES_KEY))
+
+    def test_edit_hook_allows_antigravity_non_source_write(self):
+        script = Path(__file__).resolve().parent.parent / "edit.py"
+        payload = {
+            "conversationId": "agy-edit-non-source",
+            "workspacePaths": ["/tmp"],
+            "toolCall": {
+                "name": "write_to_file",
+                "args": {"TargetFile": json.dumps("/tmp/antigravity_test_write.txt")},
+            },
+        }
+        with tempfile.TemporaryDirectory() as home:
+            result = subprocess.run(
+                [sys.executable, str(script), "--client", "antigravity"],
+                input=json.dumps(payload),
+                capture_output=True,
+                text=True,
+                cwd=Path(home),
+                env=_hook_env(home),
+                check=False,
+            )
+
+        self.assertEqual(0, result.returncode)
+        self.assertEqual("allow", json.loads(result.stdout).get("decision"))
+
+    def test_command_hook_denies_antigravity_raw_gradle_in_workspace(self):
+        script = Path(__file__).resolve().parent.parent / "command.py"
+        conversation_id = "agy-command"
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as project:
+            project_path = Path(project)
+            (project_path / "settings.gradle").write_text("", encoding="utf-8")
+            state_file = _state_file(home, project, conversation_id)
+            state_file.parent.mkdir(parents=True, exist_ok=True)
+            state_file.write_text(
+                json.dumps(
+                    {
+                        "sessionWriteSeen": True,
+                        "lastWriteTimeMs": 4102444800000,
+                        SESSION_WRITE_FILE_NAMES_KEY: ["HookEdit.kt"],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            _write_fake_jugg_cli(
+                home,
+                total=1,
+                files=["app/src/main/java/com/example/HookEdit.kt"],
+                expected_cwd=str(project_path.resolve()),
+            )
+            payload = {
+                "conversationId": conversation_id,
+                "workspacePaths": [project],
+                "toolCall": {
+                    "name": "run_command",
+                    "args": {"CommandLine": json.dumps("./gradlew :app:compileDebugKotlin")},
+                },
+            }
+
+            result = subprocess.run(
+                [sys.executable, str(script), "--client", "antigravity"],
+                input=json.dumps(payload),
+                capture_output=True,
+                text=True,
+                cwd=Path(home),
+                env=_hook_env(home),
+                check=False,
+            )
+            response = json.loads(result.stdout)
+
+        self.assertEqual(0, result.returncode)
+        self.assertEqual("deny", response.get("decision"))
+        self.assertIn("COMMAND GATE", response.get("reason", ""))
+
+    def test_stop_hook_continues_antigravity_when_write_is_pending(self):
+        script = Path(__file__).resolve().parent.parent / "stop.py"
+        conversation_id = "agy-stop"
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as project:
+            project_path = Path(project)
+            (project_path / "settings.gradle").write_text("", encoding="utf-8")
+            state_file = _state_file(home, project, conversation_id)
+            state_file.parent.mkdir(parents=True, exist_ok=True)
+            state_file.write_text(
+                json.dumps(
+                    {
+                        "sessionWriteSeen": True,
+                        "lastWriteTimeMs": 4102444800000,
+                        SESSION_WRITE_FILE_NAMES_KEY: ["HookEdit.kt"],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            _write_fake_jugg_cli(
+                home,
+                total=1,
+                files=["app/src/main/java/com/example/HookEdit.kt"],
+                expected_cwd=str(project_path.resolve()),
+            )
+            payload = {
+                "conversationId": conversation_id,
+                "workspacePaths": [project],
+                "terminationReason": "model_stop",
+            }
+
+            result = subprocess.run(
+                [sys.executable, str(script), "--client", "antigravity"],
+                input=json.dumps(payload),
+                capture_output=True,
+                text=True,
+                cwd=Path(home),
+                env=_hook_env(home),
+                check=False,
+            )
+            response = json.loads(result.stdout)
+
+        self.assertEqual(0, result.returncode)
+        self.assertEqual("continue", response.get("decision"))
+        self.assertIn("STOP GATE", response.get("reason", ""))
 
     def test_command_hook_is_raw_gradle_detection(self):
         mod = _load_hook_module("command.py")

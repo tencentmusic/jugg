@@ -6,7 +6,10 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
+import java.io.File
 
 /**
  * L1 test for [KotlinCompilerHostCompat].
@@ -18,21 +21,27 @@ import org.junit.Test
  */
 class KotlinCompilerHostCompatTest {
 
+    @get:Rule val temporaryFolder = TemporaryFolder()
+
     private val javaVersionClass =
         Class.forName("org.jetbrains.kotlin.com.intellij.util.lang.JavaVersion")
     private val currentField = javaVersionClass.getDeclaredField("current")
         .apply { isAccessible = true }
     private lateinit var originalJavaVersion: String
+    private var originalIdeaHomePath: String? = null
 
     @Before
     fun setUp() {
         originalJavaVersion = System.getProperty("java.version")
+        originalIdeaHomePath = System.getProperty("idea.home.path")
         currentField.set(null, null)
     }
 
     @After
     fun tearDown() {
         System.setProperty("java.version", originalJavaVersion)
+        originalIdeaHomePath?.let { System.setProperty("idea.home.path", it) }
+            ?: System.clearProperty("idea.home.path")
         currentField.set(null, null)
     }
 
@@ -96,5 +105,43 @@ class KotlinCompilerHostCompatTest {
         """.trimIndent()
 
         assertFalse(KotlinCompilerHostCompat.isIdeFileSystemCloseConflict(message))
+    }
+
+    @Test
+    fun `keeps configured IDE home when it is valid`() {
+        val configured = createIdeaHome("configured studio")
+        val platform = createIdeaHome("platform studio")
+
+        assertEquals(configured.path, KotlinCompilerHostCompat.resolveIdeaHomePath(configured.path, platform.path))
+    }
+
+    @Test
+    fun `keeps the existing valid IDE home system property`() {
+        val configured = createIdeaHome("configured studio")
+        System.setProperty("idea.home.path", configured.path)
+
+        assertEquals(configured.path, KotlinCompilerHostCompat.ensureIdeaHomePath(TestGlobal.logger))
+        assertEquals(configured.path, System.getProperty("idea.home.path"))
+    }
+
+    @Test
+    fun `uses platform IDE home when configured home is missing or invalid`() {
+        val platform = createIdeaHome("platform studio")
+        val invalid = temporaryFolder.newFolder("invalid home")
+
+        assertEquals(platform.path, KotlinCompilerHostCompat.resolveIdeaHomePath(null, platform.path))
+        assertEquals(platform.path, KotlinCompilerHostCompat.resolveIdeaHomePath(invalid.path, platform.path))
+    }
+
+    @Test
+    fun `does not invent IDE home when both candidates are invalid`() {
+        val invalid = temporaryFolder.newFolder("invalid home")
+        assertEquals(null, KotlinCompilerHostCompat.resolveIdeaHomePath(null, null))
+        assertEquals(null, KotlinCompilerHostCompat.resolveIdeaHomePath(invalid.path, invalid.path))
+    }
+
+    private fun createIdeaHome(name: String): File = temporaryFolder.newFolder(name).also {
+        File(it, "bin").mkdirs()
+        File(it, "bin/idea.properties").writeText("")
     }
 }

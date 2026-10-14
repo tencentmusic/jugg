@@ -8,4 +8,5 @@ if (providers.gradleProperty('juggSplitClassLoaderFixture').orNull == 'true') {
 if (providers.gradleProperty('excludeKmpCompose').orNull != 'true') {
     include ':kmpCompose'
 }
+include ':kmpAnnotation'
 rootProject.name='My Application'

@@ -219,6 +219,46 @@ class BaseCompileContextModuleDependenciesTest {
         }
     }
 
+    @Test
+    fun `kmp jvm dependency classes included in module dependencies`() {
+        withRoot { root ->
+            val projectDir = File(root, "main").apply { mkdirs() }
+            val applicationModule = module(projectDir, File(projectDir, "app"), "app", ModuleInfo.Type.Application)
+
+            // infra:module-hub-annotation is a KMP module with jvm() target
+            val kmpModuleDir = File(projectDir, "infra/module-hub-annotation")
+            val kmpModule = module(projectDir, kmpModuleDir, "infra.module-hub-annotation", ModuleInfo.Type.Unknown)
+
+            // Simulate Gradle build output for KMP JVM target:
+            // 1) classes are in build/classes/kotlin/jvm/main
+            val kmpJvmClasses = File(kmpModuleDir, "build/classes/kotlin/jvm/main").apply { mkdirs() }
+            // 2) jvmJar task output directory in build/tmp/jvmJar
+            File(kmpModuleDir, "build/tmp/jvmJar").mkdirs()
+
+            val consumerModuleDir = File(projectDir, "module/map")
+            val consumerModule = module(projectDir, consumerModuleDir, "module.map", ModuleInfo.Type.Library).copy(
+                moduleDependencies = listOf(ModuleDependency(kmpModule.name)),
+            )
+
+            val context = createContext(
+                root,
+                projectDir,
+                linkedMapOf(
+                    applicationModule.name to applicationModule,
+                    consumerModule.name to consumerModule,
+                    kmpModule.name to kmpModule,
+                ),
+            )
+            val task = CompileTask(emptyList(), File(root, "output"), CompileStatusHolder.DEFAULT)
+
+            // Trigger classpath resolution
+            val dependencies = context.getModuleDependencies(consumerModule, task)
+
+            // Assert that KMP JVM output is successfully included in consumer module's classpath
+            assertTrue(dependencies.contains(kmpJvmClasses.absolutePath))
+        }
+    }
+
     private fun withRoot(block: (File) -> Unit) {
         val root = Files.createTempDirectory("jugg_module_r_provider_").toFile()
         try {

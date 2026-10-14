@@ -102,4 +102,7 @@ Gradle 回退用于重新建立可信起点。完整构建会刷新工程快照�
 - [部署策略](./deploy-strategy.md)：部署等级、设备能力和生效方式。
 - [部署自愈机制](./deploy-self-healing.md)：部署产物怎样通过重试、切换策略和重装继续生效。
 - [App 进程内 Jugg runtime](./jugg-runtime.md)：局部代码和资源如何在应用进程中加载。
+- [Jugg JVMTI Agent 运行机制](./jugg-jvmti-agent.md)：Android 8+ 运行时方法与类热替换核心实现。
 - [Gradle 回退与基线重建](./gradle-fallback-baseline.md)：何时刷新完整构建基线。
+- [核心术语表](../reference/glossary.md)：快速掌握 Baseline、Hot Reload、Hot Fix 等核心名词定义。
+- [深度技术演进专栏](../articles/)：从秒级编译到 Agent 自验证的技术架构长文。

@@ -1,6 +1,6 @@
 # Deployment System: Core Deployment Mechanisms
 
-> Last verified: 2026-10-07
+> Last verified: 2026-10-14
 > Consistency rule: If documentation conflicts with code, code takes precedence.
 
 ## 1. Scope
@@ -61,7 +61,7 @@ Before an incremental deploy following a dependency change, `JuggDeployOrchestra
 
 An androidTest launch can fail after incremental deployment already changed the device. On the last target, `JuggDeployerHelper` still commits that deploy state before returning the test-launch failure, so a later run does not replay already deployed files. Diagnose the test-launch result separately from the deployment checkpoint.
 
-The project deployment snapshot is `<projectDir>/build/jugg/database/deploy_cache.db`. `JuggDeploymentService` caches parsed entries only within one Runtime and invalidates them when the project owner, disk generation, or executor changes; disk writes are serialized under the project lock and replace the snapshot atomically. A missing or incompatible cache is a recovery input, not permission to invent an overlay baseline. History, cache, and device overlay ID must agree. For a base install, the expected device overlay ID is empty even though the cache stores a base-install ID.
+The project deployment snapshot is `<projectDir>/build/jugg/database/deploy_cache.db`. `JuggDeploymentService` caches parsed entries only within one Runtime and invalidates them when the project owner, disk generation, or executor changes; disk writes are serialized under the project lock and replace the snapshot atomically. A missing or incompatible cache is a recovery input, not permission to invent an overlay baseline. A referenced APK that no longer exists raises `FileNotFoundException` from either disk or memory cache; overlay-ID probing treats it as unavailable, while full swap converts it to overlay mismatch so the existing reinstall recovery runs. Other parsing failures retain their original exception. History, cache, and device overlay ID must agree. For a base install, the expected device overlay ID is empty even though the cache stores a base-install ID.
 
 ## 4. Install and Incremental Paths
 

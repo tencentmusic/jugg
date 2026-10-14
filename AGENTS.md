@@ -52,14 +52,28 @@
 
 ## Commit conventions
 
-1. After completing a task, commit only its changes. Write the message in English with title `[prefix] subject`; the subject starts with a lowercase letter and has no trailing period.
+1. After completing a task, commit only its changes. Write the message in English with title `[prefix][module] subject`; the tags are adjacent and each appears once, and the subject starts with a lowercase letter and has no trailing period.
 2. Choose the prefix by user-observable behavior:
    - `[bugfix]`: an existing capability has a defect, unexpected behavior, or a result contrary to expectations.
    - `[feature]`: a new user-visible capability.
    - `[optimize]`: an observable gain in readability, fault tolerance, reliability, convenience, performance, or time for behavior that was already correct and usable; not for build-system optimization.
    - `[refactor]`, `[docs]`, `[test]`, and `[other]`: no-behavior refactoring, documentation only, tests only, and other changes respectively.
-3. Prefer a title describing the user scenario and observable outcome, not internal implementation. If there is no direct user, write from the caller, maintainer, Agent, or operator perspective. A `[bugfix]` title normally follows `[bugfix] fix <problem manifestation> when/after/for <scenario>`, not `prevent ... from ...` by default. A `[optimize]` title should describe the improvement for a scenario; wording alone must not disguise a bug fix as optimization.
-4. If the title cannot explain both cause and implementation, add a natural-language body after a blank line. Use `Problem:`, `Cause:`, or `Solution:` headings only for longer bodies.
+3. The secondary `[module]` describes a functional domain, not a Gradle module, directory, or task state. Choose the most specific existing tag. For a cross-domain change, use the primary behavior owner; split unrelated changes with no primary owner. Use lowercase English and these stable names:
+   - Compilation and projects: `[compile]`, `[native build]`, `[dependency incremental]`, `[kmp opt-in]`, `[hilt]`, `[project]`.
+   - Deployment: `[deploy]`, `[system app]`, `[custom install]`.
+   - IDE and tools: `[ide]`, `[settings]`, `[compat]`, `[mcp]`, `[cli]`, `[agent]`, `[diagnostics]`.
+   - Engineering and content: `[build]` (repository build, CI, packaging), `[release]`, `[test suite]`, `[wiki]`, `[docs]`, `[repo]`.
+   - Before adding a domain that fits none of these tags, define its stable name and responsibility and update this list and the contribution guide.
+4. Prefer a title describing the user scenario and observable outcome, not internal implementation. If there is no direct user, write from the caller, maintainer, Agent, or operator perspective. A `[bugfix]` title normally follows `[bugfix][module] fix <problem manifestation> when/after/for <scenario>`, not `prevent ... from ...` by default. An `[optimize]` title should describe the improvement for a scenario; wording alone must not disguise a bug fix as optimization.
+5. If the title cannot explain both cause and implementation, add a natural-language body after a blank line. Use `Problem:`, `Cause:`, or `Solution:` headings only for longer bodies.
+
+## Pull request collaboration
+
+- Target `main` by default unless the maintainer or user specifies another branch.
+- PR branches use `<type>/<topic>`: the type matches the primary commit prefix (`feature`, `bugfix`, `optimize`, `refactor`, `docs`, `test`, or `other`), and the topic is concise lowercase kebab-case, for example `bugfix/idea-home-compat`.
+- Except for a same-repository release PR merging `develop/<version>` into `main`, every PR adds or updates a task plan under `docs/task/YYYY-MM/` and links to that file on the PR branch in its `Task plan` field. Small changes may use short plans. Move an external plan into the repository first and reconcile it with actual changes and verification at completion.
+- The automated Task Plan check applies to every PR target. Release-branch merge PRs are exempt; other PRs must change the linked plan in the same PR.
+- Solve one problem per PR and describe the user scenario, related Issue when applicable, verification evidence, and unfinished checks. The automated `./gradlew :idea:buildPlugin` check does not replace targeted tests or alternative verification. The maintainer reviews and decides whether to merge.
 
 ## Reading a GitHub Issue URL
 
@@ -73,7 +87,7 @@
 For plugin runtime problems such as incremental compilation failure, Android runtime crashes, deployment failure, or unexpected flow:
 
 1. Read `docs/ai/09_plugin_runtime_debug.md` for log structure and common root causes.
-2. Following its path rules, read `{projectDir}/build/jugg/log/compile_latest.log` for the compilation context and failure.
+2. Prefer the same-task logs in an existing ASK AI snapshot or preserved incident. Otherwise follow the path rules from `{projectDir}/build/jugg/log/compile_latest.log` to the actual failure window. A later Run's latest log cannot replace the original incident.
 3. Compare `[ClassName]` tags and timestamps with the relevant incremental-compilation knowledge to identify the root cause. Do not rely only on the surface error message.
 
 ## Mandatory AI workflow
@@ -97,7 +111,7 @@ List every document actually read in steps 1 and 2 under `Basis` in the step 3 c
 
 ### 3. Execute and respond
 
-Every completed task must include this exact section. Combine verification evidence according to task type; omit meaningless `N/A` entries:
+For external read-only Android investigations guided by [local-agent-investigation-guide.md](.agents/skills/issue-handler/references/local-agent-investigation-guide.md), use that guide's concise conclusion, key evidence, and next action without the development checklist; prerequisite reading and evidence requirements still apply. Repository development, maintenance, and other tasks must include this exact section. Combine verification evidence according to task type; omit meaningless `N/A` entries:
 
 ```text
 ### 📋 Task execution checklist

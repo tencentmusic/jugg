@@ -64,6 +64,7 @@ internal class StandaloneProjectServices(
 
     init {
         JuggLogger.register(logKey, pathManager.standaloneCliLogDir)
+        JuggLogger.linkLegacyLogDir(logKey, File(pathManager.legacyLogDir, "standlone_cli"))
         resources.register { JuggLogger.unregister(logKey) }
     }
 

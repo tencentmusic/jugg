@@ -97,7 +97,7 @@ When a Library Test APK is first missing, a remote Gradle build also generates t
 
 | Symptom | Action |
 |---|---|
-| Remote Gradle compilation fails | Check the remote build log, then confirm SDK/JDK/private repository permissions |
+| Remote Gradle compilation fails | See [Remote compilation failed](../troubleshooting/remote-build-failed.md) and check SDK/JDK/repo permissions |
 | Local code appears unresolved but compiles remotely | Download remote generated code or synchronize project information again |
 | A change is not synchronized remotely | Check the synchronization directory, exclusion rules, and current project path |
 | An included-build module is missing | Confirm that the related project is inside the synchronization scope |

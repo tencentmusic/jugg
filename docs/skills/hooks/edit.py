@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 from argparse import ArgumentParser
 from pathlib import Path
@@ -11,9 +12,11 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from hook_common import (
+    decode_json_string_argument,
     debug_log,
     emit_cursor_empty_response,
     extract_session_id,
+    extract_tool_call,
     is_android_source_path,
     mark_session_write_seen,
     payload_debug_suffix,
@@ -124,6 +127,15 @@ def _tool_input_file_path(payload: dict[str, Any]) -> str | None:
     return file_path if isinstance(file_path, str) and file_path.strip() else None
 
 
+def _antigravity_file_path(payload: dict[str, Any]) -> str | None:
+    _, tool_input = extract_tool_call(payload)
+    for key in ("TargetFile", "file_path", "filePath", "path"):
+        value = tool_input.get(key)
+        if isinstance(value, str) and value.strip():
+            return decode_json_string_argument(value).strip()
+    return None
+
+
 def _recorded_write_paths(payload: dict[str, Any], client: str) -> list[str]:
     if client == "codex":
         return [path for path in _codex_apply_patch_paths(payload) if is_android_source_path(path)]
@@ -143,8 +155,15 @@ def _recorded_write_paths(payload: dict[str, Any], client: str) -> list[str]:
         if isinstance(file_path, str) and is_android_source_path(file_path):
             return [file_path]
         return []
+    if client == "antigravity":
+        file_path = _antigravity_file_path(payload)
+        return [file_path] if file_path and is_android_source_path(file_path) else []
     generic_file_path = _tool_input_file_path(payload)
     return [generic_file_path] if generic_file_path else []
+
+
+def _emit_antigravity_allow() -> None:
+    print(json.dumps({"decision": "allow"}, ensure_ascii=False))
 
 
 def main() -> int:
@@ -152,6 +171,8 @@ def main() -> int:
         return _main_impl()
     except Exception:
         debug_log("JUGG-EDIT", "unhandled exception; allowing edit to proceed")
+        if "antigravity" in sys.argv:
+            _emit_antigravity_allow()
         return 0
 
 
@@ -166,8 +187,14 @@ def _main_impl() -> int:
     state = read_hook_state(state_file)
     project_cwd = cwd
     project_cwd_changed = False
-    if args.client == "cursor":
+    if args.client in {"cursor", "antigravity"}:
         project_cwd, project_cwd_changed = remember_project_cwd(state, payload, cwd)
+    if args.client == "antigravity":
+        project_state_file = state_file_path(home, project_cwd, session_id)
+        if project_state_file != state_file:
+            state_file = project_state_file
+            state = read_hook_state(state_file)
+            project_cwd, project_cwd_changed = remember_project_cwd(state, payload, cwd)
 
     recorded_paths = _recorded_write_paths(payload, args.client)
 
@@ -208,6 +235,16 @@ def _main_impl() -> int:
         if project_cwd_changed:
             write_hook_state(state_file, state)
         return 0
+    if args.client == "antigravity" and not recorded_paths:
+        debug_log(
+            "JUGG-EDIT",
+            f"hook triggered cwd={cwd} projectCwd={project_cwd} client={args.client}{payload_suffix}; "
+            "ignored antigravity edit payload outside Android source",
+        )
+        if project_cwd_changed:
+            write_hook_state(state_file, state)
+        _emit_antigravity_allow()
+        return 0
     mark_session_write_seen(state, recorded_paths)
     write_hook_state(state_file, state)
     debug_log(
@@ -215,7 +252,10 @@ def _main_impl() -> int:
         f"hook triggered cwd={cwd} projectCwd={project_cwd} client={args.client}{payload_suffix}; "
         "session write recorded",
     )
-    emit_cursor_empty_response(args.client)
+    if args.client == "antigravity":
+        _emit_antigravity_allow()
+    else:
+        emit_cursor_empty_response(args.client)
     return 0
 
 

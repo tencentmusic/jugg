@@ -112,3 +112,14 @@ jobs:
               --notes-file "$RUNNER_TEMP/release-notes.md"
           fi
           gh release upload "$GITHUB_REF_NAME" idea/build/distributions/*.zip --clobber
+
+      - name: Publish to JetBrains Marketplace
+        env:
+          JETBRAINS_MARKETPLACE_TOKEN: ${{ secrets.JETBRAINS_MARKETPLACE_TOKEN || secrets.JETBRAINS_TOKEN }}
+        shell: bash
+        run: |
+          if [[ -z "$JETBRAINS_MARKETPLACE_TOKEN" ]]; then
+            echo "::error::Missing JetBrains Marketplace token secret (JETBRAINS_MARKETPLACE_TOKEN or JETBRAINS_TOKEN)."
+            exit 1
+          fi
+          ./gradlew :idea:publishPlugin --no-daemon

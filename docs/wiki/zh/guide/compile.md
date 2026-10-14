@@ -114,10 +114,10 @@ build/jugg/log/compile_latest.log
 2. 打开 `build/jugg/log/compile_latest.log`，搜索 `Found incremental compile error`、`aapt2`、`unresolved reference` 等关键词。
 3. 如果是源码或资源本身错误，先修复代码。
 4. 如果是构建脚本、依赖、资源表或 release 混淆相关问题，执行一次 Gradle 构建重新建立基线。
-5. 如果要提交问题，先备份 `build/jugg/log/` 和 `build/jugg/database/`。
+5. 如果要提交问题，保留 `build/jugg/database/`；下一次 Jugg 运行后，仍可通过 `build/jugg/log/` 访问日志。
 
 > [!WARNING]
-> 不建议在没有备份现场的情况下直接删除整个 `build/`。这会让后续排查失去日志和数据库证据。
+> 不建议在没有备份现场的情况下直接删除整个 `build/`。主日志会保留，但数据库证据仍会丢失。
 
 ## 建议的使用习惯
 

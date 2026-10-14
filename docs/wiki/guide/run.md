@@ -76,7 +76,7 @@ Jugg HOT_RELOAD SUCCESSFUL in 3s.
 Gradle BUILD_AND_INSTALL SUCCESSFUL in 42s.
 ```
 
-The current run status and Recent runs in the Jugg control panel also show the duration. This is the duration of the complete run, not only the compilation stage.
+The current run status and Recent runs in the [Jugg Control Panel](./control-panel.md) also show the duration. This is the duration of the complete run, not only the compilation stage.
 
 ## When to use another entry point
 
@@ -85,8 +85,8 @@ The current run status and Recent runs in the Jugg control panel also show the d
 | Clear app data and reinstall | [Clear app data](./clean-data.md) |
 | Run one full Gradle build | [Fall back to Gradle compilation](./downgrade-gradle.md) / `jugg gradle-build` |
 | Enter a breakpoint immediately after a change | Debug |
-| Run `src/androidTest` | Test gutter icon or an Android Test Run Configuration |
-| Trigger a run from an agent or script | `jugg deploy` or the Jugg CLI Skill |
+| Run `src/androidTest` | Test gutter icon or [Android Test](./android-test.md) Run Configuration |
+| Trigger a run from an agent or script | `jugg deploy` or [Jugg CLI Guide](./cli.md) |
 | Restart an app that did not restart after you changed startup initialization logic | [Restart the app](./restart-app.md) |
 
 > [!NOTE]
@@ -101,11 +101,14 @@ The current run status and Recent runs in the Jugg control panel also show the d
 | The run succeeded but the change did not take effect | See [Changes did not take effect](../troubleshooting/changes-not-applied.md) |
 | The app cannot install, launch, or enter Debug | See [The app cannot install, launch, or enter Debug](../troubleshooting/app-cannot-run.md) |
 | The app crashes after deployment | See [The app crashes after deployment](../troubleshooting/runtime-crash.md) |
+| Build or run is stuck / unresponsive | See [Jugg slow or stuck](../troubleshooting/jugg-slow-or-stuck.md) |
 
 If these recovery actions do not resolve the problem, use [Report an issue](./report-issue.md) to upload the diagnostic data.
 
 ## Related pages
 
+- [Jugg Control Panel](./control-panel.md)
+- [Jugg CLI Guide](./cli.md)
 - [Fall back to Gradle compilation](./downgrade-gradle.md)
 - [Restart the app](./restart-app.md)
 - [Clear app data](./clean-data.md)
@@ -118,3 +121,4 @@ If these recovery actions do not resolve the problem, use [Report an issue](./re
 - [How Jugg works](../concepts/how-jugg-works.md)
 - [Deployment self-healing](../concepts/deploy-self-healing.md)
 - [Gradle fallback and baseline rebuilding](../concepts/gradle-fallback-baseline.md)
+- [Jugg slow or stuck](../troubleshooting/jugg-slow-or-stuck.md)

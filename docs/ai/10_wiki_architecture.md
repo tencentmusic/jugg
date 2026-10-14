@@ -1,6 +1,6 @@
 # Wiki Architecture and Publication Boundaries
 
-> Last verified: 2026-10-07
+> Last verified: 2026-10-14
 > Consistency rule: If documentation conflicts with code, code takes precedence.
 
 ## 1. Scope and Owners
@@ -36,7 +36,9 @@ For content or route changes, use `.agents/skills/wiki-writer/scripts/validate_w
 
 `wiki-pages.yml` runs on `main` when `docs/wiki/**` or the workflow changes, and supports manual dispatch. Its build job runs `npm ci` and `npm run check:homepage` under `docs/wiki/` with `JUGG_WIKI_BASE=/jugg/`, uploads `.vitepress/dist/`, and the dependent job deploys it through GitHub Pages. The configured public project-site path is `https://tencentmusic.github.io/jugg/`. Local builds intentionally use `/`; hardcoding `/jugg/` into VitePress config would break their asset URLs. For a publication check, inspect both Actions jobs and load root, `/zh/`, and one body route per language with assets under `/jugg/`.
 
-Wiki installation links point to GitHub Release assets, not Pages or expiring Actions artifacts. Official `release.yml` builds a version tag only when its commit is reachable from `main` and its version matches `build.gradle`; rolling Canary and Dev tags are excluded. `canary.yml` publishes `canary-nightly` only when the triggered ref's HEAD differs from the published tag, replacing the fixed Canary ZIP/SHA-256 Release assets. Its workflow artifact has 14-day retention and is for build investigation; the Wiki's Canary link uses the stable Release asset URL. `dev.yml` is manual and similarly updates `dev-latest` assets, but is separate from Wiki deployment. A download-page change should preserve the distinction between official versioned releases and rolling prereleases and identify Canary as potentially unverified.
+Wiki installation links point to GitHub Release assets, not Pages or expiring Actions artifacts. Official `release.yml` builds a version tag only when its commit is reachable from `main` and its version matches `build.gradle`; rolling Canary and Dev tags are excluded. `canary.yml` publishes `canary-nightly` only when the triggered ref's HEAD differs from the published tag, replacing the fixed Canary ZIP/SHA-256 Release assets. Its workflow artifact has 14-day retention and is for build investigation; the Wiki's Canary link uses the stable Release asset URL. `canary.yml` is manual-only; `dev.yml` also runs on a daily schedule when the branch has unpublished commits and supports manual dispatch. Its rolling assets remain separate from Wiki deployment. The Dev workflow updates fixed `dev-latest` assets. A download-page change should preserve the distinction between official versioned releases and rolling prereleases and identify Canary as potentially unverified.
+
+After successful Pages deployment, `submit-indexnow.mjs` validates the public key and submits added/changed/deleted Markdown routes, excluding dev routes. Manual dispatch or a new key submits all public routes. Project-site requests include `keyLocation` under `/jugg/`; HTTP 200/202 means accepted, not indexed. Only `SiteVerificationNotCompleted` gets one delayed 60-second submission retry; final failure remains visible although Pages already deployed. Use `INDEXNOW_ALL=true node docs/wiki/scripts/submit-indexnow.mjs --dry-run` locally without sending requests.
 
 ## 5. Diagnostic Start Points
 

@@ -3,29 +3,30 @@
 <ol>
     <li>[feature] Run Jugg compile and deploy workflows from a standalone cross-platform CLI without Android Studio</li>
 </ol>
-<h2>3.5.1 (2026.09.18)</h2>
-<ol>
-    <li>[feature] Support Android Studio Rabbit</li>
-    <li>[feature] Support custom APK signing for system apps requiring remote signatures</li>
-    <li>[feature] Support rootless compat deploy for system apps without root or run-as permissions</li>
-    <li>[feature] Display fallback reasons and user actions in the Running Panel and logs</li>
-    <li>[optimize] Support apps without a regular launcher activity by starting the home activity or stopping directly after deployment</li>
-    <li>[optimize] Fix slow project info reading for projects with many modules and dynamic features introduced in 3.5.0</li>
-    <li>[bugfix] Fix C++ incremental changes not taking effect or strip tool missing when Configuration on Demand is enabled</li>
-    <li>[bugfix] Fix deploy failing with Java heap space after an incremental C++ build due to unstripped symbols</li>
-    <li>[bugfix] Prevent unrelated file changes under Native or Flutter roots from falsely triggering external builds</li>
-    <li>[bugfix] Fix relative CMake sources and shared native sources not being recognized as incremental inputs or outputs</li>
-    <li>[bugfix] Fix incremental runtime crash when a variant disables minify but stale mapping files cause it to be misidentified as requiring obfuscation</li>
-    <li>[bugfix] Fix NoSuchFieldError when external AAR dependencies access newly added resources after module resource updates</li>
-</ol>
-<h2>3.5.0 (2026.09.12)</h2>
+<h1>Change Log</h1>
+<h2>3.5.4 (2026.10.13)</h2>
 <ol>
     <li>[feature] Support Flutter and C++ source changes: run Gradle tasks to generate native libraries, then continue with Jugg incremental builds</li>
     <li>[feature] Support incremental updates for system apps</li>
     <li>[feature] Support Hilt: preserve injection during incremental source updates to avoid crashes</li>
     <li>[feature] Support custom APK install scripts</li>
+    <li>[feature] Support Android Studio Rabbit</li>
+    <li>[feature] Support custom APK signing for system apps requiring remote signatures</li>
+    <li>[feature] Support rootless compat deploy for system apps without root or run-as permissions</li>
+    <li>[feature] Display fallback reasons and user actions in the Running Panel and logs</li>
+    <li>[feature][ide] Support checking updates from JetBrains Marketplace and GitHub in the Check Updates feature</li>
+    <li>[feature][settings] Add "Confirm fallback when too many changes" setting to toggle between automatic fallback and a confirmation prompt when too many files change</li>
+    <li>[feature][agent] Support one-click installation for Anti-gravity skills and hooks</li>
+    <li>[feature][diagnostics] Preserve historical logs across project clean</li>
+    <li>[feature][diagnostics] Support "Ask AI" investigation for compile failures, runtime crashes, or unapplied changes with localized prompts and preserved snapshots</li>
     <li>[optimize] Show a concise warning when Dex compilation falls back</li>
     <li>[optimize] Reduce latency on the self-built deploy channel</li>
+    <li>[optimize] Support apps without a regular launcher activity by starting the home activity or stopping directly after deployment</li>
+    <li>[optimize] Fix slow project info reading for projects with many modules and dynamic features introduced in 3.5.0</li>
+    <li>[optimize][ide] Automatically activate the Run window when running a project for the first time</li>
+    <li>[optimize][compile] Improve file change detection when running immediately after git pull to avoid missed updates</li>
+    <li>[optimize][compile] Accurately report file count in the notification balloon when compiled changes await deployment</li>
+    <li>[optimize][compile] Improve retry guidance after incremental compile failures</li>
     <li>[bugfix] Restore Bumblebee run configuration lookup and naming</li>
     <li>[bugfix] Fix Marketplace listing issues by removing incompatible APIs and updating Gradle sync handling</li>
     <li>[bugfix] Prevent profile builds from using debug task metadata</li>
@@ -36,6 +37,24 @@
     <li>[bugfix] Fix incremental ViewBinding failure on AGP 4.2.2 runtimes</li>
     <li>[bugfix] Fix missing Kotlin opt-in arguments when KMP common sources use @HiddenFromObjC</li>
     <li>[bugfix] Fix KMP Compose resource changes requiring two restarts to take effect on the first compile with Android 15+, Android Studio older than Meerkat, and Kotlin 2.1+🤣</li>
+    <li>[bugfix] Fix C++ incremental changes not taking effect or strip tool missing when Configuration on Demand is enabled</li>
+    <li>[bugfix] Fix deploy failing with Java heap space after an incremental C++ build due to unstripped symbols</li>
+    <li>[bugfix] Prevent unrelated file changes under Native or Flutter roots from falsely triggering external builds</li>
+    <li>[bugfix] Fix relative CMake sources and shared native sources not being recognized as incremental inputs or outputs</li>
+    <li>[bugfix] Fix incremental runtime crash when a variant disables minify but stale mapping files cause it to be misidentified as requiring obfuscation</li>
+    <li>[bugfix] Fix NoSuchFieldError when external AAR dependencies access newly added resources after module resource updates</li>
+    <li>[bugfix][compile] Fix Kotlin compiler initialization failure with Kotlin 2.2 on Quail (JVM 25)</li>
+    <li>[bugfix][deploy] Fix startup crash on HarmonyOS 2 devices during compatibility hot-fix mode</li>
+    <li>[bugfix][compile] Fix remote compilation failures on Intel Macs</li>
+    <li>[bugfix][compile] Fix compilation failure for JVM target modules in KMP projects</li>
+    <li>[bugfix][ide] Fix control panel occasionally getting stuck in initializing state</li>
+    <li>[bugfix][compat] Fix compatibility with Android Studio Rabbit 2</li>
+    <li>[bugfix][compile] Fix duplicate class errors when incrementally compiling Kotlin BindingAdapters</li>
+    <li>[bugfix][deploy] Fix deploy failure when switching devices in projects where APK names change on each build</li>
+    <li>[bugfix][ide] Fix IDE UI freezes on project open while ADB is initializing</li>
+    <li>[bugfix][compat] Fix failure to automatically create Run Configurations in Android Studio Narwhal</li>
+    <li>[bugfix][compile] Fix crashes on certain pages after hot deploying non-DataBinding layouts when DataBinding is enabled</li>
+    <li>[bugfix][compile] Fix occasional deploy failures for DataBinding artifacts</li>
 </ol>
 <h2>3.4.3 (2026.09.09)</h2>
 <ol>

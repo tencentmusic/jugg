@@ -430,8 +430,15 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
             }
             val gradleAndroidModel = try {
                 GradleAndroidModel.get(module)
-            } catch (_: Throwable) {
-                return getLegacySuggestRunConfiguration(module, project)
+            } catch (original: Throwable) {
+                // Preserve the initial API error so failed legacy lookup can continue compat dispatch.
+                val legacyConfiguration = try {
+                    getLegacySuggestRunConfiguration(module, project)
+                } catch (legacyFailure: Throwable) {
+                    original.addSuppressed(legacyFailure)
+                    null
+                }
+                return legacyConfiguration ?: throw original
             }
             try {
                 logger.debug("getSuggestRunConfiguration gradleAndroidModel: ${gradleAndroidModel?.getDesc()}")

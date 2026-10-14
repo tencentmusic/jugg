@@ -109,6 +109,10 @@ It also cannot replace Gradle fallback. Build script changes, dependency changes
 
 Do not keep compatibility deployment enabled for every device. Enable it for a specific device that repeatedly shows an unresponsive agent, unavailable JVMTI, or unstable resource or class loading. Disable it and rebuild the deployment baseline after changing devices, upgrading the system, or restoring the environment.
 
+## APK-root classpath resources
+
+Compatibility deployment skips Framework hooks. Incremental DEX, Android resources, and assets use the compatibility loader after restart, but APK-root files read through `ClassLoader.getResource()` do not have the ordinary overlay lookup. If such a file changes, run a full Gradle build and reinstall the app. Restarting alone does not guarantee the updated value.
+
 ## Troubleshooting entry points
 
 | Symptom | First step |

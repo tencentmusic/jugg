@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from hook_common import (
     collect_strings,
+    decode_json_string_argument,
     debug_log,
     is_hook_block_disabled,
     emit_cursor_empty_response,
@@ -59,9 +60,11 @@ def is_raw_gradle_command(command: str) -> bool:
     return RAW_GRADLE_PATTERN.search(command) is not None
 
 
-def collect_command_strings(payload: dict[str, Any]) -> list[str]:
+def collect_command_strings(payload: dict[str, Any], decode_json_strings: bool = False) -> list[str]:
     commands: list[str] = []
     for value in collect_strings(payload):
+        if decode_json_strings:
+            value = decode_json_string_argument(value)
         if is_raw_gradle_command(value) and value not in commands:
             commands.append(value)
     return commands
@@ -125,6 +128,20 @@ def emit_system_message(message: str) -> None:
     print(json.dumps({"systemMessage": message}, ensure_ascii=False))
 
 
+def emit_antigravity_decision(decision: str, reason: str = "") -> None:
+    response = {"decision": decision}
+    if reason:
+        response["reason"] = reason
+    print(json.dumps(response, ensure_ascii=False))
+
+
+def emit_allow(client: str, reason: str = "") -> None:
+    if client == "antigravity":
+        emit_antigravity_decision("allow", reason)
+    else:
+        emit_cursor_empty_response(client)
+
+
 def uses_system_message(client: str) -> bool:
     return client in SYSTEM_MESSAGE_CLIENTS
 
@@ -146,10 +163,16 @@ def main() -> int:
     state = read_hook_state(state_file)
     project_cwd = cwd
     project_cwd_changed = False
-    if args.client == "cursor":
+    if args.client in {"cursor", "antigravity"}:
         project_cwd, project_cwd_changed = remember_project_cwd(state, payload, cwd)
+    if args.client == "antigravity":
+        project_state_file = state_file_path(home, project_cwd, session_id)
+        if project_state_file != state_file:
+            state_file = project_state_file
+            state = read_hook_state(state_file)
+            project_cwd, project_cwd_changed = remember_project_cwd(state, payload, cwd)
     shell_commands = _collect_shell_command_texts(payload)
-    commands = collect_command_strings(payload)
+    commands = collect_command_strings(payload, decode_json_strings=args.client == "antigravity")
     debug_log(
         "JUGG-COMMAND",
         f"hook triggered cwd={cwd} projectCwd={project_cwd} client={args.client}{payload_suffix} "
@@ -162,19 +185,19 @@ def main() -> int:
         write_hook_state(state_file, state)
 
     if not commands:
-        emit_cursor_empty_response(args.client)
+        emit_allow(args.client)
         return 0
 
     structured = read_status_snapshot(home, project_cwd)
     if structured is None:
         debug_log("JUGG-COMMAND", "exit: project is not available to jugg")
-        emit_cursor_empty_response(args.client)
+        emit_allow(args.client)
         return 0
 
     is_remote_compile = status_is_remote_compile(structured)
     if not is_remote_compile and not has_session_write_seen(state):
         debug_log("JUGG-COMMAND", "exit: allow raw gradle command because no session write was recorded")
-        emit_cursor_empty_response(args.client)
+        emit_allow(args.client)
         return 0
 
     has_pending = has_pending_files(extract_file_counts(structured))
@@ -189,7 +212,7 @@ def main() -> int:
             state.pop("gradleBlockedFingerprint", None)
             write_hook_state(state_file, state)
         debug_log("JUGG-COMMAND", "exit: allow raw gradle command because pendingModifiedFiles show no pending changes")
-        emit_cursor_empty_response(args.client)
+        emit_allow(args.client)
         return 0
 
     if not is_remote_compile and not session_write_needs_verification(state, structured):
@@ -201,12 +224,12 @@ def main() -> int:
             "JUGG-COMMAND",
             "exit: allow raw gradle command because session writes were already covered by Jugg verification",
         )
-        emit_cursor_empty_response(args.client)
+        emit_allow(args.client)
         return 0
 
     if is_hook_block_disabled(home):
         debug_log("JUGG-COMMAND", "exit: allow raw gradle command because DISABLE_BLOCK flag is set")
-        emit_cursor_empty_response(args.client)
+        emit_allow(args.client)
         return 0
 
     fingerprint = pending_fingerprint(structured)
@@ -226,6 +249,10 @@ def main() -> int:
             emit_cursor_permission_response("deny", block_message)
             debug_log("JUGG-COMMAND", "exit: blocked raw gradle command with cursor deny")
             return 0
+        if args.client == "antigravity":
+            emit_antigravity_decision("deny", block_message)
+            debug_log("JUGG-COMMAND", "exit: blocked raw gradle command with antigravity deny")
+            return 0
         sys.stderr.write(f"{block_message}\n")
         debug_log("JUGG-COMMAND", "exit: blocked raw gradle command")
         return 2
@@ -237,6 +264,10 @@ def main() -> int:
     if args.client == "cursor":
         emit_cursor_permission_response("allow", GRADLE_RETRY_WARNING)
         debug_log("JUGG-COMMAND", "exit: allow repeated raw gradle command with cursor warning")
+        return 0
+    if args.client == "antigravity":
+        emit_antigravity_decision("allow", GRADLE_RETRY_WARNING)
+        debug_log("JUGG-COMMAND", "exit: allow repeated raw gradle command with antigravity warning")
         return 0
     sys.stderr.write(f"{GRADLE_RETRY_WARNING}\n")
     debug_log("JUGG-COMMAND", "exit: allow repeated raw gradle command")

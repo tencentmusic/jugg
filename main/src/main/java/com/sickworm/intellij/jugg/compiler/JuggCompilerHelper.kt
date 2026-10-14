@@ -56,7 +56,7 @@ class JuggCompilerHelper(
     private val dependencyChangeManager: IDependencyChangeManager,
     private val gradleProjectInfoLocalFetchManager: GradleProjectInfoLocalFetchManager,
     private val compileEnvironmentSource: ICompileEnvironmentSource,
-    gitFileChangesDetector: GitFileChangesDetector,
+    private val gitFileChangesDetector: GitFileChangesDetector,
     taskRunnerManager: TaskRunnerManager,
     private val logger: Logger,
     private val gitChangeChecker: GitChangesCompileChecker = GitChangesCompileChecker(
@@ -226,7 +226,7 @@ class JuggCompilerHelper(
             } else if (!incrementalResult.isCanFallback && !(uiHandler.isCanceled)) {
                 logger.warn("\nFound incremental compile error. Please see logs for details.")
                 if (!uiHandler.isRpcMode) {
-                    logger.warn("Run again directly will fall back to gradle compile.\n")
+                    logger.warn("Running again without changing any files will fall back to a Gradle build.\n")
                 }
                 return incrementalResult
             }
@@ -408,16 +408,21 @@ class JuggCompilerHelper(
         options: JuggGradleCompileOptions,
         uiHandler: CompileUiHandler,
     ): CompileTaskResult? {
-        var isNoFileChangesSinceLastCompile = deployFileManager.isNoFileChanges()
+        val gitRefreshResult = gitFileChangesDetector.refreshChangedFilesIfHeadChanged()
         val isLastGradleCompileFailed = deployHistoryManager.isLastFullCompileFailed
-        logger.debug("preprocessIncrementalCompile isForceInstall ${uiHandler.isForceGradleCompile}, isNoFileChangesSinceLastCompile: $isNoFileChangesSinceLastCompile")
-
-        // Always run git change detection asynchronously to avoid blocking compile flow.
-        gitChangeChecker.checkUndetectedFilesAsync(deployFileManager.getUndeployedFiles())
+        logger.debug("preprocessIncrementalCompile isForceInstall ${uiHandler.isForceGradleCompile}, " +
+                "gitRefreshResult=$gitRefreshResult")
 
         if (uiHandler.isForceGradleCompile) {
             return CompileTaskResult.incrementalFailed(true, "Force fallback")
         }
+        if (gitRefreshResult == GitFileChangesDetector.GitRefreshResult.FAILED) {
+            return CompileTaskResult.incrementalFailed(true, "Git HEAD changed but file refresh failed")
+        }
+
+        // Keep the full asynchronous scan for uncommitted changes and missed IDE callbacks.
+        gitChangeChecker.checkUndetectedFilesAsync(deployFileManager.getUndeployedFiles())
+        var isNoFileChangesSinceLastCompile = deployFileManager.isNoFileChanges()
 
         val externalBuildSources = deployFileManager.getUncompiledFiles().filter {
             it.type == CompileFile.Type.ExternalBuildSource
@@ -589,8 +594,12 @@ class JuggCompilerHelper(
         if (tooManyChanges != null) {
             logger.debug("javaSourceSize: ${tooManyChanges.javaFileCount}, " +
                     "kotlinSourceFiles ${tooManyChanges.kotlinFileCount}")
-            val confirm = uiHandler?.confirmTooManyChanges(tooManyChanges)
-                ?: TooManyChangesConfirmResult.FALLBACK
+            val confirm = if (!JuggSettings.isConfirmFallbackWhenTooManyChanges) {
+                TooManyChangesConfirmResult.FALLBACK
+            } else {
+                uiHandler?.confirmTooManyChanges(tooManyChanges)
+                    ?: TooManyChangesConfirmResult.FALLBACK
+            }
             TooManyChanges.applyUserChoice(
                 info = tooManyChanges,
                 confirm = confirm,
@@ -801,7 +810,7 @@ class JuggCompilerHelper(
     }
 
     private fun notifyEmptyCompile(uiHandler: CompileUiHandler) {
-        uiHandler.notifyByBalloon("Compiling 0 files...")
+        uiHandler.notifyByBalloon("Compiling ${deployFileManager.getCompiledFiles().size} files...")
     }
 
     fun warmUp() {

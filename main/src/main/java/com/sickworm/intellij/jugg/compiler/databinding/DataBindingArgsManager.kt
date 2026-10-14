@@ -205,19 +205,27 @@ class DataBindingArgsManager(val context: ICompileContext, val moduleInfo: Modul
             return isHasViewBinding
         }
 
-        fun isUseDataBinding(moduleInfo: ModuleInfo, xmlFile: List<File>? = null): Boolean {
-            if (moduleInfo.isUseDataBinding == true) return true
+        /**
+         * Two call-site semantics:
+         * - Module-level (xmlFile null or empty): "does this module use data binding at all",
+         *   decided by the module switch or the gradle data binding output dir. Used to decide
+         *   whether to prepare data binding compile args/stages for the module.
+         *
+         * - Per-layout (xmlFile non-empty): "do any of the changed layouts actually declare
+         *   <layout>", decided per file. The module switch must NOT short-circuit here:
+         *   if a plain findViewById layout in a dataBinding=true module were treated as data
+         *   binding, its binding class and the global DataBinderMapper would be regenerated and
+         *   hot swapped into the app, corrupting the mapper so unrelated pages crash on inflate.
+         */
+        fun isUseDataBinding(moduleInfo: ModuleInfo, xmlFile: List<File>? = null): Boolean = when {
+            moduleInfo.isUseDataBinding != true && !hasGradleDataBindingOutputDir(moduleInfo) -> false
+            xmlFile.isNullOrEmpty() -> true
+            else -> xmlFile.any(::guessXmlFileHasDataBinding)
+        }
 
+        private fun hasGradleDataBindingOutputDir(moduleInfo: ModuleInfo): Boolean {
             val gradleKaptOutputDir = File(moduleInfo.buildPathInfo.buildDir, "generated/source/kapt/${moduleInfo.buildVariant}")
-            val gradleDataBindingOutputGuessDir = File(gradleKaptOutputDir, "androidx/databinding")
-            val isHasDataBindingOutput = gradleDataBindingOutputGuessDir.exists()
-            if (!isHasDataBindingOutput) return false
-
-            if (xmlFile.isNullOrEmpty()) {
-                return true
-            }
-
-            return xmlFile.any(::guessXmlFileHasDataBinding)
+            return File(gradleKaptOutputDir, "androidx/databinding").exists()
         }
 
         private fun guessXmlFileHasDataBinding(xmlFile: File): Boolean {

@@ -79,7 +79,7 @@ Jugg runtime 会识别当前 Resources 对应的 APK。宿主资源继续保留 
 
 Android 15 与较旧 Android Studio 组合中，Apply Changes 可能已经更新资源，却没有触发完整的资源刷新和 Activity 重建。Jugg runtime 会在命中该组合时补发 ApplicationInfo 更新，并按本轮部署要求重建 Activity，使页面读取新的资源状态。
 
-runtime 还会为 APK 根目录的 classpath resource 提供 overlay-first 查找。未命中增量文件或发生读取异常时继续执行原始 ClassLoader 查询，避免辅助兼容逻辑截断 App 原有资源加载。
+普通部署中，runtime 还会为 APK 根目录的 classpath resource 提供 overlay-first 查找。未命中增量文件或发生读取异常时继续执行原始 ClassLoader 查询，避免辅助兼容逻辑截断 App 原有资源加载。兼容部署会跳过这个 hook；修改这类 classpath resource 时，需要执行完整 Gradle 构建并重新安装。
 
 ## 增量产物如何在 App 内生效
 

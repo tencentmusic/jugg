@@ -166,6 +166,7 @@ dependencies {
     implementation project(':library1')
     implementation project(':databindingApt')
     implementation project(':kmpCompose')
+    implementation project(':kmpAnnotation')
     if (project.hasProperty('juggSplitClassLoaderFixture')) {
         compileOnly project(':split_classloader_api')
     }

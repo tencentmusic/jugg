@@ -24,6 +24,7 @@ import com.sickworm.intellij.jugg.deploy.run.JuggClassRedefiner
 import com.sickworm.intellij.jugg.deploy.run.LaunchContext
 import com.sickworm.intellij.jugg.deploy.run.JuggOverlayId
 import com.sickworm.intellij.jugg.deploy.run.utils.AdbLogWrapper
+import java.io.FileNotFoundException
 
 /**
  * [com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper] -> [JuggDeployTask] -> [JuggDeployer]
@@ -237,9 +238,12 @@ class JuggDeployer(
                 ", arch: $arch")
 
         // Get the list of files from the installed app assuming deployment cache is correct.
-        val speculativeDump: JuggDeploymentCacheEntry? = deploymentService.loadEntry(
-            deviceSerial, packageName, applyChangesExecutor, logger,
-        )
+        val speculativeDump: JuggDeploymentCacheEntry? = try {
+            deploymentService.loadEntry(deviceSerial, packageName, applyChangesExecutor, logger)
+        } catch (e: FileNotFoundException) {
+            logger.info("Cached deployment APK is missing for $deviceSerial: ${e.message}; recover deploy state")
+            throw applyChangesExecutor.overlayIdMismatch()
+        }
 
         val exceptOverlayId = launchContext.exceptOverlayIds[packageName]
         logger.info("before deploy, overlay id: ${speculativeDump?.overlayId?.sha}" +

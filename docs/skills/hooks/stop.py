@@ -91,10 +91,16 @@ def _main_impl() -> int:
     state_file = state_file_path(home, cwd, session_id)
     state = read_hook_state(state_file)
     project_cwd = cwd
-    if args.client == "cursor":
+    if args.client in {"cursor", "antigravity"}:
         project_cwd, project_cwd_changed = remember_project_cwd(state, payload, cwd)
-        if project_cwd_changed:
-            write_hook_state(state_file, state)
+    if args.client == "antigravity":
+        project_state_file = state_file_path(home, project_cwd, session_id)
+        if project_state_file != state_file:
+            state_file = project_state_file
+            state = read_hook_state(state_file)
+            project_cwd, project_cwd_changed = remember_project_cwd(state, payload, cwd)
+    if args.client in {"cursor", "antigravity"} and project_cwd_changed:
+        write_hook_state(state_file, state)
     try:
         block_count = int(state.get("stopBlockCount", 0) or 0)
     except (TypeError, ValueError):
@@ -104,6 +110,8 @@ def _main_impl() -> int:
     structured = read_status_snapshot(home, project_cwd, timeout_seconds=10)
     if structured is None:
         debug_log("JUGG-STOP", "exit: project is not available to jugg")
+        if args.client == "antigravity":
+            print(json.dumps({}, ensure_ascii=False))
         return 0
 
     file_counts = extract_file_counts(structured)
@@ -130,10 +138,14 @@ def _main_impl() -> int:
             else "no session write was recorded"
         )
         debug_log("JUGG-STOP", f"exit: allow stop because {reason}")
+        if args.client == "antigravity":
+            print(json.dumps({}, ensure_ascii=False))
         return 0
 
     if is_hook_block_disabled(home):
         debug_log("JUGG-STOP", "exit: allow stop because DISABLE_BLOCK flag is set")
+        if args.client == "antigravity":
+            print(json.dumps({}, ensure_ascii=False))
         return 0
 
     if block_count == 0:
@@ -143,6 +155,8 @@ def _main_impl() -> int:
             # If we cannot persist the block count, allow the stop rather than
             # risk blocking indefinitely on every subsequent attempt.
             debug_log("JUGG-STOP", "exit: allow stop because state persistence failed")
+            if args.client == "antigravity":
+                print(json.dumps({}, ensure_ascii=False))
             return 0
         status_summary = format_status_summary(structured)
         block_message = (
@@ -162,6 +176,10 @@ def _main_impl() -> int:
                 + (" and stderr" if is_codebuddy_ide_payload(payload) else ""),
             )
             return 2
+        if args.client == "antigravity":
+            print(json.dumps({"decision": "continue", "reason": block_message}, ensure_ascii=False))
+            debug_log("JUGG-STOP", "exit: blocked stop with antigravity continue")
+            return 0
         sys.stderr.write(f"{block_message}\n")
         debug_log("JUGG-STOP", "exit: blocked stop because pending changes exist")
         return 2
@@ -177,6 +195,10 @@ def _main_impl() -> int:
     if args.client == "codebuddy":
         emit_codebuddy_stop_allow(STOP_BLOCK_RETRY_WARNING)
         debug_log("JUGG-STOP", "exit: allow stop after repeated block with codebuddy systemMessage")
+        return 0
+    if args.client == "antigravity":
+        print(json.dumps({}, ensure_ascii=False))
+        debug_log("JUGG-STOP", "exit: allow repeated antigravity stop")
         return 0
     sys.stderr.write(f"{STOP_BLOCK_RETRY_WARNING}\n")
     debug_log("JUGG-STOP", "exit: allow stop after repeated block while pending changes remain")

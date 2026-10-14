@@ -9,6 +9,8 @@ import javax.swing.JLabel
 import javax.swing.JPanel
 import javax.swing.SwingConstants
 
+import javax.swing.SwingUtilities
+
 /**
  * Stable control panel host that only retains a base JComponent from the active Jugg class loader.
  */
@@ -40,14 +42,22 @@ class JuggControlPanelHost : JPanel(BorderLayout()) {
         const val TOOL_WINDOW_ID = "Jugg Running Panel"
 
         fun open(project: Project, page: String = "overview") {
-            val toolWindow = ToolWindowManager.getInstance(project).getToolWindow(TOOL_WINDOW_ID) ?: return
+            val toolWindow = try {
+                ToolWindowManager.getInstance(project).getToolWindow(TOOL_WINDOW_ID)
+            } catch (e: Throwable) {
+                null
+            } ?: return
             toolWindow.setAvailable(true)
             refresh(project, page)
             toolWindow.activate(Runnable { refresh(project, page) })
         }
 
         fun clear(project: Project) {
-            val toolWindow = ToolWindowManager.getInstance(project).getToolWindow(TOOL_WINDOW_ID) ?: return
+            val toolWindow = try {
+                ToolWindowManager.getInstance(project).getToolWindow(TOOL_WINDOW_ID)
+            } catch (e: Throwable) {
+                null
+            } ?: return
             toolWindow.contentManager.contents
                 .asSequence()
                 .map { it.component }
@@ -55,14 +65,29 @@ class JuggControlPanelHost : JPanel(BorderLayout()) {
                 .forEach(JuggControlPanelHost::clearImpl)
         }
 
-        private fun refresh(project: Project, page: String) {
-            val toolWindow = ToolWindowManager.getInstance(project).getToolWindow(TOOL_WINDOW_ID) ?: return
-            val host = toolWindow.contentManager.contents
-                .asSequence()
-                .map { it.component }
-                .filterIsInstance<JuggControlPanelHost>()
-                .firstOrNull() ?: return
-            JuggInitializer.getManager(project)?.getJuggControlPanel(page)?.let(host::setImpl)
+        /**
+         * Refreshes the control panel host with the active JuggManager implementation if available.
+         */
+        fun refresh(project: Project, page: String = "overview") {
+            val action = Runnable {
+                if (project.isDisposed) return@Runnable
+                val toolWindow = try {
+                    ToolWindowManager.getInstance(project).getToolWindow(TOOL_WINDOW_ID)
+                } catch (e: Throwable) {
+                    null
+                } ?: return@Runnable
+                val host = toolWindow.contentManager.contents
+                    .asSequence()
+                    .map { it.component }
+                    .filterIsInstance<JuggControlPanelHost>()
+                    .firstOrNull() ?: return@Runnable
+                JuggInitializer.getManager(project)?.getJuggControlPanel(page)?.let(host::setImpl)
+            }
+            if (SwingUtilities.isEventDispatchThread()) {
+                action.run()
+            } else {
+                SwingUtilities.invokeLater(action)
+            }
         }
     }
 }

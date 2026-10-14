@@ -4,10 +4,12 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.PrintStream
 import java.nio.file.Files
+import java.nio.file.LinkOption
 import java.nio.file.Path
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.UUID
 import java.util.logging.Formatter
 import java.util.logging.Level
 import java.util.logging.LogRecord
@@ -25,7 +27,15 @@ class FileLogger(
     val logger: Logger = createLogger(dir, patternName, limitBytes, fileCount),
 ) {
 
+    private var legacyDir: File? = null
+
+    internal fun linkLegacyLogDir(legacyDir: File) {
+        this.legacyDir = legacyDir
+        ensureLegacyLogDirLink()
+    }
+
     fun recreateIfDeleted() {
+        ensureLegacyLogDirLink()
         if (!dir.exists()) {
             dir.mkdirs()
             resetLatestCompileLog()
@@ -61,6 +71,159 @@ class FileLogger(
         }
     }
 
+    private fun ensureLegacyLogDirLink() {
+        val legacyDir = legacyDir ?: return
+        try {
+            val legacyPath = legacyDir.toPath()
+            restorePendingLegacyLogDir(legacyPath)
+            // The standalone child can already resolve through the IDE parent's compatibility link.
+            if (Files.exists(legacyPath) && Files.exists(dir.toPath()) && Files.isSameFile(legacyPath, dir.toPath())) {
+                return
+            }
+            if (Files.isSymbolicLink(legacyPath)) {
+                replaceLegacyLogDirLink(legacyDir)
+                return
+            }
+            if (Files.isDirectory(legacyPath, LinkOption.NOFOLLOW_LINKS)) {
+                migrateLegacyLogDir(legacyDir)
+                return
+            }
+            if (Files.exists(legacyPath, LinkOption.NOFOLLOW_LINKS)) {
+                return
+            }
+            createLegacyLogDirLink(legacyDir)
+        } catch (e: Exception) {
+            logger.log(Level.FINE, "Prepare legacy log directory link failed: $legacyDir", e)
+        }
+    }
+
+    private fun replaceLegacyLogDirLink(legacyDir: File) {
+        val legacyPath = legacyDir.toPath()
+        if (runCatching { legacyPath.toRealPath() == dir.toPath().toRealPath() }.getOrDefault(false)) {
+            return
+        }
+        val originalTarget = Files.readSymbolicLink(legacyPath)
+        Files.delete(legacyPath)
+        try {
+            createLegacyLogDirLink(legacyDir)
+        } catch (e: Exception) {
+            runCatching { Files.createSymbolicLink(legacyPath, originalTarget) }
+                .exceptionOrNull()?.let(e::addSuppressed)
+            throw e
+        }
+    }
+
+    private fun migrateLegacyLogDir(legacyDir: File) {
+        val legacyPath = legacyDir.toPath()
+        val backupPath = legacyPath.resolveSibling("${legacyDir.name}.migrating-${UUID.randomUUID()}")
+        val migratedPath = legacyPath.resolveSibling("${legacyDir.name}.migrated-${UUID.randomUUID()}")
+        val copiedPaths = mutableListOf<Path>()
+        try {
+            Files.list(legacyPath).use { children ->
+                children.filter { !isLatestLogLink(it) }.sorted().forEach { source ->
+                    val target = availableMigrationTarget(source.fileName.toString())
+                    copyLegacyLogPath(source, target, copiedPaths)
+                }
+            }
+            Files.move(legacyPath, backupPath)
+            createLegacyLogDirLink(legacyDir)
+            Files.move(backupPath, migratedPath)
+            runCatching { deleteLegacyLogPath(migratedPath) }.exceptionOrNull()?.let {
+                logger.log(Level.FINE, "Clean migrated legacy log directory failed: $migratedPath", it)
+            }
+        } catch (e: Exception) {
+            rollbackLegacyLogDirMigration(legacyPath, backupPath, copiedPaths, e)
+            throw e
+        }
+    }
+
+    private fun rollbackLegacyLogDirMigration(
+        legacyPath: Path,
+        backupPath: Path,
+        copiedPaths: List<Path>,
+        failure: Exception,
+    ) {
+        var rollbackFailure: Throwable? = null
+        fun rollback(action: () -> Unit) {
+            runCatching(action).exceptionOrNull()?.let {
+                rollbackFailure?.addSuppressed(it) ?: run { rollbackFailure = it }
+            }
+        }
+        rollback {
+            if (Files.isSymbolicLink(legacyPath)) {
+                Files.delete(legacyPath)
+            }
+        }
+        rollback {
+            if (!Files.exists(legacyPath, LinkOption.NOFOLLOW_LINKS) && Files.exists(backupPath)) {
+                Files.move(backupPath, legacyPath)
+            }
+        }
+        copiedPaths.asReversed().forEach { path -> rollback { Files.deleteIfExists(path) } }
+        rollbackFailure?.let(failure::addSuppressed)
+    }
+
+    private fun deleteLegacyLogPath(path: Path) {
+        // A backup can link to active standalone logs; delete the link without traversing its target.
+        if (Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS)) {
+            Files.list(path).use { children -> children.forEach(::deleteLegacyLogPath) }
+        }
+        Files.delete(path)
+    }
+
+    private fun copyLegacyLogPath(source: Path, target: Path, copiedPaths: MutableList<Path>) {
+        if (!Files.isDirectory(source, LinkOption.NOFOLLOW_LINKS)) {
+            copiedPaths.add(target)
+            Files.copy(source, target, LinkOption.NOFOLLOW_LINKS)
+            return
+        }
+        Files.createDirectory(target)
+        copiedPaths.add(target)
+        Files.list(source).use { children ->
+            children.sorted().forEach { child ->
+                copyLegacyLogPath(child, target.resolve(child.fileName), copiedPaths)
+            }
+        }
+    }
+
+    private fun restorePendingLegacyLogDir(legacyPath: Path) {
+        if (Files.exists(legacyPath, LinkOption.NOFOLLOW_LINKS)) {
+            return
+        }
+        if (!Files.exists(legacyPath.parent)) {
+            return
+        }
+        val prefix = "${legacyPath.fileName}.migrating-"
+        val backups = Files.list(legacyPath.parent).use { paths ->
+            paths.filter {
+                it.fileName.toString().startsWith(prefix) && Files.isDirectory(it, LinkOption.NOFOLLOW_LINKS)
+            }.toList()
+        }
+        if (backups.size > 1) {
+            throw IllegalStateException("Multiple legacy log directory backups found: $backups")
+        }
+        backups.singleOrNull()?.let { Files.move(it, legacyPath) }
+    }
+
+    private fun availableMigrationTarget(fileName: String): Path {
+        var target = dir.toPath().resolve(fileName)
+        var index = 1
+        while (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
+            target = dir.toPath().resolve("$fileName.legacy-${index++}")
+        }
+        return target
+    }
+
+    private fun isLatestLogLink(path: Path): Boolean {
+        return path.fileName.toString() == LATEST_LOG_NAME || path.fileName.toString() == LAST_LATEST_LOG_NAME
+    }
+
+    private fun createLegacyLogDirLink(legacyDir: File) {
+        legacyDir.parentFile?.let { Files.createDirectories(it.toPath()) }
+        Files.createDirectories(dir.toPath())
+        Files.createSymbolicLink(legacyDir.toPath(), dir.toPath())
+    }
+
     companion object {
 
         private const val LATEST_LOG_NAME = "compile_latest.log"
@@ -78,6 +241,9 @@ class FileLogger(
 
         private fun createLogger(dir: File, patternName: String, limitBytes: Int, fileCount: Int): Logger {
             dir.mkdirs()
+            if (isCreateLastLogLinkFile) {
+                findLatestMainLogFile(dir)?.let { updateLastLatestLogFile(dir, it) }
+            }
             return Logger.getLogger(dir.absolutePath).also {
                 it.useParentHandlers = false
                 it.level = Level.ALL
@@ -134,6 +300,15 @@ class FileLogger(
 
         private fun updateLatestLogFile(dir: File, targetFile: File) {
             createBestEffortLink(File(dir, LATEST_LOG_NAME), targetFile)
+        }
+
+        private fun findLatestMainLogFile(dir: File): File? {
+            val latestLogFile = File(dir, LATEST_LOG_NAME).takeIf { it.exists() } ?: return null
+            return dir.listFiles()?.firstOrNull { file ->
+                file.isFile && file.name.startsWith("compile_") && file.name.endsWith(".log") &&
+                        file.name != LATEST_LOG_NAME && file.name != LAST_LATEST_LOG_NAME &&
+                        runCatching { Files.isSameFile(file.toPath(), latestLogFile.toPath()) }.getOrDefault(false)
+            }
         }
 
         private fun updateLastLatestLogFile(dir: File, targetFile: File) {

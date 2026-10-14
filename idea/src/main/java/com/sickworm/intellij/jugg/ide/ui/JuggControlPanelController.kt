@@ -6,6 +6,8 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.sickworm.intellij.jugg.JuggManager
 import com.sickworm.intellij.jugg.compiler.CompileFile
+import com.sickworm.intellij.jugg.compiler.ui.RunResult
+import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.deploy.CompatDeployHelper
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
@@ -18,8 +20,14 @@ import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.ide.controlpanel.JuggControlPanelModel
 import com.sickworm.intellij.jugg.ide.controlpanel.JuggEvent
 import com.sickworm.intellij.jugg.logger.getInstance
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.swing.JComponent
+import javax.swing.SwingUtilities
 
 /**
  * Coordinates real project facts, persisted settings, and control panel actions for one JuggManager.
@@ -36,6 +44,8 @@ open class JuggControlPanelController(
     private val userActionLogger = logger.getInstance(USER_ACTION_LOG_TAG)
     private var panel: JuggControlPanel? = null
     private var syncEventTaskId: String? = null
+    private val deviceRefreshPending = AtomicBoolean()
+    @Volatile private var isCleared = false
 
     open fun getPanel(page: String): JComponent {
         val currentPanel = panel ?: JuggControlPanel(project, model, this).also {
@@ -49,11 +59,7 @@ open class JuggControlPanelController(
 
     open fun refresh() {
         val configuration = RunManager.getInstance(project).selectedConfiguration?.name.orEmpty()
-        val devices = deployTargetManager.getDeviceNameList()
-            ?.split(",")
-            ?.map(String::trim)
-            ?.filter(String::isNotEmpty)
-            .orEmpty()
+        val devices = model.snapshot().context.devices
         val changedFiles = deployFileManager.getUndeployedFiles().map { changedFile ->
             JuggEvent.ChangedFileSnapshot(
                 category = when (changedFile.type) {
@@ -84,15 +90,51 @@ open class JuggControlPanelController(
         model.updateContext(context)
         model.updateSettings(currentSettings())
         model.updateHealth(buildHealth(context))
+        refreshDevices()
     }
 
     open fun refreshSettings() {
         model.updateSettings(currentSettings())
+        refreshDevices()
+    }
+
+    /** Queries devices outside the EDT because the IDE may wait for ADB initialization. */
+    private fun refreshDevices() {
+        if (isCleared || project.isDisposed || !manager.isActive ||
+            !deviceRefreshPending.compareAndSet(false, true)
+        ) return
+        manager.launch(Dispatchers.IO) {
+            val devices = readDeviceNames()
+            val compatDevices = forceCompatDevices()
+            SwingUtilities.invokeLater {
+                if (isCleared || project.isDisposed || !manager.isActive) return@invokeLater
+                val currentContext = model.snapshot().context
+                val context = currentContext.copy(devices = devices ?: currentContext.devices)
+                model.updateContext(context)
+                model.updateSettings(currentSettings().copy(forceCompatDevices = compatDevices))
+                model.updateHealth(buildHealth(context))
+            }
+        }.invokeOnCompletion { deviceRefreshPending.set(false) }
+    }
+
+    private fun readDeviceNames(): List<String>? {
+        return try {
+            deployTargetManager.getDeviceNameList()
+                ?.split(",")
+                ?.map(String::trim)
+                ?.filter(String::isNotEmpty)
+                .orEmpty()
+        } catch (e: Throwable) {
+            if (e is CancellationException) throw e
+            logger.warn("Refresh selected devices failed", e)
+            null
+        }
     }
 
     open fun updateSetting(setting: Setting, enabled: Boolean) {
         when (setting) {
             Setting.CONFIRM_FALLBACK -> JuggSettings.isConfirmFallbackWhenNoFileChanges = enabled
+            Setting.CONFIRM_FALLBACK_WHEN_TOO_MANY_CHANGES -> JuggSettings.isConfirmFallbackWhenTooManyChanges = enabled
             Setting.ALWAYS_RESTART -> JuggSettings.isAlwaysRestartAppAfterDeployment = enabled
             Setting.QUICK_DEPLOY -> JuggSettings.isEnableDirectOverlayDeploy = enabled
             Setting.AUTO_FALLBACK -> JuggSettings.isAutoFallbackToGradleWhenDeployError = enabled
@@ -111,19 +153,19 @@ open class JuggControlPanelController(
                 .firstOrNull { it.displayName == displayName }
         } catch (e: Exception) {
             logger.warn("Update force compat device $displayName failed", e)
-            model.updateSettings(currentSettings())
+            refreshSettings()
             return
         }
         if (adb == null) {
             logger.debug("Skip force compat update because $displayName disconnected")
-            model.updateSettings(currentSettings())
+            refreshSettings()
             return
         }
         val helper = CompatDeployHelper(logger)
         if (helper.isForceCompatDevice(adb) == enabled) return
         if (enabled) helper.recordCompatDeviceRecord(adb) else helper.clearCompatDeviceRecord(adb)
         manager.forceReInstallNextTime()
-        model.updateSettings(currentSettings())
+        refreshSettings()
         recordSettingChanged("Force use compat deploy for $displayName", enabled)
     }
 
@@ -205,6 +247,8 @@ open class JuggControlPanelController(
 
     open fun reportIssue() = manager.reportIssue()
 
+    open fun askAi() = manager.askAi()
+
     open fun installSkills() = manager.installSkills()
 
     open fun checkUpdates() = manager.checkUpdates()
@@ -259,7 +303,17 @@ open class JuggControlPanelController(
         if (syncEvent != SyncEvent.STARTED) syncEventTaskId = null
     }
 
+    fun onManagerReady() {
+        try {
+            JuggControlPanelHost.refresh(project)
+        } catch (e: NoSuchMethodError) {
+            // Older installed hosts cannot be replaced by a hot update.
+            logger.warn("Control panel auto-refresh unavailable; restart IDE after installing the updated plugin.", e)
+        }
+    }
+
     fun clear() {
+        isCleared = true
         panel = null
         JuggControlPanelHost.clear(project)
     }
@@ -267,6 +321,7 @@ open class JuggControlPanelController(
     private fun currentSettings(): JuggControlPanelModel.Settings {
         return JuggControlPanelModel.Settings(
             confirmFallbackWhenNoFileChanges = JuggSettings.isConfirmFallbackWhenNoFileChanges,
+            confirmFallbackWhenTooManyChanges = JuggSettings.isConfirmFallbackWhenTooManyChanges,
             alwaysRestartAppAfterDeployment = JuggSettings.isAlwaysRestartAppAfterDeployment,
             quickDeploy = JuggSettings.isEnableDirectOverlayDeploy,
             autoFallbackAfterDeployFailure = JuggSettings.isAutoFallbackToGradleWhenDeployError,
@@ -275,7 +330,7 @@ open class JuggControlPanelController(
             backupClasspath = JuggSettings.isEnableBackupClasspath,
             isInjectGradleCompileEnabled = JuggSettings.isEnableInjectGradleCompile,
             canUseBackupClasspath = JuggSettings.isCanUseBackupClasspath,
-            forceCompatDevices = forceCompatDevices(),
+            forceCompatDevices = model.snapshot().settings.forceCompatDevices,
         )
     }
 
@@ -287,8 +342,9 @@ open class JuggControlPanelController(
                 val adb = IdeaDeviceAdb(it, logger)
                 JuggControlPanelModel.Settings.ForceCompatDevice(adb.displayName, helper.isForceCompatDevice(adb))
             }
-        } catch (e: Exception) {
-            logger.debug("Load force compat devices failed", e)
+        } catch (e: Throwable) {
+            if (e is CancellationException) throw e
+            logger.warn("Load force compat devices failed", e)
             emptyList()
         }
     }
@@ -348,6 +404,7 @@ open class JuggControlPanelController(
     /** Identifies the persisted Jugg switch edited by a control panel toggle. */
     enum class Setting(val displayName: String) {
         CONFIRM_FALLBACK("Confirm fallback"),
+        CONFIRM_FALLBACK_WHEN_TOO_MANY_CHANGES("Confirm fallback when too many changes"),
         ALWAYS_RESTART("Always restart app"),
         QUICK_DEPLOY("Quick deploy"),
         AUTO_FALLBACK("Auto fallback"),

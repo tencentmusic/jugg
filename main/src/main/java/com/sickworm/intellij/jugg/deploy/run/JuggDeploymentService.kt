@@ -8,6 +8,9 @@ import com.sickworm.intellij.jugg.deploy.IJuggDeploymentService
 import com.sickworm.intellij.jugg.deploy.cache.JuggDeploymentCacheStore
 import com.sickworm.intellij.jugg.deploy.run.utils.AdbLogWrapper
 import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
+import java.io.File
+import java.io.FileNotFoundException
+import java.nio.file.Files
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.system.measureTimeMillis
 
@@ -53,9 +56,13 @@ class JuggDeploymentService(
     }
 
     override fun loadCachedOverlayId(deviceSerial: String, packageName: String, logger: Logger): CachedOverlayId? {
-        return loadEntry(deviceSerial, packageName, defaultApplyChangesExecutor, AdbLogWrapper(logger))
-            ?.overlayId
-            ?.let { CachedOverlayId(sha = it.sha, isBaseInstall = it.isBaseInstall) }
+        val entry = try {
+            loadEntry(deviceSerial, packageName, defaultApplyChangesExecutor, AdbLogWrapper(logger))
+        } catch (e: FileNotFoundException) {
+            logger.debug("Cached deployment APK is missing for $deviceSerial: ${e.message}")
+            null
+        }
+        return entry?.overlayId?.let { CachedOverlayId(sha = it.sha, isBaseInstall = it.isBaseInstall) }
     }
 
     override fun loadEntry(
@@ -65,6 +72,8 @@ class JuggDeploymentService(
         refreshMemoryCacheState()
         val key = "$deviceSerial:$packageName"
         memoryCache[key]?.takeIf { it.applyChangesExecutor === applyChangesExecutor }?.let {
+            it.entry.apks.firstOrNull { apk -> Files.notExists(File(apk.path).toPath()) }
+                ?.let { apk -> throw FileNotFoundException(apk.path) }
             logger.info("JuggDeploymentService.loadEntry, load from memory cache")
             return it.entry
         }

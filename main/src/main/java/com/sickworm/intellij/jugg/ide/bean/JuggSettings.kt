@@ -52,6 +52,7 @@ object JuggSettings {
     // Run options start
 
     var isConfirmFallbackWhenNoFileChanges by setting(true)
+    var isConfirmFallbackWhenTooManyChanges by setting(true)
     var isAlwaysRestartAppAfterDeployment by setting(false)
     var isAutoFallbackToGradleWhenDeployError by setting(false)
     var isEmbeddedToApk by setting(false)
