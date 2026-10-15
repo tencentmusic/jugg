@@ -1,5 +1,12 @@
 # Tools
 
+## android_weekly/crawl.py
+
+`android_weekly/crawl.py` downloads the Android Weekly archive into a local,
+resumable data directory and generates a static browser-friendly highlights
+site. See [`android_weekly/README.md`](android_weekly/README.md) for the
+rate-limit, cache, analysis, and usage details.
+
 ## fetch_github_issue.py
 
 `fetch_github_issue.py` reads a GitHub Issue through the read-only GitHub REST
