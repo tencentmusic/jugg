@@ -34,6 +34,18 @@ Prepare:
 
 As described in the user guide, a basic remote compilation setup can be completed in a few minutes, and the configuration can be reused across projects.
 
+## Use rsync on Windows
+
+Windows x64 projects on local NTFS storage can use `rsync_simple` or full `rsync` with a Linux or macOS build host. Windows uses rsync and SSH from installed Cygwin. Enter a password or private key file path in the SSH configuration. The build host needs rsync and must allow SSH shell sessions.
+
+On macOS, choose a sync directory writable by the SSH account instead of reusing a Linux `/home` path. Set the build host's actual `ANDROID_HOME` in the remote compilation environment variables, and check that its JDK and dependency repositories are accessible. After uploading from Windows, Jugg restores execute permission before running the relative `gradlew` specified by the command within the project.
+
+Install the Cygwin x64 `rsync` and `openssh` packages yourself, add that installation’s `bin` directory to your user PATH, and restart Android Studio. Jugg selects only the first `rsync.exe` in the PATH inherited by the IDE and uses `ssh.exe` and `cygpath.exe` from the same directory. If that directory is incomplete, complete the installation or adjust PATH ordering. Jugg does not skip it to find another toolchain and does not use `JUGG_CYGWIN_HOME` or fixed installation directories.
+
+If tools are missing or cannot start, the current synchronization stops. The console explains the failure and provides a “Windows rsync 环境配置 / Windows rsync setup” link. Open it to select Chinese or English, preview the setup prompt, and copy it to your own Agent. Paths may contain your local username; review them first. If copying fails, select the preview text and copy manually. This entry provides local tool setup guidance only; it does not collect project evidence or upload reports. Jugg does not install tools or modify PATH automatically. After setup, restart Android Studio and retry manually.
+
+Local native Windows symlink permission is required. Upload preserves links themselves; targets outside the transfer tree are not uploaded automatically. Widen the full `rsync` transfer scope or copy those resources beforehand. External SSH does not read personal SSH configuration. Connections requiring a jump host, HTTP proxy, or interactive second factor are outside this Windows integration's scope.
+
 ## Control synchronization exclusions
 
 `Exclude patterns` in Remote Compile Options shows the currently configurable exclusion list. The default value is:

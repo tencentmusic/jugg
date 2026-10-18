@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.gradle.compile
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.compiler.BuildTarget
+import com.sickworm.intellij.jugg.compiler.isWindows
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
@@ -220,7 +221,7 @@ class LocalGradleCompileClient(
         val projectRootPath = File(projectDir.path)
 
         RsyncCompatibleHelper.init(logger)
-        JuggSettings.isCanUseBackupClasspath = RsyncCompatibleHelper.isCompatible
+        JuggSettings.isCanUseBackupClasspath = !isWindows && RsyncCompatibleHelper.isCompatible
         if (!JuggSettings.isCanUseBackupClasspath) {
             logger.info("isCanUseBackupClasspath is false, skip fetchClasspathResult")
             return null

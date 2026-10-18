@@ -13,7 +13,7 @@
 | sshpass 1.10 | GPL-2.0-or-later | macOS arm64 可执行文件作为 SSH 命令前缀由 shell 启动，通过命令行和进程 I/O 交互 | 否 | 作为独立操作系统进程运行，不与 IDE 插件 JVM 静态或动态链接，也不共享地址空间。 |
 | JavaBeans Activation Framework 1.2.0 | CDDL-1.1 | 内嵌于官方 R8 8.4.21 JAR，由 JVM 加载 | 是 | 不依赖进程隔离；上游同时提供 CDDL-1.1/GPL-2.0，发行清单和 SBOM 固定选择 CDDL-1.1。 |
 
-因此，不能笼统确认上述六类组件都通过 IPC 或命令行实现地址空间隔离。当前技术事实是：`rsync`、`sshpass` 满足独立进程边界；Checker Qual 和 JavaBeans Activation Framework 使用非 GPL 许可证分支；OpenJDK JVMTI header 使用带 Classpath Exception 的 GPL-2.0，并随发行提供修改源码与 patch。
+因此，不能笼统确认上述组件都通过 IPC 或命令行实现地址空间隔离。当前技术事实是：`rsync`、`sshpass` 满足独立进程边界；Checker Qual 和 JavaBeans Activation Framework 使用非 GPL 许可证分支；OpenJDK JVMTI header 使用带 Classpath Exception 的 GPL-2.0，并随发行提供修改源码与 patch。
 
 ## 2. LGPL 2.1 和 MPL 1.1 组件
 

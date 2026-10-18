@@ -11,7 +11,10 @@ import java.io.File
 /**
  * Base rsync command with SSH argument assembly and password-safe logging.
  */
-abstract class RsyncCommand(val password: String?, remoteSshPort: Int, keyPathList: List<String>): BaseSshCommand() {
+abstract class RsyncCommand(val password: String?, internal val remoteSshPort: Int, internal val keyPathList: List<String>): BaseSshCommand() {
+
+    internal open fun windowsArguments(runtime: WindowsRsyncRuntime): List<String> =
+        error("This rsync command does not support Windows native execution")
 
     private val keyPathArguments = if (keyPathList.isEmpty()) "" else keyPathList.joinToString(" ") { "-i $it" }
 
@@ -74,14 +77,18 @@ class RsyncSyncFileCommand(
     password: String?,
     remoteSshPort: Int,
     keyPathList: List<String>,
-    localProjectIftPath: String,
-    remoteProjectPath: String,
-    remoteProjectSyncRelativePath: String,
-    excludePatterns: List<String> = emptyList(),
+    private val localProjectIftPath: String,
+    private val remoteProjectPath: String,
+    private val remoteProjectSyncRelativePath: String,
+    private val excludePatterns: List<String> = emptyList(),
 ) : RsyncCommand(password, remoteSshPort, keyPathList) {
 
     private val rsyncArguments = getRsyncArguments(remoteProjectSyncRelativePath, excludePatterns)
     override val baseCommand: String = """${RsyncCompatibleHelper.rsyncPath} $sshArguments $rsyncArguments $localProjectIftPath $remoteProjectPath"""
+
+    internal override fun windowsArguments(runtime: WindowsRsyncRuntime): List<String> =
+        SyncFileCommand.getRsyncArgumentTokens(remoteProjectSyncRelativePath, excludePatterns) +
+                listOf(runtime.localPath(localProjectIftPath) + "/", remoteProjectPath.replace('\\', '/'))
 }
 
 /**
@@ -91,11 +98,16 @@ class RsyncFetchOutputCommand(
     password: String?,
     remoteSshPort: Int,
     keyPathList: List<String>,
-    outputApkPath: String,
-    remoteToLocalClasspathPath: String,
+    private val outputApkPath: String,
+    private val remoteToLocalClasspathPath: String,
 ) : RsyncCommand(password, remoteSshPort, keyPathList) {
 
     override val baseCommand: String = """mkdir -p $remoteToLocalClasspathPath && ${RsyncCompatibleHelper.rsyncPath} $sshArguments $outputApkPath $remoteToLocalClasspathPath"""
+
+    internal override fun windowsArguments(runtime: WindowsRsyncRuntime): List<String> {
+        java.nio.file.Files.createDirectories(File(remoteToLocalClasspathPath).toPath())
+        return listOf(outputApkPath.replace('\\', '/'), runtime.localPath(remoteToLocalClasspathPath) + "/")
+    }
 
 }
 
@@ -120,6 +132,16 @@ open class RsyncFetchClasspathCommand(
     override fun getCommand(isNeedSetChineseLanguage: Boolean, isWindows: Boolean): String {
         rsyncArguments = FetchClasspathCommand.getRsyncArguments(modules, isWindows, additionalFetchPath, isNeedDeleteArg)
         return super.getCommand(isNeedSetChineseLanguage, isWindows)
+    }
+
+    internal override fun windowsArguments(runtime: WindowsRsyncRuntime): List<String> {
+        java.nio.file.Files.createDirectories(File(remoteToLocalClasspathPath).toPath())
+        val additionalPaths = if (this is RsyncFetchChangedLibraryCommand) listOf("build/jugg/tmp/diff/**") else {
+            require(additionalFetchPath.isEmpty()) { "Windows classpath requires structured include patterns" }
+            emptyList()
+        }
+        return FetchClasspathCommand.getRsyncArgumentTokens(modules, additionalPaths, isNeedDeleteArg) +
+                listOf(remoteProjectPath.replace('\\', '/').trimEnd('/') + "/", runtime.localPath(remoteToLocalClasspathPath) + "/")
     }
 }
 

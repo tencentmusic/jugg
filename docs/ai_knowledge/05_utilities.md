@@ -82,6 +82,11 @@ JuggManager 初始化
 - MCP 拉取产物保留 30 天，问题诊断临时产物保留 7 天；两者在项目启动后使用独立后台任务调用 `ExpiredArtifactCleaner`，局部失败不会阻断另一类清理。
 - `CompileEffectAnalyzer` 从依赖 JAR 提取的 class 统一放在 `JuggPathManager.extractedClassesDir`（`build/jugg/tmp/extracted_classes/`），保留包路径；`DeployFileManager.init()` 调用其 `clear()` 删除该子目录，覆盖全量构建后重建、项目恢复和 CLI 初始化。清理失败只打印 warn，不阻断初始化；增量轮次结束不清理，历史散落在 `tmp/` 根下的 class 和其他临时目录均不处理。
 - `JuggPathManager` 同时暴露 project-local 与 global root：编译产物、DB 优先 project-local；日志按工程隔离在 global `log/`，`build/jugg/log` 仅 best-effort 创建兼容符号链接；跨项目复用资源、deploy cache、hook / resource 文件使用 `JuggGlobalPathManager`。`~/.jugg` 探测失败时，全局 root 改为 `${java.io.tmpdir}/jugg-<user>`，后续编译不应再因家目录权限失败。
+- `WindowsRsyncRuntime` 只从 IDE 继承的 PATH 顺序选择第一个 rsync.exe，忽略空项和相对目录；只使用同目录 ssh.exe/cygpath.exe，不跳过不完整安装。无 JUGG_CYGWIN_HOME、固定根目录或系统 OpenSSH 回退。首次本地传输由独立的 `WindowsRsyncProbe` 执行 rsync/ssh 版本探测，失败记录后继续实际流程，取消时停止后续探测，不额外复测；cygpath 在实际转换时验证，同一客户端复用运行时。Cygwin 不分发、不自动安装。
+- `NativeProcessDiagnostics` 复用执行器注入的项目 JuggLogger，独立记录原生进程的工具路径、白名单版本参数、父子 PID、耗时、真实十进制/十六进制退出码及取消状态；正常记录为 debug，版本探测失败为 warn 并说明继续实际流程。启动异常仅保留异常类型和系统 error 编号，不记录完整 argv、环境或原始异常消息；stdout/stderr 继续沿原有输出链路记录。新增日志失败只舍弃该条诊断，不覆盖进程结果，不启动外部采集或重试。PID 与时间戳用于手动关联 ProcMon，日志不能单独证明冲突文件或占用者。
+- 本地检测失败通过 `WindowsRsyncSetupException` 和 `TerminalOutputListener.onWindowsRsyncSetupFailure` 传递类别、工具路径、缺失项和受控原因；不传输原始进程输出或远端认证数据。CLI 输出恢复方法，IDE 提供双语环境配置 Prompt hyperlink，并跳过 ASK AI 现场采集。对话框仅预览/复制，复制失败保留预览供手工操作；配置完成后重启 IDE 并手动重试。
+- Windows 外部 SSH 使用同一 Cygwin 安装的 ssh，隔离用户配置，按已有配置使用公钥或密码；密码通过每次调用的环境和内置 askpass.exe 读取，不出现在 argv/日志/文件中。askpass 源码为 `tools/windows-rsync/windows_rsync_askpass.cs`，由系统 .NET Framework 4 编译。known_hosts 参数不夹带字面双引号，统一由 -e 渲染层转义。
+- Cygwin `winsymlinks:nativestrict` 在链接目标尚未落盘时会报 ENOENT。只有 classpath 拉取返回 23 且包含明确的 symlink ENOENT 诊断时，才在首次传输已落盘目标后重试一次；第二次结果原样返回。认证、断网和普通部分传输错误不重试，取消也不重试。下载链接已由 JVM 读取验证，不回退 Cygwin 专用链接。
 - `PlatformApi.impl` 是 host 注入边界；core 代码不要绕过它直接调用 IDE / Android Studio API，否则 `main` 模块测试和 CLI 场景会失效。
 - `JuggSettings` 的远程命令历史按 `user + host + port + remoteProjectPath` 保存，每个目标只保留最近 10 条并按完整命令去重。读取损坏数据或写入失败时返回空历史，不影响远程命令执行；命令正文不得写入 Jugg 持久日志。`RemoteUserCommand` 将正文编码后交给子 shell，并用每次执行唯一的完成标记解析退出码，避免用户命令中的注释、`exit` 或输出内容干扰协议。
 - APK 修改链路依赖 `PlatformApi.allAvailableJavaHomes()` 寻找可用签名 JDK；每次重试会移除已有的 `JAVA_HOME` 并写入当前候选，即使原环境未设置该变量也能真正切换 JDK。签名失败不要只看 apksigner 输出，也要检查 host Java home 列表。
@@ -91,6 +96,8 @@ JuggManager 初始化
 - `ApkFileModifier` 的可空 `customApkSignScriptRunner` 决定签名阶段走自定义脚本还是默认 keystore：走脚本时 `signConfig` 可以为空，签名后仍统一执行 `verifyApk()` 和原子替换。脚本命令使用 `isSecureCommand`，因此 `CmdExecutor` 的 debug 日志只打印 `(secure)`，脚本原文不进入日志。
 - 兼容资源 APK 修改在 JVM 14+ 继续使用 ZipFS；`ResourceApkModifier` 为每轮写入创建唯一同目录临时文件，成功关闭后优先原子替换正式 `resource.ap_`，平台不支持时回退普通替换，避免异常遗留的 ZipFS URI 和半成品污染后续 Run。日志记录条目数、内容总字节、最大条目、APK 字节及导出前后 heap，用于区分 ZIP 生成峰值与 deployer payload 包装峰值。
 - 远端编译的 Exclude patterns 控制 local-to-remote 源文件同步中的可配置排除规则。`.gradle` 和 `build` 保持原有固定 include/exclude 顺序：默认排除目录，同时放行 `.gradle/jugg/**`、`build/jugg/config/**` 等 Jugg 必需文件，用户不能通过该字段移除这两项。未自定义时使用并展示 `local.properties`、`.idea/`、`*.iml`、`.git/objects/`、`.git/modules/`、`.cxx/`；用户修改后只使用保存的可配置列表，明确清空表示不应用这些可配置默认排除。旧版本 Additional exclude patterns 没有自定义标记，升级后按未设置处理。配置用分号或换行分隔 rsync glob（逗号仅用于输入兼容），所有同步模式都将 pattern 按用户输入原样交给 rsync，作用域以本次实际传输根为准；`.git/` 可匹配任意层级的同名目录，`/.git/` 仅匹配传输根目录。它不是 gitignore 语义，`..`、引号和 Windows 绝对路径始终不支持。
+
+- Windows rsync 的版本探测和 cygpath 转换使用成功静默模式：正常 stdout/stderr 不进入控制台，失败时恢复原输出通道，收集结果、退出码和取消语义保留。远端系统检查只过滤成功完成标记；实际 rsync 传输仍实时输出。
 
 ---
 

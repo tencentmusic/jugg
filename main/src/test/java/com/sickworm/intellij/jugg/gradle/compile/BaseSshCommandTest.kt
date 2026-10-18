@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.gradle.compile
 
+import com.sickworm.intellij.jugg.compiler.isWindows
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -9,6 +10,7 @@ class BaseSshCommandTest {
 
     @Test
     fun getCommand_shouldPreserveFailedExitCode_whenUnixCommandFails() {
+        org.junit.Assume.assumeFalse(isWindows)
         val command = TestCommand("false")
         val process = ProcessBuilder("/bin/bash", "-c", command.getCommand(false, false)).start()
         val result = process.inputStream.bufferedReader().lineSequence()

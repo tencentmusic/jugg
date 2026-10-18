@@ -208,17 +208,15 @@ Library androidTest 的 `instrumentationTargetPackage` 当前取 synthetic test 
 
 `RemoteGradleCompileClient.executeRemoteCommand()` 复用现有 SSH 认证、代理、环境变量、PTY 与取消能力，在 `remoteProjectPath` 下通过独立子 shell 和唯一完成标记执行一条非交互命令。该入口的单次 SSH connect 最长等待 30 秒，不做文件同步、APK/classpath 拉取或 deploy 编排，也不使用 Gradle 命令的 90 秒无输出超时。用户命令和终端输出只进入独立 Run Content；持久日志只记录命令类型、连接与退出结果，禁止记录命令正文。
 
-源码上传由 `SyncFileCommand.getRsyncArguments()` 统一生成 rsync/iFT 参数，使用 `-av --copy-unsafe-links --delete`：指向传输树之外的相对链接及绝对路径链接展开复制实际内容，支持 Repo linkfile 等工程外资源映射；传输树内的相对链接保留为链接。判断边界是实际传输根，源路径末尾的 `/` 和多工程同步范围会影响边界，不能只按 IDE 工程根判断。现有 include/exclude、增量比较和删除策略继续生效，本地链接及其源内容不变；展开目标缺失或不可读时保留 rsync 非零结果和错误输出，`syncSourceFile()` 返回失败并中止后续 Gradle 构建。APK/classpath 拉取参数不受此调整影响。
+源码上传由 `SyncFileCommand.getRsyncArguments()` 统一生成 rsync/iFT 参数，使用 `-av --delete`。仅 Windows 不添加 `--copy-unsafe-links`，保留链接本身，不读取树外链接目标；macOS/Linux 保留该参数，继续复制树外链接目标。Windows 工程需要树外内容时，应扩大完整 rsync 的同步根目录或事先物化文件；保留的链接在远端不保证可解析。include/exclude、增量比较和删除策略继续生效。
 
-依赖变化采用显式确认契约。检测到 build file 变化后，如果源码变化已经超过增量阈值，Jugg 先展示 Too many changes 确认；只有用户选择本轮继续增量，才展示 build file diff。未超过阈值时直接展示文件 diff。用户可选择读取依赖变化、忽略本轮 build file 变化、回退 Gradle 或取消；只有用户确认后才把依赖库产物转换为 `ChangedFile` 进入增量编译。原因是 build script 可以改变任意构建行为，仅凭依赖列表无法证明 APK 其他部分没有变化，自动猜测会把无法判定的风险伪装成成功。
+Windows x64 本地 NTFS 到 Linux/macOS 使用 `WindowsRsyncRuntime` 的原生 argv 进程，远端 uname 仅接受 Linux/Darwin，支持 `rsync_simple`、完整 `rsync` 和多工程；Windows 路径在边界转换，classpath 返回实际下载位置。Windows 统一使用本机 Cygwin 的 rsync、ssh 和 cygpath；严格使用 PATH 中第一个 rsync.exe 及同目录 ssh/cygpath，工具缺失或实际启动失败提示具体路径、原因和配置 Prompt 入口，不自动安装。首次版本探测为独立 best-effort 诊断，失败记录后继续实际流程，不额外复测。私钥及密码均沿既有远端连接配置读取，密码仅通过子进程环境与 askpass 传递。Windows rsync 上传后，在真正编译前仅为 compileCommand 指定且位于工程内的相对 gradlew 设置 Unix 执行位，避免 NTFS 权限上传后返回 126；仅拉取和非 Windows 路径不变。直接进程保留真实退出码和取消结果；本地 backup classpath 继续关闭。
 
-Gradle diff 同时保留两个比较基线：`diffResult` 对比上一次构建依赖，用于展示本轮新增、删除和升级；`diffResultWithFull` 对比最近一次完整 Gradle 基线，用于确定真正需要编译、替换或回滚的 library 文件。library dex 可能在 APK 中合并为单个产物，不能只按上一轮增量结果推断旧 jar。用户选择“忽略”只表示接受当前 build file 对开发链路无影响，不代表 Jugg 已验证脚本等价；出现异常时仍应完整 Gradle 刷新基线。
+FindOutputCommand 在只指定 APK 文件名时显式使用 `find .`，兼容 BSD find。
 
-runtime library 是否参与依赖 diff 由最近一次完整构建保存的 project info 决定，不提升 `full_build_info.json` 序列化版本。旧完整构建基线的 `runtimeLibraryDependencies` 为空时，Jugg 保留原有 compile dependency diff，不让已有 compile context 失效，也不强制升级用户立即完整构建。之后任一次成功完整 Gradle 构建记录了非空 runtime library 基线，后续两个依赖 diff 才统一加入 runtime library；如果完整基线确实没有 runtime 外部库，第一次新增纯 runtime-only 库仍需等下一次完整构建后才能进入后续 diff。
+验收复用 `idea/.../gradle/RemoteGradleCompileClientTest`：`testSimulated*ArtifactFetch` 覆盖三种同步布局，真实上传后用 Python 生成所有产物目录的小文件，验证 APK/classpath、原生链接、失败和取消；`testSimulatedCancellation` 验证 JSch shell 取消。`testRealProjectCompileAndFetch` 实际构建 demo 工程，验证首次/无变化/资源修改后的 APK 内容和 classpath，并记录耗时；它不代表设备部署已通过。脱敏小夹具矩阵见 `tools/windows-rsync/windows_rsync_acceptance.py`，真实工程传输计时见 `tools/windows-rsync/windows_rsync_project_benchmark.py`；服务器、JSON 及定向命令见 [测试准备](../task/2026-10/windows_rsync_test_setup.md)。
 
-APK 查找规则以 Run Configuration 的 output pattern 为入口；自动生成的 pattern 使用 IDE Android model 暴露的实际 build folder。androidTest pattern 从 `/outputs/apk/` 片段派生，因此同时支持 `app/build/...` 与项目根集中式 `build/app/...`。远端 classpath 同步使用相对项目根的 build output 路径，保证自定义 build directory 能回写到本地相同位置。
-
-远端 classpath 的 rsync 过滤规则会按 build directory 类型生成：使用 `${moduleRoot}/build` 的普通模块按 variant 复用 `build/...` 规则，避免大型多模块工程为每个模块重复展开相同参数；自定义 build directory、`customClasspath` 与 `customSyncFilePath` 继续使用项目根相对的精确路径，保证集中式输出和项目配置不会被通配规则覆盖。
+远端 classpath 的 rsync 过滤规则会按 build directory 类型生成：使用 `${moduleRoot}/build` 的普通模块按 variant 复用 `**/build/...` 规则，显式匹配嵌套模块，避免大型多模块工程为每个模块重复展开相同参数；自定义 build directory、`customClasspath` 与 `customSyncFilePath` 继续使用项目根相对的精确路径，保证集中式输出和项目配置不会被通配规则覆盖。
 
 `JuggCompilerHelper.gradleCompile()` 会在进入 Gradle 客户端前调用 `GradleWrapperRepairer`。该逻辑只处理 `compileCommand` 中使用 `gradlew` / `gradlew.bat` 的场景：若对应目录存在 `gradle/wrapper/gradle-wrapper.properties`，则从 Jugg 内置资源补齐缺失的 `gradlew`、`gradlew.bat`、`gradle/wrapper/gradle-wrapper.jar`，并为 `gradlew` 设置可执行权限；若 properties 不存在或命令不是 wrapper 入口，则不修改工程。补齐只创建缺失文件，不覆盖已有文件。Windows 本机执行远程编译时，还会在同步前将实际使用的 Unix `gradlew` 中 CRLF 转换为 LF；转换只在内容变化时写回，不处理 `gradlew.bat`、其他脚本或 Gradle 配置文件，纯本地编译与仅拉取远端结果均保持原文件不变。
 

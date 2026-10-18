@@ -169,7 +169,7 @@ def write_sbom(rows)
     'dataLicense' => 'CC0-1.0',
     'SPDXID' => 'SPDXRef-DOCUMENT',
     'name' => 'Jugg-third-party-components',
-    'documentNamespace' => "https://jugg.sickworm.com/spdx/third-party-components-#{digest}",
+    'documentNamespace' => "https://tencentmusic.github.io/jugg/?spdx=third-party-components-#{digest}",
     'creationInfo' => {
       'created' => '2026-08-08T00:00:00Z',
       'creators' => ['Tool: tools/generate_third_party_compliance.rb']

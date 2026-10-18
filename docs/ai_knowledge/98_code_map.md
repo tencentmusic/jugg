@@ -86,6 +86,10 @@
 
 ## 5. 高频定位建议
 
+- Windows → macOS 真实工程：`RemoteGradleCompileClientTest.testRealProjectCompileAndFetch` 校验 APK 内容、classpath 和三阶段构建；`tools/windows-rsync/windows_rsync_project_benchmark.py` 测真实源码/产物传输。Windows 统一使用本机 Cygwin；证据与使用条件见 `docs/task/2026-10/windows_rsync_mac_real_acceptance.md`。
+
+- Windows rsync：`main/.../gradle/compile/WindowsRsyncRuntime.kt`（PATH 首个 rsync 及同目录工具检测、SSH argv）、`WindowsRsyncProbe.kt`（独立 best-effort 版本探测）、`NativeProcessDiagnostics.kt`（PID/退出码诊断与日志失败隔离）、`RemoteGradleCompileClient.invokeWindowsRsync()`（真实结果、链接单次恢复）；回归复用 `idea/.../gradle/RemoteGradleCompileClientTest.kt`。脱敏验收入口 `tools/windows-rsync/windows_rsync_acceptance.py` 复用 `tools/windows-rsync/windows_rsync_probe.py`；支持私钥/密码、完整 rsync 和多工程，树外链接不展开。真实工程 benchmark 为 `tools/windows-rsync/windows_rsync_project_benchmark.py`。配置见 `docs/task/2026-10/windows_rsync_test_setup.md`。 环境配置 UI 为 `idea/.../ide/ui/WindowsRsyncSetupDialog.kt`，`AskAiCompileUiHandler` 经结构化本地失败事件发布入口并阻止现场采集；规则见 `windows_rsync_path_setup_prompt.md`。
+
 - 查“某能力是否已存在”：先 `98_code_map.md`，再对应目录搜索类名。  
 - 查“编译为何回退”：从 `JuggCompilerHelper` -> `preprocessIncrementalCompile`。
 - 查“部署失败恢复”：从 `JuggDeployerHelper.deploy` -> `DeployStateRecover.recoverDeployState`。
