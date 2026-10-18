@@ -86,6 +86,8 @@
 
 ## 5. 高频定位建议
 
+- Windows rsync 待验收接入：`main/.../gradle/compile/WindowsRsyncRuntime.kt`、`RsyncCommand.kt`、`CmdExecutor.invokeProcess()`；真实远程回归复用 `idea/.../gradle/RemoteGradleCompileClientTest.kt`，打包和独立 PoC 位于 `tools/package_windows_rsync.py` / `tools/windows_rsync_probe.py`。配置入口见 `docs/task/2026-10/windows_rsync_test_setup.md`，最终工具选型与 Windows 支持范围尚待实测。
+
 - 查“某能力是否已存在”：先 `98_code_map.md`，再对应目录搜索类名。  
 - 查“编译为何回退”：从 `JuggCompilerHelper` -> `preprocessIncrementalCompile`。
 - 查“部署失败恢复”：从 `JuggDeployerHelper.deploy` -> `DeployStateRecover.recoverDeployState`。

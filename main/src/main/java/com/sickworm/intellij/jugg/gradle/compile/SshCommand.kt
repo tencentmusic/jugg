@@ -97,7 +97,13 @@ class SyncFileCommand(
         fun getRsyncArguments(
             projectRelativePath: String,
             excludePatterns: List<String>,
-        ): String {
+        ): String = getRsyncArgumentTokens(projectRelativePath, excludePatterns).joinToString(" ") {
+            if (it.startsWith("--include=") || it.startsWith("--exclude=")) {
+                "${it.substringBefore('=')}='${it.substringAfter('=')}'"
+            } else it
+        }
+
+        internal fun getRsyncArgumentTokens(projectRelativePath: String, excludePatterns: List<String>): List<String> {
             var buildDirPath = "/$projectRelativePath/build"
             if (buildDirPath.startsWith("//")) {
                 buildDirPath = buildDirPath.substring(1)
@@ -107,22 +113,17 @@ class SyncFileCommand(
                 dotGradlePath = dotGradlePath.substring(1)
             }
 
-            val configDirArguments = JuggPathManager.RSYNC_PUSH_CONFIG_DIR_ARGUMENTS
-                .replace("--include='/.gradle", "--include='$dotGradlePath")
-                .replace("--exclude='/.gradle", "--exclude='$dotGradlePath")
-                .replace("--include='/build", "--include='$buildDirPath")
-                .replace("--exclude='/build", "--exclude='$buildDirPath")
-            val userExcludeArguments = buildExcludeArguments(excludePatterns)
             // Copy resources mapped outside the transfer tree (e.g. Repo linkfiles); the boundary is
             // the rsync transfer root, not the project root. Internal relative links stay as links.
-            return "-av --copy-unsafe-links --delete $configDirArguments --exclude='build/' $userExcludeArguments"
-        }
-
-        private fun buildExcludeArguments(excludePatterns: List<String>): String {
-            return excludePatterns.joinToString(" ") { pattern ->
-                val normalizedPattern = pattern.replace('\\', '/')
-                "--exclude='$normalizedPattern'"
-            }
+            return listOf("-av", "--copy-unsafe-links", "--delete") + listOf(
+                "--include=$dotGradlePath/", "--include=$dotGradlePath/jugg/",
+                "--include=$dotGradlePath/jugg/**", "--exclude=$dotGradlePath/**",
+                "--include=$buildDirPath/", "--include=$buildDirPath/jugg/",
+                "--include=$buildDirPath/jugg/config/", "--include=$buildDirPath/jugg/config/**",
+                "--include=$buildDirPath/jugg/database/", "--include=$buildDirPath/jugg/database/project_infos.db/",
+                "--include=$buildDirPath/jugg/database/project_infos.db/project_infos.json",
+                "--exclude=$buildDirPath/**", "--exclude=build/",
+            ) + excludePatterns.map { "--exclude=${it.replace('\\', '/')}" }
         }
     }
 }
@@ -294,20 +295,33 @@ open class FetchClasspathCommand(
     companion object {
 
         fun getRsyncArguments(modules: List<ModuleBuildPathInfo>, isWindows: Boolean, additionalPath: List<String> = emptyList(), isNeedDeleteArg: Boolean = true): String {
-            val includeClasspathFilter = modules
-                .flatMap { it.getRsyncPaths() }
-                .toSet()
-                .map {
-                    val platformSeparator = File.separatorChar
-                    val remoteSeparator = if (isWindows) '\\' else '/'
-                    it.path.replace(platformSeparator, remoteSeparator) to it.extension
+            val tokens = getRsyncArgumentTokens(modules, emptyList(), isNeedDeleteArg)
+            return tokens.joinToString(" ") { token ->
+                when {
+                    token == "--include=*/" -> "--include='*/' ${additionalPath.joinToString(" ")}"
+                    token.startsWith("--include=") -> {
+                        val path = token.substringAfter('=').let { if (isWindows) it.replace('/', '\\') else it }
+                        "--include='$path'"
+                    }
+                    token.startsWith("--exclude=") -> "--exclude='${token.substringAfter('=')}'"
+                    else -> token
                 }
-                .joinToString(" ") { (path, extension) ->
-                    if (extension.isNotEmpty()) "--include='$path'"
-                    else "--include='$path/**'"
-                }
-            val deleteParam = if (isNeedDeleteArg) "--delete --delete-excluded" else ""
-            return "-av $deleteParam --prune-empty-dirs --include='*/' ${additionalPath.joinToString(" ")} $includeClasspathFilter --exclude='*'"
+            }
+        }
+
+        internal fun getRsyncArgumentTokens(
+            modules: List<ModuleBuildPathInfo>,
+            additionalPaths: List<String>,
+            isNeedDeleteArg: Boolean,
+        ): List<String> {
+            val filters = modules.flatMap { it.getRsyncPaths() }.toSet().map {
+                val path = it.path.replace('\\', '/')
+                "--include=$path${if (it.extension.isEmpty()) "/**" else ""}"
+            }
+            return listOf("-av") +
+                    (if (isNeedDeleteArg) listOf("--delete", "--delete-excluded") else emptyList()) +
+                    listOf("--prune-empty-dirs", "--include=*/") +
+                    additionalPaths.map { "--include=$it" } + filters + "--exclude=*"
         }
 
         private fun ModuleBuildPathInfo.getRsyncPaths(): List<File> {

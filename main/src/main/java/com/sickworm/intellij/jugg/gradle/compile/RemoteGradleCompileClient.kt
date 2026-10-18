@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.gradle.compile
 import com.intellij.openapi.project.Project
 import com.jcraft.jsch.*
 import com.sickworm.intellij.jugg.compiler.BuildTarget
+import com.sickworm.intellij.jugg.compiler.isWindows
 import com.sickworm.intellij.jugg.gradle.compile.LocalGradleCompileClient.Companion.parseDiffSet
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
@@ -78,6 +79,9 @@ class RemoteGradleCompileClient(
         keyPathList = mutableListOf()
         val specificKeyPath = convertToAbsoluteKeyPathIfSpecific(finalPasswordOrKey)?.also {
             logger.debug("found key path in user input: $it")
+        }
+        if (isWindows && juggGradleCompileOptions.syncMode.isRsync && specificKeyPath != null) {
+            finalPasswordOrKey = specificKeyPath
         }
         val shouldSearchKeysLazily = finalPasswordOrKey.isNotEmpty()
         if (!shouldSearchKeysLazily) {
@@ -430,6 +434,9 @@ class RemoteGradleCompileClient(
         if (passwordOrKey.isEmpty()) {
             return null
         }
+        if (isWindows && File(passwordOrKey).isAbsolute) {
+            return File(passwordOrKey).takeIf { it.isFile }?.absolutePath
+        }
         if (!File(passwordOrKey).isAbsolute) {
             // maybe it's a key path
             val tryKeyPath = File(passwordOrKey).toHomeAbsolutePath()
@@ -590,7 +597,10 @@ class RemoteGradleCompileClient(
         reportMissing: Boolean = true,
     ): RemoteApk? {
         // find apk path
-        val findOutputCommand = FindOutputCommand(gradleCompileSettings.remoteProjectPath, outputApkName)
+        val remotePath = gradleCompileSettings.remoteProjectPath.let {
+            if (isWindows && gradleCompileSettings.syncMode.isRsync) quoteRemotePath(it) else it
+        }
+        val findOutputCommand = FindOutputCommand(remotePath, outputApkName)
         val findOutputResult = invoke(findOutputCommand)
         if (findOutputResult != 0) {
             reportFindApkFailure(isRequired, reportMissing, "Find APK failed, please check your sync client is opened.")
@@ -715,7 +725,10 @@ class RemoteGradleCompileClient(
     }
 
     private fun syncSourceFile(gradleCompileSettings: JuggGradleCompileOptions): GradleCompileResult {
-        val mkDirCommand = MkDirCommand(gradleCompileSettings.remoteSyncRootPath)
+        val path = gradleCompileSettings.remoteSyncRootPath.let {
+            if (isWindows && gradleCompileSettings.syncMode.isRsync) quoteRemotePath(it) else it
+        }
+        val mkDirCommand = MkDirCommand(path)
         val mkDirResult = invoke(mkDirCommand)
         if (mkDirResult != 0) {
             printToStreamErrorIfCanceled("Make dir failed, please check your sync client is opened.")
@@ -925,6 +938,7 @@ class RemoteGradleCompileClient(
             return IGradleCompileClient.Error.ERROR_CANCELED
         }
         cmdExecutor.terminalOutputListener = terminalOutputListener
+        if (isWindows) return invokeWindowsRsync(command)
         var lastResult = IGradleCompileClient.Error.RESULT_CHANNEL_CLOSED
         for (attempt in 0 until RsyncAuthRetryPolicy.MAX_ATTEMPTS) {
             if (attempt > 0) {
@@ -947,6 +961,30 @@ class RemoteGradleCompileClient(
         }
         return lastResult
     }
+
+    private fun invokeWindowsRsync(command: RsyncCommand): Int {
+        try {
+            val options = checkLoginOnStart()
+            require(options.syncMode.isRsyncSimple && !isRemoteWindows) { "Windows rsync supports rsync_simple to Linux only" }
+            require(options.httpProxyIp.isEmpty() || options.httpProxyPort == 0) { "Windows rsync does not support HTTP proxy authentication" }
+            val remoteCheck = remoteInvoke(SimpleSshCommand("test \"\$(uname -s)\" = Linux"), NO_OUTPUT_TIMEOUT_MS)
+            if (remoteCheck != 0) return remoteCheck
+            val runtime = WindowsRsyncRuntime.load(cmdExecutor, logger)
+            cmdExecutor.prepareForInvoke()
+            if (isCanceled) cmdExecutor.release()
+            val arguments = runtime.arguments(command)
+            cmdExecutor.prepareForInvoke()
+            if (isCanceled) cmdExecutor.release()
+            return cmdExecutor.invokeProcess(arguments, runtime.environment)
+        } catch (exception: java.io.IOException) {
+            logger.warn("Windows rsync process or runtime failed", exception)
+        } catch (exception: RuntimeException) {
+            logger.warn("Windows rsync configuration or runtime failed", exception)
+        }
+        return if (isCanceled) IGradleCompileClient.Error.ERROR_CANCELED else IGradleCompileClient.Error.ERROR_FAILED
+    }
+
+    private fun quoteRemotePath(path: String): String = "'${path.replace("'", "'\"'\"'")}'"
 
     private fun normalizeRsyncProcessResult(result: Int): Int {
         if (!isCanceled && result == IGradleCompileClient.Error.RESULT_CHANNEL_CLOSED) {

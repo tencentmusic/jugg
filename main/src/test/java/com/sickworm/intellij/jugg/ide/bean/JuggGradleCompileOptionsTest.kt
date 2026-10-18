@@ -54,7 +54,7 @@ class JuggGradleCompileOptionsTest {
             val options = makeOptions(projectDir, parentDir)
 
             assertEquals(
-                File(options.remoteProjectPath, ".gradle/jugg/readProjectInfo.gradle.kts").path,
+                "${options.remoteProjectPath}/.gradle/jugg/readProjectInfo.gradle.kts",
                 options.remoteInitGradleFilePath,
             )
         } finally {

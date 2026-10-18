@@ -31,7 +31,9 @@ object RsyncCompatibleHelper {
             return
         }
         if (isWindows) {
-            isCompatible = false
+            val isConfigured = System.getenv("JUGG_WINDOWS_RSYNC_RUNTIME")?.isNotBlank() == true ||
+                    RsyncCompatibleHelper::class.java.getResource("/tools/windows/rsync/runtime.zip") != null
+            isCompatible = isConfigured && detectWindowsRuntime(logger)
             isInit = true
             return
         }
@@ -39,6 +41,18 @@ object RsyncCompatibleHelper {
         rsyncPath = getRsyncPath(logger)
         isCompatible = isCompatible(logger)
         isInit = true
+    }
+
+    private fun detectWindowsRuntime(logger: Logger): Boolean {
+        return try {
+            WindowsRsyncRuntime.load(CmdExecutor(logger), logger).probe()
+        } catch (exception: java.io.IOException) {
+            logger.warn("Windows rsync runtime probe failed", exception)
+            false
+        } catch (exception: RuntimeException) {
+            logger.warn("Windows rsync runtime validation failed", exception)
+            false
+        }
     }
 
     private fun isCompatible(logger: Logger): Boolean {

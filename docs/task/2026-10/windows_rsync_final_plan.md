@@ -1,6 +1,6 @@
 # Windows rsync 最终适配方案
 
-创建：2026-10-16；修订：2026-10-18。状态：确定先验证 oc-rsync、Cygwin 备选；正式接入引擎待实证。尚未构建工具包、修改生产代码或完成 Windows 验收。
+创建：2026-10-16；修订：2026-10-18。状态：确定先验证 oc-rsync、Cygwin 备选；正式接入引擎待实证。按维护者追加要求提前准备 Windows 生产适配、候选打包和测试入口；尚未构建最终工具包或完成真实 SSH/Windows 验收。服务器配置与执行命令见 [测试准备](windows_rsync_test_setup.md)。
 
 本文是 [10 月交接](windows_rsync_decision_handoff.md)的当前决策入口。10 月 16 日曾将 Cygwin 自构建路线定为正式方案；复核后确认，该结论没有足够的 Windows 对照证据，现修正为原生 oc-rsync 优先验证。[7 月方案](../2026-07/windows_cygwin_rsync_integration_plan.md)仅保留为历史参考，不恢复其旧版本下限、包体估算、工期、类设计和测试承诺。
 
@@ -128,6 +128,8 @@ mtime、远端脚本可执行性、本地可读写性必须验收；不宣称 NT
 
 ## 5. 验证、实施顺序与发布边界
 
+实施顺序调整：维护者明确要求在 SSH/Cygwin/server 环境完成前提前落地两种候选的适配代码，复用已有 remote compile testcase。下列选型和发布验收门槛保留；独立 PoC 与生产适配可并行准备，不将“代码已准备”写成“方案已通过”。正式引擎仍由实测决定，运行时不维护自动切换策略。
+
 1. **先做 oc-rsync 独立 PoC**：固定发布产物、源码和哈希，在没有 Cygwin、Git/MSYS2 不在 PATH 的 Windows x64 NTFS 环境记录运行依赖与实际 SSH 来源。先不 fork、不修改 Jugg 生产代码；验证真实 argv、SSH 以及下述文件行为。
 2. **固定输入做独立传输对照并选型**：使用 Jugg 实际上传、APK 和 classpath 参数连接 Linux 上游 rsync，对照标准 rsync 的文件集合、内容哈希、链接、删除及退出状态；至少包含重复同步、外部链接展开、过滤清理、错误 key、远端缺 rsync、非零退出及取消。oc-rsync 满足必要契约后优先接入；若出现必要契约缺陷，先记录最小复现和修补范围，范围不合适时转入 Cygwin 官方包审核及同一矩阵验证。只有官方包不能满足条件且原因已确认时才自构建。对拟支持的远端版本分别验收，不把旧探测下限当安全推荐。
 3. **按价值门禁补接入回归**：取得当前 Windows 不兼容分支及 argv/退出码失败证据，再改生产代码。复用已有 behavior owner，测试真实可观察结果，不为内部对象或类名加守卫。Windows 限定分支的稳定进程、文件行为可独立覆盖，不把本次任务变成测试框架建设。
@@ -154,7 +156,7 @@ mtime、远端脚本可执行性、本地可读写性必须验收；不宣称 NT
 - `BaseSshCommandTest` 保护 shell 完成标记，不覆盖 Windows 直接进程退出；`RsyncAuthRetryPolicyTest` 保护既有重试判定。
 - `idea/.../RemoteGradleCompileClientTest` 在缺少 `JUGG_REMOTE_CONFIG_FILE` 时直接返回；必须记录配置已就绪和实际执行日志，不能把空跑当作 Flow 成功。结合 `TopLevelFlowTest` 或等价真实 Flow 验证部署。
 
-实施时按 [06_testing.md](../../ai_knowledge/06_testing.md)选择定向 `--tests`，编译可用 `./gradlew :idea:compileKotlin`。未取得 Windows、SSH 或设备环境时准确列为未验证，不以其他平台测试替代。本文纯方案任务不新增自动化测试、不执行 Gradle 构建。
+实施时按 [06_testing.md](../../ai_knowledge/06_testing.md)选择定向 `--tests`，编译可用 `./gradlew :idea:compileKotlin`。未取得 Windows、SSH 或设备环境时准确列为未验证，不以其他平台测试替代。原纯方案阶段未执行构建；提前落地阶段的验证见下文。
 
 ## 6. 文档同步与本次交付
 
@@ -164,6 +166,10 @@ mtime、远端脚本可执行性、本地可读写性必须验收；不宣称 NT
 - 检查现有远端编译配置说明及 `troubleshooting/remote-build-failed.md` 中 Windows/iFT 限制；只有失准的用户说明才更新。按实际页面同步中英文，不沿用 7 月预设的 agent onboarding 页面。
 - 将工具清单、命令、平台、Flow 证据和支持范围回写本文；任何落地偏差必须说明原因。
 
-已完成：Jugg 当前实现与测试 owner 复核、固定发布版本的外部证据核对、验证优先级与最小适配设计、实施和验收边界。10 月 18 日修正了“未验证即排除 oc-rsync”及“旧版本即必须自构建”的过早判断。未完成：oc-rsync Windows PoC、Cygwin 官方包补丁审核、runtime 准备/发布、生产代码及端到端验收。
+已完成：Jugg 当前实现与测试 owner 复核、固定发布版本的外部证据核对、验证优先级与最小适配设计、实施和验收边界。10 月 18 日修正了“未验证即排除 oc-rsync”及“旧版本即必须自构建”的过早判断。提前落地了候选 runtime 校验/内置资源恢复、Windows argv/退出码/取消、源码上传与 APK/classpath 拉取，复用现有 remote compile testcase 并补充配置文档。没有新增引擎自动切换或公开设置。
+
+本机 Windows 定向 JVM 回归覆盖 `CmdExecutorProcessTest`、`WindowsRsyncRuntimeTest`、`CmdExecutorCancellationTest`、`SyncFileCommandTest`、`FetchClasspathCommandTest`、`BaseSshCommandTest` 和 `JuggGradleCompileOptionsTest`；54 项中 45 通过，9 项 Unix/POSIX 场景 skipped。`idea:compileKotlin` 与 `idea:compileTestKotlin` 通过；Python PoC 进程结果与打包完整性 6 项通过。新增进程 API 的首次定向编译因缺少 `invokeProcess` 失败，随后实现并通过回归；本机同时复现既有 Bash/POSIX 测试在 Windows 的错误，已将平台前置条件前移，未将这些跳过项计入 Windows 传输证据。
+
+仍未完成：两种候选的真实 SSH 传输对照、Cygwin 官方包补丁审核、最终 runtime 依赖闭包/许可与打包发布、服务器 remote compile testcase 实跑、完整增量部署 Flow、Mac/Linux/iFT 实机回归。当前没有最终二进制 ZIP；测试环境就绪后按 [配置说明](windows_rsync_test_setup.md)分别运行两种候选。只有相应验收通过后才内置最终 ZIP 并更新公开支持范围。
 
 依据：`00_overview.md`、`99_index.md`、`98_code_map.md`、`04_engineering_project.md` §5、`05_utilities.md` 相关工具/同步约束、`06_testing.md` 相关门禁与文档验证要求、10 月交接、7 月历史方案和源码链接修复记录；实现与测试入口见本文 §4–§5。外部事实以各处官方链接为准，缺失的产物和运行证据未冒充已取得。

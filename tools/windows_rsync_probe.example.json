@@ -1,0 +1,12 @@
+{
+  "engine": "oc-rsync",
+  "rsync": "D:/rsync/oc-rsync/rsync.exe",
+  "ssh": "C:/Windows/System32/OpenSSH/ssh.exe",
+  "cygpath": "C:/cygwin64/bin/cygpath.exe",
+  "target": "testuser@192.0.2.10",
+  "port": 22,
+  "keys": ["C:/Users/Admin/.ssh/id_ed25519"],
+  "bad_key": "C:/Users/Admin/.ssh/jugg_probe_wrong_key",
+  "known_hosts": "C:/Users/Admin/.ssh/known_hosts",
+  "timeout": 60
+}

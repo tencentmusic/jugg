@@ -13,6 +13,7 @@ import com.sickworm.intellij.jugg.mock.*
 import com.sickworm.intellij.jugg.project.JuggPathManager
 import org.json.JSONObject
 import org.junit.BeforeClass
+import org.junit.Assume.assumeTrue
 import org.junit.Test
 import java.io.File
 import kotlin.system.measureTimeMillis
@@ -29,10 +30,9 @@ class RemoteGradleCompileClientTest : LocalGradleCompileClientTest() {
         @JvmStatic
         @BeforeClass
         fun beforeClass() {
-            val clientInfoFilePath = System.getenv("JUGG_REMOTE_CONFIG_FILE") ?: run {
-                logger.warn("RemoteClient login failed, JUGG_REMOTE_CONFIG_FILE not found.")
-                return
-            }
+            val clientInfoFilePath = System.getenv("JUGG_REMOTE_CONFIG_FILE")
+            assumeTrue("Set JUGG_REMOTE_CONFIG_FILE to run remote integration tests", !clientInfoFilePath.isNullOrBlank())
+            requireNotNull(clientInfoFilePath)
             val clientInfoFile = File(clientInfoFilePath)
             assertTrue(clientInfoFile.exists())
 
@@ -49,9 +49,11 @@ class RemoteGradleCompileClientTest : LocalGradleCompileClientTest() {
                 it.remoteSshPassword = jsonObject.getString("remoteSshPassword")
                 it.remoteSshIp = jsonObject.getString("remoteSshIp")
                 it.remoteSshPort = jsonObject.getInt("remoteSshPort")
-                it.httpProxyIp = jsonObject.getString("httpProxyIp")
-                it.httpProxyPort = jsonObject.getInt("httpProxyPort")
+                it.httpProxyIp = jsonObject.optString("httpProxyIp", "")
+                it.httpProxyPort = jsonObject.optInt("httpProxyPort", 0)
                 it.syncMode = "rsync_simple"
+                it.remoteSyncPath = jsonObject.optString("remoteSyncPath", "")
+                it.environmentVariables = jsonObject.optString("environmentVariables", "")
             }
             juggGradleCompileOptions = options.toCompileOptions(pathManager)
 
@@ -116,6 +118,7 @@ class RemoteGradleCompileClientTest : LocalGradleCompileClientTest() {
         remoteClient.login(juggGradleCompileOptions)
         val remoteCompileResult = remoteClient.compileAndFetchResult()
         assertFalse(remoteCompileResult.isSuccess)
+        assertTrue(remoteCompileResult.isCanceled)
     }
 
 

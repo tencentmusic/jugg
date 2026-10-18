@@ -22,6 +22,7 @@ class SyncFileCommandTest {
 
     @Test
     fun sourceSync_shouldPreserveFilesFiltersDeletionAndIncrementalUpdates() {
+        assumeFalse(isWindows)
         val source = temporaryFolder.newFolder("Source Project")
         val destination = temporaryFolder.newFolder("Remote Project")
         val unchanged = writeFile(source, "src/plain.txt", "plain source")
@@ -51,6 +52,7 @@ class SyncFileCommandTest {
 
     @Test
     fun sourceSync_shouldPreserveRelativeLinksInsideTransferTree() {
+        assumeFalse(isWindows)
         val source = temporaryFolder.newFolder("Source Project")
         val destination = temporaryFolder.newFolder("Remote Project")
         writeFile(source, "shared/material.txt", "internal material")
@@ -66,6 +68,7 @@ class SyncFileCommandTest {
 
     @Test
     fun sourceSync_shouldCopyExternalDirectoryContentsWithoutChangingLocalLink() {
+        assumeFalse(isWindows)
         val source = temporaryFolder.newFolder("local", "android")
         val destination = temporaryFolder.newFolder("remote", "android")
         val shared = writeFile(source.parentFile, ".workspace/others/assets/player/material.bin", "player material")
@@ -86,6 +89,7 @@ class SyncFileCommandTest {
 
     @Test
     fun sourceSync_shouldCopyExternalFilesAndAbsoluteLinks() {
+        assumeFalse(isWindows)
         val source = temporaryFolder.newFolder("Source Project")
         val destination = temporaryFolder.newFolder("Remote Project")
         val shared = writeFile(temporaryFolder.root, "shared file.txt", "external material")
@@ -110,6 +114,7 @@ class SyncFileCommandTest {
 
     @Test
     fun sourceSync_shouldJudgeRelativeLinksAgainstTransferRootInsteadOfProjectRoot() {
+        assumeFalse(isWindows)
         val source = temporaryFolder.newFolder("local")
         val destination = temporaryFolder.newFolder("remote")
         writeFile(source, ".workspace/others/assets/player/material.txt", "shared material")
@@ -123,6 +128,7 @@ class SyncFileCommandTest {
 
     @Test
     fun sourceSync_shouldReportMissingExternalLinkTarget() {
+        assumeFalse(isWindows)
         val source = temporaryFolder.newFolder("Source Project")
         val destination = temporaryFolder.newFolder("Remote Project")
         val link = File(source, "missing assets").toPath()
@@ -139,6 +145,7 @@ class SyncFileCommandTest {
 
     @Test
     fun sourceSync_shouldReportUnreadableExternalLinkTarget() {
+        assumeFalse(isWindows)
         val source = temporaryFolder.newFolder("Source Project")
         val destination = temporaryFolder.newFolder("Remote Project")
         val shared = writeFile(temporaryFolder.root, "unreadable.txt", "private material")

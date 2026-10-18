@@ -220,7 +220,7 @@ class LocalGradleCompileClient(
         val projectRootPath = File(projectDir.path)
 
         RsyncCompatibleHelper.init(logger)
-        JuggSettings.isCanUseBackupClasspath = RsyncCompatibleHelper.isCompatible
+        JuggSettings.isCanUseBackupClasspath = !com.sickworm.intellij.jugg.compiler.isWindows && RsyncCompatibleHelper.isCompatible
         if (!JuggSettings.isCanUseBackupClasspath) {
             logger.info("isCanUseBackupClasspath is false, skip fetchClasspathResult")
             return null

@@ -386,7 +386,8 @@ data class JuggGradleCompileOptions(
 
     val remoteInitGradleFilePath: String get() {
         val relativePath = File(initGradleFilePath).relativeTo(File(projectRootPath)).path
-        return File(remoteProjectPath, relativePath).path
+        val path = File(remoteProjectPath, relativePath).path
+        return if (com.sickworm.intellij.jugg.compiler.isWindows && syncMode.isRsync) path.replace('\\', '/') else path
     }
 
     fun checkConfig() {
@@ -405,6 +406,9 @@ data class JuggGradleCompileOptions(
             errorDetails += "Run configuration argument [Custom APK sign script] is empty\n"
         }
         if (isRemoteCompile) {
+            if (com.sickworm.intellij.jugg.compiler.isWindows && syncMode.isRsync && !syncMode.isRsyncSimple) {
+                errorDetails += "Windows rsync supports rsync_simple only\n"
+            }
             if (remoteSshUser.isEmpty()) {
                 errorDetails += "Run configuration argument [SSH user] is empty\n"
             }

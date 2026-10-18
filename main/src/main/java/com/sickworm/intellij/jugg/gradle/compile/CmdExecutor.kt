@@ -34,6 +34,66 @@ class CmdExecutor(
     private val processLock = Any()
     private var isInvokePending = false
     private var isPendingReleaseRequested = false
+    @Volatile
+    private var isDirectProcessCanceled = false
+
+    /** Executes native argv and uses the actual exit status instead of shell markers. */
+    internal fun invokeProcess(
+        arguments: List<String>,
+        environment: Map<String, String> = emptyMap(),
+        outputCollector: MutableList<String>? = null,
+    ): Int {
+        val process = synchronized(processLock) {
+            if (isInvokePending && isPendingReleaseRequested) {
+                isInvokePending = false
+                isPendingReleaseRequested = false
+                return IGradleCompileClient.Error.ERROR_CANCELED
+            }
+            isDirectProcessCanceled = false
+            try {
+                ProcessBuilder(arguments).apply { environment().putAll(environment) }
+                    .start().also { currentRunningProcess = it }
+            } finally {
+                isInvokePending = false
+                isPendingReleaseRequested = false
+            }
+        }
+        val outputFailure = java.util.concurrent.atomic.AtomicReference<Exception>()
+        val stderr = readProcessOutput(process.errorStream, outputCollector, true, outputFailure)
+        try {
+            process.outputStream.close()
+            readProcessOutput(process.inputStream, outputCollector, false, outputFailure).join()
+            val result = process.waitFor()
+            stderr.join()
+            if (!isDirectProcessCanceled) outputFailure.get()?.let { throw it }
+            return if (isDirectProcessCanceled) IGradleCompileClient.Error.ERROR_CANCELED else result
+        } finally {
+            if (process.isAlive) destroyProcessTree(process)
+            synchronized(processLock) {
+                if (currentRunningProcess === process) currentRunningProcess = null
+            }
+        }
+    }
+
+    private fun readProcessOutput(
+        stream: java.io.InputStream,
+        collector: MutableList<String>?,
+        isError: Boolean,
+        failure: java.util.concurrent.atomic.AtomicReference<Exception>,
+    ): Thread = kotlin.concurrent.thread(name = "Jugg native process output") {
+        val reader = ProcessOutputReader(stream, isWindows)
+        try {
+            while (true) {
+                val line = reader.readLine() ?: break
+                if (collector != null) synchronized(collector) { collector.add(line) }
+                if (isError) printToStreamError(line) else printToStream(line)
+            }
+        } catch (exception: Exception) {
+            failure.compareAndSet(null, exception)
+        } finally {
+            reader.close()
+        }
+    }
 
     /** Opens a cancellation window before the process is created. The next [invoke] consumes it. */
     fun prepareForInvoke() {
@@ -181,6 +241,7 @@ class CmdExecutor(
 
     fun release() {
         val process = synchronized(processLock) {
+            isDirectProcessCanceled = true
             if (isInvokePending) {
                 isPendingReleaseRequested = true
             }
