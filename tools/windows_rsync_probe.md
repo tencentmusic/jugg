@@ -2,6 +2,8 @@
 
 此脚本用于选型阶段，尚未接入插件，不代表 Windows rsync 已受支持。Python 3.8+，无第三方 Python 依赖。两种引擎手动分别运行，没有自动换引擎或重传。
 
+使用现有 `JUGG_REMOTE_CONFIG_FILE` 时，优先运行 `windows_rsync_acceptance.py`。它复用本脚本夹具，在进程内部读取连接配置，报告不保存账号、key、原始 argv/stdout/stderr，覆盖小产物拉取、错误 key、host key 改变与链接。执行方法和实测结论见 [验收记录](../docs/task/2026-10/windows_rsync_acceptance.md)。下述原始 PoC 会保存完整命令和诊断，只适合脱敏的专用测试配置，不应公开其报告。
+
 ## 环境就绪后运行
 
 1. 复制 `windows_rsync_probe.example.json` 到仓库外，分别准备 oc-rsync 和 Cygwin 配置。所有 executable、key 和 known_hosts 使用绝对路径；配置中的 target 必须为受信任的测试服务器 `user@host`。私钥不需要交互解密；不要将凭据提交到仓库。

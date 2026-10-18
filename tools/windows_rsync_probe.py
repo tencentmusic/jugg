@@ -86,11 +86,13 @@ class Probe:
 
     def ssh(self, bad_key=False):
         keys = [self.config['bad_key']] if bad_key else self.config['keys']
-        args = [self.config['ssh'], '-p', str(self.config['port']),
+        args = [self.config['ssh'], '-F', '/dev/null' if self.config['engine'] == 'cygwin' else 'NUL',
+                '-p', str(self.config['port']), '-o', 'PubkeyAuthentication=yes',
+                '-o', 'PreferredAuthentications=publickey',
                 '-o', 'BatchMode=yes', '-o', 'IdentitiesOnly=yes',
                 '-o', 'IdentityAgent=none', '-o', 'ConnectTimeout=10',
                 '-o', 'StrictHostKeyChecking=accept-new', '-o',
-                'UserKnownHostsFile="' + self.local(self.config['known_hosts']) + '"']
+                'UserKnownHostsFile=' + self.local(self.config['known_hosts'])]
         for key in keys:
             args += ['-i', self.local(key)]
         return args

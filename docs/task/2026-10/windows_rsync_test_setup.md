@@ -2,7 +2,7 @@
 
 ## 本次范围
 
-按维护者要求提前落地两种候选的 Windows 调用适配，复用现有 `RemoteGradleCompileClientTest`，在服务器就绪后验证、选型。没有预选最终发布引擎，也没有提交任何第三方二进制。没有内置 runtime ZIP 且未指定测试 runtime 时，Windows rsync 仍不可用。
+维护者要求两种候选先验证，通过后达到插件可用于 e2e 测试的状态：oc-rsync 内置，Cygwin 检测并提示用户安装。当前 Cygwin 已接入安装检测；oc-rsync 0.6.4 在树外相对链接上传时失败，未达到内置条件。本轮没有分发第三方二进制。弱服务器使用脚本生成小产物，不运行真实远端 Gradle；结论见 [验收记录](windows_rsync_acceptance.md)。
 
 独立 PoC 入口和原始传输报告见 [工具说明](../../../tools/windows_rsync_probe.md)。真实客户端入口见 `idea/src/test/java/com/sickworm/intellij/jugg/gradle/RemoteGradleCompileClientTest.kt`。这些是需要服务器的集成测试；离线 JVM 测试不需要服务器。
 
@@ -29,6 +29,31 @@ test -w /home/testuser/jugg-rsync-tests
 测试会将本仓库 `android_demo_project` 同步到指定远端目录下同名子目录；上传包含 `--delete`。必须使用专用测试目录，避免与个人项目或两个并发测试共享远端工作区。设置非默认 SSH 端口时同时修改两份配置中的端口。
 
 ## 2. Windows runtime
+
+### 当前可测试的 Cygwin 入口
+
+安装 Cygwin x64，并在安装器中选择 `rsync`、`openssh`。插件默认检测 `C:/cygwin64`、`D:/cygwin64` 和 PATH 对应的安装根目录；自定义目录通过环境变量指定，设置后需重启 IDE/测试进程：
+
+```powershell
+$env:JUGG_CYGWIN_HOME = 'D:/cygwin64'
+Remove-Item Env:JUGG_WINDOWS_RSYNC_RUNTIME -ErrorAction SilentlyContinue
+$env:JUGG_REMOTE_CONFIG_FILE = "$HOME/.jugg/remote.json"
+.\gradlew.bat :idea:test --tests 'com.sickworm.intellij.jugg.gradle.RemoteGradleCompileClientTest.testSimulatedArtifactFetch' --tests 'com.sickworm.intellij.jugg.gradle.RemoteGradleCompileClientTest.testSimulatedCancellation'
+```
+
+上述模拟用例只需 Linux SSH shell、rsync、Python 3，以及 `/tmp` 写权限，不要求远端 JDK/Android SDK。它们读取原配置中的连接字段，在内存中覆盖测试路径和 compileCommand；不会改写配置文件。真实上传后由 Python 生成全部 classpath 路径和小 APK，验证下载、链接、失败与取消；不会把模拟 APK 用于设备安装。测试结束清理独占远端目录。
+
+外部 SSH 显式使用公钥认证并隔离用户 SSH 配置，不支持依赖该配置的 ProxyCommand/跳板机；known_hosts 仍使用 Windows 用户目录。Cygwin 子进程开启 `winsymlinks:nativestrict`；需要 Windows 原生 symlink 权限。首次拉取目标尚未到达时的链接 ENOENT 只恢复一次，仍失败则返回失败。
+
+### 两种候选的独立对照
+
+```powershell
+python tools/windows_rsync_acceptance.py --config "$env:JUGG_REMOTE_CONFIG_FILE" --cygwin-root D:/cygwin64 --oc-rsync D:/Downloads/oc-rsync-0.6.4-windows-x86_64/rsync.exe
+```
+
+复用原 PoC 文件/链接夹具，增加全部产物目录和独立 known_hosts；配置只在子进程内读取，不输出命令、账号、key 或原始 stderr。脱敏报告写入被 Git 忽略的 `verification/windows-rsync/acceptance/preflight-report.json`。任一候选失败时脚本退出 1，不能据此误判另一个候选未完成。
+
+### 保留的候选包工具
 
 oc-rsync 和 Cygwin 各准备一个独立 staging 目录，包含实际需要的 exe/DLL、`licenses/` 和 `provenance.json`。provenance 记录固定版本、源码提交或源码包、下载来源、补丁审核结果；许可证目录必须放实际材料。脚本不审核许可证充分性和 DLL 闭包，仍须按最终方案实测。
 
@@ -93,7 +118,7 @@ $env:JUGG_WINDOWS_RSYNC_RUNTIME = 'D:/rsync-test/cygwin'
 
 ## 5. 上线收尾与未完成验证
 
-选型实测通过后，将**唯一**选定候选 ZIP 放入 `main/src/main/resources/tools/windows/rsync/runtime.zip` 后构建插件。运行时按 ZIP SHA-256 放到全局资源版本目录；缓存清单不符时从内置 ZIP 恢复一次，最终校验仍失败则保留异常并返回失败。外部 runtime 环境变量只用于显式验收，不在用户设置中增加双引擎选项。
+只有 oc-rsync 达到必要契约后才将候选 ZIP 放入 `main/src/main/resources/tools/windows/rsync/runtime.zip`。Cygwin 按维护者最新要求使用用户安装，不制作随插件发布的 Cygwin 包。保留候选 runtime 环境变量用于显式验收，不在失败时自动切换引擎，也不新增公开双引擎设置。
 
 上线前仍须完成最终方案的 Windows 矩阵、第三方组件来源/补丁/许可审核和干净环境 DLL 闭包、真实源码到 Linux Gradle 到 APK/classpath 到增量初始化及设备部署的 Flow，以及 Mac/Linux/iFT 回归。`RemoteGradleCompileClientTest` 保护远端客户端行为，不等价于完整设备部署 Flow。服务器未就绪时不能将这些步骤记为通过。
 

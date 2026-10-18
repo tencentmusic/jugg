@@ -202,9 +202,9 @@ Library androidTest 的 `instrumentationTargetPackage` 当前取 synthetic test 
 
 源码上传由 `SyncFileCommand.getRsyncArguments()` 统一生成 rsync/iFT 参数，使用 `-av --copy-unsafe-links --delete`：指向传输树之外的相对链接及绝对路径链接展开复制实际内容，支持 Repo linkfile 等工程外资源映射；传输树内的相对链接保留为链接。判断边界是实际传输根，源路径末尾的 `/` 和多工程同步范围会影响边界，不能只按 IDE 工程根判断。现有 include/exclude、增量比较和删除策略继续生效，本地链接及其源内容不变；展开目标缺失或不可读时保留 rsync 非零结果和错误输出，`syncSourceFile()` 返回失败并中止后续 Gradle 构建。APK/classpath 拉取参数不受此调整影响。
 
-Windows rsync 已准备独立进程适配，尚待候选工具与服务器验收，不代表公开支持范围已扩大。上传与 classpath 的过滤规则提供有序 token；Unix/iFT 继续渲染 shell 参数，Windows `rsync_simple` 使用 `WindowsRsyncRuntime` 的明确 exe 路径和 argv，下载前创建本地目录。仅允许 Windows x64 本地 NTFS 到 Linux，使用非交互 SSH 私钥；Cygwin 本地路径通过同包 cygpath 转换，子进程设置 `winsymlinks:nativestrict`。远端路径在 Windows 同步和 init script 边界保留 POSIX 分隔符。Windows 直接进程取真实退出码和取消状态，不进入旧的缺标记成功归一化或认证重试。同步失败沿既有客户端失败路径阻断后续构建或初始化；本地 backup classpath 始终保持关闭。
+Windows rsync 已完成独立进程适配及 Cygwin 真实传输/模拟产物验收，可进入插件 e2e 测试，不代表公开支持范围已扩大。上传与 classpath 的过滤规则提供有序 token；Unix/iFT 继续渲染 shell 参数，Windows `rsync_simple` 使用 `WindowsRsyncRuntime` 的明确 exe 路径和 argv，下载前创建本地目录。仅允许 Windows x64 本地 NTFS 到 Linux，使用非交互 SSH 私钥；Cygwin 本地路径通过同一安装目录的 cygpath 转换，子进程设置 `winsymlinks:nativestrict`。远端路径在 Windows 同步和 init script 边界保留 POSIX 分隔符。Windows 直接进程取真实退出码和取消状态，不进入旧的缺标记成功归一化或认证重试。同步失败沿既有客户端失败路径阻断后续构建或初始化；本地 backup classpath 始终保持关闭。
 
-验收复用 `idea/.../gradle/RemoteGradleCompileClientTest`，缺少 `JUGG_REMOTE_CONFIG_FILE` 时明确 skipped。服务器、候选 runtime、JSON 和定向命令见 [Windows rsync 测试准备](../task/2026-10/windows_rsync_test_setup.md)。没有内置 runtime ZIP 或显式验收 runtime 时不可运行 Windows rsync；运行过的离线测试不能代替真实 SSH/Gradle/设备 Flow。
+验收复用 `idea/.../gradle/RemoteGradleCompileClientTest`，缺少 `JUGG_REMOTE_CONFIG_FILE` 时明确 skipped。`testSimulatedArtifactFetch` 在隔离的远端 `/tmp/jugg-e2e-*` 目录验证真实上传、脚本生成全量小产物、APK/classpath 拉取、原生链接、非零失败及传输取消；`testSimulatedCancellation` 验证 JSch shell 取消。它们不运行远端 Gradle，也不伪造增量初始化或设备部署完成。Cygwin 走安装检测与提示，配置优先级及链接单次恢复见 `05_utilities.md`；oc-rsync 0.6.4 因链接上传失败未内置。服务器、JSON 和定向命令见 [Windows rsync 测试准备](../task/2026-10/windows_rsync_test_setup.md)。真实 Gradle 和设备 Flow 仍须在足够资源的 server/设备上验收。
 
 依赖变化采用显式确认契约。检测到 build file 变化后，如果源码变化已经超过增量阈值，Jugg 先展示 Too many changes 确认；只有用户选择本轮继续增量，才展示 build file diff。未超过阈值时直接展示文件 diff。用户可选择读取依赖变化、忽略本轮 build file 变化、回退 Gradle 或取消；只有用户确认后才把依赖库产物转换为 `ChangedFile` 进入增量编译。原因是 build script 可以改变任意构建行为，仅凭依赖列表无法证明 APK 其他部分没有变化，自动猜测会把无法判定的风险伪装成成功。
 

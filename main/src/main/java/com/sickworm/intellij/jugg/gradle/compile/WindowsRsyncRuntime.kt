@@ -8,23 +8,30 @@ import java.nio.file.Files
 import java.security.MessageDigest
 import java.util.zip.ZipInputStream
 
-/** A single selected runtime, supplied explicitly for testing or bundled after acceptance. */
-internal class WindowsRsyncRuntime(private val root: File, private val executor: CmdExecutor) {
-    private val manifest = Gson().fromJson(File(root, "runtime.json").readText(), JsonObject::class.java)
+/** Uses a selected acceptance package or an installed Cygwin toolchain. */
+internal class WindowsRsyncRuntime private constructor(
+    private val root: File,
+    private val executor: CmdExecutor,
+    private val manifest: JsonObject,
+    verifyHashes: Boolean,
+) {
+    constructor(root: File, executor: CmdExecutor) : this(root, executor,
+        Gson().fromJson(File(root, "runtime.json").readText(), JsonObject::class.java), true)
     private val isCygwin = manifest.get("engine").asString == "cygwin"
     val environment: Map<String, String> = if (isCygwin) mapOf("CYGWIN" to "winsymlinks:nativestrict") else emptyMap()
 
     init {
         require(manifest.get("engine").asString in listOf("oc-rsync", "cygwin"))
-        val hashes = manifest.getAsJsonObject("sha256")
-        require(hashes.size() > 0) { "Windows rsync runtime has no file hashes" }
+        val hashes = manifest.getAsJsonObject("sha256") ?: JsonObject()
+        require(!verifyHashes || hashes.size() > 0) { "Windows rsync runtime has no file hashes" }
         hashes.entrySet().forEach { (name, hash) ->
             val file = containedFile(name)
             require(file.isFile && sha256(file) == hash.asString) { "Invalid runtime file: $name" }
         }
         listOf("rsync", "ssh").plus(if (isCygwin) listOf("cygpath") else emptyList()).forEach { name ->
             val relative = manifest.get(name).asString
-            require(hashes.has(relative)) { "Unverified runtime executable: $name" }
+            require(containedFile(relative).isFile) { "Missing runtime executable: $name" }
+            require(!verifyHashes || hashes.has(relative)) { "Unverified runtime executable: $name" }
         }
     }
 
@@ -37,6 +44,11 @@ internal class WindowsRsyncRuntime(private val root: File, private val executor:
     private fun executable(name: String): String = containedFile(manifest.get(name).asString).absolutePath
 
     fun probe(): Boolean = executor.invokeProcess(listOf(executable("rsync"), "--version"), environment) == 0
+
+    fun canRetryLinkCreation(command: RsyncCommand, result: Int, output: List<String>): Boolean =
+        isCygwin && command is RsyncFetchClasspathCommand && result == 23 && output.any {
+            it.contains("symlink ") && it.contains("failed: No such file or directory")
+        }
 
     fun localPath(path: String): String {
         val file = File(path).absoluteFile
@@ -52,11 +64,13 @@ internal class WindowsRsyncRuntime(private val root: File, private val executor:
 
     fun arguments(command: RsyncCommand): List<String> {
         val ssh = mutableListOf(if (isCygwin) localPath(executable("ssh")) else executable("ssh").replace('\\', '/'),
+            "-F", if (isCygwin) "/dev/null" else "NUL",
+            "-o", "PubkeyAuthentication=yes", "-o", "PreferredAuthentications=publickey",
             "-p", command.remoteSshPort.toString(), "-o", "BatchMode=yes", "-o", "IdentitiesOnly=yes",
             "-o", "IdentityAgent=none", "-o", "StrictHostKeyChecking=accept-new", "-o", "ConnectTimeout=30")
         val knownHosts = File(System.getProperty("user.home"), ".ssh/known_hosts")
         Files.createDirectories(knownHosts.parentFile.toPath())
-        ssh += listOf("-o", "UserKnownHostsFile=\"${localPath(knownHosts.path)}\"")
+        ssh += listOf("-o", "UserKnownHostsFile=${localPath(knownHosts.path)}")
         val keys = command.keyPathList.ifEmpty {
             listOfNotNull(command.password?.let { File(it) }?.takeIf { it.isFile && it.isAbsolute }?.path)
         }
@@ -74,9 +88,11 @@ internal class WindowsRsyncRuntime(private val root: File, private val executor:
             }
             val override = System.getenv("JUGG_WINDOWS_RSYNC_RUNTIME")
             if (!override.isNullOrBlank()) return WindowsRsyncRuntime(File(override), executor)
+            val cygwin = System.getenv("JUGG_CYGWIN_HOME")
+            if (!cygwin.isNullOrBlank()) return installedCygwin(File(cygwin), executor)
             val resource = "/tools/windows/rsync/runtime.zip"
             val url = WindowsRsyncRuntime::class.java.getResource(resource)
-                ?: error("Windows rsync runtime is not bundled; set JUGG_WINDOWS_RSYNC_RUNTIME for acceptance testing")
+                ?: return detectInstalledCygwin(executor)
             val id = url.openStream().use { stream ->
                 MessageDigest.getInstance("SHA-256").digest(stream.readBytes()).joinToString("") { "%02x".format(it) }
             }
@@ -97,6 +113,24 @@ internal class WindowsRsyncRuntime(private val root: File, private val executor:
                 }
             }
             return WindowsRsyncRuntime(root, executor)
+        }
+
+        private fun detectInstalledCygwin(executor: CmdExecutor): WindowsRsyncRuntime {
+            val roots = listOf(File("C:/cygwin64"), File("D:/cygwin64")) +
+                    System.getenv("PATH").orEmpty().split(File.pathSeparator).map { File(it).parentFile }
+            val root = roots.filterNotNull().firstOrNull { directory ->
+                listOf("rsync", "ssh", "cygpath").all { File(directory, "bin/$it.exe").isFile }
+            }
+                ?: error("Install Cygwin x64 with rsync and openssh packages; set JUGG_CYGWIN_HOME to its installation directory")
+            return installedCygwin(root, executor)
+        }
+
+        internal fun installedCygwin(root: File, executor: CmdExecutor): WindowsRsyncRuntime {
+            val manifest = JsonObject().apply {
+                addProperty("engine", "cygwin")
+                listOf("rsync", "ssh", "cygpath").forEach { addProperty(it, "bin/$it.exe") }
+            }
+            return WindowsRsyncRuntime(root, executor, manifest, false)
         }
 
         private fun extractFile(root: File, name: String, zip: ZipInputStream) {

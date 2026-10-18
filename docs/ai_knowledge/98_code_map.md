@@ -86,7 +86,7 @@
 
 ## 5. 高频定位建议
 
-- Windows rsync 待验收接入：`main/.../gradle/compile/WindowsRsyncRuntime.kt`、`RsyncCommand.kt`、`CmdExecutor.invokeProcess()`；真实远程回归复用 `idea/.../gradle/RemoteGradleCompileClientTest.kt`，打包和独立 PoC 位于 `tools/package_windows_rsync.py` / `tools/windows_rsync_probe.py`。配置入口见 `docs/task/2026-10/windows_rsync_test_setup.md`，最终工具选型与 Windows 支持范围尚待实测。
+- Windows rsync：`main/.../gradle/compile/WindowsRsyncRuntime.kt`（Cygwin 安装检测、SSH argv、候选包校验）、`RemoteGradleCompileClient.invokeWindowsRsync()`（真实结果、链接单次恢复）；远程模拟产物回归复用 `idea/.../gradle/RemoteGradleCompileClientTest.kt`。脱敏双候选验收入口为 `tools/windows_rsync_acceptance.py`，底层夹具复用 `tools/windows_rsync_probe.py`，候选打包为 `tools/package_windows_rsync.py`。oc-rsync 0.6.4 的树外链接上传失败，未内置。配置及验证边界见 `docs/task/2026-10/windows_rsync_test_setup.md`。
 
 - 查“某能力是否已存在”：先 `98_code_map.md`，再对应目录搜索类名。  
 - 查“编译为何回退”：从 `JuggCompilerHelper` -> `preprocessIncrementalCompile`。

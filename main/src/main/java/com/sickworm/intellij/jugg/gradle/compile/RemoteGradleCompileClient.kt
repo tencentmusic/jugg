@@ -969,10 +969,18 @@ class RemoteGradleCompileClient(
             require(options.httpProxyIp.isEmpty() || options.httpProxyPort == 0) { "Windows rsync does not support HTTP proxy authentication" }
             val remoteCheck = remoteInvoke(SimpleSshCommand("test \"\$(uname -s)\" = Linux"), NO_OUTPUT_TIMEOUT_MS)
             if (remoteCheck != 0) return remoteCheck
+            cmdExecutor.terminalOutputListener = terminalOutputListener
             val runtime = WindowsRsyncRuntime.load(cmdExecutor, logger)
             cmdExecutor.prepareForInvoke()
             if (isCanceled) cmdExecutor.release()
             val arguments = runtime.arguments(command)
+            cmdExecutor.prepareForInvoke()
+            if (isCanceled) cmdExecutor.release()
+            val output = mutableListOf<String>()
+            val result = cmdExecutor.invokeProcess(arguments, runtime.environment, output)
+            if (isCanceled || !runtime.canRetryLinkCreation(command, result, output)) return result
+            // Cygwin cannot create a native link until its target has arrived in the first pass.
+            logger.info("Retrying Cygwin classpath links once after their targets were transferred")
             cmdExecutor.prepareForInvoke()
             if (isCanceled) cmdExecutor.release()
             return cmdExecutor.invokeProcess(arguments, runtime.environment)

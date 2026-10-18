@@ -1,6 +1,8 @@
 # Windows rsync 最终适配方案
 
-创建：2026-10-16；修订：2026-10-18。状态：确定先验证 oc-rsync、Cygwin 备选；正式接入引擎待实证。按维护者追加要求提前准备 Windows 生产适配、候选打包和测试入口；尚未构建最终工具包或完成真实 SSH/Windows 验收。服务器配置与执行命令见 [测试准备](windows_rsync_test_setup.md)。
+创建：2026-10-16；修订：2026-10-19。状态：已实测两种候选；oc-rsync 0.6.4 树外相对链接上传失败，未内置；Cygwin 通过所执行传输矩阵并完成安装检测、原生链接单次恢复与插件模拟产物链路，可进入项目 e2e。服务器配置与执行命令见 [测试准备](windows_rsync_test_setup.md)，逐项证据和未验证范围见 [验收记录](windows_rsync_acceptance.md)。
+
+维护者本轮明确要求：通过测试的 oc-rsync 采用内置方式，Cygwin 采用检测与提示安装方式；这些要求优先于下文早期 Cygwin 内置 ZIP 设计。本轮不分发 Cygwin 包，也没有把未通过的 oc-rsync 放入插件。服务器性能不足，按要求由脚本生成全部类型的小产物，验证真实上传/执行/拉取，而不执行真实远端 Gradle或设备部署。早期矩阵仍作为完整发布验收边界，未执行项不算通过。
 
 本文是 [10 月交接](windows_rsync_decision_handoff.md)的当前决策入口。10 月 16 日曾将 Cygwin 自构建路线定为正式方案；复核后确认，该结论没有足够的 Windows 对照证据，现修正为原生 oc-rsync 优先验证。[7 月方案](../2026-07/windows_cygwin_rsync_integration_plan.md)仅保留为历史参考，不恢复其旧版本下限、包体估算、工期、类设计和测试承诺。
 
@@ -170,6 +172,8 @@ mtime、远端脚本可执行性、本地可读写性必须验收；不宣称 NT
 
 本机 Windows 定向 JVM 回归覆盖 `CmdExecutorProcessTest`、`WindowsRsyncRuntimeTest`、`CmdExecutorCancellationTest`、`SyncFileCommandTest`、`FetchClasspathCommandTest`、`BaseSshCommandTest` 和 `JuggGradleCompileOptionsTest`；54 项中 45 通过，9 项 Unix/POSIX 场景 skipped。`idea:compileKotlin` 与 `idea:compileTestKotlin` 通过；Python PoC 进程结果与打包完整性 6 项通过。新增进程 API 的首次定向编译因缺少 `invokeProcess` 失败，随后实现并通过回归；本机同时复现既有 Bash/POSIX 测试在 Windows 的错误，已将平台前置条件前移，未将这些跳过项计入 Windows 传输证据。
 
-仍未完成：两种候选的真实 SSH 传输对照、Cygwin 官方包补丁审核、最终 runtime 依赖闭包/许可与打包发布、服务器 remote compile testcase 实跑、完整增量部署 Flow、Mac/Linux/iFT 实机回归。当前没有最终二进制 ZIP；测试环境就绪后按 [配置说明](windows_rsync_test_setup.md)分别运行两种候选。只有相应验收通过后才内置最终 ZIP 并更新公开支持范围。
+10 月 19 日补充：已完成两种候选对 Linux rsync 3.2.7 的真实 SSH 传输对照，覆盖过滤、增量、删除/不删除、mtime、错误 key、host key 改变、27 项模拟产物文件与链接；Cygwin 原生链接首次 ENOENT 可在目标到达后恢复一次，oc-rsync 树外相对链接上传失败。复用 `RemoteGradleCompileClientTest` 完成真实 JSch + Windows rsync 的源码上传、脚本生成全量产物、APK/classpath 拉取、失败与取消；不是空跑或仅编译成功。Cygwin 走安装检测，当前无需制作随插件分发的 Cygwin ZIP。详情、定向回归及插件产物见 [验收记录](windows_rsync_acceptance.md)。
+
+仍未完成的完整发布验证：真实 Gradle 与 APK 解析/增量初始化/设备部署 Flow、Mac/Linux/iFT 实机、其他远端版本与极端文件系统/规模矩阵。oc-rsync 未通过必要契约，没有进入内置包发布；将来修复后仍须验证许可、依赖闭包与打包恢复。当前交付目标是可进入 e2e 测试的插件，公开支持范围暂不扩大。
 
 依据：`00_overview.md`、`99_index.md`、`98_code_map.md`、`04_engineering_project.md` §5、`05_utilities.md` 相关工具/同步约束、`06_testing.md` 相关门禁与文档验证要求、10 月交接、7 月历史方案和源码链接修复记录；实现与测试入口见本文 §4–§5。外部事实以各处官方链接为准，缺失的产物和运行证据未冒充已取得。

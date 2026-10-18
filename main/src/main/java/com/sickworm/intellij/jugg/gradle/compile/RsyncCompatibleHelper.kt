@@ -31,9 +31,7 @@ object RsyncCompatibleHelper {
             return
         }
         if (isWindows) {
-            val isConfigured = System.getenv("JUGG_WINDOWS_RSYNC_RUNTIME")?.isNotBlank() == true ||
-                    RsyncCompatibleHelper::class.java.getResource("/tools/windows/rsync/runtime.zip") != null
-            isCompatible = isConfigured && detectWindowsRuntime(logger)
+            isCompatible = detectWindowsRuntime(logger)
             isInit = true
             return
         }
