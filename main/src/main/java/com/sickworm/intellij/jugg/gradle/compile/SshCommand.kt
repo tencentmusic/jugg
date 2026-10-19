@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.gradle.compile
 
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.BuildTarget
+import com.sickworm.intellij.jugg.compiler.isWindows
 import com.sickworm.intellij.jugg.gradle.script.GradleApplicationInjector
 import com.sickworm.intellij.jugg.gradle.script.GradleProjectInfoReaderManager
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
@@ -113,8 +114,8 @@ class SyncFileCommand(
                 dotGradlePath = dotGradlePath.substring(1)
             }
 
-            // Preserve links without reading targets outside the transfer tree.
-            return listOf("-av", "--delete") + listOf(
+            // Windows rsync engines cannot reliably dereference links outside the transfer tree.
+            return listOf("-av", "--delete") + (if (isWindows) emptyList() else listOf("--copy-unsafe-links")) + listOf(
                 "--include=$dotGradlePath/", "--include=$dotGradlePath/jugg/",
                 "--include=$dotGradlePath/jugg/**", "--exclude=$dotGradlePath/**",
                 "--include=$buildDirPath/", "--include=$buildDirPath/jugg/",

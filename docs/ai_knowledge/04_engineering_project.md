@@ -200,7 +200,7 @@ Library androidTest 的 `instrumentationTargetPackage` 当前取 synthetic test 
 
 `RemoteGradleCompileClient.executeRemoteCommand()` 复用现有 SSH 认证、代理、环境变量、PTY 与取消能力，在 `remoteProjectPath` 下通过独立子 shell 和唯一完成标记执行一条非交互命令。该入口的单次 SSH connect 最长等待 30 秒，不做文件同步、APK/classpath 拉取或 deploy 编排，也不使用 Gradle 命令的 90 秒无输出超时。用户命令和终端输出只进入独立 Run Content；持久日志只记录命令类型、连接与退出结果，禁止记录命令正文。
 
-源码上传由 `SyncFileCommand.getRsyncArguments()` 统一生成 rsync/iFT 参数，使用 `-av --delete`：保留链接本身，不读取树外相对链接或绝对链接的目标内容。工程需要树外内容时，应扩大完整 rsync 的同步根目录或事先物化文件；保留的链接在远端不保证可解析。include/exclude、增量比较和删除策略继续生效。
+源码上传由 `SyncFileCommand.getRsyncArguments()` 统一生成 rsync/iFT 参数，使用 `-av --delete`。仅 Windows 不添加 `--copy-unsafe-links`，保留链接本身，不读取树外链接目标；macOS/Linux 保留该参数，继续复制树外链接目标。Windows 工程需要树外内容时，应扩大完整 rsync 的同步根目录或事先物化文件；保留的链接在远端不保证可解析。include/exclude、增量比较和删除策略继续生效。
 
 Windows x64 本地 NTFS 到 Linux 使用 `WindowsRsyncRuntime` 的原生 argv 进程，支持 `rsync_simple`、完整 `rsync` 和多工程；Windows 路径在边界转换，classpath 返回实际下载位置。默认内置 oc-rsync 0.6.4 配合系统 OpenSSH；Settings 的临时 Cygwin 开关从下次传输生效，Cygwin 只检测本机安装并提示缺失，不自动安装。私钥及密码均沿既有远端连接配置读取，密码仅通过子进程环境与 askpass 传递。直接进程保留真实退出码和取消结果；本地 backup classpath 继续关闭。
 

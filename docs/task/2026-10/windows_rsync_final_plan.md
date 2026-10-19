@@ -1,5 +1,7 @@
 # Windows rsync 最终适配方案
 
+2026-10-19 平台条件修正：本文移除 `--copy-unsafe-links` 的决定仅适用于 Windows；macOS/Linux 保留该参数和树外目标复制行为。此前共享参数生成处无平台条件，导致非 Windows 行为改变，本次在该 owner 局部修正。复用 SyncFileCommandTest（L1 参数契约及 Unix 本地 rsync）、WindowsRsyncRuntimeTest 和现有模拟 Flow；定向测试 11 项通过、4 项 Unix 专用用例在 Windows 跳过，oc-rsync 密钥模拟 Flow 4 项通过。未重新执行 Unix 实际传输。Wiki 的相关说明位于 Windows 小节，含义仍准确，无需修改。
+
 创建：2026-10-16；修订：2026-10-19。当前实现以维护者最新要求为准：去掉 `--copy-unsafe-links`，支持完整 rsync、多工程与密码；默认内置 oc-rsync 0.6.4，Settings 临时开关选择本机 Cygwin，Cygwin 缺失仅提示安装。两种候选的密钥/密码独立传输矩阵已通过，新增 5 轮 benchmark。服务器配置与定向命令见 [测试准备](windows_rsync_test_setup.md)，证据与剩余边界见 [验收记录](windows_rsync_acceptance.md)。
 
 早期本文的单引擎、仅 rsync_simple/私钥以及树外链接展开约束已被本轮明确要求替代；下文保留选型背景，不作为当前实现的额外指令。服务器资源不足，继续使用脚本生成小产物，不执行真实远端 Gradle、大产物下载或设备部署。

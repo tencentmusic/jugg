@@ -65,7 +65,7 @@ class SyncFileCommandTest {
     }
 
     @Test
-    fun sourceSync_shouldPreserveExternalLinksWithoutReadingTargets() {
+    fun sourceSync_shouldCopyExternalLinkTargetsOnUnix() {
         assumeFalse(isWindows)
         val source = temporaryFolder.newFolder("Source Project")
         val destination = temporaryFolder.newFolder("Remote Project")
@@ -73,13 +73,13 @@ class SyncFileCommandTest {
         val links = mapOf(
             "relative.txt" to File("../shared file.txt").toPath(),
             "absolute.txt" to shared.toPath(),
-            "missing.txt" to File("../missing target").toPath(),
         )
         links.forEach { (name, target) -> Files.createSymbolicLink(File(source, name).toPath(), target) }
 
         assertEquals(0, sync(source, destination).first)
         links.forEach { (name, target) ->
-            assertEquals(target, Files.readSymbolicLink(File(destination, name).toPath()))
+            assertFalse(Files.isSymbolicLink(File(destination, name).toPath()))
+            assertEquals("external material", File(destination, name).readText())
             assertEquals(target, Files.readSymbolicLink(File(source, name).toPath()))
         }
         assertEquals("external material", shared.readText())
@@ -123,6 +123,13 @@ class SyncFileCommandTest {
         process.waitFor()
         val result = output.lineSequence().mapNotNull { command.hasFinishWithResult(it) }.single()
         return result to output
+    }
+
+    @Test
+    fun rsyncArguments_shouldCopyUnsafeLinksOnlyOnUnix() {
+        val arguments = SyncFileCommand.getRsyncArguments("demo", emptyList())
+
+        assertEquals(!isWindows, "--copy-unsafe-links" in arguments)
     }
 
     @Test

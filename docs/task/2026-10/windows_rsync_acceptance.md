@@ -1,5 +1,7 @@
 # Windows rsync 验收与交付记录
 
+2026-10-19 修正：下文去掉 `--copy-unsafe-links` 仅指 Windows；macOS/Linux 保留原参数及树外目标复制行为。
+
 日期：2026-10-19；分支：feature/windows-rsync。
 
 ## 当前结论
