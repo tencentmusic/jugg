@@ -200,19 +200,11 @@ Library androidTest 的 `instrumentationTargetPackage` 当前取 synthetic test 
 
 `RemoteGradleCompileClient.executeRemoteCommand()` 复用现有 SSH 认证、代理、环境变量、PTY 与取消能力，在 `remoteProjectPath` 下通过独立子 shell 和唯一完成标记执行一条非交互命令。该入口的单次 SSH connect 最长等待 30 秒，不做文件同步、APK/classpath 拉取或 deploy 编排，也不使用 Gradle 命令的 90 秒无输出超时。用户命令和终端输出只进入独立 Run Content；持久日志只记录命令类型、连接与退出结果，禁止记录命令正文。
 
-源码上传由 `SyncFileCommand.getRsyncArguments()` 统一生成 rsync/iFT 参数，使用 `-av --copy-unsafe-links --delete`：指向传输树之外的相对链接及绝对路径链接展开复制实际内容，支持 Repo linkfile 等工程外资源映射；传输树内的相对链接保留为链接。判断边界是实际传输根，源路径末尾的 `/` 和多工程同步范围会影响边界，不能只按 IDE 工程根判断。现有 include/exclude、增量比较和删除策略继续生效，本地链接及其源内容不变；展开目标缺失或不可读时保留 rsync 非零结果和错误输出，`syncSourceFile()` 返回失败并中止后续 Gradle 构建。APK/classpath 拉取参数不受此调整影响。
+源码上传由 `SyncFileCommand.getRsyncArguments()` 统一生成 rsync/iFT 参数，使用 `-av --delete`：保留链接本身，不读取树外相对链接或绝对链接的目标内容。工程需要树外内容时，应扩大完整 rsync 的同步根目录或事先物化文件；保留的链接在远端不保证可解析。include/exclude、增量比较和删除策略继续生效。
 
-Windows rsync 已完成独立进程适配及 Cygwin 真实传输/模拟产物验收，可进入插件 e2e 测试，不代表公开支持范围已扩大。上传与 classpath 的过滤规则提供有序 token；Unix/iFT 继续渲染 shell 参数，Windows `rsync_simple` 使用 `WindowsRsyncRuntime` 的明确 exe 路径和 argv，下载前创建本地目录。仅允许 Windows x64 本地 NTFS 到 Linux，使用非交互 SSH 私钥；Cygwin 本地路径通过同一安装目录的 cygpath 转换，子进程设置 `winsymlinks:nativestrict`。远端路径在 Windows 同步和 init script 边界保留 POSIX 分隔符。Windows 直接进程取真实退出码和取消状态，不进入旧的缺标记成功归一化或认证重试。同步失败沿既有客户端失败路径阻断后续构建或初始化；本地 backup classpath 始终保持关闭。
+Windows x64 本地 NTFS 到 Linux 使用 `WindowsRsyncRuntime` 的原生 argv 进程，支持 `rsync_simple`、完整 `rsync` 和多工程；Windows 路径在边界转换，classpath 返回实际下载位置。默认内置 oc-rsync 0.6.4 配合系统 OpenSSH；Settings 的临时 Cygwin 开关从下次传输生效，Cygwin 只检测本机安装并提示缺失，不自动安装。私钥及密码均沿既有远端连接配置读取，密码仅通过子进程环境与 askpass 传递。直接进程保留真实退出码和取消结果；本地 backup classpath 继续关闭。
 
-验收复用 `idea/.../gradle/RemoteGradleCompileClientTest`，缺少 `JUGG_REMOTE_CONFIG_FILE` 时明确 skipped。`testSimulatedArtifactFetch` 在隔离的远端 `/tmp/jugg-e2e-*` 目录验证真实上传、脚本生成全量小产物、APK/classpath 拉取、原生链接、非零失败及传输取消；`testSimulatedCancellation` 验证 JSch shell 取消。它们不运行远端 Gradle，也不伪造增量初始化或设备部署完成。Cygwin 走安装检测与提示，配置优先级及链接单次恢复见 `05_utilities.md`；oc-rsync 0.6.4 因链接上传失败未内置。服务器、JSON 和定向命令见 [Windows rsync 测试准备](../task/2026-10/windows_rsync_test_setup.md)。真实 Gradle 和设备 Flow 仍须在足够资源的 server/设备上验收。
-
-依赖变化采用显式确认契约。检测到 build file 变化后，如果源码变化已经超过增量阈值，Jugg 先展示 Too many changes 确认；只有用户选择本轮继续增量，才展示 build file diff。未超过阈值时直接展示文件 diff。用户可选择读取依赖变化、忽略本轮 build file 变化、回退 Gradle 或取消；只有用户确认后才把依赖库产物转换为 `ChangedFile` 进入增量编译。原因是 build script 可以改变任意构建行为，仅凭依赖列表无法证明 APK 其他部分没有变化，自动猜测会把无法判定的风险伪装成成功。
-
-Gradle diff 同时保留两个比较基线：`diffResult` 对比上一次构建依赖，用于展示本轮新增、删除和升级；`diffResultWithFull` 对比最近一次完整 Gradle 基线，用于确定真正需要编译、替换或回滚的 library 文件。library dex 可能在 APK 中合并为单个产物，不能只按上一轮增量结果推断旧 jar。用户选择“忽略”只表示接受当前 build file 对开发链路无影响，不代表 Jugg 已验证脚本等价；出现异常时仍应完整 Gradle 刷新基线。
-
-runtime library 是否参与依赖 diff 由最近一次完整构建保存的 project info 决定，不提升 `full_build_info.json` 序列化版本。旧完整构建基线的 `runtimeLibraryDependencies` 为空时，Jugg 保留原有 compile dependency diff，不让已有 compile context 失效，也不强制升级用户立即完整构建。之后任一次成功完整 Gradle 构建记录了非空 runtime library 基线，后续两个依赖 diff 才统一加入 runtime library；如果完整基线确实没有 runtime 外部库，第一次新增纯 runtime-only 库仍需等下一次完整构建后才能进入后续 diff。
-
-APK 查找规则以 Run Configuration 的 output pattern 为入口；自动生成的 pattern 使用 IDE Android model 暴露的实际 build folder。androidTest pattern 从 `/outputs/apk/` 片段派生，因此同时支持 `app/build/...` 与项目根集中式 `build/app/...`。远端 classpath 同步使用相对项目根的 build output 路径，保证自定义 build directory 能回写到本地相同位置。
+验收复用 `idea/.../gradle/RemoteGradleCompileClientTest`：`testSimulated*ArtifactFetch` 覆盖三种同步布局，真实上传后用 Python 生成所有产物目录的小文件，验证 APK/classpath、原生链接、失败和取消；`testSimulatedCancellation` 验证 JSch shell 取消。它们不运行远端 Gradle，也不代表设备部署已通过。脱敏双工具矩阵与 benchmark 见 `tools/windows_rsync_acceptance.py`；服务器、JSON 及定向命令见 [测试准备](../task/2026-10/windows_rsync_test_setup.md)。
 
 远端 classpath 的 rsync 过滤规则会按 build directory 类型生成：使用 `${moduleRoot}/build` 的普通模块按 variant 复用 `build/...` 规则，避免大型多模块工程为每个模块重复展开相同参数；自定义 build directory、`customClasspath` 与 `customSyncFilePath` 继续使用项目根相对的精确路径，保证集中式输出和项目配置不会被通配规则覆盖。
 

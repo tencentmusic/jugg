@@ -1,8 +1,8 @@
 # Windows rsync 独立传输准备
 
-此脚本用于选型阶段，尚未接入插件，不代表 Windows rsync 已受支持。Python 3.8+，无第三方 Python 依赖。两种引擎手动分别运行，没有自动换引擎或重传。
+此底层脚本保留原始诊断，生产接入及验收应以 [测试准备](../docs/task/2026-10/windows_rsync_test_setup.md) 为准。Python 3.9+，无第三方 Python 依赖。没有自动换引擎。
 
-使用现有 `JUGG_REMOTE_CONFIG_FILE` 时，优先运行 `windows_rsync_acceptance.py`。它复用本脚本夹具，在进程内部读取连接配置，报告不保存账号、key、原始 argv/stdout/stderr，覆盖小产物拉取、错误 key、host key 改变与链接。执行方法和实测结论见 [验收记录](../docs/task/2026-10/windows_rsync_acceptance.md)。下述原始 PoC 会保存完整命令和诊断，只适合脱敏的专用测试配置，不应公开其报告。
+使用现有 `JUGG_REMOTE_CONFIG_FILE` 时，运行 `windows_rsync_acceptance.py`，密码配置也使用此入口。它复用本脚本夹具，在进程内部读取连接配置，报告不保存账号、密码、key、原始 argv/stdout/stderr，覆盖小产物拉取、错误 key、host key 改变与链接；`--benchmark-rounds 5` 增加 257 文件约 3 MiB 的五轮 SHA-256 校验计时。执行方法和实测结论见 [验收记录](../docs/task/2026-10/windows_rsync_acceptance.md)。下述原始 PoC 会保存完整命令和诊断，只适合脱敏的专用测试配置，不应公开其报告。
 
 ## 环境就绪后运行
 
@@ -29,7 +29,7 @@ python tools/windows_rsync_probe.py --config D:/private/cygwin-rsync.json --link
 
 ## 已准备的判定
 
-- 以当前 `SyncFileCommand.getRsyncArguments()` 和 `JuggPathManager.RSYNC_PUSH_CONFIG_DIR_ARGUMENTS` 为来源的独立 argv 快照，包括必需配置放行、默认排除、上传删除和 `--copy-unsafe-links`。后续生产规则变化时需复核快照。
+- 以当前 `SyncFileCommand.getRsyncArguments()` 和 `JuggPathManager.RSYNC_PUSH_CONFIG_DIR_ARGUMENTS` 为来源的独立 argv 快照，包括必需配置放行、默认排除和上传删除。上传不再使用 `--copy-unsafe-links`，保留链接本身。后续生产规则变化时需复核快照。
 - 中文、空格、`&`、括号工程路径；内容更新、重复同步 mtime、本地源文件哈希不变。
 - classpath 形式的 include 目录、prune、删除/不删除分支，下载哈希和 mtime。使用固定 `src/**` 代表性过滤集，不声称覆盖真实 module 的全部动态规则。
 - 远端 rsync 路径不存在必须非零；配置 bad_key 时未授权私钥必须非零，否则记录 not_run。

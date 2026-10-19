@@ -7,6 +7,9 @@ import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
 import com.sickworm.intellij.jugg.gradle.compile.RemoteGradleCompileClient
 import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
+import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
+import com.sickworm.intellij.jugg.ide.bean.JuggSettings
+import com.sickworm.intellij.jugg.ide.bean.SyncMode
 import com.sickworm.intellij.jugg.ide.logic.toCompileOptions
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.mock.*
@@ -58,40 +61,43 @@ class RemoteGradleCompileClientTest : LocalGradleCompileClientTest() {
     }
 
     @Test
-    fun testSimulatedArtifactFetch() {
+    fun testSimulatedArtifactFetch() = simulatedArtifactFetch(false, false)
+
+    @Test
+    fun testSimulatedFullRsyncArtifactFetch() = simulatedArtifactFetch(true, false)
+
+    @Test
+    fun testSimulatedMultipleProjectsArtifactFetch() = simulatedArtifactFetch(true, true)
+
+    private fun simulatedArtifactFetch(fullRsync: Boolean, multipleProjects: Boolean) {
         val root = Files.createTempDirectory("jugg-remote-fixture-").toFile()
         val remoteRoot = "/tmp/jugg-e2e-${UUID.randomUUID()}"
         val paths = JuggPathManager(root)
-        val options = juggGradleCompileOptions.copy(projectRootPath = root.path, remoteSyncPath = remoteRoot,
+        val upload = if (fullRsync) File(root, "upload").apply { mkdirs() } else root.parentFile
+        val projectRoot = if (fullRsync) File(upload, "project space").apply { mkdirs() } else root
+        val options = juggGradleCompileOptions.copy(projectRootPath = projectRoot.path, remoteSyncPath = remoteRoot,
+            syncMode = if (fullRsync) SyncMode.RSYNC else SyncMode.RSYNC_SIMPLE,
+            isSyncAllProjects = multipleProjects, localToRemoteSyncPath = upload.path,
+            remoteToLocalSyncPath = File(root, "download").path,
             localClasspathStoragePath = paths.localClasspathStoragePathManager,
             outputApkName = "app/build/outputs/apk/debug/app-debug.apk",
             initGradleFilePath = File(root, ".gradle/jugg/init.gradle.kts").path)
-        val module = ModuleBuildPathInfo(root, File(root, "app"), "debug",
+        val module = ModuleBuildPathInfo(projectRoot, File(projectRoot, "app"), "debug",
             customClasspath = listOf("app/custom/classpath.jar"),
             customSyncFilePath = listOf("app/custom/generated.txt"), buildDirRelativePath = "")
         val files = module.allBuildPathRelative.map { it.invariantSeparatorsPath }.map {
             if (it.endsWith(".txt") || it.endsWith(".jar")) it else "$it/fixture.bin"
         } + "app/build/outputs/apk/debug/app-debug.apk"
-        File(root, "source.txt").writeText("uploaded source")
+        File(projectRoot, "source.txt").writeText("uploaded source")
         val simulated = options.copy(compileCommand = artifactFixtureCommand(files))
-        val bootstrap = options.copy(projectRootPath = "/", remoteSyncPath = "/")
+        val bootstrap = options.copy(projectRootPath = "/", remoteSyncPath = "/",
+            syncMode = SyncMode.RSYNC_SIMPLE, isSyncAllProjects = false)
         val client = RemoteGradleCompileClient(project, logger = logger)
         try {
-            assertEquals(0, client.executeRemoteCommand(bootstrap, "mkdir -p '$remoteRoot/${root.name}'"))
+            assertEquals(0, client.executeRemoteCommand(bootstrap, "mkdir -p '${options.remoteProjectPath}'"))
             client.login(simulated)
             assertTrue(client.compileAndFetchResult().isSuccess)
-            assertNotNull(client.fetchClasspathResult(listOf(module)))
-            files.dropLast(1).forEach {
-                assertEquals("tiny artifact", File(paths.localClasspathStoragePathManager.classpathDir, it).readText())
-            }
-            val link = File(paths.localClasspathStoragePathManager.classpathDir, "app/build/generated/a-link.txt").toPath()
-            assertTrue(Files.isSymbolicLink(link))
-            assertEquals("tiny artifact", Files.readString(link))
-            val result = client.compileAndFetchResult(isOnlyFetchResult = true)
-            assertTrue(result.isSuccess)
-            assertTrue(paths.localClasspathStoragePathManager.apkDir.walkTopDown().any {
-                it.isFile && it.name.endsWith(".apk") && it.readText() == "tiny artifact"
-            })
+            assertFetchedArtifacts(client, module, options, files)
             client.login(simulated.copy(compileCommand = "exit 23"))
             assertFalse(client.compileAndFetchResult().isSuccess)
             client.login(simulated)
@@ -106,21 +112,46 @@ class RemoteGradleCompileClientTest : LocalGradleCompileClientTest() {
         }
     }
 
+    private fun assertFetchedArtifacts(
+        client: RemoteGradleCompileClient,
+        module: ModuleBuildPathInfo,
+        options: JuggGradleCompileOptions,
+        files: List<String>,
+    ) {
+        val classpath = assertNotNull(client.fetchClasspathResult(listOf(module)))
+        files.dropLast(1).forEach { assertEquals("tiny artifact", File(classpath, it).readText()) }
+        val link = File(classpath, "app/build/generated/a-link.txt").toPath()
+        assertTrue(Files.isSymbolicLink(link))
+        assertEquals("tiny artifact", Files.readString(link))
+        assertTrue(client.compileAndFetchResult(isOnlyFetchResult = true).isSuccess)
+        assertTrue(File(options.remoteToLocalProjectSyncPath).walkTopDown().any {
+            it.isFile && it.name.endsWith(".apk") && it.readText() == "tiny artifact"
+        })
+    }
+
     private fun assertTransferCancellation(client: RemoteGradleCompileClient, module: ModuleBuildPathInfo) {
-        val descendants = mutableListOf<ProcessHandle>()
-        val started = java.util.concurrent.atomic.AtomicBoolean()
-        client.terminalOutputListener = object : IGradleCompileClient.TerminalOutputListener {
-            override fun onOutput(line: String, isNeedPrint: Boolean) {
-                if (line.contains("receiving file list") && started.compareAndSet(false, true)) {
-                    descendants += nativeTransferProcesses()
-                    client.cancelAction(false)
-                }
+        val result = java.util.concurrent.atomic.AtomicReference<File?>()
+        val error = java.util.concurrent.atomic.AtomicReference<Throwable?>()
+        val worker = kotlin.concurrent.thread(name = "Jugg fixture transfer cancellation") {
+            try {
+                result.set(client.fetchClasspathResult(listOf(module)))
+            } catch (failure: Throwable) {
+                error.set(failure)
             }
-            override fun onOutputErr(line: String) = Unit
         }
-        assertNull(client.fetchClasspathResult(listOf(module)))
-        assertTrue(started.get(), "Transfer did not reach native rsync")
-        assertTrue(descendants.isNotEmpty(), "Native rsync descendants were not observed")
+        var descendants = emptyList<ProcessHandle>()
+        val deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(10)
+        while (worker.isAlive && System.nanoTime() < deadline) {
+            descendants = nativeTransferProcesses()
+            if (descendants.size >= 2) break
+            Thread.sleep(5)
+        }
+        client.cancelAction(false)
+        worker.join(10_000)
+        assertFalse(worker.isAlive)
+        assertNull(error.get())
+        assertNull(result.get())
+        assertTrue(descendants.size >= 2, "Native rsync and SSH were not observed")
         descendants.forEach {
             if (it.isAlive) it.onExit().get(5, java.util.concurrent.TimeUnit.SECONDS)
             assertFalse(it.isAlive)
@@ -134,7 +165,7 @@ class RemoteGradleCompileClientTest : LocalGradleCompileClientTest() {
         }.collect(java.util.stream.Collectors.toList())
     }
 
-    private fun cleanupRemoteFixture(options: com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions, root: String) {
+    private fun cleanupRemoteFixture(options: JuggGradleCompileOptions, root: String) {
         val cleaner = RemoteGradleCompileClient(project, logger = logger)
         try {
             assertEquals(0, cleaner.executeRemoteCommand(options, "rm -rf -- '$root'"))
@@ -187,6 +218,8 @@ class RemoteGradleCompileClientTest : LocalGradleCompileClientTest() {
                 it.environmentVariables = jsonObject.optString("environmentVariables", "")
             }
             juggGradleCompileOptions = options.toCompileOptions(pathManager)
+            JuggSettings.isWindowsRsyncUseCygwin =
+                System.getenv("JUGG_TEST_WINDOWS_RSYNC_ENGINE") == "cygwin"
 
             isNeedTest = true
 

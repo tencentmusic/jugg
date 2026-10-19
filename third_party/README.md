@@ -2,7 +2,7 @@
 
 This directory accompanies every Jugg plugin distribution and records the third-party software included, linked, copied, or otherwise used by that distribution.
 
-- `components.csv`: the 104-component inventory used for the open-source information form. Rows are ordered by license-obligation group, modification status, component name, and version. Its `notes` column is written for legal review and states the usage relationship, distribution form, modification details, and source/license obligations where applicable without repeating the `modified` field.
+- `components.csv`: the 105-component inventory used for the open-source information form. Rows are ordered by license-obligation group, modification status, component name, and version. Its `notes` column is written for legal review and states the usage relationship, distribution form, modification details, and source/license obligations where applicable without repeating the `modified` field.
 - `licenses/`: applicable license texts and upstream license references.
 - `sources/`: corresponding source archives tracked in the public Jugg source revision.
 - `MODIFICATIONS.md`: changelog of known modifications to redistributed third-party code or files.

@@ -1,6 +1,8 @@
 package com.sickworm.intellij.jugg.gradle.compile
 
 import com.sickworm.intellij.jugg.project.JuggGlobalPathManager
+import com.sickworm.intellij.jugg.compiler.copyResource
+import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 import java.io.File
@@ -28,7 +30,9 @@ internal class WindowsRsyncRuntime private constructor(
             val file = containedFile(name)
             require(file.isFile && sha256(file) == hash.asString) { "Invalid runtime file: $name" }
         }
-        listOf("rsync", "ssh").plus(if (isCygwin) listOf("cygpath") else emptyList()).forEach { name ->
+        val tools = listOf("rsync") + (if (manifest.has("systemSsh")) emptyList() else listOf("ssh")) +
+                (if (isCygwin) listOf("cygpath") else emptyList())
+        tools.forEach { name ->
             val relative = manifest.get(name).asString
             require(containedFile(relative).isFile) { "Missing runtime executable: $name" }
             require(!verifyHashes || hashes.has(relative)) { "Unverified runtime executable: $name" }
@@ -41,7 +45,12 @@ internal class WindowsRsyncRuntime private constructor(
         return file
     }
 
-    private fun executable(name: String): String = containedFile(manifest.get(name).asString).absolutePath
+    private fun executable(name: String): String {
+        if (name != "ssh" || !manifest.has("systemSsh")) return containedFile(manifest.get(name).asString).absolutePath
+        val ssh = File(System.getenv("SystemRoot") ?: "C:/Windows", "System32/OpenSSH/ssh.exe")
+        require(ssh.isFile) { "Install the Windows OpenSSH Client optional feature to use bundled oc-rsync" }
+        return ssh.absolutePath
+    }
 
     fun probe(): Boolean = executor.invokeProcess(listOf(executable("rsync"), "--version"), environment) == 0
 
@@ -63,10 +72,13 @@ internal class WindowsRsyncRuntime private constructor(
     }
 
     fun arguments(command: RsyncCommand): List<String> {
-        val ssh = mutableListOf(if (isCygwin) localPath(executable("ssh")) else executable("ssh").replace('\\', '/'),
+        val password = authenticationPassword(command)
+        val ssh = mutableListOf(sshExecutable(password != null),
             "-F", if (isCygwin) "/dev/null" else "NUL",
-            "-o", "PubkeyAuthentication=yes", "-o", "PreferredAuthentications=publickey",
-            "-p", command.remoteSshPort.toString(), "-o", "BatchMode=yes", "-o", "IdentitiesOnly=yes",
+            "-o", "PubkeyAuthentication=${if (password == null) "yes" else "no"}",
+            "-o", "PreferredAuthentications=${if (password == null) "publickey" else "password,keyboard-interactive"}",
+            "-o", "NumberOfPasswordPrompts=1",
+            "-p", command.remoteSshPort.toString(), "-o", "BatchMode=${if (password == null) "yes" else "no"}", "-o", "IdentitiesOnly=yes",
             "-o", "IdentityAgent=none", "-o", "StrictHostKeyChecking=accept-new", "-o", "ConnectTimeout=30")
         val knownHosts = File(System.getProperty("user.home"), ".ssh/known_hosts")
         Files.createDirectories(knownHosts.parentFile.toPath())
@@ -74,10 +86,34 @@ internal class WindowsRsyncRuntime private constructor(
         val keys = command.keyPathList.ifEmpty {
             listOfNotNull(command.password?.let { File(it) }?.takeIf { it.isFile && it.isAbsolute }?.path)
         }
-        require(keys.isNotEmpty()) { "Windows rsync requires non-interactive SSH private keys" }
-        require(command.password.isNullOrEmpty() || File(command.password).isFile) { "Windows rsync does not support password authentication" }
+        require(keys.isNotEmpty() || password != null) { "Windows rsync requires an SSH key or password" }
         keys.forEach { ssh += listOf("-i", localPath(it)) }
         return listOf(executable("rsync"), "-e", ssh.joinToString(" ", transform = ::quote)) + command.windowsArguments(this)
+    }
+
+    fun environment(command: RsyncCommand): Map<String, String> {
+        val password = authenticationPassword(command) ?: return environment
+        require(!password.contains('\n') && !password.contains('\r')) { "SSH password must be a single line" }
+        val askpass = copyResource("/tools/windows/rsync/askpass.exe")
+        return environment + mapOf("SSH_ASKPASS" to localPath(askpass.path), "SSH_ASKPASS_REQUIRE" to "force",
+            "DISPLAY" to "jugg:0", "JUGG_RSYNC_PASSWORD" to password)
+    }
+
+    private fun authenticationPassword(command: RsyncCommand): String? = command.password
+        ?.takeIf { it.isNotEmpty() && command.keyPathList.isEmpty() && !(File(it).isAbsolute && File(it).isFile) }
+
+    private fun sshExecutable(passwordAuthentication: Boolean): String {
+        val ssh = File(executable("ssh"))
+        if (isCygwin) return localPath(ssh.path)
+        if (!passwordAuthentication) return ssh.path.replace('\\', '/')
+        // oc-rsync 0.6.4 prepends BatchMode=yes to ssh.exe, overriding explicit password options.
+        val hash = sha256(ssh)
+        val alias = JuggGlobalPathManager.resourceFile("/tools/windows/ssh/$hash/jugg-ssh.exe")
+        if (!alias.isFile || sha256(alias) != hash) {
+            Files.createDirectories(alias.parentFile.toPath())
+            ssh.copyTo(alias, overwrite = true)
+        }
+        return alias.path.replace('\\', '/')
     }
 
     companion object {
@@ -88,8 +124,10 @@ internal class WindowsRsyncRuntime private constructor(
             }
             val override = System.getenv("JUGG_WINDOWS_RSYNC_RUNTIME")
             if (!override.isNullOrBlank()) return WindowsRsyncRuntime(File(override), executor)
-            val cygwin = System.getenv("JUGG_CYGWIN_HOME")
-            if (!cygwin.isNullOrBlank()) return installedCygwin(File(cygwin), executor)
+            if (JuggSettings.isWindowsRsyncUseCygwin) {
+                val home = System.getenv("JUGG_CYGWIN_HOME")
+                return if (home.isNullOrBlank()) detectInstalledCygwin(executor) else installedCygwin(File(home), executor)
+            }
             val resource = "/tools/windows/rsync/runtime.zip"
             val url = WindowsRsyncRuntime::class.java.getResource(resource)
                 ?: return detectInstalledCygwin(executor)

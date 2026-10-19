@@ -11,6 +11,21 @@ from package_windows_rsync import package
 
 
 class RuntimePackageTest(unittest.TestCase):
+    def test_native_package_uses_system_ssh_without_redistributing_it(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / 'staged'
+            (source / 'licenses').mkdir(parents=True)
+            (source / 'provenance.json').write_text('{}')
+            (source / 'rsync.exe').write_bytes(b'fixture')
+            archive = root / 'runtime.zip'
+            package(source, archive, 'oc-rsync', 'rsync.exe', '', '', system_ssh=True)
+            with zipfile.ZipFile(archive) as bundle:
+                manifest = json.loads(bundle.read('runtime.json'))
+                self.assertTrue(manifest['systemSsh'])
+                self.assertNotIn('ssh', manifest)
+                self.assertEqual({'provenance.json', 'rsync.exe'}, set(manifest['sha256']))
+
     def test_archive_contains_exact_hashes_and_selected_engine(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

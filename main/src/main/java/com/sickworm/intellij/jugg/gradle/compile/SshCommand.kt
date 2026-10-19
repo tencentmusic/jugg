@@ -113,9 +113,8 @@ class SyncFileCommand(
                 dotGradlePath = dotGradlePath.substring(1)
             }
 
-            // Copy resources mapped outside the transfer tree (e.g. Repo linkfiles); the boundary is
-            // the rsync transfer root, not the project root. Internal relative links stay as links.
-            return listOf("-av", "--copy-unsafe-links", "--delete") + listOf(
+            // Preserve links without reading targets outside the transfer tree.
+            return listOf("-av", "--delete") + listOf(
                 "--include=$dotGradlePath/", "--include=$dotGradlePath/jugg/",
                 "--include=$dotGradlePath/jugg/**", "--exclude=$dotGradlePath/**",
                 "--include=$buildDirPath/", "--include=$buildDirPath/jugg/",

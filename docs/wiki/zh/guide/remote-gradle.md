@@ -34,6 +34,14 @@ tags:
 
 参考使用手册中的描述，远端编译可以在几分钟内完成基础配置，并且配置可在多个工程间复用。
 
+## Windows 使用 rsync
+
+Windows x64 本地 NTFS 工程可使用 `rsync_simple` 或完整 `rsync` 连接 Linux 构建机。默认使用插件内置的 oc-rsync，需要先安装 Windows 的 OpenSSH Client 可选功能；SSH 配置字段可填写密码或私钥文件路径。构建机需要安装 rsync，并允许 SSH shell 登录。
+
+在 Jugg 控制面板的 Settings → Compiler 中开启 `Use Cygwin rsync on Windows (temporary)`，可从下次同步切换到本机 Cygwin。自行安装 Cygwin x64 的 `rsync` 和 `openssh` 包；插件检测 `C:/cygwin64`、`D:/cygwin64` 和 PATH，自定义位置可设置 `JUGG_CYGWIN_HOME` 后重启 IDE。缺失时插件会提示安装。关闭该开关恢复内置 oc-rsync。
+
+本地需要 Windows 原生符号链接权限。上传保留链接本身，树外链接目标内容不会自动上传；需要这些资源时，应扩大完整 `rsync` 的同步范围或预先复制文件。外部 SSH 不读取个人 SSH 配置；依赖跳板机、HTTP 代理或交互式二次认证的连接不在此 Windows 接入范围内。
+
 ## 控制同步排除内容
 
 Remote Compile Options 中的 `Exclude patterns` 会显示当前可配置排除列表。未修改时使用以下默认值：

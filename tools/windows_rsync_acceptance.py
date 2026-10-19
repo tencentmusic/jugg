@@ -11,6 +11,7 @@ import subprocess
 import sys
 
 from windows_rsync_probe import Probe, PUSH, write
+from windows_rsync_benchmark import benchmark
 
 
 class SafeProbe(Probe):
@@ -124,7 +125,7 @@ def simulated_artifacts(probe):
     return len(files)
 
 
-def run_probe(probe, record):
+def run_probe(probe, record, benchmark_rounds=0):
     try:
         probe.phase = 'ssh_linux_rsync_python'
         result = probe.remote_command('test "$(uname -s)" = Linux && command -v rsync >/dev/null && command -v python3 >/dev/null && printf READY')
@@ -137,6 +138,11 @@ def run_probe(probe, record):
         assert probe.remote.startswith('/tmp/jugg-rsync-probe-') and '\n' not in probe.remote
         record['checks'].append(probe.phase)
         probe.phase = 'filtered_push'
+        if benchmark_rounds:
+            probe.phase = 'benchmark'
+            record['benchmark'] = benchmark(probe, benchmark_rounds)
+            record['checks'].append(probe.phase)
+            probe.phase = 'filtered_push'
         source = probe.output / 'source \u4e2d\u6587 space'
         write(source, 'src/preflight.txt', 'small preflight fixture')
         probe.transfer(PUSH, probe.local(source) + '/', probe.config['target'] + ':' + probe.remote + '/')
@@ -175,6 +181,7 @@ def main():
     parser.add_argument('--output', type=Path, default=Path('verification/windows-rsync/acceptance'))
     parser.add_argument('--cygwin-root', type=Path, default=Path('D:/cygwin64'))
     parser.add_argument('--oc-rsync', type=Path, default=Path('D:/Downloads/oc-rsync-0.6.4-windows-x86_64/rsync.exe'))
+    parser.add_argument('--benchmark-rounds', type=int, choices=range(1, 11), default=None)
     args = parser.parse_args()
     root = args.output.resolve()
     root.mkdir(parents=True, exist_ok=True)
@@ -183,8 +190,9 @@ def main():
     secret = private.get('remoteSshPassword', '')
     specified = Path(secret).expanduser() if secret else None
     keys = [str(specified.resolve())] if specified and specified.is_file() else []
-    report = {'key_auth_available': bool(keys), 'configured_secret_is_existing_file': bool(specified and specified.is_file()), 'engines': []}
-    if not keys:
+    password = secret if secret and not keys else None
+    report = {'key_auth_available': bool(keys), 'password_auth_configured': bool(password), 'engines': []}
+    if not keys and not password:
         report['blocker'] = 'no_private_key_file_found'
     bad_key = root / 'wrong-key'
     if not bad_key.exists():
@@ -196,16 +204,26 @@ def main():
          r'C:\Windows\System32\OpenSSH\ssh.exe')]:
         record = {'engine': engine, 'checks': [], 'rsync_sha256': hashlib.sha256(Path(rsync).read_bytes()).hexdigest()}
         report['engines'].append(record)
-        if not keys:
+        if not keys and not password:
             continue
         output = root / ('matrix-' + engine + '-' + uuid.uuid4().hex[:8])
         output.mkdir(exist_ok=True)
         config = dict(engine=engine, rsync=rsync, ssh=ssh, cygpath=str(args.cygwin_root / 'bin/cygpath.exe'),
                       target=private['remoteSshUser'] + '@' + private['remoteSshIp'],
-                      port=private['remoteSshPort'], keys=keys, bad_key=str(bad_key),
+                      port=private['remoteSshPort'], keys=keys, password=password, bad_key=str(bad_key),
                       known_hosts=str(output / 'known_hosts'))
         probe = SafeProbe(config, output)
-        run_probe(probe, record)
+        if password:
+            if engine == 'oc-rsync':
+                # Avoid oc-rsync 0.6.4's injected BatchMode=yes for the ssh.exe basename.
+                import shutil
+                alias = output / 'jugg-ssh.exe'
+                shutil.copyfile(config['ssh'], alias)
+                config['ssh'] = str(alias)
+            helper = Path('main/src/main/resources/tools/windows/rsync/askpass.exe').resolve()
+            probe.env.update(SSH_ASKPASS=probe.local(helper), SSH_ASKPASS_REQUIRE='force',
+                             DISPLAY='jugg:0', JUGG_RSYNC_PASSWORD=password)
+        run_probe(probe, record, args.benchmark_rounds or 0)
     (root / 'preflight-report.json').write_text(json.dumps(report, indent=2), encoding='utf-8')
     print(json.dumps(report, indent=2))
     return 1 if any(e.get('status') != 'passed' for e in report['engines']) else 0

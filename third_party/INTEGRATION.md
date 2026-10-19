@@ -9,11 +9,12 @@
 | Checker Qual 3.33.0 | MIT | 内嵌于官方 R8 8.4.21 JAR，由 JVM 加载 | 是 | 不依赖进程隔离；对应版本的 `checker-qual/LICENSE.txt` 明确提供 MIT License，发行清单和 SBOM 均选择 MIT。 |
 | Checker Qual 3.5.0 | MIT | 作为 `cmd_line` 中 Guava 30.1-jre 的传递依赖，由 JVM 加载 | 是 | 不依赖进程隔离；对应版本的 `checker-qual/LICENSE.txt` 明确提供 MIT License，发行清单和 SBOM 均选择 MIT。 |
 | OpenJDK JVMTI header | GPL-2.0-only WITH Classpath-exception-2.0 | 修改后的 `jvmti.h` 参与编译并进入 JVMTI native agent | 是 | 不应表述为进程隔离。Jugg 依据 Classpath Exception 使用该头文件，并提供上游基线、修改后源码和 patch；是否接受该例外条款口径由法务确认。 |
+| oc-rsync 0.6.4 | GPL-3.0-or-later | 官方 Windows x64 可执行文件由 ProcessBuilder 启动，通过 argv、进程 I/O 与文件系统交互；系统 OpenSSH 不分发 | 否 | 不与 IDE 插件 JVM 链接或共享地址空间；对应源码和许可证随公开发行记录提供。 |
 | rsync 3.4.1 | GPL-3.0-or-later | macOS 可执行文件由 shell 命令启动，通过命令行参数、stdin/stdout/stderr 和文件系统交互 | 否 | 作为独立操作系统进程运行，不与 IDE 插件 JVM 静态或动态链接，也不共享地址空间。 |
 | sshpass 1.10 | GPL-2.0-or-later | macOS arm64 可执行文件作为 SSH 命令前缀由 shell 启动，通过命令行和进程 I/O 交互 | 否 | 作为独立操作系统进程运行，不与 IDE 插件 JVM 静态或动态链接，也不共享地址空间。 |
 | JavaBeans Activation Framework 1.2.0 | CDDL-1.1 | 内嵌于官方 R8 8.4.21 JAR，由 JVM 加载 | 是 | 不依赖进程隔离；上游同时提供 CDDL-1.1/GPL-2.0，发行清单和 SBOM 固定选择 CDDL-1.1。 |
 
-因此，不能笼统确认上述六类组件都通过 IPC 或命令行实现地址空间隔离。当前技术事实是：`rsync`、`sshpass` 满足独立进程边界；Checker Qual 和 JavaBeans Activation Framework 使用非 GPL 许可证分支；OpenJDK JVMTI header 使用带 Classpath Exception 的 GPL-2.0，并随发行提供修改源码与 patch。
+因此，不能笼统确认上述组件都通过 IPC 或命令行实现地址空间隔离。当前技术事实是：`oc-rsync`、`rsync`、`sshpass` 满足独立进程边界；Checker Qual 和 JavaBeans Activation Framework 使用非 GPL 许可证分支；OpenJDK JVMTI header 使用带 Classpath Exception 的 GPL-2.0，并随发行提供修改源码与 patch。
 
 ## 2. LGPL 2.1 和 MPL 1.1 组件
 

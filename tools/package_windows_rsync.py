@@ -7,16 +7,22 @@ from pathlib import Path
 import zipfile
 
 
-def package(source, destination, engine, rsync, ssh, cygpath):
+def package(source, destination, engine, rsync, ssh, cygpath, system_ssh=False):
     source = source.resolve()
     entries = sorted(path for path in source.rglob('*') if path.is_file())
     manifest = {'engine': engine, 'rsync': rsync, 'ssh': ssh}
+    if system_ssh:
+        if engine != 'oc-rsync':
+            raise ValueError('System OpenSSH is supported only by oc-rsync')
+        del manifest['ssh']
     if engine == 'cygwin':
         manifest['cygpath'] = cygpath
     for name in list(manifest.values())[1:]:
         path = source / name
         if not path.resolve().is_relative_to(source) or not path.is_file():
             raise ValueError('Missing or unsafe runtime executable: ' + str(name))
+    if system_ssh:
+        manifest['systemSsh'] = True
     if not (source / 'provenance.json').is_file() or not (source / 'licenses').is_dir():
         raise ValueError('Stage provenance.json and licenses/ before packaging')
     if destination.resolve().is_relative_to(source):
@@ -42,8 +48,9 @@ def main():
     parser.add_argument('--rsync', default='bin/rsync.exe')
     parser.add_argument('--ssh', default='bin/ssh.exe')
     parser.add_argument('--cygpath', default='bin/cygpath.exe')
+    parser.add_argument('--system-ssh', action='store_true')
     args = parser.parse_args()
-    package(args.input, args.output, args.engine, args.rsync, args.ssh, args.cygpath)
+    package(args.input, args.output, args.engine, args.rsync, args.ssh, args.cygpath, args.system_ssh)
 
 
 if __name__ == '__main__':

@@ -47,6 +47,24 @@ class JuggGradleCompileOptionsTest {
     }
 
     @Test
+    fun windowsRsync_shouldKeepNestedPathsUnescapedAndReturnActualFetchDirectory() {
+        org.junit.Assume.assumeTrue(com.sickworm.intellij.jugg.compiler.isWindows)
+        val parent = Files.createTempDirectory("jugg-rsync-layout").toFile()
+        val project = File(parent, "workspace/project space").apply { mkdirs() }
+        try {
+            val options = makeOptions(project, parent).copy(syncMode = SyncMode.RSYNC)
+            assertEquals("/remote/workspace/project space", options.remoteProjectPath)
+            assertEquals("/project space", options.remoteProjectSyncRelativePath)
+            assertEquals(File(parent, "fetch/workspace/project space").path, options.remoteToLocalSyncClasspathPath)
+            val multiple = options.copy(isSyncAllProjects = true)
+            assertEquals(File(parent, "fetch/jugg_all_classpath/workspace/project space").path,
+                multiple.remoteToLocalSyncClasspathPath)
+        } finally {
+            parent.deleteRecursively()
+        }
+    }
+
+    @Test
     fun remoteInitGradleFilePath_shouldKeepDotGradleRootRelativePath() {
         val parentDir = Files.createTempDirectory("jugg_compile_options_parent").toFile()
         val projectDir = File(parentDir, "demo").apply { mkdirs() }

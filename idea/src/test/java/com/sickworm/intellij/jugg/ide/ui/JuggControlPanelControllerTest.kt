@@ -71,6 +71,20 @@ class JuggControlPanelControllerTest {
     }
 
     @Test
+    fun `Windows rsync selection persists and is reflected by settings`() {
+        val original = JuggSettings.isWindowsRsyncUseCygwin
+        try {
+            controller.updateSetting(JuggControlPanelController.Setting.WINDOWS_RSYNC_CYGWIN, true)
+            assertTrue(JuggSettings.isWindowsRsyncUseCygwin)
+            assertTrue(controller.model.snapshot().settings.windowsRsyncUseCygwin)
+            controller.updateSetting(JuggControlPanelController.Setting.WINDOWS_RSYNC_CYGWIN, false)
+            assertEquals(false, controller.model.snapshot().settings.windowsRsyncUseCygwin)
+        } finally {
+            JuggSettings.isWindowsRsyncUseCygwin = original
+        }
+    }
+
+    @Test
     fun `panel refresh stays responsive while selected devices are unavailable`() {
         Mockito.`when`(targetManager.getDeviceNameList()).thenAnswer {
             waitForDevices()

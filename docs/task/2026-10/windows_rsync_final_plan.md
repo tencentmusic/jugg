@@ -1,8 +1,8 @@
 # Windows rsync 最终适配方案
 
-创建：2026-10-16；修订：2026-10-19。状态：已实测两种候选；oc-rsync 0.6.4 树外相对链接上传失败，未内置；Cygwin 通过所执行传输矩阵并完成安装检测、原生链接单次恢复与插件模拟产物链路，可进入项目 e2e。服务器配置与执行命令见 [测试准备](windows_rsync_test_setup.md)，逐项证据和未验证范围见 [验收记录](windows_rsync_acceptance.md)。
+创建：2026-10-16；修订：2026-10-19。当前实现以维护者最新要求为准：去掉 `--copy-unsafe-links`，支持完整 rsync、多工程与密码；默认内置 oc-rsync 0.6.4，Settings 临时开关选择本机 Cygwin，Cygwin 缺失仅提示安装。两种候选的密钥/密码独立传输矩阵已通过，新增 5 轮 benchmark。服务器配置与定向命令见 [测试准备](windows_rsync_test_setup.md)，证据与剩余边界见 [验收记录](windows_rsync_acceptance.md)。
 
-维护者本轮明确要求：通过测试的 oc-rsync 采用内置方式，Cygwin 采用检测与提示安装方式；这些要求优先于下文早期 Cygwin 内置 ZIP 设计。本轮不分发 Cygwin 包，也没有把未通过的 oc-rsync 放入插件。服务器性能不足，按要求由脚本生成全部类型的小产物，验证真实上传/执行/拉取，而不执行真实远端 Gradle或设备部署。早期矩阵仍作为完整发布验收边界，未执行项不算通过。
+早期本文的单引擎、仅 rsync_simple/私钥以及树外链接展开约束已被本轮明确要求替代；下文保留选型背景，不作为当前实现的额外指令。服务器资源不足，继续使用脚本生成小产物，不执行真实远端 Gradle、大产物下载或设备部署。
 
 本文是 [10 月交接](windows_rsync_decision_handoff.md)的当前决策入口。10 月 16 日曾将 Cygwin 自构建路线定为正式方案；复核后确认，该结论没有足够的 Windows 对照证据，现修正为原生 oc-rsync 优先验证。[7 月方案](../2026-07/windows_cygwin_rsync_integration_plan.md)仅保留为历史参考，不恢复其旧版本下限、包体估算、工期、类设计和测试承诺。
 
@@ -12,9 +12,9 @@
 
 - 优先复用可追溯的发布产物，先验证实际行为和运行依赖，不先 fork 或重写 Jugg 调用体系。
 - 不接入 `rsync-win.exe` 包装器，不复用其旧二进制包，不 fork 其归档仓库。
-- 只有 oc-rsync 出现必要契约失败且修补代价不合适时，才验证 Cygwin 备选；不在运行时维护第二套引擎或失败后自动换引擎重传。
+- 只有 oc-rsync 出现必要契约失败且修补代价不合适时，才验证 Cygwin 备选；当前提供 Settings 显式选择两种引擎；失败不自动换引擎重传。
 - Cygwin 路线优先审核官方二进制。只有确认所需修复或能力缺失、且没有满足条件的官方产物时，才考虑基于上游源码受控构建；不能仅因版本较旧就认定必须自构建。
-- 首期只开放 **Windows 10/11 x64（本地 NTFS）→ Linux、`rsync_simple`、非交互 SSH 私钥认证**。普通无链接工程不要求管理员权限；涉及原生链接创建时按实际 Windows 权限验收。
+- 当前开放 **Windows 10/11 x64（本地 NTFS）→ Linux、`rsync_simple`/完整 `rsync`/多工程、SSH 私钥或密码认证**。普通无链接工程不要求管理员权限；涉及原生链接创建时按实际 Windows 权限验收。
 - 保持现有同步模式选择；不自动迁移 iFT 配置。工具不可用或同步失败时明确失败，用户可自行切回 iFT。
 
 这是验证优先级与实施边界的决策，不代表已确认 oc-rsync 可发布。Windows 对照、Jugg 接入及 Flow 验收仍是完成条件；若不能满足，保留现有支持范围并记录阻断证据，不静默放宽同步契约。
@@ -76,7 +76,7 @@ Jugg 维护者负责固定依赖、构建、闭包、更新和验收；不承担
 - Windows 通过 `ProcessBuilder(List<String>)` 或等价 argv 接口直接启动；版本探测和 `cygpath` 也不经过 `cmd.exe /c`。
 - argv 中的 pattern 是 `--exclude=local.properties` 等原始参数，不带为 shell 准备的字面单引号。不能通过 `split(" ")` 或删引号来反解析旧命令。
 - Unix 与 iFT 从同一列表按各自既有契约渲染，保护其原行为；不在 Windows 分支复制一份过滤规则。
-- 源码上传保留 `-av --copy-unsafe-links --delete`，必需 include 位于用户 exclude 之前；classpath 保留现有 `--delete-excluded`、`--prune-empty-dirs` 及“不删除”分支。
+- 源码上传使用 `-av --delete`，保留链接本身，不展开树外目标，必需 include 位于用户 exclude 之前；classpath 保留现有 `--delete-excluded`、`--prune-empty-dirs` 及“不删除”分支。
 - pattern 作用于实际传输根，不是固定 IDE 工程根；保持源路径尾部 `/`、固定放行目录和用户排除规则的顺序。
 
 ### 4.2 路径：只在本地边界转换
@@ -92,7 +92,7 @@ oc-rsync 使用实测接受的 Windows 本地路径；采用 Cygwin 时，才用
 - oc-rsync 优先验证明确路径的 Windows 原生 OpenSSH；仅 Cygwin 备选使用内置 Cygwin `ssh.exe`。保留显式 user、port、`StrictHostKeyChecking=accept-new` 和现有 identity 列表顺序；不强制截断为单个 key。
 - `-e` 仍是 rsync 内部解析的一个 SSH 命令字符串：即使外层用了 argv，SSH executable、每个 identity 和 known_hosts 路径仍需独立转义，并验证 runtime 路径含中文、空格的情况。
 - 明确使用 Windows 用户目录下的 `.ssh/known_hosts`，按所选 SSH 的路径规则传入，避免默认 home 导致校验记录落在其他位置。首次主机可接受，已记录但改变的 host key 必须失败。
-- 首期以无需交互口令的私钥为验收范围，使用批处理认证避免进程挂在密码或解密提示上；不承诺 agent、PuTTY、交互式私钥解密或代理命令兼容。
+- 私钥使用批处理认证；密码通过强制 askpass、单次口令请求完成，避免挂在交互提示上；不承诺 agent、PuTTY、交互式私钥解密或代理命令兼容。
 - JSch 登录与 rsync 的外部 SSH 分别验证；JSch 成功不代表外部 SSH 已具备相同凭据。Windows 不进入 expect/sshpass；不支持的密码配置在同步前给出明确原因。
 
 ### 4.4 链接与属性：既保留上传语义，也检查 JVM 消费结果
@@ -112,7 +112,7 @@ mtime、远端脚本可执行性、本地可读写性必须验收；不宣称 NT
 - Windows 直接进程分支读取实际退出码，并排空 stdout/stderr；不等待 shell 完成标记，也不从任意输出文本猜测成功。
 - 正常退出只有 0 成功；启动失败、部分传输、SSH 失败及无法取得结果均失败。Windows 该分支不得进入旧的“缺少标记视为成功”归一化，Mac/Linux 原有路径保持本次范围外。
 - 取消映射为既有 canceled 状态，复用 `CmdExecutor.release()` 的 pending-cancel 和进程树销毁，验证启动前、传输中及 rsync/SSH 子进程均被收口。已有销毁逻辑不能代替 Windows 进程存活检查。
-- 复用输出监听和脱敏；保留原始诊断及退出码。Windows 首期私钥认证失败直接返回，不重复使用相同凭据重试；Mac/Linux 的既有瞬态密码认证重试策略保持原样。断网或部分传输不自动重传，不新增换引擎、换主机校验策略的重试。
+- 复用输出监听和脱敏；保留原始诊断及退出码。Windows 私钥/密码认证失败直接返回，不重复使用相同凭据重试；Mac/Linux 的既有瞬态密码认证重试策略保持原样。断网或部分传输不自动重传，不新增换引擎、换主机校验策略的重试。
 - 同步失败阻断后续构建或增量初始化，保留已有有效 context/history；不把已部分更新的远端目录描述成事务回滚成功。删除类夹具每次恢复后再测。
 
 ### 4.6 开放入口与改动落点

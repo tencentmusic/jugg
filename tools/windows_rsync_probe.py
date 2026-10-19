@@ -14,7 +14,7 @@ import uuid
 
 # Snapshot of SyncFileCommand and JuggPathManager's transfer-root filters.
 PUSH = [
-    '-av', '--copy-unsafe-links', '--delete',
+    '-av', '--delete',
     '--include=/.gradle/', '--include=/.gradle/jugg/', '--include=/.gradle/jugg/**',
     '--exclude=/.gradle/**', '--include=/build/', '--include=/build/jugg/',
     '--include=/build/jugg/config/', '--include=/build/jugg/config/**',
@@ -86,10 +86,12 @@ class Probe:
 
     def ssh(self, bad_key=False):
         keys = [self.config['bad_key']] if bad_key else self.config['keys']
+        password = bool(self.config.get('password')) and not bad_key
         args = [self.config['ssh'], '-F', '/dev/null' if self.config['engine'] == 'cygwin' else 'NUL',
-                '-p', str(self.config['port']), '-o', 'PubkeyAuthentication=yes',
-                '-o', 'PreferredAuthentications=publickey',
-                '-o', 'BatchMode=yes', '-o', 'IdentitiesOnly=yes',
+                '-p', str(self.config['port']), '-o', 'PubkeyAuthentication=' + ('no' if password else 'yes'),
+                '-o', 'PreferredAuthentications=' + ('password,keyboard-interactive' if password else 'publickey'),
+                '-o', 'NumberOfPasswordPrompts=1',
+                '-o', 'BatchMode=' + ('no' if password else 'yes'), '-o', 'IdentitiesOnly=yes',
                 '-o', 'IdentityAgent=none', '-o', 'ConnectTimeout=10',
                 '-o', 'StrictHostKeyChecking=accept-new', '-o',
                 'UserKnownHostsFile=' + self.local(self.config['known_hosts'])]
@@ -185,8 +187,10 @@ class Probe:
         self.transfer(PUSH, self.local(source) + '/', dest)
         self.check_remote("(p/'links/inside.txt').is_symlink()")
         for name in ['outside.txt', 'absolute.txt']:
-            self.check_remote("not (p/'links'/" + repr(name) + ").is_symlink() and "
-                              "(p/'links'/" + repr(name) + ").read_text() == 'external'")
+            self.check_remote("(p/'links'/" + repr(name) + ").is_symlink()")
+        # Outside targets are deliberately not materialized or downloaded.
+        self.remote_command('rm -- ' + shlex.quote(self.remote + '/links/outside.txt') + ' ' +
+                            shlex.quote(self.remote + '/links/absolute.txt'))
         download = self.output / 'links download'
         download.mkdir()
         self.transfer(['-av'], dest, self.local(download) + '/')

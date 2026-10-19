@@ -965,7 +965,7 @@ class RemoteGradleCompileClient(
     private fun invokeWindowsRsync(command: RsyncCommand): Int {
         try {
             val options = checkLoginOnStart()
-            require(options.syncMode.isRsyncSimple && !isRemoteWindows) { "Windows rsync supports rsync_simple to Linux only" }
+            require(options.syncMode.isRsync && !isRemoteWindows) { "Windows rsync requires a Linux server" }
             require(options.httpProxyIp.isEmpty() || options.httpProxyPort == 0) { "Windows rsync does not support HTTP proxy authentication" }
             val remoteCheck = remoteInvoke(SimpleSshCommand("test \"\$(uname -s)\" = Linux"), NO_OUTPUT_TIMEOUT_MS)
             if (remoteCheck != 0) return remoteCheck
@@ -974,16 +974,17 @@ class RemoteGradleCompileClient(
             cmdExecutor.prepareForInvoke()
             if (isCanceled) cmdExecutor.release()
             val arguments = runtime.arguments(command)
+            val environment = runtime.environment(command)
             cmdExecutor.prepareForInvoke()
             if (isCanceled) cmdExecutor.release()
             val output = mutableListOf<String>()
-            val result = cmdExecutor.invokeProcess(arguments, runtime.environment, output)
+            val result = cmdExecutor.invokeProcess(arguments, environment, output)
             if (isCanceled || !runtime.canRetryLinkCreation(command, result, output)) return result
             // Cygwin cannot create a native link until its target has arrived in the first pass.
             logger.info("Retrying Cygwin classpath links once after their targets were transferred")
             cmdExecutor.prepareForInvoke()
             if (isCanceled) cmdExecutor.release()
-            return cmdExecutor.invokeProcess(arguments, runtime.environment)
+            return cmdExecutor.invokeProcess(arguments, environment)
         } catch (exception: java.io.IOException) {
             logger.warn("Windows rsync process or runtime failed", exception)
         } catch (exception: RuntimeException) {

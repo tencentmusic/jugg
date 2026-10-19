@@ -288,10 +288,11 @@ data class JuggGradleCompileOptions(
     } else {
         File(projectRootPath)
             .relativeTo(File(localToRemoteSyncPath)).path
-            .replace(" ", "\\ ")
+            .let { if (com.sickworm.intellij.jugg.compiler.isWindows && syncMode.isRsync) it.replace('\\', '/') else it.replace(" ", "\\ ") }
     }
 
-    private val projectSyncRootRelativePath: String get() = projectSyncRelativePath.substringBefore(File.separatorChar)
+    private val projectSyncRootRelativePath: String get() = projectSyncRelativePath.substringBefore(
+        if (com.sickworm.intellij.jugg.compiler.isWindows && syncMode.isRsync) '/' else File.separatorChar)
 
     /** remote home directory */
     private val remoteHomePath = if (remoteSshUser == "root") "/root" else "/data/home/$remoteSshUser"
@@ -376,7 +377,9 @@ data class JuggGradleCompileOptions(
     }
 
     /** local classpath path, used for get classpath output */
-    val remoteToLocalSyncClasspathPath: String get() = if (syncMode.isRsyncSimple) {
+    val remoteToLocalSyncClasspathPath: String get() = if (com.sickworm.intellij.jugg.compiler.isWindows && syncMode.isRsync) {
+        File(remoteToLocalRootRsyncPath, remoteProjectPath.removePrefix(remoteSyncRootPath).trimStart('/')).path
+    } else if (syncMode.isRsyncSimple) {
         "${localClasspathStoragePath.classpathDir.absolutePath}/$projectSyncRelativePath"
     } else if (isSyncAllProjects) {
         "$remoteToLocalSyncPath/jugg_all_classpath/${File(finalRemoteSyncPath).name}/$projectSyncRelativePath"
@@ -406,9 +409,6 @@ data class JuggGradleCompileOptions(
             errorDetails += "Run configuration argument [Custom APK sign script] is empty\n"
         }
         if (isRemoteCompile) {
-            if (com.sickworm.intellij.jugg.compiler.isWindows && syncMode.isRsync && !syncMode.isRsyncSimple) {
-                errorDetails += "Windows rsync supports rsync_simple only\n"
-            }
             if (remoteSshUser.isEmpty()) {
                 errorDetails += "Run configuration argument [SSH user] is empty\n"
             }

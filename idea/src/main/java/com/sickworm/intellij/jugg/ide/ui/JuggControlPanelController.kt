@@ -142,6 +142,7 @@ open class JuggControlPanelController(
             Setting.PROJECT_KOTLIN -> JuggSettings.isUseProjectKotlinCompiler = enabled
             Setting.BACKUP_CLASSPATH -> return updateBackupClasspath(enabled)
             Setting.GRADLE_COMPILE_NO_DAEMON -> JuggSettings.isGradleCompileNoDaemon = enabled
+            Setting.WINDOWS_RSYNC_CYGWIN -> JuggSettings.isWindowsRsyncUseCygwin = enabled
         }
         model.updateSettings(currentSettings())
         recordSettingChanged(setting.displayName, enabled)
@@ -330,6 +331,7 @@ open class JuggControlPanelController(
             useProjectKotlinCompiler = JuggSettings.isUseProjectKotlinCompiler,
             backupClasspath = JuggSettings.isEnableBackupClasspath,
             gradleCompileNoDaemon = JuggSettings.isGradleCompileNoDaemon,
+            windowsRsyncUseCygwin = JuggSettings.isWindowsRsyncUseCygwin,
             isInjectGradleCompileEnabled = JuggSettings.isEnableInjectGradleCompile,
             canUseBackupClasspath = JuggSettings.isCanUseBackupClasspath,
             forceCompatDevices = model.snapshot().settings.forceCompatDevices,
@@ -414,5 +416,6 @@ open class JuggControlPanelController(
         PROJECT_KOTLIN("Project Kotlin compiler"),
         BACKUP_CLASSPATH("Backup classpath"),
         GRADLE_COMPILE_NO_DAEMON("Gradle compile no daemon"),
+        WINDOWS_RSYNC_CYGWIN("Use Cygwin rsync on Windows (temporary)"),
     }
 }

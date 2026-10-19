@@ -34,6 +34,14 @@ Prepare:
 
 As described in the user guide, a basic remote compilation setup can be completed in a few minutes, and the configuration can be reused across projects.
 
+## Use rsync on Windows
+
+Windows x64 projects on local NTFS storage can use `rsync_simple` or full `rsync` with a Linux build host. The default uses bundled oc-rsync and requires the Windows OpenSSH Client optional feature. Enter a password or private key file path in the SSH configuration. The build host needs rsync and must allow SSH shell sessions.
+
+Enable `Use Cygwin rsync on Windows (temporary)` under Settings → Compiler in the Jugg control panel to use installed Cygwin from the next transfer. Install the Cygwin x64 `rsync` and `openssh` packages yourself. Jugg checks `C:/cygwin64`, `D:/cygwin64`, and PATH; for another location, set `JUGG_CYGWIN_HOME` and restart the IDE. Missing tools produce an installation message. Disable the switch to return to bundled oc-rsync.
+
+Local native Windows symlink permission is required. Upload preserves links themselves; targets outside the transfer tree are not uploaded automatically. Widen the full `rsync` transfer scope or copy those resources beforehand. External SSH does not read personal SSH configuration. Connections requiring a jump host, HTTP proxy, or interactive second factor are outside this Windows integration's scope.
+
 ## Control synchronization exclusions
 
 `Exclude patterns` in Remote Compile Options shows the currently configurable exclusion list. The default value is:

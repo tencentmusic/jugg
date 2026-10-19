@@ -86,6 +86,7 @@ class WindowsRsyncRuntimeTest {
         val arguments = load(root).arguments(command)
         assertTrue(arguments.contains("--exclude=local.properties"))
         assertFalse(arguments.contains("--exclude='local.properties'"))
+        assertFalse(arguments.contains("--copy-unsafe-links"))
         assertTrue(arguments.indexOf("--include=/build/jugg/config/**") < arguments.indexOf("--exclude=*.iml"))
         assertEquals("user@host:/remote/project", arguments.last())
         assertEquals(root.path.replace('\\', '/') + "/", arguments[arguments.lastIndex - 1])
@@ -94,5 +95,26 @@ class WindowsRsyncRuntimeTest {
         assertTrue(arguments[2].contains("PreferredAuthentications=publickey"))
         assertTrue(arguments[2].contains("'-F' 'NUL'"))
         assertFalse(arguments[2].contains("UserKnownHostsFile=\""))
+    }
+
+    @Test
+    fun `password never appears in process arguments and disables batch authentication`() {
+        assumeTrue(isWindows)
+        val root = runtime()
+        val password = "fixture p@ss & 中文"
+        val command = RsyncSyncFileCommand(password, 22, emptyList(), root.path, "user@host:/remote", "")
+        val runtime = load(root)
+        val arguments = runtime.arguments(command)
+        assertFalse(arguments.any { it.contains(password) })
+        assertTrue(arguments[2].contains("BatchMode=no"))
+        assertTrue(arguments[2].contains("jugg-ssh.exe"))
+        val environment = runtime.environment(command)
+        assertEquals(password, environment["JUGG_RSYNC_PASSWORD"])
+        assertEquals("force", environment["SSH_ASKPASS_REQUIRE"])
+        val process = ProcessBuilder(environment.getValue("SSH_ASKPASS")).apply {
+            environment().putAll(environment)
+        }.start()
+        assertEquals(password + "\n", process.inputStream.readBytes().toString(Charsets.UTF_8))
+        assertEquals(0, process.waitFor())
     }
 }
