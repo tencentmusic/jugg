@@ -45,7 +45,7 @@ class RemoteGradleCompileClientTest : LocalGradleCompileClientTest() {
         }
         val worker = kotlin.concurrent.thread {
             result.set(client.executeRemoteCommand(juggGradleCompileOptions.copy(projectRootPath = "/", remoteSyncPath = "/"),
-                "printf 'FIXTURE_READY\\n'; sleep 30"))
+                "printf '\\nFIXTURE_READY\\n'; sleep 30"))
         }
         try {
             assertTrue(ready.await(20, java.util.concurrent.TimeUnit.SECONDS))
@@ -89,7 +89,11 @@ class RemoteGradleCompileClientTest : LocalGradleCompileClientTest() {
             if (it.endsWith(".txt") || it.endsWith(".jar")) it else "$it/fixture.bin"
         } + "app/build/outputs/apk/debug/app-debug.apk"
         File(projectRoot, "source.txt").writeText("uploaded source")
-        val simulated = options.copy(compileCommand = artifactFixtureCommand(files))
+        File(projectRoot, "gradlew").apply {
+            writeText("#!/bin/sh\n${artifactFixtureCommand(files)}\n")
+            setExecutable(true)
+        }
+        val simulated = options.copy(compileCommand = "./gradlew")
         val bootstrap = options.copy(projectRootPath = "/", remoteSyncPath = "/",
             syncMode = SyncMode.RSYNC_SIMPLE, isSyncAllProjects = false)
         val client = RemoteGradleCompileClient(project, logger = logger)
@@ -240,6 +244,67 @@ class RemoteGradleCompileClientTest : LocalGradleCompileClientTest() {
         remoteClient.login(juggGradleCompileOptions)
         val remoteCompileResult = remoteClient.compileAndFetchResult()
         assertTrue(remoteCompileResult.isSuccess)
+    }
+
+    @Test
+    fun testRealProjectCompileAndFetch() {
+        val download = Files.createTempDirectory("jugg-real-artifacts-").toFile()
+        val options = juggGradleCompileOptions.copy(outputApkName = "app-debug.apk",
+            localClasspathStoragePath = JuggPathManager(download).localClasspathStoragePathManager)
+        val marker = File(projectInfo.projectRoot, "app/src/main/assets/jugg_remote_acceptance.txt")
+        assertFalse(marker.exists())
+        val client = RemoteGradleCompileClient(project, logger = logger)
+        val modules = projectInfo.projectRoot.listFiles().orEmpty().filter {
+            it.name != "buildSrc" && (File(it, "build.gradle").isFile || File(it, "build.gradle.kts").isFile)
+        }.map {
+            ModuleBuildPathInfo(projectInfo.projectRoot, it, "debug", buildDirRelativePath = "build/${it.name}")
+        }
+        try {
+            marker.parentFile.mkdirs()
+            marker.writeText("first remote acceptance content")
+            val bootstrap = options.copy(projectRootPath = "/", remoteSyncPath = "/", syncMode = SyncMode.RSYNC_SIMPLE)
+            assertEquals(0, client.executeRemoteCommand(bootstrap,
+                "mkdir -p '${options.remoteProjectPath.replace("'", "'\"'\"'")}'"))
+            assertEquals(0, client.executeRemoteCommand(options,
+                "if test -f gradlew; then chmod u+x gradlew && ./gradlew clean; fi"))
+            client.login(options)
+            for (phase in listOf("full", "unchanged", "changed")) {
+                if (phase == "changed") marker.appendText("\nchanged remote acceptance content")
+                val compileMs = measureTimeMillis {
+                    val result = client.compileAndFetchResult()
+                    assertTrue(result.isSuccess)
+                    assertTrue(result.compileOutputFile.isNotEmpty())
+                    result.compileOutputFile.forEach { assertRealApk(it, marker) }
+                }
+                val fetchMs = measureTimeMillis {
+                    val fetched = assertNotNull(client.fetchClasspathResult(modules))
+                    assertTrue(File(fetched, "build/app").walkTopDown().any { it.isFile && it.extension == "class" })
+                }
+                println("JUGG_REAL_MEASUREMENT phase=$phase compileAndApkMs=$compileMs classpathMs=$fetchMs")
+            }
+            snapshotRealArtifacts(options)
+        } finally {
+            client.dispose()
+            marker.delete()
+            download.deleteRecursively()
+        }
+    }
+
+    private fun assertRealApk(apk: File, marker: File) {
+        java.util.zip.ZipFile(apk).use { zip ->
+            assertNotNull(zip.getEntry("AndroidManifest.xml"))
+            assertNotNull(zip.getEntry("classes.dex"))
+            assertEquals(marker.readText(), zip.getInputStream(
+                assertNotNull(zip.getEntry("assets/${marker.name}"))).reader().readText())
+        }
+    }
+
+    private fun snapshotRealArtifacts(options: JuggGradleCompileOptions) {
+        val destination = System.getenv("JUGG_REMOTE_ARTIFACT_SNAPSHOT")?.takeIf { it.isNotBlank() } ?: return
+        val snapshot = File(destination)
+        require(!snapshot.exists()) { "Artifact snapshot directory must not exist" }
+        assertTrue(File(options.remoteToLocalSyncClasspathPath).copyRecursively(snapshot))
+        assertTrue(options.localClasspathStoragePath.apkDir.copyRecursively(File(snapshot, "apks")))
     }
 
     @Test

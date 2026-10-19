@@ -2,7 +2,7 @@
 
 ## 当前行为与运行依赖
 
-Windows x64 本地 NTFS → Linux 支持 `rsync_simple`、完整 `rsync` 与多工程。默认内置 oc-rsync 0.6.4，使用系统 `C:/Windows/System32/OpenSSH/ssh.exe`，缺失时提示安装 Windows OpenSSH Client。
+Windows x64 本地 NTFS → Linux/macOS 支持 `rsync_simple`、完整 `rsync` 与多工程。默认内置 oc-rsync 0.6.4，使用系统 `C:/Windows/System32/OpenSSH/ssh.exe`，缺失时提示安装 Windows OpenSSH Client。macOS 使用账号可写的同步目录，并在远程环境变量设置实际 ANDROID_HOME；不能沿用 Linux 的 /home 路径。若 Gradle 全局代理不可用，应修正或在本次编译命令覆盖，不要把依赖下载失败误判为 SSH/rsync 认证失败。
 
 Jugg 控制面板 Settings → Compiler 的 `Use Cygwin rsync on Windows (temporary)` 开启后，从下次同步使用本机 Cygwin。安装 Cygwin x64 的 rsync、openssh；默认检测 C:/cygwin64、D:/cygwin64 与 PATH。自定义安装目录通过 `JUGG_CYGWIN_HOME` 指定，重启 IDE/测试进程生效。不自动安装 Cygwin，不在失败后自动切换引擎。`JUGG_WINDOWS_RSYNC_RUNTIME` 仅用于诊断覆盖，会优先于 Settings。
 
@@ -41,7 +41,15 @@ Remove-Item Env:JUGG_WINDOWS_RSYNC_RUNTIME -ErrorAction SilentlyContinue
 
 上述过滤只运行模拟产物三种布局与取消回归，不会匹配现有真实 testCompile/testFetchClasspath。密码回归只需将环境变量指向 remote-pass.json，再对两种引擎分别执行。已有 JSON 仍使用原 compileCommand/outputApkName；不需要为模拟测试修改它们。
 
-## 独立矩阵与 benchmark
+## 真实工程编译与拉取
+
+Mac 若使用系统 openrsync protocol 29，默认 oc-rsync 模式的 classpath 拉取会预检并选择已安装 Cygwin，保留完整目录过滤；因此该组合本机仍需 Cygwin，不应表述为纯 oc-rsync 验收通过。其他传输使用原引擎；不会在任意失败后盲目切换或自动安装。
+
+使用同一 JUGG_REMOTE_CONFIG_FILE，筛选 `*RemoteGradleCompileClientTest.testRealProjectCompileAndFetch`。该用例以仓库 android_demo_project 为真实工程：清理远端构建产物，首次构建、无修改重编译、修改测试资源后重编译；校验每轮 APK 的 Manifest、DEX 和资源内容，拉取到新的 classpath 目录并验证 app class 文件，最后恢复本地测试资源。它实际运行远端 Gradle，需要完整 JDK/SDK/依赖网络；不要对早期弱服务器执行。
+
+真实源码/产物传输工具为 `tools/windows_rsync_project_benchmark.py`，通过 `--config`、`--project`、`--artifacts`、`--engine oc-rsync|cygwin`、`--rounds 3`、`--output` 指定测试。运行真实用例时可额外设置 `JUGG_REMOTE_ARTIFACT_SNAPSHOT` 为一个不存在的目录，导出实际 classpath/APK 快照；将此目录传给 `--artifacts`。也可用互斥的 `--remote-artifacts` 只读指定远端目录，但它可能包含产品不拉取的缓存，不能混同产品能力。全量/增量变化都在新建独占 /tmp/jugg-project-benchmark-* 副本中完成。输出目录必须不存在，汇总仅含脱敏计时、规模和哈希验证状态。原始配置不能加入仓库。具体实测与限制见 [Mac 真实工程验收](windows_rsync_mac_real_acceptance.md)。
+
+## 小夹具独立矩阵与 benchmark
 
 ```powershell
 python tools/windows_rsync_acceptance.py --config "$env:JUGG_REMOTE_CONFIG_FILE" --benchmark-rounds 5

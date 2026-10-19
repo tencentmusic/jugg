@@ -36,7 +36,11 @@ tags:
 
 ## Windows 使用 rsync
 
-Windows x64 本地 NTFS 工程可使用 `rsync_simple` 或完整 `rsync` 连接 Linux 构建机。默认使用插件内置的 oc-rsync，需要先安装 Windows 的 OpenSSH Client 可选功能；SSH 配置字段可填写密码或私钥文件路径。构建机需要安装 rsync，并允许 SSH shell 登录。
+Windows x64 本地 NTFS 工程可使用 `rsync_simple` 或完整 `rsync` 连接 Linux 或 macOS 构建机。默认使用插件内置的 oc-rsync，需要先安装 Windows 的 OpenSSH Client 可选功能；SSH 配置字段可填写密码或私钥文件路径。构建机需要安装 rsync，并允许 SSH shell 登录。
+
+macOS 上请选择该账号可写的同步目录，不要直接沿用 Linux 的 `/home` 路径。在远程编译环境变量中配置构建机实际的 `ANDROID_HOME`，确认 JDK 和依赖仓库网络可用。Windows 上传后，Jugg 会在执行前为本次命令指定的工程内相对 `gradlew` 补齐执行权限。
+
+如果构建机使用系统 openrsync protocol 29，Windows 还需安装 Cygwin 的 `rsync`、`openssh`。内置 oc-rsync 与该服务端的 classpath 目录过滤不兼容，Jugg 会在拉取前提示并选择本机 Cygwin，保留完整过滤和删除规则；其他传输仍使用所选引擎。缺失时会提示安装，不会自动安装。也可在 Settings 中统一选择 Cygwin。
 
 在 Jugg 控制面板的 Settings → Compiler 中开启 `Use Cygwin rsync on Windows (temporary)`，可从下次同步切换到本机 Cygwin。自行安装 Cygwin x64 的 `rsync` 和 `openssh` 包；插件检测 `C:/cygwin64`、`D:/cygwin64` 和 PATH，自定义位置可设置 `JUGG_CYGWIN_HOME` 后重启 IDE。缺失时插件会提示安装。关闭该开关恢复内置 oc-rsync。
 

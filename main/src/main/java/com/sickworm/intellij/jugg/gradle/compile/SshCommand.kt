@@ -246,7 +246,7 @@ class FindOutputCommand(
 
     val findName = outputApkNameOrPath.substring(findPath.length)
 
-    override val baseCommand: String = "cd $remoteProjectPath && find_apk=${'$'}(find $findPath -name \"$findName\" -print -quit) && echo \"\n$APK_ECHO${'$'}find_apk\n\""
+    override val baseCommand: String = "cd $remoteProjectPath && find_apk=${'$'}(find ${findPath.ifEmpty { "." }} -name \"$findName\" -print -quit) && echo \"\n$APK_ECHO${'$'}find_apk\n\""
 
     override fun getInput(terminalOutputLine: String): String? {
         if (terminalOutputLine.contains(APK_ECHO)) {
@@ -337,7 +337,7 @@ open class FetchClasspathCommand(
                 if (buildRoot == conventionalBuildRoot &&
                     normalizedPath !in customPaths &&
                     normalizedPath.toPath().startsWith(buildRoot.toPath())) {
-                    normalizedPath.relativeTo(moduleRoot)
+                    File("**", normalizedPath.relativeTo(moduleRoot).path)
                 } else {
                     normalizedPath.relativeTo(projectRoot)
                 }

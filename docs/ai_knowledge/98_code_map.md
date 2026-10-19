@@ -86,6 +86,8 @@
 
 ## 5. 高频定位建议
 
+- Windows → macOS 真实工程：`RemoteGradleCompileClientTest.testRealProjectCompileAndFetch` 校验 APK 内容、classpath 和三阶段构建；`tools/windows_rsync_project_benchmark.py` 测真实源码/产物传输。系统 openrsync protocol 29 的 classpath 使用本机 Cygwin，纯 oc-rsync 不能视作通过；证据与使用条件见 `docs/task/2026-10/windows_rsync_mac_real_acceptance.md`。
+
 - Windows rsync：`main/.../gradle/compile/WindowsRsyncRuntime.kt`（Cygwin 安装检测、SSH argv、候选包校验）、`RemoteGradleCompileClient.invokeWindowsRsync()`（真实结果、链接单次恢复）；远程模拟产物回归复用 `idea/.../gradle/RemoteGradleCompileClientTest.kt`。脱敏双候选验收入口为 `tools/windows_rsync_acceptance.py`，底层夹具复用 `tools/windows_rsync_probe.py`，候选打包为 `tools/package_windows_rsync.py`。oc-rsync 0.6.4 已内置（系统 OpenSSH），Settings 可切换本机 Cygwin；支持私钥/密码与完整 rsync、多工程，树外链接不展开。benchmark 由 `tools/windows_rsync_benchmark.py` 实现。配置及验证边界见 `docs/task/2026-10/windows_rsync_test_setup.md`。
 
 - 查“某能力是否已存在”：先 `98_code_map.md`，再对应目录搜索类名。  

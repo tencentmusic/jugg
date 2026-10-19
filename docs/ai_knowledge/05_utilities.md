@@ -82,6 +82,7 @@ JuggManager 初始化
 - `WindowsRsyncRuntime` 默认读取内置 oc-rsync 0.6.4 ZIP，使用系统 Windows OpenSSH；ZIP 包含 GPL 许可证、provenance 和逐文件 SHA-256；固定提交源码归档在 third_party/sources，由发行 SOURCE.md 定位，缓存损坏只恢复一次。Settings 的 `isWindowsRsyncUseCygwin` 选择本机 Cygwin，依次检测 `JUGG_CYGWIN_HOME`、C:/cygwin64、D:/cygwin64 与 PATH；要求 rsync/openssh/cygpath，缺失明确提示。诊断环境变量 `JUGG_WINDOWS_RSYNC_RUNTIME` 优先选择验收目录。Cygwin 不分发、不自动安装。
 - Windows 外部 SSH 隔离用户配置，按已有配置使用公钥或密码；密码通过每次调用的环境和内置 askpass.exe 读取，不出现在 argv/日志/文件中。askpass 源码为 `tools/windows_rsync_askpass.cs`，由系统 .NET Framework 4 编译。oc-rsync 0.6.4 对 ssh.exe 强制前置 BatchMode=yes，密码模式将系统 SSH 原样复制到按 SHA-256 隔离的 jugg-ssh.exe 别名，避开该 basename 特判；不修改 SSH 二进制。known_hosts 参数不夹带字面双引号，统一由 -e 渲染层转义。
 - Cygwin `winsymlinks:nativestrict` 在链接目标尚未落盘时会报 ENOENT。只有 classpath 拉取返回 23 且包含明确的 symlink ENOENT 诊断时，才在首次传输已落盘目标后重试一次；第二次结果原样返回。认证、断网和普通部分传输错误不重试，取消也不重试。下载链接已由 JVM 读取验证，不回退 Cygwin 专用链接。
+- Windows classpath 拉取预检到远端 openrsync protocol 29 时，使用已安装 Cygwin 并输出 info：oc-rsync 0.6.4 与该服务端的目录过滤会触发 IPC 14，不能只去掉 prune 或过滤规则来伪造成功。其他传输仍按 Settings 选择引擎，诊断 runtime override 仍优先。
 - `PlatformApi.impl` 是 host 注入边界；core 代码不要绕过它直接调用 IDE / Android Studio API，否则 `main` 模块测试和 CLI 场景会失效。
 - `JuggSettings` 的远程命令历史按 `user + host + port + remoteProjectPath` 保存，每个目标只保留最近 10 条并按完整命令去重。读取损坏数据或写入失败时返回空历史，不影响远程命令执行；命令正文不得写入 Jugg 持久日志。`RemoteUserCommand` 将正文编码后交给子 shell，并用每次执行唯一的完成标记解析退出码，避免用户命令中的注释、`exit` 或输出内容干扰协议。
 - APK 修改链路依赖 `PlatformApi.allAvailableJavaHomes()` 寻找可用签名 JDK；每次重试会移除已有的 `JAVA_HOME` 并写入当前候选，即使原环境未设置该变量也能真正切换 JDK。签名失败不要只看 apksigner 输出，也要检查 host Java home 列表。

@@ -534,6 +534,10 @@ class RemoteGradleCompileClient(
                 return syncFileResult
             }
 
+            if (!prepareRemoteWrapper(gradleCompileSettings)) {
+                return GradleCompileResult.failed(isCanceled, "Make remote Gradle wrapper executable failed")
+            }
+
             // 2. compile
             val compileProjectCommand = CompileProjectCommand(
                 gradleCompileSettings.compileCommand,
@@ -722,6 +726,20 @@ class RemoteGradleCompileClient(
             throw JuggInternalException.notLoginYet()
         }
         return gradleCompileSettings
+    }
+
+    private fun prepareRemoteWrapper(options: JuggGradleCompileOptions): Boolean {
+        if (!isWindows || !options.syncMode.isRsync || isRemoteWindows) return true
+        val wrapper = options.compileCommand.split(Regex("\\s+"))
+            .map { it.trim('\'', '"').replace('\\', '/') }
+            .firstOrNull { it == "gradlew" || it.endsWith("/gradlew") } ?: return true
+        if (File(wrapper).isAbsolute || wrapper.contains(":")) return true
+        val executable = File(options.projectRootPath, wrapper).normalize()
+        val root = File(options.projectRootPath).normalize()
+        if (!executable.toPath().startsWith(root.toPath())) return true
+        // NTFS uploads do not preserve the Unix executable bit of the wrapper.
+        val path = "${options.remoteProjectPath}/${executable.relativeTo(root).invariantSeparatorsPath}"
+        return invoke(SimpleSshCommand("chmod u+x ${quoteRemotePath(path)}")) == 0
     }
 
     private fun syncSourceFile(gradleCompileSettings: JuggGradleCompileOptions): GradleCompileResult {
@@ -965,12 +983,14 @@ class RemoteGradleCompileClient(
     private fun invokeWindowsRsync(command: RsyncCommand): Int {
         try {
             val options = checkLoginOnStart()
-            require(options.syncMode.isRsync && !isRemoteWindows) { "Windows rsync requires a Linux server" }
+            require(options.syncMode.isRsync && !isRemoteWindows) { "Windows rsync requires a Linux or macOS server" }
             require(options.httpProxyIp.isEmpty() || options.httpProxyPort == 0) { "Windows rsync does not support HTTP proxy authentication" }
-            val remoteCheck = remoteInvoke(SimpleSshCommand("test \"\$(uname -s)\" = Linux"), NO_OUTPUT_TIMEOUT_MS)
+            val remoteCheck = remoteInvoke(SimpleSshCommand("case \"\$(uname -s)\" in Linux|Darwin) true;; *) false;; esac"), NO_OUTPUT_TIMEOUT_MS)
             if (remoteCheck != 0) return remoteCheck
             cmdExecutor.terminalOutputListener = terminalOutputListener
-            val runtime = WindowsRsyncRuntime.load(cmdExecutor, logger)
+            val remoteUsesOpenRsync = command is RsyncFetchClasspathCommand && remoteInvoke(
+                SimpleSshCommand("rsync --version 2>/dev/null | grep -q '^openrsync: protocol version 29$'"), NO_OUTPUT_TIMEOUT_MS) == 0
+            val runtime = WindowsRsyncRuntime.load(cmdExecutor, logger, remoteUsesOpenRsync)
             cmdExecutor.prepareForInvoke()
             if (isCanceled) cmdExecutor.release()
             val arguments = runtime.arguments(command)

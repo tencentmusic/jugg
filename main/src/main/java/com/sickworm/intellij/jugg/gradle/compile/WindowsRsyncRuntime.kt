@@ -118,13 +118,17 @@ internal class WindowsRsyncRuntime private constructor(
 
     companion object {
         @Synchronized
-        fun load(executor: CmdExecutor, logger: com.intellij.openapi.diagnostic.Logger): WindowsRsyncRuntime {
+        fun load(executor: CmdExecutor, logger: com.intellij.openapi.diagnostic.Logger,
+                 remoteUsesOpenRsync: Boolean = false): WindowsRsyncRuntime {
             require(System.getProperty("os.arch").lowercase() in listOf("amd64", "x86_64")) {
                 "Windows rsync supports x64 only"
             }
             val override = System.getenv("JUGG_WINDOWS_RSYNC_RUNTIME")
             if (!override.isNullOrBlank()) return WindowsRsyncRuntime(File(override), executor)
-            if (JuggSettings.isWindowsRsyncUseCygwin) {
+            if (JuggSettings.isWindowsRsyncUseCygwin || remoteUsesOpenRsync) {
+                if (remoteUsesOpenRsync && !JuggSettings.isWindowsRsyncUseCygwin) {
+                    logger.info("Using installed Cygwin rsync for classpath filters with remote openrsync")
+                }
                 val home = System.getenv("JUGG_CYGWIN_HOME")
                 return if (home.isNullOrBlank()) detectInstalledCygwin(executor) else installedCygwin(File(home), executor)
             }

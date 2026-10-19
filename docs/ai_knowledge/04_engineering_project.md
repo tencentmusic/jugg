@@ -202,11 +202,13 @@ Library androidTest 的 `instrumentationTargetPackage` 当前取 synthetic test 
 
 源码上传由 `SyncFileCommand.getRsyncArguments()` 统一生成 rsync/iFT 参数，使用 `-av --delete`。仅 Windows 不添加 `--copy-unsafe-links`，保留链接本身，不读取树外链接目标；macOS/Linux 保留该参数，继续复制树外链接目标。Windows 工程需要树外内容时，应扩大完整 rsync 的同步根目录或事先物化文件；保留的链接在远端不保证可解析。include/exclude、增量比较和删除策略继续生效。
 
-Windows x64 本地 NTFS 到 Linux 使用 `WindowsRsyncRuntime` 的原生 argv 进程，支持 `rsync_simple`、完整 `rsync` 和多工程；Windows 路径在边界转换，classpath 返回实际下载位置。默认内置 oc-rsync 0.6.4 配合系统 OpenSSH；Settings 的临时 Cygwin 开关从下次传输生效，Cygwin 只检测本机安装并提示缺失，不自动安装。私钥及密码均沿既有远端连接配置读取，密码仅通过子进程环境与 askpass 传递。直接进程保留真实退出码和取消结果；本地 backup classpath 继续关闭。
+Windows x64 本地 NTFS 到 Linux/macOS 使用 `WindowsRsyncRuntime` 的原生 argv 进程，远端 uname 仅接受 Linux/Darwin，支持 `rsync_simple`、完整 `rsync` 和多工程；Windows 路径在边界转换，classpath 返回实际下载位置。默认内置 oc-rsync 0.6.4 配合系统 OpenSSH；Settings 的临时 Cygwin 开关从下次传输生效，Cygwin 只检测本机安装并提示缺失，不自动安装。私钥及密码均沿既有远端连接配置读取，密码仅通过子进程环境与 askpass 传递。Windows rsync 上传后，在真正编译前仅为 compileCommand 指定且位于工程内的相对 gradlew 设置 Unix 执行位，避免 NTFS 权限上传后返回 126；仅拉取和非 Windows 路径不变。直接进程保留真实退出码和取消结果；本地 backup classpath 继续关闭。
 
-验收复用 `idea/.../gradle/RemoteGradleCompileClientTest`：`testSimulated*ArtifactFetch` 覆盖三种同步布局，真实上传后用 Python 生成所有产物目录的小文件，验证 APK/classpath、原生链接、失败和取消；`testSimulatedCancellation` 验证 JSch shell 取消。它们不运行远端 Gradle，也不代表设备部署已通过。脱敏双工具矩阵与 benchmark 见 `tools/windows_rsync_acceptance.py`；服务器、JSON 及定向命令见 [测试准备](../task/2026-10/windows_rsync_test_setup.md)。
+Windows classpath 拉取会预检远端 `rsync --version`：openrsync protocol 29 与 oc-rsync 0.6.4 的目录过滤不兼容（IPC 14），该组合改用本机 Cygwin 并打印 info，保留过滤和删除规则；缺失仅提示安装。其他传输仍按 Settings 选择引擎，GNU rsync 路径不变，诊断 runtime override 仍优先。FindOutputCommand 在只指定 APK 文件名时显式使用 `find .`，兼容 BSD find。
 
-远端 classpath 的 rsync 过滤规则会按 build directory 类型生成：使用 `${moduleRoot}/build` 的普通模块按 variant 复用 `build/...` 规则，避免大型多模块工程为每个模块重复展开相同参数；自定义 build directory、`customClasspath` 与 `customSyncFilePath` 继续使用项目根相对的精确路径，保证集中式输出和项目配置不会被通配规则覆盖。
+验收复用 `idea/.../gradle/RemoteGradleCompileClientTest`：`testSimulated*ArtifactFetch` 覆盖三种同步布局，真实上传后用 Python 生成所有产物目录的小文件，验证 APK/classpath、原生链接、失败和取消；`testSimulatedCancellation` 验证 JSch shell 取消。`testRealProjectCompileAndFetch` 实际构建 demo 工程，验证首次/无变化/资源修改后的 APK 内容和 classpath，并记录耗时；它不代表设备部署已通过。脱敏小夹具矩阵见 `tools/windows_rsync_acceptance.py`，真实工程传输计时见 `tools/windows_rsync_project_benchmark.py`；服务器、JSON 及定向命令见 [测试准备](../task/2026-10/windows_rsync_test_setup.md)。
+
+远端 classpath 的 rsync 过滤规则会按 build directory 类型生成：使用 `${moduleRoot}/build` 的普通模块按 variant 复用 `**/build/...` 规则，显式匹配嵌套模块，避免大型多模块工程为每个模块重复展开相同参数；自定义 build directory、`customClasspath` 与 `customSyncFilePath` 继续使用项目根相对的精确路径，保证集中式输出和项目配置不会被通配规则覆盖。
 
 `JuggCompilerHelper.gradleCompile()` 会在进入 Gradle 客户端前调用 `GradleWrapperRepairer`。该逻辑只处理 `compileCommand` 中使用 `gradlew` / `gradlew.bat` 的场景：若对应目录存在 `gradle/wrapper/gradle-wrapper.properties`，则从 Jugg 内置资源补齐缺失的 `gradlew`、`gradlew.bat`、`gradle/wrapper/gradle-wrapper.jar`，并为 `gradlew` 设置可执行权限；若 properties 不存在或命令不是 wrapper 入口，则不修改工程。补齐只创建缺失文件，不覆盖已有文件。Windows 本机执行远程编译时，还会在同步前将实际使用的 Unix `gradlew` 中 CRLF 转换为 LF；转换只在内容变化时写回，不处理 `gradlew.bat`、其他脚本或 Gradle 配置文件，纯本地编译与仅拉取远端结果均保持原文件不变。
 

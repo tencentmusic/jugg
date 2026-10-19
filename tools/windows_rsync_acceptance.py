@@ -34,7 +34,7 @@ class SafeProbe(Probe):
         pass
 
     def run(self, argv, expected=0):
-        result = subprocess.run(argv, env=self.env, capture_output=True, timeout=30)
+        result = subprocess.run(argv, env=self.env, capture_output=True, timeout=self.config.get('timeout', 30))
         self.last_stderr = result.stderr.lower()
         if (result.returncode == 0 if expected == 'nonzero' else result.returncode != expected):
             diagnostic = result.stderr.lower()

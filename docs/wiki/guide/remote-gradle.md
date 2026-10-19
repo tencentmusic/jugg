@@ -36,7 +36,11 @@ As described in the user guide, a basic remote compilation setup can be complete
 
 ## Use rsync on Windows
 
-Windows x64 projects on local NTFS storage can use `rsync_simple` or full `rsync` with a Linux build host. The default uses bundled oc-rsync and requires the Windows OpenSSH Client optional feature. Enter a password or private key file path in the SSH configuration. The build host needs rsync and must allow SSH shell sessions.
+Windows x64 projects on local NTFS storage can use `rsync_simple` or full `rsync` with a Linux or macOS build host. The default uses bundled oc-rsync and requires the Windows OpenSSH Client optional feature. Enter a password or private key file path in the SSH configuration. The build host needs rsync and must allow SSH shell sessions.
+
+On macOS, choose a sync directory writable by the SSH account instead of reusing a Linux `/home` path. Set the build host's actual `ANDROID_HOME` in the remote compilation environment variables, and check that its JDK and dependency repositories are accessible. After uploading from Windows, Jugg restores execute permission before running the relative `gradlew` specified by the command within the project.
+
+If the build host uses system openrsync protocol 29, also install Cygwin's `rsync` and `openssh` on Windows. Bundled oc-rsync is incompatible with this server's classpath directory filters. Before fetching classpath files, Jugg reports that it is selecting installed Cygwin, preserving the full filter and deletion rules; other transfers still use the selected engine. Missing Cygwin produces an installation message and is never installed automatically. You can also select Cygwin for all transfers in Settings.
 
 Enable `Use Cygwin rsync on Windows (temporary)` under Settings → Compiler in the Jugg control panel to use installed Cygwin from the next transfer. Install the Cygwin x64 `rsync` and `openssh` packages yourself. Jugg checks `C:/cygwin64`, `D:/cygwin64`, and PATH; for another location, set `JUGG_CYGWIN_HOME` and restart the IDE. Missing tools produce an installation message. Disable the switch to return to bundled oc-rsync.
 
