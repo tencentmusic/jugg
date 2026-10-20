@@ -9,7 +9,7 @@ plugins {
 
 def versionName = '4.0.5'
 def gitBranch = 'git rev-parse --abbrev-ref HEAD'.execute().text.trim().replace('/', '_')
-def gitBranchPrefix = gitBranch == 'main' ? 'release' : (gitBranch == 'develop' ? 'SNAPSHOT' : gitBranch + '-SNAPSHOT')
+def gitBranchPrefix = gitBranch == 'main' ? 'release' : (gitBranch.startsWith('develop') ? 'SNAPSHOT' : gitBranch + '-SNAPSHOT')
 def pluginVersionArg = "${versionName}-${gitBranchPrefix}"
 def releaseBuildDate = new Date()
 def releaseBuildFormat = new SimpleDateFormat('yyyyMMddHHmmssSSS')
