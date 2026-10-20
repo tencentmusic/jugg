@@ -6,20 +6,20 @@
 
 ## 环境就绪后运行
 
-1. 复制 `windows_rsync_probe.example.json` 到仓库外，分别准备 oc-rsync 和 Cygwin 配置。所有 executable、key 和 known_hosts 使用绝对路径；配置中的 target 必须为受信任的测试服务器 `user@host`。私钥不需要交互解密；不要将凭据提交到仓库。
-2. oc-rsync 配置指定固定发布产物与原生 Windows OpenSSH。Cygwin 配置把 engine 改为 `cygwin`，rsync、ssh、cygpath 均指定同一安装的 `bin` 下的 exe。脚本不下载工具、不修改系统 SSH/Cygwin 配置。
+1. 复制 `windows_rsync_probe.example.json` 到仓库外，准备 Cygwin 配置。所有 executable、key 和 known_hosts 使用绝对路径；配置中的 target 必须为受信任的测试服务器 `user@host`。私钥不需要交互解密；不要将凭据提交到仓库。
+2. rsync、ssh、cygpath 均指定同一 Cygwin 安装的 `bin` 下的 exe。脚本不下载工具、不修改系统 SSH/Cygwin 配置。
 3. Linux 服务器需要 Python 3、上游 rsync、mktemp 和 stat。使用专用测试账户，错误 key 应是存在但未授权的独立私钥。known_hosts 的父目录必须已存在；首次连接会按 accept-new 写入指定文件。
 4. 在仓库根目录执行：
 
 ```powershell
-python tools/windows_rsync_probe.py --config D:/private/oc-rsync.json
+python tools/windows_rsync_probe.py --config D:/private/cygwin.json
 python tools/windows_rsync_probe.py --config D:/private/cygwin-rsync.json
 ```
 
 链接测试单独启用，要求当前 Windows 账户有原生 symlink 创建权限。权限不足会失败，不自动提权或跳过：
 
 ```powershell
-python tools/windows_rsync_probe.py --config D:/private/oc-rsync.json --links
+python tools/windows_rsync_probe.py --config D:/private/cygwin.json --links
 python tools/windows_rsync_probe.py --config D:/private/cygwin-rsync.json --links
 ```
 

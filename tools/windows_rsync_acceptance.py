@@ -180,7 +180,6 @@ def main():
     parser.add_argument('--config', type=Path, default=os.environ.get('JUGG_REMOTE_CONFIG_FILE', Path.home() / '.jugg/remote.json'))
     parser.add_argument('--output', type=Path, default=Path('verification/windows-rsync/acceptance'))
     parser.add_argument('--cygwin-root', type=Path, default=Path('D:/cygwin64'))
-    parser.add_argument('--oc-rsync', type=Path, default=Path('D:/Downloads/oc-rsync-0.6.4-windows-x86_64/rsync.exe'))
     parser.add_argument('--benchmark-rounds', type=int, choices=range(1, 11), default=None)
     args = parser.parse_args()
     root = args.output.resolve()
@@ -196,12 +195,13 @@ def main():
         report['blocker'] = 'no_private_key_file_found'
     bad_key = root / 'wrong-key'
     if not bad_key.exists():
-        result = subprocess.run([r'C:\Windows\System32\OpenSSH\ssh-keygen.exe', '-q', '-t', 'ed25519', '-N', '', '-f', str(bad_key)], capture_output=True)
+        key_path = subprocess.run([str(args.cygwin_root / 'bin/cygpath.exe'), '-u', str(bad_key)],
+                                  capture_output=True, check=True, text=True).stdout.strip()
+        result = subprocess.run([str(args.cygwin_root / 'bin/ssh-keygen.exe'), '-q', '-t', 'ed25519',
+                                 '-N', '', '-f', key_path], capture_output=True)
         if result.returncode: raise RuntimeError('fixture_key_generation_failed')
     for engine, rsync, ssh in [
-        ('cygwin', str(args.cygwin_root / 'bin/rsync.exe'), str(args.cygwin_root / 'bin/ssh.exe')),
-        ('oc-rsync', str(args.oc_rsync),
-         r'C:\Windows\System32\OpenSSH\ssh.exe')]:
+        ('cygwin', str(args.cygwin_root / 'bin/rsync.exe'), str(args.cygwin_root / 'bin/ssh.exe'))]:
         record = {'engine': engine, 'checks': [], 'rsync_sha256': hashlib.sha256(Path(rsync).read_bytes()).hexdigest()}
         report['engines'].append(record)
         if not keys and not password:
@@ -214,12 +214,6 @@ def main():
                       known_hosts=str(output / 'known_hosts'))
         probe = SafeProbe(config, output)
         if password:
-            if engine == 'oc-rsync':
-                # Avoid oc-rsync 0.6.4's injected BatchMode=yes for the ssh.exe basename.
-                import shutil
-                alias = output / 'jugg-ssh.exe'
-                shutil.copyfile(config['ssh'], alias)
-                config['ssh'] = str(alias)
             helper = Path('main/src/main/resources/tools/windows/rsync/askpass.exe').resolve()
             probe.env.update(SSH_ASKPASS=probe.local(helper), SSH_ASKPASS_REQUIRE='force',
                              DISPLAY='jugg:0', JUGG_RSYNC_PASSWORD=password)

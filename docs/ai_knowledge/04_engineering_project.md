@@ -202,9 +202,9 @@ Library androidTest 的 `instrumentationTargetPackage` 当前取 synthetic test 
 
 源码上传由 `SyncFileCommand.getRsyncArguments()` 统一生成 rsync/iFT 参数，使用 `-av --delete`。仅 Windows 不添加 `--copy-unsafe-links`，保留链接本身，不读取树外链接目标；macOS/Linux 保留该参数，继续复制树外链接目标。Windows 工程需要树外内容时，应扩大完整 rsync 的同步根目录或事先物化文件；保留的链接在远端不保证可解析。include/exclude、增量比较和删除策略继续生效。
 
-Windows x64 本地 NTFS 到 Linux/macOS 使用 `WindowsRsyncRuntime` 的原生 argv 进程，远端 uname 仅接受 Linux/Darwin，支持 `rsync_simple`、完整 `rsync` 和多工程；Windows 路径在边界转换，classpath 返回实际下载位置。默认内置 oc-rsync 0.6.4 配合系统 OpenSSH；Settings 的临时 Cygwin 开关从下次传输生效，Cygwin 只检测本机安装并提示缺失，不自动安装。私钥及密码均沿既有远端连接配置读取，密码仅通过子进程环境与 askpass 传递。Windows rsync 上传后，在真正编译前仅为 compileCommand 指定且位于工程内的相对 gradlew 设置 Unix 执行位，避免 NTFS 权限上传后返回 126；仅拉取和非 Windows 路径不变。直接进程保留真实退出码和取消结果；本地 backup classpath 继续关闭。
+Windows x64 本地 NTFS 到 Linux/macOS 使用 `WindowsRsyncRuntime` 的原生 argv 进程，远端 uname 仅接受 Linux/Darwin，支持 `rsync_simple`、完整 `rsync` 和多工程；Windows 路径在边界转换，classpath 返回实际下载位置。Windows 统一使用本机 Cygwin 的 rsync、ssh 和 cygpath；依次检测 JUGG_CYGWIN_HOME、C:/cygwin64、D:/cygwin64 和 PATH，缺失提示安装，不自动安装。私钥及密码均沿既有远端连接配置读取，密码仅通过子进程环境与 askpass 传递。Windows rsync 上传后，在真正编译前仅为 compileCommand 指定且位于工程内的相对 gradlew 设置 Unix 执行位，避免 NTFS 权限上传后返回 126；仅拉取和非 Windows 路径不变。直接进程保留真实退出码和取消结果；本地 backup classpath 继续关闭。
 
-Windows classpath 拉取会预检远端 `rsync --version`：openrsync protocol 29 与 oc-rsync 0.6.4 的目录过滤不兼容（IPC 14），该组合改用本机 Cygwin 并打印 info，保留过滤和删除规则；缺失仅提示安装。其他传输仍按 Settings 选择引擎，GNU rsync 路径不变，诊断 runtime override 仍优先。FindOutputCommand 在只指定 APK 文件名时显式使用 `find .`，兼容 BSD find。
+FindOutputCommand 在只指定 APK 文件名时显式使用 `find .`，兼容 BSD find。
 
 验收复用 `idea/.../gradle/RemoteGradleCompileClientTest`：`testSimulated*ArtifactFetch` 覆盖三种同步布局，真实上传后用 Python 生成所有产物目录的小文件，验证 APK/classpath、原生链接、失败和取消；`testSimulatedCancellation` 验证 JSch shell 取消。`testRealProjectCompileAndFetch` 实际构建 demo 工程，验证首次/无变化/资源修改后的 APK 内容和 classpath，并记录耗时；它不代表设备部署已通过。脱敏小夹具矩阵见 `tools/windows_rsync_acceptance.py`，真实工程传输计时见 `tools/windows_rsync_project_benchmark.py`；服务器、JSON 及定向命令见 [测试准备](../task/2026-10/windows_rsync_test_setup.md)。
 

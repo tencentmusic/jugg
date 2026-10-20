@@ -1,5 +1,7 @@
 # Windows rsync 最终适配方案
 
+> 当前方案已统一为 Cygwin + rsync，移除范围和最新验证见 [Cygwin 收敛记录](windows_rsync_cygwin_only.md)。本文双方案部分保留为历史取舍证据。
+
 Mac 真实工程验证及后续兼容修正以 [Windows → macOS 真实工程验收](windows_rsync_mac_real_acceptance.md) 为准，包括 BSD find、wrapper 执行位和 openrsync 的已知过滤兼容边界。
 
 2026-10-19 平台条件修正：本文移除 `--copy-unsafe-links` 的决定仅适用于 Windows；macOS/Linux 保留该参数和树外目标复制行为。此前共享参数生成处无平台条件，导致非 Windows 行为改变，本次在该 owner 局部修正。复用 SyncFileCommandTest（L1 参数契约及 Unix 本地 rsync）、WindowsRsyncRuntimeTest 和现有模拟 Flow；定向测试 11 项通过、4 项 Unix 专用用例在 Windows 跳过，oc-rsync 密钥模拟 Flow 4 项通过。未重新执行 Unix 实际传输。Wiki 的相关说明位于 Windows 小节，含义仍准确，无需修改。

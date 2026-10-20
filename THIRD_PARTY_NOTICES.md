@@ -13,16 +13,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 是
 - Notes: 作为 JVMTI agent 构建头文件使用；仅将 JNINativeInterface_ 改为 JNINativeInterface；适用 GPL-2.0-only WITH Classpath-exception-2.0；上游基线、修改后源码和 patch 由插件内 SOURCE.md 定位到公开提交提供。
 
-## 2. oc-rsync 0.6.4
-
-- License: GPL-3.0-or-later
-- Copyright: Copyright Ofer Chen and oc-rsync contributors
-- License/source reference: https://github.com/oferchen/rsync/blob/94226093b02650dde1e6f264dbfdf9f00716a078/LICENSE
-- Download/source: https://github.com/oferchen/rsync/releases/download/v0.6.4/oc-rsync-0.6.4-windows-x86_64.zip
-- Modified by Jugg: 否
-- Notes: 官方未修改 Windows x64 可执行文件内置于 runtime.zip，以独立进程调用，不与插件 JVM 静态或动态链接；系统 OpenSSH 与本机 Cygwin 不随包分发。对应固定提交源码 oc-rsync-0.6.4.tar.gz 由发行 SOURCE.md 定位公开提交，GPL-3.0-or-later 文本随包提供。
-
-## 3. rsync 3.4.1
+## 2. rsync 3.4.1
 
 - License: GPL-3.0-or-later
 - Copyright: Copyright © 1996-2025 Andrew Tridgell, Wayne Davison, and others
@@ -31,7 +22,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 以 macOS 通用可执行文件随插件发行，作为独立进程调用，不与插件代码静态或动态链接；对应源码由插件内 SOURCE.md 定位到公开提交提供，GPL-3.0-or-later 文本随发行包提供。
 
-## 4. sshpass 1.10
+## 3. sshpass 1.10
 
 - License: GPL-2.0-or-later
 - Copyright: Copyright © 2006-2011 Lingnu Open Source Consulting Ltd.; 2015-2016, 2021-2022 Shachar Shemesh
@@ -40,7 +31,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 以 macOS arm64 可执行文件随插件发行，作为独立进程调用，不与插件代码静态或动态链接；对应源码由插件内 SOURCE.md 定位到公开提交提供，GPL-2.0-or-later 文本随发行包提供。
 
-## 5. Trove4J，JetBrains fork 1.0.20200330
+## 4. Trove4J，JetBrains fork 1.0.20200330
 
 - License: LGPL-2.1-or-later
 - Copyright: Copyright © 2002 Eric D. Friedman and Trove contributors
@@ -49,7 +40,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 以独立 JAR 随插件发行并由 JVM 加载；对应 source JAR 由插件内 SOURCE.md 定位到公开提交提供，LGPL-2.1-or-later 许可证文本随发行包提供。
 
-## 6. juniversalchardet 1.0.3
+## 5. juniversalchardet 1.0.3
 
 - License: MPL-1.1
 - Copyright: Copyright © 1998 Netscape Communications Corporation; Kohei TAKETA and Java port contributors
@@ -58,7 +49,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 以独立 JAR 随插件发行；本发行按上游 POM 选择 MPL-1.1；对应 source JAR 由插件内 SOURCE.md 定位到公开提交提供，许可证文本随发行包提供。
 
-## 7. JavaBeans Activation Framework 1.2.0
+## 6. JavaBeans Activation Framework 1.2.0
 
 - License: CDDL-1.1
 - Copyright: Copyright © 1997-2017 Oracle and/or its affiliates
@@ -67,7 +58,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 作为 Android Tools Repository 依赖内嵌于 R8 8.4.21；本发行选择 CDDL-1.1；对应 source JAR 由插件内 SOURCE.md 定位到公开提交提供，许可证文本随发行包提供。
 
-## 8. Xerial SQLite JDBC 3.42.0.0
+## 7. Xerial SQLite JDBC 3.42.0.0
 
 - License: Apache-2.0、BSD-2-Clause；SQLite 核心 Public Domain
 - Copyright: Copyright © Taro L. Saito and Xerial contributors; Copyright © 2006 David Crawshaw; SQLite authors
@@ -76,7 +67,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 是
 - Notes: 以裁剪版 JAR 随插件发行；仅删除不支持平台的 native library，保留 macOS、Linux 和 Windows 所需版本。
 
-## 9. AAPT2 inclink，Jugg 定制版 无
+## 8. AAPT2 inclink，Jugg 定制版 无
 
 - License: Apache-2.0，另含静态链接第三方组件
 - Copyright: Copyright © 2015 The Android Open Source Project; Copyright © 2024-2026 Jugg contributors
@@ -85,7 +76,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 是
 - Notes: 以三平台可执行文件随插件发行，并作为独立进程调用；基于 AOSP AAPT2 定制增量链接及 Android 14/Linux 兼容能力；静态链接组件另行列示；无法唯一确定版本，因此填“无”。
 
-## 10. Apache XML Commons XML APIs 1.4.01
+## 9. Apache XML Commons XML APIs 1.4.01
 
 - License: Apache-2.0、SAX License、W3C Software Notice and License
 - Copyright: Copyright © 1999-2009 The Apache Software Foundation; Copyright © 2000 W3C and others
@@ -94,7 +85,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 作为 Xerces2 Java 的传递依赖内嵌于 R8 8.4.21；组件同时包含 Apache-2.0、SAX 和 W3C 许可内容。
 
-## 11. Apache Commons Compress 1.21
+## 10. Apache Commons Compress 1.21
 
 - License: Apache-2.0；部分 sevenz 代码来自 Public Domain LZMA SDK
 - Copyright: Copyright © 2002-2021 The Apache Software Foundation
@@ -103,7 +94,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 内嵌于 R8 8.4.21 并随 R8 JAR 发行；部分 sevenz 代码来自 Public Domain LZMA SDK。
 
-## 12. R8 8.4.21
+## 11. R8 8.4.21
 
 - License: BSD-3-Clause，并含第三方许可证
 - Copyright: Copyright © 2016 The R8 project authors
@@ -112,7 +103,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 以独立 JAR 随插件发行；JAR 内嵌的第三方组件已在本表分别列示。
 
-## 13. kXML2 2.3.0
+## 12. kXML2 2.3.0
 
 - License: BSD-style AND Public Domain
 - Copyright: Copyright © 2002-2004 Stefan Haustein
@@ -121,7 +112,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 作为 Android Tools 依赖内嵌于 R8 8.4.21；org.kxml2 代码适用 BSD-style 条款，org.xmlpull.v1 API 为 Public Domain。
 
-## 14. Android JVMTI Apply Changes / Slicer source 无
+## 13. Android JVMTI Apply Changes / Slicer source 无
 
 - License: Apache-2.0
 - Copyright: Copyright © 2017-2018 The Android Open Source Project
@@ -130,7 +121,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 是
 - Notes: 项目包含并修改 AOSP JVMTI Apply Changes/Slicer 源码，编译进入随插件发行的 JVMTI agent；Jugg 增加 Android 8-15 Application、ResourcesManager、ActivityThread 和 ClassLoader hook，增加可选 transform 的 Best-effort 降级与诊断日志；无法定位精确上游 commit，因此版本填“无”；修改后源码保留在仓库中。
 
-## 15. Android Studio / Android Plugin APIs 无
+## 14. Android Studio / Android Plugin APIs 无
 
 - License: Apache-2.0
 - Copyright: Copyright © 2000-2022 JetBrains s.r.o. and contributors; Copyright © 2005-2022 Google LLC and The Android Open Source Project
@@ -139,7 +130,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 是
 - Notes: 根据 Android Studio/Android Plugin API 生成并裁剪为编译 Stub，仅用于构建兼容模块，不将上游实现代码打入插件发行包；仅保留所需 API 声明，版本无法完整还原，因此填“无”。
 
-## 16. AOSP framework class stubs 无
+## 15. AOSP framework class stubs 无
 
 - License: Apache-2.0
 - Copyright: Copyright © 2006-2017 The Android Open Source Project
@@ -148,7 +139,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 是
 - Notes: 根据 AOSP framework API 编写 7 个最小编译声明，仅用于构建 JVMTI agent，不将 AOSP 实现代码打入插件发行包；API 声明经过挑选和简化，版本填“无”。
 
-## 17. Gradle Wrapper launch files 7.0.2
+## 16. Gradle Wrapper launch files 7.0.2
 
 - License: Apache-2.0
 - Copyright: Copyright © 2015 the original author or authors
@@ -157,7 +148,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 是
 - Notes: 随插件发行，并在目标项目已有 gradle-wrapper.properties 但缺少启动文件时复制；gradlew 和 gradlew.bat 仅移除默认 JVM 参数 -Dfile.encoding=UTF-8；不包含 Gradle Distribution。
 
-## 18. Kotlin Android Extensions 1.9.23
+## 17. Kotlin Android Extensions 1.9.23
 
 - License: Apache-2.0
 - Copyright: Copyright © 2010-2023 JetBrains s.r.o. and respective authors and developers
@@ -166,7 +157,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 是
 - Notes: 以修改版 JAR 随插件发行；相对官方版本移除 AndroidComponentRegistrar 的 reportRemovedError 调用，另有 3 个 class 仅增加空 parameter-annotation attribute。
 
-## 19. Aalto XML 1.3.0
+## 18. Aalto XML 1.3.0
 
 - License: Apache-2.0
 - Copyright: Copyright © 2006-present Tatu Saloranta and contributors
@@ -175,7 +166,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 内嵌并重定位于 Kotlin compiler 1.9.23，随 compiler JAR 一并发行。
 
-## 20. AAPT2 Proto 8.2.0-rc01-10154469
+## 19. AAPT2 Proto 8.2.0-rc01-10154469
 
 - License: Apache-2.0
 - Copyright: Copyright © 2005-2008 The Android Open Source Project
@@ -184,7 +175,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: AAPT2 Proto 由 R8 8.4.21 内嵌并随 R8 JAR 发行；依赖解析实际采用 8.2.0-rc01-10154469。
 
-## 21. Android Data Binding compiler suite 7.4.2
+## 20. Android Data Binding compiler suite 7.4.2
 
 - License: Apache-2.0
 - Copyright: Copyright © 2005-2017 The Android Open Source Project
@@ -193,7 +184,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 作为 compiler、compiler-common、common 和 baseLibrary 多个 JAR 随 cmd_line 独立发行物分发。
 
-## 22. Android Data Binding compiler suite 8.7.3
+## 21. Android Data Binding compiler suite 8.7.3
 
 - License: Apache-2.0
 - Copyright: Copyright © 2005-2017 The Android Open Source Project
@@ -202,7 +193,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 作为 compiler、compiler-common、common 和 baseLibrary 多个 JAR 随插件发行；内嵌 ANTLR Runtime 另行列示。
 
-## 23. Android Tools Annotations 30.4.2
+## 22. Android Tools Annotations 30.4.2
 
 - License: Apache-2.0
 - Copyright: Copyright © 2005-2013 The Android Open Source Project
@@ -211,7 +202,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 作为 cmd_line Data Binding 7.4.2 的传递依赖随独立发行物分发；与插件发行包中的 Android Tools Annotations 31.7.3 并存。
 
-## 24. Android Tools Annotations 31.7.3
+## 23. Android Tools Annotations 31.7.3
 
 - License: Apache-2.0
 - Copyright: Copyright © 2005-2013 The Android Open Source Project
@@ -220,7 +211,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 作为 Android 工具链依赖，以独立 JAR 随插件发行。
 
-## 25. Android Tools libraries 31.2.0-rc01
+## 24. Android Tools libraries 31.2.0-rc01
 
 - License: Apache-2.0
 - Copyright: Copyright © 2005-2013 The Android Open Source Project
@@ -229,7 +220,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 多个 Android Tools 组件内嵌于 R8 8.4.21，因版本、协议和修改状态相同合并列示。
 
-## 26. AOSP native support libraries suite 无
+## 25. AOSP native support libraries suite 无
 
 - License: Apache-2.0
 - Copyright: Copyright © 2005-2024 The Android Open Source Project
@@ -238,7 +229,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: libandroidfw、libutils、liblog、libcutils、libziparchive、libbase、libbuildversion 和 libidmap2_policies 静态链接到 AAPT2 可执行文件；JVMTI agent 另动态链接 Android 设备提供的 liblog。
 
-## 27. Apache Commons Codec 1.10
+## 26. Apache Commons Codec 1.10
 
 - License: Apache-2.0
 - Copyright: Copyright © 2002-2014 The Apache Software Foundation
@@ -247,7 +238,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 内嵌于 R8 8.4.21 并随 R8 JAR 一并发行。
 
-## 28. Apache Commons Codec 1.16.0
+## 27. Apache Commons Codec 1.16.0
 
 - License: Apache-2.0
 - Copyright: Copyright © 2002-2023 The Apache Software Foundation
@@ -256,7 +247,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 作为 JGit 的传递依赖，以独立 JAR 随插件发行。
 
-## 29. Apache Commons IO 2.13.0
+## 28. Apache Commons IO 2.13.0
 
 - License: Apache-2.0
 - Copyright: Copyright © 2002-2023 The Apache Software Foundation
@@ -265,7 +256,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 作为直接依赖，以独立 JAR 随插件发行。
 
-## 30. Apache Commons IO 2.4
+## 29. Apache Commons IO 2.4
 
 - License: Apache-2.0
 - Copyright: Copyright © 2002-2012 The Apache Software Foundation
@@ -274,7 +265,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 作为 cmd_line Data Binding 7.4.2 的传递依赖随独立发行物分发；与插件发行包中的 Commons IO 2.13.0 并存。
 
-## 31. Apache Commons Logging 1.2
+## 30. Apache Commons Logging 1.2
 
 - License: Apache-2.0
 - Copyright: Copyright © 2003-2014 The Apache Software Foundation
@@ -283,7 +274,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 内嵌于 R8 8.4.21 并随 R8 JAR 一并发行。
 
-## 32. Apache HttpClient / HttpMime 4.5.6
+## 31. Apache HttpClient / HttpMime 4.5.6
 
 - License: Apache-2.0
 - Copyright: Copyright © 1999-2018 The Apache Software Foundation
@@ -292,7 +283,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 内嵌于 R8 8.4.21 并随 R8 JAR 一并发行。
 
-## 33. Apache HttpCore 4.4.16
+## 32. Apache HttpCore 4.4.16
 
 - License: Apache-2.0
 - Copyright: Copyright © 2005-2022 The Apache Software Foundation
@@ -301,7 +292,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 内嵌于 R8 8.4.21 并随 R8 JAR 一并发行。
 
-## 34. Apache Log4j，JetBrains dependency build 1.2.17.2
+## 33. Apache Log4j，JetBrains dependency build 1.2.17.2
 
 - License: Apache-2.0
 - Copyright: Copyright © 2007 The Apache Software Foundation
@@ -310,7 +301,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 内嵌并重定位于 Kotlin compiler 1.9.23，随 compiler JAR 一并发行。
 
-## 35. ArscBlamer 1.2.0
+## 34. ArscBlamer 1.2.0
 
 - License: Apache-2.0
 - Copyright: Copyright © 2016 Google Inc.
@@ -319,7 +310,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 作为 Android Data Binding 的传递依赖，以独立 JAR 随插件发行；Apache-2.0 依据版本 POM 和源码文件头确定。
 
-## 36. Auto Common 0.10
+## 35. Auto Common 0.10
 
 - License: Apache-2.0
 - Copyright: Copyright © 2013-2017 Google, Inc.; Copyright © 2013 Square, Inc.
@@ -328,7 +319,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 作为 Android Data Binding 的传递依赖，以独立 JAR 随插件发行。
 
-## 37. dex2jar dex-reader/dex-writer 2.1
+## 36. dex2jar dex-reader/dex-writer 2.1
 
 - License: Apache-2.0
 - Copyright: Copyright © 2009-2014 Panxiaobo and contributors
@@ -337,7 +328,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 以 dex-reader、dex-reader-api 和 dex-writer 多个独立 JAR 随插件发行。
 
-## 38. Error Prone Annotations 2.18.0
+## 37. Error Prone Annotations 2.18.0
 
 - License: Apache-2.0
 - Copyright: Copyright © 2014-2021 The Error Prone Authors
@@ -346,7 +337,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 内嵌于 R8 8.4.21 并随 R8 JAR 一并发行。
 
-## 39. Error Prone Annotations 2.3.4
+## 38. Error Prone Annotations 2.3.4
 
 - License: Apache-2.0
 - Copyright: Copyright © 2014-2019 The Error Prone Authors
@@ -355,7 +346,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 作为 cmd_line Guava 30.1-jre 的传递依赖随独立发行物分发；与 R8 内嵌 Error Prone Annotations 2.18.0 并存。
 
-## 40. Fast Infoset 1.2.16
+## 39. Fast Infoset 1.2.16
 
 - License: Apache-2.0
 - Copyright: Copyright © 2012-2018 Oracle and/or its affiliates
@@ -364,7 +355,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 作为 JAXB 运行时依赖，以独立 JAR 随插件发行；本发行在上游双许可证中选择 Apache-2.0。
 
-## 41. fastutil 7.2.1
+## 40. fastutil 7.2.1
 
 - License: Apache-2.0
 - Copyright: Copyright © 2002-2017 Sebastiano Vigna, Paolo Boldi and contributors
@@ -373,7 +364,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 内嵌于 R8 8.4.21 并随 R8 JAR 一并发行。
 
-## 42. Gson 2.10.1
+## 41. Gson 2.10.1
 
 - License: Apache-2.0
 - Copyright: Copyright © 2008-2021 Google Inc., The Android Open Source Project and Gson authors
@@ -382,7 +373,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 作为直接依赖，以独立 JAR 随插件发行。
 
-## 43. Guava 29.0-jre
+## 42. Guava 29.0-jre
 
 - License: Apache-2.0
 - Copyright: Copyright © 2005-2020 The Guava Authors
@@ -391,7 +382,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: Guava 29.0-jre 内嵌并重定位于 Kotlin compiler 1.9.23；与 R8 内嵌 Guava 32.1.2-jre 并存。
 
-## 44. Guava 30.1-jre
+## 43. Guava 30.1-jre
 
 - License: Apache-2.0
 - Copyright: Copyright © 2005-2021 The Guava Authors
@@ -400,7 +391,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 作为 cmd_line Data Binding 7.4.2 的传递依赖随独立发行物分发；与 R8、Kotlin compiler 内嵌的其他 Guava 版本并存。
 
-## 45. Guava 32.1.2-jre
+## 44. Guava 32.1.2-jre
 
 - License: Apache-2.0
 - Copyright: Copyright © 2005-2021 The Guava Authors
@@ -409,7 +400,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 内嵌于 R8 8.4.21 并随 R8 JAR 一并发行。
 
-## 46. Guava FailureAccess 1.0.1
+## 45. Guava FailureAccess 1.0.1
 
 - License: Apache-2.0
 - Copyright: Copyright © 2018 The Guava Authors
@@ -418,7 +409,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 内嵌于 R8 8.4.21 并随 R8 JAR 一并发行。
 
-## 47. IntelliJ fastutil fork 8.5.4-9
+## 46. IntelliJ fastutil fork 8.5.4-9
 
 - License: Apache-2.0
 - Copyright: Copyright © 2002-2021 Sebastiano Vigna, Paolo Boldi and contributors
@@ -427,7 +418,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: IntelliJ fastutil fork 内嵌并重定位于 Kotlin compiler 1.9.23，随 compiler JAR 发行。
 
-## 48. IntelliJ IDEA Annotations 13.0
+## 47. IntelliJ IDEA Annotations 13.0
 
 - License: Apache-2.0
 - Copyright: Copyright © 2000-2012 JetBrains s.r.o.
@@ -436,7 +427,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 作为 Kotlin compiler 依赖，以独立 JAR 随插件发行。
 
-## 49. IntelliJ Platform Core / JPS Model 213.7172.53
+## 48. IntelliJ Platform Core / JPS Model 213.7172.53
 
 - License: Apache-2.0
 - Copyright: Copyright © 2000-2021 JetBrains s.r.o. and contributors
@@ -445,7 +436,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: IntelliJ Platform Core 和 JPS Model 内嵌于 Kotlin compiler 1.9.23，因协议和修改状态相同合并列示。
 
-## 50. J2ObjC Annotations 1.3
+## 49. J2ObjC Annotations 1.3
 
 - License: Apache-2.0
 - Copyright: Copyright © 2012 Google Inc.
@@ -454,7 +445,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 作为 cmd_line Guava 30.1-jre 的传递依赖随独立发行物分发；与 R8 内嵌 J2ObjC Annotations 2.8 并存。
 
-## 51. J2ObjC Annotations 2.8
+## 50. J2ObjC Annotations 2.8
 
 - License: Apache-2.0
 - Copyright: Copyright © 2012 Google Inc.
@@ -463,7 +454,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 属于 Guava 的 optional 编译依赖，但由 R8 许可证清单明确列为随 R8 分发的组件。
 
-## 52. Jansi 1.16
+## 51. Jansi 1.16
 
 - License: Apache-2.0
 - Copyright: Copyright © 2009-2017 the original authors
@@ -472,7 +463,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 内嵌并重定位于 Kotlin compiler 1.9.23，随 compiler JAR 一并发行。
 
-## 53. Java Native Access / JNA Platform 5.6.0
+## 52. Java Native Access / JNA Platform 5.6.0
 
 - License: Apache-2.0
 - Copyright: Copyright © 2007-2020 Timothy Wall, Olivier Chafik and contributors
@@ -481,7 +472,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: JNA 和 JNA Platform 内嵌于 R8 8.4.21；本发行在上游双许可证中选择 Apache-2.0。
 
-## 54. Java Native Access，JetBrains dependency build 5.9.0.26
+## 53. Java Native Access，JetBrains dependency build 5.9.0.26
 
 - License: Apache-2.0
 - Copyright: Copyright © 2007-2021 Timothy Wall, Olivier Chafik and contributors
@@ -490,7 +481,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: JNA 和 JNA Platform 内嵌并重定位于 Kotlin compiler 1.9.23；本发行在上游双许可证中选择 Apache-2.0。
 
-## 55. JavaEWAH 1.2.3
+## 54. JavaEWAH 1.2.3
 
 - License: Apache-2.0
 - Copyright: Copyright © 2009-2016 Daniel Lemire, Cliff Moon, David McIntosh and contributors
@@ -499,7 +490,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 作为 JGit 的传递依赖，以独立 JAR 随插件发行。
 
-## 56. JavaParser Core 3.17.0
+## 55. JavaParser Core 3.17.0
 
 - License: Apache-2.0
 - Copyright: Copyright © 2007-2010 Júlio Vilmar Gesser; 2011-2020 The JavaParser Team
@@ -508,7 +499,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 作为直接依赖，以独立 JAR 随插件发行；本发行在上游双许可证中选择 Apache-2.0。
 
-## 57. JavaPoet 1.10.0
+## 56. JavaPoet 1.10.0
 
 - License: Apache-2.0
 - Copyright: Copyright © 2014-2016 Google, Inc. and Square, Inc.
@@ -517,7 +508,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 作为 Android Data Binding 的传递依赖，以独立 JAR 随插件发行。
 
-## 58. Javaslang 2.0.6
+## 57. Javaslang 2.0.6
 
 - License: Apache-2.0
 - Copyright: Copyright © 2014-2017 Javaslang contributors
@@ -526,7 +517,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 内嵌于 Kotlin compiler 1.9.23，保留 javaslang.* 包名并随 compiler JAR 发行。
 
-## 59. javax.inject / JSR-330 1
+## 58. javax.inject / JSR-330 1
 
 - License: Apache-2.0
 - Copyright: Copyright © 2009 The JSR-330 Expert Group
@@ -535,7 +526,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 内嵌于 R8 8.4.21 并随 R8 JAR 一并发行。
 
-## 60. Jetifier Core 1.0.0-beta10
+## 59. Jetifier Core 1.0.0-beta10
 
 - License: Apache-2.0
 - Copyright: Copyright © 2018 The Android Open Source Project
@@ -544,7 +535,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 作为 Android Data Binding 的传递依赖，以独立 JAR 随插件发行。
 
-## 61. Jimfs 1.1
+## 60. Jimfs 1.1
 
 - License: Apache-2.0
 - Copyright: Copyright © 2013-2016 Google Inc.
@@ -553,7 +544,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 内嵌于 R8 8.4.21 并随 R8 JAR 一并发行。
 
-## 62. JSR-305 Annotations 3.0.2
+## 61. JSR-305 Annotations 3.0.2
 
 - License: Apache-2.0
 - Copyright: Copyright © 2005 Brian Goetz and contributors
@@ -562,7 +553,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 内嵌于 R8 8.4.21 并随 R8 JAR 一并发行。
 
-## 63. Kotlin compiler/runtime suite 1.9.23
+## 62. Kotlin compiler/runtime suite 1.9.23
 
 - License: Apache-2.0
 - Copyright: Copyright © 2010-2023 JetBrains s.r.o. and respective authors and developers
@@ -571,7 +562,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 以多个独立 JAR 随插件发行，包含 compiler、daemon、reflect、script runtime、stdlib-jdk7/jdk8；compiler 内嵌组件另行列示。
 
-## 64. Kotlin Metadata JVM 2.2.21
+## 63. Kotlin Metadata JVM 2.2.21
 
 - License: Apache-2.0
 - Copyright: Copyright © 2010-2024 JetBrains s.r.o. and respective authors and developers
@@ -580,7 +571,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 作为直接依赖，以独立 JAR 随插件发行。
 
-## 65. Kotlin Reflect 1.9.0
+## 64. Kotlin Reflect 1.9.0
 
 - License: Apache-2.0
 - Copyright: Copyright © 2010-2023 JetBrains s.r.o. and Kotlin contributors
@@ -589,7 +580,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 内嵌于 R8 8.4.21 并随 R8 JAR 一并发行。
 
-## 66. Kotlin Standard Library 1.9.21
+## 65. Kotlin Standard Library 1.9.21
 
 - License: Apache-2.0
 - Copyright: Copyright © 2010-2023 JetBrains s.r.o. and Kotlin contributors
@@ -598,7 +589,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 内嵌于 R8 8.4.21，由 kotlinx-metadata-jvm 引入；与插件顶层 Kotlin Standard Library 2.2.21 并存。
 
-## 67. Kotlin Standard Library 2.2.21
+## 66. Kotlin Standard Library 2.2.21
 
 - License: Apache-2.0
 - Copyright: Copyright © 2010-2024 JetBrains s.r.o. and respective authors and developers
@@ -607,7 +598,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 作为 Kotlin Metadata JVM 的传递依赖，以独立 JAR 随插件发行。
 
-## 68. kotlinx-coroutines-core-jvm 1.6.4
+## 67. kotlinx-coroutines-core-jvm 1.6.4
 
 - License: Apache-2.0
 - Copyright: Copyright © 2016-2022 JetBrains s.r.o.
@@ -616,7 +607,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 作为直接依赖，以独立 JAR 随插件发行。
 
-## 69. kotlinx-metadata-jvm 0.9.0
+## 68. kotlinx-metadata-jvm 0.9.0
 
 - License: Apache-2.0
 - Copyright: Copyright © 2010-2023 JetBrains s.r.o. and Kotlin Programming Language contributors
@@ -625,7 +616,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 作为直接依赖，以独立 JAR 随插件发行。
 
-## 70. kotlinx.collections.immutable JVM 0.3.1
+## 69. kotlinx.collections.immutable JVM 0.3.1
 
 - License: Apache-2.0
 - Copyright: Copyright © 2016-2019 JetBrains s.r.o.
@@ -634,7 +625,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 内嵌并重定位于 Kotlin compiler 1.9.23，随 compiler JAR 一并发行。
 
-## 71. LZ4 Java 1.7.1
+## 70. LZ4 Java 1.7.1
 
 - License: Apache-2.0
 - Copyright: Copyright © 2011-2019 Adrien Grand, Yann Collet and contributors
@@ -643,7 +634,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 内嵌并重定位于 Kotlin compiler 1.9.23，随 compiler JAR 一并发行。
 
-## 72. OkHttp 4.12.0
+## 71. OkHttp 4.12.0
 
 - License: Apache-2.0
 - Copyright: Copyright © 2012-2019 Square, Inc., The Android Open Source Project and contributors
@@ -652,7 +643,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 作为网络功能的直接依赖，以独立 JAR 随插件发行。
 
-## 73. Okio 3.6.0
+## 72. Okio 3.6.0
 
 - License: Apache-2.0
 - Copyright: Copyright © 2014-2021 Square, Inc. and others
@@ -661,7 +652,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 作为 OkHttp 的传递依赖，以独立 JAR 随插件发行。
 
-## 74. StreamEx 0.7.2
+## 73. StreamEx 0.7.2
 
 - License: Apache-2.0
 - Copyright: Copyright © 2015, 2019 StreamEx contributors
@@ -670,7 +661,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 内嵌并重定位于 Kotlin compiler 1.9.23，随 compiler JAR 一并发行。
 
-## 75. Xerces2 Java 2.12.0
+## 74. Xerces2 Java 2.12.0
 
 - License: Apache-2.0
 - Copyright: Copyright © 1999-2018 The Apache Software Foundation; IBM, Sun and other contributors
@@ -679,7 +670,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 内嵌于 R8 8.4.21 并随 R8 JAR 一并发行。
 
-## 76. LLVM libc++，Android toolchain build 无
+## 75. LLVM libc++，Android toolchain build 无
 
 - License: Apache-2.0 WITH LLVM-exception
 - Copyright: Copyright © 2009-2024 LLVM Project contributors
@@ -688,7 +679,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 以 libc++_static 形式静态链接到随插件发行的 AAPT2 可执行文件；对应 Android clang r510928/LLVM commit 477610d4d0d988e69dbc3fae4fe86bff3f07f2b5；无法映射独立 release 版本，因此填“无”。
 
-## 77. ASM 9.8
+## 76. ASM 9.8
 
 - License: BSD-3-Clause
 - Copyright: Copyright © 2000-2011 INRIA, France Telecom
@@ -697,7 +688,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 是
 - Notes: 以 3 个重打包 JAR 随插件发行；将 org.objectweb.asm 重定位到项目私有包名，asm-commons 另移除 module-info.class。
 
-## 78. StAX2 API 4.2.1
+## 77. StAX2 API 4.2.1
 
 - License: BSD License
 - Copyright: Copyright © 2005-present Tatu Saloranta and contributors
@@ -706,7 +697,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 内嵌并重定位于 Kotlin compiler 1.9.23，随 compiler JAR 一并发行。
 
-## 79. ANTLR 4 Runtime，Data Binding 内嵌重定位代码 4.5.3
+## 78. ANTLR 4 Runtime，Data Binding 内嵌重定位代码 4.5.3
 
 - License: BSD-3-Clause
 - Copyright: Copyright © 2015 Terence Parr, Sam Harwell
@@ -715,7 +706,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 重定位代码内嵌于 Data Binding compiler-common 8.7.3 并随其发行；由上游 Data Binding 打包。
 
-## 80. ASM 9.6
+## 79. ASM 9.6
 
 - License: BSD-3-Clause
 - Copyright: Copyright © 2000-2011 INRIA, France Telecom
@@ -724,7 +715,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: ASM 9.6 的 core、tree、analysis、commons 和 util 代码内嵌于 R8 8.4.21；与另行重打包的 ASM 9.8 为不同版本和修改状态。
 
-## 81. ASM all，JetBrains dependency build 9.0
+## 80. ASM all，JetBrains dependency build 9.0
 
 - License: BSD-3-Clause
 - Copyright: Copyright © 2000-2011 INRIA, France Telecom
@@ -733,7 +724,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: ASM 9.0 内嵌并重定位于 Kotlin compiler 1.9.23；与 R8 内嵌 ASM 9.6、另行重打包 ASM 9.8 并存。
 
-## 82. JLine 3 3.3.1
+## 81. JLine 3 3.3.1
 
 - License: BSD-3-Clause
 - Copyright: Copyright © 2002-2017 the original author or authors
@@ -742,7 +733,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 内嵌并重定位于 Kotlin compiler 1.9.23，随 compiler JAR 一并发行。
 
-## 83. JSch，mwiede fork 0.2.16
+## 82. JSch，mwiede fork 0.2.16
 
 - License: BSD-3-Clause
 - Copyright: Copyright © 2002-2015 Atsuhiko Yamanaka, JCraft, Inc.
@@ -751,7 +742,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 作为 SSH 功能的直接依赖，以独立 JAR 随插件发行；JAR 内嵌的 JZlib 和 jBCrypt 另行列示。
 
-## 84. JZlib，JSch 内嵌代码 无
+## 83. JZlib，JSch 内嵌代码 无
 
 - License: BSD-3-Clause
 - Copyright: Copyright © 2000-2011 ymnk, JCraft, Inc.
@@ -760,7 +751,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 代码内嵌于 JSch 0.2.16 并随其 JAR 发行；上游未标明内嵌版本，因此版本填“无”。
 
-## 85. PicoContainer，IntelliJ 精简 fork 无
+## 84. PicoContainer，IntelliJ 精简 fork 无
 
 - License: BSD-3-Clause
 - Copyright: Copyright © PicoContainer Organization; Copyright © 2003 NanoContainer Organization
@@ -769,7 +760,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 精简并重定位的 PicoContainer API 内嵌于 Kotlin compiler 1.9.23；上游未保留可可靠映射的独立版本，因此版本填“无”。
 
-## 86. Protocol Buffers Java 3.19.3
+## 85. Protocol Buffers Java 3.19.3
 
 - License: BSD-3-Clause
 - Copyright: Copyright © 2008 Google Inc. and protobuf contributors
@@ -778,7 +769,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 内嵌于 R8 Resource Shrinker 并随 R8 JAR 发行；与 AAPT2 inclink 静态链接的 native Protocol Buffers 分开列示。
 
-## 87. Protocol Buffers，AOSP native runtime 无
+## 86. Protocol Buffers，AOSP native runtime 无
 
 - License: BSD-3-Clause
 - Copyright: Copyright © 2008 Google Inc. and protobuf contributors
@@ -787,7 +778,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 以 libprotobuf-cpp-full 形式静态链接到随插件发行的 AAPT2 可执行文件；二进制未暴露可可靠映射的版本，因此填“无”。
 
-## 88. Protocol Buffers，Kotlin relocated fork 2.6.1-1
+## 87. Protocol Buffers，Kotlin relocated fork 2.6.1-1
 
 - License: BSD-3-Clause
 - Copyright: Copyright © 2008 Google Inc.
@@ -796,7 +787,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: Kotlin compiler 1.9.23 内嵌并重定位该 fork；无公开独立 JAR，实际代码随 compiler JAR 发行。
 
-## 89. Eclipse JGit 6.8.0.202311291450-r
+## 88. Eclipse JGit 6.8.0.202311291450-r
 
 - License: EDL-1.0
 - Copyright: Copyright © 2007 Eclipse Foundation, Inc. and its licensors; JGit contributors
@@ -805,7 +796,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 作为 Git 功能的直接依赖，以独立 JAR 随插件发行。
 
-## 90. istack-commons-runtime 3.0.8
+## 89. istack-commons-runtime 3.0.8
 
 - License: EDL-1.0（BSD-3-Clause）
 - Copyright: Copyright © 2017 Oracle and/or its affiliates
@@ -814,7 +805,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 作为 JAXB 运行时依赖，以独立 JAR 随插件发行。
 
-## 91. Jakarta Activation API 1.2.1
+## 90. Jakarta Activation API 1.2.1
 
 - License: EDL-1.0（BSD-3-Clause）
 - Copyright: Copyright © 2018 Oracle and/or its affiliates
@@ -823,7 +814,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 作为 JAXB 运行时依赖，以独立 JAR 随插件发行。
 
-## 92. Jakarta XML Binding API 2.3.2
+## 91. Jakarta XML Binding API 2.3.2
 
 - License: EDL-1.0（BSD-3-Clause）
 - Copyright: Copyright © 2017-2018 Oracle and/or its affiliates
@@ -832,7 +823,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 作为 JAXB 运行时依赖，以独立 JAR 随插件发行。
 
-## 93. JAXB Runtime、TXW2 2.3.2
+## 92. JAXB Runtime、TXW2 2.3.2
 
 - License: EDL-1.0（BSD-3-Clause）
 - Copyright: Copyright © 2018 Oracle and/or its affiliates
@@ -841,7 +832,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 以 JAXB Runtime 和 TXW2 两个独立 JAR 随插件发行。
 
-## 94. StAX-Ex 1.8.1
+## 93. StAX-Ex 1.8.1
 
 - License: EDL-1.0（BSD-3-Clause）
 - Copyright: Copyright © 2017 Oracle and/or its affiliates
@@ -850,7 +841,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 作为 JAXB 运行时依赖，以独立 JAR 随插件发行。
 
-## 95. JDOM 2.0.6
+## 94. JDOM 2.0.6
 
 - License: JDOM License（BSD-style）
 - Copyright: Copyright © 2000-2012 Jason Hunter, Brett McLaughlin and JDOM contributors
@@ -859,7 +850,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: JDOM 2.0.6 内嵌并重定位于 Kotlin compiler 1.9.23，随 compiler JAR 发行。
 
-## 96. Bouncy Castle Provider / PKIX 1.67
+## 95. Bouncy Castle Provider / PKIX 1.67
 
 - License: MIT
 - Copyright: Copyright © 2000-2020 The Legion of the Bouncy Castle Inc.
@@ -868,7 +859,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: Bouncy Castle Provider 和 PKIX 代码内嵌于 R8 8.4.21，因版本、协议和修改状态相同合并列示。
 
-## 97. Checker Qual 3.33.0
+## 96. Checker Qual 3.33.0
 
 - License: MIT
 - Copyright: Copyright © 2004-present Checker Framework developers
@@ -877,7 +868,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 内嵌于 R8 8.4.21 并随 R8 JAR 一并发行。
 
-## 98. Checker Qual 3.5.0
+## 97. Checker Qual 3.5.0
 
 - License: MIT
 - Copyright: Copyright © 2004-present by the Checker Framework developers
@@ -886,7 +877,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 作为 cmd_line Guava 30.1-jre 的传递依赖随独立发行物分发；与 R8 内嵌 Checker Qual 3.33.0 并存。
 
-## 99. ClassGraph 4.8.110
+## 98. ClassGraph 4.8.110
 
 - License: MIT
 - Copyright: Copyright © 2019 Luke Hutchison
@@ -895,7 +886,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 作为直接依赖，以独立 JAR 随插件发行。
 
-## 100. Expat 2.6.0
+## 99. Expat 2.6.0
 
 - License: MIT
 - Copyright: Copyright © 1998-2000 Thai Open Source Software Center Ltd.; Expat contributors
@@ -904,7 +895,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 静态链接到随插件发行的 AAPT2 可执行文件；二进制包含 Expat 2.6.0。
 
-## 101. SLF4J API / NOP binding 1.7.36
+## 100. SLF4J API / NOP binding 1.7.36
 
 - License: MIT
 - Copyright: Copyright © 2004-2017 QOS.ch
@@ -913,7 +904,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: SLF4J API 和 NOP binding 以独立 JAR 随 cmd_line 发行物分发，用于提供无输出的日志绑定。
 
-## 102. jBCrypt，JSch 内嵌代码 无
+## 101. jBCrypt，JSch 内嵌代码 无
 
 - License: ISC
 - Copyright: Copyright © 2006 Damien Miller
@@ -922,7 +913,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 代码内嵌于 JSch 0.2.16 并随其 JAR 发行；上游未标明内嵌版本，因此版本填“无”。
 
-## 103. zlib，Android platform API 无
+## 102. zlib，Android platform API 无
 
 - License: zlib License
 - Copyright: Copyright © 1995-2023 Jean-loup Gailly and Mark Adler
@@ -931,7 +922,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: JVMTI agent 在运行时动态链接 Android 设备提供的 libz.so，插件不随包分发该平台库；运行时版本由设备决定，因此版本填“无”。
 
-## 104. zlib，AOSP motley 变体 1.3.0.1-motley
+## 103. zlib，AOSP motley 变体 1.3.0.1-motley
 
 - License: zlib License
 - Copyright: Copyright © 1995-2023 Jean-loup Gailly and Mark Adler
@@ -940,7 +931,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Modified by Jugg: 否
 - Notes: 以 AOSP motley 变体静态链接到随插件发行的 AAPT2 可执行文件；版本为 1.3.0.1-motley。
 
-## 105. libpng 1.6.40
+## 104. libpng 1.6.40
 
 - License: Libpng-2.0
 - Copyright: Copyright © 1995-2023 libpng authors

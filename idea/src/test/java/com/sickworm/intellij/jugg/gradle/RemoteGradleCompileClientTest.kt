@@ -8,7 +8,6 @@ import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
 import com.sickworm.intellij.jugg.gradle.compile.RemoteGradleCompileClient
 import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
-import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.ide.bean.SyncMode
 import com.sickworm.intellij.jugg.ide.logic.toCompileOptions
 import com.sickworm.intellij.jugg.logger.JuggLogger
@@ -222,8 +221,6 @@ class RemoteGradleCompileClientTest : LocalGradleCompileClientTest() {
                 it.environmentVariables = jsonObject.optString("environmentVariables", "")
             }
             juggGradleCompileOptions = options.toCompileOptions(pathManager)
-            JuggSettings.isWindowsRsyncUseCygwin =
-                System.getenv("JUGG_TEST_WINDOWS_RSYNC_ENGINE") == "cygwin"
 
             isNeedTest = true
 

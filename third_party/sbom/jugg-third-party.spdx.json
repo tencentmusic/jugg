@@ -3,7 +3,7 @@
   "dataLicense": "CC0-1.0",
   "SPDXID": "SPDXRef-DOCUMENT",
   "name": "Jugg-third-party-components",
-  "documentNamespace": "https://jugg.sickworm.com/spdx/third-party-components-85098d21768c0c6b57a9b6dc1a0ca2491c76e3a6821ad70d4d1b564f6204b971",
+  "documentNamespace": "https://jugg.sickworm.com/spdx/third-party-components-f42154b66b1601c1b2b864f6e18c6fa4202e1808d7a682ec79dca7b279b98ecc",
   "creationInfo": {
     "created": "2026-08-08T00:00:00Z",
     "creators": [
@@ -114,8 +114,7 @@
     "SPDXRef-Package-101",
     "SPDXRef-Package-102",
     "SPDXRef-Package-103",
-    "SPDXRef-Package-104",
-    "SPDXRef-Package-105"
+    "SPDXRef-Package-104"
   ],
   "packages": [
     {
@@ -131,17 +130,6 @@
     },
     {
       "SPDXID": "SPDXRef-Package-002",
-      "name": "oc-rsync",
-      "versionInfo": "0.6.4",
-      "downloadLocation": "https://github.com/oferchen/rsync/releases/download/v0.6.4/oc-rsync-0.6.4-windows-x86_64.zip",
-      "filesAnalyzed": false,
-      "licenseConcluded": "GPL-3.0-or-later",
-      "licenseDeclared": "GPL-3.0-or-later",
-      "copyrightText": "Copyright Ofer Chen and oc-rsync contributors",
-      "comment": "官方未修改 Windows x64 可执行文件内置于 runtime.zip，以独立进程调用，不与插件 JVM 静态或动态链接；系统 OpenSSH 与本机 Cygwin 不随包分发。对应固定提交源码 oc-rsync-0.6.4.tar.gz 由发行 SOURCE.md 定位公开提交，GPL-3.0-or-later 文本随包提供。"
-    },
-    {
-      "SPDXID": "SPDXRef-Package-003",
       "name": "rsync",
       "versionInfo": "3.4.1",
       "downloadLocation": "https://download.samba.org/pub/rsync/src/rsync-3.4.1.tar.gz",
@@ -152,7 +140,7 @@
       "comment": "以 macOS 通用可执行文件随插件发行，作为独立进程调用，不与插件代码静态或动态链接；对应源码由插件内 SOURCE.md 定位到公开提交提供，GPL-3.0-or-later 文本随发行包提供。"
     },
     {
-      "SPDXID": "SPDXRef-Package-004",
+      "SPDXID": "SPDXRef-Package-003",
       "name": "sshpass",
       "versionInfo": "1.10",
       "downloadLocation": "https://sourceforge.net/projects/sshpass/files/sshpass/1.10/sshpass-1.10.tar.gz/download",
@@ -163,7 +151,7 @@
       "comment": "以 macOS arm64 可执行文件随插件发行，作为独立进程调用，不与插件代码静态或动态链接；对应源码由插件内 SOURCE.md 定位到公开提交提供，GPL-2.0-or-later 文本随发行包提供。"
     },
     {
-      "SPDXID": "SPDXRef-Package-005",
+      "SPDXID": "SPDXRef-Package-004",
       "name": "Trove4J，JetBrains fork",
       "versionInfo": "1.0.20200330",
       "downloadLocation": "https://repo1.maven.org/maven2/org/jetbrains/intellij/deps/trove4j/1.0.20200330/trove4j-1.0.20200330.jar",
@@ -174,7 +162,7 @@
       "comment": "以独立 JAR 随插件发行并由 JVM 加载；对应 source JAR 由插件内 SOURCE.md 定位到公开提交提供，LGPL-2.1-or-later 许可证文本随发行包提供。"
     },
     {
-      "SPDXID": "SPDXRef-Package-006",
+      "SPDXID": "SPDXRef-Package-005",
       "name": "juniversalchardet",
       "versionInfo": "1.0.3",
       "downloadLocation": "https://repo1.maven.org/maven2/com/googlecode/juniversalchardet/juniversalchardet/1.0.3/juniversalchardet-1.0.3.jar",
@@ -185,7 +173,7 @@
       "comment": "以独立 JAR 随插件发行；本发行按上游 POM 选择 MPL-1.1；对应 source JAR 由插件内 SOURCE.md 定位到公开提交提供，许可证文本随发行包提供。"
     },
     {
-      "SPDXID": "SPDXRef-Package-007",
+      "SPDXID": "SPDXRef-Package-006",
       "name": "JavaBeans Activation Framework",
       "versionInfo": "1.2.0",
       "downloadLocation": "https://repo1.maven.org/maven2/com/sun/activation/javax.activation/1.2.0/javax.activation-1.2.0.jar",
@@ -196,7 +184,7 @@
       "comment": "作为 Android Tools Repository 依赖内嵌于 R8 8.4.21；本发行选择 CDDL-1.1；对应 source JAR 由插件内 SOURCE.md 定位到公开提交提供，许可证文本随发行包提供。"
     },
     {
-      "SPDXID": "SPDXRef-Package-008",
+      "SPDXID": "SPDXRef-Package-007",
       "name": "Xerial SQLite JDBC",
       "versionInfo": "3.42.0.0",
       "downloadLocation": "https://repo1.maven.org/maven2/org/xerial/sqlite-jdbc/3.42.0.0/sqlite-jdbc-3.42.0.0.jar",
@@ -207,7 +195,7 @@
       "comment": "以裁剪版 JAR 随插件发行；仅删除不支持平台的 native library，保留 macOS、Linux 和 Windows 所需版本。"
     },
     {
-      "SPDXID": "SPDXRef-Package-009",
+      "SPDXID": "SPDXRef-Package-008",
       "name": "AAPT2 inclink，Jugg 定制版",
       "versionInfo": "无",
       "downloadLocation": "https://android.googlesource.com/platform/frameworks/base/+/a707013b78cea3586fdadf9a2f04932e823d7504/tools/aapt2/",
@@ -218,7 +206,7 @@
       "comment": "以三平台可执行文件随插件发行，并作为独立进程调用；基于 AOSP AAPT2 定制增量链接及 Android 14/Linux 兼容能力；静态链接组件另行列示；无法唯一确定版本，因此填“无”。"
     },
     {
-      "SPDXID": "SPDXRef-Package-010",
+      "SPDXID": "SPDXRef-Package-009",
       "name": "Apache XML Commons XML APIs",
       "versionInfo": "1.4.01",
       "downloadLocation": "https://repo1.maven.org/maven2/xml-apis/xml-apis/1.4.01/xml-apis-1.4.01.jar",
@@ -229,7 +217,7 @@
       "comment": "作为 Xerces2 Java 的传递依赖内嵌于 R8 8.4.21；组件同时包含 Apache-2.0、SAX 和 W3C 许可内容。"
     },
     {
-      "SPDXID": "SPDXRef-Package-011",
+      "SPDXID": "SPDXRef-Package-010",
       "name": "Apache Commons Compress",
       "versionInfo": "1.21",
       "downloadLocation": "https://repo1.maven.org/maven2/org/apache/commons/commons-compress/1.21/commons-compress-1.21.jar",
@@ -240,7 +228,7 @@
       "comment": "内嵌于 R8 8.4.21 并随 R8 JAR 发行；部分 sevenz 代码来自 Public Domain LZMA SDK。"
     },
     {
-      "SPDXID": "SPDXRef-Package-012",
+      "SPDXID": "SPDXRef-Package-011",
       "name": "R8",
       "versionInfo": "8.4.21",
       "downloadLocation": "https://storage.googleapis.com/r8-releases/raw/8.4.21/r8.jar",
@@ -251,7 +239,7 @@
       "comment": "以独立 JAR 随插件发行；JAR 内嵌的第三方组件已在本表分别列示。"
     },
     {
-      "SPDXID": "SPDXRef-Package-013",
+      "SPDXID": "SPDXRef-Package-012",
       "name": "kXML2",
       "versionInfo": "2.3.0",
       "downloadLocation": "https://repo1.maven.org/maven2/net/sf/kxml/kxml2/2.3.0/kxml2-2.3.0.jar",
@@ -262,7 +250,7 @@
       "comment": "作为 Android Tools 依赖内嵌于 R8 8.4.21；org.kxml2 代码适用 BSD-style 条款，org.xmlpull.v1 API 为 Public Domain。"
     },
     {
-      "SPDXID": "SPDXRef-Package-014",
+      "SPDXID": "SPDXRef-Package-013",
       "name": "Android JVMTI Apply Changes / Slicer source",
       "versionInfo": "无",
       "downloadLocation": "https://android.googlesource.com/platform/tools/base/+archive/refs/heads/studio-main/deploy/agent/native.tar.gz",
@@ -273,7 +261,7 @@
       "comment": "项目包含并修改 AOSP JVMTI Apply Changes/Slicer 源码，编译进入随插件发行的 JVMTI agent；Jugg 增加 Android 8-15 Application、ResourcesManager、ActivityThread 和 ClassLoader hook，增加可选 transform 的 Best-effort 降级与诊断日志；无法定位精确上游 commit，因此版本填“无”；修改后源码保留在仓库中。"
     },
     {
-      "SPDXID": "SPDXRef-Package-015",
+      "SPDXID": "SPDXRef-Package-014",
       "name": "Android Studio / Android Plugin APIs",
       "versionInfo": "无",
       "downloadLocation": "https://android.googlesource.com/platform/tools/base/+archive/refs/heads/studio-main.tar.gz / https://github.com/JetBrains/intellij-community/archive/refs/tags/idea/223.7571.182.zip",
@@ -284,7 +272,7 @@
       "comment": "根据 Android Studio/Android Plugin API 生成并裁剪为编译 Stub，仅用于构建兼容模块，不将上游实现代码打入插件发行包；仅保留所需 API 声明，版本无法完整还原，因此填“无”。"
     },
     {
-      "SPDXID": "SPDXRef-Package-016",
+      "SPDXID": "SPDXRef-Package-015",
       "name": "AOSP framework class stubs",
       "versionInfo": "无",
       "downloadLocation": "https://android.googlesource.com/platform/frameworks/base/+archive/refs/heads/master/core/java/android.tar.gz",
@@ -295,7 +283,7 @@
       "comment": "根据 AOSP framework API 编写 7 个最小编译声明，仅用于构建 JVMTI agent，不将 AOSP 实现代码打入插件发行包；API 声明经过挑选和简化，版本填“无”。"
     },
     {
-      "SPDXID": "SPDXRef-Package-017",
+      "SPDXID": "SPDXRef-Package-016",
       "name": "Gradle Wrapper launch files",
       "versionInfo": "7.0.2",
       "downloadLocation": "https://github.com/gradle/gradle/archive/refs/tags/v7.0.2.zip",
@@ -306,7 +294,7 @@
       "comment": "随插件发行，并在目标项目已有 gradle-wrapper.properties 但缺少启动文件时复制；gradlew 和 gradlew.bat 仅移除默认 JVM 参数 -Dfile.encoding=UTF-8；不包含 Gradle Distribution。"
     },
     {
-      "SPDXID": "SPDXRef-Package-018",
+      "SPDXID": "SPDXRef-Package-017",
       "name": "Kotlin Android Extensions",
       "versionInfo": "1.9.23",
       "downloadLocation": "https://repo1.maven.org/maven2/org/jetbrains/kotlin/kotlin-android-extensions/1.9.23/kotlin-android-extensions-1.9.23.jar",
@@ -317,7 +305,7 @@
       "comment": "以修改版 JAR 随插件发行；相对官方版本移除 AndroidComponentRegistrar 的 reportRemovedError 调用，另有 3 个 class 仅增加空 parameter-annotation attribute。"
     },
     {
-      "SPDXID": "SPDXRef-Package-019",
+      "SPDXID": "SPDXRef-Package-018",
       "name": "Aalto XML",
       "versionInfo": "1.3.0",
       "downloadLocation": "https://repo1.maven.org/maven2/com/fasterxml/aalto-xml/1.3.0/aalto-xml-1.3.0.jar",
@@ -328,7 +316,7 @@
       "comment": "内嵌并重定位于 Kotlin compiler 1.9.23，随 compiler JAR 一并发行。"
     },
     {
-      "SPDXID": "SPDXRef-Package-020",
+      "SPDXID": "SPDXRef-Package-019",
       "name": "AAPT2 Proto",
       "versionInfo": "8.2.0-rc01-10154469",
       "downloadLocation": "https://dl.google.com/dl/android/maven2/com/android/tools/build/aapt2-proto/8.2.0-rc01-10154469/aapt2-proto-8.2.0-rc01-10154469.jar",
@@ -339,7 +327,7 @@
       "comment": "AAPT2 Proto 由 R8 8.4.21 内嵌并随 R8 JAR 发行；依赖解析实际采用 8.2.0-rc01-10154469。"
     },
     {
-      "SPDXID": "SPDXRef-Package-021",
+      "SPDXID": "SPDXRef-Package-020",
       "name": "Android Data Binding compiler suite",
       "versionInfo": "7.4.2",
       "downloadLocation": "https://dl.google.com/dl/android/maven2/androidx/databinding/databinding-compiler/7.4.2/databinding-compiler-7.4.2.jar",
@@ -350,7 +338,7 @@
       "comment": "作为 compiler、compiler-common、common 和 baseLibrary 多个 JAR 随 cmd_line 独立发行物分发。"
     },
     {
-      "SPDXID": "SPDXRef-Package-022",
+      "SPDXID": "SPDXRef-Package-021",
       "name": "Android Data Binding compiler suite",
       "versionInfo": "8.7.3",
       "downloadLocation": "https://dl.google.com/dl/android/maven2/androidx/databinding/databinding-compiler/8.7.3/databinding-compiler-8.7.3.jar",
@@ -361,7 +349,7 @@
       "comment": "作为 compiler、compiler-common、common 和 baseLibrary 多个 JAR 随插件发行；内嵌 ANTLR Runtime 另行列示。"
     },
     {
-      "SPDXID": "SPDXRef-Package-023",
+      "SPDXID": "SPDXRef-Package-022",
       "name": "Android Tools Annotations",
       "versionInfo": "30.4.2",
       "downloadLocation": "https://dl.google.com/dl/android/maven2/com/android/tools/annotations/30.4.2/annotations-30.4.2.jar",
@@ -372,7 +360,7 @@
       "comment": "作为 cmd_line Data Binding 7.4.2 的传递依赖随独立发行物分发；与插件发行包中的 Android Tools Annotations 31.7.3 并存。"
     },
     {
-      "SPDXID": "SPDXRef-Package-024",
+      "SPDXID": "SPDXRef-Package-023",
       "name": "Android Tools Annotations",
       "versionInfo": "31.7.3",
       "downloadLocation": "https://dl.google.com/dl/android/maven2/com/android/tools/annotations/31.7.3/annotations-31.7.3.jar",
@@ -383,7 +371,7 @@
       "comment": "作为 Android 工具链依赖，以独立 JAR 随插件发行。"
     },
     {
-      "SPDXID": "SPDXRef-Package-025",
+      "SPDXID": "SPDXRef-Package-024",
       "name": "Android Tools libraries",
       "versionInfo": "31.2.0-rc01",
       "downloadLocation": "https://dl.google.com/dl/android/maven2/com/android/tools/sdk-common/31.2.0-rc01/sdk-common-31.2.0-rc01.jar",
@@ -394,7 +382,7 @@
       "comment": "多个 Android Tools 组件内嵌于 R8 8.4.21，因版本、协议和修改状态相同合并列示。"
     },
     {
-      "SPDXID": "SPDXRef-Package-026",
+      "SPDXID": "SPDXRef-Package-025",
       "name": "AOSP native support libraries suite",
       "versionInfo": "无",
       "downloadLocation": "https://android.googlesource.com/platform/frameworks/base/+archive/refs/tags/android-14.0.0_r1.tar.gz / https://android.googlesource.com/platform/system/core/+archive/refs/tags/android-14.0.0_r1.tar.gz / https://android.googlesource.com/platform/system/libbase/+archive/refs/tags/android-14.0.0_r1.tar.gz",
@@ -405,7 +393,7 @@
       "comment": "libandroidfw、libutils、liblog、libcutils、libziparchive、libbase、libbuildversion 和 libidmap2_policies 静态链接到 AAPT2 可执行文件；JVMTI agent 另动态链接 Android 设备提供的 liblog。"
     },
     {
-      "SPDXID": "SPDXRef-Package-027",
+      "SPDXID": "SPDXRef-Package-026",
       "name": "Apache Commons Codec",
       "versionInfo": "1.10",
       "downloadLocation": "https://repo1.maven.org/maven2/commons-codec/commons-codec/1.10/commons-codec-1.10.jar",
@@ -416,7 +404,7 @@
       "comment": "内嵌于 R8 8.4.21 并随 R8 JAR 一并发行。"
     },
     {
-      "SPDXID": "SPDXRef-Package-028",
+      "SPDXID": "SPDXRef-Package-027",
       "name": "Apache Commons Codec",
       "versionInfo": "1.16.0",
       "downloadLocation": "https://repo1.maven.org/maven2/commons-codec/commons-codec/1.16.0/commons-codec-1.16.0.jar",
@@ -427,7 +415,7 @@
       "comment": "作为 JGit 的传递依赖，以独立 JAR 随插件发行。"
     },
     {
-      "SPDXID": "SPDXRef-Package-029",
+      "SPDXID": "SPDXRef-Package-028",
       "name": "Apache Commons IO",
       "versionInfo": "2.13.0",
       "downloadLocation": "https://repo1.maven.org/maven2/commons-io/commons-io/2.13.0/commons-io-2.13.0.jar",
@@ -438,7 +426,7 @@
       "comment": "作为直接依赖，以独立 JAR 随插件发行。"
     },
     {
-      "SPDXID": "SPDXRef-Package-030",
+      "SPDXID": "SPDXRef-Package-029",
       "name": "Apache Commons IO",
       "versionInfo": "2.4",
       "downloadLocation": "https://repo1.maven.org/maven2/commons-io/commons-io/2.4/commons-io-2.4.jar",
@@ -449,7 +437,7 @@
       "comment": "作为 cmd_line Data Binding 7.4.2 的传递依赖随独立发行物分发；与插件发行包中的 Commons IO 2.13.0 并存。"
     },
     {
-      "SPDXID": "SPDXRef-Package-031",
+      "SPDXID": "SPDXRef-Package-030",
       "name": "Apache Commons Logging",
       "versionInfo": "1.2",
       "downloadLocation": "https://repo1.maven.org/maven2/commons-logging/commons-logging/1.2/commons-logging-1.2.jar",
@@ -460,7 +448,7 @@
       "comment": "内嵌于 R8 8.4.21 并随 R8 JAR 一并发行。"
     },
     {
-      "SPDXID": "SPDXRef-Package-032",
+      "SPDXID": "SPDXRef-Package-031",
       "name": "Apache HttpClient / HttpMime",
       "versionInfo": "4.5.6",
       "downloadLocation": "https://repo1.maven.org/maven2/org/apache/httpcomponents/httpclient/4.5.6/httpclient-4.5.6.jar",
@@ -471,7 +459,7 @@
       "comment": "内嵌于 R8 8.4.21 并随 R8 JAR 一并发行。"
     },
     {
-      "SPDXID": "SPDXRef-Package-033",
+      "SPDXID": "SPDXRef-Package-032",
       "name": "Apache HttpCore",
       "versionInfo": "4.4.16",
       "downloadLocation": "https://repo1.maven.org/maven2/org/apache/httpcomponents/httpcore/4.4.16/httpcore-4.4.16.jar",
@@ -482,7 +470,7 @@
       "comment": "内嵌于 R8 8.4.21 并随 R8 JAR 一并发行。"
     },
     {
-      "SPDXID": "SPDXRef-Package-034",
+      "SPDXID": "SPDXRef-Package-033",
       "name": "Apache Log4j，JetBrains dependency build",
       "versionInfo": "1.2.17.2",
       "downloadLocation": "https://packages.jetbrains.team/maven/p/ij/intellij-dependencies/org/jetbrains/intellij/deps/log4j/1.2.17.2/log4j-1.2.17.2.jar",
@@ -493,7 +481,7 @@
       "comment": "内嵌并重定位于 Kotlin compiler 1.9.23，随 compiler JAR 一并发行。"
     },
     {
-      "SPDXID": "SPDXRef-Package-035",
+      "SPDXID": "SPDXRef-Package-034",
       "name": "ArscBlamer",
       "versionInfo": "1.2.0",
       "downloadLocation": "https://repo1.maven.org/maven2/io/github/shiqos/arscblamer/1.2.0/arscblamer-1.2.0.jar",
@@ -504,7 +492,7 @@
       "comment": "作为 Android Data Binding 的传递依赖，以独立 JAR 随插件发行；Apache-2.0 依据版本 POM 和源码文件头确定。"
     },
     {
-      "SPDXID": "SPDXRef-Package-036",
+      "SPDXID": "SPDXRef-Package-035",
       "name": "Auto Common",
       "versionInfo": "0.10",
       "downloadLocation": "https://repo1.maven.org/maven2/com/google/auto/auto-common/0.10/auto-common-0.10.jar",
@@ -515,7 +503,7 @@
       "comment": "作为 Android Data Binding 的传递依赖，以独立 JAR 随插件发行。"
     },
     {
-      "SPDXID": "SPDXRef-Package-037",
+      "SPDXID": "SPDXRef-Package-036",
       "name": "dex2jar dex-reader/dex-writer",
       "versionInfo": "2.1",
       "downloadLocation": "https://github.com/pxb1988/dex2jar/archive/refs/tags/v2.1.zip",
@@ -526,7 +514,7 @@
       "comment": "以 dex-reader、dex-reader-api 和 dex-writer 多个独立 JAR 随插件发行。"
     },
     {
-      "SPDXID": "SPDXRef-Package-038",
+      "SPDXID": "SPDXRef-Package-037",
       "name": "Error Prone Annotations",
       "versionInfo": "2.18.0",
       "downloadLocation": "https://repo1.maven.org/maven2/com/google/errorprone/error_prone_annotations/2.18.0/error_prone_annotations-2.18.0.jar",
@@ -537,7 +525,7 @@
       "comment": "内嵌于 R8 8.4.21 并随 R8 JAR 一并发行。"
     },
     {
-      "SPDXID": "SPDXRef-Package-039",
+      "SPDXID": "SPDXRef-Package-038",
       "name": "Error Prone Annotations",
       "versionInfo": "2.3.4",
       "downloadLocation": "https://repo1.maven.org/maven2/com/google/errorprone/error_prone_annotations/2.3.4/error_prone_annotations-2.3.4.jar",
@@ -548,7 +536,7 @@
       "comment": "作为 cmd_line Guava 30.1-jre 的传递依赖随独立发行物分发；与 R8 内嵌 Error Prone Annotations 2.18.0 并存。"
     },
     {
-      "SPDXID": "SPDXRef-Package-040",
+      "SPDXID": "SPDXRef-Package-039",
       "name": "Fast Infoset",
       "versionInfo": "1.2.16",
       "downloadLocation": "https://repo1.maven.org/maven2/com/sun/xml/fastinfoset/FastInfoset/1.2.16/FastInfoset-1.2.16.jar",
@@ -559,7 +547,7 @@
       "comment": "作为 JAXB 运行时依赖，以独立 JAR 随插件发行；本发行在上游双许可证中选择 Apache-2.0。"
     },
     {
-      "SPDXID": "SPDXRef-Package-041",
+      "SPDXID": "SPDXRef-Package-040",
       "name": "fastutil",
       "versionInfo": "7.2.1",
       "downloadLocation": "https://repo1.maven.org/maven2/it/unimi/dsi/fastutil/7.2.1/fastutil-7.2.1.jar",
@@ -570,7 +558,7 @@
       "comment": "内嵌于 R8 8.4.21 并随 R8 JAR 一并发行。"
     },
     {
-      "SPDXID": "SPDXRef-Package-042",
+      "SPDXID": "SPDXRef-Package-041",
       "name": "Gson",
       "versionInfo": "2.10.1",
       "downloadLocation": "https://repo1.maven.org/maven2/com/google/code/gson/gson/2.10.1/gson-2.10.1.jar",
@@ -581,7 +569,7 @@
       "comment": "作为直接依赖，以独立 JAR 随插件发行。"
     },
     {
-      "SPDXID": "SPDXRef-Package-043",
+      "SPDXID": "SPDXRef-Package-042",
       "name": "Guava",
       "versionInfo": "29.0-jre",
       "downloadLocation": "https://repo1.maven.org/maven2/com/google/guava/guava/29.0-jre/guava-29.0-jre.jar",
@@ -592,7 +580,7 @@
       "comment": "Guava 29.0-jre 内嵌并重定位于 Kotlin compiler 1.9.23；与 R8 内嵌 Guava 32.1.2-jre 并存。"
     },
     {
-      "SPDXID": "SPDXRef-Package-044",
+      "SPDXID": "SPDXRef-Package-043",
       "name": "Guava",
       "versionInfo": "30.1-jre",
       "downloadLocation": "https://repo1.maven.org/maven2/com/google/guava/guava/30.1-jre/guava-30.1-jre.jar",
@@ -603,7 +591,7 @@
       "comment": "作为 cmd_line Data Binding 7.4.2 的传递依赖随独立发行物分发；与 R8、Kotlin compiler 内嵌的其他 Guava 版本并存。"
     },
     {
-      "SPDXID": "SPDXRef-Package-045",
+      "SPDXID": "SPDXRef-Package-044",
       "name": "Guava",
       "versionInfo": "32.1.2-jre",
       "downloadLocation": "https://repo1.maven.org/maven2/com/google/guava/guava/32.1.2-jre/guava-32.1.2-jre.jar",
@@ -614,7 +602,7 @@
       "comment": "内嵌于 R8 8.4.21 并随 R8 JAR 一并发行。"
     },
     {
-      "SPDXID": "SPDXRef-Package-046",
+      "SPDXID": "SPDXRef-Package-045",
       "name": "Guava FailureAccess",
       "versionInfo": "1.0.1",
       "downloadLocation": "https://repo1.maven.org/maven2/com/google/guava/failureaccess/1.0.1/failureaccess-1.0.1.jar",
@@ -625,7 +613,7 @@
       "comment": "内嵌于 R8 8.4.21 并随 R8 JAR 一并发行。"
     },
     {
-      "SPDXID": "SPDXRef-Package-047",
+      "SPDXID": "SPDXRef-Package-046",
       "name": "IntelliJ fastutil fork",
       "versionInfo": "8.5.4-9",
       "downloadLocation": "https://packages.jetbrains.team/maven/p/ij/intellij-dependencies/org/jetbrains/intellij/deps/fastutil/intellij-deps-fastutil/8.5.4-9/intellij-deps-fastutil-8.5.4-9.jar",
@@ -636,7 +624,7 @@
       "comment": "IntelliJ fastutil fork 内嵌并重定位于 Kotlin compiler 1.9.23，随 compiler JAR 发行。"
     },
     {
-      "SPDXID": "SPDXRef-Package-048",
+      "SPDXID": "SPDXRef-Package-047",
       "name": "IntelliJ IDEA Annotations",
       "versionInfo": "13.0",
       "downloadLocation": "https://repo1.maven.org/maven2/org/jetbrains/annotations/13.0/annotations-13.0.jar",
@@ -647,7 +635,7 @@
       "comment": "作为 Kotlin compiler 依赖，以独立 JAR 随插件发行。"
     },
     {
-      "SPDXID": "SPDXRef-Package-049",
+      "SPDXID": "SPDXRef-Package-048",
       "name": "IntelliJ Platform Core / JPS Model",
       "versionInfo": "213.7172.53",
       "downloadLocation": "https://www.jetbrains.com/intellij-repository/releases/com/jetbrains/intellij/platform/jps-model/213.7172.53/jps-model-213.7172.53.jar",
@@ -658,7 +646,7 @@
       "comment": "IntelliJ Platform Core 和 JPS Model 内嵌于 Kotlin compiler 1.9.23，因协议和修改状态相同合并列示。"
     },
     {
-      "SPDXID": "SPDXRef-Package-050",
+      "SPDXID": "SPDXRef-Package-049",
       "name": "J2ObjC Annotations",
       "versionInfo": "1.3",
       "downloadLocation": "https://repo1.maven.org/maven2/com/google/j2objc/j2objc-annotations/1.3/j2objc-annotations-1.3.jar",
@@ -669,7 +657,7 @@
       "comment": "作为 cmd_line Guava 30.1-jre 的传递依赖随独立发行物分发；与 R8 内嵌 J2ObjC Annotations 2.8 并存。"
     },
     {
-      "SPDXID": "SPDXRef-Package-051",
+      "SPDXID": "SPDXRef-Package-050",
       "name": "J2ObjC Annotations",
       "versionInfo": "2.8",
       "downloadLocation": "https://repo1.maven.org/maven2/com/google/j2objc/j2objc-annotations/2.8/j2objc-annotations-2.8.jar",
@@ -680,7 +668,7 @@
       "comment": "属于 Guava 的 optional 编译依赖，但由 R8 许可证清单明确列为随 R8 分发的组件。"
     },
     {
-      "SPDXID": "SPDXRef-Package-052",
+      "SPDXID": "SPDXRef-Package-051",
       "name": "Jansi",
       "versionInfo": "1.16",
       "downloadLocation": "https://repo1.maven.org/maven2/org/fusesource/jansi/jansi/1.16/jansi-1.16.jar",
@@ -691,7 +679,7 @@
       "comment": "内嵌并重定位于 Kotlin compiler 1.9.23，随 compiler JAR 一并发行。"
     },
     {
-      "SPDXID": "SPDXRef-Package-053",
+      "SPDXID": "SPDXRef-Package-052",
       "name": "Java Native Access / JNA Platform",
       "versionInfo": "5.6.0",
       "downloadLocation": "https://repo1.maven.org/maven2/net/java/dev/jna/jna-platform/5.6.0/jna-platform-5.6.0.jar",
@@ -702,7 +690,7 @@
       "comment": "JNA 和 JNA Platform 内嵌于 R8 8.4.21；本发行在上游双许可证中选择 Apache-2.0。"
     },
     {
-      "SPDXID": "SPDXRef-Package-054",
+      "SPDXID": "SPDXRef-Package-053",
       "name": "Java Native Access，JetBrains dependency build",
       "versionInfo": "5.9.0.26",
       "downloadLocation": "https://packages.jetbrains.team/maven/p/ij/intellij-dependencies/org/jetbrains/intellij/deps/jna/jna/5.9.0.26/jna-5.9.0.26.jar",
@@ -713,7 +701,7 @@
       "comment": "JNA 和 JNA Platform 内嵌并重定位于 Kotlin compiler 1.9.23；本发行在上游双许可证中选择 Apache-2.0。"
     },
     {
-      "SPDXID": "SPDXRef-Package-055",
+      "SPDXID": "SPDXRef-Package-054",
       "name": "JavaEWAH",
       "versionInfo": "1.2.3",
       "downloadLocation": "https://repo1.maven.org/maven2/com/googlecode/javaewah/JavaEWAH/1.2.3/JavaEWAH-1.2.3.jar",
@@ -724,7 +712,7 @@
       "comment": "作为 JGit 的传递依赖，以独立 JAR 随插件发行。"
     },
     {
-      "SPDXID": "SPDXRef-Package-056",
+      "SPDXID": "SPDXRef-Package-055",
       "name": "JavaParser Core",
       "versionInfo": "3.17.0",
       "downloadLocation": "https://repo1.maven.org/maven2/com/github/javaparser/javaparser-core/3.17.0/javaparser-core-3.17.0.jar",
@@ -735,7 +723,7 @@
       "comment": "作为直接依赖，以独立 JAR 随插件发行；本发行在上游双许可证中选择 Apache-2.0。"
     },
     {
-      "SPDXID": "SPDXRef-Package-057",
+      "SPDXID": "SPDXRef-Package-056",
       "name": "JavaPoet",
       "versionInfo": "1.10.0",
       "downloadLocation": "https://repo1.maven.org/maven2/com/squareup/javapoet/1.10.0/javapoet-1.10.0.jar",
@@ -746,7 +734,7 @@
       "comment": "作为 Android Data Binding 的传递依赖，以独立 JAR 随插件发行。"
     },
     {
-      "SPDXID": "SPDXRef-Package-058",
+      "SPDXID": "SPDXRef-Package-057",
       "name": "Javaslang",
       "versionInfo": "2.0.6",
       "downloadLocation": "https://repo1.maven.org/maven2/io/javaslang/javaslang/2.0.6/javaslang-2.0.6.jar",
@@ -757,7 +745,7 @@
       "comment": "内嵌于 Kotlin compiler 1.9.23，保留 javaslang.* 包名并随 compiler JAR 发行。"
     },
     {
-      "SPDXID": "SPDXRef-Package-059",
+      "SPDXID": "SPDXRef-Package-058",
       "name": "javax.inject / JSR-330",
       "versionInfo": "1",
       "downloadLocation": "https://repo1.maven.org/maven2/javax/inject/javax.inject/1/javax.inject-1.jar",
@@ -768,7 +756,7 @@
       "comment": "内嵌于 R8 8.4.21 并随 R8 JAR 一并发行。"
     },
     {
-      "SPDXID": "SPDXRef-Package-060",
+      "SPDXID": "SPDXRef-Package-059",
       "name": "Jetifier Core",
       "versionInfo": "1.0.0-beta10",
       "downloadLocation": "https://dl.google.com/dl/android/maven2/com/android/tools/build/jetifier/jetifier-core/1.0.0-beta10/jetifier-core-1.0.0-beta10.jar",
@@ -779,7 +767,7 @@
       "comment": "作为 Android Data Binding 的传递依赖，以独立 JAR 随插件发行。"
     },
     {
-      "SPDXID": "SPDXRef-Package-061",
+      "SPDXID": "SPDXRef-Package-060",
       "name": "Jimfs",
       "versionInfo": "1.1",
       "downloadLocation": "https://repo1.maven.org/maven2/com/google/jimfs/jimfs/1.1/jimfs-1.1.jar",
@@ -790,7 +778,7 @@
       "comment": "内嵌于 R8 8.4.21 并随 R8 JAR 一并发行。"
     },
     {
-      "SPDXID": "SPDXRef-Package-062",
+      "SPDXID": "SPDXRef-Package-061",
       "name": "JSR-305 Annotations",
       "versionInfo": "3.0.2",
       "downloadLocation": "https://repo1.maven.org/maven2/com/google/code/findbugs/jsr305/3.0.2/jsr305-3.0.2.jar",
@@ -801,7 +789,7 @@
       "comment": "内嵌于 R8 8.4.21 并随 R8 JAR 一并发行。"
     },
     {
-      "SPDXID": "SPDXRef-Package-063",
+      "SPDXID": "SPDXRef-Package-062",
       "name": "Kotlin compiler/runtime suite",
       "versionInfo": "1.9.23",
       "downloadLocation": "https://github.com/JetBrains/kotlin/archive/refs/tags/v1.9.23.zip",
@@ -812,7 +800,7 @@
       "comment": "以多个独立 JAR 随插件发行，包含 compiler、daemon、reflect、script runtime、stdlib-jdk7/jdk8；compiler 内嵌组件另行列示。"
     },
     {
-      "SPDXID": "SPDXRef-Package-064",
+      "SPDXID": "SPDXRef-Package-063",
       "name": "Kotlin Metadata JVM",
       "versionInfo": "2.2.21",
       "downloadLocation": "https://repo1.maven.org/maven2/org/jetbrains/kotlin/kotlin-metadata-jvm/2.2.21/kotlin-metadata-jvm-2.2.21.jar",
@@ -823,7 +811,7 @@
       "comment": "作为直接依赖，以独立 JAR 随插件发行。"
     },
     {
-      "SPDXID": "SPDXRef-Package-065",
+      "SPDXID": "SPDXRef-Package-064",
       "name": "Kotlin Reflect",
       "versionInfo": "1.9.0",
       "downloadLocation": "https://repo1.maven.org/maven2/org/jetbrains/kotlin/kotlin-reflect/1.9.0/kotlin-reflect-1.9.0.jar",
@@ -834,7 +822,7 @@
       "comment": "内嵌于 R8 8.4.21 并随 R8 JAR 一并发行。"
     },
     {
-      "SPDXID": "SPDXRef-Package-066",
+      "SPDXID": "SPDXRef-Package-065",
       "name": "Kotlin Standard Library",
       "versionInfo": "1.9.21",
       "downloadLocation": "https://repo1.maven.org/maven2/org/jetbrains/kotlin/kotlin-stdlib/1.9.21/kotlin-stdlib-1.9.21.jar",
@@ -845,7 +833,7 @@
       "comment": "内嵌于 R8 8.4.21，由 kotlinx-metadata-jvm 引入；与插件顶层 Kotlin Standard Library 2.2.21 并存。"
     },
     {
-      "SPDXID": "SPDXRef-Package-067",
+      "SPDXID": "SPDXRef-Package-066",
       "name": "Kotlin Standard Library",
       "versionInfo": "2.2.21",
       "downloadLocation": "https://repo1.maven.org/maven2/org/jetbrains/kotlin/kotlin-stdlib/2.2.21/kotlin-stdlib-2.2.21.jar",
@@ -856,7 +844,7 @@
       "comment": "作为 Kotlin Metadata JVM 的传递依赖，以独立 JAR 随插件发行。"
     },
     {
-      "SPDXID": "SPDXRef-Package-068",
+      "SPDXID": "SPDXRef-Package-067",
       "name": "kotlinx-coroutines-core-jvm",
       "versionInfo": "1.6.4",
       "downloadLocation": "https://repo1.maven.org/maven2/org/jetbrains/kotlinx/kotlinx-coroutines-core-jvm/1.6.4/kotlinx-coroutines-core-jvm-1.6.4.jar",
@@ -867,7 +855,7 @@
       "comment": "作为直接依赖，以独立 JAR 随插件发行。"
     },
     {
-      "SPDXID": "SPDXRef-Package-069",
+      "SPDXID": "SPDXRef-Package-068",
       "name": "kotlinx-metadata-jvm",
       "versionInfo": "0.9.0",
       "downloadLocation": "https://repo1.maven.org/maven2/org/jetbrains/kotlinx/kotlinx-metadata-jvm/0.9.0/kotlinx-metadata-jvm-0.9.0.jar",
@@ -878,7 +866,7 @@
       "comment": "作为直接依赖，以独立 JAR 随插件发行。"
     },
     {
-      "SPDXID": "SPDXRef-Package-070",
+      "SPDXID": "SPDXRef-Package-069",
       "name": "kotlinx.collections.immutable JVM",
       "versionInfo": "0.3.1",
       "downloadLocation": "https://repo1.maven.org/maven2/org/jetbrains/kotlinx/kotlinx-collections-immutable-jvm/0.3.1/kotlinx-collections-immutable-jvm-0.3.1.jar",
@@ -889,7 +877,7 @@
       "comment": "内嵌并重定位于 Kotlin compiler 1.9.23，随 compiler JAR 一并发行。"
     },
     {
-      "SPDXID": "SPDXRef-Package-071",
+      "SPDXID": "SPDXRef-Package-070",
       "name": "LZ4 Java",
       "versionInfo": "1.7.1",
       "downloadLocation": "https://repo1.maven.org/maven2/org/lz4/lz4-java/1.7.1/lz4-java-1.7.1.jar",
@@ -900,7 +888,7 @@
       "comment": "内嵌并重定位于 Kotlin compiler 1.9.23，随 compiler JAR 一并发行。"
     },
     {
-      "SPDXID": "SPDXRef-Package-072",
+      "SPDXID": "SPDXRef-Package-071",
       "name": "OkHttp",
       "versionInfo": "4.12.0",
       "downloadLocation": "https://repo1.maven.org/maven2/com/squareup/okhttp3/okhttp/4.12.0/okhttp-4.12.0.jar",
@@ -911,7 +899,7 @@
       "comment": "作为网络功能的直接依赖，以独立 JAR 随插件发行。"
     },
     {
-      "SPDXID": "SPDXRef-Package-073",
+      "SPDXID": "SPDXRef-Package-072",
       "name": "Okio",
       "versionInfo": "3.6.0",
       "downloadLocation": "https://repo1.maven.org/maven2/com/squareup/okio/okio-jvm/3.6.0/okio-jvm-3.6.0.jar",
@@ -922,7 +910,7 @@
       "comment": "作为 OkHttp 的传递依赖，以独立 JAR 随插件发行。"
     },
     {
-      "SPDXID": "SPDXRef-Package-074",
+      "SPDXID": "SPDXRef-Package-073",
       "name": "StreamEx",
       "versionInfo": "0.7.2",
       "downloadLocation": "https://repo1.maven.org/maven2/one/util/streamex/0.7.2/streamex-0.7.2.jar",
@@ -933,7 +921,7 @@
       "comment": "内嵌并重定位于 Kotlin compiler 1.9.23，随 compiler JAR 一并发行。"
     },
     {
-      "SPDXID": "SPDXRef-Package-075",
+      "SPDXID": "SPDXRef-Package-074",
       "name": "Xerces2 Java",
       "versionInfo": "2.12.0",
       "downloadLocation": "https://repo1.maven.org/maven2/xerces/xercesImpl/2.12.0/xercesImpl-2.12.0.jar",
@@ -944,7 +932,7 @@
       "comment": "内嵌于 R8 8.4.21 并随 R8 JAR 一并发行。"
     },
     {
-      "SPDXID": "SPDXRef-Package-076",
+      "SPDXID": "SPDXRef-Package-075",
       "name": "LLVM libc++，Android toolchain build",
       "versionInfo": "无",
       "downloadLocation": "https://android.googlesource.com/toolchain/llvm-project/+/477610d4d0d988e69dbc3fae4fe86bff3f07f2b5/libcxx/",
@@ -955,7 +943,7 @@
       "comment": "以 libc++_static 形式静态链接到随插件发行的 AAPT2 可执行文件；对应 Android clang r510928/LLVM commit 477610d4d0d988e69dbc3fae4fe86bff3f07f2b5；无法映射独立 release 版本，因此填“无”。"
     },
     {
-      "SPDXID": "SPDXRef-Package-077",
+      "SPDXID": "SPDXRef-Package-076",
       "name": "ASM",
       "versionInfo": "9.8",
       "downloadLocation": "https://repo1.maven.org/maven2/org/ow2/asm/asm/9.8/asm-9.8.jar",
@@ -966,7 +954,7 @@
       "comment": "以 3 个重打包 JAR 随插件发行；将 org.objectweb.asm 重定位到项目私有包名，asm-commons 另移除 module-info.class。"
     },
     {
-      "SPDXID": "SPDXRef-Package-078",
+      "SPDXID": "SPDXRef-Package-077",
       "name": "StAX2 API",
       "versionInfo": "4.2.1",
       "downloadLocation": "https://repo1.maven.org/maven2/org/codehaus/woodstox/stax2-api/4.2.1/stax2-api-4.2.1.jar",
@@ -977,7 +965,7 @@
       "comment": "内嵌并重定位于 Kotlin compiler 1.9.23，随 compiler JAR 一并发行。"
     },
     {
-      "SPDXID": "SPDXRef-Package-079",
+      "SPDXID": "SPDXRef-Package-078",
       "name": "ANTLR 4 Runtime，Data Binding 内嵌重定位代码",
       "versionInfo": "4.5.3",
       "downloadLocation": "https://repo1.maven.org/maven2/org/antlr/antlr4-runtime/4.5.3/antlr4-runtime-4.5.3.jar",
@@ -988,7 +976,7 @@
       "comment": "重定位代码内嵌于 Data Binding compiler-common 8.7.3 并随其发行；由上游 Data Binding 打包。"
     },
     {
-      "SPDXID": "SPDXRef-Package-080",
+      "SPDXID": "SPDXRef-Package-079",
       "name": "ASM",
       "versionInfo": "9.6",
       "downloadLocation": "https://repo1.maven.org/maven2/org/ow2/asm/asm/9.6/asm-9.6.jar",
@@ -999,7 +987,7 @@
       "comment": "ASM 9.6 的 core、tree、analysis、commons 和 util 代码内嵌于 R8 8.4.21；与另行重打包的 ASM 9.8 为不同版本和修改状态。"
     },
     {
-      "SPDXID": "SPDXRef-Package-081",
+      "SPDXID": "SPDXRef-Package-080",
       "name": "ASM all，JetBrains dependency build",
       "versionInfo": "9.0",
       "downloadLocation": "https://packages.jetbrains.team/maven/p/ij/intellij-dependencies/org/jetbrains/intellij/deps/asm-all/9.0/asm-all-9.0.jar",
@@ -1010,7 +998,7 @@
       "comment": "ASM 9.0 内嵌并重定位于 Kotlin compiler 1.9.23；与 R8 内嵌 ASM 9.6、另行重打包 ASM 9.8 并存。"
     },
     {
-      "SPDXID": "SPDXRef-Package-082",
+      "SPDXID": "SPDXRef-Package-081",
       "name": "JLine 3",
       "versionInfo": "3.3.1",
       "downloadLocation": "https://repo1.maven.org/maven2/org/jline/jline/3.3.1/jline-3.3.1.jar",
@@ -1021,7 +1009,7 @@
       "comment": "内嵌并重定位于 Kotlin compiler 1.9.23，随 compiler JAR 一并发行。"
     },
     {
-      "SPDXID": "SPDXRef-Package-083",
+      "SPDXID": "SPDXRef-Package-082",
       "name": "JSch，mwiede fork",
       "versionInfo": "0.2.16",
       "downloadLocation": "https://repo1.maven.org/maven2/com/github/mwiede/jsch/0.2.16/jsch-0.2.16.jar",
@@ -1032,7 +1020,7 @@
       "comment": "作为 SSH 功能的直接依赖，以独立 JAR 随插件发行；JAR 内嵌的 JZlib 和 jBCrypt 另行列示。"
     },
     {
-      "SPDXID": "SPDXRef-Package-084",
+      "SPDXID": "SPDXRef-Package-083",
       "name": "JZlib，JSch 内嵌代码",
       "versionInfo": "无",
       "downloadLocation": "https://repo1.maven.org/maven2/com/github/mwiede/jsch/0.2.16/jsch-0.2.16.jar",
@@ -1043,7 +1031,7 @@
       "comment": "代码内嵌于 JSch 0.2.16 并随其 JAR 发行；上游未标明内嵌版本，因此版本填“无”。"
     },
     {
-      "SPDXID": "SPDXRef-Package-085",
+      "SPDXID": "SPDXRef-Package-084",
       "name": "PicoContainer，IntelliJ 精简 fork",
       "versionInfo": "无",
       "downloadLocation": "https://repo1.maven.org/maven2/org/jetbrains/kotlin/kotlin-compiler-embeddable/1.9.23/kotlin-compiler-embeddable-1.9.23.jar",
@@ -1054,7 +1042,7 @@
       "comment": "精简并重定位的 PicoContainer API 内嵌于 Kotlin compiler 1.9.23；上游未保留可可靠映射的独立版本，因此版本填“无”。"
     },
     {
-      "SPDXID": "SPDXRef-Package-086",
+      "SPDXID": "SPDXRef-Package-085",
       "name": "Protocol Buffers Java",
       "versionInfo": "3.19.3",
       "downloadLocation": "https://repo1.maven.org/maven2/com/google/protobuf/protobuf-java/3.19.3/protobuf-java-3.19.3.jar",
@@ -1065,7 +1053,7 @@
       "comment": "内嵌于 R8 Resource Shrinker 并随 R8 JAR 发行；与 AAPT2 inclink 静态链接的 native Protocol Buffers 分开列示。"
     },
     {
-      "SPDXID": "SPDXRef-Package-087",
+      "SPDXID": "SPDXRef-Package-086",
       "name": "Protocol Buffers，AOSP native runtime",
       "versionInfo": "无",
       "downloadLocation": "https://android.googlesource.com/platform/external/protobuf/+archive/refs/heads/master.tar.gz",
@@ -1076,7 +1064,7 @@
       "comment": "以 libprotobuf-cpp-full 形式静态链接到随插件发行的 AAPT2 可执行文件；二进制未暴露可可靠映射的版本，因此填“无”。"
     },
     {
-      "SPDXID": "SPDXRef-Package-088",
+      "SPDXID": "SPDXRef-Package-087",
       "name": "Protocol Buffers，Kotlin relocated fork",
       "versionInfo": "2.6.1-1",
       "downloadLocation": "https://repo1.maven.org/maven2/org/jetbrains/kotlin/kotlin-compiler-embeddable/1.9.23/kotlin-compiler-embeddable-1.9.23.jar",
@@ -1087,7 +1075,7 @@
       "comment": "Kotlin compiler 1.9.23 内嵌并重定位该 fork；无公开独立 JAR，实际代码随 compiler JAR 发行。"
     },
     {
-      "SPDXID": "SPDXRef-Package-089",
+      "SPDXID": "SPDXRef-Package-088",
       "name": "Eclipse JGit",
       "versionInfo": "6.8.0.202311291450-r",
       "downloadLocation": "https://repo1.maven.org/maven2/org/eclipse/jgit/org.eclipse.jgit/6.8.0.202311291450-r/org.eclipse.jgit-6.8.0.202311291450-r.jar",
@@ -1098,7 +1086,7 @@
       "comment": "作为 Git 功能的直接依赖，以独立 JAR 随插件发行。"
     },
     {
-      "SPDXID": "SPDXRef-Package-090",
+      "SPDXID": "SPDXRef-Package-089",
       "name": "istack-commons-runtime",
       "versionInfo": "3.0.8",
       "downloadLocation": "https://repo1.maven.org/maven2/com/sun/istack/istack-commons-runtime/3.0.8/istack-commons-runtime-3.0.8.jar",
@@ -1109,7 +1097,7 @@
       "comment": "作为 JAXB 运行时依赖，以独立 JAR 随插件发行。"
     },
     {
-      "SPDXID": "SPDXRef-Package-091",
+      "SPDXID": "SPDXRef-Package-090",
       "name": "Jakarta Activation API",
       "versionInfo": "1.2.1",
       "downloadLocation": "https://repo1.maven.org/maven2/jakarta/activation/jakarta.activation-api/1.2.1/jakarta.activation-api-1.2.1.jar",
@@ -1120,7 +1108,7 @@
       "comment": "作为 JAXB 运行时依赖，以独立 JAR 随插件发行。"
     },
     {
-      "SPDXID": "SPDXRef-Package-092",
+      "SPDXID": "SPDXRef-Package-091",
       "name": "Jakarta XML Binding API",
       "versionInfo": "2.3.2",
       "downloadLocation": "https://repo1.maven.org/maven2/jakarta/xml/bind/jakarta.xml.bind-api/2.3.2/jakarta.xml.bind-api-2.3.2.jar",
@@ -1131,7 +1119,7 @@
       "comment": "作为 JAXB 运行时依赖，以独立 JAR 随插件发行。"
     },
     {
-      "SPDXID": "SPDXRef-Package-093",
+      "SPDXID": "SPDXRef-Package-092",
       "name": "JAXB Runtime、TXW2",
       "versionInfo": "2.3.2",
       "downloadLocation": "https://repo1.maven.org/maven2/org/glassfish/jaxb/jaxb-runtime/2.3.2/jaxb-runtime-2.3.2.jar",
@@ -1142,7 +1130,7 @@
       "comment": "以 JAXB Runtime 和 TXW2 两个独立 JAR 随插件发行。"
     },
     {
-      "SPDXID": "SPDXRef-Package-094",
+      "SPDXID": "SPDXRef-Package-093",
       "name": "StAX-Ex",
       "versionInfo": "1.8.1",
       "downloadLocation": "https://repo1.maven.org/maven2/org/jvnet/staxex/stax-ex/1.8.1/stax-ex-1.8.1.jar",
@@ -1153,7 +1141,7 @@
       "comment": "作为 JAXB 运行时依赖，以独立 JAR 随插件发行。"
     },
     {
-      "SPDXID": "SPDXRef-Package-095",
+      "SPDXID": "SPDXRef-Package-094",
       "name": "JDOM",
       "versionInfo": "2.0.6",
       "downloadLocation": "https://packages.jetbrains.team/maven/p/ij/intellij-dependencies/org/jetbrains/intellij/deps/jdom/2.0.6/jdom-2.0.6.jar",
@@ -1164,7 +1152,7 @@
       "comment": "JDOM 2.0.6 内嵌并重定位于 Kotlin compiler 1.9.23，随 compiler JAR 发行。"
     },
     {
-      "SPDXID": "SPDXRef-Package-096",
+      "SPDXID": "SPDXRef-Package-095",
       "name": "Bouncy Castle Provider / PKIX",
       "versionInfo": "1.67",
       "downloadLocation": "https://repo1.maven.org/maven2/org/bouncycastle/bcprov-jdk15on/1.67/bcprov-jdk15on-1.67.jar",
@@ -1175,7 +1163,7 @@
       "comment": "Bouncy Castle Provider 和 PKIX 代码内嵌于 R8 8.4.21，因版本、协议和修改状态相同合并列示。"
     },
     {
-      "SPDXID": "SPDXRef-Package-097",
+      "SPDXID": "SPDXRef-Package-096",
       "name": "Checker Qual",
       "versionInfo": "3.33.0",
       "downloadLocation": "https://repo1.maven.org/maven2/org/checkerframework/checker-qual/3.33.0/checker-qual-3.33.0.jar",
@@ -1186,7 +1174,7 @@
       "comment": "内嵌于 R8 8.4.21 并随 R8 JAR 一并发行。"
     },
     {
-      "SPDXID": "SPDXRef-Package-098",
+      "SPDXID": "SPDXRef-Package-097",
       "name": "Checker Qual",
       "versionInfo": "3.5.0",
       "downloadLocation": "https://repo1.maven.org/maven2/org/checkerframework/checker-qual/3.5.0/checker-qual-3.5.0.jar",
@@ -1197,7 +1185,7 @@
       "comment": "作为 cmd_line Guava 30.1-jre 的传递依赖随独立发行物分发；与 R8 内嵌 Checker Qual 3.33.0 并存。"
     },
     {
-      "SPDXID": "SPDXRef-Package-099",
+      "SPDXID": "SPDXRef-Package-098",
       "name": "ClassGraph",
       "versionInfo": "4.8.110",
       "downloadLocation": "https://repo1.maven.org/maven2/io/github/classgraph/classgraph/4.8.110/classgraph-4.8.110.jar",
@@ -1208,7 +1196,7 @@
       "comment": "作为直接依赖，以独立 JAR 随插件发行。"
     },
     {
-      "SPDXID": "SPDXRef-Package-100",
+      "SPDXID": "SPDXRef-Package-099",
       "name": "Expat",
       "versionInfo": "2.6.0",
       "downloadLocation": "https://github.com/libexpat/libexpat/archive/refs/tags/R_2_6_0.tar.gz",
@@ -1219,7 +1207,7 @@
       "comment": "静态链接到随插件发行的 AAPT2 可执行文件；二进制包含 Expat 2.6.0。"
     },
     {
-      "SPDXID": "SPDXRef-Package-101",
+      "SPDXID": "SPDXRef-Package-100",
       "name": "SLF4J API / NOP binding",
       "versionInfo": "1.7.36",
       "downloadLocation": "https://repo1.maven.org/maven2/org/slf4j/slf4j-nop/1.7.36/slf4j-nop-1.7.36.jar",
@@ -1230,7 +1218,7 @@
       "comment": "SLF4J API 和 NOP binding 以独立 JAR 随 cmd_line 发行物分发，用于提供无输出的日志绑定。"
     },
     {
-      "SPDXID": "SPDXRef-Package-102",
+      "SPDXID": "SPDXRef-Package-101",
       "name": "jBCrypt，JSch 内嵌代码",
       "versionInfo": "无",
       "downloadLocation": "https://repo1.maven.org/maven2/com/github/mwiede/jsch/0.2.16/jsch-0.2.16.jar",
@@ -1241,7 +1229,7 @@
       "comment": "代码内嵌于 JSch 0.2.16 并随其 JAR 发行；上游未标明内嵌版本，因此版本填“无”。"
     },
     {
-      "SPDXID": "SPDXRef-Package-103",
+      "SPDXID": "SPDXRef-Package-102",
       "name": "zlib，Android platform API",
       "versionInfo": "无",
       "downloadLocation": "https://android.googlesource.com/platform/external/zlib/+archive/refs/heads/master.tar.gz",
@@ -1252,7 +1240,7 @@
       "comment": "JVMTI agent 在运行时动态链接 Android 设备提供的 libz.so，插件不随包分发该平台库；运行时版本由设备决定，因此版本填“无”。"
     },
     {
-      "SPDXID": "SPDXRef-Package-104",
+      "SPDXID": "SPDXRef-Package-103",
       "name": "zlib，AOSP motley 变体",
       "versionInfo": "1.3.0.1-motley",
       "downloadLocation": "https://android.googlesource.com/platform/external/zlib/+archive/932a58803c3d13295215446fa2bbf1aba5d327ef.tar.gz",
@@ -1263,7 +1251,7 @@
       "comment": "以 AOSP motley 变体静态链接到随插件发行的 AAPT2 可执行文件；版本为 1.3.0.1-motley。"
     },
     {
-      "SPDXID": "SPDXRef-Package-105",
+      "SPDXID": "SPDXRef-Package-104",
       "name": "libpng",
       "versionInfo": "1.6.40",
       "downloadLocation": "https://github.com/pnggroup/libpng/archive/refs/tags/v1.6.40.tar.gz",

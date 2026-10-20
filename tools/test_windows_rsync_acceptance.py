@@ -11,7 +11,7 @@ from windows_rsync_acceptance import SafeProbe, failure
 class AcceptancePrivacyTest(unittest.TestCase):
     def test_diagnostics_and_argv_never_escape_failed_process(self):
         with tempfile.TemporaryDirectory() as directory:
-            probe = SafeProbe({'engine': 'oc-rsync', 'rsync': sys.executable}, Path(directory))
+            probe = SafeProbe({'engine': 'cygwin', 'rsync': sys.executable}, Path(directory))
             with self.assertRaises(RuntimeError) as caught:
                 probe.run([sys.executable, '-c',
                            'import sys; sys.stderr.write("private-account private-key"); sys.exit(23)'])

@@ -46,9 +46,6 @@ object JuggSettings {
     /** Whether to append --no-daemon when running Gradle fallback compile */
     var isGradleCompileNoDaemon: Boolean by propertiesComponent.delegate(defaultValue = true)
 
-    /** Temporary Windows transport selector; takes effect on the next transfer. */
-    var isWindowsRsyncUseCygwin: Boolean by propertiesComponent.delegate(defaultValue = false)
-
     // Run options end
 
     /** whether check checksum to make sure file is really change when file changes */

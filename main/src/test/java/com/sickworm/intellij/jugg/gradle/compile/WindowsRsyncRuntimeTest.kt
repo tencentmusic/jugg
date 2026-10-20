@@ -1,32 +1,23 @@
 package com.sickworm.intellij.jugg.gradle.compile
 
-import com.google.gson.Gson
 import org.junit.Assert.*
 import org.junit.Assume.assumeTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import com.sickworm.intellij.jugg.compiler.copyResource
 import com.sickworm.intellij.jugg.compiler.isWindows
 import java.io.File
-import java.security.MessageDigest
 import java.nio.file.Files
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 
 class WindowsRsyncRuntimeTest {
     @get:Rule val folder = TemporaryFolder()
-    private fun load(root: File) = WindowsRsyncRuntime(root,
+    private fun load(root: File) = WindowsRsyncRuntime.installedCygwin(root,
         CmdExecutor(org.mockito.Mockito.mock(com.intellij.openapi.diagnostic.Logger::class.java)))
 
-    private fun runtime(): File {
-        val root = folder.newFolder("runtime space & (test)")
-        val executable = File(root, "tool.exe").apply { writeText("fixed tool") }
-        val hash = MessageDigest.getInstance("SHA-256").digest(executable.readBytes())
-            .joinToString("") { "%02x".format(it) }
-        File(root, "runtime.json").writeText(Gson().toJson(mapOf(
-            "engine" to "oc-rsync", "rsync" to "tool.exe", "ssh" to "tool.exe",
-            "sha256" to mapOf("tool.exe" to hash),
-        )))
-        return root
+    private fun runtime(): File = File(System.getenv("JUGG_CYGWIN_HOME") ?: "D:/cygwin64").also {
+        assumeTrue(File(it, "bin/rsync.exe").isFile)
     }
 
     @Test
@@ -63,17 +54,8 @@ class WindowsRsyncRuntimeTest {
     }
 
     @Test
-    fun `damaged runtime never starts a transfer`() {
-        val root = runtime()
-        File(root, "tool.exe").writeText("corrupt")
-        assertThrows(IllegalArgumentException::class.java) { load(root) }
-    }
-
-    @Test
-    fun `missing runtime never starts a transfer`() {
-        val root = runtime()
-        assertTrue(File(root, "tool.exe").delete())
-        assertThrows(IllegalArgumentException::class.java) { load(root) }
+    fun `missing Cygwin tools never start a transfer`() {
+        assertThrows(IllegalArgumentException::class.java) { load(folder.newFolder("missing")) }
     }
 
     @Test
@@ -89,11 +71,11 @@ class WindowsRsyncRuntimeTest {
         assertFalse(arguments.contains("--copy-unsafe-links"))
         assertTrue(arguments.indexOf("--include=/build/jugg/config/**") < arguments.indexOf("--exclude=*.iml"))
         assertEquals("user@host:/remote/project", arguments.last())
-        assertEquals(root.path.replace('\\', '/') + "/", arguments[arguments.lastIndex - 1])
+        assertEquals(load(root).localPath(root.path) + "/", arguments[arguments.lastIndex - 1])
         assertTrue(arguments[2].contains("-p' '2222"))
         assertTrue(arguments[2].contains("PubkeyAuthentication=yes"))
         assertTrue(arguments[2].contains("PreferredAuthentications=publickey"))
-        assertTrue(arguments[2].contains("'-F' 'NUL'"))
+        assertTrue(arguments[2].contains("'-F' '/dev/null'"))
         assertFalse(arguments[2].contains("UserKnownHostsFile=\""))
     }
 
@@ -107,11 +89,11 @@ class WindowsRsyncRuntimeTest {
         val arguments = runtime.arguments(command)
         assertFalse(arguments.any { it.contains(password) })
         assertTrue(arguments[2].contains("BatchMode=no"))
-        assertTrue(arguments[2].contains("jugg-ssh.exe"))
+        assertTrue(arguments[2].contains("/bin/ssh.exe"))
         val environment = runtime.environment(command)
         assertEquals(password, environment["JUGG_RSYNC_PASSWORD"])
         assertEquals("force", environment["SSH_ASKPASS_REQUIRE"])
-        val process = ProcessBuilder(environment.getValue("SSH_ASKPASS")).apply {
+        val process = ProcessBuilder(copyResource("/tools/windows/rsync/askpass.exe").absolutePath).apply {
             environment().putAll(environment)
         }.start()
         assertEquals(password + "\n", process.inputStream.readBytes().toString(Charsets.UTF_8))

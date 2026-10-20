@@ -1,5 +1,7 @@
 # Windows → macOS 真实工程验收
 
+> 当前方案已统一为 Cygwin + rsync，移除范围和最新验证见 [Cygwin 收敛记录](windows_rsync_cygwin_only.md)。本文双方案部分保留为历史取舍证据。
+
 创建：2026-10-19。目标是本分支插件可交付 Windows 用户测试；本记录以本轮实测结果为准，不将早期 Linux 小夹具结论视为 macOS 证据。
 
 ## 范围与凭据

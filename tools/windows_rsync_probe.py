@@ -1,4 +1,4 @@
-"""Independent Windows rsync SSH comparison probe; never opens Jugg support gates."""
+"""Independent Windows Cygwin rsync SSH probe; never opens Jugg support gates."""
 
 import argparse
 import hashlib
@@ -44,8 +44,7 @@ class Probe:
         self.events = []
         self.remote = None
         self.env = dict(os.environ)
-        if config['engine'] == 'cygwin':
-            self.env['CYGWIN'] = 'winsymlinks:nativestrict'
+        self.env['CYGWIN'] = 'winsymlinks:nativestrict'
         # Keep runtime DLL discovery beside executables; exclude Git/MSYS2 from PATH.
         self.env['PATH'] = str(Path(config['rsync']).parent) + os.pathsep + str(
             Path(os.environ.get('SystemRoot', 'C:/Windows')) / 'System32')
@@ -80,14 +79,12 @@ class Probe:
 
     def local(self, path):
         path = str(Path(path).resolve())
-        if self.config['engine'] == 'cygwin':
-            return self.run([self.config['cygpath'], '-u', path]).strip()
-        return path.replace('\\', '/')
+        return self.run([self.config['cygpath'], '-u', path]).strip()
 
     def ssh(self, bad_key=False):
         keys = [self.config['bad_key']] if bad_key else self.config['keys']
         password = bool(self.config.get('password')) and not bad_key
-        args = [self.config['ssh'], '-F', '/dev/null' if self.config['engine'] == 'cygwin' else 'NUL',
+        args = [self.config['ssh'], '-F', '/dev/null',
                 '-p', str(self.config['port']), '-o', 'PubkeyAuthentication=' + ('no' if password else 'yes'),
                 '-o', 'PreferredAuthentications=' + ('password,keyboard-interactive' if password else 'publickey'),
                 '-o', 'NumberOfPasswordPrompts=1',
@@ -105,8 +102,7 @@ class Probe:
     def transfer(self, args, source, dest, expected=0, bad_key=False):
         # rsync parses -e itself even though the outer process uses argv.
         ssh = self.ssh(bad_key)
-        if self.config['engine'] == 'cygwin':
-            ssh[0] = self.local(ssh[0])
+        ssh[0] = self.local(ssh[0])
         return self.run([self.config['rsync'], '-e', shlex.join(ssh)] +
                         args + [source, dest], expected)
 
@@ -206,7 +202,7 @@ def main():
     parser.add_argument('--links', action='store_true', help='Requires Windows native symlink permission')
     args = parser.parse_args()
     config = json.loads(args.config.read_text(encoding='utf-8-sig'))
-    assert config['engine'] in ['oc-rsync', 'cygwin']
+    assert config['engine'] == 'cygwin'
     output = args.output.resolve() / (config['engine'] + '-' + uuid.uuid4().hex[:10])
     output.mkdir(parents=True)
     probe = Probe(config, output)

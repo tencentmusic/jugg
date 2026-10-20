@@ -9,7 +9,6 @@ import shutil
 import statistics
 import time
 import uuid
-import zipfile
 
 from windows_rsync_acceptance import SafeProbe, failure
 from windows_rsync_probe import PUSH
@@ -30,29 +29,16 @@ def measure(probe, samples, phase, arguments, source, destination):
 def make_probe(private, engine, output):
     secret = private['remoteSshPassword']
     keys = [str(Path(secret).resolve())] if Path(secret).is_file() else []
-    native = Path(os.environ.get('SystemRoot', 'C:/Windows')) / 'System32/OpenSSH/ssh.exe'
     cygwin = Path(os.environ.get('JUGG_CYGWIN_HOME') or
                   ('D:/cygwin64' if Path('D:/cygwin64/bin/rsync.exe').is_file() else 'C:/cygwin64'))
     executable = cygwin / 'bin/rsync.exe'
-    if engine == 'oc-rsync':
-        with zipfile.ZipFile('main/src/main/resources/tools/windows/rsync/runtime.zip') as bundle:
-            binary = bundle.read('bin/rsync.exe')
-            manifest = json.loads(bundle.read('runtime.json'))
-            if hashlib.sha256(binary).hexdigest() != manifest['sha256']['bin/rsync.exe']:
-                raise RuntimeError('bundled_runtime_hash_mismatch:exit_1')
-            executable = output / 'rsync.exe'
-            executable.write_bytes(binary)
     config = dict(engine=engine, target=private['remoteSshUser'] + '@' + private['remoteSshIp'],
                   port=private['remoteSshPort'], keys=keys, password=None if keys else secret,
                   known_hosts=str(output / 'known_hosts'), timeout=300,
                   cygpath=str(cygwin / 'bin/cygpath.exe'), rsync=str(executable),
-                  ssh=str(cygwin / 'bin/ssh.exe') if engine == 'cygwin' else str(native))
+                  ssh=str(cygwin / 'bin/ssh.exe'))
     probe = SafeProbe(config, output)
     if not keys:
-        if engine != 'cygwin':
-            alias = output / 'jugg-ssh.exe'
-            shutil.copyfile(native, alias)
-            config['ssh'] = str(alias)
         helper = Path('main/src/main/resources/tools/windows/rsync/askpass.exe').resolve()
         probe.env.update(SSH_ASKPASS=probe.local(helper), SSH_ASKPASS_REQUIRE='force',
                          DISPLAY='jugg:0', JUGG_RSYNC_PASSWORD=secret)
@@ -118,23 +104,15 @@ def benchmark(probe, project, remote_artifacts, rounds, local_artifacts=None):
                                'full_pull', 'unchanged_pull', 'changed_pull']}
     source_hashes = hashes(source)
     artifact_bytes = sum(p.stat().st_size for p in artifacts.rglob('*') if p.is_file())
-    blocked_pull = None
     try:
         for iteration in range(rounds):
             push_round(probe, source, iteration, samples)
-            if blocked_pull is None:
-                try:
-                    pull_round(probe, artifacts, delta_relative, iteration, samples)
-                except RuntimeError as error:
-                    if probe.config['engine'] != 'oc-rsync' or str(error) != 'command_failed:exit_14':
-                        raise
-                    blocked_pull = failure(probe.phase, error)
+            pull_round(probe, artifacts, delta_relative, iteration, samples)
         return dict(rounds=rounds, source_files=len(source_hashes),
                     source_bytes=sum(p.stat().st_size for p in source.rglob('*') if p.is_file()),
                     artifact_files=len(original_hashes), artifact_initial_bytes=artifact_bytes,
                     scope='real source and supplied real artifacts; isolated changes; includes SSH startup, excludes local path conversion',
                     verified='remote SHA-256 of every uploaded file; local SHA-256 after each completed pull round',
-                    blocked_pull=blocked_pull,
                     workloads={name: dict(seconds=values, median_seconds=round(statistics.median(values), 4))
                                for name, values in samples.items() if values})
     finally:
@@ -148,7 +126,7 @@ def main():
     artifacts = parser.add_mutually_exclusive_group(required=True)
     artifacts.add_argument('--remote-artifacts')
     artifacts.add_argument('--artifacts', type=Path)
-    parser.add_argument('--engine', choices=['oc-rsync', 'cygwin'], required=True)
+    parser.add_argument('--engine', choices=['cygwin'], default='cygwin')
     parser.add_argument('--rounds', type=int, choices=range(1, 6), default=3)
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
@@ -159,8 +137,6 @@ def main():
         result = dict(engine=args.engine, status='passed',
                       rsync_sha256=hashlib.sha256(Path(probe.config['rsync']).read_bytes()).hexdigest(), **benchmark(
             probe, args.project.resolve(), args.remote_artifacts, args.rounds, args.artifacts))
-        if result['blocked_pull'] is not None:
-            result['status'] = 'failed'
     except Exception as error:
         result = dict(engine=args.engine, status='failed', **failure(probe.phase, error))
         if isinstance(error, OSError):

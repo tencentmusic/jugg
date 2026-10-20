@@ -4,7 +4,6 @@ These archives are tracked in the public Jugg source revision for redistributed 
 
 | Archive | Component | Reason |
 |---|---|---|
-| `oc-rsync-0.6.4.tar.gz` | oc-rsync 0.6.4 | Corresponding source at commit 94226093b02650dde1e6f264dbfdf9f00716a078 for the unmodified GPL-3.0-or-later Windows executable |
 | `rsync-3.4.1.tar.gz` | rsync 3.4.1 | Corresponding source for the redistributed unmodified GPL-3.0-or-later executable |
 | `sshpass-1.10.tar.gz` | sshpass 1.10 | Corresponding source for the redistributed unmodified GPL-2.0-or-later executable |
 | `trove4j-1.0.20200330-sources.jar` | Trove4J 1.0.20200330 | Source availability for the redistributed LGPL-2.1-or-later library |

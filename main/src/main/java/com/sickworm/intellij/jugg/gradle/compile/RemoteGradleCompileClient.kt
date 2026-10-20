@@ -988,9 +988,7 @@ class RemoteGradleCompileClient(
             val remoteCheck = remoteInvoke(SimpleSshCommand("case \"\$(uname -s)\" in Linux|Darwin) true;; *) false;; esac"), NO_OUTPUT_TIMEOUT_MS)
             if (remoteCheck != 0) return remoteCheck
             cmdExecutor.terminalOutputListener = terminalOutputListener
-            val remoteUsesOpenRsync = command is RsyncFetchClasspathCommand && remoteInvoke(
-                SimpleSshCommand("rsync --version 2>/dev/null | grep -q '^openrsync: protocol version 29$'"), NO_OUTPUT_TIMEOUT_MS) == 0
-            val runtime = WindowsRsyncRuntime.load(cmdExecutor, logger, remoteUsesOpenRsync)
+            val runtime = WindowsRsyncRuntime.load(cmdExecutor)
             cmdExecutor.prepareForInvoke()
             if (isCanceled) cmdExecutor.release()
             val arguments = runtime.arguments(command)

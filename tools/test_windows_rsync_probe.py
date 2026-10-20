@@ -14,7 +14,7 @@ class ProbeProcessTest(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.output = Path(self.temp.name)
-        self.probe = Probe({'engine': 'oc-rsync', 'rsync': sys.executable,
+        self.probe = Probe({'engine': 'cygwin', 'rsync': sys.executable,
                             'timeout': 3}, self.output)
 
     def report(self):

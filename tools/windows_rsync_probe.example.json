@@ -1,7 +1,7 @@
 {
-  "engine": "oc-rsync",
-  "rsync": "D:/rsync/oc-rsync/rsync.exe",
-  "ssh": "C:/Windows/System32/OpenSSH/ssh.exe",
+  "engine": "cygwin",
+  "rsync": "C:/cygwin64/bin/rsync.exe",
+  "ssh": "C:/cygwin64/bin/ssh.exe",
   "cygpath": "C:/cygwin64/bin/cygpath.exe",
   "target": "testuser@192.0.2.10",
   "port": 22,

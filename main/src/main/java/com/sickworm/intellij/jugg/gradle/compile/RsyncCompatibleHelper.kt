@@ -43,7 +43,7 @@ object RsyncCompatibleHelper {
 
     private fun detectWindowsRuntime(logger: Logger): Boolean {
         return try {
-            WindowsRsyncRuntime.load(CmdExecutor(logger), logger).probe()
+            WindowsRsyncRuntime.load(CmdExecutor(logger)).probe()
         } catch (exception: java.io.IOException) {
             logger.warn("Windows rsync runtime probe failed", exception)
             false
