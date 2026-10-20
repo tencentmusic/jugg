@@ -10,12 +10,18 @@ import com.sickworm.intellij.jugg.deploy.run.SuggestRunConfiguration
 import com.sickworm.intellij.jugg.ide.JuggRunConfiguration
 import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
+import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.ide.bean.SyncMode
+import com.sickworm.intellij.jugg.ide.logic.toRunConfigurationTemplate
 import com.sickworm.intellij.jugg.mock.TestGlobal
 import com.sickworm.intellij.jugg.project.info.JuggProjectInfo
 import com.sickworm.intellij.jugg.project.info.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import com.sickworm.intellij.jugg.project.info.Variant
+import com.sickworm.intellij.jugg.server.protocols.RunConfigurationTemplate
+import com.sickworm.intellij.jugg.server.toRunConfigurationTemplate
+import org.junit.After
+import org.junit.Before
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -38,6 +44,83 @@ class IdeaCliRunConfigurationFlowTest {
 
     @get:Rule
     val temporaryFolder = TemporaryFolder()
+
+    private lateinit var originalGlobalRoot: File
+
+    @Before
+    fun isolateGlobalSettings() {
+        TestGlobal.init()
+        originalGlobalRoot = JuggGlobalPathManager.rootDir
+        JuggGlobalPathManager.rootDir = temporaryFolder.newFolder("global-settings")
+    }
+
+    @After
+    fun restoreGlobalSettings() {
+        JuggGlobalPathManager.rootDir = originalGlobalRoot
+    }
+
+    @Test
+    fun `new project suggestion inherits saved remote settings in idea and shared profile`() {
+        val fixture = fixture("remote_suggestion", includePaid = false, moduleType = ModuleInfo.Type.Unknown)
+        val template = remoteTemplate()
+        JuggSettings.defaultCompileSettings = template
+        JuggSettings.reload()
+        val options = ideaOptions("", "")
+        val created = juggSettings("jugg:app", options)
+        whenever(fixture.runManager.createConfiguration(any<String>(), any<ConfigurationFactory>()))
+            .thenReturn(created)
+
+        assertTrue(fixture.manager.ensureConfiguration(listOf(suggestion("app", "debug"))))
+
+        assertEquals(template.copy(compileCommand = options.compileCommand, outputApkName = options.outputApkName),
+            options.toRunConfigurationTemplate())
+        assertEquals("./gradlew :app:assembleDebug", options.compileCommand)
+        assertEquals("app/build/outputs/apk/debug/*.apk", options.outputApkName)
+        assertEquals(template, fixture.store.loadCurrent()!!.toCompileOptions(fixture.pathManager).toRunConfigurationTemplate())
+    }
+
+    @Test
+    fun `project info fallback inherits remote settings while keeping its own build target`() {
+        val fixture = fixture("remote_fallback", includePaid = false)
+        JuggSettings.defaultCompileSettings = remoteTemplate()
+        val options = ideaOptions("", "")
+        val created = juggSettings("app debug", options)
+        whenever(fixture.runManager.createConfiguration(any<String>(), any<ConfigurationFactory>()))
+            .thenReturn(created)
+
+        assertTrue(fixture.manager.ensureFallbackConfiguration())
+
+        val stored = fixture.store.loadCurrent()!!
+        assertTrue(options.isRemoteCompile)
+        assertEquals("builder", options.remoteSshUser)
+        assertEquals("./gradlew :app:assembleDebug", options.compileCommand)
+        assertEquals(options.compileCommand, stored.compileCommand)
+        assertTrue(stored.isRemoteCompile)
+        assertEquals(options.remoteSshPassword, stored.remoteSshPassword)
+        assertEquals(options.remoteSyncPath, stored.remoteSyncPath)
+    }
+
+    @Test
+    fun `saved remote defaults do not replace an existing local configuration`() {
+        val fixture = fixture("existing_local", includePaid = false)
+        JuggSettings.defaultCompileSettings = remoteTemplate()
+        val options = ideaOptions("./gradlew :app:assembleDebug", "custom.apk").apply {
+            environmentVariables = "CHANNEL=local"
+        }
+        val existing = juggSettings("local", options)
+        whenever(fixture.runManager.getConfigurationSettingsList(com.sickworm.intellij.jugg.ide.JuggConfigurationType::class.java))
+            .thenReturn(listOf(existing))
+        whenever(fixture.runManager.selectedConfiguration).thenReturn(existing)
+
+        assertTrue(fixture.manager.ensureConfiguration(listOf(suggestion("app", "debug"))))
+        fixture.manager.reconcileActiveBuildVariants(listOf(suggestion("app", "debug")))
+
+        assertFalse(options.isRemoteCompile)
+        assertEquals("CHANNEL=local", options.environmentVariables)
+        assertEquals("custom.apk", options.outputApkName)
+        assertFalse(fixture.store.loadCurrent()!!.isRemoteCompile)
+        assertEquals("CHANNEL=local", fixture.store.loadCurrent()!!.environmentVariables)
+    }
 
     @Test
     fun `idea import keeps stable id across rename and selected jugg configuration updates pointer`() {
@@ -676,6 +759,28 @@ class IdeaCliRunConfigurationFlowTest {
         assertEquals(stored.isRemoteSyncExcludePatternsCustomized, createdOptions.isRemoteSyncExcludePatternsCustomized)
         assertEquals(stored.remoteSyncExcludePatterns, createdOptions.remoteSyncExcludePatterns.orEmpty())
         assertEquals(stored.id, createdOptions.cliRunConfigurationId)
+    }
+
+    private fun remoteTemplate(): RunConfigurationTemplate {
+        return RunConfigurationTemplate.default.copy(
+            isRemoteCompile = true,
+            remoteSshUser = "builder",
+            remoteSshPassword = "saved-password",
+            remoteSshIp = "build.example.test",
+            remoteSshPort = 2222,
+            localToRemoteIftConfigName = "upload",
+            localToRemoteSyncPath = "local-source",
+            remoteSyncPath = "/srv/builds",
+            remoteToLocalIftConfigName = "download",
+            remoteToLocalSyncPath = "local-output",
+            httpProxyIp = "proxy.example.test",
+            httpProxyPort = 8080,
+            isSyncAllProjects = true,
+            syncMode = SyncMode.RSYNC_SIMPLE.modeName,
+            environmentVariables = "JAVA_HOME=/opt/jdk",
+            remoteSyncExcludePatterns = "local-temp/**",
+            isRemoteSyncExcludePatternsCustomized = true,
+        )
     }
 
     private fun fixture(

@@ -11,6 +11,8 @@ import com.sickworm.intellij.jugg.ide.JuggConfigurationType
 import com.sickworm.intellij.jugg.ide.JuggRunConfiguration
 import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
+import com.sickworm.intellij.jugg.ide.bean.JuggSettings
+import com.sickworm.intellij.jugg.ide.logic.setDefaultRemoteOption
 import com.sickworm.intellij.jugg.project.info.JuggProjectInfo
 import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import java.util.UUID
@@ -218,8 +220,10 @@ class IdeaCliRunConfigurationManager(
         usedNames += name
         val settings = runManager.createConfiguration(name, factory)
         val ideaConfiguration = settings.configuration as? JuggRunConfiguration ?: return null
-        val configuration = target.copy(name = name)
-        configuration.applyTo(ideaConfiguration.state ?: return null)
+        val options = ideaConfiguration.state ?: return null
+        target.applyTo(options)
+        options.setDefaultRemoteOption(JuggSettings.defaultCompileSettings)
+        val configuration = target.copy(name = name).withRemoteOptions(options)
         settings.isActivateToolWindowBeforeRun = false
         runManager.addConfiguration(settings)
         saveConfiguration(configuration)
@@ -422,6 +426,12 @@ class IdeaCliRunConfigurationManager(
             buildTarget = if (options.enableAndroidTest) BuildTarget.ANDROID_TEST else BuildTarget.APP,
             compileCommand = options.compileCommand.orEmpty(),
             outputApkName = options.outputApkName.orEmpty(),
+        ).withRemoteOptions(options)
+    }
+
+    /** Copies effective IDEA remote settings without changing the confirmed build identity or provenance. */
+    private fun CliRunConfiguration.withRemoteOptions(options: JuggRunConfigurationOptions): CliRunConfiguration {
+        return copy(
             isRemoteCompile = options.isRemoteCompile,
             isSyncAllProjects = options.isSyncAllProjects,
             remoteSshUser = options.remoteSshUser.orEmpty(),
