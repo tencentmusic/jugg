@@ -4,7 +4,7 @@
 
 Windows x64 本地 NTFS → Linux/macOS 支持 `rsync_simple`、完整 `rsync` 与多工程。统一使用本机 Cygwin 的 rsync、ssh 和 cygpath。macOS 使用账号可写的同步目录，并在远程环境变量设置实际 ANDROID_HOME；不能沿用 Linux 的 /home 路径。若 Gradle 全局代理不可用，应修正或在本次编译命令覆盖，不要把依赖下载失败误判为 SSH/rsync 认证失败。
 
-安装 Cygwin x64 的 rsync、openssh；默认检测 C:/cygwin64、D:/cygwin64 与 PATH。自定义安装目录通过 `JUGG_CYGWIN_HOME` 指定，重启 IDE/测试进程生效。不自动安装 Cygwin，无临时切换开关。
+安装 Cygwin x64 的 rsync、openssh，将该安装的 bin 目录加入用户 PATH，重启 IDE/测试进程。只选择 PATH 第一个 rsync.exe，要求同目录 ssh.exe/cygpath.exe；不完整时直接失败，不跳过冲突项。JUGG_CYGWIN_HOME 与固定目录探测已取消。失败控制台提供中英文环境配置 Prompt，可交给自己的 Agent；不自动安装或修改 PATH。
 
 私钥路径或密码继续填写 `remoteSshPassword`。外部 SSH 隔离个人 SSH 配置，密码通过每次子进程环境和 askpass 传递，不放入命令行或文件。askpass.exe 运行需要 Windows 自带 .NET Framework 4；维护者重建可执行 `powershell -File tools/build_windows_rsync_askpass.ps1`。涉及链接时需要 Windows 原生 symlink 权限。上传保留链接，不展开树外目标。
 
@@ -33,6 +33,7 @@ Windows x64 本地 NTFS → Linux/macOS 支持 `rsync_simple`、完整 `rsync` �
 ## 复用 remote compile testcase
 
 ```powershell
+$env:PATH = "D:/cygwin64/bin;$env:PATH" # Only this test process; use your actual installation.
 $env:JUGG_REMOTE_CONFIG_FILE = "$HOME/.jugg/remote.json"
 .\gradlew.bat :idea:cleanTest :idea:test --tests '*RemoteGradleCompileClientTest.testSimulated*'
 ```

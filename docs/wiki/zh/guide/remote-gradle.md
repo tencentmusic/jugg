@@ -40,7 +40,9 @@ Windows x64 本地 NTFS 工程可使用 `rsync_simple` 或完整 `rsync` 连接 
 
 macOS 上请选择该账号可写的同步目录，不要直接沿用 Linux 的 `/home` 路径。在远程编译环境变量中配置构建机实际的 `ANDROID_HOME`，确认 JDK 和依赖仓库网络可用。Windows 上传后，Jugg 会在执行前为本次命令指定的工程内相对 `gradlew` 补齐执行权限。
 
-自行安装 Cygwin x64 的 `rsync` 和 `openssh` 包。插件检测 `C:/cygwin64`、`D:/cygwin64` 和 PATH，自定义位置可设置 `JUGG_CYGWIN_HOME` 后重启 IDE。Jugg 自动使用该安装中的 rsync、ssh 和 cygpath；缺失时提示安装，不会自动安装。
+自行安装 Cygwin x64 的 `rsync` 和 `openssh` 包，将该安装的 `bin` 目录加入用户 PATH，并重启 Android Studio。Jugg 只选择 IDE 继承的 PATH 中第一个 `rsync.exe`，使用它同目录的 `ssh.exe` 和 `cygpath.exe`。如果该目录不完整，补全安装或调整 PATH 顺序；Jugg 不会跳过它去寻找另一套工具，也不使用 `JUGG_CYGWIN_HOME` 或固定安装目录。
+
+环境缺失或工具无法启动时，本次同步结束，控制台会说明原因并提供“Windows rsync 环境配置 / Windows rsync setup”入口。点击后可切换中文或英文，预览并复制配置 Prompt 交给自己的 Agent；路径可能包含本地用户名，请先检查预览。复制失败时仍可选择预览文字手工复制。该入口只提供本地工具配置引导，不采集工程现场或上传报告。Jugg 不自动安装工具或修改 PATH；完成配置后重启 Android Studio，再手动重试。
 
 本地需要 Windows 原生符号链接权限。上传保留链接本身，树外链接目标内容不会自动上传；需要这些资源时，应扩大完整 `rsync` 的同步范围或预先复制文件。外部 SSH 不读取个人 SSH 配置；依赖跳板机、HTTP 代理或交互式二次认证的连接不在此 Windows 接入范围内。
 

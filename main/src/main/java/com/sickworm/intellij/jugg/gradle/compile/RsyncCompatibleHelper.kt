@@ -31,7 +31,8 @@ object RsyncCompatibleHelper {
             return
         }
         if (isWindows) {
-            isCompatible = detectWindowsRuntime(logger)
+            // Windows validates its selected tools once at the first native transfer.
+            isCompatible = true
             isInit = true
             return
         }
@@ -39,18 +40,6 @@ object RsyncCompatibleHelper {
         rsyncPath = getRsyncPath(logger)
         isCompatible = isCompatible(logger)
         isInit = true
-    }
-
-    private fun detectWindowsRuntime(logger: Logger): Boolean {
-        return try {
-            WindowsRsyncRuntime.load(CmdExecutor(logger)).probe()
-        } catch (exception: java.io.IOException) {
-            logger.warn("Windows rsync runtime probe failed", exception)
-            false
-        } catch (exception: RuntimeException) {
-            logger.warn("Windows rsync runtime validation failed", exception)
-            false
-        }
     }
 
     private fun isCompatible(logger: Logger): Boolean {

@@ -79,7 +79,8 @@ JuggManager 初始化
 - 问题报告把现存的 `project_infos.json`、`gradle_project_infos.json` 和 `gradle_include_builds.txt` 当前记录的 `include_build_*_gradle_project_infos.json` 作为默认勾选、可取消的高敏感度候选项，结构化脱敏副本位于 `diagnostics/project-info/`；`applicationId` 等诊断字段保留，SigningConfig 凭据、keystore、keyAlias、Manifest placeholders、APT/KAPT 参数和通用敏感键的值替换为占位符。JSON 解析失败时只跳过对应快照，目录残留的 included build 文件和其他 `project_infos.db` 文件不进入诊断包。必选 Jugg 日志仍排在最前。
 - MCP 拉取产物保留 30 天，问题诊断临时产物保留 7 天；两者在项目启动后使用独立后台任务调用 `ExpiredArtifactCleaner`，局部失败不会阻断另一类清理。
 - `JuggPathManager` 同时暴露 project-local 与 global root：编译产物、DB 优先 project-local；日志按工程隔离在 global `log/`，`build/jugg/log` 仅 best-effort 创建兼容符号链接；跨项目复用资源、deploy cache、hook / resource 文件使用 `JuggGlobalPathManager`。`~/.jugg` 探测失败时，全局 root 改为 `${java.io.tmpdir}/jugg-<user>`，后续编译不应再因家目录权限失败。
-- `WindowsRsyncRuntime` 统一使用本机 Cygwin，依次检测 `JUGG_CYGWIN_HOME`、C:/cygwin64、D:/cygwin64 与 PATH；要求 rsync/openssh/cygpath，缺失明确提示。Cygwin 不分发、不自动安装；无引擎开关或候选运行时覆盖。
+- `WindowsRsyncRuntime` 只从 IDE 继承的 PATH 顺序选择第一个 rsync.exe，忽略空项和相对目录；只使用同目录 ssh.exe/cygpath.exe，不跳过不完整安装。无 JUGG_CYGWIN_HOME、固定根目录或系统 OpenSSH 回退。首次本地传输验证 rsync/ssh 可启动，cygpath 在实际转换时验证；同一客户端复用已验证运行时，避免逐次探测。Cygwin 不分发、不自动安装。
+- 本地检测失败通过 `WindowsRsyncSetupException` 和 `TerminalOutputListener.onWindowsRsyncSetupFailure` 传递类别、工具路径、缺失项和受控原因；不传输原始进程输出或远端认证数据。CLI 输出恢复方法，IDE 提供双语环境配置 Prompt hyperlink，并跳过 ASK AI 现场采集。对话框仅预览/复制，复制失败保留预览供手工操作；配置完成后重启 IDE 并手动重试。
 - Windows 外部 SSH 使用同一 Cygwin 安装的 ssh，隔离用户配置，按已有配置使用公钥或密码；密码通过每次调用的环境和内置 askpass.exe 读取，不出现在 argv/日志/文件中。askpass 源码为 `tools/windows_rsync_askpass.cs`，由系统 .NET Framework 4 编译。known_hosts 参数不夹带字面双引号，统一由 -e 渲染层转义。
 - Cygwin `winsymlinks:nativestrict` 在链接目标尚未落盘时会报 ENOENT。只有 classpath 拉取返回 23 且包含明确的 symlink ENOENT 诊断时，才在首次传输已落盘目标后重试一次；第二次结果原样返回。认证、断网和普通部分传输错误不重试，取消也不重试。下载链接已由 JVM 读取验证，不回退 Cygwin 专用链接。
 - `PlatformApi.impl` 是 host 注入边界；core 代码不要绕过它直接调用 IDE / Android Studio API，否则 `main` 模块测试和 CLI 场景会失效。

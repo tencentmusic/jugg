@@ -54,6 +54,7 @@ class RemoteGradleCompileClient(
     private var cancelCtrlCAttempts = 0
     private var lastCancelCtrlCAtMs = Long.MIN_VALUE
     private var isTerminalOutputLoggingEnabled = true
+    private var windowsRsyncRuntime: WindowsRsyncRuntime? = null
 
     override fun login(juggGradleCompileOptions: JuggGradleCompileOptions) {
         isTerminalOutputLoggingEnabled = true
@@ -981,14 +982,18 @@ class RemoteGradleCompileClient(
     }
 
     private fun invokeWindowsRsync(command: RsyncCommand): Int {
+        if (isCanceled) return IGradleCompileClient.Error.ERROR_CANCELED
         try {
             val options = checkLoginOnStart()
             require(options.syncMode.isRsync && !isRemoteWindows) { "Windows rsync requires a Linux or macOS server" }
             require(options.httpProxyIp.isEmpty() || options.httpProxyPort == 0) { "Windows rsync does not support HTTP proxy authentication" }
+            cmdExecutor.terminalOutputListener = terminalOutputListener
+            val runtime = windowsRsyncRuntime ?: WindowsRsyncRuntime.load(cmdExecutor).also {
+                it.probe()
+                windowsRsyncRuntime = it
+            }
             val remoteCheck = remoteInvoke(SimpleSshCommand("case \"\$(uname -s)\" in Linux|Darwin) true;; *) false;; esac"), NO_OUTPUT_TIMEOUT_MS)
             if (remoteCheck != 0) return remoteCheck
-            cmdExecutor.terminalOutputListener = terminalOutputListener
-            val runtime = WindowsRsyncRuntime.load(cmdExecutor)
             cmdExecutor.prepareForInvoke()
             if (isCanceled) cmdExecutor.release()
             val arguments = runtime.arguments(command)
@@ -996,13 +1001,18 @@ class RemoteGradleCompileClient(
             cmdExecutor.prepareForInvoke()
             if (isCanceled) cmdExecutor.release()
             val output = mutableListOf<String>()
-            val result = cmdExecutor.invokeProcess(arguments, environment, output)
+            val result = runtime.invoke(arguments, environment, output)
             if (isCanceled || !runtime.canRetryLinkCreation(command, result, output)) return result
             // Cygwin cannot create a native link until its target has arrived in the first pass.
             logger.info("Retrying Cygwin classpath links once after their targets were transferred")
             cmdExecutor.prepareForInvoke()
             if (isCanceled) cmdExecutor.release()
-            return cmdExecutor.invokeProcess(arguments, environment)
+            return runtime.invoke(arguments, environment)
+        } catch (exception: WindowsRsyncSetupException) {
+            if (!isCanceled) {
+                terminalOutputListener.onWindowsRsyncSetupFailure(exception)
+                logger.warn(exception.message.orEmpty())
+            }
         } catch (exception: java.io.IOException) {
             logger.warn("Windows rsync process or runtime failed", exception)
         } catch (exception: RuntimeException) {

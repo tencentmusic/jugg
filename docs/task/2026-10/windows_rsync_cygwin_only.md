@@ -1,5 +1,7 @@
 # Windows rsync 统一使用 Cygwin
 
+> 当前工具选择已调整为只使用 PATH 首个 rsync，见 [PATH 与环境引导](windows_rsync_path_setup_prompt.md)。以下保留单方案收敛时的实现和验收记录。
+
 ## 范围与依据
 
 用户确定后续只使用 Cygwin + rsync。此前真实 Mac 验证发现 oc-rsync 0.6.4 与系统 openrsync protocol 29 的多目录拉取不兼容（IPC 14），详见 [Mac 验收](windows_rsync_mac_real_acceptance.md)。本任务移除已放弃的方案，不增加自动安装或新的用户配置。

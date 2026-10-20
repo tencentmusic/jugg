@@ -12,14 +12,42 @@ internal class WindowsRsyncRuntime private constructor(
     val environment: Map<String, String> = mapOf("CYGWIN" to "winsymlinks:nativestrict")
 
     init {
-        require(listOf("rsync", "ssh", "cygpath").all { File(root, "bin/$it.exe").isFile }) {
-            "Install Cygwin x64 with rsync and openssh packages; set JUGG_CYGWIN_HOME to its installation directory"
-        }
+        val missing = listOf("ssh", "cygpath").map { "$it.exe" }.filterNot { File(root, it).isFile }
+        if (missing.isNotEmpty()) throw WindowsRsyncSetupException("missing_tools", executable("rsync"), missing)
     }
 
-    private fun executable(name: String): String = File(root, "bin/$name.exe").absolutePath
+    private fun executable(name: String): String = File(root, "$name.exe").absolutePath
 
-    fun probe(): Boolean = executor.invokeProcess(listOf(executable("rsync"), "--version"), environment) == 0
+    private fun startFailureReason(exception: java.io.IOException): String =
+        exception.javaClass.simpleName + (Regex("error=\\d+").find(exception.message.orEmpty())?.value?.let { ": $it" } ?: "")
+
+    fun probe(): Boolean {
+        checkTool("rsync", "--version")
+        checkTool("ssh", "-V")
+        return true
+    }
+
+    private fun checkTool(name: String, argument: String) {
+        val path = executable(name)
+        val result = try {
+            executor.invokeProcess(listOf(path, argument), environment, mutableListOf())
+        } catch (exception: java.io.IOException) {
+            throw WindowsRsyncSetupException("tool_start_failed", path, safeReason = startFailureReason(exception))
+        }
+        if (result != 0) throw WindowsRsyncSetupException("tool_probe_failed", path, safeReason = "Exit code: $result")
+    }
+
+    fun invoke(arguments: List<String>, environment: Map<String, String>, output: MutableList<String>? = null): Int {
+        val result = try {
+            executor.invokeProcess(arguments, environment, output)
+        } catch (exception: java.io.IOException) {
+            throw WindowsRsyncSetupException("tool_start_failed", executable("rsync"), safeReason = startFailureReason(exception))
+        }
+        if (result < -65536) {
+            throw WindowsRsyncSetupException("tool_start_failed", executable("rsync"), safeReason = "Exit code: $result")
+        }
+        return result
+    }
 
     fun canRetryLinkCreation(command: RsyncCommand, result: Int, output: List<String>): Boolean =
         command is RsyncFetchClasspathCommand && result == 23 && output.any {
@@ -32,8 +60,14 @@ internal class WindowsRsyncRuntime private constructor(
         require(Files.getFileStore(file.toPath().let { if (Files.exists(it)) it else file.parentFile.toPath() })
             .type().equals("NTFS", ignoreCase = true)) { "Windows rsync requires local NTFS storage" }
         val output = mutableListOf<String>()
-        val result = executor.invokeProcess(listOf(executable("cygpath"), "-u", file.path), environment, output)
-        require(result == 0 && output.size == 1 && output.single().startsWith('/')) { "cygpath failed: $result $output" }
+        val result = try {
+            executor.invokeProcess(listOf(executable("cygpath"), "-u", file.path), environment, output)
+        } catch (exception: java.io.IOException) {
+            throw WindowsRsyncSetupException("tool_start_failed", executable("cygpath"), safeReason = startFailureReason(exception))
+        }
+        if (result != 0 || output.size != 1 || !output.single().startsWith('/')) {
+            throw WindowsRsyncSetupException("path_conversion_failed", executable("cygpath"), safeReason = "Exit code: $result; invalid conversion result")
+        }
         return output.single()
     }
 
@@ -73,22 +107,15 @@ internal class WindowsRsyncRuntime private constructor(
             require(System.getProperty("os.arch").lowercase() in listOf("amd64", "x86_64")) {
                 "Windows rsync supports x64 only"
             }
-            val home = System.getenv("JUGG_CYGWIN_HOME")
-            return if (home.isNullOrBlank()) detectInstalledCygwin(executor) else installedCygwin(File(home), executor)
+            return fromPath(System.getenv("PATH").orEmpty(), executor)
         }
 
-        private fun detectInstalledCygwin(executor: CmdExecutor): WindowsRsyncRuntime {
-            val roots = listOf(File("C:/cygwin64"), File("D:/cygwin64")) +
-                    System.getenv("PATH").orEmpty().split(File.pathSeparator).map { File(it).parentFile }
-            val root = roots.filterNotNull().firstOrNull { directory ->
-                listOf("rsync", "ssh", "cygpath").all { File(directory, "bin/$it.exe").isFile }
-            }
-                ?: error("Install Cygwin x64 with rsync and openssh packages; set JUGG_CYGWIN_HOME to its installation directory")
-            return installedCygwin(root, executor)
-        }
-
-        internal fun installedCygwin(root: File, executor: CmdExecutor): WindowsRsyncRuntime {
-            return WindowsRsyncRuntime(root, executor)
+        internal fun fromPath(path: String, executor: CmdExecutor): WindowsRsyncRuntime {
+            val rsync = path.split(File.pathSeparator).asSequence().map { it.trim().trim('"') }
+                .filter { it.isNotEmpty() }.map { File(it) }.filter { it.isAbsolute }
+                .map { File(it, "rsync.exe") }.firstOrNull { it.isFile }
+                ?: throw WindowsRsyncSetupException("rsync_not_found")
+            return WindowsRsyncRuntime(rsync.absoluteFile.parentFile, executor)
         }
 
         private fun quote(value: String): String = "'${value.replace("'", "'\"'\"'")}'"

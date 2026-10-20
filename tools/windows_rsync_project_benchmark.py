@@ -29,14 +29,19 @@ def measure(probe, samples, phase, arguments, source, destination):
 def make_probe(private, engine, output):
     secret = private['remoteSshPassword']
     keys = [str(Path(secret).resolve())] if Path(secret).is_file() else []
-    cygwin = Path(os.environ.get('JUGG_CYGWIN_HOME') or
-                  ('D:/cygwin64' if Path('D:/cygwin64/bin/rsync.exe').is_file() else 'C:/cygwin64'))
-    executable = cygwin / 'bin/rsync.exe'
+    directories = (Path(entry.strip().strip('"')) for entry in os.environ.get('PATH', '').split(os.pathsep) if entry.strip())
+    executable = next((directory / 'rsync.exe' for directory in directories
+                       if directory.is_absolute() and (directory / 'rsync.exe').is_file()), None)
+    if executable is None:
+        raise RuntimeError('rsync_not_found:exit_1')
+    tools = executable.parent
+    if not all((tools / name).is_file() for name in ['ssh.exe', 'cygpath.exe']):
+        raise RuntimeError('missing_sibling_tools:exit_1')
     config = dict(engine=engine, target=private['remoteSshUser'] + '@' + private['remoteSshIp'],
                   port=private['remoteSshPort'], keys=keys, password=None if keys else secret,
                   known_hosts=str(output / 'known_hosts'), timeout=300,
-                  cygpath=str(cygwin / 'bin/cygpath.exe'), rsync=str(executable),
-                  ssh=str(cygwin / 'bin/ssh.exe'))
+                  cygpath=str(tools / 'cygpath.exe'), rsync=str(executable),
+                  ssh=str(tools / 'ssh.exe'))
     probe = SafeProbe(config, output)
     if not keys:
         helper = Path('main/src/main/resources/tools/windows/rsync/askpass.exe').resolve()

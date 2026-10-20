@@ -13,11 +13,63 @@ import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 
 class WindowsRsyncRuntimeTest {
     @get:Rule val folder = TemporaryFolder()
-    private fun load(root: File) = WindowsRsyncRuntime.installedCygwin(root,
+    private fun load(root: File) = WindowsRsyncRuntime.fromPath(File(root, "bin").path,
         CmdExecutor(org.mockito.Mockito.mock(com.intellij.openapi.diagnostic.Logger::class.java)))
 
     private fun runtime(): File = File(System.getenv("JUGG_CYGWIN_HOME") ?: "D:/cygwin64").also {
         assumeTrue(File(it, "bin/rsync.exe").isFile)
+    }
+
+    @Test
+    fun `probe preserves the selected tool and its failing exit code`() {
+        val bin = folder.newFolder("broken tools")
+        listOf("rsync", "ssh", "cygpath").forEach { File(bin, "$it.exe").writeText("fixture") }
+        val executor = org.mockito.Mockito.mock(CmdExecutor::class.java)
+        org.mockito.kotlin.whenever(executor.invokeProcess(org.mockito.kotlin.any(), org.mockito.kotlin.any(),
+            org.mockito.kotlin.anyOrNull())).thenReturn(127)
+        val failure = assertThrows(WindowsRsyncSetupException::class.java) {
+            WindowsRsyncRuntime.fromPath(bin.path, executor).probe()
+        }
+        assertEquals(File(bin, "rsync.exe").absolutePath, failure.toolPath)
+        assertTrue(failure.safeReason.contains("127"))
+    }
+
+    @Test
+    fun `PATH chooses the first rsync and rejects its incomplete siblings`() {
+        val first = folder.newFolder("first 中文 space")
+        val second = folder.newFolder("second")
+        File(first, "rsync.exe").writeText("fixture")
+        listOf("rsync", "ssh", "cygpath").forEach { File(second, "$it.exe").writeText("fixture") }
+        val executor = org.mockito.Mockito.mock(CmdExecutor::class.java)
+        val failure = assertThrows(WindowsRsyncSetupException::class.java) {
+            WindowsRsyncRuntime.fromPath(first.path + File.pathSeparator + second.path, executor)
+        }
+        assertEquals(File(first, "rsync.exe").absolutePath, failure.toolPath)
+        assertEquals(listOf("ssh.exe", "cygpath.exe"), failure.missingTools)
+        File(first, "ssh.exe").writeText("fixture")
+        val missingCygpath = assertThrows(WindowsRsyncSetupException::class.java) {
+            WindowsRsyncRuntime.fromPath(first.path + File.pathSeparator + second.path, executor)
+        }
+        assertEquals(listOf("cygpath.exe"), missingCygpath.missingTools)
+        assertTrue(File(first, "ssh.exe").delete())
+        File(first, "cygpath.exe").writeText("fixture")
+        val missingSsh = assertThrows(WindowsRsyncSetupException::class.java) {
+            WindowsRsyncRuntime.fromPath(first.path + File.pathSeparator + second.path, executor)
+        }
+        assertEquals(listOf("ssh.exe"), missingSsh.missingTools)
+        File(first, "ssh.exe").writeText("fixture")
+        WindowsRsyncRuntime.fromPath("\"${first.path}\"" + File.pathSeparator + second.path, executor).probe()
+        org.mockito.Mockito.verify(executor).invokeProcess(
+            org.mockito.kotlin.eq(listOf(File(first, "rsync.exe").absolutePath, "--version")),
+            org.mockito.kotlin.any(), org.mockito.kotlin.anyOrNull())
+    }
+
+    @Test
+    fun `empty and relative PATH entries never search the working directory`() {
+        val executor = org.mockito.Mockito.mock(CmdExecutor::class.java)
+        assertThrows(WindowsRsyncSetupException::class.java) {
+            WindowsRsyncRuntime.fromPath(";.;relative", executor)
+        }
     }
 
     @Test
@@ -26,7 +78,7 @@ class WindowsRsyncRuntimeTest {
         val cygwin = File(System.getenv("JUGG_CYGWIN_HOME") ?: "D:/cygwin64")
         assumeTrue(File(cygwin, "bin/rsync.exe").isFile)
         val executor = CmdExecutor(org.mockito.Mockito.mock(com.intellij.openapi.diagnostic.Logger::class.java))
-        val runtime = WindowsRsyncRuntime.installedCygwin(cygwin, executor)
+        val runtime = WindowsRsyncRuntime.fromPath(File(cygwin, "bin").path, executor)
         val source = folder.newFolder("source 中文 space")
         val generated = File(source, "app/build/generated").apply { mkdirs() }
         File(generated, "z-target.txt").writeText("native target")
@@ -55,7 +107,7 @@ class WindowsRsyncRuntimeTest {
 
     @Test
     fun `missing Cygwin tools never start a transfer`() {
-        assertThrows(IllegalArgumentException::class.java) { load(folder.newFolder("missing")) }
+        assertThrows(WindowsRsyncSetupException::class.java) { load(folder.newFolder("missing")) }
     }
 
     @Test
