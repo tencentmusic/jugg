@@ -22,24 +22,7 @@ internal class WindowsRsyncRuntime private constructor(
         exception.javaClass.simpleName + (Regex("error=\\d+").find(exception.message.orEmpty())?.value?.let { ": $it" } ?: "")
 
     /** Best-effort startup checks; the real transfer remains the authoritative check. */
-    fun probe(): Boolean {
-        val rsyncAvailable = checkTool("rsync", "--version")
-        val sshAvailable = checkTool("ssh", "-V")
-        return rsyncAvailable && sshAvailable
-    }
-
-    private fun checkTool(name: String, argument: String): Boolean {
-        val path = executable(name)
-        val result = try {
-            executor.invokeProcess(listOf(path, argument), environment, mutableListOf())
-        } catch (exception: java.io.IOException) {
-            return false
-        }
-        if (result != 0) {
-            return false
-        }
-        return true
-    }
+    fun probe(): Boolean = probeWindowsRsync(root, executor, environment)
 
     fun invoke(arguments: List<String>, environment: Map<String, String>, output: MutableList<String>? = null): Int {
         val result = try {

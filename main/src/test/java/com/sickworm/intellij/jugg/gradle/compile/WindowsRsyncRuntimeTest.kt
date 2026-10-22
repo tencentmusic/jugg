@@ -31,6 +31,48 @@ class WindowsRsyncRuntimeTest {
     }
 
     @Test
+    fun `probe runtime failure does not block remaining diagnostics or transfer`() {
+        val bin = folder.newFolder("probe failure")
+        listOf("rsync", "ssh", "cygpath").forEach { File(bin, "$it.exe").writeText("fixture") }
+        val executor = org.mockito.Mockito.mock(CmdExecutor::class.java)
+        org.mockito.kotlin.whenever(executor.invokeProcess(org.mockito.kotlin.any(), org.mockito.kotlin.any(),
+            org.mockito.kotlin.anyOrNull())).thenAnswer { throw IllegalStateException("diagnostic failure") }
+            .thenReturn(0, 23)
+        val runtime = WindowsRsyncRuntime.fromPath(bin.path, executor)
+        assertFalse(runtime.probe())
+        assertEquals(23, runtime.invoke(listOf(File(bin, "rsync.exe").path), runtime.environment))
+    }
+
+    @Test
+    fun `canceled probe never starts another tool`() {
+        val bin = folder.newFolder("canceled probe")
+        listOf("rsync", "ssh", "cygpath").forEach { File(bin, "$it.exe").writeText("fixture") }
+        val executor = org.mockito.Mockito.mock(CmdExecutor::class.java)
+        org.mockito.kotlin.whenever(executor.invokeProcess(org.mockito.kotlin.any(), org.mockito.kotlin.any(),
+            org.mockito.kotlin.anyOrNull())).thenReturn(IGradleCompileClient.Error.ERROR_CANCELED)
+        assertFalse(WindowsRsyncRuntime.fromPath(bin.path, executor).probe())
+        org.mockito.Mockito.verify(executor, org.mockito.Mockito.times(1)).invokeProcess(
+            org.mockito.kotlin.any(), org.mockito.kotlin.any(), org.mockito.kotlin.anyOrNull())
+    }
+
+    @Test
+    fun `interrupted probe preserves interruption instead of continuing`() {
+        val bin = folder.newFolder("interrupted probe")
+        listOf("rsync", "ssh", "cygpath").forEach { File(bin, "$it.exe").writeText("fixture") }
+        val executor = org.mockito.Mockito.mock(CmdExecutor::class.java)
+        org.mockito.kotlin.whenever(executor.invokeProcess(org.mockito.kotlin.any(), org.mockito.kotlin.any(),
+            org.mockito.kotlin.anyOrNull())).thenAnswer { throw InterruptedException("canceled") }
+        try {
+            assertThrows(InterruptedException::class.java) { WindowsRsyncRuntime.fromPath(bin.path, executor).probe() }
+            assertTrue(Thread.currentThread().isInterrupted)
+            org.mockito.Mockito.verify(executor, org.mockito.Mockito.times(1)).invokeProcess(
+                org.mockito.kotlin.any(), org.mockito.kotlin.any(), org.mockito.kotlin.anyOrNull())
+        } finally {
+            Thread.interrupted()
+        }
+    }
+
+    @Test
     fun `PATH chooses the first rsync and rejects its incomplete siblings`() {
         val first = folder.newFolder("first 中文 space")
         val second = folder.newFolder("second")

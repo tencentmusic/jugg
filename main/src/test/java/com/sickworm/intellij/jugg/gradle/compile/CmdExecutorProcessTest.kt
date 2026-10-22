@@ -9,6 +9,53 @@ import java.nio.file.Files
 
 class CmdExecutorProcessTest {
     @Test
+    fun `silent native exit is recorded and logging failure preserves its result`() {
+        val root = Files.createTempDirectory("jugg silent exit").toFile()
+        try {
+            val source = File(root, "Probe.java").apply {
+                writeText("class Probe { public static void main(String[] args) { System.exit(23); } }")
+            }
+            val javaExecutable = File(System.getProperty("java.home"), "bin/java").path
+            val logger = Mockito.mock(Logger::class.java)
+            val arguments = listOf(javaExecutable, source.path)
+            assertEquals(23, CmdExecutor(logger).invokeProcess(arguments))
+            val messages = org.mockito.ArgumentCaptor.forClass(String::class.java)
+            Mockito.verify(logger, Mockito.atLeastOnce()).debug(messages.capture())
+            val result = messages.allValues.single { it.contains("exitCode=") }
+            assertTrue(result.contains("exitCode=23"))
+            assertTrue(result.contains("hex=0x17"))
+            assertTrue(Regex(" pid=\\d+").containsMatchIn(result))
+            assertTrue(result.contains("elapsedMs="))
+            assertTrue(result.contains("canceled=false"))
+            Mockito.doThrow(IllegalStateException("logger unavailable")).`when`(logger)
+                .debug(org.mockito.kotlin.any<String>())
+            assertEquals(23, CmdExecutor(logger).invokeProcess(arguments))
+            assertThrows(java.io.IOException::class.java) {
+                CmdExecutor(logger).invokeProcess(listOf("missing-jugg-probe-executable"))
+            }
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `native startup failure remains observable without exposing arguments`() {
+        val logger = Mockito.mock(Logger::class.java)
+        val failure = assertThrows(java.io.IOException::class.java) {
+            CmdExecutor(logger).invokeProcess(listOf("missing-jugg-probe-executable", "secret-argument"),
+                mapOf("JUGG_RSYNC_PASSWORD" to "secret-password"))
+        }
+        val messages = org.mockito.ArgumentCaptor.forClass(String::class.java)
+        Mockito.verify(logger, Mockito.atLeastOnce()).debug(messages.capture())
+        val text = messages.allValues.joinToString("\n")
+        assertTrue(text.contains("missing-jugg-probe-executable"))
+        assertTrue(text.contains("IOException"))
+        assertFalse(text.contains("secret-argument"))
+        assertFalse(text.contains("secret-password"))
+        assertNotNull(failure)
+    }
+
+    @Test
     fun `direct process preserves argv and nonzero exit without completion marker`() {
         val root = Files.createTempDirectory("jugg direct process").toFile()
         try {

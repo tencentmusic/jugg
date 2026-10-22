@@ -43,6 +43,7 @@ class CmdExecutor(
         environment: Map<String, String> = emptyMap(),
         outputCollector: MutableList<String>? = null,
     ): Int {
+        val diagnostics = NativeProcessDiagnostics(logger, arguments)
         val process = synchronized(processLock) {
             if (isInvokePending && isPendingReleaseRequested) {
                 isInvokePending = false
@@ -51,8 +52,15 @@ class CmdExecutor(
             }
             isDirectProcessCanceled = false
             try {
+                diagnostics.starting()
                 ProcessBuilder(arguments).apply { environment().putAll(environment) }
-                    .start().also { currentRunningProcess = it }
+                    .start().also {
+                        currentRunningProcess = it
+                        diagnostics.started(it)
+                    }
+            } catch (exception: Exception) {
+                diagnostics.failed(exception)
+                throw exception
             } finally {
                 isInvokePending = false
                 isPendingReleaseRequested = false
@@ -65,8 +73,12 @@ class CmdExecutor(
             readProcessOutput(process.inputStream, outputCollector, false, outputFailure).join()
             val result = process.waitFor()
             stderr.join()
+            diagnostics.finished(result, isDirectProcessCanceled)
             if (!isDirectProcessCanceled) outputFailure.get()?.let { throw it }
             return if (isDirectProcessCanceled) IGradleCompileClient.Error.ERROR_CANCELED else result
+        } catch (exception: Exception) {
+            diagnostics.failed(exception)
+            throw exception
         } finally {
             if (process.isAlive) destroyProcessTree(process)
             synchronized(processLock) {
