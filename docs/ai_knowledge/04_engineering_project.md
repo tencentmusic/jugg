@@ -208,6 +208,8 @@ Library androidTest 的 `instrumentationTargetPackage` 当前取 synthetic test 
 
 `RemoteGradleCompileClient.executeRemoteCommand()` 复用现有 SSH 认证、代理、环境变量、PTY 与取消能力，在 `remoteProjectPath` 下通过独立子 shell 和唯一完成标记执行一条非交互命令。该入口的单次 SSH connect 最长等待 30 秒，不做文件同步、APK/classpath 拉取或 deploy 编排，也不使用 Gradle 命令的 90 秒无输出超时。用户命令和终端输出只进入独立 Run Content；持久日志只记录命令类型、连接与退出结果，禁止记录命令正文。
 
+远端同步根目录在 SSH shell ready 后、首次执行依赖目录的操作前解析：配置为空时使用远端实际 `$HOME/remote`，相对路径相对于远端 `$HOME`，显式绝对路径保持不变并跳过 HOME 查询。不根据操作系统或用户名猜测 home。HOME 查询失败、为空或不是绝对路径时明确失败，提示填写绝对远端根目录；不重试认证或回退到猜测路径。解析结果只保存在本次运行参数的 transient 字段中，供同步、构建、拉取和日志路径映射共同使用；重新登录时清除，不改变用户配置或持久化格式。连接前界面展示 `$HOME` 形式的目录，日志解析器在取得绝对路径前不做目录替换。创建目录失败时保留目标目录、退出码和本次 `mkdir:` 错误输出，不再推断同步客户端未启动。
+
 源码上传由 `SyncFileCommand.getRsyncArguments()` 统一生成 rsync/iFT 参数，使用 `-av --delete`。仅 Windows 不添加 `--copy-unsafe-links`，保留链接本身，不读取树外链接目标；macOS/Linux 保留该参数，继续复制树外链接目标。Windows 工程需要树外内容时，应扩大完整 rsync 的同步根目录或事先物化文件；保留的链接在远端不保证可解析。include/exclude、增量比较和删除策略继续生效。
 
 Windows x64 本地 NTFS 到 Linux/macOS 使用 `WindowsRsyncRuntime` 的原生 argv 进程，远端 uname 仅接受 Linux/Darwin，支持 `rsync_simple`、完整 `rsync` 和多工程；Windows 路径在边界转换，classpath 返回实际下载位置。Windows 统一使用本机 Cygwin 的 rsync、ssh 和 cygpath；严格使用 PATH 中第一个 rsync.exe 及同目录 ssh/cygpath，工具缺失或实际启动失败提示具体路径、原因和配置 Prompt 入口，不自动安装。首次版本探测为独立 best-effort 诊断，失败记录后继续实际流程，不额外复测。私钥及密码均沿既有远端连接配置读取，密码仅通过子进程环境与 askpass 传递。Windows rsync 上传后，在真正编译前仅为 compileCommand 指定且位于工程内的相对 gradlew 设置 Unix 执行位，避免 NTFS 权限上传后返回 126；仅拉取和非 Windows 路径不变。直接进程保留真实退出码和取消结果；本地 backup classpath 继续关闭。

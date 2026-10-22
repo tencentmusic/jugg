@@ -295,20 +295,16 @@ data class JuggGradleCompileOptions(
     private val projectSyncRootRelativePath: String get() = projectSyncRelativePath.substringBefore(
         if (isWindows && syncMode.isRsync) '/' else File.separatorChar)
 
-    /** remote home directory */
-    private val remoteHomePath = if (remoteSshUser == "root") "/root" else "/data/home/$remoteSshUser"
+    // Connection-local resolution is shared with output parsing, but never persisted or copied.
+    @Transient
+    internal var resolvedRemoteSyncPath: String? = null
 
     /** project storage directory */
-    val finalRemoteSyncPath = run {
-        var finalPath = remoteSyncPath.ifEmpty { "$remoteHomePath/remote" }
-        if (!finalPath.startsWith("/")) {
-            // relative path
-            finalPath = "$remoteHomePath/$finalPath"
+    val finalRemoteSyncPath: String get() {
+        val path = resolvedRemoteSyncPath ?: remoteSyncPath.let {
+            if (it.startsWith("/")) it else "\$HOME/${it.ifEmpty { "remote" }}"
         }
-        if (finalPath.endsWith("/")) {
-            finalPath = finalPath.substring(0, finalPath.length - 1) // must remove last '/' to standardize sync path
-        }
-        finalPath
+        return path.removeSuffix("/")
     }
 
     /** local iFt path, used for syncing files to remote by iFt */
