@@ -21,17 +21,13 @@ class WindowsRsyncRuntimeTest {
     }
 
     @Test
-    fun `probe preserves the selected tool and its failing exit code`() {
+    fun `probe is best effort when a selected tool fails`() {
         val bin = folder.newFolder("broken tools")
         listOf("rsync", "ssh", "cygpath").forEach { File(bin, "$it.exe").writeText("fixture") }
         val executor = org.mockito.Mockito.mock(CmdExecutor::class.java)
         org.mockito.kotlin.whenever(executor.invokeProcess(org.mockito.kotlin.any(), org.mockito.kotlin.any(),
             org.mockito.kotlin.anyOrNull())).thenReturn(127)
-        val failure = assertThrows(WindowsRsyncSetupException::class.java) {
-            WindowsRsyncRuntime.fromPath(bin.path, executor).probe()
-        }
-        assertEquals(File(bin, "rsync.exe").absolutePath, failure.toolPath)
-        assertTrue(failure.safeReason.contains("127"))
+        assertFalse(WindowsRsyncRuntime.fromPath(bin.path, executor).probe())
     }
 
     @Test
@@ -58,7 +54,7 @@ class WindowsRsyncRuntimeTest {
         }
         assertEquals(listOf("ssh.exe"), missingSsh.missingTools)
         File(first, "ssh.exe").writeText("fixture")
-        WindowsRsyncRuntime.fromPath("\"${first.path}\"" + File.pathSeparator + second.path, executor).probe()
+        assertTrue(WindowsRsyncRuntime.fromPath("\"${first.path}\"" + File.pathSeparator + second.path, executor).probe())
         org.mockito.Mockito.verify(executor).invokeProcess(
             org.mockito.kotlin.eq(listOf(File(first, "rsync.exe").absolutePath, "--version")),
             org.mockito.kotlin.any(), org.mockito.kotlin.anyOrNull())

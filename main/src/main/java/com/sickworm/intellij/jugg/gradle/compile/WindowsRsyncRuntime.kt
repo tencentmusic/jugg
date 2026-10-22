@@ -21,26 +21,24 @@ internal class WindowsRsyncRuntime private constructor(
     private fun startFailureReason(exception: java.io.IOException): String =
         exception.javaClass.simpleName + (Regex("error=\\d+").find(exception.message.orEmpty())?.value?.let { ": $it" } ?: "")
 
+    /** Best-effort startup checks; the real transfer remains the authoritative check. */
     fun probe(): Boolean {
-        checkTool("rsync", "--version")
-        checkTool("ssh", "-V")
-        return true
+        val rsyncAvailable = checkTool("rsync", "--version")
+        val sshAvailable = checkTool("ssh", "-V")
+        return rsyncAvailable && sshAvailable
     }
 
-    private fun checkTool(name: String, argument: String) {
+    private fun checkTool(name: String, argument: String): Boolean {
         val path = executable(name)
         val result = try {
             executor.invokeProcess(listOf(path, argument), environment, mutableListOf())
         } catch (exception: java.io.IOException) {
-            throw WindowsRsyncSetupException("tool_start_failed", path, safeReason = startFailureReason(exception))
+            return false
         }
         if (result != 0) {
-            val status = if (result == -1073741757) {
-                "; STATUS_SHARING_VIOLATION: Windows reported a sharing conflict"
-            } else ""
-            throw WindowsRsyncSetupException("tool_probe_failed", path,
-                safeReason = "Probe argument: $argument. Exit code: $result (0x${result.toUInt().toString(16).uppercase()})$status.")
+            return false
         }
+        return true
     }
 
     fun invoke(arguments: List<String>, environment: Map<String, String>, output: MutableList<String>? = null): Int {
