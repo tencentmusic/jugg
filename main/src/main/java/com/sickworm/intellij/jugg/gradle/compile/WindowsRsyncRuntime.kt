@@ -34,7 +34,13 @@ internal class WindowsRsyncRuntime private constructor(
         } catch (exception: java.io.IOException) {
             throw WindowsRsyncSetupException("tool_start_failed", path, safeReason = startFailureReason(exception))
         }
-        if (result != 0) throw WindowsRsyncSetupException("tool_probe_failed", path, safeReason = "Exit code: $result")
+        if (result != 0) {
+            val status = if (result == -1073741757) {
+                "; STATUS_SHARING_VIOLATION: Windows reported a sharing conflict"
+            } else ""
+            throw WindowsRsyncSetupException("tool_probe_failed", path,
+                safeReason = "Probe argument: $argument. Exit code: $result (0x${result.toUInt().toString(16).uppercase()})$status.")
+        }
     }
 
     fun invoke(arguments: List<String>, environment: Map<String, String>, output: MutableList<String>? = null): Int {
