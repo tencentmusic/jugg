@@ -778,7 +778,12 @@ class RemoteGradleCompileClient(
             printToStreamErrorIfCanceled("[Jugg] iFt needs login but was canceled by user.")
             return GradleCompileResult.failed(isCanceled, failedReason = "iFt needs login")
         } else if (syncFileResult != 0) {
-            printToStreamErrorIfCanceled("Sync file from local to remote failed, please check your sync client is opened.")
+            val message = if (gradleCompileSettings.syncMode.isRsync) {
+                "Sync file from local to remote failed."
+            } else {
+                "Sync file from local to remote failed, please check your sync client is opened."
+            }
+            printToStreamErrorIfCanceled(message)
             return GradleCompileResult.failed(isCanceled, failedReason = "Sync file from local to remote failed")
         }
 

@@ -274,7 +274,7 @@ internal class AskAiCompileUiHandler(
     private fun printFailureLink(snapshot: InvestigationSnapshotBuilder.Snapshot) {
         if (project.isDisposed) return
         console.performWhenNoDeferredOutput {
-            console.print("\nGot an unexpected compilation error? [", ConsoleViewContentType.NORMAL_OUTPUT)
+            console.print("\nGot an unexpected error? [", ConsoleViewContentType.NORMAL_OUTPUT)
             console.printHyperlink("Ask AI", HyperlinkInfo { showPrompt(snapshot) })
             console.print("] to investigate with your agent.\n", ConsoleViewContentType.NORMAL_OUTPUT)
         }
