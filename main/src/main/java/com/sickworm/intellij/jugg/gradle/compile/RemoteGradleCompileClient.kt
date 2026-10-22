@@ -68,6 +68,7 @@ class RemoteGradleCompileClient(
     ) {
         logger.debug("[Jugg] remote login starts with fresh shell, reuse disabled")
         dispose()
+        juggGradleCompileOptions.resolvedRemoteSyncPath = null
         if (resetCanceled) {
             isCanceled = false
         }
@@ -241,12 +242,13 @@ class RemoteGradleCompileClient(
         if (isCanceled) {
             return IGradleCompileClient.Error.ERROR_CANCELED
         }
-        try {
+        val options = try {
             login(
                 juggGradleCompileOptions,
                 resetCanceled = false,
                 connectTimeoutMs = REMOTE_COMMAND_CONNECT_TIMEOUT_MS,
             )
+            checkLoginOnStart()
         } catch (e: Throwable) {
             if (isCanceled) {
                 return IGradleCompileClient.Error.ERROR_CANCELED
@@ -256,7 +258,7 @@ class RemoteGradleCompileClient(
         if (isCanceled) {
             return IGradleCompileClient.Error.ERROR_CANCELED
         }
-        val remoteCommand = RemoteUserCommand(juggGradleCompileOptions.remoteProjectPath, command.trim())
+        val remoteCommand = RemoteUserCommand(options.remoteProjectPath, command.trim())
         return invoke(remoteCommand, noOutputTimeoutMs = null)
     }
 
@@ -726,7 +728,29 @@ class RemoteGradleCompileClient(
         if (session?.isConnected != true || channel?.isConnected != true || gradleCompileSettings == null) {
             throw JuggInternalException.notLoginYet()
         }
+        resolveRemoteSyncPath(gradleCompileSettings)
         return gradleCompileSettings
+    }
+
+    private fun resolveRemoteSyncPath(options: JuggGradleCompileOptions) {
+        if (options.remoteSyncPath.startsWith("/") || options.resolvedRemoteSyncPath != null) return
+        val prefix = "(Jugg) RemoteHome: "
+        var home = ""
+        val command = SimpleSshCommand("printf '\\n${prefix}%s\\n' \"\$HOME\"", outputFilter = { line, _ ->
+            if (line.startsWith(prefix)) {
+                home = line.removePrefix(prefix)
+                false
+            } else {
+                true
+            }
+        })
+        val result = invoke(command)
+        throwIfCanceled()
+        if (result != 0 || !home.startsWith("/")) {
+            throw JuggException("Unable to determine the remote HOME directory (exit code $result). " +
+                    "Configure an absolute remote root directory.")
+        }
+        options.resolvedRemoteSyncPath = "${home.trimEnd('/')}/${options.remoteSyncPath.ifEmpty { "remote" }}"
     }
 
     private fun prepareRemoteWrapper(options: JuggGradleCompileOptions): Boolean {
@@ -750,8 +774,10 @@ class RemoteGradleCompileClient(
         val mkDirCommand = MkDirCommand(path)
         val mkDirResult = invoke(mkDirCommand)
         if (mkDirResult != 0) {
-            printToStreamErrorIfCanceled("Make dir failed, please check your sync client is opened.")
-            return GradleCompileResult.failed(isCanceled, failedReason = "Make dir failed")
+            val reason = "Failed to create remote directory '${gradleCompileSettings.remoteSyncRootPath}' " +
+                    "(exit code $mkDirResult)." + mkDirCommand.errorOutput?.let { " $it" }.orEmpty()
+            printToStreamErrorIfCanceled(reason)
+            return GradleCompileResult.failed(isCanceled, failedReason = reason)
         }
 
         val syncFileCommand = if (gradleCompileSettings.syncMode.isRsync) {

@@ -109,6 +109,7 @@ class GradleOutputParser(
             return line
         }
         val remoteRootPath = juggGradleCompileOptions.finalRemoteSyncPath
+        if (!remoteRootPath.startsWith("/")) return line
         val localRootPath = File(juggGradleCompileOptions.projectRootPath).parentFile.path
         return line.replace(remoteRootPath, localRootPath)
     }

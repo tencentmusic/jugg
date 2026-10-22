@@ -24,12 +24,101 @@ import kotlin.test.assertTrue
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertFailsWith
+import com.sickworm.intellij.jugg.project.JuggException
 import com.google.gson.Gson
 import java.nio.file.Files
 import java.util.Base64
 import java.util.UUID
 
 class RemoteGradleCompileClientTest : LocalGradleCompileClientTest() {
+
+    @Test
+    fun testRemoteHomeWorkingDirectories() {
+        val name = "jugg-home-${UUID.randomUUID()}"
+        val bootstrap = juggGradleCompileOptions.copy(projectRootPath = "/", remoteSyncPath = "/")
+        val client = RemoteGradleCompileClient(project, logger = logger)
+        var home = ""
+        client.terminalOutputListener = object : IGradleCompileClient.TerminalOutputListener {
+            override fun onOutput(line: String, isNeedPrint: Boolean) {
+                if (line.startsWith("JUGG_TEST_HOME=")) home = line.removePrefix("JUGG_TEST_HOME=")
+            }
+            override fun onOutputErr(line: String) = Unit
+        }
+        try {
+            assertEquals(0, client.executeRemoteCommand(bootstrap, "printf '\\nJUGG_TEST_HOME=%s\\n' \"\$HOME\""))
+            assertTrue(home.startsWith("/"))
+            for (root in listOf("", "relative-$name", "/tmp/$name")) {
+                val resolved = if (root.startsWith("/")) root else "$home/${root.ifEmpty { "remote" }}"
+                val expected = "$resolved/$name"
+                val quoted = "'${expected.replace("'", "'\"'\"'")}'"
+                assertEquals(0, client.executeRemoteCommand(bootstrap, "mkdir -p $quoted"))
+                val options = juggGradleCompileOptions.copy(projectRootPath = "/tmp/$name", remoteSyncPath = root)
+                try {
+                    assertEquals(0, client.executeRemoteCommand(options, "test \"\$PWD\" = $quoted"))
+                    assertEquals(resolved, options.finalRemoteSyncPath)
+                } finally {
+                    assertEquals(0, client.executeRemoteCommand(bootstrap, "rmdir $quoted"))
+                    if (root.isNotEmpty()) {
+                        assertEquals(0, client.executeRemoteCommand(bootstrap, "rmdir '${resolved.replace("'", "'\"'\"'")}'"))
+                    }
+                }
+            }
+        } finally {
+            client.dispose()
+        }
+    }
+
+    @Test
+    fun testInvalidRemoteHomeRequiresExplicitDirectory() {
+        val client = RemoteGradleCompileClient(project, logger = logger)
+        try {
+            for (home in listOf("", "relative-home")) {
+                val options = juggGradleCompileOptions.copy(remoteSyncPath = "", environmentVariables = "HOME=$home")
+                val error = assertFailsWith<JuggException> { client.executeRemoteCommand(options, "true") }
+                assertTrue(error.message.orEmpty().contains("absolute remote root directory"))
+                val explicit = options.copy(projectRootPath = "/", remoteSyncPath = "/tmp")
+                assertEquals(0, client.executeRemoteCommand(explicit, "true"))
+            }
+        } finally {
+            client.dispose()
+        }
+    }
+
+    @Test
+    fun testRemoteHomeCanDifferFromUsernameConvention() {
+        val home = "/tmp/jugg-custom-home-${UUID.randomUUID()}"
+        val bootstrap = juggGradleCompileOptions.copy(projectRootPath = "/", remoteSyncPath = "/")
+        val options = bootstrap.copy(remoteSyncPath = "", environmentVariables = "HOME=$home")
+        val client = RemoteGradleCompileClient(project, logger = logger)
+        try {
+            assertEquals(0, client.executeRemoteCommand(bootstrap, "mkdir -p '$home/remote'"))
+            assertEquals(0, client.executeRemoteCommand(options, "test \"\$PWD\" = '$home/remote'"))
+            assertEquals("$home/remote", options.finalRemoteSyncPath)
+        } finally {
+            try {
+                assertEquals(0, client.executeRemoteCommand(bootstrap, "rmdir '$home/remote' '$home'"))
+            } finally {
+                client.dispose()
+            }
+        }
+    }
+
+    @Test
+    fun testRemoteDirectoryFailureReportsTargetAndCause() {
+        val root = "/dev/null/jugg-home-${UUID.randomUUID()}"
+        val client = RemoteGradleCompileClient(project, logger = logger)
+        try {
+            client.login(juggGradleCompileOptions.copy(remoteSyncPath = root))
+            val result = client.compileAndFetchResult()
+            assertFalse(result.isSuccess)
+            assertTrue(result.failedReason.orEmpty().contains(root))
+            assertTrue(result.failedReason.orEmpty().contains("exit code"))
+            assertTrue(result.failedReason.orEmpty().contains("mkdir:"))
+        } finally {
+            client.dispose()
+        }
+    }
 
     @Test
     fun testSimulatedCancellation() {
@@ -63,14 +152,20 @@ class RemoteGradleCompileClientTest : LocalGradleCompileClientTest() {
     fun testSimulatedArtifactFetch() = simulatedArtifactFetch(false, false)
 
     @Test
+    fun testDefaultHomeSourceAndArtifactTransfer() = simulatedArtifactFetch(false, false, "")
+
+    @Test
     fun testSimulatedFullRsyncArtifactFetch() = simulatedArtifactFetch(true, false)
 
     @Test
     fun testSimulatedMultipleProjectsArtifactFetch() = simulatedArtifactFetch(true, true)
 
-    private fun simulatedArtifactFetch(fullRsync: Boolean, multipleProjects: Boolean) {
+    private fun simulatedArtifactFetch(
+        fullRsync: Boolean,
+        multipleProjects: Boolean,
+        remoteRoot: String = "/tmp/jugg-e2e-${UUID.randomUUID()}",
+    ) {
         val root = Files.createTempDirectory("jugg-remote-fixture-").toFile()
-        val remoteRoot = "/tmp/jugg-e2e-${UUID.randomUUID()}"
         val paths = JuggPathManager(root)
         val upload = if (fullRsync) File(root, "upload").apply { mkdirs() } else root.parentFile
         val projectRoot = if (fullRsync) File(upload, "project space").apply { mkdirs() } else root
@@ -97,7 +192,6 @@ class RemoteGradleCompileClientTest : LocalGradleCompileClientTest() {
             syncMode = SyncMode.RSYNC_SIMPLE, isSyncAllProjects = false)
         val client = RemoteGradleCompileClient(project, logger = logger)
         try {
-            assertEquals(0, client.executeRemoteCommand(bootstrap, "mkdir -p '${options.remoteProjectPath}'"))
             client.login(simulated)
             assertTrue(client.compileAndFetchResult().isSuccess)
             assertFetchedArtifacts(client, module, options, files)
@@ -107,7 +201,8 @@ class RemoteGradleCompileClientTest : LocalGradleCompileClientTest() {
             assertTransferCancellation(client, module)
         } finally {
             try {
-                cleanupRemoteFixture(bootstrap, remoteRoot)
+                val cleanupRoot = remoteRoot.ifEmpty { simulated.remoteProjectPath }
+                if (cleanupRoot.startsWith("/")) cleanupRemoteFixture(bootstrap, cleanupRoot)
             } finally {
                 client.dispose()
                 root.deleteRecursively()

@@ -78,6 +78,15 @@ class MkDirCommand(
 
     override val baseCommand: String = """mkdir -p $path"""
 
+    internal var errorOutput: String? = null
+        private set
+
+    override fun isCanOutput(line: String, isError: Boolean): Boolean {
+        val error = line.substringAfter("mkdir:", "")
+        if (error.isNotEmpty()) errorOutput = "mkdir:$error"
+        return true
+    }
+
 }
 
 /**
