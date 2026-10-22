@@ -8,7 +8,7 @@ internal fun probeWindowsRsync(root: File, executor: CmdExecutor, environment: M
     var available = true
     for ((tool, argument) in listOf("rsync" to "--version", "ssh" to "-V")) {
         val result = try {
-            executor.invokeProcess(listOf(File(root, "$tool.exe").absolutePath, argument), environment)
+            executor.invokeProcess(listOf(File(root, "$tool.exe").absolutePath, argument), environment, quietOnSuccess = true)
         } catch (exception: CancellationException) {
             throw exception
         } catch (exception: InterruptedException) {

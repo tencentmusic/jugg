@@ -9,6 +9,41 @@ import java.nio.file.Files
 
 class CmdExecutorProcessTest {
     @Test
+    fun `internal commands hide successful output but preserve failed diagnostics and transfer output`() {
+        val root = Files.createTempDirectory("jugg quiet process").toFile()
+        try {
+            val source = File(root, "Probe.java").apply { writeText("""
+                class Probe {
+                    public static void main(String[] args) {
+                        System.out.println("stdout");
+                        System.err.println("stderr");
+                        System.exit(Integer.parseInt(args[0]));
+                    }
+                }
+            """.trimIndent()) }
+            val listener = Mockito.mock(IGradleCompileClient.TerminalOutputListener::class.java)
+            val logger = Mockito.mock(Logger::class.java)
+            val executor = CmdExecutor(logger, listener)
+            val java = File(System.getProperty("java.home"), "bin/java").path
+            val output = mutableListOf<String>()
+            assertEquals(0, executor.invokeProcess(listOf(java, source.path, "0"),
+                outputCollector = output, quietOnSuccess = true))
+            assertEquals(setOf("stdout", "stderr"), output.toSet())
+            Mockito.verifyNoInteractions(listener)
+            Mockito.verify(logger, Mockito.never()).warn(org.mockito.kotlin.any<String>(), org.mockito.kotlin.anyOrNull<Throwable>())
+            assertEquals(23, executor.invokeProcess(listOf(java, source.path, "23"), quietOnSuccess = true))
+            Mockito.verify(listener).onOutput("stdout", true)
+            Mockito.verify(listener).onOutput("stderr", false)
+            Mockito.clearInvocations(listener)
+            assertEquals(0, executor.invokeProcess(listOf(java, source.path, "0")))
+            Mockito.verify(listener).onOutput("stdout", true)
+            Mockito.verify(listener).onOutput("stderr", false)
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
     fun `silent native exit is recorded and logging failure preserves its result`() {
         val root = Files.createTempDirectory("jugg silent exit").toFile()
         try {

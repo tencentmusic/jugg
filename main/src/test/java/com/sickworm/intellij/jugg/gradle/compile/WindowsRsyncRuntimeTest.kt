@@ -26,7 +26,7 @@ class WindowsRsyncRuntimeTest {
         listOf("rsync", "ssh", "cygpath").forEach { File(bin, "$it.exe").writeText("fixture") }
         val executor = org.mockito.Mockito.mock(CmdExecutor::class.java)
         org.mockito.kotlin.whenever(executor.invokeProcess(org.mockito.kotlin.any(), org.mockito.kotlin.any(),
-            org.mockito.kotlin.anyOrNull())).thenReturn(127)
+            org.mockito.kotlin.anyOrNull(), org.mockito.kotlin.any())).thenReturn(127)
         assertFalse(WindowsRsyncRuntime.fromPath(bin.path, executor).probe())
     }
 
@@ -36,7 +36,7 @@ class WindowsRsyncRuntimeTest {
         listOf("rsync", "ssh", "cygpath").forEach { File(bin, "$it.exe").writeText("fixture") }
         val executor = org.mockito.Mockito.mock(CmdExecutor::class.java)
         org.mockito.kotlin.whenever(executor.invokeProcess(org.mockito.kotlin.any(), org.mockito.kotlin.any(),
-            org.mockito.kotlin.anyOrNull())).thenAnswer { throw IllegalStateException("diagnostic failure") }
+            org.mockito.kotlin.anyOrNull(), org.mockito.kotlin.any())).thenAnswer { throw IllegalStateException("diagnostic failure") }
             .thenReturn(0, 23)
         val runtime = WindowsRsyncRuntime.fromPath(bin.path, executor)
         assertFalse(runtime.probe())
@@ -49,10 +49,10 @@ class WindowsRsyncRuntimeTest {
         listOf("rsync", "ssh", "cygpath").forEach { File(bin, "$it.exe").writeText("fixture") }
         val executor = org.mockito.Mockito.mock(CmdExecutor::class.java)
         org.mockito.kotlin.whenever(executor.invokeProcess(org.mockito.kotlin.any(), org.mockito.kotlin.any(),
-            org.mockito.kotlin.anyOrNull())).thenReturn(IGradleCompileClient.Error.ERROR_CANCELED)
+            org.mockito.kotlin.anyOrNull(), org.mockito.kotlin.any())).thenReturn(IGradleCompileClient.Error.ERROR_CANCELED)
         assertFalse(WindowsRsyncRuntime.fromPath(bin.path, executor).probe())
         org.mockito.Mockito.verify(executor, org.mockito.Mockito.times(1)).invokeProcess(
-            org.mockito.kotlin.any(), org.mockito.kotlin.any(), org.mockito.kotlin.anyOrNull())
+            org.mockito.kotlin.any(), org.mockito.kotlin.any(), org.mockito.kotlin.anyOrNull(), org.mockito.kotlin.any())
     }
 
     @Test
@@ -61,12 +61,12 @@ class WindowsRsyncRuntimeTest {
         listOf("rsync", "ssh", "cygpath").forEach { File(bin, "$it.exe").writeText("fixture") }
         val executor = org.mockito.Mockito.mock(CmdExecutor::class.java)
         org.mockito.kotlin.whenever(executor.invokeProcess(org.mockito.kotlin.any(), org.mockito.kotlin.any(),
-            org.mockito.kotlin.anyOrNull())).thenAnswer { throw InterruptedException("canceled") }
+            org.mockito.kotlin.anyOrNull(), org.mockito.kotlin.any())).thenAnswer { throw InterruptedException("canceled") }
         try {
             assertThrows(InterruptedException::class.java) { WindowsRsyncRuntime.fromPath(bin.path, executor).probe() }
             assertTrue(Thread.currentThread().isInterrupted)
             org.mockito.Mockito.verify(executor, org.mockito.Mockito.times(1)).invokeProcess(
-                org.mockito.kotlin.any(), org.mockito.kotlin.any(), org.mockito.kotlin.anyOrNull())
+                org.mockito.kotlin.any(), org.mockito.kotlin.any(), org.mockito.kotlin.anyOrNull(), org.mockito.kotlin.any())
         } finally {
             Thread.interrupted()
         }
@@ -99,7 +99,7 @@ class WindowsRsyncRuntimeTest {
         assertTrue(WindowsRsyncRuntime.fromPath("\"${first.path}\"" + File.pathSeparator + second.path, executor).probe())
         org.mockito.Mockito.verify(executor).invokeProcess(
             org.mockito.kotlin.eq(listOf(File(first, "rsync.exe").absolutePath, "--version")),
-            org.mockito.kotlin.any(), org.mockito.kotlin.anyOrNull())
+            org.mockito.kotlin.any(), org.mockito.kotlin.anyOrNull(), org.mockito.kotlin.any())
     }
 
     @Test

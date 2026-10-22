@@ -1023,7 +1023,8 @@ class RemoteGradleCompileClient(
                 it.probe()
                 windowsRsyncRuntime = it
             }
-            val remoteCheck = remoteInvoke(SimpleSshCommand("case \"\$(uname -s)\" in Linux|Darwin) true;; *) false;; esac"), NO_OUTPUT_TIMEOUT_MS)
+            val remoteCheck = remoteInvoke(SimpleSshCommand("case \"\$(uname -s)\" in Linux|Darwin) true;; *) false;; esac",
+                outputFilter = { line, _ -> line.trim() != "(Jugg) SimpleSshCommand result: 0" }), NO_OUTPUT_TIMEOUT_MS)
             if (remoteCheck != 0) return remoteCheck
             cmdExecutor.prepareForInvoke()
             if (isCanceled) cmdExecutor.release()

@@ -48,7 +48,7 @@ internal class WindowsRsyncRuntime private constructor(
             .type().equals("NTFS", ignoreCase = true)) { "Windows rsync requires local NTFS storage" }
         val output = mutableListOf<String>()
         val result = try {
-            executor.invokeProcess(listOf(executable("cygpath"), "-u", file.path), environment, output)
+            executor.invokeProcess(listOf(executable("cygpath"), "-u", file.path), environment, output, quietOnSuccess = true)
         } catch (exception: java.io.IOException) {
             throw WindowsRsyncSetupException("tool_start_failed", executable("cygpath"), safeReason = startFailureReason(exception))
         }
