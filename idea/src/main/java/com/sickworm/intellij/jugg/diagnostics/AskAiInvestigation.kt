@@ -1,5 +1,8 @@
 package com.sickworm.intellij.jugg.diagnostics
 
+import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
+import com.sickworm.intellij.jugg.gradle.compile.WindowsRsyncSetupException
+import com.sickworm.intellij.jugg.ide.ui.WindowsRsyncSetupDialog
 import com.android.ddmlib.CollectingOutputReceiver
 import com.intellij.execution.filters.HyperlinkInfo
 import com.intellij.execution.ui.ConsoleView
@@ -217,6 +220,7 @@ internal class AskAiCompileUiHandler(
     private val userActions: JuggControlPanelController,
     private val startedAt: Long,
 ) : CompileUiHandler by delegate {
+    @Volatile private var hasWindowsSetupFailure = false
     private val taskLogs = RunLogCollector()
     private val collectsLogs = !delegate.isRpcMode
 
@@ -224,9 +228,33 @@ internal class AskAiCompileUiHandler(
         if (collectsLogs) JuggLogger.listenProjectLog(project, taskLogs)
     }
 
+    override fun createOutputParser(): IGradleCompileClient.TerminalOutputListener {
+        val output = delegate.createOutputParser()
+        return object : IGradleCompileClient.TerminalOutputListener by output {
+            override fun onWindowsRsyncSetupFailure(failure: WindowsRsyncSetupException) {
+                output.onWindowsRsyncSetupFailure(failure)
+                if (hasWindowsSetupFailure) return
+                hasWindowsSetupFailure = true
+                if (delegate.isRpcMode) return
+                SwingUtilities.invokeLater { printWindowsSetupLink(failure) }
+            }
+        }
+    }
+
+    private fun printWindowsSetupLink(failure: WindowsRsyncSetupException) {
+        if (project.isDisposed) return
+        console.performWhenNoDeferredOutput {
+            console.print("\n[", ConsoleViewContentType.NORMAL_OUTPUT)
+            console.printHyperlink("Windows rsync 环境配置 / Windows rsync setup", HyperlinkInfo {
+                if (!project.isDisposed) WindowsRsyncSetupDialog(project, failure).show()
+            })
+            console.print("] Restart Android Studio after configuring PATH, then retry.\n", ConsoleViewContentType.NORMAL_OUTPUT)
+        }
+    }
+
     override fun onEnd(runResult: RunResult) {
         try {
-            if (runResult.isCompileSuccess || runResult.isCancel || delegate.isRpcMode || delegate.isCanceled) return
+            if (runResult.isCompileSuccess || runResult.isCancel || delegate.isRpcMode || delegate.isCanceled || hasWindowsSetupFailure) return
             val output = listOf(taskLogs.getAllLogs(), runResult.errorLog.joinToString("\n"))
                 .filter { it.isNotBlank() }.joinToString("\n")
             val snapshot = investigation.preserveCompileFailure(options, runResult, startedAt,
@@ -246,7 +274,7 @@ internal class AskAiCompileUiHandler(
     private fun printFailureLink(snapshot: InvestigationSnapshotBuilder.Snapshot) {
         if (project.isDisposed) return
         console.performWhenNoDeferredOutput {
-            console.print("\nGot an unexpected compilation error? [", ConsoleViewContentType.NORMAL_OUTPUT)
+            console.print("\nGot an unexpected error? [", ConsoleViewContentType.NORMAL_OUTPUT)
             console.printHyperlink("Ask AI", HyperlinkInfo { showPrompt(snapshot) })
             console.print("] to investigate with your agent.\n", ConsoleViewContentType.NORMAL_OUTPUT)
         }

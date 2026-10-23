@@ -9,6 +9,7 @@ class BaseSshCommandTest {
 
     @Test
     fun getCommand_shouldPreserveFailedExitCode_whenUnixCommandFails() {
+        org.junit.Assume.assumeFalse(com.sickworm.intellij.jugg.compiler.isWindows)
         val command = TestCommand("false")
         val process = ProcessBuilder("/bin/bash", "-c", command.getCommand(false, false)).start()
         val result = process.inputStream.bufferedReader().lineSequence()

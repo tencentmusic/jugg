@@ -66,7 +66,7 @@ class FetchClasspathCommandTest {
 
         val arguments = FetchClasspathCommand.getRsyncArguments(modules, isWindows = false)
 
-        assertEquals(1, arguments.countOccurrences("--include='build/intermediates/javac/debug/classes/**'"))
+        assertEquals(1, arguments.countOccurrences("--include='**/build/intermediates/javac/debug/classes/**'"))
         assertFalse(arguments.contains("module-0/build/intermediates/javac/debug/classes/**"))
         assertTrue(arguments.length < 10_000, "conventional module filters should not grow with module count")
     }
@@ -83,10 +83,10 @@ class FetchClasspathCommandTest {
 
         val arguments = FetchClasspathCommand.getRsyncArguments(modules, isWindows = false)
 
-        assertTrue(arguments.contains("--include='build/tmp/kotlin-classes/debug/**'"))
-        assertTrue(arguments.contains("--include='build/tmp/kotlin-classes/release/**'"))
-        assertTrue(arguments.contains("--include='build/intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes/**'"))
-        assertTrue(arguments.contains("--include='build/intermediates/built_in_kotlinc/release/compileReleaseKotlin/classes/**'"))
+        assertTrue(arguments.contains("--include='**/build/tmp/kotlin-classes/debug/**'"))
+        assertTrue(arguments.contains("--include='**/build/tmp/kotlin-classes/release/**'"))
+        assertTrue(arguments.contains("--include='**/build/intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes/**'"))
+        assertTrue(arguments.contains("--include='**/build/intermediates/built_in_kotlinc/release/compileReleaseKotlin/classes/**'"))
     }
 
     @Test
@@ -113,8 +113,8 @@ class FetchClasspathCommandTest {
 
         val arguments = FetchClasspathCommand.getRsyncArguments(modules, isWindows = false)
 
-        assertTrue(arguments.contains("--include='build/intermediates/javac/debug/classes/**'"))
-        assertTrue(arguments.contains("--include='build/intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes/**'"))
+        assertTrue(arguments.contains("--include='**/build/intermediates/javac/debug/classes/**'"))
+        assertTrue(arguments.contains("--include='**/build/intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes/**'"))
         assertTrue(arguments.contains("--include='build/feature/intermediates/javac/debug/classes/**'"))
         assertTrue(arguments.contains("--include='build/feature/intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes/**'"))
         assertTrue(arguments.contains("--include='app/build/custom/classpath.jar'"))

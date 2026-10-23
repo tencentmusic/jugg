@@ -288,25 +288,22 @@ data class JuggGradleCompileOptions(
     } else {
         File(projectRootPath)
             .relativeTo(File(localToRemoteSyncPath)).path
-            .replace(" ", "\\ ")
+            .let { if (com.sickworm.intellij.jugg.compiler.isWindows && syncMode.isRsync) it.replace('\\', '/') else it.replace(" ", "\\ ") }
     }
 
-    private val projectSyncRootRelativePath: String get() = projectSyncRelativePath.substringBefore(File.separatorChar)
+    private val projectSyncRootRelativePath: String get() = projectSyncRelativePath.substringBefore(
+        if (com.sickworm.intellij.jugg.compiler.isWindows && syncMode.isRsync) '/' else File.separatorChar)
 
-    /** remote home directory */
-    private val remoteHomePath = if (remoteSshUser == "root") "/root" else "/data/home/$remoteSshUser"
+    // Connection-local resolution is shared with output parsing, but never persisted or copied.
+    @Transient
+    internal var resolvedRemoteSyncPath: String? = null
 
     /** project storage directory */
-    val finalRemoteSyncPath = run {
-        var finalPath = remoteSyncPath.ifEmpty { "$remoteHomePath/remote" }
-        if (!finalPath.startsWith("/")) {
-            // relative path
-            finalPath = "$remoteHomePath/$finalPath"
+    val finalRemoteSyncPath: String get() {
+        val path = resolvedRemoteSyncPath ?: remoteSyncPath.let {
+            if (it.startsWith("/")) it else "\$HOME/${it.ifEmpty { "remote" }}"
         }
-        if (finalPath.endsWith("/")) {
-            finalPath = finalPath.substring(0, finalPath.length - 1) // must remove last '/' to standardize sync path
-        }
-        finalPath
+        return path.removeSuffix("/")
     }
 
     /** local iFt path, used for syncing files to remote by iFt */
@@ -376,7 +373,9 @@ data class JuggGradleCompileOptions(
     }
 
     /** local classpath path, used for get classpath output */
-    val remoteToLocalSyncClasspathPath: String get() = if (syncMode.isRsyncSimple) {
+    val remoteToLocalSyncClasspathPath: String get() = if (com.sickworm.intellij.jugg.compiler.isWindows && syncMode.isRsync) {
+        File(remoteToLocalRootRsyncPath, remoteProjectPath.removePrefix(remoteSyncRootPath).trimStart('/')).path
+    } else if (syncMode.isRsyncSimple) {
         "${localClasspathStoragePath.classpathDir.absolutePath}/$projectSyncRelativePath"
     } else if (isSyncAllProjects) {
         "$remoteToLocalSyncPath/jugg_all_classpath/${File(finalRemoteSyncPath).name}/$projectSyncRelativePath"
@@ -386,7 +385,8 @@ data class JuggGradleCompileOptions(
 
     val remoteInitGradleFilePath: String get() {
         val relativePath = File(initGradleFilePath).relativeTo(File(projectRootPath)).path
-        return File(remoteProjectPath, relativePath).path
+        val path = File(remoteProjectPath, relativePath).path
+        return if (com.sickworm.intellij.jugg.compiler.isWindows && syncMode.isRsync) path.replace('\\', '/') else path
     }
 
     fun checkConfig() {

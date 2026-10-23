@@ -67,6 +67,10 @@ interface IGradleCompileClient : Disposable {
 
         fun onOutput(line: String, isNeedPrint: Boolean = true)
         fun onOutputErr(line: String)
+        fun onWindowsRsyncSetupFailure(failure: WindowsRsyncSetupException) {
+            onOutputErr(failure.message.orEmpty())
+        }
+
         fun updateIndicatorWithTime(newText: String? = null) = Unit
 
         companion object {

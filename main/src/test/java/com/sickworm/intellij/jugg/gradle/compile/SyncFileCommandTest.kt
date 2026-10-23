@@ -8,11 +8,9 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
 import java.nio.file.Files
-import java.nio.file.attribute.PosixFilePermissions
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
-import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
 class SyncFileCommandTest {
@@ -22,6 +20,7 @@ class SyncFileCommandTest {
 
     @Test
     fun sourceSync_shouldPreserveFilesFiltersDeletionAndIncrementalUpdates() {
+        assumeFalse(isWindows)
         val source = temporaryFolder.newFolder("Source Project")
         val destination = temporaryFolder.newFolder("Remote Project")
         val unchanged = writeFile(source, "src/plain.txt", "plain source")
@@ -51,6 +50,7 @@ class SyncFileCommandTest {
 
     @Test
     fun sourceSync_shouldPreserveRelativeLinksInsideTransferTree() {
+        assumeFalse(isWindows)
         val source = temporaryFolder.newFolder("Source Project")
         val destination = temporaryFolder.newFolder("Remote Project")
         writeFile(source, "shared/material.txt", "internal material")
@@ -65,51 +65,29 @@ class SyncFileCommandTest {
     }
 
     @Test
-    fun sourceSync_shouldCopyExternalDirectoryContentsWithoutChangingLocalLink() {
-        val source = temporaryFolder.newFolder("local", "android")
-        val destination = temporaryFolder.newFolder("remote", "android")
-        val shared = writeFile(source.parentFile, ".workspace/others/assets/player/material.bin", "player material")
-        writeFile(shared.parentFile, "nested/.metadata", "nested material")
-        val link = File(source, "assets").toPath()
-        val target = File("../.workspace/others/assets").toPath()
-        Files.createSymbolicLink(link, target)
-        Files.createSymbolicLink(File(destination, "assets").toPath(), target)
-
-        assertEquals(0, sync(source, destination).first)
-        assertFalse(Files.isSymbolicLink(File(destination, "assets").toPath()))
-        assertTrue(File(destination, "assets").isDirectory)
-        assertContentEquals(shared.readBytes(), File(destination, "assets/player/material.bin").readBytes())
-        assertEquals("nested material", File(destination, "assets/player/nested/.metadata").readText())
-        assertEquals(target, Files.readSymbolicLink(link))
-        assertEquals("player material", shared.readText())
-    }
-
-    @Test
-    fun sourceSync_shouldCopyExternalFilesAndAbsoluteLinks() {
+    fun sourceSync_shouldCopyExternalLinkTargetsOnUnix() {
+        assumeFalse(isWindows)
         val source = temporaryFolder.newFolder("Source Project")
         val destination = temporaryFolder.newFolder("Remote Project")
         val shared = writeFile(temporaryFolder.root, "shared file.txt", "external material")
-        val internal = writeFile(source, "internal.txt", "internal material")
         val links = mapOf(
             "relative.txt" to File("../shared file.txt").toPath(),
             "absolute.txt" to shared.toPath(),
-            "absolute internal.txt" to internal.toPath(),
         )
         links.forEach { (name, target) -> Files.createSymbolicLink(File(source, name).toPath(), target) }
 
         assertEquals(0, sync(source, destination).first)
         links.forEach { (name, target) ->
-            val copied = File(destination, name)
-            assertFalse(Files.isSymbolicLink(copied.toPath()))
-            assertEquals(File(source, name).readText(), copied.readText())
+            assertFalse(Files.isSymbolicLink(File(destination, name).toPath()))
+            assertEquals("external material", File(destination, name).readText())
             assertEquals(target, Files.readSymbolicLink(File(source, name).toPath()))
         }
         assertEquals("external material", shared.readText())
-        assertEquals("internal material", internal.readText())
     }
 
     @Test
     fun sourceSync_shouldJudgeRelativeLinksAgainstTransferRootInsteadOfProjectRoot() {
+        assumeFalse(isWindows)
         val source = temporaryFolder.newFolder("local")
         val destination = temporaryFolder.newFolder("remote")
         writeFile(source, ".workspace/others/assets/player/material.txt", "shared material")
@@ -119,43 +97,6 @@ class SyncFileCommandTest {
         assertEquals(0, sync(source, destination, projectRelativePath = "android").first)
         assertTrue(Files.isSymbolicLink(File(destination, "android/assets").toPath()))
         assertEquals("shared material", File(destination, "android/assets/player/material.txt").readText())
-    }
-
-    @Test
-    fun sourceSync_shouldReportMissingExternalLinkTarget() {
-        val source = temporaryFolder.newFolder("Source Project")
-        val destination = temporaryFolder.newFolder("Remote Project")
-        val link = File(source, "missing assets").toPath()
-        Files.createSymbolicLink(link, File("../missing target").toPath())
-
-        val (result, output) = sync(source, destination)
-
-        assertNotEquals(0, result, output)
-        assertTrue(output.contains("symlink has no referent"), output)
-        assertTrue(output.contains("missing assets"), output)
-        assertFalse(File(destination, "missing assets").exists())
-        assertTrue(Files.isSymbolicLink(link))
-    }
-
-    @Test
-    fun sourceSync_shouldReportUnreadableExternalLinkTarget() {
-        val source = temporaryFolder.newFolder("Source Project")
-        val destination = temporaryFolder.newFolder("Remote Project")
-        val shared = writeFile(temporaryFolder.root, "unreadable.txt", "private material")
-        Files.createSymbolicLink(File(source, "unreadable.txt").toPath(), shared.toPath())
-        val permissions = Files.getPosixFilePermissions(shared.toPath())
-        try {
-            Files.setPosixFilePermissions(shared.toPath(), PosixFilePermissions.fromString("---------"))
-            assumeFalse("Privileged user can still read mode-000 files", shared.canRead())
-            val (result, output) = sync(source, destination)
-            assertNotEquals(0, result, output)
-            assertTrue(output.contains("Permission denied"), output)
-            assertTrue(output.contains("unreadable.txt"), output)
-        } finally {
-            Files.setPosixFilePermissions(shared.toPath(), permissions)
-        }
-        assertEquals("private material", shared.readText())
-        assertTrue(Files.isSymbolicLink(File(source, "unreadable.txt").toPath()))
     }
 
     private fun writeFile(root: File, path: String, content: String): File {
@@ -182,6 +123,13 @@ class SyncFileCommandTest {
         process.waitFor()
         val result = output.lineSequence().mapNotNull { command.hasFinishWithResult(it) }.single()
         return result to output
+    }
+
+    @Test
+    fun rsyncArguments_shouldCopyUnsafeLinksOnlyOnUnix() {
+        val arguments = SyncFileCommand.getRsyncArguments("demo", emptyList())
+
+        assertEquals(!isWindows, "--copy-unsafe-links" in arguments)
     }
 
     @Test

@@ -118,6 +118,7 @@ class JschShellTerminalHelperTest {
         whenever(options.remoteSshPort).thenReturn(22)
         whenever(options.httpProxyIp).thenReturn("")
         whenever(options.environmentVariables).thenReturn("")
+        whenever(options.syncMode).thenReturn(com.sickworm.intellij.jugg.ide.bean.SyncMode.RSYNC_SIMPLE)
         whenever(session.getConfig("PubkeyAcceptedAlgorithms")).thenReturn("ssh-ed25519")
         whenever(session.openChannel("shell")).thenReturn(shell)
         whenever(shell.inputStream).thenReturn(
@@ -159,6 +160,7 @@ class JschShellTerminalHelperTest {
         whenever(options.httpProxyIp).thenReturn("")
         whenever(session.getConfig("PubkeyAcceptedAlgorithms")).thenReturn("ssh-ed25519")
         whenever(session.connect()).thenThrow(JSchException("Auth fail"))
+        whenever(options.syncMode).thenReturn(com.sickworm.intellij.jugg.ide.bean.SyncMode.RSYNC_SIMPLE)
 
         try {
             Mockito.mockConstruction(JSch::class.java) { jsch, _ ->
