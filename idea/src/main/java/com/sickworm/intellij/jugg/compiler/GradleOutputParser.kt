@@ -23,6 +23,11 @@ class GradleOutputParser(
 
     private var startCompileTime = System.currentTimeMillis()
     private var currentIndicatorText = ""
+    private var resolvedRemoteSyncPath: String? = null
+
+    override fun onRemoteSyncPathResolved(path: String) {
+        resolvedRemoteSyncPath = path
+    }
 
     override fun onOutput(line: String, isNeedPrint: Boolean) {
 
@@ -108,7 +113,7 @@ class GradleOutputParser(
         if (!juggGradleCompileOptions.isRemoteCompile) {
             return line
         }
-        val remoteRootPath = juggGradleCompileOptions.finalRemoteSyncPath
+        val remoteRootPath = resolvedRemoteSyncPath ?: juggGradleCompileOptions.finalRemoteSyncPath
         if (!remoteRootPath.startsWith("/")) return line
         val localRootPath = File(juggGradleCompileOptions.projectRootPath).parentFile.path
         return line.replace(remoteRootPath, localRootPath)

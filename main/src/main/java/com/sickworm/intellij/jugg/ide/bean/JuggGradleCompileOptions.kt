@@ -295,7 +295,7 @@ data class JuggGradleCompileOptions(
     private val projectSyncRootRelativePath: String get() = projectSyncRelativePath.substringBefore(
         if (isWindows && syncMode.isRsync) '/' else File.separatorChar)
 
-    // Connection-local resolution is shared with output parsing, but never persisted or copied.
+    // Connection-local resolution is never persisted or copied; listeners receive it explicitly.
     @Transient
     internal var resolvedRemoteSyncPath: String? = null
 

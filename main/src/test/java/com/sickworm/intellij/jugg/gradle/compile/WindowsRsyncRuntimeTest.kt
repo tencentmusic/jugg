@@ -13,6 +13,37 @@ import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 
 class WindowsRsyncRuntimeTest {
     @get:Rule val folder = TemporaryFolder()
+
+    @Test
+    fun `discovered keys preserve password fallback and keep credentials out of argv`() {
+        val bin = folder.newFolder("authentication tools")
+        listOf("rsync", "ssh", "cygpath").forEach { File(bin, "$it.exe").writeText("fixture") }
+        val runtime = org.mockito.Mockito.spy(WindowsRsyncRuntime.fromPath(bin.path,
+            org.mockito.Mockito.mock(CmdExecutor::class.java)))
+        org.mockito.Mockito.doAnswer { it.getArgument<String>(0).replace('\\', '/') }
+            .`when`(runtime).localPath(org.mockito.kotlin.any())
+        val key = folder.newFile("unrelated-key")
+        val password = "fallback p@ss 中文"
+        val command = RsyncFetchOutputCommand(password, 22, listOf(key.path),
+            "user@host:/remote/app.apk", folder.root.path)
+
+        val arguments = runtime.arguments(command)
+        assertTrue(arguments[2].contains("PubkeyAuthentication=yes"))
+        assertTrue(arguments[2].contains("PreferredAuthentications=publickey,password,keyboard-interactive"))
+        assertTrue(arguments[2].contains("BatchMode=no"))
+        assertFalse(arguments.any { it.contains(password) })
+        assertEquals(password, runtime.environment(command)["JUGG_RSYNC_PASSWORD"])
+
+        val keyOnly = RsyncFetchOutputCommand(null, 22, listOf(key.path),
+            "user@host:/remote/app.apk", folder.root.path)
+        assertTrue(runtime.arguments(keyOnly)[2].contains("BatchMode=yes"))
+        assertFalse(runtime.environment(keyOnly).containsKey("JUGG_RSYNC_PASSWORD"))
+        val passwordOnly = RsyncFetchOutputCommand(password, 22, emptyList(),
+            "user@host:/remote/app.apk", folder.root.path)
+        assertTrue(runtime.arguments(passwordOnly)[2].contains("PubkeyAuthentication=no"))
+        assertTrue(runtime.arguments(passwordOnly)[2].contains("PreferredAuthentications=password,keyboard-interactive"))
+    }
+
     private fun load(root: File) = WindowsRsyncRuntime.fromPath(File(root, "bin").path,
         CmdExecutor(org.mockito.Mockito.mock(com.intellij.openapi.diagnostic.Logger::class.java)))
 

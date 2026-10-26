@@ -60,19 +60,22 @@ internal class WindowsRsyncRuntime private constructor(
 
     fun arguments(command: RsyncCommand): List<String> {
         val password = authenticationPassword(command)
+        val keys = command.keyPathList.ifEmpty {
+            listOfNotNull(command.password?.let { File(it) }?.takeIf { it.isFile && it.isAbsolute }?.path)
+        }
+        val authentications = if (password == null) "publickey" else {
+            (if (keys.isEmpty()) "" else "publickey,") + "password,keyboard-interactive"
+        }
         val ssh = mutableListOf(localPath(executable("ssh")),
             "-F", "/dev/null",
-            "-o", "PubkeyAuthentication=${if (password == null) "yes" else "no"}",
-            "-o", "PreferredAuthentications=${if (password == null) "publickey" else "password,keyboard-interactive"}",
+            "-o", "PubkeyAuthentication=${if (password == null || keys.isNotEmpty()) "yes" else "no"}",
+            "-o", "PreferredAuthentications=$authentications",
             "-o", "NumberOfPasswordPrompts=1",
             "-p", command.remoteSshPort.toString(), "-o", "BatchMode=${if (password == null) "yes" else "no"}", "-o", "IdentitiesOnly=yes",
             "-o", "IdentityAgent=none", "-o", "StrictHostKeyChecking=accept-new", "-o", "ConnectTimeout=30")
         val knownHosts = File(System.getProperty("user.home"), ".ssh/known_hosts")
         Files.createDirectories(knownHosts.parentFile.toPath())
         ssh += listOf("-o", "UserKnownHostsFile=${localPath(knownHosts.path)}")
-        val keys = command.keyPathList.ifEmpty {
-            listOfNotNull(command.password?.let { File(it) }?.takeIf { it.isFile && it.isAbsolute }?.path)
-        }
         require(keys.isNotEmpty() || password != null) { "Windows rsync requires an SSH key or password" }
         keys.forEach { ssh += listOf("-i", localPath(it)) }
         return listOf(executable("rsync"), "-e", ssh.joinToString(" ", transform = ::quote)) + command.windowsArguments(this)
@@ -87,7 +90,7 @@ internal class WindowsRsyncRuntime private constructor(
     }
 
     private fun authenticationPassword(command: RsyncCommand): String? = command.password
-        ?.takeIf { it.isNotEmpty() && command.keyPathList.isEmpty() && !(File(it).isAbsolute && File(it).isFile) }
+        ?.takeIf { it.isNotEmpty() && !(File(it).isAbsolute && File(it).isFile) }
 
     companion object {
         fun load(executor: CmdExecutor): WindowsRsyncRuntime {

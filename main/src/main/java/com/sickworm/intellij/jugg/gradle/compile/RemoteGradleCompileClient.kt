@@ -729,6 +729,7 @@ class RemoteGradleCompileClient(
             throw JuggInternalException.notLoginYet()
         }
         resolveRemoteSyncPath(gradleCompileSettings)
+        terminalOutputListener.onRemoteSyncPathResolved(gradleCompileSettings.finalRemoteSyncPath)
         return gradleCompileSettings
     }
 
@@ -753,16 +754,19 @@ class RemoteGradleCompileClient(
         options.resolvedRemoteSyncPath = "${home.trimEnd('/')}/${options.remoteSyncPath.ifEmpty { "remote" }}"
     }
 
-    private fun prepareRemoteWrapper(options: JuggGradleCompileOptions): Boolean {
+    private fun prepareRemoteWrapper(
+        options: JuggGradleCompileOptions,
+        compileCommand: String = options.compileCommand,
+    ): Boolean {
         if (!isWindows || !options.syncMode.isRsync || isRemoteWindows) return true
-        val wrapper = options.compileCommand.split(Regex("\\s+"))
+        val wrapper = compileCommand.split(Regex("\\s+"))
             .map { it.trim('\'', '"').replace('\\', '/') }
             .firstOrNull { it == "gradlew" || it.endsWith("/gradlew") } ?: return true
         if (File(wrapper).isAbsolute || wrapper.contains(":")) return true
         val executable = File(options.projectRootPath, wrapper).normalize()
         val root = File(options.projectRootPath).normalize()
         if (!executable.toPath().startsWith(root.toPath())) return true
-        // NTFS uploads do not preserve the Unix executable bit of the wrapper.
+        // Cygwin may upload a wrapper without its Unix executable bit.
         val path = "${options.remoteProjectPath}/${executable.relativeTo(root).invariantSeparatorsPath}"
         return invoke(SimpleSshCommand("chmod u+x ${quoteRemotePath(path)}")) == 0
     }
@@ -853,6 +857,10 @@ class RemoteGradleCompileClient(
         // 1. sync source
         val syncFileResult = syncSourceFile(gradleCompileSettings)
         if (!syncFileResult.isSuccess) {
+            return null
+        }
+        if (!prepareRemoteWrapper(gradleCompileSettings, "./gradlew")) {
+            printToStreamErrorIfCanceled("Make remote Gradle wrapper executable failed")
             return null
         }
 
