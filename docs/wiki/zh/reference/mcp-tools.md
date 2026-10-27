@@ -44,6 +44,7 @@ tags:
 
 | Tool | 主要参数 | 用途 |
 |---|---|---|
+| `settings` | `action`、`key?`、文本 `value?`、布尔 `confirm?` | 全局类型化设置；受保护修改必须显式确认。 |
 | `version` | 无 | 返回 Jugg 插件版本。 |
 | `list-projects` | 无 | 列出当前 IDE 已初始化项目。 |
 | `restart` | `projectDir`、`waitAppReadyAfterSuccess` | 重启目标 App；没有 launch/HOME Activity 时只执行 `am force-stop`。 |
@@ -65,7 +66,7 @@ tags:
 | `status` | `projectDir`、`refreshChanges` | 查询部署状态和未编译文件摘要。 |
 | `wait-logs` | `projectDir`、`marker`、`tags`、`timeoutMs` | 等待 App 日志 marker、crash 或 timeout。 |
 
-`version` 和 `list-projects` 不需要 `projectDir`。其他工具都需要项目绝对路径。
+`version`、`list-projects` 和 `settings` 不需要 `projectDir`。项目工具需要绝对项目路径。`settings` 在显式收到 `confirm=true` 前返回 `CONFIRMATION_REQUIRED` 和 Android Studio 的提示。
 
 ## 多设备行为
 

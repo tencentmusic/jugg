@@ -36,6 +36,7 @@ Camel-case global options such as `--projectDir` and `--ifCompiling` are normali
 
 | Subcommand | Purpose |
 |---|---|
+| `settings` | Lists, reads, sets, or resets global settings. |
 | `version` | Displays the CLI version and plugin version. |
 | `compile` | Runs Jugg compilation without deployment. |
 | `deploy` | Compiles and deploys. |
@@ -53,6 +54,24 @@ Camel-case global options such as `--projectDir` and `--ifCompiling` are normali
 | `ssh-info` | Requests remote SSH troubleshooting information. |
 | `report` | Prepares a diagnostic bundle, uploads it after confirmation, and returns a Report ID. |
 | `wait-logs` | Waits for an app log marker, crash, or timeout. |
+
+## Global settings
+
+```bash
+jugg settings list
+jugg settings get maxCompileSourceModules
+jugg settings set maxCompileSourceModules 30
+jugg settings set isEmbeddedToApk true --confirm true
+jugg settings reset isEnableBackupClasspath --confirm true
+```
+
+`jugg settings` also lists settings. Keys use the exact camelCase names shown by list. Values are parsed using each setting's type: strict booleans, integers, strings, record JSON arrays, or a compile-template JSON object. Invalid values fail without saving. Runtime capabilities shown as read-only cannot be changed.
+
+Settings are global and persist in `~/.jugg/settings.json`, shared by Android Studio and standalone using the same settings root. Runtime selection is automatic; `--runtime` only chooses the process handling the request. These commands work without an open project or connected device. `--project-dir` is a routing hint; `--serial` and `--if-compiling` are rejected.
+
+List includes key, value, and description. Get includes key/value; set/reset include key, previousValue, value, and changed. Guarded changes return `CONFIRMATION_REQUIRED` with the same prompt as Android Studio. Review it, then retry with explicit `--confirm true`; missing or false confirmation saves nothing. JSON failures exit nonzero. Template passwords and environment values are redacted in output, and redacted placeholders cannot be saved.
+
+Changing Backup classpath invalidates each project's old baseline before its next operation. Explicit device compatibility changes schedule reinstall. See [Configuration](./configuration.md) for storage and settings meanings.
 
 ## Multiple-device behavior
 

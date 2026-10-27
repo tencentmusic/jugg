@@ -106,6 +106,7 @@ Help AI complete a task with minimal context:
 - Read catalog documents (`99/98`) before topic documents.
 - Expand only the sections directly relevant to the task.
 - For API capabilities, inspect the implementation rather than relying only on documentation.
+- For CLI discussions, design, and investigation, follow the public `jugg` client → MCP → Standalone Runtime (or the selected IDEA Runtime) path described in `08_cli_tools_list.md`. CI build implementations (`CmdLine`, `BuildGradleBaseCommand`, and `BuildIncrementalApkCommand`) are outside this scope and need not be inspected. Do not use CI-specific behavior to infer CLI requirements or expand a CLI task; investigate CI only when the user explicitly includes it.
 
 ---
 

@@ -24,7 +24,6 @@ class JuggDaemon(
     private val idleTimer = DaemonIdleTimer(activity, idleTimeoutMillis, idleRecheckMillis, ::close)
 
     fun start(projectDirs: List<File>): Int {
-        require(projectDirs.isNotEmpty()) { "At least one project directory is required" }
         StandaloneDeployerResources.prepare()
         projectDirs.forEach(registry::initialize)
         McpLocalServer.start(idleTimer::recordExternalActivity)

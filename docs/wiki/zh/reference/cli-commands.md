@@ -36,6 +36,7 @@ jugg help <subcommand>
 
 | 子命令 | 用途 |
 |---|---|
+| `settings` | 列出、读取、设置或重置全局设置。 |
 | `version` | 显示 CLI 版本和插件版本。 |
 | `compile` | 仅执行 Jugg 编译，不部署。 |
 | `deploy` | 编译并部署。 |
@@ -53,6 +54,24 @@ jugg help <subcommand>
 | `ssh-info` | 申请远端 SSH 排障信息。 |
 | `report` | 生成诊断包，确认后上传并返回 Report ID。 |
 | `wait-logs` | 等待 App 日志 marker、crash 或 timeout。 |
+
+## 全局设置
+
+```bash
+jugg settings list
+jugg settings get maxCompileSourceModules
+jugg settings set maxCompileSourceModules 30
+jugg settings set isEmbeddedToApk true --confirm true
+jugg settings reset isEnableBackupClasspath --confirm true
+```
+
+`jugg settings` 也会列出设置。key 使用 list 显示的原始 camelCase 名称。value 按各设置的实际类型解析：严格布尔值、整数、字符串、记录 JSON 数组或编译模板 JSON 对象。非法值报错且不保存。标为只读的运行能力不能修改。
+
+设置是全局的，持久化在 `~/.jugg/settings.json`；使用相同设置根目录的 Android Studio 与 standalone 共用它。Runtime 自动选择；`--runtime` 仅选择处理请求的进程。这些命令无需打开项目或连接设备。`--project-dir` 仅作为路由提示；`--serial` 和 `--if-compiling` 会被拒绝。
+
+list 包含 key、value 和 description。get 包含 key/value；set/reset 包含 key、previousValue、value 和 changed。需确认的修改返回 `CONFIRMATION_REQUIRED`，提示与 Android Studio 相同。阅读后，显式传入 `--confirm true` 重试；缺失或为 false 时不保存。JSON 模式下失败退出码非零。模板密码和环境变量值在输出中脱敏，脱敏占位符不能保存。
+
+修改 Backup classpath 会在各项目下一次操作前使旧基线失效。显式修改设备兼容设置会安排重新安装。配置含义与存储位置见[配置参考](./configuration.md)。
 
 ## 多设备行为
 

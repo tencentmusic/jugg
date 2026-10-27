@@ -26,6 +26,7 @@ class JuggPathManager(
     val legacyLogDir = File(juggRootDir, "log")
     val standaloneCliLogDir = File(logDir, "standlone_cli")
     val mcpFetchDir = File(juggRootDir, "mcp_fetch")
+    val settingsAppliedFile = File(juggRootDir, "settings_applied.json")
     val runtimeLockFile = File(juggRootDir, "runtime.lock")
     val runtimeLockOwnerFile = File(juggRootDir, "runtime.lock.owner.json")
     val runtimeOwnerFile = File(juggRootDir, "runtime.owner.json")

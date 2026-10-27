@@ -37,6 +37,17 @@ import kotlin.test.assertTrue
  * Verifies await-const-ref timing in incremental compile flow.
  */
 class IncrementalCompilerHelperTest {
+    @get:org.junit.Rule val temporary = org.junit.rules.TemporaryFolder()
+    private val previousRoot = com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager.rootDir
+
+    @org.junit.Before fun isolateSettings() {
+        com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager.rootDir = temporary.newFolder("settings")
+    }
+
+    @org.junit.After fun restoreSettings() {
+        com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager.rootDir = previousRoot
+        JuggSettings.reload()
+    }
 
     @Test
     fun `should expose compile error details for visible logs`() {
@@ -862,20 +873,26 @@ class IncrementalCompilerHelperTest {
 
     @Test
     fun `should continue compile when user confirms too many changes`() {
-        val fixture = continueCompileTooManyFixture()
-        val uiHandler = mock<CompileUiHandler>()
-        whenever(uiHandler.confirmTooManyChanges(any())).thenReturn(TooManyChangesConfirmResult.CONTINUE)
-        whenever(uiHandler.createCompileStatusHolder()).thenReturn(CompileStatusHolder.DEFAULT)
-        val result = withLoweredSourceFilePointLimit(2) {
-            fixture.helper.compile(
-                undeployedFiles = listOf(fixture.triggerChanged),
-                uiHandler = uiHandler,
-                compileStatusHolder = CompileStatusHolder.DEFAULT,
-            )
+        val previous = JuggSettings.isConfirmFallbackWhenTooManyChanges
+        JuggSettings.isConfirmFallbackWhenTooManyChanges = false
+        try {
+            val fixture = continueCompileTooManyFixture()
+            val uiHandler = mock<CompileUiHandler>()
+            whenever(uiHandler.confirmTooManyChanges(any())).thenReturn(TooManyChangesConfirmResult.CONTINUE)
+            whenever(uiHandler.createCompileStatusHolder()).thenReturn(CompileStatusHolder.DEFAULT)
+            val result = withLoweredSourceFilePointLimit(2) {
+                fixture.helper.compile(
+                    undeployedFiles = listOf(fixture.triggerChanged),
+                    uiHandler = uiHandler,
+                    compileStatusHolder = CompileStatusHolder.DEFAULT,
+                )
+            }
+            assertTrue(result.isSuccess)
+            verify(uiHandler).confirmTooManyChanges(any())
+            verify(fixture.compiler, Mockito.times(2)).compile(any())
+        } finally {
+            JuggSettings.isConfirmFallbackWhenTooManyChanges = previous
         }
-        assertTrue(result.isSuccess)
-        verify(uiHandler).confirmTooManyChanges(any())
-        verify(fixture.compiler, Mockito.times(2)).compile(any())
     }
 
     @Test

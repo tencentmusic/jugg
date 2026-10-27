@@ -48,7 +48,7 @@ class VersionMcpToolActionTest {
         PlatformApi.impl = FakePlatformApi(listOf(projectA, projectB))
 
         val action = VersionMcpToolAction()
-        val result = action.executeGlobal(McpToolRegistry())
+        val result = action.executeGlobal(McpToolRegistry(), emptyMap())
 
         Assert.assertEquals(McpToolStatus.OK, result.status)
         @Suppress("UNCHECKED_CAST")
@@ -78,7 +78,7 @@ class VersionMcpToolActionTest {
         PlatformApi.impl = FakePlatformApi(listOf(projectA, projectB))
 
         val action = VersionMcpToolAction()
-        val result = action.executeGlobal(McpToolRegistry())
+        val result = action.executeGlobal(McpToolRegistry(), emptyMap())
 
         Assert.assertEquals(McpToolStatus.OK, result.status)
         @Suppress("UNCHECKED_CAST")
@@ -92,7 +92,7 @@ class VersionMcpToolActionTest {
         PlatformApi.impl = FakePlatformApi(emptyList())
 
         val action = VersionMcpToolAction()
-        val result = action.executeGlobal(McpToolRegistry())
+        val result = action.executeGlobal(McpToolRegistry(), emptyMap())
 
         Assert.assertEquals(McpToolStatus.OK, result.status)
         @Suppress("UNCHECKED_CAST")

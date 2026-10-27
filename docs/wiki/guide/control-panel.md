@@ -71,6 +71,8 @@ The Settings page lets you adjust common runtime behavior:
 - Whether to use the project's Kotlin compiler.
 - Whether to back up the classpath.
 
+Settings share their descriptions and confirmations with `jugg settings`. They apply globally across projects. Backup classpath changes invalidate each project’s old baseline before its next operation; device compatibility changes schedule reinstall. See [CLI commands](../reference/cli-commands.md#global-settings).
+
 You can also install the CLI and Agent Skills, check for updates, or run `Clear Jugg Build` to reinitialize the project.
 
 > [!WARNING]

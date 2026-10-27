@@ -1,6 +1,6 @@
 # Jugg CLI commands and MCP mapping
 
-> Last checked: 2026-10-07. Code takes precedence over this page. For the MCP tool catalog and diagnostic contract, see [08_mcp_tools_list.md](08_mcp_tools_list.md); the connected Runtime's `tools/list` owns exact `inputSchema` details.
+> Last checked: 2026-10-27. Code takes precedence over this page. For the MCP tool catalog and diagnostic contract, see [08_mcp_tools_list.md](08_mcp_tools_list.md); the connected Runtime's `tools/list` owns exact `inputSchema` details.
 
 ## 1. Source owners
 
@@ -16,10 +16,11 @@ The public CLI is an MCP client, except `stop`, which invokes the standalone lau
 
 ## 2. Public command index
 
-`jugg.py::COMMANDS` currently exposes 18 commands. The option column lists CLI-specific flags; global options below apply separately. Kebab-case flags also accept their camelCase MCP spelling where the parser defines that spelling. An omitted flag is omitted from the MCP request.
+`jugg.py::COMMANDS` currently exposes 19 commands. The option column lists CLI-specific flags; global options below apply separately. Kebab-case flags also accept their camelCase MCP spelling where the parser defines that spelling. An omitted flag is omitted from the MCP request.
 
 | CLI command | MCP tool | Command options and mapping |
 | --- | --- | --- |
+| `settings` | `settings` | Empty action means list; `list`, `get KEY`, `set KEY VALUE`, `reset KEY`; set/reset accept explicit `--confirm true/false`. Exact camelCase keys; typed parsing stays in Kotlin. |
 | `version` | `version` | No command options or MCP `projectDir`; reports `CLI_VERSION` plus Runtime/plugin version; JSON wraps them as `{cliVersion, plugin: structuredContent}`. |
 | `stop` | Local launcher | No command options; stops all standalone processes under this Jugg root without deleting project history or logs. `--project-dir` does not narrow the scope; `--runtime idea` fails. |
 | `compile` | `compile` | No command options; compiles without deployment. |
@@ -53,6 +54,8 @@ The global options are `--console=plain|rich|json`, `--project-dir PATH`, `--ser
 
 Project resolution starts at the nearest upward `settings.gradle(.kts)`. Automatic selection requires ownership of that exact Gradle project, so an independently nested project is not captured by an open parent IDEA project. Explicit `--project-dir` allows longest-prefix matching to an initialized parent project. Matching IDEA Runtime wins over standalone in automatic mode; `--runtime` forces a host type. Otherwise the CLI reuses an existing standalone Runtime and registers the project on the first valid request, starting a daemon only if none exists. The selected port stays fixed for that command. The cache only prioritizes probing and cannot override ownership. `JUGG_PORT_CACHE` and `JUGG_CACHE_DIR` override the port-cache file and cache root respectively. On macOS, matching is case-folded while progress preserves the displayed path casing.
 
+Global `settings` routing prefers a supported Runtime owning the candidate project, then any supported process, and starts standalone with zero projects when none is available. `--runtime` selects only the executor; `--project-dir` is a routing hint. It never initializes the working directory as a project. Explicit `--serial` or `--if-compiling` fails. A selected old Runtime without the capability reports an upgrade error. No-project startup logs go to `~/.cache/jugg/standalone_startup.log`. `list` alone includes descriptions; confirmation failures retain structured output and a nonzero CLI exit code.
+
 ### 3.3 Discovery and startup
 
 `jugglib` probes `12320..12329` in parallel, then checks `version` and `list-projects`. A “no port passed MCP probing” summary means only that this scan found no usable endpoint; inspect per-port results before assigning a transport, IDE, or plugin cause. Only timeout, HTTP 5xx, or unexpected probe exceptions get one short retry; plain connection refusal does not. If no standalone Runtime exists, launch is serialized by `~/.jugg/locks/standalone.launch.lock` (override: `JUGG_STANDALONE_LAUNCH_LOCK`), with a recheck under the lock. Launcher default is `~/.jugg/standalone/bin/jugg-standalone` or Windows `.bat` (override: `JUGG_STANDALONE_LAUNCHER`). Launch and first-project registration each have a 60-second limit; lock acquisition has 75 seconds. A startup process still alive at timeout gets one final discovery pass. Startup details go to `build/jugg/log/standlone_cli/standalone_startup.log`; after 10 seconds, project Runtime log heartbeats use `build/jugg/log/standlone_cli/compile_latest.log`. Missing heartbeat logs do not abort startup. Hook calls with `JUGG_CALLER=hook` may launch/register only after the project's `build/jugg/database/compile_context.db/complete_flag` exists; otherwise they skip successfully.
@@ -63,7 +66,7 @@ Global `--serial` is injected only into device-target MCP calls: `deploy`, `grad
 
 ### 3.5 Host capabilities
 
-Standalone exposes `compile`, `deploy`, `gradle-build`, `restart`, `devices`, `report`, and `status` among public CLI commands. `clean-reinstall`, `instrument`, UI commands, `activity-stack`, and `wait-logs` need IDEA Runtime. Standalone full builds can use the selected remote SSH/iFT profile, though local project-info Gradle work can still precede remote compilation. No authentication dialog is available in standalone: missing credentials or unauthenticated iFT produce terminal failure. Without serial, standalone deploy/restart targets all online devices; a full build without a device can compile but fail at deployment.
+Standalone exposes `settings`, `compile`, `deploy`, `gradle-build`, `restart`, `devices`, `report`, and `status` among public CLI commands. `clean-reinstall`, `instrument`, UI commands, `activity-stack`, and `wait-logs` need IDEA Runtime. Standalone full builds can use the selected remote SSH/iFT profile, though local project-info Gradle work can still precede remote compilation. No authentication dialog is available in standalone: missing credentials or unauthenticated iFT produce terminal failure. Without serial, standalone deploy/restart targets all online devices; a full build without a device can compile but fail at deployment.
 
 ### 3.6 Long-running calls and output
 

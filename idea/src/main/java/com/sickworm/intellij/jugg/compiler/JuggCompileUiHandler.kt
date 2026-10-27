@@ -14,6 +14,7 @@ import com.sickworm.intellij.jugg.compiler.ui.RunResult
 import com.sickworm.intellij.jugg.compiler.ui.TooManyChangesConfirmResult
 import com.sickworm.intellij.jugg.deploy.instrument.InstrumentationEvent
 import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
+import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
 import com.sickworm.intellij.jugg.ide.bean.IProcessHandler
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
@@ -117,7 +118,7 @@ open class JuggCompileUiHandler(
     }
 
     override fun confirmTooManyChanges(info: TooManyChangesInfo): TooManyChangesConfirmResult {
-        if (isRpcMode) {
+        if (isRpcMode || !JuggSettings.isConfirmFallbackWhenTooManyChanges) {
             return TooManyChangesConfirmResult.FALLBACK
         }
         return recordConfirm("Too many changes", TooManyChangesConfirmDialog.showAndGetResult(info))

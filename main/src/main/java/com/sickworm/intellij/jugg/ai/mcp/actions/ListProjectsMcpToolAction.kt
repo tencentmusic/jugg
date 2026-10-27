@@ -61,7 +61,7 @@ class ListProjectsMcpToolAction : McpToolAction, GlobalMcpToolAction {
         return listProjectsAction()
     }
 
-    override fun executeGlobal(toolRegistry: McpToolRegistry): McpToolResult = listProjectsAction()
+    override fun executeGlobal(toolRegistry: McpToolRegistry, arguments: Map<String, Any?>): McpToolResult = listProjectsAction()
 
     fun listProjectsAction(): McpToolResult {
         return McpToolResult(

@@ -163,6 +163,7 @@ class StandaloneProjectRegistry(
     private companion object {
         val standaloneCapabilities = listOf(
             McpToolActionRegistry.ToolNames.VERSION,
+            McpToolActionRegistry.ToolNames.SETTINGS,
             McpToolActionRegistry.ToolNames.LIST_PROJECTS,
             McpToolActionRegistry.ToolNames.COMPILE,
             McpToolActionRegistry.ToolNames.DEPLOY,

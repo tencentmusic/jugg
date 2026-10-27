@@ -1,92 +1,97 @@
 package com.sickworm.intellij.jugg.project.runtime
 
-import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
-import com.google.gson.JsonParser
+import com.google.gson.stream.JsonReader
+import com.google.gson.stream.JsonToken
+import com.google.gson.internal.Streams
+import java.io.StringReader
 import com.intellij.openapi.diagnostic.Logger
 import java.io.File
 import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 
-/** Stores raw runtime-setting fields in the cross-runtime `~/.jugg/settings.json` file. */
+/** Stores shared settings atomically without replacing unrelated fields or hiding user-edit failures. */
 class JsonRuntimeSettingsRepository(
     private val settingsFile: File,
     private val globalRootDir: File,
     private val logger: Logger,
 ) {
+    private val gson = GsonBuilder().serializeNulls().setPrettyPrinting().create()
 
-    private val gson: Gson = GsonBuilder().setPrettyPrinting().create()
-
-    fun load(): JsonObject {
-        return try {
-            readJsonObject()
-        } catch (exception: Exception) {
-            logger.warn("Load runtime settings JSON failed", exception)
-            JsonObject()
-        }
+    fun load(): JsonObject = try {
+        loadStrict()
+    } catch (exception: Exception) {
+        logger.warn("Load runtime settings JSON failed", exception)
+        JsonObject()
     }
 
-    fun mergeMissing(values: Map<String, JsonElement>): Boolean {
-        if (values.isEmpty()) return true
-        return try {
-            withGlobalResourceLock("Migrate runtime settings", globalRootDir) {
-                val json = readJsonObject()
-                var changed = false
-                values.forEach { (name, value) ->
-                    if (!json.has(name)) {
-                        json.add(name, value)
-                        changed = true
-                    }
-                }
-                if (changed) writeJsonObject(json)
-            }
-            true
-        } catch (exception: Exception) {
-            logger.warn("Migrate runtime settings failed", exception)
-            false
-        }
-    }
-
-    fun update(name: String, value: JsonElement): Boolean {
-        return updateSafely("Update runtime setting") { json ->
-            if (json.get(name) == value) return@updateSafely false
-            json.add(name, value)
-            true
-        }
-    }
-
-    private fun updateSafely(taskName: String, update: (JsonObject) -> Boolean): Boolean {
-        return try {
-            withGlobalResourceLock(taskName, globalRootDir) {
-                val json = readJsonObject()
-                if (!update(json)) return@withGlobalResourceLock false
-                writeJsonObject(json)
-                true
-            }
-        } catch (exception: Exception) {
-            logger.warn("$taskName failed", exception)
-            false
-        }
-    }
-
-    private fun readJsonObject(): JsonObject {
+    fun loadStrict(): JsonObject {
         if (!settingsFile.exists()) return JsonObject()
-        return JsonParser.parseString(settingsFile.readText()).asJsonObject
+        return parseSettingsJson(settingsFile.readText()).asJsonObject
+    }
+
+    fun mergeMissing(values: Map<String, JsonElement>): Boolean = try {
+        withGlobalResourceLock("Migrate runtime settings", globalRootDir) {
+            val json = loadStrict()
+            val missing = values.filterKeys { !json.has(it) }
+            if (missing.isNotEmpty()) {
+                missing.forEach { (key, value) -> json.add(key, value) }
+                writeJsonObject(json)
+            }
+        }
+        true
+    } catch (exception: Exception) {
+        logger.warn("Migrate runtime settings failed", exception)
+        false
+    }
+
+    fun update(name: String, value: JsonElement): Boolean = try {
+        updateStrict(mapOf(name to value))
+        true
+    } catch (exception: Exception) {
+        logger.warn("Update runtime setting failed", exception)
+        false
+    }
+
+    /** Publishes related fields together; an expected snapshot prevents stale user decisions from overwriting newer state. */
+    fun updateStrict(values: Map<String, JsonElement>, expected: JsonObject? = null): JsonObject {
+        return withGlobalResourceLock("Update runtime settings", globalRootDir) {
+            val json = loadStrict()
+            if (expected != null && json != expected) throw SettingsChangedException()
+            if (values.any { (key, value) -> json.get(key) != value }) {
+                values.forEach { (key, value) -> json.add(key, value) }
+                writeJsonObject(json)
+            }
+            json
+        }
     }
 
     private fun writeJsonObject(json: JsonObject) {
-        settingsFile.parentFile?.mkdirs()
-        val tempFile = File(settingsFile.parentFile, "${settingsFile.name}.tmp")
-        tempFile.writeText(gson.toJson(json))
+        Files.createDirectories(settingsFile.parentFile.toPath())
+        val tempFile = Files.createTempFile(settingsFile.parentFile.toPath(), "settings-", ".tmp")
         try {
-            Files.move(tempFile.toPath(), settingsFile.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
-        } catch (_: AtomicMoveNotSupportedException) {
-            Files.move(tempFile.toPath(), settingsFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
+            Files.writeString(tempFile, gson.toJson(json))
+            try {
+                Files.move(tempFile, settingsFile.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
+            } catch (_: AtomicMoveNotSupportedException) {
+                Files.move(tempFile, settingsFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
+            }
         } finally {
-            tempFile.delete()
+            Files.deleteIfExists(tempFile)
         }
     }
+}
+
+/** Signals a recoverable concurrent edit; callers must reload and revalidate before one bounded retry. */
+class SettingsChangedException : IllegalStateException("Settings changed concurrently; read the latest values and retry.")
+
+/** Gson's convenience parser enables lenient JSON; settings input must reject malformed JSON. */
+internal fun parseSettingsJson(raw: String): JsonElement = JsonReader(StringReader(raw)).use { reader ->
+    reader.isLenient = false
+    val value = Streams.parse(reader)
+    require(reader.peek() == JsonToken.END_DOCUMENT) { "Unexpected trailing settings data." }
+    value
 }

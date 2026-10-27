@@ -266,11 +266,7 @@ class IncrementalCompilerHelper(
                     "kotlinSourceFiles ${tooManyChanges.kotlinFileCount}")
         }
         if (tooManyChanges != null && !skipTooManyChangesCheck) {
-            val confirm = if (!JuggSettings.isConfirmFallbackWhenTooManyChanges) {
-                TooManyChangesConfirmResult.FALLBACK
-            } else {
-                uiHandler.confirmTooManyChanges(tooManyChanges)
-            }
+            val confirm = uiHandler.confirmTooManyChanges(tooManyChanges)
             TooManyChanges.applyUserChoice(
                 info = tooManyChanges,
                 confirm = confirm,

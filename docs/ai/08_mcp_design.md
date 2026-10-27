@@ -1,6 +1,6 @@
 # MCP Design and Runtime Boundaries
 
-> Last verified: 2026-10-14
+> Last verified: 2026-10-27
 > Consistency rule: If documentation conflicts with code, code takes precedence.
 
 ## 1. Scope
@@ -33,7 +33,7 @@ HTTP request
   -> McpResultMapper response
 ```
 
-`McpToolActionRegistry.defaultActions()` defines implemented actions. `McpToolRegistry` restricts both `tools/list` and dispatch to the current host's capability list; discovery is therefore a runtime contract, not proof that every source action is public. `tools/list` omits output schemas from its compact response. `version` reports process `runtimeType`, `runtimeVersion`, and the registry capabilities; `list-projects` shows only projects initialized in that process. Both are the only `noProjectDirTools` and do not register a Standalone project.
+`McpToolActionRegistry.defaultActions()` defines implemented actions. `McpToolRegistry` restricts both `tools/list` and dispatch to the current host's capability list; discovery is therefore a runtime contract, not proof that every source action is public. `tools/list` omits output schemas from its compact response. `version` reports process `runtimeType`, `runtimeVersion`, and the registry capabilities; `list-projects` shows only projects initialized in that process. `settings` joins them in `noProjectDirTools`; none registers a Standalone project. `GlobalMcpToolAction.executeGlobal` receives validated arguments as well as the process registry. `settings` uses the shared editor and returns `CONFIRMATION_REQUIRED` with the IDE title, full message, and button labels unless a guarded edit explicitly supplies boolean `confirm=true`. It never displays a remote dialog.
 
 ## 4. Validation and Error Ownership
 
@@ -51,7 +51,7 @@ IDEA routes a project tool only to an already initialized `JuggInitializer` mana
 
 ## 5. Host Capabilities and Project State
 
-The Standalone registry currently exposes `version`, `list-projects`, `compile`, `deploy`, `gradle-build`, `get-compile-status`, `status`, `restart`, `report-prepare`, `report-upload`, and `devices`. IDEA uses the full registered action set. `stop` is a local CLI lifecycle command, not an MCP capability. Actions such as `layout-dump`, `view-locate`, `view-inspect`, `tap`, `wait-logs`, `activity-stack`, `clean-reinstall`, and `instrument` are not exposed by Standalone. In particular, its AndroidTest launch path is not implemented, so adding `instrument` to the allowlist would misrepresent deployment as a completed test run; `clean-reinstall` also needs project-scoped marker ownership before exposure. Check `McpToolRegistry.listCapabilities()` and `tools/list` before assuming a source action is reachable.
+The Standalone registry currently exposes `version`, `list-projects`, `settings`, `compile`, `deploy`, `gradle-build`, `get-compile-status`, `status`, `restart`, `report-prepare`, `report-upload`, and `devices`. IDEA uses the full registered action set. `stop` is a local CLI lifecycle command, not an MCP capability. Actions such as `layout-dump`, `view-locate`, `view-inspect`, `tap`, `wait-logs`, `activity-stack`, `clean-reinstall`, and `instrument` are not exposed by Standalone. In particular, its AndroidTest launch path is not implemented, so adding `instrument` to the allowlist would misrepresent deployment as a completed test run; `clean-reinstall` also needs project-scoped marker ownership before exposure. Check `McpToolRegistry.listCapabilities()` and `tools/list` before assuming a source action is reachable.
 
 `IMcpRuntime` supplies the nonempty project path, target/device services, compile/deploy services, and project-state lock operations. Actions do not infer ownership from an IDE `Project.basePath`. A supplied `serial` is an exact online-device target and must not silently fall back. Without one, actions may apply different policies: compile/deploy/restart can handle their target set, while a single-device UI or log operation can return `MULTIPLE_DEVICE`. The project `IDeployTargetManager` owns selection and creates its ADB adapter in the same domain. `report-prepare` retains but ignores `serial` for compatibility and gathers available device logs best-effort.
 

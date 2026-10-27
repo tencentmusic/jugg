@@ -1,11 +1,11 @@
 # Compilation System: Custom Compilers and Host Interaction
 
-> Last verified: 2026-10-07
+> Last verified: 2026-10-27
 > Consistency rule: If documentation conflicts with code, code takes precedence.
 
 ## 1. Purpose
 
-This page locates the custom compiler SPI, its JAR and instance lifecycle, stage insertion, and the interaction boundary between shared compilation and IDE or CLI hosts. For built-in stage order, see `02_compile_core.md`.
+This page locates the custom compiler SPI, its JAR and instance lifecycle, stage insertion, and the interaction boundary between shared compilation and IDEA or Standalone Runtime hosts. For built-in stage order, see `02_compile_core.md`.
 
 ## 2. Core Source Index
 
@@ -33,7 +33,7 @@ ProjectCustomConfigManager applies effective configuration
 
 `CustomCompilerInfo` supplies JAR filename, path, and MD5. Configured existing JARs are checked before entering the current list; a newly downloaded JAR is checked after download. The HTTP download reset scans cached `.jar` files, so when diagnosing an unexpected SPI provider, inspect the actual loaded JAR list rather than inferring it only from the config. A missing remote JAR can leave the current compilation without its compiler; it becomes available on a later run after download and reload.
 
-`CustomCompilerManager.updateCustomCompilers(null)` itself retains prior state, but the normal `ProjectCustomConfigManager` caller passes `config.customCompilers.orEmpty()`. An absent list in the effective project config therefore clears configured compilers. The separate `BuildIncrementalApkCommand` CLI path supplies explicit `customCompilerJars` directly to the manager.
+`CustomCompilerManager.updateCustomCompilers(null)` itself retains prior state, but the normal `ProjectCustomConfigManager` caller passes `config.customCompilers.orEmpty()`. An absent list in the effective project config therefore clears configured compilers. The separate `BuildIncrementalApkCommand` CI build path supplies explicit `customCompilerJars` directly to the manager; see `04_engineering_compat.md` §5 for that CI entry point.
 
 The loader uses Jugg's classloader as parent, so custom JARs should use the host Jugg API types. `ICompilerCreator` receives a manager-owned `Disposable` for SPI compatibility; the manager disposes that scope before closing the old loader. The IDEA server-update path applies configuration under the project write lock; the background download can invalidate loaded compilers separately.
 
@@ -62,6 +62,8 @@ Shared compilation calls `CompileUiHandler` for fallback and change confirmation
 | Hook ran at the wrong point | Hook `order` and the chosen built-in stage's exposed range. |
 | Custom compiler failed | `BaseCompiler` warning and underlying debug exception; check whether built-in work was suppressed. |
 | Prompt or cancellation differed by entry point | Concrete Host `CompileUiHandler`, RPC mode, and its current process/status holder. |
+
+For excessive source changes, both shared compiler helpers always ask the supplied handler. IDEA alone applies `isConfirmFallbackWhenTooManyChanges`: disabled confirmation or RPC mode returns FALLBACK; an interactive enabled preference opens the dialog. DEFAULT and standalone retain FALLBACK. CI `BuildIncrementalApkCommand` locally delegates DEFAULT and overrides only this choice to CONTINUE, preserving further-round skip state and final DEX merge without writing global thresholds.
 
 ## 6. Related Documents
 

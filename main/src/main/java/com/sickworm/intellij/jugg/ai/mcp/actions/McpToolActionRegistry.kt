@@ -35,6 +35,7 @@ class McpToolActionRegistry(
         const val TAP = "tap"
         const val GET_STATUS = "status"
         const val VERSION = "version"
+        const val SETTINGS = "settings"
         const val WAIT_LOGS = "wait-logs"
     }
 
@@ -62,6 +63,7 @@ class McpToolActionRegistry(
         val noProjectDirTools: Set<String> = setOf(
             ToolNames.LIST_PROJECTS,
             ToolNames.VERSION,
+            ToolNames.SETTINGS,
         )
 
         fun defaultActions(): List<McpToolAction> {
@@ -85,6 +87,7 @@ class McpToolActionRegistry(
                 TapMcpToolAction(),
                 GetStatusMcpToolAction(),
                 VersionMcpToolAction(),
+                SettingsMcpToolAction(),
                 WaitLogsMcpToolAction(),
             )
         }

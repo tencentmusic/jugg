@@ -37,6 +37,8 @@ Overview 聚合以下信息：
 |---|---|
 | Run status | 当前任务阶段、阶段进度和耗时 |
 | Changed files | 待处理文件、所属模块和文件类型；双击可打开文件 |
+Settings 与 `jugg settings` 共用描述和确认提示，并在各项目间全局生效。修改 Backup classpath 会在各项目下一次操作前使旧基线失效；修改设备兼容设置会安排重新安装。见 [CLI 命令](../reference/cli-commands.md#全局设置)。
+
 | Quick actions | Gradle 构建、清理 Jugg、重启 App、清数据重装、报告问题、检查更新、安装 CLI/Skill |
 | This session | 当前会话成功编译、Hot Reload、Hot Fix、Install 次数 |
 | Recent runs | 最近运行的编译方式、部署方式、耗时、失败原因和相关文件 |

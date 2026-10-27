@@ -187,7 +187,8 @@ object JuggLogger {
 
 fun Logger.getInstance(tag: String): Logger {
     return when (this) {
-        is LogDispatcher -> JuggLogger.getInstance(this.instanceKey, tag)
+        is LogDispatcher -> if (instanceKey == "global") JuggLogger.getGlobalLogger(tag)
+            else JuggLogger.getInstance(instanceKey, tag)
         is ITestStdoutLogger -> this.deriveTag(tag)
         else -> this
     }

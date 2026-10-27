@@ -58,6 +58,18 @@ class JuggCompileUiHandlerTest {
 
 
     @Test
+    fun `IDE preference disables the too many changes dialog`() {
+        val old = com.sickworm.intellij.jugg.ide.bean.JuggSettings.isConfirmFallbackWhenTooManyChanges
+        try {
+            com.sickworm.intellij.jugg.ide.bean.JuggSettings.isConfirmFallbackWhenTooManyChanges = false
+            Assert.assertEquals(TooManyChangesConfirmResult.FALLBACK,
+                createHandler().confirmTooManyChanges(TooManyChangesInfo(0, 1, 1)))
+        } finally {
+            com.sickworm.intellij.jugg.ide.bean.JuggSettings.isConfirmFallbackWhenTooManyChanges = old
+        }
+    }
+
+    @Test
     fun `default handler is not rpc mode`() {
         Assert.assertFalse(CompileUiHandler.DEFAULT.isRpcMode)
     }

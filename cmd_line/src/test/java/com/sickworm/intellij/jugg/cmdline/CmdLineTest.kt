@@ -96,6 +96,61 @@ class CmdLineTest {
 
 
     @Test
+    fun buildIncrementalApkAcceptsLargeChangesWithoutOverwritingSettings() {
+        val previousRoot = JuggGlobalPathManager.rootDir
+        val settingsRoot = Files.createTempDirectory("ci-settings-policy").toFile()
+        val baseline = Files.createTempDirectory("ci-policy-baseline").toFile()
+        val source = File(demoProjectDir, "app/src/main/java/com/sickworm/jugg/demo/testcase/subclass/RootClass.java")
+        val original = source.readText()
+        JuggGlobalPathManager.rootDir = settingsRoot
+        try {
+            buildBase()
+            File(demoProjectDir, "build/jugg").copyRecursively(baseline, overwrite = true)
+            val editor = com.sickworm.intellij.jugg.ide.bean.JuggSettingsEditor()
+            editor.set("maxCompileSourceModules", "1")
+            editor.set("maxCompileSourceFilePoints", "1")
+            source.writeText(original.replace("public void func1", "protected void func1"))
+            for (confirm in listOf(true, false)) {
+                editor.set("isConfirmFallbackWhenTooManyChanges", confirm.toString())
+                runCiPolicyCase(baseline, source, expectedSuccess = true)
+            }
+            source.writeText("this is invalid Java source")
+            runCiPolicyCase(baseline, source, expectedSuccess = false)
+            runCiPolicyCase(baseline, File(source.parentFile, "Missing.java"), expectedSuccess = false)
+        } finally {
+            source.writeText(original)
+            JuggGlobalPathManager.rootDir = previousRoot
+            settingsRoot.deleteRecursively()
+            baseline.deleteRecursively()
+        }
+    }
+
+    private fun runCiPolicyCase(baseline: File, source: File, expectedSuccess: Boolean) {
+        val copy = Files.createTempDirectory("ci-policy-run").toFile()
+        val output = Files.createTempDirectory("ci-policy-output").toFile()
+        try {
+            baseline.copyRecursively(copy, overwrite = true)
+            val before = JuggGlobalPathManager.settingsFile.readText()
+            val result = CmdLine().run(arrayOf("cmd=buildIncrementalApk", "baseBuildJuggRootDir=$copy",
+                "sourceProjectDir=$demoProjectDir", "outputApkDir=$output", "changedFiles=$source", "logLevel=debug"))
+            assertEquals(expectedSuccess, result)
+            assertEquals(1, com.sickworm.intellij.jugg.ide.bean.JuggSettings.maxCompileSourceModules)
+            assertEquals(1, com.sickworm.intellij.jugg.ide.bean.JuggSettings.maxCompileSourceFilePoints)
+            assertEquals(before, JuggGlobalPathManager.settingsFile.readText())
+            if (expectedSuccess) {
+                assertTrue(File(copy, "build/staging/merged_dex").listFiles().orEmpty().any { it.extension == "dex" && it.length() > 0 })
+                val apk = output.listFiles().orEmpty().single { it.extension == "apk" }
+                java.util.zip.ZipFile(apk).use { zip -> assertTrue(zip.entries().asSequence().any { it.name.endsWith(".dex") }) }
+            } else {
+                assertFalse(output.listFiles().orEmpty().any { it.extension == "apk" })
+            }
+        } finally {
+            copy.deleteRecursively()
+            output.deleteRecursively()
+        }
+    }
+
+    @Test
     fun buildIncrementalApkEffects() {
         val classFile = File("../android_demo_project/app/src/main/java/com/sickworm/jugg/demo/testcase/subclass/RootClass.java")
         val originCode = classFile.readText()

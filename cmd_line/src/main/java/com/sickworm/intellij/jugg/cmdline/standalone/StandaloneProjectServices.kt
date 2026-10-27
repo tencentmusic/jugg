@@ -24,6 +24,7 @@ import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentService
 import com.sickworm.intellij.jugg.deploy.run.StandaloneApplyChangesExecutor
 import com.sickworm.intellij.jugg.deploy.run.StandaloneDeviceManager
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
+import com.sickworm.intellij.jugg.project.runtime.JuggSettingsProjectEffects
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.project.change.FileChangeManager
@@ -162,6 +163,7 @@ internal class StandaloneProjectServices(
                 projectCustomConfigManager.refresh()
                 deployHistoryManager.checkProjectDirChanged()
                 deploymentService.preInit(logger)
+                JuggSettingsProjectEffects(pathManager, deployHistoryManager).apply()
                 recoverDeployContext()
             }
         } finally {
@@ -177,7 +179,7 @@ internal class StandaloneProjectServices(
         activity.beginProjectWrite()
         return try {
             taskRunnerManager.runProjectWriteLocked(jobName) {
-                taskRunnerManager.consumeRuntimeOwnerChange()?.let(::recoverAfterOwnerChange)
+                recoverAfterOwnerChange(taskRunnerManager.consumeRuntimeOwnerChange())
                 action()
             }
         } finally {
@@ -189,7 +191,7 @@ internal class StandaloneProjectServices(
         activity.beginProjectWrite()
         return try {
             taskRunnerManager.tryRunProjectWriteLocked(jobName) {
-                taskRunnerManager.consumeRuntimeOwnerChange()?.let(::recoverAfterOwnerChange)
+                recoverAfterOwnerChange(taskRunnerManager.consumeRuntimeOwnerChange())
                 action()
             }
         } finally {
@@ -258,8 +260,10 @@ internal class StandaloneProjectServices(
         return true
     }
 
-    private fun recoverAfterOwnerChange(change: RuntimeOwnerChangeEvent) {
-        logger.debug("Recover standalone runtime after owner changed: ${change.previousOwner.runtimeType} -> " +
+    private fun recoverAfterOwnerChange(change: RuntimeOwnerChangeEvent?) {
+        val settingsChanged = JuggSettingsProjectEffects(pathManager, deployHistoryManager).apply()
+        if (change == null && !settingsChanged) return
+        if (change != null) logger.debug("Recover standalone runtime after owner changed: ${change.previousOwner.runtimeType} -> " +
                 change.currentOwner.runtimeType)
         runningTaskStatusManager.isProjectSwitchedThisRun = true
         deploymentService.invalidateMemoryCache()

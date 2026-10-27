@@ -92,6 +92,15 @@ jugg gradle-build
 jugg clean-reinstall
 ```
 
+### Recipe E: Change global settings
+
+```bash
+jugg settings list
+jugg settings set maxCompileSourceModules 30
+```
+
+Review the returned prompt before retrying a guarded edit with `--confirm true`. No project or device is required. See [Global settings](../reference/cli-commands.md#global-settings).
+
 ## 4. Multi-project and cross-directory calls (--project-dir)
 
 When run from the project root or any subfolder, the CLI automatically matches the active project in Android Studio.

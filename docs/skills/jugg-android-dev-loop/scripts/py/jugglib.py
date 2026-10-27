@@ -85,6 +85,7 @@ class RuntimeEndpoint:
     projects: list[str]
     projects_known: bool = True
     discovery_errors: tuple[str, ...] = ()
+    capabilities: tuple[str, ...] = ()
 
 
 @dataclass
@@ -246,6 +247,7 @@ def _discovery_call(port: int, tool: str) -> dict:
 
 def _read_runtime_endpoint(port: int) -> RuntimeEndpoint:
     runtime_type = "unknown"
+    capabilities: tuple[str, ...] = ()
     projects: list[str] = []
     projects_known = False
     discovery_errors: list[str] = []
@@ -254,6 +256,7 @@ def _read_runtime_endpoint(port: int) -> RuntimeEndpoint:
         if version.get("status") == "OK":
             version_data = version.get("data", {})
             runtime_type = version_data.get("runtimeType", "unknown")
+            capabilities = tuple(version_data.get("capabilities", []))
             if "runtimeType" not in version_data:
                 discovery_errors.append("version response missing runtimeType")
         else:
@@ -278,7 +281,7 @@ def _read_runtime_endpoint(port: int) -> RuntimeEndpoint:
             )
     except Exception as error:
         discovery_errors.append(f"list-projects {_summarize_probe_exception(error).summary}")
-    return RuntimeEndpoint(port, runtime_type, projects, projects_known, tuple(discovery_errors))
+    return RuntimeEndpoint(port, runtime_type, projects, projects_known, tuple(discovery_errors), capabilities)
 
 
 def discover_runtime_endpoints() -> list[RuntimeEndpoint]:
@@ -467,16 +470,17 @@ def _standalone_java_command() -> str:
 
 
 def launch_standalone(project_dir: str) -> StandaloneLaunch:
-    """Start the installed standalone daemon with its first project."""
+    """Start the installed standalone daemon, optionally with its first project."""
     launcher = _standalone_launcher_path()
     if not launcher.is_file():
         print(f"ERROR: Jugg standalone launcher not found: {launcher}", file=sys.stderr)
         print("       Install the standalone runtime or set JUGG_STANDALONE_LAUNCHER.", file=sys.stderr)
         sys.exit(1)
-    command = [str(launcher), "--project-dir", project_dir]
+    command = [str(launcher)] + (["--project-dir", project_dir] if project_dir else [])
     if sys.platform == "win32" and launcher.suffix.lower() in (".bat", ".cmd"):
         command = ["cmd", "/c", *command]
-    startup_log = Path(project_dir) / "build" / "jugg" / "log" / "standlone_cli" / "standalone_startup.log"
+    startup_log = (Path(project_dir) / "build" / "jugg" / "log" / "standlone_cli" / "standalone_startup.log"
+                   if project_dir else _cache_dir() / "standalone_startup.log")
     startup_log.parent.mkdir(parents=True, exist_ok=True)
     popen_args = {"stdin": subprocess.DEVNULL, "close_fds": True}
     creation_flags = 0
@@ -645,6 +649,49 @@ def _runtime_discovery_progress(project_dir: str):
     finally:
         stop_event.set()
         thread.join()
+
+
+def _select_global_runtime(endpoints: list[RuntimeEndpoint]) -> Optional[RuntimeEndpoint]:
+    eligible = [endpoint for endpoint in endpoints if _matches_runtime_override(endpoint)]
+    supported = [endpoint for endpoint in eligible if "settings" in endpoint.capabilities]
+    eligible = supported or eligible
+    project = normalize_project_dir(candidate_project_dir())
+    selected = _select_runtime(eligible, project, bool(project_dir_override.strip()))
+    return selected or next((endpoint for endpoint in eligible if endpoint.runtime_type == "idea"),
+                            next(iter(eligible), None))
+
+
+def resolve_global_port() -> int:
+    """Select an executor without initializing the working directory as a project."""
+    selected = _select_global_runtime(discover_runtime_endpoints())
+    if selected is None:
+        if runtime_type_override == "idea":
+            print("ERROR: No IDEA Runtime is available for global settings.", file=sys.stderr)
+            sys.exit(1)
+        try:
+            with _standalone_launch_lock(""):
+                selected = _select_global_runtime(discover_runtime_endpoints())
+                if selected is None:
+                    launch = launch_standalone("")
+                    deadline = time.monotonic() + _STANDALONE_STARTUP_TIMEOUT_SECONDS
+                    while selected is None and time.monotonic() < deadline:
+                        if launch.process.poll() is not None:
+                            _print_standalone_startup_failure(launch, "failed to start")
+                            sys.exit(1)
+                        selected = _select_global_runtime(discover_runtime_endpoints())
+                        if selected is None:
+                            time.sleep(_STANDALONE_STARTUP_POLL_INTERVAL_SECONDS)
+                    if selected is None:
+                        _print_standalone_startup_failure(launch, "startup timed out")
+                        sys.exit(1)
+        except (OSError, TimeoutError) as error:
+            print(f"ERROR: Failed to start standalone runtime: {error}", file=sys.stderr)
+            sys.exit(1)
+    version = extract_structured(raw_call(selected.port, "version", {}))
+    if "settings" not in version.get("data", {}).get("capabilities", []):
+        print("ERROR: Selected Runtime does not support settings. Update Jugg or select another --runtime.", file=sys.stderr)
+        sys.exit(1)
+    return selected.port
 
 
 def resolve_port() -> int:

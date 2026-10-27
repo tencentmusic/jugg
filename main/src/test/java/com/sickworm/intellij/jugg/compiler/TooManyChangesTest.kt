@@ -9,6 +9,17 @@ import org.junit.Test
 import java.io.File
 
 class TooManyChangesTest {
+    @get:org.junit.Rule val temporary = org.junit.rules.TemporaryFolder()
+    private val previousRoot = com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager.rootDir
+
+    @org.junit.Before fun isolateSettings() {
+        com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager.rootDir = temporary.newFolder("settings")
+    }
+
+    @org.junit.After fun restoreSettings() {
+        com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager.rootDir = previousRoot
+        JuggSettings.reload()
+    }
 
     @Test
     fun evaluate_sameModuleJavaAndKotlin_showsOneModule() {

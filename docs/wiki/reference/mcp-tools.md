@@ -44,6 +44,7 @@ There are currently 20 registered public MCP tools.
 
 | Tool | Main parameters | Purpose |
 |---|---|---|
+| `settings` | `action`, `key?`, text `value?`, boolean `confirm?` | Global typed settings; guarded edits require explicit confirmation. |
 | `version` | None | Returns the Jugg plugin version. |
 | `list-projects` | None | Lists projects initialized in the current IDE. |
 | `restart` | `projectDir`, `waitAppReadyAfterSuccess` | Restarts the target app; when no launch or HOME Activity exists it only runs `am force-stop`. |
@@ -65,7 +66,7 @@ There are currently 20 registered public MCP tools.
 | `status` | `projectDir`, `refreshChanges` | Queries deployment status and a summary of uncompiled files. |
 | `wait-logs` | `projectDir`, `marker`, `tags`, `timeoutMs` | Waits for an app log marker, crash, or timeout. |
 
-`version` and `list-projects` do not require `projectDir`. All other tools require an absolute project path.
+`version`, `list-projects`, and `settings` do not require `projectDir`. Project tools require an absolute project path. `settings` returns `CONFIRMATION_REQUIRED` with the Android Studio prompt until `confirm=true` is explicitly supplied.
 
 ## Multiple-device behavior
 

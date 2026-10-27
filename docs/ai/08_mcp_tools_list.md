@@ -1,13 +1,13 @@
 # MCP Tool Catalog
 
-> Last verified: 2026-10-07
+> Last verified: 2026-10-27
 > Consistency rule: If documentation conflicts with code, code takes precedence.
 
 ## 1. Discovery and Common Contract
 
-`McpToolActionRegistry.defaultActions()` registers 20 actions for the IDEA runtime. A host's `McpToolRegistry` limits both `tools/list` and dispatch to its capabilities; **the connected Runtime's `tools/list` is authoritative** for public availability and its current `inputSchema`. The Standalone Runtime exposes only the 11 tools marked **Both** below. A source action, name constant, or CLI command alone does not make a tool callable over that Runtime's MCP endpoint. CLI availability and argument spelling are in `08_cli_tools_list.md`.
+`McpToolActionRegistry.defaultActions()` registers 21 actions for the IDEA runtime. A host's `McpToolRegistry` limits both `tools/list` and dispatch to its capabilities; **the connected Runtime's `tools/list` is authoritative** for public availability and its current `inputSchema`. The Standalone Runtime exposes only the 12 tools marked **Both** below. A source action, name constant, or CLI command alone does not make a tool callable over that Runtime's MCP endpoint. CLI availability and argument spelling are in `08_cli_tools_list.md`.
 
-The server uses JSON-RPC 2.0 over HTTP POST at `/jugg-mcp`, on the first free port in `12320..12329`. Optional `MCP-Protocol-Version` accepts `2025-06-18` and `2025-11-25`; `initialize` advertises `2025-06-18`. `version` and `list-projects` are global tools with no arguments. Every other tool requires an absolute `projectDir` after host path normalization. IDEA requires an initialized project; a valid project-scoped Standalone call can initialize one on demand. An unknown argument is rejected when the schema disallows additional properties; inspect `tools/list` for exact defaults, nested shapes, and bounds.
+The server uses JSON-RPC 2.0 over HTTP POST at `/jugg-mcp`, on the first free port in `12320..12329`. Optional `MCP-Protocol-Version` accepts `2025-06-18` and `2025-11-25`; `initialize` advertises `2025-06-18`. `version` and `list-projects` are global tools with no arguments; `settings` is global with `action`, `key?`, text `value?`, and boolean `confirm?`. Every project-scoped tool requires an absolute `projectDir` after host path normalization. IDEA requires an initialized project; a valid project-scoped Standalone call can initialize one on demand. An unknown argument is rejected when the schema disallows additional properties; inspect `tools/list` for exact defaults, nested shapes, and bounds.
 
 Every completed tool response has `structuredContent.status` (`OK` or `ERROR`), `message`, `data`, `artifacts`, and optional `errorCode`. An action can report `status=ERROR` while MCP `isError=false`, retaining its diagnostic data and artifacts; read `status`, not just `isError`. Request validation before action execution instead uses `isError=true`. JSON-RPC envelope failures use top-level `error`. See `08_mcp_design.md` §4.
 
@@ -37,12 +37,15 @@ The table follows `McpToolActionRegistry.defaultActions()` order. “Input beyon
 | `activity-stack` | IDEA | `serial?` | Activity stack, dump path, and source command. |
 | `tap` | IDEA | `serial?`, `action?`, coordinates/percentages or selectors, `duration?` | Tap, long press, or swipe; see §5 for mode rules. |
 | `status` | Both | `serial?`, `refreshChanges?`, `fullInfo?` | Current deployment and pending-file snapshot; see §3. |
+| `settings` | Both | `action=list/get/set/reset`, `key?`, text `value?`, boolean `confirm?` | Global persisted settings; guarded edits require explicit confirmation. |
 | `version` | Both | None; global | `pluginVersion`, `runtimeType`, `runtimeVersion`, and host capability list. |
 | `wait-logs` | IDEA | `serial?`, `marker`, `tags?`, `timeoutMs?` | Wait for marker/crash/timeout and return a bounded log window. |
 
 `layout-verify`, `figma-layout-verify`, `screenshot`, recording, emulator, and start-app/activity action classes exist but are absent from `defaultActions()`; they are not callable public MCP tools. Do not infer registration from class existence or a `ToolNames` constant. Standalone also excludes registered IDEA UI/log actions such as `wait-logs` and `activity-stack`. `stop` is a local CLI lifecycle command, not an MCP action.
 
 When initialized projects report different plugin versions, `version.data.pluginVersion` is the highest and `version.data.projects` maps each `projectDir` to its version. Without a mismatch, `projects` is omitted; `runtimeVersion` identifies the connected process independently of these project versions.
+
+`settings list` returns `items` with only `key`, typed `value`, and shared `description`; get returns `key/value`, and set/reset return `key/previousValue/value/changed`, with optional deferred project effects. Public context includes global scope, actual settings path, Runtime type/version. The shared editor returns `CONFIRMATION_REQUIRED` before any mutation, including the shared IDE confirmation and `requiredArgument: {confirm: true}`. Invalid setting values return `INVALID_PARAMS` with safe key/type/field-path details; template secrets are redacted. See `05_utilities.md` for persistence and project-effect ownership.
 
 ## 3. Build, Deployment, and Status Decisions
 

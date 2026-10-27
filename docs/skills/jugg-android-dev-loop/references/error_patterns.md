@@ -4,6 +4,10 @@ Auto-fix policy: known pattern + `scope=low` + `confidence ≥ 0.8` → apply. O
 
 Schema: `id, stage(compile|deploy|runtime|observe), signature{includes,regex}, diagnosis, fix_strategy, fix_scope(low|med|high), confidence_hint(0-1), auto_apply(bool)`
 
+## Global settings errors
+
+`CONFIRMATION_REQUIRED`: display the returned IDE title/message/buttons and review the proposed change before retrying with `--confirm true`. Missing or false confirmation changes nothing. `INVALID_PARAMS`: use the exact key from `settings list` and correct the reported type/field path; booleans do not accept yes/1. A Runtime missing settings capability must be updated or explicitly replaced through `--runtime`; do not edit its JSON file as a fallback. Malformed/inaccessible settings storage returns an error and is preserved.
+
 ## Patterns
 
 ```yaml

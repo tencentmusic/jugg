@@ -61,16 +61,16 @@ class JuggSettingsTest {
         val oldRootDir = JuggGlobalPathManager.rootDir
         val rootDir = temporaryFolder.newFolder("runtime_switch")
         val settingsFile = JuggGlobalPathManager.settingsFile(rootDir)
-        settingsFile.writeText("""{"isEnableCompatibleDeploymentMode":false}""")
+        settingsFile.writeText("""{"compileOnSave":false}""")
 
         try {
             JuggGlobalPathManager.rootDir = rootDir
-            assertFalse(JuggSettings.isEnableCompatibleDeploymentMode)
+            assertFalse(JuggSettings.compileOnSave)
 
-            settingsFile.writeText("""{"isEnableCompatibleDeploymentMode":true}""")
+            settingsFile.writeText("""{"compileOnSave":true}""")
             JuggSettings.reload()
 
-            assertTrue(JuggSettings.isEnableCompatibleDeploymentMode)
+            assertTrue(JuggSettings.compileOnSave)
         } finally {
             JuggGlobalPathManager.rootDir = oldRootDir
         }

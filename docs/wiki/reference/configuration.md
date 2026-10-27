@@ -29,8 +29,8 @@ UI labels may vary slightly between Android Studio versions, but the current Run
 
 | Setting | Default | Description |
 |---|---|---|
-| Compile on save | Off | Automatically triggers compilation after a save. |
-| Deploy on save | Off | Automatically deploys after a save. |
+| Compile on save | Off | Automatically compiles detected file changes in Android Studio; standalone does not consume it. |
+| Deploy on save | Off | Persisted preference with no current runtime consumer. |
 | Check checksum when file changes | On | Verifies checksums when files change to reduce unnecessary incremental work. |
 | Compatible deployment mode | On | Enables a compatibility deployment strategy for HarmonyOS, HyperOS, low-API devices, and similar environments. |
 | Direct overlay deploy | On | Enables the fast overlay deployment path that does not require the app process to be running. |
@@ -39,11 +39,11 @@ UI labels may vary slightly between Android Studio versions, but the current Run
 | Ignore wont compile modules | Off | Ignores modules that will not participate in compilation. |
 | Const-ref tasks | On | Enables constant-reference scanning, analysis, and impact queries. |
 
-These settings are persisted in the IDE properties with keys that use the `jugg.*` prefix. Directly editing internal IDE properties is risky; use the Jugg UI instead.
+Configurable settings persist in `~/.jugg/settings.json` and are shared by Android Studio and standalone using the same root. Use the Settings page or `jugg settings`; [CLI commands](./cli-commands.md#global-settings) describes types and confirmation. The list also includes read-only capabilities. Source-module and source-file-point limits are persisted settings; CI accepts large change sets without overwriting them.
 
 ## CLI / MCP parameters
 
-CLI and MCP call parameters affect only the current call. They do not permanently change IDE configuration.
+Compile/deploy call parameters affect the current call. The `settings` command explicitly changes persisted global settings.
 
 | Parameter | Entry point | Description |
 |---|---|---|
@@ -76,6 +76,7 @@ All paths are relative to the project root by default.
 
 | Path | Purpose |
 |---|---|
+| `~/.jugg/settings.json` | Global settings shared by Android Studio and standalone. |
 | `~/.jugg/resources/` | Built-in Jugg tools and runtime resources. Standalone Deployer keeps one automatically refreshed copy here, while AAPT2 uses its own versioned tool file. |
 | `~/.jugg/const_ref/` | Cross-project constant-reference cache. |
 | `~/.jugg/library_test_build_records/` | Library androidTest build history. |

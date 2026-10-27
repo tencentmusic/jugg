@@ -15,6 +15,8 @@ import com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager
 import com.sickworm.intellij.jugg.server.protocols.RunConfigurationTemplate
 import com.sickworm.intellij.jugg.server.typeAdapter
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.attribute.BasicFileAttributes
 import kotlin.reflect.KProperty
 
 /**
@@ -28,6 +30,7 @@ object JuggSettings {
 
     private val logger by lazy { JuggLogger.getGlobalLogger("JuggSettings") }
     private var storageCache: Storage? = null
+    private val defaults = linkedMapOf<String, JsonElement>()
 
     /** Fills missing JSON fields from a legacy source and refreshes effective values on next access. */
     @Synchronized
@@ -93,14 +96,14 @@ object JuggSettings {
     var isUseProjectKotlinCompiler by setting(true)
 
     /** limit max source modules to compile for better performance */
-    var maxCompileSourceModules = 25
+    var maxCompileSourceModules by setting(25)
 
     /**
      * Limit max source files to compile for better performance.
      * Kotlin counts 3 and java counts 2, because I found that Kotlin generate 3 classes for each source file average,
      * and Java generate 2 classes for each source file average.
      */
-    var maxCompileSourceFilePoints = 180
+    var maxCompileSourceFilePoints by setting(180)
 
     /** limit min compiler error to recreate once */
     const val minErrorToRecreateCompiler = 30
@@ -109,7 +112,7 @@ object JuggSettings {
     const val sourceFileSizeToTriggerDetectRollback = 20
 
     /** Whether warm up compiler after init compilation. False for unit test. */
-    var isEnableWarmUp: Boolean = true
+    var isEnableWarmUp by Setting(true, { it.asBoolean }, ::JsonPrimitive, processOnly = true)
 
     /**
      * Whether fallback all to hot fix if there is any hot fix files.
@@ -148,7 +151,7 @@ object JuggSettings {
      * Master switch for const-ref analysis tasks.
      * When disabled, Jugg will skip const-ref full scan/incremental analyze/readiness wait/effected-source query.
      */
-    var isEnableConstRefTasks: Boolean = true
+    var isEnableConstRefTasks by Setting(true, { it.asBoolean }, ::JsonPrimitive, processOnly = true)
 
     /**
      * Use this for Jugg run configuration arguments if first set.
@@ -160,7 +163,7 @@ object JuggSettings {
                 // use last compile success settings
                 try {
                     default = GsonBuilder()
-                        .registerTypeAdapter(String::class.java, RunConfigurationTemplate.typeAdapter)
+                        .registerTypeAdapter(String::class.java, RunConfigurationTemplate.typeAdapter.nullSafe())
                         .create()
                         .fromJson(defaultCompileSettingsJson, RunConfigurationTemplate::class.java)
                 } catch (_: Exception) {
@@ -228,17 +231,37 @@ object JuggSettings {
     private fun <T> write(name: String, value: T, toJson: (T) -> JsonElement) {
         val jsonValue = toJson(value)
         val storage = storage()
-        storage.values.add(name, jsonValue)
-        storage.repository.update(name, jsonValue)
+        storage.repository.updateStrict(mapOf(name to jsonValue))
+        storageCache = null
     }
 
     @Synchronized
     private fun storage(): Storage {
         val rootDir = JuggGlobalPathManager.rootDir
-        storageCache?.takeIf { it.rootDir == rootDir }?.let { return it }
-        return Storage(rootDir, createRepository(rootDir)).also {
+        val version = fileVersion(JuggGlobalPathManager.settingsFile(rootDir))
+        storageCache?.takeIf { it.rootDir == rootDir && version != null && it.version == version }?.let { return it }
+        return Storage(rootDir, createRepository(rootDir), version).also {
             storageCache = it
         }
+    }
+
+    /** Reads one coherent persisted snapshot, failing explicitly for malformed or inaccessible storage. */
+    fun snapshot(): JsonObject = createRepository(JuggGlobalPathManager.rootDir).loadStrict()
+
+    internal fun defaultValue(key: String): JsonElement? = defaults[key]?.deepCopy()
+
+    internal fun commit(values: Map<String, JsonElement>, expected: JsonObject) {
+        createRepository(JuggGlobalPathManager.rootDir).updateStrict(values, expected)
+        reload()
+    }
+
+    private fun fileVersion(file: File): List<Any?>? = try {
+        if (!file.exists()) listOf("absent") else {
+            val attrs = Files.readAttributes(file.toPath(), BasicFileAttributes::class.java)
+            attrs.fileKey()?.let { listOf(it, attrs.lastModifiedTime(), attrs.size()) }
+        }
+    } catch (_: Exception) {
+        null
     }
 
     private fun createRepository(rootDir: File): JsonRuntimeSettingsRepository {
@@ -247,12 +270,14 @@ object JuggSettings {
 
     private fun setting(defaultValue: Boolean) = Setting(defaultValue, { it.asBoolean }, ::JsonPrimitive)
     private fun setting(defaultValue: String) = Setting(defaultValue, { it.asString }, ::JsonPrimitive)
+    private fun setting(defaultValue: Int) = Setting(defaultValue, { it.asInt }, ::JsonPrimitive)
     private fun setting(defaultValue: Long) = Setting(defaultValue, { it.asLong }, ::JsonPrimitive)
     private fun nullableStringSetting() = Setting<String?>(null, { if (it.isJsonNull) null else it.asString }, { it?.let(::JsonPrimitive) ?: JsonNull.INSTANCE })
 
     private class Storage(
         val rootDir: File,
         val repository: JsonRuntimeSettingsRepository,
+        val version: List<Any?>?,
         val values: JsonObject = repository.load(),
     )
 
@@ -260,9 +285,24 @@ object JuggSettings {
         private val defaultValue: T,
         private val fromJson: (JsonElement) -> T,
         private val toJson: (T) -> JsonElement,
+        private val processOnly: Boolean = false,
     ) {
-        operator fun getValue(owner: JuggSettings, property: KProperty<*>): T = owner.read(property.name, defaultValue, fromJson)
-        operator fun setValue(owner: JuggSettings, property: KProperty<*>, value: T) = owner.write(property.name, value, toJson)
+        private var overridden = false
+        private var overrideValue: T = defaultValue
+
+        operator fun provideDelegate(owner: JuggSettings, property: KProperty<*>): Setting<T> {
+            defaults[property.name] = toJson(defaultValue)
+            return this
+        }
+        operator fun getValue(owner: JuggSettings, property: KProperty<*>): T = if (overridden) overrideValue else owner.read(property.name, defaultValue, fromJson)
+        operator fun setValue(owner: JuggSettings, property: KProperty<*>, value: T) {
+            if (processOnly) {
+                overrideValue = value
+                overridden = true
+            } else {
+                owner.write(property.name, value, toJson)
+            }
+        }
     }
 }
 
