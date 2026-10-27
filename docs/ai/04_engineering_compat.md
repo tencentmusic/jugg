@@ -1,7 +1,9 @@
 # Engineering: Compatibility and Standalone Runtime
 
-> Last verified: 2026-10-14
+> Last verified: 2026-10-27
 > Consistency rule: If documentation conflicts with code, code takes precedence.
+
+Standalone can start with zero projects to serve global `version`, `list-projects`, and `settings`. Settings remain user-global across Hosts sharing the same root. Its project recovery boundary consumes pending setting effects under the existing project lock before using a baseline; see [05_utilities.md](05_utilities.md).
 
 ## 1. Scope
 

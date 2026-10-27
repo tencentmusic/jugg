@@ -56,6 +56,7 @@ _RUNTIME_VALUES = ("idea", "standalone")
 
 # Lazy-import map: subcommand -> (module_name, function_name)
 COMMANDS = {
+    "settings":       ("cmd_settings",       "cmd_settings"),
     "version":        ("cmd_version",        "cmd_version"),
     "stop":           ("cmd_stop",           "cmd_stop"),
     "compile":        ("cmd_compile",        "cmd_compile"),
@@ -99,6 +100,7 @@ def main() -> None:
     device_serial = ""
     runtime_type = ""
     if_compiling = "wait"
+    has_project_only_flag = False
     remaining = []
     i = 0
     while i < len(args):
@@ -127,6 +129,7 @@ def main() -> None:
                 print("jugg: --project-dir requires a path", file=sys.stderr)
                 sys.exit(1)
         elif a == "--serial":
+            has_project_only_flag = True
             if i + 1 >= len(args):
                 print("jugg: --serial requires an adb device serial", file=sys.stderr)
                 sys.exit(1)
@@ -136,6 +139,7 @@ def main() -> None:
                 sys.exit(1)
             i += 1
         elif a.startswith("--serial="):
+            has_project_only_flag = True
             device_serial = a[len("--serial="):].strip()
             if not device_serial:
                 print("jugg: --serial requires an adb device serial", file=sys.stderr)
@@ -152,12 +156,14 @@ def main() -> None:
                 print("jugg: --runtime requires idea or standalone", file=sys.stderr)
                 sys.exit(1)
         elif a == "--if-compiling":
+            has_project_only_flag = True
             if i + 1 >= len(args):
                 print("jugg: --if-compiling requires wait or interrupt", file=sys.stderr)
                 sys.exit(1)
             if_compiling = args[i + 1]
             i += 1
         elif a.startswith("--if-compiling="):
+            has_project_only_flag = True
             if_compiling = a[len("--if-compiling="):]
             if not if_compiling:
                 print("jugg: --if-compiling requires wait or interrupt", file=sys.stderr)
@@ -217,6 +223,10 @@ def main() -> None:
     if "--help" in args or "-h" in args:
         print(format_command_help(COMMAND_HELP[subcmd]), file=sys.stderr, end="")
         sys.exit(0)
+
+    if subcmd == "settings" and has_project_only_flag:
+        print("jugg: settings does not accept --serial or --if-compiling", file=sys.stderr)
+        sys.exit(2)
 
     module_name, func_name = COMMANDS[subcmd]
 

@@ -63,6 +63,16 @@ import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 
 class JuggCompileHelperTest {
+    private val previousRoot = com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager.rootDir
+
+    @org.junit.Before fun isolateSettings() {
+        com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager.rootDir = temporaryFolder.newFolder("settings")
+    }
+
+    @org.junit.After fun restoreSettings() {
+        com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager.rootDir = previousRoot
+        JuggSettings.reload()
+    }
 
     @Rule
     @JvmField
@@ -1058,13 +1068,14 @@ class JuggCompileHelperTest {
     }
 
     @Test
-    fun preprocessIncrementalCompile_tooManySourceFiles_autoFallbackWithoutConfirmWhenDisabled() {
+    fun preprocessIncrementalCompile_tooManySourceFiles_delegatesToHandlerWhenIdeaConfirmationPreferenceDisabled() {
         val logger = CapturingLogger()
         val fixture = createFixture(logger)
         whenever(fixture.deployFileManager.isNoFileChanges()).thenReturn(false)
         whenever(fixture.deployFileManager.getUncompiledFiles()).thenReturn(
             listOf(kotlinChangedFile(), buildChangedFile())
         )
+        whenever(fixture.uiHandler.confirmTooManyChanges(any())).thenReturn(TooManyChangesConfirmResult.FALLBACK)
         val old = JuggSettings.isConfirmFallbackWhenTooManyChanges
         try {
             JuggSettings.isConfirmFallbackWhenTooManyChanges = false
@@ -1075,7 +1086,7 @@ class JuggCompileHelperTest {
             assertEquals("Too many changes", result?.failedReason)
             assertTrue(result!!.isCanFallback)
             assertTrue(logger.messages.any { it.contains(TOO_MANY_FILES_FALLBACK) })
-            verify(fixture.uiHandler, never()).confirmTooManyChanges(any())
+            verify(fixture.uiHandler).confirmTooManyChanges(any())
             verify(fixture.uiHandler, never()).confirmBuildChanges(any())
         } finally {
             JuggSettings.isConfirmFallbackWhenTooManyChanges = old

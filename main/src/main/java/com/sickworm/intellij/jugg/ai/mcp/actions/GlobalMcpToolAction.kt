@@ -10,5 +10,5 @@ import com.sickworm.intellij.jugg.ai.mcp.McpToolRegistry
  * Implementors must not access any runtime-provided resource inside [executeGlobal].
  */
 interface GlobalMcpToolAction {
-    fun executeGlobal(toolRegistry: McpToolRegistry): McpToolResult
+    fun executeGlobal(toolRegistry: McpToolRegistry, arguments: Map<String, Any?>): McpToolResult
 }

@@ -6,6 +6,7 @@ import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.google.gson.JsonPrimitive
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.ai.mcp.actions.McpToolActionRegistry
 import com.sickworm.intellij.jugg.ai.mcp.actions.GlobalMcpToolAction
 import com.sickworm.intellij.jugg.ide.controlpanel.JuggControlPanelModel
 import com.sickworm.intellij.jugg.ide.controlpanel.JuggEvent
@@ -74,7 +75,7 @@ class McpToolInvoker(
         recordStarted(taskId, request, startTime)
         val toolResult = try {
             if (action is GlobalMcpToolAction) {
-                action.executeGlobal(toolRegistry)
+                action.executeGlobal(toolRegistry, request.arguments)
             } else {
                 action.execute(request.arguments, runtime)
             }
@@ -99,7 +100,8 @@ class McpToolInvoker(
             status = JuggEvent.Status.STARTED,
             level = JuggEvent.Level.INFO,
             title = "MCP request",
-            detail = "${request.toolName} · ${formatPanelContent(request.arguments)}",
+            detail = "${request.toolName} · ${formatPanelContent(if (request.toolName == McpToolActionRegistry.ToolNames.SETTINGS)
+                request.arguments - "value" else request.arguments)}",
             timestamp = startTime,
         ))
     }

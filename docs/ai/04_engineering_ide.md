@@ -1,6 +1,6 @@
 # Engineering: IDE Plugin Layer
 
-> Last checked: 2026-10-14
+> Last checked: 2026-10-27
 > If this page conflicts with implementation, follow the code.
 
 ## Scope and entry points
@@ -41,7 +41,7 @@ Changing IDEA's active variant can change Jugg selection only when current and s
 
 The stable Tool Window hosts the replaceable Control Panel. Its model retains one task timeline, bounded Recent Runs, and structured events; Sync, MCP, and App events add history without replacing the running task. Logs render structured events, not a tail of `compile_latest.log`. Compile start is emitted after preprocessing chooses the actual path; a run enters Recent Runs only at terminal state. MCP event details remove `projectDir`, redact sensitive fields, and bound output length. Actions and Settings reuse the project manager. The panel can open during IDE indexing.
 
-Settings expose compile/deploy switches only when their underlying capability is available. In particular, changing Backup classpath requires confirmation and deletes deployment history because the old baseline cannot be reused under the new classpath mode.
+Settings expose compile/deploy switches only when their underlying capability is available. Panel labels/descriptions and user edits share `JuggSettingDefinition` / `JuggSettingsEditor` with CLI. In particular, Backup classpath requires the shared confirmation and records a global revision. Each project invalidates its baseline under its next write lock, before recovering or using the old history; explicit compatibility changes similarly schedule reinstall. See `05_utilities.md` for acknowledgments and Host memory refresh.
 
 The `Clear app data` action confirms with the user, then requests a full Gradle build that clears app data before reinstalling the selected app. `Clear Jugg Build` deletes project `build/jugg` state and reopens projects so the manager rebuilds its context; these actions are not ordinary incremental redeploys.
 

@@ -54,7 +54,7 @@ class McpBaseInvoker(
                 message = "Tool not found: ${request.toolName}",
             )
 
-        val toolResult = action.executeGlobal(toolRegistry)
+        val toolResult = action.executeGlobal(toolRegistry, request.arguments)
         return toToolResponse(id, toolResult)
     }
 

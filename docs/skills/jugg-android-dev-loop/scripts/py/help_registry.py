@@ -28,6 +28,13 @@ class CommandHelp:
 
 
 COMMAND_HELP: dict[str, CommandHelp] = {
+    "settings": CommandHelp(
+        "settings", "List, read, set, or reset global Jugg settings.",
+        "jugg settings list|get <key>|set <key> <value>|reset <key>",
+        (OptionHelp(("--confirm",), "Accept the shared IDE confirmation; required for guarded settings.", "true|false", "confirm"),),
+        ("jugg settings list", "jugg settings set maxCompileSourceModules 30",
+         "jugg settings set isEmbeddedToApk true --confirm true"),
+    ),
     "version": CommandHelp(
         "version",
         "Show CLI version and plugin version from all initialized projects.",

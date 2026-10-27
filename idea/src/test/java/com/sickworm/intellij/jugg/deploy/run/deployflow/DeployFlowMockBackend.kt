@@ -4,6 +4,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Computable
 import com.sickworm.intellij.jugg.createTestTaskRunnerManager
 import com.sickworm.intellij.jugg.deploy.cache.JuggDeploymentCacheStore
+import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.direct.MatryoshkaFixtureWriter
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
@@ -89,16 +90,22 @@ object DeployFlowMockBackend : DeployFlowDeviceBackend {
         )
     }
 
-    private fun buildDfL2002(): DeployFlowFixture {
+    fun buildMatchedReinstallFixture(history: IDeployHistoryManager): DeployFlowFixture =
+        buildDfL2002(history, mismatchDevice = false)
+
+    private fun buildDfL2002(
+        deployHistoryManager: IDeployHistoryManager = DeployFlowTestHistoryManager(),
+        mismatchDevice: Boolean = true,
+    ): DeployFlowFixture {
         val virtualDevice = VirtualDeployDevice(DeployFlowOverlaySeed.packageName())
         val deployData = DeployFlowTestSupport.incrementalDeployData()
-        val deployHistoryManager = DeployFlowTestHistoryManager()
         val historyOverlayId = DeployFlowOverlaySeed.seedHistoryAndCacheOnly(
             deploymentService = deploymentService,
             deployHistoryManager = deployHistoryManager,
             virtualDevice = virtualDevice,
         )
-        DeployFlowOverlaySeed.writeMismatchedDeviceOverlay(virtualDevice, "mismatched-device-overlay")
+        if (mismatchDevice) DeployFlowOverlaySeed.writeMismatchedDeviceOverlay(virtualDevice, "mismatched-device-overlay")
+        else DeployFlowOverlaySeed.realignDeviceAfterInstall(virtualDevice, historyOverlayId)
         val ideDeployStateHelper = DeployFlowIdeDeployStateHelper().apply { forIncrementalNotDeployable() }
         val deployTargetManager = DeployFlowTestSupport.defaultDeployTargetManager(virtualDevice)
         val deployFileManager = DeployFlowTestSupport.defaultDeployFileManager(deployData)

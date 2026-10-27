@@ -92,6 +92,15 @@ jugg gradle-build
 jugg clean-reinstall
 ```
 
+### 场景 E：修改全局设置
+
+```bash
+jugg settings list
+jugg settings set maxCompileSourceModules 30
+```
+
+需确认的修改应先阅读返回的提示，再通过 `--confirm true` 重试。无需项目或设备。见[全局设置](../reference/cli-commands.md#全局设置)。
+
 ## 4. 多工程与跨目录调用 (--project-dir)
 
 在目标 Android 工程根目录或任意子目录下执行时，CLI 会自动根据当前工作目录匹配已打开的工程。

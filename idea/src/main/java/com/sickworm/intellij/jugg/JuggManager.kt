@@ -33,6 +33,7 @@ import com.sickworm.intellij.jugg.deploy.run.*
 import com.sickworm.intellij.jugg.deploy.run.instrument.LibraryTestApkBackfillHelper
 import com.sickworm.intellij.jugg.ide.*
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
+import com.sickworm.intellij.jugg.project.runtime.JuggSettingsProjectEffects
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.ai.skills.JuggCliAutoUpdater
 import com.sickworm.intellij.jugg.ide.controlpanel.JuggEvent
@@ -400,6 +401,7 @@ class JuggManager @TestOnly constructor(
 
     @TestOnly
     fun recoverDeployContext() {
+        JuggSettingsProjectEffects(pathManager, deployHistoryManager).apply()
         recoverDeployContextFromDisk()
     }
 
@@ -433,8 +435,10 @@ class JuggManager @TestOnly constructor(
     }
 
     private fun recoverAfterRuntimeOwnerChange(): Boolean {
-        val change = taskRunnerManager.consumeRuntimeOwnerChange() ?: return false
-        logger.debug("Recover IDEA runtime after owner changed: ${change.previousOwner.runtimeType} -> " +
+        val change = taskRunnerManager.consumeRuntimeOwnerChange()
+        val settingsChanged = JuggSettingsProjectEffects(pathManager, deployHistoryManager).apply()
+        if (change == null && !settingsChanged) return false
+        if (change != null) logger.debug("Recover IDEA runtime after owner changed: ${change.previousOwner.runtimeType} -> " +
                 change.currentOwner.runtimeType)
         juggRunningTaskStatusManager.isProjectSwitchedThisRun = true
         deploymentService.invalidateMemoryCache()

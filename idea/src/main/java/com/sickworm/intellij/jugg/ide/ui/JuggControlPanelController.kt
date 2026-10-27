@@ -16,6 +16,9 @@ import com.sickworm.intellij.jugg.deploy.IdeaDeviceAdb
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.ide.JuggControlPanelHost
 import com.sickworm.intellij.jugg.ide.SyncEvent
+import com.sickworm.intellij.jugg.ide.bean.JuggSettingDefinition
+import com.sickworm.intellij.jugg.ide.bean.JuggSettingsEditor
+import kotlin.reflect.KProperty0
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.ide.controlpanel.JuggControlPanelModel
 import com.sickworm.intellij.jugg.ide.controlpanel.JuggEvent
@@ -132,18 +135,17 @@ open class JuggControlPanelController(
     }
 
     open fun updateSetting(setting: Setting, enabled: Boolean) {
-        when (setting) {
-            Setting.CONFIRM_FALLBACK -> JuggSettings.isConfirmFallbackWhenNoFileChanges = enabled
-            Setting.CONFIRM_FALLBACK_WHEN_TOO_MANY_CHANGES -> JuggSettings.isConfirmFallbackWhenTooManyChanges = enabled
-            Setting.ALWAYS_RESTART -> JuggSettings.isAlwaysRestartAppAfterDeployment = enabled
-            Setting.QUICK_DEPLOY -> JuggSettings.isEnableDirectOverlayDeploy = enabled
-            Setting.AUTO_FALLBACK -> JuggSettings.isAutoFallbackToGradleWhenDeployError = enabled
-            Setting.EMBED_APK -> return updateEmbeddedToApk(enabled)
-            Setting.PROJECT_KOTLIN -> JuggSettings.isUseProjectKotlinCompiler = enabled
-            Setting.BACKUP_CLASSPATH -> return updateBackupClasspath(enabled)
+        try {
+            if (JuggSettingsEditor().setFromUi(setting.definition.key, enabled.toString())) {
+                recordSettingChanged(setting.displayName, enabled)
+            } else {
+                recordUserAction("canceled", setting.displayName, JuggEvent.Status.CANCELED)
+            }
+        } catch (e: Exception) {
+            logger.warn("Failed to update setting ${setting.definition.key}", e)
+        } finally {
+            model.updateSettings(currentSettings())
         }
-        model.updateSettings(currentSettings())
-        recordSettingChanged(setting.displayName, enabled)
     }
 
     open fun updateForceCompatDevice(displayName: String, enabled: Boolean) {
@@ -163,41 +165,9 @@ open class JuggControlPanelController(
         }
         val helper = CompatDeployHelper(logger)
         if (helper.isForceCompatDevice(adb) == enabled) return
-        if (enabled) helper.recordCompatDeviceRecord(adb) else helper.clearCompatDeviceRecord(adb)
-        manager.forceReInstallNextTime()
+        helper.setForceCompatDevice(adb, enabled)
         refreshSettings()
         recordSettingChanged("Force use compat deploy for $displayName", enabled)
-    }
-
-    private fun updateEmbeddedToApk(enabled: Boolean) {
-        if (enabled && !JuggSettings.isEmbeddedToApk && !CommonConfirmDialog.showAndGetResult(
-                "Enable Embedded to APK",
-                "<html>This will embed incremental changes to APK, let incremental effects for Android RemoteViews, " +
-                        "but it will cost more time to deploy.<br>Are you sure to enable?</html>"
-            )) {
-            recordUserAction("canceled", "Enable Embedded to APK", JuggEvent.Status.CANCELED)
-            model.updateSettings(currentSettings())
-            return
-        }
-        JuggSettings.isEmbeddedToApk = enabled
-        model.updateSettings(currentSettings())
-        recordSettingChanged(Setting.EMBED_APK.displayName, enabled)
-    }
-
-    private fun updateBackupClasspath(enabled: Boolean) {
-        val confirmed = CommonConfirmDialog.showAndGetResult(
-            "Confirm Switch Backup Classpath",
-            "<html>This will effects compilation stability. Continue?</html>"
-        )
-        if (!confirmed) {
-            recordUserAction("canceled", "Confirm Switch Backup Classpath", JuggEvent.Status.CANCELED)
-            model.updateSettings(currentSettings())
-            return
-        }
-        JuggSettings.isEnableBackupClasspath = enabled
-        deployHistoryManager.deleteDeployHistory()
-        model.updateSettings(currentSettings())
-        recordSettingChanged(Setting.BACKUP_CLASSPATH.displayName, enabled)
     }
 
     private fun recordSettingChanged(name: String, enabled: Boolean) {
@@ -402,14 +372,17 @@ open class JuggControlPanelController(
     }
 
     /** Identifies the persisted Jugg switch edited by a control panel toggle. */
-    enum class Setting(val displayName: String) {
-        CONFIRM_FALLBACK("Confirm fallback"),
-        CONFIRM_FALLBACK_WHEN_TOO_MANY_CHANGES("Confirm fallback when too many changes"),
-        ALWAYS_RESTART("Always restart app"),
-        QUICK_DEPLOY("Quick deploy"),
-        AUTO_FALLBACK("Auto fallback"),
-        EMBED_APK("Embed changes into APK"),
-        PROJECT_KOTLIN("Project Kotlin compiler"),
-        BACKUP_CLASSPATH("Backup classpath"),
+    enum class Setting(private val property: KProperty0<*>) {
+        CONFIRM_FALLBACK(JuggSettings::isConfirmFallbackWhenNoFileChanges),
+        CONFIRM_FALLBACK_WHEN_TOO_MANY_CHANGES(JuggSettings::isConfirmFallbackWhenTooManyChanges),
+        ALWAYS_RESTART(JuggSettings::isAlwaysRestartAppAfterDeployment),
+        QUICK_DEPLOY(JuggSettings::isEnableDirectOverlayDeploy),
+        AUTO_FALLBACK(JuggSettings::isAutoFallbackToGradleWhenDeployError),
+        EMBED_APK(JuggSettings::isEmbeddedToApk),
+        PROJECT_KOTLIN(JuggSettings::isUseProjectKotlinCompiler),
+        BACKUP_CLASSPATH(JuggSettings::isEnableBackupClasspath);
+
+        val definition get() = JuggSettingDefinition.find(property.name)
+        val displayName get() = definition.label
     }
 }

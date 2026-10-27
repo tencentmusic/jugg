@@ -63,7 +63,7 @@ class VersionMcpToolAction : McpToolAction, GlobalMcpToolAction {
         throw UnsupportedOperationException("Global MCP tool requires a process tool registry")
     }
 
-    override fun executeGlobal(toolRegistry: McpToolRegistry): McpToolResult {
+    override fun executeGlobal(toolRegistry: McpToolRegistry, arguments: Map<String, Any?>): McpToolResult {
         return versionAction(toolRegistry.listCapabilities())
     }
 

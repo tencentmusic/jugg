@@ -5,6 +5,7 @@ import com.google.gson.reflect.TypeToken
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
+import com.sickworm.intellij.jugg.ide.bean.JuggSettingsEditor
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.platform.IPlatformApi
@@ -97,6 +98,12 @@ class CompatDeployHelper(
         }
         logger.debug("Enable compat deploy automatically for HarmonyOS $version")
         return true
+    }
+
+    fun setForceCompatDevice(device: IDeviceAdb, enabled: Boolean) {
+        val updated = records.filter { it.displayName != device.displayName }.toMutableList()
+        if (enabled) updated.add(CompatDeployRecord(device.displayName))
+        JuggSettingsEditor().set("deviceCompatRecordJson", Gson().toJson(updated))
     }
 
     fun recordCompatDeviceRecord(device: IDeviceAdb, applications: List<String>? = null) {

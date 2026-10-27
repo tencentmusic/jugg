@@ -29,8 +29,8 @@ tags:
 
 | 配置 | 默认口径 | 说明 |
 |---|---|---|
-| Compile on save | 关闭 | 保存后自动触发编译。 |
-| Deploy on save | 关闭 | 保存后自动部署。 |
+| Compile on save | 关闭 | 在 Android Studio 检测到文件变化后自动编译；standalone 不消费此设置。 |
+| Deploy on save | 关闭 | 持久化偏好，当前没有运行时消费者。 |
 | Check checksum when file changes | 开启 | 文件变化时校验 checksum，减少无效增量。 |
 | Compatible deployment mode | 开启 | 面向 HarmonyOS、HyperOS、低 API 设备等场景启用兼容部署策略。 |
 | Direct overlay deploy | 开启 | 启用不要求 App 进程在线的 overlay 部署快捷路径。 |
@@ -39,11 +39,11 @@ tags:
 | Ignore wont compile modules | 关闭 | 忽略不会参与编译的模块。 |
 | Const-ref tasks | 开启 | 启用常量引用扫描、分析和影响查询。 |
 
-这些配置最终会持久化到 IDE 的 properties 中，key 使用 `jugg.*` 前缀。直接编辑 IDE 内部 properties 风险较高，优先通过 Jugg UI 修改。
+可配置设置持久化在 `~/.jugg/settings.json`，使用相同根目录的 Android Studio 与 standalone 共用。通过 Settings 页面或 `jugg settings` 修改；类型和确认规则见 [CLI 命令](./cli-commands.md#全局设置)。list 也包含只读运行能力。源码模块数和源码文件分值阈值属于持久化设置；CI 接受大量修改时不会覆盖这些阈值。
 
 ## CLI / MCP 参数
 
-CLI 和 MCP 的调用参数只影响本次调用，不等同于永久修改 IDE 配置。
+编译/部署调用参数影响本次调用。`settings` 命令则显式修改持久化全局设置。
 
 | 参数 | 适用入口 | 说明 |
 |---|---|---|
@@ -76,6 +76,7 @@ CLI 和 MCP 的调用参数只影响本次调用，不等同于永久修改 IDE 
 
 | 路径 | 用途 |
 |---|---|
+| `~/.jugg/settings.json` | Android Studio 与 standalone 共用的全局设置。 |
 | `~/.jugg/resources/` | Jugg 内置工具和运行资源。Standalone Deployer 在该目录只保留一份并自动刷新；AAPT2 使用自身带版本的工具文件。 |
 | `~/.jugg/const_ref/` | 跨项目常量引用缓存。 |
 | `~/.jugg/library_test_build_records/` | library androidTest 构建历史。 |

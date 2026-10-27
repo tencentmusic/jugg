@@ -1,6 +1,6 @@
 # Compilation System: Control Flow
 
-> Last verified: 2026-10-14
+> Last verified: 2026-10-27
 > Consistency rule: If documentation conflicts with code, code takes precedence.
 
 ## 1. Scope
@@ -90,6 +90,8 @@ Compose-generated classes and DataBinding/ViewBinding sources reenter source com
 Effect propagation uses `DeployFileManager`'s class/dex impact result. `ContinueCompileEffectFilter` excludes the previous round's source, except Kotlin top-level facade callers identified from `.kotlin_module`, and suppresses an effect key already satisfied in this session. A new structural trigger can recompile the same caller later; recursive recompilation does not feed those callers back into const-reference analysis as new user edits. Too many propagated files can make this Run fall back. If cancellation interrupts a recursive round, the first round rolls back its original files and clears staging.
 
 `GitFileChangesDetector.gitHeads` advances only after a successful synchronous refresh. An IDE event noticing a changed HEAD does not advance it before the delayed refresh, so an immediate Run still sees the gap. A failed refresh retains the old HEAD for a later Run. The HEAD check reuses cached repositories without scanning the working tree. The asynchronous Git check reads changed paths since the last full build; it does not validate the APK or deployment history. A failed query only loses that auxiliary check and cannot invalidate deploy history or Compile Context. After compilation, only a completed result is consumed, and it starts another incremental pass only for files still **newly pending** in `DeployFileManager`; an unfinished query is not awaited or carried into the next Run. `GitChangesRetryResolver` can refresh Git after an unresolved-reference failure; the resolver chain then retries once. Kotlin compiler compatibility retries occur inside `KotlinCompilerInvoker`, outside this chain.
+
+Source-module and weighted-file limits are ordinary persisted global settings. Exceeding them delegates the decision to `CompileUiHandler`; a check with no handler predicts FALLBACK. CI accepts this condition through its local handler rather than overwriting thresholds. The existing per-compile CONTINUE state suppresses repeated checks in later propagation rounds.
 
 ## 5. Cross-File Boundaries
 

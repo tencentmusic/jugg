@@ -46,7 +46,7 @@ class ListProjectsMcpToolActionTest {
             initializedProjectDirs = listOf(compiledProject, neverCompiledProject),
         )
 
-        val result = ListProjectsMcpToolAction().executeGlobal(McpToolRegistry())
+        val result = ListProjectsMcpToolAction().executeGlobal(McpToolRegistry(), emptyMap())
 
         Assert.assertEquals(McpToolStatus.OK, result.status)
         @Suppress("UNCHECKED_CAST")
@@ -80,7 +80,7 @@ class ListProjectsMcpToolActionTest {
             initializedProjectDirs = listOf(partialProject),
         )
 
-        val result = ListProjectsMcpToolAction().executeGlobal(McpToolRegistry())
+        val result = ListProjectsMcpToolAction().executeGlobal(McpToolRegistry(), emptyMap())
 
         @Suppress("UNCHECKED_CAST")
         val data = result.data as Map<String, Any>

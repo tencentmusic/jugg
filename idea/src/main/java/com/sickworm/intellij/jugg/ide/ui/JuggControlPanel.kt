@@ -358,17 +358,17 @@ class JuggControlPanel(
     private fun createSettings(): JComponent {
         val groups = listOf(
             settingGroup("Run behavior", "runBehavior",
-                settingToggle("Confirm fallback when no files changed", "Ask before running a full Gradle build.", JuggControlPanelController.Setting.CONFIRM_FALLBACK),
-                settingToggle("Confirm fallback when too many changes", "Ask before running a full Gradle build.", JuggControlPanelController.Setting.CONFIRM_FALLBACK_WHEN_TOO_MANY_CHANGES),
-                settingToggle("Always restart app after deployment", "Disables hot reload to ensure global state is reinitialized.", JuggControlPanelController.Setting.ALWAYS_RESTART)),
+                settingToggle(JuggControlPanelController.Setting.CONFIRM_FALLBACK),
+                settingToggle(JuggControlPanelController.Setting.CONFIRM_FALLBACK_WHEN_TOO_MANY_CHANGES),
+                settingToggle(JuggControlPanelController.Setting.ALWAYS_RESTART)),
             settingGroup("Deployment", "deployment",
-                settingToggle("Quick deploy", "Skip app startup when direct overlay is available.", JuggControlPanelController.Setting.QUICK_DEPLOY),
-                settingToggle("Auto fallback after deploy failure", "Recover with a full Gradle build.", JuggControlPanelController.Setting.AUTO_FALLBACK),
-                settingToggle("Embed changes into APK", "Supports Android RemoteViews with a slower deploy.", JuggControlPanelController.Setting.EMBED_APK),
+                settingToggle(JuggControlPanelController.Setting.QUICK_DEPLOY),
+                settingToggle(JuggControlPanelController.Setting.AUTO_FALLBACK),
+                settingToggle(JuggControlPanelController.Setting.EMBED_APK),
                 forceCompatDevicesPanel),
             settingGroup("Compiler", "compiler",
-                settingToggle("Use project Kotlin compiler", "Matches the compiler configured by the project.", JuggControlPanelController.Setting.PROJECT_KOTLIN),
-                settingToggle("Backup classpath", "May improve recovery at the cost of extra storage.", JuggControlPanelController.Setting.BACKUP_CLASSPATH)),
+                settingToggle(JuggControlPanelController.Setting.PROJECT_KOTLIN),
+                settingToggle(JuggControlPanelController.Setting.BACKUP_CLASSPATH)),
             settingGroup("Integrations", "integrations",
                 settingAction("Install CLI and agent skills", "Install the Jugg CLI, agent skills, hooks, and required permissions.", "Install…", controller::installSkills),
                 settingAction("Check Jugg updates", "Check whether a newer Jugg plugin is available.", "Check now", controller::checkUpdates),
@@ -403,10 +403,10 @@ class JuggControlPanel(
     }
 
     private fun settingToggle(
-        label: String,
-        help: String,
         setting: JuggControlPanelController.Setting,
     ): JComponent {
+        val label = setting.definition.label
+        val help = setting.definition.description
         val toggle = JBCheckBox(label).apply {
             addActionListener {
                 if (!isRenderingSettings) controller.updateSetting(setting, isSelected)
