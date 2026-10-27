@@ -1,19 +1,77 @@
 package com.sickworm.intellij.jugg.compiler
 
+import com.android.tools.idea.run.IdeService
+import com.intellij.openapi.application.Application
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.execution.process.ProcessOutputType
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.deploy.instrument.InstrumentationEvent
+import com.sickworm.intellij.jugg.deploy.run.JuggInstallSession.PromptAction
 import com.sickworm.intellij.jugg.compiler.ui.TooManyChangesConfirmResult
 import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
 import com.sickworm.intellij.jugg.ide.bean.IProcessHandler
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
+import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResultSet
 import org.junit.Assert
 import org.junit.Test
 import org.mockito.Mockito
 
 class JuggCompileUiHandlerTest {
+
+    @Test
+    fun `manual downgrade confirmation preserves data or uninstalls only as selected`() {
+        val application = Mockito.mock(Application::class.java)
+        Mockito.doAnswer { invocation ->
+            invocation.getArgument<Runnable>(0).run()
+            null
+        }.`when`(application).invokeAndWait(Mockito.any(Runnable::class.java))
+        val choices = mapOf(
+            ConfirmResult.POSITIVE to PromptAction.ALLOW_DOWNGRADE,
+            ConfirmResult.LEFT to PromptAction.UNINSTALL,
+            ConfirmResult.NEGATIVE to PromptAction.CANCEL,
+            ConfirmResult.CANCEL to PromptAction.CANCEL,
+        )
+
+        Mockito.mockStatic(ApplicationManager::class.java).use { applicationManager ->
+            applicationManager.`when`<Application> { ApplicationManager.getApplication() }.thenReturn(application)
+            val handler = createHandler()
+            for ((choice, expected) in choices) {
+                Mockito.mockConstruction(CommonConfirmDialog::class.java) { dialog, _ ->
+                    Mockito.`when`(dialog.showAndGet()).thenReturn(choice == ConfirmResult.POSITIVE)
+                    Mockito.`when`(dialog.isClickCloseButton).thenReturn(choice == ConfirmResult.CANCEL)
+                    Mockito.`when`(dialog.isClickLeftButton).thenReturn(choice == ConfirmResult.LEFT)
+                }.use {
+                    Assert.assertEquals(expected, handler.confirmDeployPrompt("INSTALL_FAILED_VERSION_DOWNGRADE"))
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `rpc installation errors automatically authorize uninstall without a dialog`() {
+        val handler = createHandler(isRpcMode = true)
+
+        for (message in listOf("INSTALL_FAILED_VERSION_DOWNGRADE", "INSTALL_FAILED_UPDATE_INCOMPATIBLE")) {
+            Assert.assertEquals(PromptAction.UNINSTALL, handler.confirmDeployPrompt(message))
+        }
+    }
+
+    @Test
+    fun `other installation errors preserve the existing uninstall confirmation`() {
+        val handler = createHandler()
+        val message = "INSTALL_FAILED_UPDATE_INCOMPATIBLE"
+
+        for (confirmed in listOf(false, true)) {
+            Mockito.mockConstruction(IdeService::class.java) { service, _ ->
+                Mockito.`when`(service.prompt(message)).thenReturn(confirmed)
+            }.use {
+                val expected = if (confirmed) PromptAction.UNINSTALL else PromptAction.CANCEL
+                Assert.assertEquals(expected, handler.confirmDeployPrompt(message))
+            }
+        }
+    }
 
     private fun createHandler(
         isRpcMode: Boolean = false,

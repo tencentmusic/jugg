@@ -10,17 +10,44 @@ data class JuggInstallSession(
     val applyChangesExecutor: IApplyChangesExecutor,
     val rawInstaller: Any,
     val installerVersion: String?,
-    private val onPrompt: (String) -> Boolean,
+    private val onPrompt: (String) -> PromptAction,
     private val onMessage: (String) -> Unit,
 ) {
-    fun prompt(message: String): Boolean = onPrompt(message)
+    var allowDowngrade: Boolean = false
+
+    fun prompt(message: String): Boolean {
+        if (allowDowngrade && isVersionDowngrade(message)) return false
+        return when (onPrompt(message)) {
+            PromptAction.ALLOW_DOWNGRADE -> {
+                allowDowngrade = true
+                false
+            }
+            PromptAction.UNINSTALL -> true
+            PromptAction.CANCEL -> false
+        }
+    }
 
     fun message(message: String) = onMessage(message)
+
+    /** Host choices adapted to the deployer's Boolean uninstall confirmation. */
+    enum class PromptAction {
+        ALLOW_DOWNGRADE,
+        UNINSTALL,
+        CANCEL,
+    }
 
     enum class Mode {
         DELTA,
         DELTA_NO_SKIP,
         FULL,
+    }
+
+    companion object {
+        fun isVersionDowngrade(message: String): Boolean {
+            // Studio exposes only the formatted prompt at this boundary, not InstallStatus.
+            return message.contains("INSTALL_FAILED_VERSION_DOWNGRADE") ||
+                message.contains("The device already has a newer version of this application.")
+        }
     }
 }
 

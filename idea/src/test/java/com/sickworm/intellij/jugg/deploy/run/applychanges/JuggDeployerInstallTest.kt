@@ -28,6 +28,7 @@ import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerException
 import com.sickworm.intellij.jugg.deploy.run.JuggInstallSession
+import com.sickworm.intellij.jugg.deploy.run.JuggInstallSession.PromptAction
 import com.sickworm.intellij.jugg.deploy.run.JuggClassRedefiner
 import com.sickworm.intellij.jugg.deploy.run.LaunchContext
 import com.sickworm.intellij.jugg.deploy.run.NoDeployDebugger
@@ -49,6 +50,110 @@ import java.io.FileNotFoundException
 import java.io.IOException
 
 class JuggDeployerInstallTest {
+
+    @Test
+    fun `allow downgrade retries installation without uninstalling and stores the new baseline`() {
+        val fixture = newFixture(promptAction = PromptAction.ALLOW_DOWNGRADE)
+        fixture.compat.onInstall = { callIndex, _ ->
+            if (callIndex == 1) {
+                assertFalse(fixture.launchContext.installSession.prompt(DOWNGRADE_MESSAGE))
+                throw IllegalStateException("INSTALL_FAILED_VERSION_DOWNGRADE")
+            }
+        }
+
+        fixture.deployer.install(PACKAGE_NAME, listOf("/tmp/demo.apk"), JuggInstallSession.Mode.FULL)
+
+        assertEquals(listOf(false, true), fixture.compat.allowDowngradeOptions)
+        Mockito.verify(fixture.deploymentService).storeEntry(
+            "emulator-5554", PACKAGE_NAME, fixture.compat.parsedApks, fixture.compat.baseOverlayId,
+            fixture.compat, fixture.logger,
+        )
+    }
+
+    @Test
+    fun `rejected downgrade stops after one changed attempt and preserves final failure`() {
+        val fixture = newFixture(promptAction = PromptAction.ALLOW_DOWNGRADE)
+        val finalFailure = IllegalStateException("INSTALL_FAILED_VERSION_DOWNGRADE: device rejected -d")
+        fixture.compat.onInstall = { callIndex, _ ->
+            assertFalse(fixture.launchContext.installSession.prompt(DOWNGRADE_MESSAGE))
+            if (callIndex == 1) throw IllegalStateException("INSTALL_FAILED_VERSION_DOWNGRADE")
+            throw finalFailure
+        }
+
+        val thrown = assertThrows(IllegalStateException::class.java) {
+            fixture.deployer.install(PACKAGE_NAME, listOf("/tmp/demo.apk"), JuggInstallSession.Mode.FULL)
+        }
+
+        assertEquals(finalFailure, thrown)
+        assertEquals(listOf(false, true), fixture.compat.allowDowngradeOptions)
+        Mockito.verifyNoInteractions(fixture.deploymentService)
+    }
+
+    @Test
+    fun `canceling downgrade does not retry or store a successful baseline`() {
+        val fixture = newFixture(promptAction = PromptAction.CANCEL)
+        fixture.compat.onInstall = { _, _ ->
+            assertFalse(fixture.launchContext.installSession.prompt(DOWNGRADE_MESSAGE))
+            throw IllegalStateException("INSTALL_FAILED_VERSION_DOWNGRADE")
+        }
+
+        assertThrows(IllegalStateException::class.java) {
+            fixture.deployer.install(PACKAGE_NAME, listOf("/tmp/demo.apk"), JuggInstallSession.Mode.FULL)
+        }
+
+        assertEquals(listOf(false), fixture.compat.allowDowngradeOptions)
+        Mockito.verifyNoInteractions(fixture.deploymentService)
+    }
+
+    @Test
+    fun `explicit uninstall keeps the existing installer confirmation contract`() {
+        val fixture = newFixture(promptAction = PromptAction.UNINSTALL)
+        fixture.compat.onInstall = { _, _ ->
+            assertTrue(fixture.launchContext.installSession.prompt(DOWNGRADE_MESSAGE))
+        }
+
+        fixture.deployer.install(PACKAGE_NAME, listOf("/tmp/demo.apk"), JuggInstallSession.Mode.FULL)
+
+        assertEquals(listOf(false), fixture.compat.allowDowngradeOptions)
+    }
+
+    @Test
+    fun `already allowed downgrade never authorizes uninstall or retries a rejected downgrade`() {
+        val fixture = newFixture(promptAction = PromptAction.UNINSTALL)
+        fixture.launchContext.installSession.allowDowngrade = true
+        fixture.compat.onInstall = { _, _ ->
+            assertFalse(fixture.launchContext.installSession.prompt(DOWNGRADE_MESSAGE))
+            throw IllegalStateException("INSTALL_FAILED_VERSION_DOWNGRADE")
+        }
+
+        assertThrows(IllegalStateException::class.java) {
+            fixture.deployer.install(PACKAGE_NAME, listOf("/tmp/demo.apk"), JuggInstallSession.Mode.FULL)
+        }
+
+        assertEquals(listOf(true), fixture.compat.allowDowngradeOptions)
+        Mockito.verifyNoInteractions(fixture.deploymentService)
+    }
+
+    @Test
+    fun `downgrade retry reports the final device error rather than a stale first failure`() {
+        val fixture = newFixture(promptAction = PromptAction.ALLOW_DOWNGRADE)
+        fixture.compat.onInstall = { callIndex, _ ->
+            if (callIndex == 1) {
+                fixture.logger.warning("Installation Failure: java.io.IOException: first downgrade failure")
+                fixture.launchContext.installSession.prompt(DOWNGRADE_MESSAGE)
+                throw IllegalStateException("first failure")
+            }
+            throw IllegalStateException("last failure")
+        }
+
+        val thrown = assertThrows(IllegalStateException::class.java) {
+            fixture.deployer.install(PACKAGE_NAME, listOf("/tmp/demo.apk"), JuggInstallSession.Mode.FULL)
+        }
+
+        assertEquals("last failure", thrown.message)
+        assertFalse(thrown.message.orEmpty().contains("first downgrade failure"))
+        Mockito.verifyNoInteractions(fixture.deploymentService)
+    }
 
     @Test
     fun `missing cached APK requests deploy state recovery`() {
@@ -522,6 +627,7 @@ class JuggDeployerInstallTest {
         shellReady: Boolean = true,
         customApkInstallScript: String = "",
         customInstallFailure: Exception? = null,
+        promptAction: PromptAction = PromptAction.UNINSTALL,
     ): Fixture {
         val device = Mockito.mock(IDevice::class.java)
         Mockito.`when`(device.serialNumber).thenReturn("emulator-5554")
@@ -544,7 +650,7 @@ class JuggDeployerInstallTest {
             device = device,
             deviceAdb = deviceAdb,
             installersRoot = "/tmp/installers",
-            installSession = JuggInstallSession(compat, installer, "test-installer", { true }, {}),
+            installSession = JuggInstallSession(compat, installer, "test-installer", { promptAction }, {}),
             deployDebugger = NoDeployDebugger,
             deviceAbi = "arm64-v8a",
             exceptOverlayIds = emptyMap(),
@@ -576,6 +682,7 @@ class JuggDeployerInstallTest {
     ) : IAsDeployerCompat {
         var installCalls = 0
         val installModes = mutableListOf<JuggInstallSession.Mode>()
+        val allowDowngradeOptions = mutableListOf<Boolean>()
         val baseOverlayId = JuggOverlayId(raw = Any(), sha = "base-overlay", isBaseInstall = true)
         var dumpedApks = parsedApks
         var onInstall: (callIndex: Int, installMode: JuggInstallSession.Mode) -> Unit = { _, _ -> }
@@ -590,6 +697,7 @@ class JuggDeployerInstallTest {
         ): Boolean {
             installCalls++
             installModes.add(installMode)
+            allowDowngradeOptions.add(session.allowDowngrade)
             onInstall(installCalls, installMode)
             return true
         }
@@ -634,7 +742,7 @@ class JuggDeployerInstallTest {
             installersFolder: String,
             device: IDevice,
             logger: ILogger,
-            onPrompt: (String) -> Boolean,
+            onPrompt: (String) -> PromptAction,
             onMessage: (String) -> Unit,
         ): JuggInstallSession =
             unsupported()
@@ -693,6 +801,7 @@ class JuggDeployerInstallTest {
 
     private companion object {
         const val PACKAGE_NAME = "com.example.app"
+        const val DOWNGRADE_MESSAGE = "The device already has a newer version of this application."
     }
 }
 

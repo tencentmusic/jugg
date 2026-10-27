@@ -33,12 +33,6 @@ class StandaloneDeployEnvironment(
         return StandaloneDeviceAdb(deviceManager.deviceOperations(device), logger)
     }
 
-    override fun confirmDeployPrompt(message: String, uiHandler: CompileUiHandler, logger: Logger): Boolean {
-        if (uiHandler.shouldAutoConfirmDeployPrompt(message)) return true
-        logger.info("Standalone deploy prompt requires explicit confirmation: $message")
-        return false
-    }
-
     override fun onDeployMessage(message: String, uiHandler: CompileUiHandler) {
         uiHandler.onDeployUiMessage(message)
         logger.info(message)

@@ -10,6 +10,7 @@ import com.sickworm.intellij.jugg.compiler.GradleOutputParser
 import com.sickworm.intellij.jugg.compiler.JuggCompileStatusHolder
 import com.sickworm.intellij.jugg.compiler.ui.BuildChangesConfirmResult
 import com.sickworm.intellij.jugg.deploy.instrument.InstrumentationEvent
+import com.sickworm.intellij.jugg.deploy.run.JuggInstallSession
 import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
 import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
 import com.sickworm.intellij.jugg.ide.bean.IProcessHandler
@@ -51,7 +52,7 @@ class StandaloneCompileUiHandler(
     override fun notifyByBalloon(text: String) = logger.info(text)
     override fun ensureRunWindowCreated() = Unit
     override fun showRunWindow() = Unit
-    override fun shouldAutoConfirmDeployPrompt(message: String): Boolean = true
+    override fun confirmDeployPrompt(message: String): JuggInstallSession.PromptAction = JuggInstallSession.PromptAction.UNINSTALL
     override fun onDeployUiMessage(message: String) { updateIndicatorText(message) }
     override fun cancel() {
         if (canceled.compareAndSet(false, true)) cancelListener?.invoke()

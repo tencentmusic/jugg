@@ -8,6 +8,10 @@ class AdbLogWrapper(val logger: Logger) : ILogger {
     var realErrorMessage: String? = null
         private set
 
+    fun clearErrorMessage() {
+        realErrorMessage = null
+    }
+
     override fun error(t: Throwable?, msgFormat: String?, vararg args: Any?) {
         val message = format(msgFormat, args)
         logger.debug(message, t)

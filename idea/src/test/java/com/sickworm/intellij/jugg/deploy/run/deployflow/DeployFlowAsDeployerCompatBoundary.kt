@@ -40,7 +40,7 @@ class DeployFlowAsDeployerCompatBoundary(
         installersFolder: String,
         device: IDevice,
         logger: ILogger,
-        onPrompt: (String) -> Boolean,
+        onPrompt: (String) -> JuggInstallSession.PromptAction,
         onMessage: (String) -> Unit,
     ): JuggInstallSession {
         createInstallSessionInvokeCount++

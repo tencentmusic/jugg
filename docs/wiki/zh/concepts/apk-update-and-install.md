@@ -51,6 +51,12 @@ Android 不接受内容被修改但签名未更新的 APK。Jugg 写入目标文
 
 如果当前 Run Configuration 启用了自定义 APK 安装脚本，普通 App 的“安装更新后的 APK”步骤会由项目脚本完成。Jugg 仍要求脚本安装本轮提供的 APK，并在 checksum 校验通过后重建 deployment cache；androidTest APK 不使用该脚本。
 
+## 安装较低版本
+
+当 APK 的 `versionCode` 低于设备上已安装的应用时，手动执行 IDE Run 或 Debug 会提供三个选项：**Allow downgrade** 使用 `adb install -d` 重试安装并保留应用数据；**Uninstall and reinstall** 删除现有应用及其数据后再安装；**Cancel** 保留现有应用并结束本次安装尝试。
+
+在 IDEA 和 standalone runtime 中，如果因已安装版本更新而导致安装失败，CLI 都会自动卸载重装应用。这会删除应用数据。CLI 默认不启用 `adb install -d`，也没有选择降级策略的参数。Android 文档将 `-d` 的适用范围限定为 debuggable 应用。自定义 APK 安装脚本自行决定安装参数，显式执行 Clean Reinstall 仍会清除应用数据。
+
 ## APK 更新和 Gradle 回退的区别
 
 两条路径都会安装 APK，但重新生成 APK 的范围不同。

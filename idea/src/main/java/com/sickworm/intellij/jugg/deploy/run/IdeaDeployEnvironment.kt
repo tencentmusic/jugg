@@ -40,14 +40,6 @@ class IdeaDeployEnvironment(
 
     override fun createDeviceAdb(device: IDevice, logger: Logger): IDeviceAdb = IdeaDeviceAdb(device, logger)
 
-    override fun confirmDeployPrompt(message: String, uiHandler: CompileUiHandler, logger: Logger): Boolean {
-        if (uiHandler.shouldAutoConfirmDeployPrompt(message)) {
-            logger.debug("Deploy prompt auto-confirmed by compile ui handler: $message")
-            return true
-        }
-        return IdeService(project).prompt(message)
-    }
-
     override fun onDeployMessage(message: String, uiHandler: CompileUiHandler) {
         uiHandler.onDeployUiMessage(message)
         IdeService(project).message(message)

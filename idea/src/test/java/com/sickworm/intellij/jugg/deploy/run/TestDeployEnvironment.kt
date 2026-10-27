@@ -19,7 +19,6 @@ class TestDeployEnvironment(
     override fun installersRoot(): String = installersRoot
     override fun createDeployDebugger(applyChangesExecutor: IApplyChangesExecutor): IDeployDebugger = NoDeployDebugger
     override fun createDeviceAdb(device: IDevice, logger: Logger): IDeviceAdb = adbFactory?.invoke(device, logger) ?: adb
-    override fun confirmDeployPrompt(message: String, uiHandler: CompileUiHandler, logger: Logger): Boolean = true
     override fun onDeployMessage(message: String, uiHandler: CompileUiHandler) = uiHandler.onDeployUiMessage(message)
     override fun notify(message: String) = Unit
     override fun clearAppData(device: IDevice, packageName: String, logger: Logger) = Unit

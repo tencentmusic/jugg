@@ -9,10 +9,12 @@ import com.intellij.openapi.progress.DumbProgressIndicator
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindowManager
+import com.android.tools.idea.run.IdeService
 import com.sickworm.intellij.jugg.compiler.ui.BuildChangesConfirmResult
 import com.sickworm.intellij.jugg.compiler.ui.RunResult
 import com.sickworm.intellij.jugg.compiler.ui.TooManyChangesConfirmResult
 import com.sickworm.intellij.jugg.deploy.instrument.InstrumentationEvent
+import com.sickworm.intellij.jugg.deploy.run.JuggInstallSession
 import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
@@ -175,13 +177,34 @@ open class JuggCompileUiHandler(
         }
     }
 
-    override fun shouldAutoConfirmDeployPrompt(message: String): Boolean {
+    override fun confirmDeployPrompt(message: String): JuggInstallSession.PromptAction {
         if (isRpcMode) {
-            logger.warn("The device already has an application with the same package but a different signature.")
-            logger.warn("Uninstall and reinstall directly for in MCP mode.")
-            return true
+            logger.warn("Deploy prompt: $message")
+            logger.warn("Uninstall and reinstall automatically in MCP mode; application data will be removed.")
+            return JuggInstallSession.PromptAction.UNINSTALL
         }
-        return false
+        if (JuggInstallSession.isVersionDowngrade(message)) {
+            val result = CommonConfirmDialog.showAndGetOrCancel(
+                title = "Install older APK",
+                content = "<html>The device already has a newer version of this application.<br><br>" +
+                    "Allow downgrade installs the older APK while keeping application data.<br>" +
+                    "Android permits this for debuggable applications.<br><br>" +
+                    "WARNING: Uninstall and reinstall will remove all application data!</html>",
+                okButtonText = "Allow downgrade",
+                negativeButtonText = "Cancel",
+                leftButtonText = "Uninstall and reinstall",
+            )
+            return when (result) {
+                ConfirmResult.POSITIVE -> JuggInstallSession.PromptAction.ALLOW_DOWNGRADE
+                ConfirmResult.LEFT -> JuggInstallSession.PromptAction.UNINSTALL
+                else -> JuggInstallSession.PromptAction.CANCEL
+            }
+        }
+        return if (IdeService(project).prompt(message)) {
+            JuggInstallSession.PromptAction.UNINSTALL
+        } else {
+            JuggInstallSession.PromptAction.CANCEL
+        }
     }
 
     override fun onDeployUiMessage(message: String) {

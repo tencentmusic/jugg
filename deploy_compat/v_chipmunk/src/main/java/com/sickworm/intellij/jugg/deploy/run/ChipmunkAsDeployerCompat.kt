@@ -117,7 +117,7 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
         installersFolder: String,
         device: IDevice,
         logger: ILogger,
-        onPrompt: (String) -> Boolean,
+        onPrompt: (String) -> JuggInstallSession.PromptAction,
         onMessage: (String) -> Unit,
     ): JuggInstallSession {
         var adbInstallerMode = AdbInstaller.Mode.DAEMON
@@ -130,9 +130,11 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
         return JuggInstallSession(this, installer, installer.version, onPrompt, onMessage)
     }
 
-    protected fun createInstallOptions(device: IDevice, applicationId: String): InstallOptions {
+    protected fun createInstallOptions(device: IDevice, applicationId: String, allowDowngrade: Boolean): InstallOptions {
         val studioDevice = toStudioDevice(device)
         val options = InstallOptions.builder().setAllowDebuggable()
+        // The legacy API stubs expose user flags rather than setAllowDowngrade().
+        if (allowDowngrade) options.setUserInstallOptions("-d")
         if (studioDevice.supportsFeature(com.android.ddmlib.IDevice.HardwareFeature.EMBEDDED)) {
             options.setGrantAllPermissions()
         }
@@ -160,7 +162,7 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
         return apkInstaller.install(
             packageName,
             apks,
-            createInstallOptions(device, packageName),
+            createInstallOptions(device, packageName, session.allowDowngrade),
             installMode.toLegacyInstallMode(),
             metrics.deployMetrics,
         )

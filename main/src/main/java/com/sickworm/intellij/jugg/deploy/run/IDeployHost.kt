@@ -13,7 +13,6 @@ interface IDeployHost {
     fun installersRoot(): String
     fun createDeployDebugger(applyChangesExecutor: IApplyChangesExecutor): IDeployDebugger
     fun createDeviceAdb(device: IDevice, logger: Logger): IDeviceAdb
-    fun confirmDeployPrompt(message: String, uiHandler: CompileUiHandler, logger: Logger): Boolean
     fun onDeployMessage(message: String, uiHandler: CompileUiHandler)
     fun notify(message: String)
     fun clearAppData(device: IDevice, packageName: String, logger: Logger)

@@ -49,7 +49,7 @@ class StandaloneDeployerDeviceFlowTest {
         val baseline = executor.parseApks(listOf(baselineApk!!.path))
         val packageName = executor.getPackageName(baseline)
         val juggLogger = converter.toJuggLogger(logger)
-        val session = executor.createInstallSession(prepared.directory.resolve("installer").path, juggDevice, juggLogger, { true }, {})
+        val session = executor.createInstallSession(prepared.directory.resolve("installer").path, juggDevice, juggLogger, { JuggInstallSession.PromptAction.UNINSTALL }, {})
 
         shell(device, "am force-stop $packageName")
         device.uninstallPackage(packageName)

@@ -27,7 +27,7 @@ class LaunchContextFactory(
         val deployLogger = AdbLogWrapper(logger)
         val installSession = environment.applyChangesExecutor.createInstallSession(
             installersRoot, device, deployLogger,
-            onPrompt = { message -> environment.confirmDeployPrompt(message, compileUiHandler, logger) },
+            onPrompt = compileUiHandler::confirmDeployPrompt,
             onMessage = { message -> environment.onDeployMessage(message, compileUiHandler) },
         )
         val deployDebugger = environment.createDeployDebugger(installSession.applyChangesExecutor)

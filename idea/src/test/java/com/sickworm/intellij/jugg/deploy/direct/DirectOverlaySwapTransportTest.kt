@@ -255,7 +255,7 @@ class DirectOverlaySwapTransportTest {
                 deviceAdb = adb,
                 installersRoot = installersRoot.absolutePath,
                 installSession = JuggInstallSession(
-                    applyChangesExecutor, Mockito.mock(Installer::class.java), "dced2491", { true }, {},
+                    applyChangesExecutor, Mockito.mock(Installer::class.java), "dced2491", { JuggInstallSession.PromptAction.UNINSTALL }, {},
                 ),
                 deployDebugger = NoDeployDebugger,
                 deviceAbi = "arm64-v8a",

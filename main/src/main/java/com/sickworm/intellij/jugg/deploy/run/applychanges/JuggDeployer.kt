@@ -161,6 +161,18 @@ class JuggDeployer(
         apks: List<String>,
         installMode: JuggInstallSession.Mode,
     ): Boolean {
+        val allowedDowngrade = installSession.allowDowngrade
+        logger.clearErrorMessage()
+        try {
+            return applyChangesExecutor.install(
+                device, installSession, logger,
+                packageName, apks, installMode,
+            )
+        } catch (failure: Exception) {
+            if (allowedDowngrade || !installSession.allowDowngrade) throw failure
+            logger.logger.info("APK installation failed: ${failure.message}. Retry with version downgrade allowed.", failure)
+        }
+        logger.clearErrorMessage()
         return applyChangesExecutor.install(
             device, installSession, logger,
             packageName, apks, installMode,

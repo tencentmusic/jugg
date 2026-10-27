@@ -74,7 +74,7 @@ open class QuailAsDeployerCompat : IAsDeployerCompat {
         installersFolder: String,
         device: IDevice,
         logger: ILogger,
-        onPrompt: (String) -> Boolean,
+        onPrompt: (String) -> JuggInstallSession.PromptAction,
         onMessage: (String) -> Unit,
     ): JuggInstallSession {
         val mode = AdbInstaller.Mode.DAEMON
@@ -83,9 +83,12 @@ open class QuailAsDeployerCompat : IAsDeployerCompat {
         return JuggInstallSession(this, installer, installer.version, onPrompt, onMessage)
     }
 
-    private fun createInstallOptions(device: IDevice, adbClient: AdbClient, applicationId: String): InstallOptions {
+    private fun createInstallOptions(
+        device: IDevice, adbClient: AdbClient, applicationId: String, allowDowngrade: Boolean,
+    ): InstallOptions {
         val studioDevice = toStudioDevice(device)
         val options = InstallOptions.builder().setAllowDebuggable()
+        if (allowDowngrade) options.setAllowDowngrade()
         if (studioDevice.supportsFeature(com.android.ddmlib.IDevice.HardwareFeature.EMBEDDED)) {
             options.setGrantAllPermissions()
         }
@@ -122,7 +125,7 @@ open class QuailAsDeployerCompat : IAsDeployerCompat {
         return apkInstaller.install(
             deploymentPlan,
             noDeltaFallback,
-            createInstallOptions(device, adbClient, packageName),
+            createInstallOptions(device, adbClient, packageName, session.allowDowngrade),
             installMode.toQuailInstallMode(),
             metrics.deployMetrics,
         )

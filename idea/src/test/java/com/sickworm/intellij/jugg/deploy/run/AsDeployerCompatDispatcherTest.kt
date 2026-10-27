@@ -173,7 +173,7 @@ class AsDeployerCompatDispatcherTest {
 
         fun createSession(): JuggInstallSession {
             call()
-            return JuggInstallSession(this, mock(), name, { true }, {})
+            return JuggInstallSession(this, mock(), name, { JuggInstallSession.PromptAction.UNINSTALL }, {})
         }
     }
 }

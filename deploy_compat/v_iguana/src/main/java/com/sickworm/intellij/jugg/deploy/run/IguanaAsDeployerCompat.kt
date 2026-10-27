@@ -27,7 +27,7 @@ open class IguanaAsDeployerCompat: HedgehogAsDeployerCompat() {
         val adb = createLegacyAdbClient(toStudioDevice(device), studioLogger)
         val apkInstaller = ApkInstaller(adb, session.toLegacyUiService(), session.rawInstaller as Installer, studioLogger)
         val app = App.fromPaths(packageName, apks.map { Path.of(it) })
-        return apkInstaller.install(app, createInstallOptions(device, packageName), installMode.toLegacyInstallMode(), metrics.deployMetrics)
+        return apkInstaller.install(app, createInstallOptions(device, packageName, session.allowDowngrade), installMode.toLegacyInstallMode(), metrics.deployMetrics)
     }
 
     override fun parseApks(paths: List<String>): List<Apk> {

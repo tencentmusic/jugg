@@ -6,6 +6,7 @@ import com.sickworm.intellij.jugg.compiler.ui.BuildChangesConfirmResult
 import com.sickworm.intellij.jugg.compiler.ui.RunResult
 import com.sickworm.intellij.jugg.compiler.ui.TooManyChangesConfirmResult
 import com.sickworm.intellij.jugg.deploy.instrument.InstrumentationEvent
+import com.sickworm.intellij.jugg.deploy.run.JuggInstallSession
 import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
 import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
 import com.sickworm.intellij.jugg.ide.bean.IProcessHandler
@@ -52,7 +53,7 @@ interface CompileUiHandler {
     fun ensureRunWindowCreated()
     fun showRunWindow()
 
-    fun shouldAutoConfirmDeployPrompt(message: String): Boolean = false
+    fun confirmDeployPrompt(message: String): JuggInstallSession.PromptAction = JuggInstallSession.PromptAction.CANCEL
     /** Notifies consumers immediately before an incremental or Gradle compile path starts. */
     fun onCompileStarted(isGradleCompile: Boolean, fallbackReason: String?) = Unit
     fun onDeployUiMessage(message: String) = Unit

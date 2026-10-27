@@ -39,7 +39,7 @@ open class GiraffeAsDeployerCompat : ChipmunkAsDeployerCompat() {
         val studioLogger = toStudioLogger(logger)
         val adb = createLegacyAdbClient(toStudioDevice(device), studioLogger)
         val apkInstaller = ApkInstaller(adb, session.toLegacyUiService(), session.rawInstaller as Installer, studioLogger)
-        return apkInstaller.install(packageName, apks, createInstallOptions(device, packageName), installMode.toLegacyInstallMode(), metrics.deployMetrics)
+        return apkInstaller.install(packageName, apks, createInstallOptions(device, packageName, session.allowDowngrade), installMode.toLegacyInstallMode(), metrics.deployMetrics)
     }
 
     override fun attachJavaDebugger(project: Project, device: IDevice, packageName: String) {

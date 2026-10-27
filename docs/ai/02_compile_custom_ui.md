@@ -56,6 +56,8 @@ To provide a compiler, package an `ICompilerCreator` implementation and `META-IN
 
 Shared compilation calls `CompileUiHandler` for fallback and change confirmations, progress, cancellation, Gradle output parsing, and run/deploy policy. Its `testEventSinkFactory` connects androidTest instrumentation events to the Test Results UI; see `06_android_test.md` for that flow. `JuggCompileUiHandler` can display IDE dialogs and Run UI; RPC mode resolves confirmations without dialogs. `StandaloneCompileUiHandler` supplies noninteractive choices and cancellation/progress state. `CompileUiHandler.DEFAULT` is a no-UI fallback used by specific noninteractive and test paths; it is not the behavior to assume for an ordinary IDE Run.
 
+`CompileUiHandler.confirmDeployPrompt()` owns the complete installation confirmation and returns `JuggInstallSession.PromptAction`. `JuggCompileUiHandler` handles manual IDE dialogs and RPC uninstall decisions; `StandaloneCompileUiHandler` authorizes uninstall without a dialog. The no-UI default returns `CANCEL`. Deployment hosts do not provide a second confirmation policy. Session adaptation and changed-option retry remain in the deployment layer; see `03_deploy_core.md`.
+
 | Symptom | First evidence to compare |
 |---|---|
 | Configured compiler absent | Effective config, actual JAR list and MD5, completed background download, then ServiceLoader registration. |

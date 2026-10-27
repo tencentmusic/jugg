@@ -45,7 +45,7 @@ public final class StandaloneApplyChangesExecutor implements IApplyChangesExecut
 
    @Override
    public JuggInstallSession createInstallSession(String installersFolder, IDevice device, ILogger logger,
-                                                  Function1<? super String, Boolean> onPrompt,
+                                                  Function1<? super String, ? extends JuggInstallSession.PromptAction> onPrompt,
                                                   Function1<? super String, Unit> onMessage) {
       com.android.ddmlib.IDevice rawDevice = this.deployApiConverter.toStudioDevice(device);
       com.android.utils.ILogger rawLogger = this.deployApiConverter.toStudioLogger(logger);
@@ -65,7 +65,7 @@ public final class StandaloneApplyChangesExecutor implements IApplyChangesExecut
       ApkInstaller installer = new ApkInstaller(new AdbClient(rawDevice, rawLogger), createUiService(session),
             (Installer)session.getRawInstaller(), rawLogger);
       return installer.install(plan, new DeployerOption.Builder().setMaxDeltaInstallPatchSize(0).build(),
-            createInstallOptions(rawDevice, packageName), toQuailMode(installMode), this.metrics.getDeployMetrics());
+            createInstallOptions(rawDevice, packageName, session.getAllowDowngrade()), toQuailMode(installMode), this.metrics.getDeployMetrics());
    }
 
    @Override
@@ -165,8 +165,9 @@ public final class StandaloneApplyChangesExecutor implements IApplyChangesExecut
       return error instanceof DeployerException ? toJuggException((DeployerException)error) : null;
    }
 
-   private static InstallOptions createInstallOptions(com.android.ddmlib.IDevice device, String applicationId) {
+   private static InstallOptions createInstallOptions(com.android.ddmlib.IDevice device, String applicationId, boolean allowDowngrade) {
       InstallOptions.Builder options = InstallOptions.builder().setAllowDebuggable();
+      if (allowDowngrade) options.setAllowDowngrade();
       if (device.supportsFeature(com.android.ddmlib.IDevice.HardwareFeature.EMBEDDED)) options.setGrantAllPermissions();
       if (device.getVersion().isGreaterOrEqualThan(28)) options.setInstallFullApk();
       if (device.getVersion().isGreaterOrEqualThan(AndroidVersion.VersionCodes.N)) options.setDontKill();
