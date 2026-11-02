@@ -82,10 +82,10 @@ JuggDeployerHelper.runTask()
      push bundle 到 /data/local/tmp/jugg/{AGENT_VERSION}，再通过 AppSandboxExecutor 执行 setup script
   -> 根据部署数据和用户设置决定 restart/start/no-op
   -> 若本轮 push 过 agent 且会 restart app，调用 isHasJvmtiCompatIssue()
-     等待 native flag 文件，失败时记录 compat device 并抛出 redeploy-with-compat 信号
+     仅检测本轮实际启动目标的 native flag，失败时记录 compat device 并抛出 redeploy-with-compat 信号
 ```
 
-push agent 放在部署之后，是为了避免 Android Studio Apply Changes 首次部署清理 startup agents 后把 Jugg agent 删掉。JVMTI 检测必须等 restart 后进行，因为 startup agent 只有 app 进程启动时才会被系统加载。
+push agent 放在部署之后，是为了避免 Android Studio Apply Changes 首次部署清理 startup agents 后把 Jugg agent 删掉。JVMTI 检测必须等 restart 后进行，因为 startup agent 只有 app 进程启动时才会被系统加载。普通 Run/Debug 使用 `DeployTargetManager.getPackageName()`，androidTest 使用本轮所选测试 APK 的 `instrumentationTargetPackage`；未启动的其他 APK（包括自指向 library androidTest）不参与检测。延迟启动或未找到测试 APK 时跳过本轮部署后检测。
 
 Android 15 及以上、Android Studio Meerkat 以下的普通 Apply Changes 在首次部署就是完整资源 overlay 时，旧 startup agent 可能只生成 framework transform cache，当前进程尚未应用缓存 transform。若历史 deployed files 为空、本轮明确编译了现代 Compose resource，且 overlay 包含 `assets/composeResources/**`，Host 会在第一次进程重启后轮询 `.studio/instruments-*.jar.cache` 中的 `android-app-ResourcesManager` 与 `android-app-LoadedApk`；两者均生成后立即再次重启，约 5 秒仍未完成则告警并继续重启，让缓存 transform 消费已提交的 overlay。该兼容只覆盖普通 Deployer；Direct Overlay、compat deploy、已有成功部署历史和 legacy Compose resource 不增加重启。
 
@@ -103,7 +103,7 @@ DeployRetryHandler.tryRetry()
   -> JuggJvmtiAgentManagerHelper.isNeedPushAgentAfterDeploy()
      如缺 agent，先 push 再 restart app
   -> isHasJvmtiCompatIssue()
-     命中 not-available flag 时记录 compat device，下一轮切 compat deploy
+     仅检测 DeployTargetManager 启动目标；命中 not-available flag 时记录 compat device，下一轮切 compat deploy
 ```
 
 这条链路只判断“当前失败是否可能由 JVMTI 兼容性导致”。已经处于 compat deploy 的设备会跳过检测，避免重复记录和循环重试。
@@ -325,7 +325,7 @@ compat deploy 不执行 framework transform，因此不安装 `ClassLoader#getRe
 - `JuggSettings.isEnableCompatibleDeploymentMode` 与 `finalIsEnableCompatibleDeploymentMode` 恒为 `true`，`pushAgentToApps()` 和 `attachAgentToApps()` 不提供用户关闭入口。
 - install 没有增量部署文件，`isNeedPushAgentAfterDeploy()` 直接返回 false；不要用 install 后缺 agent 判断为 push 失败。
 - Apply Changes 兼容应用的 `isNeedPushAfterDeploy()` 要同时看到 Jugg agent 和非 Jugg 的 `.so` startup agent。Direct app sandbox transport 自行准备并复用 Jugg startup agent，不再由部署后检查重复补 push。
-- `isHasJvmtiCompatIssue()` 最多等待 3 秒，每 100ms 轮询一次；返回 `null` 的 app 会继续等，全部 app 都非 null 才收口。
+- `isHasJvmtiCompatIssue()` 每轮先 sleep 100ms，累计 sleep 达 3 秒后结束（ADB 查询耗时未计入，实际耗时可能超过 3 秒）；本轮启动目标返回 `null` 时继续等，获得明确结果后收口。
 - not-available flag 优先级高于 available flag；排查时如果两个都存在，应先按不可用处理并清理 app `code_cache` 后复测。
 - `AsStartupAgentPusher` 推 AS agent 的路径不要求 app 进程在线；它用 host matryoshka 解析出的 agent so，经 `run-as cp` 放进 app sandbox。
 - `CompatDeployHelper` 读取 `ro.product.manufacturer`；值去除首尾空白后等于 `asus`（忽略大小写）时，所有 App 都直接启用 compat deploy。该自动策略不写入设备兼容记录，因此 More Options 的手动 Force 选项不会自动勾选，也不能用来关闭自动策略。

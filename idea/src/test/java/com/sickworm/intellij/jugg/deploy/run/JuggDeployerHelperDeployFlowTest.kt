@@ -1,5 +1,7 @@
 package com.sickworm.intellij.jugg.deploy.run
 
+import com.sickworm.intellij.jugg.apk.ApkInfo
+import com.sickworm.intellij.jugg.jvmti_agent.BuildConfig
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlayStateCheckResult
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlayStateChecker
@@ -41,6 +43,50 @@ import java.nio.channels.InterruptedByTimeoutException
  * Spec: docs/task/2026-05/jugg_deploy_flow_virtual_device.md, jugg_deployer_helper_deploy_flow_test_plan.md §5.1
  */
 class JuggDeployerHelperDeployFlowTest {
+
+    @Test
+    fun `JVMTI retry checks the launched app instead of unrelated self targeting tests`() {
+        assertJvmtiTargetStatus(available = true, launchTestPackage = false)
+    }
+
+    @Test
+    fun `JVMTI retry still detects incompatibility in the launched app`() {
+        assertJvmtiTargetStatus(available = false, launchTestPackage = false)
+    }
+
+    @Test
+    fun `JVMTI retry checks a self targeting test when it is the launch target`() {
+        assertJvmtiTargetStatus(available = true, launchTestPackage = true)
+    }
+
+    private fun assertJvmtiTargetStatus(available: Boolean, launchTestPackage: Boolean) {
+        val oldRecordJson = JuggSettings.deviceCompatRecordJson
+        JuggSettings.deviceCompatRecordJson = "[]"
+        val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_001)
+        val app = ApkInfo(File("app.apk"), DeployFlowOverlaySeed.packageName())
+        val testPackage = "com.example.library.test"
+        val test = ApkInfo(File("test.apk"), testPackage)
+            .copy(instrumentationTargetPackage = testPackage)
+        val data = JuggDeployData.forDryDeploy(listOf(app, test))
+        val launchedPackage = if (launchTestPackage) testPackage else app.applicationId
+        whenever(fixture.deployTargetManager.getPackageName()).thenReturn(launchedPackage)
+        try {
+            Mockito.mockConstruction(AppSandboxExecutor::class.java) { sandbox, construction ->
+                val packageName = construction.arguments()[1] as String
+                whenever(sandbox.applyChangesCapability).thenReturn(AppSandboxExecutor.ApplyChangesCapability.INCOMPATIBLE)
+                val flag = if ((packageName == launchedPackage) == available) {
+                    BuildConfig.JVMTI_AVAILABLE_FLAG_FILE
+                } else {
+                    BuildConfig.JVMTI_NOT_AVAILABLE_FLAG_FILE
+                }
+                whenever(sandbox.exec(any(), any())).thenReturn(flag)
+            }.use {
+                assertEquals(!available, fixture.helper.detectJvmtiCompatIssue(fixture.device, data))
+            }
+        } finally {
+            JuggSettings.deviceCompatRecordJson = oldRecordJson
+        }
+    }
 
     @Test
     fun `wrapped installer socket timeout retries then recovers with one reinstall`() {

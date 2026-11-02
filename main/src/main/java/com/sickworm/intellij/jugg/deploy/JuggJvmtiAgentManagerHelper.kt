@@ -100,7 +100,12 @@ class JuggJvmtiAgentManagerHelper(loggerArg: Logger) {
         TimeLogger.end("attachAgentToApps", logger)
     }
 
-    fun isHasJvmtiCompatIssue(adb: IDeviceAdb, data: JuggDeployData, maxWaitTimeSecond: Long = 3): Boolean {
+    fun isHasJvmtiCompatIssue(
+        adb: IDeviceAdb,
+        data: JuggDeployData,
+        packageName: String,
+        maxWaitTimeSecond: Long = 3,
+    ): Boolean {
         if (CompatDeployHelper(logger).isEnableCompatDeploy(adb, data)) {
             // already in compatible mode, no need check
             logger.debug("device isEnableCompatDeploy, no need check")
@@ -124,21 +129,15 @@ class JuggJvmtiAgentManagerHelper(loggerArg: Logger) {
             Thread.sleep(waitGapMillSecond)
             waitedTimeMillSecond += waitGapMillSecond
 
-            val isJvmtiAvailableResults = data.apks
-                .filter { !it.isOtherTargetingTestApk }
-                .map {
-                val result = isJvmtiAvailable(adb, it.applicationId)
-                logger.debug("isJvmtiAvailable=$result for ${it.applicationId}")
-                if (result == true) {
-                    CompatDeployHelper(logger).clearCompatDeviceRecord(adb, listOf(it.applicationId))
-                } else if (result == false) {
-                    CompatDeployHelper(logger).recordCompatDeviceRecord(adb, listOf(it.applicationId))
-                }
-                result
+            val result = isJvmtiAvailable(adb, packageName)
+            logger.debug("isJvmtiAvailable=$result for $packageName")
+            if (result == true) {
+                CompatDeployHelper(logger).clearCompatDeviceRecord(adb, listOf(packageName))
+            } else if (result == false) {
+                CompatDeployHelper(logger).recordCompatDeviceRecord(adb, listOf(packageName))
             }
-
-            if (isJvmtiAvailableResults.all { it != null }) {
-                isHasJvmtiCompatIssue = isJvmtiAvailableResults.any { it == false }
+            if (result != null) {
+                isHasJvmtiCompatIssue = !result
                 break
             }
 

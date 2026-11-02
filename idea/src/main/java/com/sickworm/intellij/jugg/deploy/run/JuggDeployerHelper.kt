@@ -327,6 +327,7 @@ class JuggDeployerHelper(
             adb = baseLaunchContext.deviceAdb,
         )
 
+        var launchedPackageName: String? = null
         if (androidTestRunSpec != null) {
             // AM_INSTRUMENT launch strategy: run instrumentation tests instead of starting the app.
             val projectInfo = compileContextManager.getProjectInfo()
@@ -356,6 +357,7 @@ class JuggDeployerHelper(
                     printAggregatedResult = isLastDevice && isMultipleDevices,
                 )
                 val success = launcher.run()
+                launchedPackageName = testApk.instrumentationTargetPackage
                 if (!success) {
                     logger.warn("Instrumentation test run reported failures.")
                     return LaunchResult(false, 1, "Instrumentation test run reported failures.", launchResult.overlayIds)
@@ -366,6 +368,7 @@ class JuggDeployerHelper(
         } else if (isNeedRestartApp || androidDeployType == AndroidDeployType.INSTALL) {
             logger.debug("Restarting app...")
             restartApp(device, compileUiHandler.isDebugRun)
+            launchedPackageName = deployTargetManager.getPackageName()
             confirmRootlessCompatImports(baseLaunchContext)
             if (isNeedSecondComposeResourceRestart) {
                 composeResourceRestartHelper.waitUntilTransformCacheReady(
@@ -384,11 +387,11 @@ class JuggDeployerHelper(
 
         TimeLogger.start("check_jvmti")
 
-        if (isNeedPushAgentAfterDeploy && isNeedRestartApp) {
+        if (isNeedPushAgentAfterDeploy && isNeedRestartApp && launchedPackageName != null) {
             // check JVMTI compatibility issue
             // waiting app foreground (which means JVMTI agent boot finished)
             val adb = deviceAdbFactory(device, logger)
-            val isHasJvmtiCompatIssue = JuggJvmtiAgentManagerHelper(logger).isHasJvmtiCompatIssue(adb, data)
+            val isHasJvmtiCompatIssue = JuggJvmtiAgentManagerHelper(logger).isHasJvmtiCompatIssue(adb, data, launchedPackageName)
             if (isHasJvmtiCompatIssue && !data.isCompatDeploy) {
                 juggServer.report {
                     action = "jvmti_compat_issue"
@@ -1017,7 +1020,7 @@ class JuggDeployerHelper(
             deployTargetManager.restartApp(device)
         }
 
-        return jvmtiAgentManagerHelper.isHasJvmtiCompatIssue(adb, deployData)
+        return jvmtiAgentManagerHelper.isHasJvmtiCompatIssue(adb, deployData, deployTargetManager.getPackageName())
     }
 
     private fun updateInfoAfterIncDeploy(launchResult: LaunchResult, deployData: JuggDeployData) {
