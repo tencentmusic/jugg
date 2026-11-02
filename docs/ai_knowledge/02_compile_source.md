@@ -104,7 +104,7 @@ KotlinCompilerInvoker
 这组参数共同维护“本轮单文件仍属于原 Gradle 模块”的语义：
 
 - `-module-name` 必须与 Gradle 基线一致，否则 `internal` 方法/属性的 JVM 名称后缀会变化，调用方可能在运行时出现 `NoSuchMethodError`。
-- `-Xfriend-paths` 让本轮源码继续访问同模块 baseline 中的 `internal` 声明；KMP baseline 被隔离时，friend path 必须同步切到隔离视图。
+- `-Xfriend-paths` 让本轮源码继续访问同模块 baseline 中的 `internal` 声明；KMP baseline 被隔离时，friend path 必须同步切到隔离视图。androidTest 额外加入直接依赖中与自身 module root 相同、且主 variant 对应当前 test variant 的 owner Kotlin output；其他依赖仍只提供普通 classpath，不开放其 `internal`。
 - 非 KAPT 编译把 `-d` 指向模块 Kotlin classpath，使编译器把 baseline class 与本轮源码视为共同编译结果，避免 `public API property declared in different module` 一类误判和 smart cast 失效。
 - `-Xjava-source-roots` 让 Kotlin 先读取本轮或同模块 Java 源码，解决 Java/Kotlin 相互引用；因此语言阶段固定 Kotlin 在前、Java 在后。
 - `.kotlin_module` 承载 class 文件无法完整表达的顶层函数、扩展函数和 file facade 信息。单文件编译前后（包括无源码预热）都要合并 baseline 与新元数据。Kotlin 2.2 及以上使用 `kotlin-metadata-jvm:2.4.10`，更早版本保留 `kotlinx-metadata-jvm:0.9.0`；写回时保留成功读取的 metadata 版本，不统一升级旧索引。

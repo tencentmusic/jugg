@@ -344,6 +344,16 @@ class KotlinCompilerInvoker {
         val moduleName = "${module.gradleModuleName ?: module.name}_${module.buildVariant}"
         val isolatedBaseline = createIsolatedKmpBaseline(context, module, options, kotlinClassPath, logger)
         val baselineClasspath = isolatedBaseline ?: kotlinClassPath
+        val friendPaths = mutableListOf(baselineClasspath.absolutePath)
+        if (module.isAndroidTestModule) {
+            // androidTest is a separate compilation but may access its tested variant's internal declarations.
+            val owner = module.moduleDependencies.asSequence().mapNotNull { context.modules[it.moduleName] }
+                .firstOrNull {
+                    !it.isAndroidTestModule && it.moduleRootDir == module.moduleRootDir &&
+                            "${it.buildVariant}AndroidTest" == module.buildVariant
+                }
+            owner?.buildPathInfo?.kotlinClassPath?.let { friendPaths.add(it.absolutePath) }
+        }
         val outputDir = if (options.isEnableKapt) {
             kaptOutputDir
         } else {
@@ -359,7 +369,7 @@ class KotlinCompilerInvoker {
             "-no-stdlib",
             "-no-reflect",
             "-module-name", moduleName,
-            "-Xfriend-paths=${baselineClasspath.absolutePath}",
+            "-Xfriend-paths=${friendPaths.distinct().joinToString(",")}",
             "-Xskip-prerelease-check", // class 'xxx' is compiled by a pre-release version of Kotlin and cannot be loaded by this version of the compiler
             "-Xskip-metadata-version-check", // let skip-prerelease-check works for Kotlin 1.3
             "-Xallow-no-source-files",
