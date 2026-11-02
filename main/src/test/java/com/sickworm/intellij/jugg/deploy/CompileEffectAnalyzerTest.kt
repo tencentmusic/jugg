@@ -8,29 +8,36 @@ import com.sickworm.intellij.jugg.compiler.DesugarInfo
 import com.sickworm.intellij.jugg.deploy.data.ClassAnalysisBatch
 import com.sickworm.intellij.jugg.deploy.data.ClassFileParser
 import com.sickworm.intellij.jugg.deploy.data.DeployDataGenerator
+import com.sickworm.intellij.jugg.deploy.data.EffectedClassNode
 import com.sickworm.intellij.jugg.deploy.data.ParsedDex
 import com.sickworm.intellij.jugg.deploy.data.SourceFileManager
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
-import com.sickworm.intellij.jugg.project.ChangedFile
-import com.sickworm.intellij.jugg.project.JuggPathManager
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
-import com.sickworm.intellij.jugg.project.data.LibraryDependency
 import com.sickworm.intellij.jugg.mock.AssembleAndroidProjectOnce
 import com.sickworm.intellij.jugg.mock.TestGlobal
+import com.sickworm.intellij.jugg.project.ChangedFile
+import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.project.data.LibraryDependency
+import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import java.io.File
+import java.util.jar.JarEntry
+import java.util.jar.JarOutputStream
+import kotlin.metadata.jvm.JvmMetadataVersion
+import kotlin.metadata.jvm.KmModule
+import kotlin.metadata.jvm.KmPackageParts
+import kotlin.metadata.jvm.KotlinModuleMetadata
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import org.mockito.Mockito
 import org.mockito.kotlin.any
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
-import java.io.File
-import java.util.jar.JarEntry
-import java.util.jar.JarOutputStream
-import kotlin.test.assertFalse
-import kotlin.test.assertTrue
 
 class CompileEffectAnalyzerTest {
 
@@ -349,6 +356,49 @@ class CompileEffectAnalyzerTest {
                 "com/sickworm/jugg/demo/testcase/defaultinterface/ParentOverrideRootClass.class",
             ).exists(),
         )
+    }
+
+    @Test
+    fun `top level facade effects are detected for modern and legacy metadata`() {
+        listOf(0, 1, 2, 3, 4).forEach { minor ->
+            val classpath = temporaryFolder.newFolder()
+            val metadata = KmModule().apply {
+                packageParts["example"] = KmPackageParts(
+                    mutableListOf("example/ExtensionsKt"), mutableMapOf(),
+                )
+            }
+            File(classpath, "META-INF/app.kotlin_module").apply {
+                parentFile.mkdirs()
+                writeBytes(KotlinModuleMetadata(
+                    metadata, JvmMetadataVersion(2, minor),
+                ).write())
+            }
+            val module = mock<ModuleInfo>(defaultAnswer = Mockito.RETURNS_DEEP_STUBS)
+            whenever(module.buildPathInfo.kotlinClassPath).thenReturn(classpath)
+            val caller = File(classpath, "Caller.kt").apply { writeText("class Caller") }
+            val plain = File(classpath, "Plain.kt").apply { writeText("class Plain") }
+            val generator = mockDeployDataGenerator()
+            whenever(generator.buildDeployData(
+                items = any(), isWarmUp = any(), isNeedCheckRecompile = any(),
+                isNeedCheckRecompileMinifyRemovedClass = any(),
+                isCompilingEffectedSourceFiles = any(), constRefChangedSourcePaths = any(),
+            )).thenReturn(emptyDeployData().copy(effectedClassNodes = listOf(
+                EffectedClassNode(
+                    "Lexample/Caller;", "Caller.kt", listOf("Lexample/ExtensionsKt;"),
+                    EffectedClassNode.EffectedType.SOURCE,
+                ),
+                EffectedClassNode("Lexample/Plain;", "Plain.kt", listOf("Lexample/RegularClass;"),
+                    EffectedClassNode.EffectedType.SOURCE),
+            )))
+
+            val result = newAnalyzer(generator).getRecompileFiles(
+                emptyList(), listOf(caller, plain).map { ChangedFile(CompileFile.Type.Kotlin, it, classpath, module) },
+                emptyMap(), false, false, null,
+            )
+
+            assertEquals(setOf(caller.absolutePath), result.topLevelFacadeEffectedSourcePaths,
+                "Kotlin 2.$minor facade effects")
+        }
     }
 
     private fun newAnalyzer(deployDataGenerator: DeployDataGenerator): CompileEffectAnalyzer {
