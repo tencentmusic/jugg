@@ -1,23 +1,24 @@
-@file:OptIn(UnstableMetadataApi::class)
+@file:OptIn(kotlin.metadata.jvm.UnstableMetadataApi::class)
 
 package com.sickworm.intellij.jugg.compiler.source.kotlin
 
 import com.intellij.openapi.diagnostic.Logger
-import kotlinx.metadata.jvm.*
+import kotlin.metadata.jvm.*
 import java.io.File
 
 /**
  * Read, write and merge .kotlin_module files in classPaths.
+ * @see {@link https://github.com/Kotlin/binary-compatibility-validator/issues/241}
  */
 class KmModuleMergerForCompilation(
     private val classPath: File,
     private val logger: Logger,
-): IKmModuleMergerForCompilation {
+) {
 
     private val metaInfDir get() = File(classPath, "META-INF")
     private val kmModuleFileMap = mutableMapOf<String, KmModuleMerger>()
 
-    override fun loadAndMerge() {
+    fun loadAndMerge() {
         metaInfDir.listFiles()
             ?.filter { it.extension == "kotlin_module" }
             ?.forEach {
@@ -30,7 +31,7 @@ class KmModuleMergerForCompilation(
             }
     }
 
-    override fun save(targetVersion: JvmMetadataVersion?) {
+    fun save(targetVersion: JvmMetadataVersion? = null) {
         kmModuleFileMap.forEach { (filePath, merger) ->
             val destFile = File(filePath)
             if (targetVersion == null) {
@@ -83,20 +84,13 @@ class KmModuleMerger(private val logger: Logger) {
     /**
      * write kotlin module metadata to file
      */
-    fun writeTo(destFile: File, targetVersion: JvmMetadataVersion) {
+    fun writeTo(destFile: File, targetVersion: JvmMetadataVersion = version) {
         // A compiler invocation can replace the index even when the baseline could not be parsed.
         val metadata = if (preserveOriginal) checkNotNull(originalBytes) else KotlinModuleMetadata(kmModule, targetVersion).write()
         destFile.also {
             it.parentFile?.mkdirs()
             it.writeBytes(metadata)
         }
-    }
-
-    fun writeTo(destFile: File) {
-        // why not optional argument? KmModuleMergerTest will have compilation error:
-        // Cannot access class 'kotlinx.metadata.jvm.JvmMetadataVersion'.
-        // Check your module classpath for missing or conflicting dependencies
-        writeTo(destFile, version)
     }
 
     fun getExtensionClasses(): List<String> {

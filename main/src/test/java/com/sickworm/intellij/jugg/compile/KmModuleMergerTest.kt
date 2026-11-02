@@ -1,8 +1,8 @@
 package com.sickworm.intellij.jugg.compile
 
 import com.intellij.openapi.diagnostic.Logger
-import com.sickworm.intellij.jugg.compiler.source.kotlin.IKmModuleMergerForCompilation
 import com.sickworm.intellij.jugg.compiler.source.kotlin.KmModuleMerger
+import com.sickworm.intellij.jugg.compiler.source.kotlin.KmModuleMergerForCompilation
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -28,7 +28,7 @@ class KmModuleMergerTest {
         val classpath = temporaryFolder.newFolder()
         val version = JvmMetadataVersion(2, 4)
         val baseline = moduleFile(classpath, "app", moduleBytes(version, "TimeExtensionsKt"))
-        val warmUpMerger = IKmModuleMergerForCompilation.create("2.4.10", classpath, logger)
+        val warmUpMerger = KmModuleMergerForCompilation(classpath, logger)
         warmUpMerger.loadAndMerge()
 
         val incremental = moduleFile(classpath, "app_googlePlayDebug", moduleBytes(version))
@@ -37,7 +37,7 @@ class KmModuleMergerTest {
         assertModule(baseline, version, "TimeExtensionsKt")
 
         listOf("FirstExtensionsKt", "SecondExtensionsKt").forEachIndexed { index, facade ->
-            val merger = IKmModuleMergerForCompilation.create("2.4.10", classpath, logger)
+            val merger = KmModuleMergerForCompilation(classpath, logger)
             merger.loadAndMerge()
             incremental.writeBytes(moduleBytes(version, facade))
             merger.loadAndMerge()
@@ -55,7 +55,7 @@ class KmModuleMergerTest {
             val classpath = temporaryFolder.newFolder()
             val version = JvmMetadataVersion(2, minor)
             val file = moduleFile(classpath, "app", moduleBytes(version, "OldExtensionsKt"))
-            val merger = IKmModuleMergerForCompilation.create("2.$minor.0", classpath, logger)
+            val merger = KmModuleMergerForCompilation(classpath, logger)
             merger.loadAndMerge()
             file.writeBytes(moduleBytes(version, "NewExtensionsKt"))
             merger.loadAndMerge()
@@ -90,7 +90,7 @@ class KmModuleMergerTest {
             val version = JvmMetadataVersion(2, 2)
             val unreadable = moduleFile(classpath, "unreadable", original)
             val valid = moduleFile(classpath, "valid", moduleBytes(version, "OldExtensionsKt"))
-            val merger = IKmModuleMergerForCompilation.create("2.2.21", classpath, logger)
+            val merger = KmModuleMergerForCompilation(classpath, logger)
             merger.loadAndMerge()
             unreadable.writeBytes(moduleBytes(version))
             valid.writeBytes(moduleBytes(version, "NewExtensionsKt"))
@@ -107,7 +107,7 @@ class KmModuleMergerTest {
         val classpath = temporaryFolder.newFolder()
         val original = moduleBytes(JvmMetadataVersion(2, 2), "TimeExtensionsKt")
         val file = moduleFile(classpath, "app", original)
-        val merger = IKmModuleMergerForCompilation.create("2.2.21", classpath, logger)
+        val merger = KmModuleMergerForCompilation(classpath, logger)
         merger.loadAndMerge()
         file.writeBytes(byteArrayOf(1, 2, 3))
         merger.loadAndMerge()
@@ -121,13 +121,59 @@ class KmModuleMergerTest {
         val classpath = temporaryFolder.newFolder()
         val original = byteArrayOf(1, 2, 3)
         val file = moduleFile(classpath, "app", original)
-        val merger = IKmModuleMergerForCompilation.create("1.9.23", classpath, logger)
+        val merger = KmModuleMergerForCompilation(classpath, logger)
         merger.loadAndMerge()
         File("../idea/src/test/assets/kotlin/kotlin_module/app_debug_new.kotlin_module").copyTo(file, overwrite = true)
         merger.loadAndMerge()
         merger.save()
 
         assertContentEquals(original, file.readBytes())
+    }
+
+    @Test
+    fun `compiler produced indexes from Kotlin 1_3 through 2_4 retain declarations and versions`() {
+        val versions = listOf("1.3.72", "1.4.32", "1.5.31", "1.6.21", "1.7.22", "1.8.21",
+            "1.9.23", "2.0.21", "2.1.20", "2.2.21", "2.3.20", "2.4.21")
+        versions.forEach { compilerVersion ->
+            val fixture = File("src/test/resources/kotlin-module-compat/$compilerVersion")
+            val classpath = temporaryFolder.newFolder()
+            val file = moduleFile(classpath, "compat", File(fixture, "baseline.kotlin_module").readBytes())
+            val version = KotlinModuleMetadata.read(file.readBytes()).version
+            val merger = KmModuleMergerForCompilation(classpath, logger)
+            merger.loadAndMerge()
+            merger.save()
+            assertEquals(version, KotlinModuleMetadata.read(file.readBytes()).version, compilerVersion)
+            File(fixture, "incremental.kotlin_module").copyTo(file, overwrite = true)
+            merger.loadAndMerge()
+            merger.loadAndMerge()
+            merger.save()
+
+            val merged = KotlinModuleMetadata.read(file.readBytes())
+            assertEquals(version, merged.version, compilerVersion)
+            val parts = merged.kmModule.packageParts.getValue("example")
+            assertEquals(setOf("example/BaselineKt", "example/AddedKt"), parts.fileFacades.toSet(), compilerVersion)
+            assertEquals(2, parts.fileFacades.size, compilerVersion)
+            assertEquals(mapOf("example/Shared__BaselinePartKt" to "example/Shared",
+                "example/Shared__AddedPartKt" to "example/Shared"), parts.multiFileClassParts, compilerVersion)
+            val reloaded = KmModuleMergerForCompilation(classpath, logger)
+            reloaded.loadAndMerge()
+            assertEquals(setOf("Lexample/BaselineKt;", "Lexample/AddedKt;"),
+                reloaded.getExtensionClasses().toSet(), compilerVersion)
+            // Keep build outputs for independent verification with each original compiler.
+            file.copyTo(File("build/kotlin-module-compat/$compilerVersion/compat.kotlin_module"), overwrite = true)
+        }
+    }
+
+    @Test
+    fun `explicit metadata version override preserves the patch component`() {
+        val classpath = temporaryFolder.newFolder()
+        val file = moduleFile(classpath, "app", moduleBytes(JvmMetadataVersion(2, 4), "ExtensionsKt"))
+        val merger = KmModuleMergerForCompilation(classpath, logger)
+        merger.loadAndMerge()
+        val target = JvmMetadataVersion(1, 1, 16)
+        merger.save(target)
+
+        assertModule(file, target, "ExtensionsKt")
     }
 
     private fun moduleFile(classpath: File, name: String, bytes: ByteArray): File {

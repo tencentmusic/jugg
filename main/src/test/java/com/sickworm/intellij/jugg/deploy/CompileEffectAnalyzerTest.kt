@@ -360,7 +360,7 @@ class CompileEffectAnalyzerTest {
 
     @Test
     fun `top level facade effects are detected for modern and legacy metadata`() {
-        val versions = listOf(JvmMetadataVersion(1, 7), JvmMetadataVersion(1, 9)) +
+        val versions = listOf(JvmMetadataVersion(1, 1, 16)) + (4..9).map { JvmMetadataVersion(1, it) } +
             (0..4).map { JvmMetadataVersion(2, it) }
         versions.forEach { version ->
             val classpath = temporaryFolder.newFolder()

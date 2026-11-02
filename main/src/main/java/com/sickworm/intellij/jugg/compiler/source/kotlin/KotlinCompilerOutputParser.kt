@@ -4,7 +4,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.CompileError
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.Result
-import kotlinx.metadata.jvm.JvmMetadataVersion
+import kotlin.metadata.jvm.JvmMetadataVersion
 import java.io.File
 import java.io.OutputStream
 import java.io.PrintStream

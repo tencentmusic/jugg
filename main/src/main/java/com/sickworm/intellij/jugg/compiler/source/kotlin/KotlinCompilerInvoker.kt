@@ -417,7 +417,7 @@ class KotlinCompilerInvoker {
         logCompileCommand(command, context.projectDir, logger)
 
         // resolve kotlin extension function unresolved reference
-        val merger = IKmModuleMergerForCompilation.create(kotlinCompile.currentCompiler, kotlinClassPath, logger)
+        val merger = KmModuleMergerForCompilation(kotlinClassPath, logger)
         try {
             merger.loadAndMerge()
         } catch (e: Exception) {

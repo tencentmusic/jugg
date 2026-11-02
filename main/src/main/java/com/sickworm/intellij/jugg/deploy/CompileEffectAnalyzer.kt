@@ -7,7 +7,7 @@ import com.sickworm.intellij.jugg.compiler.ClassPreparation
 import com.sickworm.intellij.jugg.compiler.DesugarInfo
 import com.sickworm.intellij.jugg.compiler.obfuscation.ClassObfuscator
 import com.sickworm.intellij.jugg.compiler.obfuscation.MinifyInfo
-import com.sickworm.intellij.jugg.compiler.source.kotlin.KmModuleMergerForCompilation22
+import com.sickworm.intellij.jugg.compiler.source.kotlin.KmModuleMergerForCompilation
 import com.sickworm.intellij.jugg.deploy.data.ClassAnalysis
 import com.sickworm.intellij.jugg.deploy.data.ClassAnalysisBatch
 import com.sickworm.intellij.jugg.deploy.data.ClassFileParser
@@ -306,7 +306,7 @@ class CompileEffectAnalyzer(
                 }
                 val kotlinClassPath = changedFile.module.buildPathInfo.kotlinClassPath
                 val extensionClasses = extensionClassesByClassPath.getOrPut(kotlinClassPath.absolutePath) {
-                    val kmModuleMerger = KmModuleMergerForCompilation22(kotlinClassPath, logger)
+                    val kmModuleMerger = KmModuleMergerForCompilation(kotlinClassPath, logger)
                     kmModuleMerger.loadAndMerge()
                     kmModuleMerger.getExtensionClasses().toSet()
                 }
