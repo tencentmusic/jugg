@@ -360,7 +360,9 @@ class CompileEffectAnalyzerTest {
 
     @Test
     fun `top level facade effects are detected for modern and legacy metadata`() {
-        listOf(0, 1, 2, 3, 4).forEach { minor ->
+        val versions = listOf(JvmMetadataVersion(1, 7), JvmMetadataVersion(1, 9)) +
+            (0..4).map { JvmMetadataVersion(2, it) }
+        versions.forEach { version ->
             val classpath = temporaryFolder.newFolder()
             val metadata = KmModule().apply {
                 packageParts["example"] = KmPackageParts(
@@ -370,7 +372,7 @@ class CompileEffectAnalyzerTest {
             File(classpath, "META-INF/app.kotlin_module").apply {
                 parentFile.mkdirs()
                 writeBytes(KotlinModuleMetadata(
-                    metadata, JvmMetadataVersion(2, minor),
+                    metadata, version,
                 ).write())
             }
             val module = mock<ModuleInfo>(defaultAnswer = Mockito.RETURNS_DEEP_STUBS)
@@ -397,7 +399,7 @@ class CompileEffectAnalyzerTest {
             )
 
             assertEquals(setOf(caller.absolutePath), result.topLevelFacadeEffectedSourcePaths,
-                "Kotlin 2.$minor facade effects")
+                "Kotlin $version facade effects")
         }
     }
 
