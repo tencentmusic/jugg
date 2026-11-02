@@ -88,6 +88,8 @@ Meerkat～Panda 与 Quail 的设备选择通过 `DeployTargetContext` 获取当�
 
 ### 3.2 平台抽象
 
+`CopyEmbeddedDistributionPaths` 在 installer 开发模式路径断言中通过反射调用 `IdeInfo.getInstance().isAndroidStudio()`，避免发布字节码静态链接缺失的 Android API。反射失败时记录 debug 日志，并使用 `ApplicationInfo.build.productCode == "AI"` 判断；反射成功返回 `false` 时保留该结果。普通安装目录与按需下载目录的查找顺序保持不变。
+
 | 运行环境 | `PlatformApi.impl` 设置点 | 语义 |
 |---|---|---|
 | IDE 插件 | `JuggManagerCreator.create()` | 设置为 `IdeaPlatformApi`，main 层可访问 IDE 侧服务 |
