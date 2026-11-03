@@ -526,7 +526,7 @@ class BaseCompileContext(
             }
         }
 
-        return dirs
+        return filterEmptyGeneratedJavaSources(dirs, File(tempModule.buildPathInfo.buildDir, "filtered_generated_sources"), logger)
     }
 
     private var desugaredLibraryConfigurationCache: MutableMap<String, String?> = mutableMapOf()
