@@ -67,6 +67,36 @@ class DeployHistoryDbCrcCacheTest {
     }
 
     @Test
+    fun shouldCompareEveryNestedRepositoryAgainstItsOwnBaseline() {
+        val roots = listOf("first", "middle", "last").map { File(projectDir, it).apply { mkdirs() } }
+        File(repositoryDir, ".gitignore").appendText(roots.joinToString("") { "android-project/${it.name}/\n" })
+        gitManager.addAllAndCommit("ignore nested repositories")
+        val sources = roots.map { File(it, "Source.kt").apply { writeText("baseline") } }
+        val commits = roots.associate { root ->
+            val git = GitManager(root)
+            git.init()
+            git.addAllAndCommit("baseline")
+            root.absolutePath to git.getLastCommitHash()
+        }
+        DeployHistoryData(gitManager.getLastCommitHash(), commits, 0, emptyMap())
+            .save(File(dbDir, "deploy_history.json"))
+        sources.forEach { it.writeText("changed") }
+        GitManager(roots[1]).addAllAndCommit("committed change")
+        val added = File(roots.last(), "Added.kt").apply { writeText("new source") }
+        val history = createHistoryDb()
+
+        assertTrue(history.filterUnchangedFiles(sources + added).isEmpty())
+        sources.forEach { it.writeText("baseline") }
+        GitManager(roots[1]).addAllAndCommit("restore baseline")
+        assertEquals(sources.toSet(), history.filterUnchangedFiles(sources + added).toSet())
+        DeployHistoryData(gitManager.getLastCommitHash(), linkedMapOf<String, String?>(
+            File(projectDir, "missing-baseline").absolutePath to null,
+        ) + commits, 0, emptyMap()).save(File(dbDir, "deploy_history.json"))
+        sources.forEach { it.writeText("changed again") }
+        assertTrue(history.filterUnchangedFiles(sources + added).isEmpty())
+    }
+
+    @Test
     fun compareColdAndWarmCrcScanPerformance() {
         Assume.assumeTrue(System.getenv("JUGG_RUN_CRC_CACHE_PERFORMANCE_TEST").toBoolean())
         val content = ByteArray(PERFORMANCE_FILE_SIZE) { (it % 251).toByte() }
