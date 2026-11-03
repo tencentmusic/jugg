@@ -448,6 +448,11 @@ class RemoteGradleCompileClientTest : LocalGradleCompileClientTest() {
         super.testFetchLibraryChanges()
     }
 
+    override fun testFetchRemovedLibraryChanges() {
+        if (!isNeedTest) return
+        super.testFetchRemovedLibraryChanges()
+    }
+
     override fun testFetchLocalLibraryChanges() {
         if (!isNeedTest) return
         super.testFetchLocalLibraryChanges()

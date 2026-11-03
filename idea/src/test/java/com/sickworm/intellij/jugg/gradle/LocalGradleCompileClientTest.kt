@@ -100,6 +100,8 @@ open class LocalGradleCompileClientTest {
 
     @Test
     open fun testFetchLibraryChanges() {
+        // Initialize shared fixtures before recording the dependency baseline.
+        AssembleAndroidProjectOnce.ensure()
         val client = getClient()
         client.login(juggGradleCompileOptions)
         val compileResult = client.compileAndFetchResult()
@@ -158,24 +160,21 @@ open class LocalGradleCompileClientTest {
         incDeployTimes++
 
 
-        // start update second library fastjson
-        // keep version unchanged
+        // Change the second library and its transitive dependency while keeping Gson unchanged.
         changeGsonAndRevert("2.8.5") {
             changeAndRevert(buildFile,
-                "com.alibaba:fastjson:2.0.2.android",
-                "com.alibaba:fastjson:2.0.3.android",
+                "io.reactivex.rxjava3:rxjava:3.1.8",
+                "io.reactivex.rxjava3:rxjava:3.1.0",
             ) {
                 // compare with last incremental build
                 client.fetchLibraryChanges(incDeployTimes).checkChanges(hasChanges = true,
                     updateLibraries = listOf(
-                        "com.alibaba:fastjson:2.0.2.android" to "com.alibaba:fastjson:2.0.3.android",
-                        "com.alibaba.fastjson2:fastjson2-extension:2.0.2.android" to "com.alibaba.fastjson2:fastjson2-extension:2.0.3.android",
-                        "com.alibaba.fastjson2:fastjson2:2.0.2.android" to "com.alibaba.fastjson2:fastjson2:2.0.3.android",
+                        "io.reactivex.rxjava3:rxjava:3.1.8" to "io.reactivex.rxjava3:rxjava:3.1.0",
+                        "org.reactivestreams:reactive-streams:1.0.4" to "org.reactivestreams:reactive-streams:1.0.3",
                     ),
                     newLibraryFiles = listOf(
-                        "com.alibaba:fastjson:2.0.2.android" to "com.alibaba:fastjson:2.0.3.android",
-                        "com.alibaba.fastjson2:fastjson2-extension:2.0.2.android" to "com.alibaba.fastjson2:fastjson2-extension:2.0.3.android",
-                        "com.alibaba.fastjson2:fastjson2:2.0.2.android" to "com.alibaba.fastjson2:fastjson2:2.0.3.android",
+                        "io.reactivex.rxjava3:rxjava:3.1.8" to "io.reactivex.rxjava3:rxjava:3.1.0",
+                        "org.reactivestreams:reactive-streams:1.0.4" to "org.reactivestreams:reactive-streams:1.0.3",
                     ),
                 )
             }
@@ -186,23 +185,21 @@ open class LocalGradleCompileClientTest {
         // update together
         changeGsonAndRevert("2.9.1") {
             changeAndRevert(buildFile,
-                "com.alibaba:fastjson:2.0.2.android",
-                "com.alibaba:fastjson:2.0.4.android",
+                "io.reactivex.rxjava3:rxjava:3.1.8",
+                "io.reactivex.rxjava3:rxjava:3.1.9",
             ) {
                 // compare with last incremental build
                 client.fetchLibraryChanges(incDeployTimes).checkChanges(hasChanges = true,
                     updateLibraries = listOf(
-                        "com.alibaba:fastjson:2.0.3.android" to "com.alibaba:fastjson:2.0.4.android",
-                        "com.alibaba.fastjson2:fastjson2-extension:2.0.3.android" to "com.alibaba.fastjson2:fastjson2-extension:2.0.4.android",
-                        "com.alibaba.fastjson2:fastjson2:2.0.3.android" to "com.alibaba.fastjson2:fastjson2:2.0.4.android",
+                        "io.reactivex.rxjava3:rxjava:3.1.0" to "io.reactivex.rxjava3:rxjava:3.1.9",
+                        "org.reactivestreams:reactive-streams:1.0.3" to "org.reactivestreams:reactive-streams:1.0.4",
                         "com.google.code.gson:gson:2.8.5" to "com.google.code.gson:gson:2.9.1",
                     ),
                     newLibraryFiles = listOf(
-                        "com.alibaba:fastjson:2.0.2.android" to "com.alibaba:fastjson:2.0.4.android",
-                        "com.alibaba.fastjson2:fastjson2-extension:2.0.2.android" to "com.alibaba.fastjson2:fastjson2-extension:2.0.4.android",
-                        "com.alibaba.fastjson2:fastjson2:2.0.2.android" to "com.alibaba.fastjson2:fastjson2:2.0.4.android",
+                        "io.reactivex.rxjava3:rxjava:3.1.8" to "io.reactivex.rxjava3:rxjava:3.1.9",
                         "com.google.code.gson:gson:2.10.1" to "com.google.code.gson:gson:2.9.1",
                     ),
+                    removedLibraryFiles = listOf("org.reactivestreams:reactive-streams:1.0.4"),
                 )
             }
         }
@@ -212,8 +209,8 @@ open class LocalGradleCompileClientTest {
         // keep version unchanged
         changeGsonAndRevert("2.9.1") {
             changeAndRevert(buildFile,
-                "com.alibaba:fastjson:2.0.2.android",
-                "com.alibaba:fastjson:2.0.4.android",
+                "io.reactivex.rxjava3:rxjava:3.1.8",
+                "io.reactivex.rxjava3:rxjava:3.1.9",
             ) {
                 // compare with last incremental build
                 client.fetchLibraryChanges(incDeployTimes).checkChanges(hasChanges = false)
@@ -227,16 +224,10 @@ open class LocalGradleCompileClientTest {
         client.fetchLibraryChanges(incDeployTimes).checkChanges(hasChanges = true,
             updateLibraries = listOf(
                 "com.google.code.gson:gson:2.9.1" to "com.google.code.gson:gson:2.10.1",
-            ),
-            removedLibraries = listOf(
-                "com.alibaba:fastjson:2.0.4.android",
-                "com.alibaba.fastjson2:fastjson2-extension:2.0.4.android",
-                "com.alibaba.fastjson2:fastjson2:2.0.4.android",
+                "io.reactivex.rxjava3:rxjava:3.1.9" to "io.reactivex.rxjava3:rxjava:3.1.8",
             ),
             removedLibraryFiles = listOf(
-                "com.alibaba:fastjson:2.0.4.android",
-                "com.alibaba.fastjson2:fastjson2-extension:2.0.4.android",
-                "com.alibaba.fastjson2:fastjson2:2.0.4.android",
+                "io.reactivex.rxjava3:rxjava:3.1.8",
                 "com.google.code.gson:gson:2.10.1",
             )
         )
@@ -246,6 +237,38 @@ open class LocalGradleCompileClientTest {
         // keep rollback
         // compare with last incremental build
         client.fetchLibraryChanges(incDeployTimes).checkChanges(hasChanges = false)
+    }
+
+    @Test
+    open fun testFetchRemovedLibraryChanges() {
+        AssembleAndroidProjectOnce.ensure()
+        val client = getClient()
+        client.login(juggGradleCompileOptions)
+        assertTrue(client.compileAndFetchResult().isSuccess)
+        val buildFile = projectInfo.projectRoot.resolve("app/build.gradle")
+        changeAndRevert(buildFile, "implementation 'io.reactivex.rxjava3:rxjava:3.1.8'", "") {
+            val removedLibraries = listOf(
+                "io.reactivex.rxjava3:rxjava:3.1.8",
+                "org.reactivestreams:reactive-streams:1.0.4",
+            )
+            client.fetchLibraryChanges(0).checkChanges(
+                hasChanges = true,
+                removedLibraries = removedLibraries,
+                removedLibraryFiles = removedLibraries,
+            )
+            client.fetchLibraryChanges(1).checkChanges(hasChanges = false)
+        }
+        client.fetchLibraryChanges(2).checkChanges(
+            hasChanges = true,
+            newLibraries = listOf(
+                "io.reactivex.rxjava3:rxjava:3.1.8",
+                "org.reactivestreams:reactive-streams:1.0.4",
+            ),
+            removedLibraryFiles = listOf(
+                "io.reactivex.rxjava3:rxjava:3.1.8",
+                "org.reactivestreams:reactive-streams:1.0.4",
+            ),
+        )
     }
 
     @Test
