@@ -192,6 +192,8 @@ jugg deploy [--always-restart-app <true|false>]
 |----------|----------|------|
 | `--always-restart-app` / `--alwaysRestartApp` | `alwaysRestartApp` | `true` 时部署后强制重启 App；`false` 允许 HOT RELOAD。省略时由 MCP 默认值决定 |
 
+终态 message 显示 `deploy executed successfully. Deployed files (total: N): ...`，列表来自本轮成功提交的部署文件，之前已编译、本轮才部署的文件也计入；无文件下发时显示 `Deployed files (total: 0)`，再附既有历史提示。两个成功字段表示流程正常完成，无改动也可成功。同步与异步消息一致。
+
 终态输出 `isCompileSuccess`、`isDeploySuccess` 与日志路径。判断部署是否成功时必须同时看 deploy 结果，不要只看 compile 是否成功。
 
 没有待部署文件时，终态 message 会明确说明当前 Jugg 检测到的修改均已部署，并展示本次 IDE 会话内最后一次包含文件变更的成功部署时间（绝对时间 + 相对时间）和项目相对路径；文件最多展示 20 条。该信息只保存在当前 IDE 会话，IDE 重启后无记录时会明确提示详情不可用。直接完成和异步轮询完成时输出一致。

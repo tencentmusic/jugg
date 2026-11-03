@@ -164,6 +164,8 @@
 | `jobId` | string | **是** | 异步编译工具返回的 job ID |
 | `waitTimeoutMs` | integer | 否 | 阻塞等待状态变化的超时时间（毫秒），范围 `[0, 10000]`，默认 `0`（不阻塞） |
 
+compile/deploy 的 message 根据最终结果生成：compile 显示成功编译的文件；deploy 显示本轮成功提交的 `Deployed files (total: N)`，无文件下发时 N 为 0。同步与轮询一致，成功字段继续表示流程成功。
+
 **返回 data**：`jobId`、`status`（running/success/failed/canceled/unknown）、`executionType`（local/remote）、`message`；running 时附带 `pollIntervalSuggestedMs`，如果当前 IDE 进度文本非空，还会附带 `indicator.text`，供 CLI/Agent 展示轻量 heartbeat。终态时附带 `isCompileSuccess`（boolean，编译是否成功，unknown 时缺失）、`isDeploySuccess`（boolean，部署是否成功，unknown 时缺失；compile 仅编译时通常为 `false`）。终态为 `failed` / `canceled` 且存在诊断输出时，附带 `detail` / `detailLength` / `detailTruncated`；成功终态不返回 `detail`。
 
 **行为说明**：

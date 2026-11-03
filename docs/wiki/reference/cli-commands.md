@@ -73,6 +73,8 @@ jugg restart
 > [!IMPORTANT]
 > To determine the final state of `deploy` or `gradle-build`, check both `isCompileSuccess` and `isDeploySuccess`. A successful compilation does not mean that deployment succeeded.
 
+A successful `deploy` message shows `Deployed files (total: N)` and the files successfully deployed in this invocation, including files compiled earlier and deployed now. N is 0 when no files were deployed. The two success flags indicate successful workflow completion, including runs with no changes. A `compile` message lists files successfully compiled in the current invocation.
+
 ## Android Test
 
 ```bash

@@ -73,6 +73,8 @@ jugg restart
 > [!IMPORTANT]
 > `deploy`、`gradle-build` 的终态需要同时看 `isCompileSuccess` 和 `isDeploySuccess`。编译成功不等于部署成功。
 
+`deploy` 的成功消息显示 `Deployed files (total: N)` 和本轮成功部署的文件；此前已编译、本轮才部署的文件也计入。无文件下发时 N 为 0。两个成功字段表示流程正常完成，无改动也可成功；`compile` 的消息则显示本轮实际成功编译的文件。
+
 ## Android Test
 
 ```bash

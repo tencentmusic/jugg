@@ -2,6 +2,11 @@ package com.sickworm.intellij.jugg.ide.logic
 
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.project.Project
+import com.sickworm.intellij.jugg.compiler.CompileFile
+import com.sickworm.intellij.jugg.compiler.CompileResult
+import com.sickworm.intellij.jugg.compiler.CompileTask
+import com.sickworm.intellij.jugg.compiler.CompileStatusHolder
+import com.sickworm.intellij.jugg.compiler.Result
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.compiler.CompileTaskResult
 import com.sickworm.intellij.jugg.compiler.JuggCompilerHelper
@@ -43,6 +48,50 @@ class JuggRunningTaskTest {
     companion object {
         @BeforeClass @JvmStatic
         fun initTestEnvironment() = TestGlobal.init()
+    }
+
+    @Test
+    fun `run reports actual compile inputs and deployment changes including no-op`() {
+        listOf(false to true, true to true, true to false).forEach { (hasChanges, deploySuccess) ->
+            val projectPath = temporaryFolder.newFolder().absolutePath
+            val source = CompileFile(
+                CompileFile.Type.Kotlin,
+                File("/external/Source.kt"), File("/external"), mock(),
+            )
+            val inputs = if (hasChanges) listOf(source) else emptyList()
+            val compile = CompileResult(
+                CompileTask(inputs, temporaryFolder.newFolder(), mock<CompileStatusHolder>()),
+                inputs.map { Result.success(it) }, emptyList(),
+            )
+            val compiler = mock<JuggCompilerHelper>()
+            whenever(compiler.compile(any(), any(), any())).thenReturn(CompileTaskResult.incrementalSuccess(compile))
+            val device = mock<IDevice>()
+            whenever(device.name).thenReturn("test device")
+            whenever(device.serialNumber).thenReturn("test-serial")
+            whenever(device.version).thenReturn(com.android.sdklib.AndroidVersion(30))
+            whenever(device.clients).thenReturn(emptyArray())
+            val targets = mock<IDeployTargetManager>()
+            whenever(targets.getSelectedDevices()).thenReturn(listOf(device))
+            val deployer = mock<JuggDeployerHelper>()
+            whenever(deployer.deploy(any())).thenAnswer {
+                if (hasChanges && deploySuccess) {
+                    com.sickworm.intellij.jugg.deploy.LastChangedDeployRegistry.INSTANCE.record(projectPath,
+                        listOf(source.file, File("/external/PreviouslyCompiled.kt")))
+                }
+                DeployTaskResult(deploySuccess, 0,
+                    deployType = JuggDeployData.DeployType.HOT_RELOAD, hasDeployChanges = hasChanges)
+            }
+
+            com.sickworm.intellij.jugg.deploy.LastChangedDeployRegistry.INSTANCE.record(projectPath,
+                listOf(File("/external/OldDeployment.kt")))
+            val result = runFailureFlow(compiler, targets, deployer, projectPath)
+
+            assertTrue(result.isCompileSuccess)
+            assertEquals(deploySuccess, result.isDeploySuccess)
+            assertEquals(if (hasChanges) listOf("Source.kt") else emptyList(), result.compiledFiles.map { File(it).name })
+            assertEquals(if (hasChanges && deploySuccess) listOf("Source.kt", "PreviouslyCompiled.kt") else emptyList(),
+                result.deployedFiles.map { File(it).name })
+        }
     }
 
     @Test
@@ -118,9 +167,8 @@ class JuggRunningTaskTest {
     }
 
     private fun runFailureFlow(compiler: JuggCompilerHelper, targets: IDeployTargetManager,
-        deployer: JuggDeployerHelper = mock()): RunResult {
+        deployer: JuggDeployerHelper = mock(), projectPath: String = temporaryFolder.newFolder().absolutePath): RunResult {
         val project = mock<Project>()
-        val projectPath = temporaryFolder.newFolder().absolutePath
         whenever(project.basePath).thenReturn(projectPath)
         val toolWindowManager = mock<ToolWindowManager>()
         whenever(project.getService(ToolWindowManager::class.java)).thenReturn(toolWindowManager)

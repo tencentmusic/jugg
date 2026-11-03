@@ -1,8 +1,8 @@
 package com.sickworm.intellij.jugg.ai.mcp.actions
 
-import com.google.gson.Gson
 import com.google.gson.JsonObject
-import com.google.gson.JsonParser
+import com.google.gson.JsonArray
+import com.sickworm.intellij.jugg.compiler.ui.RunResult
 import com.sickworm.intellij.jugg.ai.mcp.IMcpRuntime
 import com.sickworm.intellij.jugg.ai.mcp.McpErrorCode
 import com.sickworm.intellij.jugg.ai.mcp.McpArtifact
@@ -50,13 +50,11 @@ class CompileAndDeployMcpToolAction : McpToolAction {
     override fun execute(arguments: Map<String, Any?>, runtime: IMcpRuntime): McpToolResult {
         val isAlwaysRestartApp = arguments["alwaysRestartApp"] as? Boolean ?: true
         val waitAppReadyAfterSuccess = arguments["waitAppReadyAfterSuccess"] as? Boolean ?: false
-        val compiledFiles = runtime.deployFileManager?.getUndeployedFiles()?.map { it.file.name } ?: emptyList()
         return deployAction(
             runtime = runtime,
             toolName = toolName,
             isAlwaysRestartApp = isAlwaysRestartApp,
             waitAppReadyAfterSuccess = waitAppReadyAfterSuccess,
-            compiledFiles = compiledFiles,
         )
     }
 
@@ -75,14 +73,12 @@ class CompileAndDeployMcpToolAction : McpToolAction {
             androidTestRunSpec: AndroidTestRunSpec? = null,
             buildTargetOverride: BuildTarget? = null,
             waitAppReadyAfterSuccess: Boolean = false,
-            compiledFiles: List<String> = emptyList(),
         ): McpToolResult {
             val projectDir = runCatching { runtime.project.basePath }.getOrNull()
-            val successMessage = buildSuccessMessage(toolName, projectDir, compiledFiles)
             val trigger = CompileJobManager.triggerJuggCompile(
                 runtime = runtime,
                 isSkipDeploy = isSkipDeploy,
-                successMessage = successMessage.takeIf {
+                successToolName = toolName.takeIf {
                     toolName == McpToolActionRegistry.ToolNames.COMPILE ||
                             toolName == McpToolActionRegistry.ToolNames.DEPLOY
                 },
@@ -121,8 +117,8 @@ class CompileAndDeployMcpToolAction : McpToolAction {
             }
             val result = buildRunToolResult(
                 toolName = toolName,
-                successMessage = successMessage,
-                runResultObject = JsonParser.parseString(Gson().toJson(runResponse.runResult)) as? JsonObject,
+                successMessage = trigger.message,
+                runResultObject = runResponse.runResult?.toPublicJson(),
                 detail = runResponse.detail,
                 extraData = jobMetaData,
             )
@@ -133,21 +129,27 @@ class CompileAndDeployMcpToolAction : McpToolAction {
             return result
         }
 
-        private fun buildSuccessMessage(
+        internal fun buildSuccessMessage(
             toolName: String,
             projectDir: String?,
-            compiledFiles: List<String>,
+            runResult: RunResult,
         ): String {
+            val compiledFiles = runResult.compiledFiles
             val successMessage = "$toolName executed successfully."
             return when {
+                runResult.isGradleCompile -> "$successMessage Gradle build completed; compiled files are not enumerated."
+                toolName == McpToolActionRegistry.ToolNames.DEPLOY && runResult.deployedFiles.isNotEmpty() -> {
+                    "$successMessage Deployed files (total: ${runResult.deployedFiles.size}): ${runResult.deployedFiles.joinToString(", ")}"
+                }
+                toolName == McpToolActionRegistry.ToolNames.DEPLOY -> {
+                    if (projectDir == null) "$successMessage Deployed files (total: 0)."
+                    else buildNoPendingDeployMessage(projectDir)
+                }
                 compiledFiles.isNotEmpty() -> {
                     "$successMessage Compiled files (total: ${compiledFiles.size}): ${compiledFiles.joinToString(", ")}"
                 }
                 toolName == McpToolActionRegistry.ToolNames.COMPILE -> {
                     "$successMessage No pending file changes."
-                }
-                toolName == McpToolActionRegistry.ToolNames.DEPLOY && projectDir != null -> {
-                    buildNoPendingDeployMessage(projectDir)
                 }
                 else -> "$successMessage  Compiled files (total: 0)"
             }
@@ -155,11 +157,11 @@ class CompileAndDeployMcpToolAction : McpToolAction {
 
         private fun buildNoPendingDeployMessage(projectDir: String): String {
             val snapshot = LastChangedDeployRegistry.INSTANCE.get(projectDir)
-                ?: return "deploy executed successfully. No pending file changes. " +
+                ?: return "deploy executed successfully. Deployed files (total: 0). No pending file changes. " +
                     "All changes currently detected by Jugg are already deployed. " +
                     "Last deployment details are unavailable in this IDE session."
             return buildString {
-                appendLine("deploy executed successfully. No pending file changes. " +
+                appendLine("deploy executed successfully. Deployed files (total: 0). No pending file changes. " +
                         "All changes currently detected by Jugg are already deployed.")
                 appendLine()
                 appendLine("Last successful deployment with file changes:")
@@ -325,6 +327,16 @@ class CompileAndDeployMcpToolAction : McpToolAction {
                 artifacts = detailResult.artifacts,
                 errorCode = McpErrorCode.INTERNAL_ERROR,
             )
+        }
+
+        private fun RunResult.toPublicJson(): JsonObject = JsonObject().apply {
+            addProperty("isGradleCompile", isGradleCompile)
+            addProperty("isCompileSuccess", isCompileSuccess)
+            addProperty("isDeploySuccess", isDeploySuccess)
+            addProperty("isCancel", isCancel)
+            addProperty("isNeedResetHasRun", isNeedResetHasRun)
+            add("errorLog", JsonArray().apply { errorLog.forEach { add(it) } })
+            failedReason?.let { addProperty("failedReason", it) }
         }
 
         private fun buildRunToolResult(

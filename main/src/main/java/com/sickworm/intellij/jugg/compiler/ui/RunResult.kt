@@ -13,6 +13,9 @@ data class RunResult(
     val errorLog: List<String> = emptyList(),
     /** Human-readable reason when deployment failed; null when N/A or success. */
     val failedReason: String? = null,
+    /** Actual file inputs used to build the final compile/deploy message. */
+    val compiledFiles: List<String> = emptyList(),
+    val deployedFiles: List<String> = emptyList(),
 ) {
     /**
      * Returns true if the overall run invocation succeeded, considering whether deployment was skipped.

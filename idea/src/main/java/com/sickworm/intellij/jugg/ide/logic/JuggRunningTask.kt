@@ -14,6 +14,8 @@ import com.sickworm.intellij.jugg.compiler.CompileTaskResult
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.compiler.JuggCompilerHelper
 import com.sickworm.intellij.jugg.compiler.ui.RunResult
+import com.sickworm.intellij.jugg.deploy.LastChangedDeployRegistry
+import com.sickworm.intellij.jugg.deploy.LastChangedDeploySnapshot
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.deploy.IJuggRunningTaskStatusManager
@@ -35,6 +37,7 @@ import com.sickworm.intellij.jugg.project.ILastCompileProjectRegistry
 import com.sickworm.intellij.jugg.project.LastCompileProjectRegistry
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import com.sickworm.intellij.jugg.server.JuggServer
+import java.io.File
 import java.io.PrintWriter
 import java.io.StringWriter
 import java.util.Collections
@@ -129,7 +132,8 @@ class JuggRunningTask(
             if (compileUiHandler.isForceGradleCompile) {
                 notifyFallback(project, "force fallback", logger)
             }
-            val runResult = doRun(options)
+            val previousDeploy = LastChangedDeployRegistry.INSTANCE.get(options.projectRootPath)
+            val runResult = withCompileDetails(doRun(options), previousDeploy)
             isNeedResetHasRun = runResult.isNeedResetHasRun
             // for gradle compilation, compile success is ok to stage compile result
             // for incremental compilation, we need to deploy success to stage compile result
@@ -164,7 +168,7 @@ class JuggRunningTask(
                 runResult.copy(failedReason = listOfNotNull(e::class.java.name, e.message).joinToString(": ")),
                 isEligible = !processHandler.isCanceled,
             )
-            compileUiHandler.onEnd(runResult)
+            compileUiHandler.onEnd(withCompileDetails(runResult, null))
         } finally {
             isRunning = false
             lastCompileProjectRegistry.record(options.projectRootPath)
@@ -206,6 +210,25 @@ class JuggRunningTask(
         indicatorListener.installToProgressIfPossible(indicator)
         indicator.text = "Compiling by Jugg..."
         indicator.isIndeterminate = true
+    }
+
+    private fun withCompileDetails(
+        result: RunResult,
+        previousDeploy: LastChangedDeploySnapshot?,
+    ): RunResult {
+        val compile = lastCompileResult ?: return result
+        val incremental = compile.incrementalCompileResult
+        return result.copy(
+            compiledFiles = incremental?.successFiles.orEmpty().map {
+                it.get().file.relativeToOrSelf(File(options.projectRootPath)).invariantSeparatorsPath
+            }.distinct(),
+            deployedFiles = if (result.isDeploySuccess) {
+                LastChangedDeployRegistry.INSTANCE.get(options.projectRootPath)
+                    ?.takeIf { it !== previousDeploy }?.files.orEmpty().map {
+                        it.relativeToOrSelf(File(options.projectRootPath)).invariantSeparatorsPath
+                    }
+            } else emptyList(),
+        )
     }
 
     private fun doRun(options: JuggGradleCompileOptions): RunResult {
