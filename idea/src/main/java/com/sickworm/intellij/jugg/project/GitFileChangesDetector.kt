@@ -146,10 +146,12 @@ class GitFileChangesDetector(
             if (uncompiledFiles.size > 100) {
                 logger.info("Checking files whether is really changed...")
             }
-            val rollbackFiles = deployHistoryManager.filterUnchangedFiles(uncompiledFiles.map { it.file })
+            val ordinaryFiles = uncompiledFiles.filterNot { it.isManuallySelected }.map { it.file }
+            val rollbackFiles = if (ordinaryFiles.isEmpty()) emptyList() else
+                deployHistoryManager.filterUnchangedFiles(ordinaryFiles)
             if (rollbackFiles.isNotEmpty()) {
                 logger.debug("Found files rollback, size: ${rollbackFiles.size}, files: ${rollbackFiles.map { it.name }}")
-                deployFileManager.removeChangedFile(rollbackFiles)
+                deployFileManager.removeRolledBackFiles(rollbackFiles)
             } else {
                 logger.debug("No files rollback.")
             }
@@ -167,6 +169,10 @@ class GitFileChangesDetector(
     fun updateChangedFiles(): Boolean {
         return updateChangedFiles(emptyList())
     }
+
+    /** Explicit refresh also removes restored inputs even when Git HEAD has not moved. */
+    fun refreshFileChanges(): Boolean = updateChangedFiles() &&
+            rollbackUnchangedFiles(deployFileManager.getUncompiledFiles())
 
     fun updateChangedFiles(filterFiles: List<File>): Boolean {
         logger.debug("updateChangedFiles")

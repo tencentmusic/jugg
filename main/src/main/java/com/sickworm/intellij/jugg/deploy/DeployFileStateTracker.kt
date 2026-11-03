@@ -15,6 +15,7 @@ import java.util.Date
 class DeployFileStateTracker(
     private val logger: Logger? = null,
 ) {
+    private val fileChangeCandidates = linkedMapOf<String, ChangedFile>()
     private var uncompiledFiles = mutableMapOf<String, ChangedFile>()
     // Copied files may preserve old mtimes, so full-build cleanup must use when Jugg observed the change.
     private var uncompiledObservedAt = mutableMapOf<String, Long>()
@@ -46,16 +47,59 @@ class DeployFileStateTracker(
 
     @Synchronized
     fun addChangedFiles(files: List<ChangedFile>): List<ChangedFile> {
+        files.forEach {
+            val path = it.file.stdAbsPath
+            fileChangeCandidates.remove(path)
+            fileChangeCandidates[path] = it.copy(isManuallySelected = false)
+        }
         val filesNeedCompile = files.filterNot {
-            isHandledSnapshot(it)
+            !it.isManuallySelected && isHandledSnapshot(it)
         }
         val newFiles = filesNeedCompile.filter {
             !uncompiledFiles.containsKey(it.file.stdPath)
         }
         filesNeedCompile.forEach {
-            markNeedsCompile(it)
+            val manual = (uncompiledFiles[it.file.stdAbsPath] ?: compiledFiles[it.file.stdAbsPath])
+                ?.isManuallySelected == true
+            markNeedsCompile(if (manual) it.copy(isManuallySelected = true) else it)
         }
         return newFiles
+    }
+
+    @Synchronized
+    fun getFileChangeCandidates(): List<ChangedFile> {
+        fileChangeCandidates.entries.removeIf { !it.value.file.isFile }
+        return fileChangeCandidates.values.reversed()
+    }
+
+    /** Applies only rows seen by the dialog, preserving changes admitted while it was open. */
+    @Synchronized
+    fun applyFileSelection(candidates: List<ChangedFile>, selectedPaths: Set<String>) {
+        val selected = selectedPaths.map { File(it).stdAbsPath }.toSet()
+        val deselected = candidates.map { it.file.stdAbsPath }.filter { it !in selected }.toSet()
+        if (compiledFiles.keys.any { it in deselected }) {
+            // Outputs may combine multiple sources; rebuild retained inputs instead of deploying stale output.
+            stagingFiles.clear()
+            mergedDexFilePathSet.clear()
+            compiledFiles.values.toList().filter { it.file.stdAbsPath !in deselected }.forEach {
+                markNeedsCompile(it.copy())
+            }
+        }
+        deselected.forEach {
+            uncompiledFiles.remove(it)
+            uncompiledObservedAt.remove(it)
+            compiledFiles.remove(it)
+        }
+        candidates.filter { it.file.stdAbsPath in selected && it.file.isFile }.forEach {
+            val path = it.file.stdAbsPath
+            val pending = uncompiledFiles[path] ?: compiledFiles[path]
+            if (pending == null || !pending.isManuallySelected ||
+                (path in uncompiledFiles && pending.hasCompiledOnce)
+            ) {
+                val latest = fileChangeCandidates[path] ?: return@forEach
+                markNeedsCompile(latest.copy(isManuallySelected = true))
+            }
+        }
     }
 
     @Synchronized
@@ -305,6 +349,11 @@ class DeployFileStateTracker(
     
     @Synchronized
     fun remapUncompiledFiles(transform: (ChangedFile) -> ChangedFile?) {
+        val remappedCandidates = fileChangeCandidates.mapNotNull { (path, file) ->
+            transform(file)?.let { path to it }
+        }
+        fileChangeCandidates.clear()
+        fileChangeCandidates.putAll(remappedCandidates)
         val mappedFiles = mutableMapOf<String, ChangedFile>()
         val mappedObservedAt = mutableMapOf<String, Long>()
         uncompiledFiles.forEach { (path, changedFile) ->

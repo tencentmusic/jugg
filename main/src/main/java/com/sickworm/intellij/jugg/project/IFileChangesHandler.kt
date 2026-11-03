@@ -28,6 +28,7 @@ data class ChangedFile(
     val baseDir: File,
     val module: ModuleInfo,
     val extraInfo: Map<String, Any> = emptyMap(),
+    val isManuallySelected: Boolean = false,
 ) {
 
     var compiledTimes: Int = 0

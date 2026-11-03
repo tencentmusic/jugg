@@ -20,6 +20,82 @@ class DeployFileStateTrackerTest {
     val temporaryFolder = TemporaryFolder()
 
     @Test
+    fun deselectingCompiledInputDiscardsCombinedStagingAndRequeuesRetainedInput() {
+        val tracker = DeployFileStateTracker()
+        val first = createSourceFile("First.kt", "class First")
+        val second = createSourceFile("Second.kt", "class Second")
+        tracker.addChangedFiles(listOf(changedFile(first), changedFile(second)))
+        tracker.updateUncompiledFiles(listOf(compileFile(first), compileFile(second)), emptyList())
+        tracker.addStagingFiles(listOf(compileOutput(temporaryFolder.newFolder("staged"), "classes.dex", null, "combined")))
+
+        tracker.applyFileSelection(tracker.getFileChangeCandidates(), setOf(second.absolutePath))
+
+        assertTrue(tracker.getStagingFiles().isEmpty())
+        assertTrue(tracker.getCompiledFiles().isEmpty())
+        assertEquals(listOf(second), tracker.getUncompiledFiles().map { it.file })
+        assertFalse(tracker.isNoFileChanges())
+    }
+
+    @Test
+    fun confirmationRetriesFailedManualInputWithoutEditingSource() {
+        val tracker = DeployFileStateTracker()
+        val source = createSourceFile("Retry.kt", "class Retry")
+        tracker.addChangedFiles(listOf(changedFile(source)))
+        val candidates = tracker.getFileChangeCandidates()
+        tracker.applyFileSelection(candidates, setOf(source.absolutePath))
+        tracker.updateUncompiledFiles(emptyList(), listOf(compileFile(source)))
+        tracker.applyFileSelection(candidates, setOf(source.absolutePath))
+        assertFalse(tracker.isNoFileChanges())
+        assertEquals(0, tracker.getUncompiledFiles().single().compiledTimes)
+    }
+
+    @Test
+    fun manualSelectionReopensSameSnapshotAndKeepsHistoryAfterCommit() {
+        val tracker = DeployFileStateTracker()
+        val source = createSourceFile("Manual.kt", "class Manual")
+        tracker.addChangedFiles(listOf(changedFile(source)))
+        tracker.updateUncompiledFiles(listOf(compileFile(source)), emptyList())
+        tracker.commitAndClear { }
+
+        val candidates = tracker.getFileChangeCandidates()
+        assertEquals(listOf(source), candidates.map { it.file })
+        tracker.applyFileSelection(candidates, setOf(source.absolutePath))
+
+        assertFalse(tracker.isNoFileChanges())
+        assertTrue(tracker.getUncompiledFiles().single().isManuallySelected)
+        source.appendText(" ")
+        tracker.addChangedFiles(listOf(changedFile(source)))
+        assertTrue(tracker.getUncompiledFiles().single().isManuallySelected)
+    }
+
+    @Test
+    fun candidatesFollowLatestAdmissionAndExcludeDeletedFiles() {
+        val tracker = DeployFileStateTracker()
+        val first = createSourceFile("First.kt", "class First")
+        val second = createSourceFile("Second.kt", "class Second")
+        tracker.addChangedFiles(listOf(changedFile(first), changedFile(second)))
+        tracker.addChangedFiles(listOf(changedFile(first)))
+        assertEquals(listOf(first, second), tracker.getFileChangeCandidates().map { it.file })
+        first.delete()
+        assertEquals(listOf(second), tracker.getFileChangeCandidates().map { it.file })
+    }
+
+    @Test
+    fun deselectionKeepsCandidatesAndChangesArrivingAfterDialogOpened() {
+        val tracker = DeployFileStateTracker()
+        val first = createSourceFile("First.kt", "class First")
+        val second = createSourceFile("Second.kt", "class Second")
+        tracker.addChangedFiles(listOf(changedFile(first)))
+        val candidates = tracker.getFileChangeCandidates()
+        tracker.addChangedFiles(listOf(changedFile(second)))
+        tracker.applyFileSelection(candidates, emptySet())
+        assertEquals(listOf(second), tracker.getUncompiledFiles().map { it.file })
+        assertEquals(2, tracker.getFileChangeCandidates().size)
+        tracker.applyFileSelection(candidates, setOf(first.absolutePath))
+        assertEquals(setOf(first, second), tracker.getUncompiledFiles().map { it.file }.toSet())
+    }
+
+    @Test
     fun addChangedFiles_ignoresSameSnapshotAfterSuccessfulCompile() {
         val tracker = DeployFileStateTracker()
         val sourceFile = createSourceFile("MainActivity.kt", "class MainActivity")

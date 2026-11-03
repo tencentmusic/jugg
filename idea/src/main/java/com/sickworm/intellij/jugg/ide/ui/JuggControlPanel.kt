@@ -84,6 +84,7 @@ class JuggControlPanel(
     private val healthPanel = contentPanel(8)
     private val activityPanel = contentPanel(0)
     private val changedFilesList = JBList<JuggEvent.ChangedFileSnapshot>(DefaultListModel())
+    private val emptyChangedFiles = createChangedFilesEmptyState()
     private val recentRunsList = JBList<JuggControlPanelModel.RunSummary>(DefaultListModel())
     private val recentRunDetails = contentPanel(4)
     private val sessionLabels = List(4) { monoLabel("0") }
@@ -163,21 +164,27 @@ class JuggControlPanel(
         })
     }
 
+    private fun createChangedFilesEmptyState(): JComponent {
+        val message = secondaryLabel("No pending changes").apply { alignmentX = 0.5f }
+        val link = ActionLink("Manual add...") { controller.manageFileChanges() }.apply { alignmentX = 0.5f }
+        val group = Box.createVerticalBox().apply {
+            add(message)
+            add(verticalGap(5))
+            add(link)
+        }
+        return JPanel(java.awt.GridBagLayout()).transparent().apply { add(group) }
+    }
+
     private fun changedFilesSection(): JComponent = overviewSection(null, "changedFiles") {
-        add(eyebrow("Changed files"))
+        add(JPanel(BorderLayout()).transparent().apply {
+            add(eyebrow("Changed files"), BorderLayout.WEST)
+            add(ActionLink("Manage...") { controller.manageFileChanges() }, BorderLayout.EAST)
+        })
         add(verticalGap(8))
         changedFilesList.apply {
             name = "overview.changedFilesList"
             selectionMode = ListSelectionModel.SINGLE_SELECTION
-            cellRenderer = object : ColoredListCellRenderer<JuggEvent.ChangedFileSnapshot>() {
-                override fun customizeCellRenderer(list: JList<out JuggEvent.ChangedFileSnapshot>, value: JuggEvent.ChangedFileSnapshot,
-                                                   index: Int, selected: Boolean, hasFocus: Boolean) {
-                    val virtualFile = LocalFileSystem.getInstance().findFileByPath(value.absolutePath)
-                    icon = virtualFile?.fileType?.icon ?: FileTypeManager.getInstance().getFileTypeByFileName(value.path).icon
-                    append("${value.moduleName} / ${value.path}")
-                    toolTipText = value.absolutePath
-                }
-            }
+            cellRenderer = changedFileRenderer()
             addMouseListener(object : java.awt.event.MouseAdapter() {
                 override fun mouseClicked(event: java.awt.event.MouseEvent) {
                     if (event.clickCount == 2) openChangedFile(selectedValue)
@@ -627,7 +634,8 @@ class JuggControlPanel(
 
     private fun renderChangedFiles(snapshot: JuggControlPanelSnapshot) {
         replaceListModel(changedFilesList, snapshot.context.changedFiles)
-        changedFilesList.emptyText.text = "No pending changes"
+        val view = if (snapshot.context.changedFiles.isEmpty()) emptyChangedFiles else changedFilesList
+        changedFilesScroll?.let { if (it.viewport.view !== view) it.setViewportView(view) }
         updateListHeights()
     }
 
@@ -957,4 +965,15 @@ private val JuggEvent.Status.symbol: String
         JuggEvent.Status.FAILED -> "!"
         JuggEvent.Status.CANCELED -> "×"
         else -> "·"
+    }
+
+internal fun changedFileRenderer(): ColoredListCellRenderer<JuggEvent.ChangedFileSnapshot> =
+    object : ColoredListCellRenderer<JuggEvent.ChangedFileSnapshot>() {
+        override fun customizeCellRenderer(list: JList<out JuggEvent.ChangedFileSnapshot>, value: JuggEvent.ChangedFileSnapshot,
+                                           index: Int, selected: Boolean, hasFocus: Boolean) {
+            val virtualFile = LocalFileSystem.getInstance().findFileByPath(value.absolutePath)
+            icon = virtualFile?.fileType?.icon ?: FileTypeManager.getInstance().getFileTypeByFileName(value.path).icon
+            append("${value.moduleName} / ${value.path}")
+            toolTipText = value.absolutePath
+        }
     }

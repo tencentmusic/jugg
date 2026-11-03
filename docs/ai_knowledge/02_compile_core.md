@@ -151,6 +151,7 @@ pre-D8 class preparation 是 `DexCompiler` 的内部步骤，不是新的 `BaseC
 
 - 首轮成功文件会通过 `DeployFileManager.updateUncompiledFiles()` 从待编译集合移除；后续影响传播轮不再更新这组状态，避免把派生重编译误当成用户原始变更。
 - 文件进入待编译状态时会记录 `lastModified + length` 快照。迟到的 IDE/Git 文件事件如果快照未变，会被忽略并保留原编译次数；只有文件内容确实变化时才重新进入待编译状态。成功编译后会刷新快照，避免已编译未部署文件被重复事件重新打开。
+- File Change Manager 确认勾选的输入带 `ChangedFile.isManuallySelected`，即使文件快照相同也可重新入队，后续自动事件保留标记，Git rollback 排除此类输入。取消已编译输入时丢弃混合暂存产物，重建编译器释放 aapt2 有状态资源表，并重编其余保留输入，避免已取消内容继续被部署。
 - Git 补检有三层：每次 Run 先同步检查 HEAD，只有 HEAD 变化才阻塞刷新变化文件并清理内容恢复的待编译记录；失败时 resolver 可刷新 Git 发现漏掉的新文件并重试一次；成功后 `GitChangesCompileChecker` 只在出现新的待编译文件时再触发一轮。同步 HEAD 检查复用已缓存的 `GitManager`，由它为每次查询创建并关闭 Repository，不扫描工作区；检查结果和耗时使用 debug 日志，命中变化使用 info 日志。
 - Git 补检通过 `IDeployHistoryManager.getChangedFilesSinceLastFullCompiled()` 只读取 Git 变更，不加载或校验 APK、module build path、deployed data。运行期查询失败只跳过本次补检，不得删除 deploy history 或 compile context；只有项目初始化恢复调用 `tryGetContextRecoverInfoFromDb(isOnInit = true)` 时，才允许失效无法恢复的旧历史。
 - 影响传播会排除上一轮已经编译过的文件，但 Kotlin top-level file facade 相关场景会例外：`getRecompileFiles()` 会读取 `.kotlin_module` 的 file facade 列表，若调用方 source 的 `effectedByClasses` 命中这些 facade，则通过 `topLevelFacadeEffectedSourcePaths` 标记允许再编译一次。

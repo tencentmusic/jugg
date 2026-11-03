@@ -19,6 +19,7 @@ import com.sickworm.intellij.jugg.ide.SyncEvent
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.ide.controlpanel.JuggControlPanelModel
 import com.sickworm.intellij.jugg.ide.controlpanel.JuggEvent
+import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.logger.getInstance
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -91,6 +92,39 @@ open class JuggControlPanelController(
         model.updateSettings(currentSettings())
         model.updateHealth(buildHealth(context))
         refreshDevices()
+    }
+
+    fun manageFileChanges() {
+        FileChangeManagerDialog(project, this).show()
+    }
+
+    fun fileChangeCandidates(): List<ChangedFile> = deployFileManager.getFileChangeCandidates()
+
+    fun selectedFilePaths(): Set<String> = deployFileManager.getUndeployedFiles()
+        .map { it.file.absolutePath }.toSet()
+
+    fun applyFileSelection(candidates: List<ChangedFile>, selectedPaths: Set<String>): Boolean {
+        if (!manager.applyFileSelection(candidates, selectedPaths)) return false
+        refresh()
+        return true
+    }
+
+    fun refreshFileChanges(onComplete: (Boolean) -> Unit) {
+        manager.launch(Dispatchers.IO) {
+            val success = try {
+                manager.refreshFileChanges()
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                logger.warn("Refresh file changes failed", e)
+                false
+            }
+            SwingUtilities.invokeLater {
+                if (!isCleared && !project.isDisposed) {
+                    refresh()
+                    onComplete(success)
+                }
+            }
+        }
     }
 
     open fun refreshSettings() {

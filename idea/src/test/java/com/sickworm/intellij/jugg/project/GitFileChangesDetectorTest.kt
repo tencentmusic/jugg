@@ -54,6 +54,47 @@ class GitFileChangesDetectorTest {
     }
 
     @Test
+    fun manualRefreshRemovesRestoredBuildFileWithoutHeadChangeAndKeepsManualInput() {
+        val root = createGitRepository()
+        val build = File(root, "build.gradle").apply { writeText("// baseline") }
+        GitManager(root).addAllAndCommit("add build file")
+        val db = createHistoryDb(root)
+        val history = mock<IDeployHistoryManager>()
+        whenever(history.getChangedFilesSinceLastFullCompiled()).thenAnswer {
+            db.getChangedFilesSinceLastFullCompiled(isOnInit = false)
+        }
+        whenever(history.filterUnchangedFiles(any())).thenAnswer { db.filterUnchangedFiles(it.getArgument(0)) }
+        val files = createFileManager(root)
+        val detector = createDetector(root, history, files)
+        build.appendText("\n// edit")
+        files.addChangedFile(listOf(changedFile(build).copy(type = CompileFile.Type.BuildFile)))
+        val manual = File(root, "Base.kt")
+        files.addChangedFile(listOf(changedFile(manual).copy(isManuallySelected = true)))
+        build.writeText("// baseline")
+
+        assertTrue(detector.refreshFileChanges())
+
+        assertEquals(listOf(manual), files.getUncompiledFiles().map { it.file })
+        assertTrue(files.getFileChangeCandidates().any { it.file == build })
+        assertEquals(GitFileChangesDetector.GitRefreshResult.NO_HEAD_CHANGE, detector.refreshFileChangesIfHeadChanged())
+    }
+
+    @Test
+    fun rollbackKeepsManualFilesAndRemovesOrdinaryRestoredFiles() {
+        val rootDir = createGitRepository()
+        val history = mock<IDeployHistoryManager>()
+        val files = createFileManager(rootDir)
+        val detector = createDetector(rootDir, history, files)
+        val manual = File(rootDir, "Base.kt")
+        val ordinary = File(rootDir, "Other.kt").apply { writeText("class Other") }
+        files.addChangedFile(listOf(changedFile(manual).copy(isManuallySelected = true), changedFile(ordinary)))
+        whenever(history.filterUnchangedFiles(any())).thenAnswer { it.getArgument<List<File>>(0) }
+        assertTrue(detector.rollbackUnchangedFiles(files.getUncompiledFiles()))
+        assertEquals(listOf(manual), files.getUncompiledFiles().map { it.file })
+        verify(history).filterUnchangedFiles(listOf(ordinary))
+    }
+
+    @Test
     fun headChangeRemovesRevertedFileAndPublishesMissedChange() {
         val rootDir = createGitRepository()
         val historyDb = createHistoryDb(rootDir)

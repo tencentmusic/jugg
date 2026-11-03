@@ -30,10 +30,11 @@ Agent 建议提交 Issue 时，会提供已预填写的 Bug 反馈链接和按�
 
 这通常表示 IDE 尚未把本次文件变化通知给 Jugg，或 Jugg 的工程结构还没有刷新。
 
-1. 取消本轮运行后重新执行一次。
-2. 仍然出现时，先执行一次 Gradle Sync，再重新运行。
-3. 仍未生效时，执行一次 [降级 Gradle 编译](../guide/downgrade-gradle.md) 。
-4. 仍无法恢复，请 [报告问题](../guide/report-issue.md)。
+1. 打开[运行面板](../guide/control-panel.md#手动管理待处理文件)的 `Manage...` 或 `Manual add...`，先点击 `Refresh`；文件已在候选中时，勾选后确认，再执行 Run。候选仅包含当前会话已经接收过且未删除的文件。
+2. 文件不在候选中时，取消本轮运行后重新执行一次。
+3. 仍然出现时，先执行一次 Gradle Sync，再重新运行。
+4. 仍未生效时，执行一次 [降级 Gradle 编译](../guide/downgrade-gradle.md) 。
+5. 仍无法恢复，请 [报告问题](../guide/report-issue.md)。
 
 ## Q：编译和部署成功，但代码仍是旧逻辑怎么办？
 

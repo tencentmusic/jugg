@@ -879,6 +879,34 @@ class JuggManager @TestOnly constructor(
         }
     }
 
+    fun applyFileSelection(candidates: List<ChangedFile>, selectedPaths: Set<String>): Boolean =
+        synchronized(fileChangeLock) {
+            if (juggConfigurationRunner.isCompiling || deployStateManager.isInitializingIncrementalCompile) {
+                return@synchronized false
+            }
+            val managedPaths = candidates.map { it.file.absolutePath }.toSet()
+            val discardedCompiledInput = deployFileManager.getCompiledFiles().any {
+                it.file.absolutePath in managedPaths && it.file.absolutePath !in selectedPaths
+            }
+            deployFileManager.applyFileSelection(candidates, selectedPaths)
+            if (discardedCompiledInput) {
+                // Stateful resource tables must reload the deployed baseline after discarding compiled inputs.
+                val compiler = JuggCompiler(compileContextManager.compileContext, this)
+                juggCompilerHelper.juggCompiler = compiler
+                customCompilerManager.init(compileContextManager.compileContext, compiler)
+            }
+            dependencyChangeManager.onUpdateChangedBuildFiles(deployFileManager.getUndeployedFiles()
+                .filter { it.type == CompileFile.Type.BuildFile }.map { it.file })
+            true
+        }
+
+    fun refreshFileChanges(): Boolean = synchronized(fileChangeLock) {
+        val success = gitFileChangesDetector.refreshFileChanges()
+        dependencyChangeManager.onUpdateChangedBuildFiles(deployFileManager.getUndeployedFiles()
+            .filter { it.type == CompileFile.Type.BuildFile }.map { it.file })
+        success
+    }
+
     override fun getJuggControlPanel(page: String): JComponent {
         return controlPanelController.getPanel(page)
     }
@@ -1056,6 +1084,7 @@ class JuggManager @TestOnly constructor(
         })
 
         logger.info("Jugg init complete, start listening file changes.")
+        controlPanelController.refresh()
 
         if (JuggSettings.isEnableWarmUp) {
             warmUpCompile()

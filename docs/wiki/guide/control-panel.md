@@ -43,6 +43,20 @@ Overview combines the following information:
 
 `Hot reload baseline is ready` means the project has a baseline that can continue incremental work. `Full Gradle build required` means you should complete a full build first.
 
+## Manage pending files manually
+
+Click `Manage...` next to Changed files to open File Change Manager. When the list is empty, you can also click `Manual add...` below `No pending changes`.
+
+1. Search by the module or file name shown in the list. Clicking file text selects the row; clicking its checkbox changes the checked state. Current pending files are checked by default.
+2. Click `Refresh` to check Git changes again. Refreshing and searching preserve your checkbox edits.
+3. Click `Confirm` to update Changed files, then click Run as usual. Canceling the dialog discards your checkbox edits. Double-clicking file text opens the file while keeping the dialog open and preserving unconfirmed checkbox edits.
+
+The gray time after each file name shows how long ago the file was last modified, such as `0 min`, `5 min`, or `1h`. It is calculated when the dialog opens or you refresh manually, without periodic updates.
+
+Candidates include only files already received by Jugg in the current session that have not been deleted, ordered by their latest admission. The list starts accumulating again after an IDE restart or plugin reload. Checking a file manually requests processing again without adding whitespace and keeps it pending through Git checks for restored content. Wait until any running compilation or deployment finishes before confirming.
+
+Unchecking a compiled file that has not been deployed discards the current staged outputs and recompiles the remaining retained files. Content already deployed to the app stays in place. Build configuration files still follow the existing Gradle fallback rules.
+
 ## Logs
 
 The Logs page shows Jugg's structured core events and supports filtering by source, level, current task, and keyword.

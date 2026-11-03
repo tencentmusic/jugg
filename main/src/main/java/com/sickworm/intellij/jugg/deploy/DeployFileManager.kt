@@ -130,9 +130,25 @@ class DeployFileManager(
     }
 
     @Synchronized
+    fun getFileChangeCandidates(): List<ChangedFile> = stateTracker.getFileChangeCandidates()
+
+    @Synchronized
+    fun applyFileSelection(candidates: List<ChangedFile>, selectedPaths: Set<String>) {
+        stateTracker.applyFileSelection(candidates, selectedPaths)
+        resourceApkGenerator.deleteResourceApk()
+    }
+
+    @Synchronized
     fun rollbackChangedFile(files: List<ChangedFile>) {
         logger.debug("rollback changed files after cancel, size: ${files.size}, paths: $files")
         stateTracker.rollbackChangedFiles(files)
+    }
+
+    @Synchronized
+    fun removeRolledBackFiles(files: List<File>) {
+        val manualPaths = stateTracker.getUndeployedFiles().filter { it.isManuallySelected }
+            .map { it.file.stdAbsPath }.toSet()
+        removeChangedFile(files.filter { it.stdAbsPath !in manualPaths })
     }
 
     @Synchronized
