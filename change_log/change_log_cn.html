@@ -1,5 +1,5 @@
 <h1>更新日志</h1>
-<h2>3.6.6 (2026.10.18)</h2>
+<h2>3.6.7 (2026.11.04)</h2>
 <ol>
     <li>[feature] 支持 Native .so 增量热更新，仅 .so 变更时跳过 APK 改写与重装耗时（在设置中开启「.so(native library) hot update」）</li>
     <li>[feature] 支持在 C++ 增量构建前执行声明的代码生成任务（如 IDL），并将生成的源码纳入增量编译</li>
@@ -9,14 +9,31 @@
     <li>[feature] Native 动态库热更新重构，整合进统一部署通道，支持状态恢复</li>
     <li>[feature][compile] 支持 ARouter 注解；支持使用 APT/KAPT 与 KSP1/KSP2 处理器</li>
     <li>[feature][settings] 支持在升级公开插件版本后自动保留内网默认后台服务配置</li>
+    <li>[feature][compile] Windows 支持 rsync 远程编译（基于 Cygwin）</li>
+    <li>[feature][ide] 控制面板支持管理编译文件</li>
     <li>[optimize] 优化超大 Native 动态库热更新耗时，支持差分增量传输，并采用流式处理降低内存占用</li>
     <li>[optimize][compile] ARouter 注解代码生成后自动同步 IDE 源码目录，避免未识别生成类导致代码报错</li>
+    <li>[optimize][compile] 检测到 Git HEAD 切换时，自动同步回滚变更源码</li>
+    <li>[optimize][compile] 增加自动清理历史临时 class 文件</li>
+    <li>[optimize][mcp] 精简 CLI compile 与 deploy 输出</li>
     <li>[bugfix] 修复首次全量编译前获取项目配置失败的问题</li>
     <li>[bugfix] 修复 Android 源码或资源位于 Native 监控目录下时被误识别为外部构建的问题</li>
     <li>[bugfix] 修复 Native 动态库或 APK 大于 2.1 GB（Int.MAX_VALUE）时部署失败的问题</li>
     <li>[bugfix] 修复 Native 重新编译后同大小但内容变动的动态库未被更新的问题</li>
     <li>[bugfix][compile] 优化 KAPT 因正则回溯导致编译耗时异常过长的问题</li>
     <li>[bugfix][settings] 修复项目自定义配置中缺少可选构建规则字段时，自定义编译器加载失败的问题</li>
+    <li>[bugfix][compile] 修复多 Git 子仓工程中，丢失变更文件的问题</li>
+    <li>[bugfix][compile] 修复 AIDL 等生成的 Java 文件为空时，编译报父类无法访问错误的问题</li>
+    <li>[bugfix][compile] 修复 system app 工程，自带自定义 framework.jar 时，源码增量编译报错缺失隐藏 API 的问题</li>
+    <li>[bugfix][compile] 修复 Windows 下 ARouter 注解代码生成的问题</li>
+    <li>[bugfix][compile] 修复带有 library Test APK 的 Manifest 编译失败问题</li>
+    <li>[bugfix][compile] 修复 AGP 9 及多 APK 场景，styleable 导入不正确的问题</li>
+    <li>[bugfix][compile] 修复 Kotlin 2.4 下顶层函数/属性所在 Facade 类变更后，调用方未触发重编译的问题</li>
+    <li>[bugfix][compile] 修复增量编译 androidTest 概率失败，因缺少 internal 友元路径导致无法访问模块内 internal 声明的问题</li>
+    <li>[bugfix][deploy] 修复 Oppo Android 16 上使用 WebView 时，特定时序下部署资源后崩溃的问题</li>
+    <li>[bugfix][deploy] 修复部署包含无关测试 APK 时，JVMTI 状态检测耗时过长的问题</li>
+    <li>[bugfix][compat] 修复部分 Android Studio 版本下因缺少 IdeInfo 类导致查找安装器异常的问题</li>
+    <li>[bugfix][cli] 修复触发 rollback 后，CLI compile 与 deploy 命令成功提示中的文件数量与实际生效文件不一致的问题</li>
 </ol>
 <h2>3.5.5 (2026.10.22)</h2>
 <ol>

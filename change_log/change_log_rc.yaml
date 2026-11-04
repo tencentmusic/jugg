@@ -1,3 +1,24 @@
+- version: 3.6.7
+  date: 2026.11.04
+  updates:
+    - "[feature][compile] Support Windows remote builds with rsync (via Cygwin)"
+    - "[feature][ide] Support managing compiled files in the Control Panel"
+    - "[optimize][compile] Automatically roll back changed sources when Git HEAD changes"
+    - "[optimize][compile] Automatically clean up legacy temporary class files"
+    - "[optimize][mcp] Simplify CLI compile and deploy output"
+    - "[bugfix][compile] Fix missed changed files in multi-git sub-repository projects"
+    - "[bugfix][compile] Fix parent class inaccessible errors when generated Java files (such as AIDL) are empty"
+    - "[bugfix][compile] Fix missing hidden API compilation errors for system app projects with custom framework.jar"
+    - "[bugfix][compile] Fix ARouter annotation code generation failures on Windows"
+    - "[bugfix][compile] Fix Manifest compilation failures in projects with library Test APKs"
+    - "[bugfix][compile] Fix incorrect styleable import in AGP 9 and multi-APK scenarios"
+    - "[bugfix][compile] Fix missing caller recompilation when top-level facade classes change in Kotlin 2.4"
+    - "[bugfix][compile] Fix intermittent androidTest compilation failures caused by missing internal friend paths to module internal declarations"
+    - "[bugfix][deploy] Fix crashes on Oppo Android 16 with WebView after deploying resources in specific timing conditions"
+    - "[bugfix][deploy] Fix slow JVMTI status detection when deploying unrelated test APKs"
+    - "[bugfix][compat] Fix installer lookup errors on certain Android Studio versions missing the IdeInfo class"
+    - "[bugfix][cli] Fix file count discrepancies in CLI compile and deploy success messages after triggering rollback"
+
 - version: 3.6.6
   date: 2026.10.18
   updates:

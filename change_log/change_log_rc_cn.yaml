@@ -1,3 +1,24 @@
+- version: 3.6.7
+  date: 2026.11.04
+  updates:
+    - "[feature][compile] Windows 支持 rsync 远程编译（基于 Cygwin）"
+    - "[feature][ide] 控制面板支持管理编译文件"
+    - "[optimize][compile] 检测到 Git HEAD 切换时，自动同步回滚变更源码"
+    - "[optimize][compile] 增加自动清理历史临时 class 文件"
+    - "[optimize][mcp] 精简 CLI compile 与 deploy 输出"
+    - "[bugfix][compile] 修复多 Git 子仓工程中，丢失变更文件的问题"
+    - "[bugfix][compile] 修复 AIDL 等生成的 Java 文件为空时，编译报父类无法访问错误的问题"
+    - "[bugfix][compile] 修复 system app 工程，自带自定义 framework.jar 时，源码增量编译报错缺失隐藏 API 的问题"
+    - "[bugfix][compile] 修复 Windows 下 ARouter 注解代码生成的问题"
+    - "[bugfix][compile] 修复带有 library Test APK 的 Manifest 编译失败问题"
+    - "[bugfix][compile] 修复 AGP 9 及多 APK 场景，styleable 导入不正确的问题"
+    - "[bugfix][compile] 修复 Kotlin 2.4 下顶层函数/属性所在 Facade 类变更后，调用方未触发重编译的问题"
+    - "[bugfix][compile] 修复增量编译 androidTest 概率失败，因缺少 internal 友元路径导致无法访问模块内 internal 声明的问题"
+    - "[bugfix][deploy] 修复 Oppo Android 16 上使用 WebView 时，特定时序下部署资源后崩溃的问题"
+    - "[bugfix][deploy] 修复部署包含无关测试 APK 时，JVMTI 状态检测耗时过长的问题"
+    - "[bugfix][compat] 修复部分 Android Studio 版本下因缺少 IdeInfo 类导致查找安装器异常的问题"
+    - "[bugfix][cli] 修复触发 rollback 后，CLI compile 与 deploy 命令成功提示中的文件数量与实际生效文件不一致的问题"
+
 - version: 3.6.6
   date: 2026.10.18
   updates:
