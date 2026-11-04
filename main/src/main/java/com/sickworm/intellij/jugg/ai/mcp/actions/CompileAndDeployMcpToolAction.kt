@@ -384,19 +384,12 @@ class CompileAndDeployMcpToolAction : McpToolAction {
                 "runResult" to runResultObject,
             )
             data.putAll(extraData)
-            val detailResult = if (detail.isNotBlank()) {
-                val result = resolveDetailResult(toolName, detail)
-                attachDetailData(data, result)
-                result
-            } else {
-                DetailResult()
-            }
 
             return McpToolResult(
                 status = McpToolStatus.OK,
                 message = successMessage,
                 data = data,
-                artifacts = detailResult.artifacts,
+                artifacts = emptyList(),
                 errorCode = null,
             )
         }

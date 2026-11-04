@@ -93,6 +93,8 @@ jugg [--if-compiling wait|interrupt] <compile|deploy|gradle-build|instrument> [o
 
 `get-compile-status` 返回 running 且附带 `data.indicator.text` 时，`plain` 模式会立即向 stderr 输出首条 heartbeat，后续同类 running heartbeat 每 30s 节流一次；`rich` 模式会用该文本覆盖当前 spinner 文案并保留 spinner；`json` 模式不输出该 heartbeat。
 
+四个命令的直接返回和异步轮询均只在失败或取消且存在诊断输出时附带 `detail`、`detailLength` 和可选的 `detailTruncated`；成功结果保留 `message` 与 `logPath`，不附带诊断详情或详情日志 artifact。
+
 ### 3.6 help 输出
 
 ```text

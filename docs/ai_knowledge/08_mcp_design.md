@@ -101,6 +101,7 @@ compile/deploy/gradle-build/instrument
 约束：
 
 - `compile_latest.log` 是统一日志出口路径。
+- compile/deploy/gradle-build/instrument 直接返回与异步轮询均只在失败或取消时附带诊断 `detail`；成功结果不包含详情字段或详情日志 artifact，仍通过 `logPath` 提供日志入口。
 - `get-compile-status` 用 job 状态收口，不应重新触发业务动作。
 - CLI 的自动轮询只是一层封装；MCP tool 本身仍允许客户端自行轮询。
 
