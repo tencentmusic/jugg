@@ -45,6 +45,8 @@
 
 ---
 
+AAPT2 native incremental-link commands live in `aapt2-inclink/source/cmd/IncLink.cpp` and `aapt2-inclink/source/cmd/IncLink.h`. Build entry points are `aapt2-inclink/source/Android.bp` and `Android.mk` in the same source directory. See `aapt2-inclink/README.md` for source history and AOSP build requirements.
+
 ## 2. IDE Layer (`idea/src/main` + `idea/src/ide_entry`)
 
 | Entry point | File path | Notes |

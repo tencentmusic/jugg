@@ -7,6 +7,8 @@
 
 This page follows Android `res/`, assets, Compose Multiplatform resources, and external AAR R classes to their compilation and deployment handoffs. It explains APK ownership, aapt2 `inclink` state, and resource-specific diagnosis. See `02_compile_core.md` for Run decisions; `02_compile_manifest.md`, `02_compile_databinding.md`, and `02_compile_obfuscation.md` own their respective internals.
 
+AAPT2 `inclink` native source is maintained in `aapt2-inclink/source/` with its original Git history. Commands are implemented in `cmd/IncLink.cpp` and `cmd/IncLink.h` within that directory. It uses the AOSP build environment; the Gradle module still packages prebuilt tools from `aapt2-inclink/src/main/resources/tools`. See `aapt2-inclink/README.md`.
+
 ## 2. Core Source Index
 
 | Owner | Location | Responsibility |
