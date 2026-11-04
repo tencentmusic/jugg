@@ -537,7 +537,7 @@ class CompileAndDeployMcpToolActionTest {
 
     @Test
     fun testDeployMessageUsesDeployedFilesInsteadOfCompiledFiles() {
-        listOf(emptyList(), listOf("previously-compiled.kt", "current.kt")).forEach { deployed ->
+        listOf(emptyList(), listOf("src/main/previously-compiled.kt", "C:\\project\\src\\current.kt")).forEach { deployed ->
             val runtime = runtimeWithResult(JuggRunInvocationResult(
                 isSuccess = true,
                 runResult = RunResult(false, true, true, false,
@@ -545,7 +545,11 @@ class CompileAndDeployMcpToolActionTest {
             ))
             val result = CompileAndDeployMcpToolAction().execute(emptyMap(), runtime)
             Assert.assertTrue(result.message.contains("Deployed files (total: ${deployed.size})"))
-            deployed.forEach { Assert.assertTrue(result.message.contains(it)) }
+            if (deployed.isNotEmpty()) {
+                Assert.assertTrue(result.message.endsWith("previously-compiled.kt, current.kt"))
+                Assert.assertFalse(result.message.contains("src/main/"))
+                Assert.assertFalse(result.message.contains("C:"))
+            }
             Assert.assertFalse(result.message.contains("not-deployed.kt"))
             @Suppress("UNCHECKED_CAST")
             val data = result.data as Map<String, Any>
@@ -563,7 +567,7 @@ class CompileAndDeployMcpToolActionTest {
                     isCompileSuccess = true,
                     isDeploySuccess = true,
                     isCancel = false,
-                    compiledFiles = listOf("Foo.kt", "Bar.java", "Baz.kt"),
+                    compiledFiles = listOf("src/main/Foo.kt", "C:\\project\\Bar.java", "Baz.kt"),
                 ),
             )
         )

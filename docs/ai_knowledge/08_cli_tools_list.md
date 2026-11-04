@@ -180,7 +180,7 @@ jugg version
 jugg compile
 ```
 
-无子命令参数。终态输出 `status`、`message`、`full log`、`detail` 等字段。
+无子命令参数。终态输出 `status`、`message`、`full log`、`detail` 等字段。成功消息中的 `Compiled files` 仅展示文件名，不展示目录路径。
 
 没有待编译文件时，终态 message 会显示 `compile executed successfully. No pending file changes.`。该状态表示本轮没有生成新的编译产物，命令仍然成功且不会执行部署；直接完成和异步轮询完成时输出一致。
 
@@ -194,11 +194,11 @@ jugg deploy [--always-restart-app <true|false>]
 |----------|----------|------|
 | `--always-restart-app` / `--alwaysRestartApp` | `alwaysRestartApp` | `true` 时部署后强制重启 App；`false` 允许 HOT RELOAD。省略时由 MCP 默认值决定 |
 
-终态 message 显示 `deploy executed successfully. Deployed files (total: N): ...`，列表来自本轮成功提交的部署文件，之前已编译、本轮才部署的文件也计入；无文件下发时显示 `Deployed files (total: 0)`，再附既有历史提示。两个成功字段表示流程正常完成，无改动也可成功。同步与异步消息一致。
+终态 message 显示 `deploy executed successfully. Deployed files (total: N): ...`，列表仅展示文件名，不展示目录路径；列表来自本轮成功提交的部署文件，之前已编译、本轮才部署的文件也计入；无文件下发时显示 `Deployed files (total: 0)`，再附既有历史提示。两个成功字段表示流程正常完成，无改动也可成功。同步与异步消息一致。
 
 终态输出 `isCompileSuccess`、`isDeploySuccess` 与日志路径。判断部署是否成功时必须同时看 deploy 结果，不要只看 compile 是否成功。
 
-没有待部署文件时，终态 message 会明确说明当前 Jugg 检测到的修改均已部署，并展示本次 IDE 会话内最后一次包含文件变更的成功部署时间（绝对时间 + 相对时间）和项目相对路径；文件最多展示 20 条。该信息只保存在当前 IDE 会话，IDE 重启后无记录时会明确提示详情不可用。直接完成和异步轮询完成时输出一致。
+没有待部署文件时，终态 message 会明确说明当前 Jugg 检测到的修改均已部署，并展示本次 IDE 会话内最后一次包含文件变更的成功部署时间（绝对时间 + 相对时间）和文件名；文件最多展示 20 条。该信息只保存在当前 IDE 会话，IDE 重启后无记录时会明确提示详情不可用。直接完成和异步轮询完成时输出一致。
 
 CLI 当前不暴露 MCP 的 `waitAppReadyAfterSuccess` 参数；省略时按 MCP 默认值 `false`，即只等待 compile/deploy 任务终态，不额外等待 App ready。
 

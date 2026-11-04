@@ -139,14 +139,14 @@ class CompileAndDeployMcpToolAction : McpToolAction {
             return when {
                 runResult.isGradleCompile -> "$successMessage Gradle build completed; compiled files are not enumerated."
                 toolName == McpToolActionRegistry.ToolNames.DEPLOY && runResult.deployedFiles.isNotEmpty() -> {
-                    "$successMessage Deployed files (total: ${runResult.deployedFiles.size}): ${runResult.deployedFiles.joinToString(", ")}"
+                    "$successMessage Deployed files (total: ${runResult.deployedFiles.size}): ${runResult.deployedFiles.joinToString(", ") { it.replace('\\', '/').substringAfterLast('/') }}"
                 }
                 toolName == McpToolActionRegistry.ToolNames.DEPLOY -> {
                     if (projectDir == null) "$successMessage Deployed files (total: 0)."
                     else buildNoPendingDeployMessage(projectDir)
                 }
                 compiledFiles.isNotEmpty() -> {
-                    "$successMessage Compiled files (total: ${compiledFiles.size}): ${compiledFiles.joinToString(", ")}"
+                    "$successMessage Compiled files (total: ${compiledFiles.size}): ${compiledFiles.joinToString(", ") { it.replace('\\', '/').substringAfterLast('/') }}"
                 }
                 toolName == McpToolActionRegistry.ToolNames.COMPILE -> {
                     "$successMessage No pending file changes."

@@ -70,7 +70,7 @@ McpToolAction
 
 ---
 
-compile/deploy 的成功 message 在任务结束后生成。`compile` 使用实际编译结果中的成功输入；`deploy` 使用本轮部署提交产生的新文件快照，显示 `Deployed files (total: N)`，包括之前已编译、本轮才部署的文件。MCP action 显式选择既有协议字段构造 JSON，文件列表仅用于内部生成消息，RunResult 不承载序列化注解；成功字段继续表示流程成功。异步轮询复用相同终态消息。
+compile/deploy 的成功 message 在任务结束后生成。`compile` 使用实际编译结果中的成功输入；`deploy` 使用本轮部署提交产生的新文件快照，显示 `Deployed files (total: N)`，包括之前已编译、本轮才部署的文件。MCP action 显式选择既有协议字段构造 JSON，文件列表仅用于内部生成消息，RunResult 不承载序列化注解；成功字段继续表示流程成功。`Compiled files` 与 `Deployed files` 列表仅展示文件名，保留原始条目数量与顺序。异步轮询复用相同终态消息。
 
 ## 5. 参数校验边界
 
