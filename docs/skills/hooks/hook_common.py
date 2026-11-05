@@ -6,6 +6,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shlex
 import subprocess
 import sys
 import time
@@ -182,6 +183,49 @@ def read_json_payload() -> dict[str, Any]:
     payload, encoding = parsed
     debug_log("JUGG-HOOK", f"payload read ok encoding={encoding} keys={sorted(payload.keys())!r}")
     return payload
+
+
+def resolve_hook_client(client: str, payload: dict[str, Any], script: str) -> str | None:
+    if client != "claude" or not payload.get("cursor_version"):
+        return client
+    events = {"start.py": "beforeSubmitPrompt", "edit.py": "afterFileEdit",
+              "command.py": "beforeShellExecution", "stop.py": "stop"}
+    config = Path.home() / ".cursor" / "hooks.json"
+    try:
+        hooks = json.loads(config.read_text(encoding="utf-8-sig")).get("hooks", {})
+        entries = hooks.get(events[script], [])
+        expected = str(resolve_hooks_dir() / script).replace("\\", "/")
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            matcher = entry.get("matcher", "*")
+            if matcher not in ({"*", "", "Write"} if script == "edit.py" else {"*", ""}):
+                continue
+            command = entry.get("command", "")
+            if not isinstance(command, str):
+                continue
+            tokens = shlex.split(command.replace("\\", "/"))
+            if len(tokens) != 4 or tokens[1:] != [expected, "--client", "cursor"]:
+                continue
+            if not Path(expected).is_file():
+                continue
+            debug_log("JUGG-HOOK", f"skip imported Claude {script}: native Cursor hook owns this event")
+            print("{}")
+            return None
+    except (OSError, ValueError, AttributeError, TypeError) as error:
+        debug_log("JUGG-HOOK", f"cannot resolve native Cursor hook; using imported hook: {error!r}")
+    # Imported Claude hooks receive tool_input rather than Cursor's flat edit payload.
+    if script == "edit.py" and "file_path" not in payload:
+        tool_input = payload.get("tool_input")
+        if isinstance(tool_input, dict):
+            payload["file_path"] = tool_input.get("file_path")
+    return "cursor"
+
+
+def hook_state_cwd(client: str, payload: dict[str, Any]) -> str:
+    if client == "cursor" and payload.get("cursor_version"):
+        return str((Path.home() / ".cursor").resolve())
+    return str(Path.cwd())
 
 
 def collect_strings(value: Any) -> list[str]:

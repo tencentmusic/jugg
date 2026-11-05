@@ -10,6 +10,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from hook_common import (
+    resolve_hook_client,
+    hook_state_cwd,
     LAST_WRITE_TIME_MS_KEY,
     SESSION_WRITE_FILE_NAMES_KEY,
     SESSION_WRITE_SEEN_KEY,
@@ -45,9 +47,12 @@ def _parse_args():
 
 def main() -> int:
     args = _parse_args()
-    client_part = f" client={args.client}" if args.client else ""
-    cwd = str(Path.cwd())
     payload = read_json_payload()
+    args.client = resolve_hook_client(args.client, payload, "start.py")
+    if args.client is None:
+        return 0
+    client_part = f" client={args.client}" if args.client else ""
+    cwd = hook_state_cwd(args.client, payload)
     session_id = extract_session_id(payload)
     state = {}
     project_cwd = cwd
@@ -74,6 +79,7 @@ def main() -> int:
         f"hook triggered cwd={cwd} projectCwd={project_cwd}{client_part}; "
         f"clearedTurnStateKeys={removed_keys!r}"
     )
+    emit_cursor_empty_response(args.client)
     return 0
 
 

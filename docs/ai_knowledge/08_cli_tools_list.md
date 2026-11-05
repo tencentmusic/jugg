@@ -111,7 +111,7 @@ help 在 `jugg.py` 内直接返回，只读取 `help_registry.py`，不会连接
 
 插件初始化后 `JuggCliAutoUpdater` 会比较插件内 `docs-skills.zip` 与 `~/.jugg/skills/jugg-android-dev-loop/SKILL.md` 的 `version:`。只有 bundled 更高时才覆盖 `~/.jugg/bin` 和已安装的 agent skill。比较的是 `SKILL.md` 版本，不是 `CLI_VERSION`。
 
-修改 `docs/skills/jugg-android-dev-loop/scripts/`、help 或 skill references 后必须同时：
+修改 `docs/skills/jugg-android-dev-loop/scripts/`、help、skill references，或需要通过自动更新交付 `docs/skills/hooks/` 修复时，必须同时：
 
 1. 递增 `CLI_VERSION`
 2. 递增 `SKILL.md` frontmatter 的 `version`，并更新 `date`
@@ -119,6 +119,17 @@ help 在 `jugg.py` 内直接返回，只读取 `help_registry.py`，不会连接
 只改脚本不改 `SKILL.md` version，用户更新插件后仍会继续用旧 CLI 和 skill。
 
 Skill 在首次编译前按 `policy_incremental_compile_limits.md` 判断直接回退：本次修改涉及不支持的注解处理变更，或待重新编译文件明确依赖未支持的插桩行为时，说明具体原因后直接运行 `gradle-build`，不先尝试或耗尽增量重试。支持清单区分 Kuikly `@Page` 仅追加注册、Moshi `@JsonClass` 仅 KSP1，以及 Hilt 仅复用已有生成物的入口转换；项目仅存在某个 processor 或插桩插件不构成直接回退条件。该规则属于 Agent 命令选择，不增加插件运行时自动回退。
+
+---
+
+### 3.8 Cursor 导入 Claude Hooks
+
+Cursor 开启第三方导入时，会同时执行原生 Cursor 与导入的 Claude hooks。`docs/skills/hooks/hook_common.py` 根据 payload 的 `cursor_version` 识别该兼容场景；真实 Claude Code 的原路径保持不变。
+
+- 对每个事件分别读取用户级 `~/.cursor/hooks.json`，只将标准安装路径下、脚本文件存在且匹配标准 matcher 的 `python-command "<~/.jugg/skills/hooks/script.py>" --client cursor` 配置视为原生 owner。原生 owner 存在时，导入的 Claude 分支仅输出 `{}`，不更新状态、不查询 status、不提醒或拦截。两次进程启动仍由 Cursor 控制。
+- 没有对应原生 owner（包括配置缺失、无法解析或命令不匹配）时，导入分支按 Cursor 协议执行，兼容 Claude 的 `tool_input.file_path`，按 workspace 恢复工程路径。原生和导入通道统一使用 `~/.cursor` 与会话 ID 定位状态，避免切换通道时读到不同状态。
+- owner 是配置归属判断，不是成功执行证明；不承诺原生配置已加载、解释器可用，也不对项目级或自定义 Hook 配置做跨来源去重。
+- 自动更新在 bundled skill 版本更高时重新安装已检测到的客户端 skill；`JuggSkillInstaller.installSkill()` 经 `ensureBundledSkillsHome()` 解压整个资源包，也会覆盖共享 hooks。因此 Hook 修复必须递增 CLI/skill 版本以触发更新。未检测到已安装客户端 skill 时，该间接更新路径不会执行，可使用 **Install Jugg Skills → Install agent hooks** 手动安装。
 
 ---
 

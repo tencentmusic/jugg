@@ -619,5 +619,131 @@ class StopHookGuardTest(unittest.TestCase):
         self.assertIn("STOP GATE", result.stderr)
 
 
+
+
+class CursorImportedHooksTest(unittest.TestCase):
+    def run_hook(self, home, cwd, script, client, payload):
+        return subprocess.run(
+            [sys.executable, str(Path(__file__).resolve().parent.parent / script), "--client", client],
+            input=json.dumps(payload), capture_output=True, text=True, cwd=cwd,
+            env={**_hook_env(home), "JUGG_HOOK_DEBUG_LOG": str(Path(home) / "hook.log")},
+        )
+
+    def test_imported_command_uses_cursor_json_without_native_hooks(self):
+        with tempfile.TemporaryDirectory() as home:
+            result = self.run_hook(home, home, "command.py", "claude", {
+                "cursor_version": "3.20", "session_id": "imported",
+                "tool_input": {"command": "echo test"},
+            })
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual({}, json.loads(result.stdout))
+
+    def test_native_edit_owns_state_when_both_channels_are_configured(self):
+        with tempfile.TemporaryDirectory() as home:
+            root = Path(home)
+            cursor = root / ".cursor"
+            cursor.mkdir()
+            script = root / ".jugg/skills/hooks/edit.py"
+            script.parent.mkdir(parents=True)
+            script.touch()
+            (cursor / "hooks.json").write_text(json.dumps({"hooks": {"afterFileEdit": [{
+                "command": f'python3 "{script}" --client cursor', "matcher": "Write",
+            }]}}))
+            payload = {"cursor_version": "3.20", "session_id": "both", "tool_input": {"file_path": "/repo/App.kt"}}
+            result = self.run_hook(home, home, "edit.py", "claude", payload)
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual({}, json.loads(result.stdout))
+            self.assertFalse(list((script.parent / ".state").glob("*.json")))
+            payload["file_path"] = "/repo/App.kt"
+            native = self.run_hook(home, str(cursor), "edit.py", "cursor", payload)
+            self.assertEqual(0, native.returncode, native.stderr)
+            states = list((script.parent / ".state").glob("*.json"))
+            self.assertEqual(1, len(states))
+            self.assertTrue(json.loads(states[0].read_text())["sessionWriteSeen"])
+
+    def test_imported_edit_records_android_write_without_native_hooks(self):
+        with tempfile.TemporaryDirectory() as home:
+            result = self.run_hook(home, home, "edit.py", "claude", {
+                "cursor_version": "3.20", "session_id": "imported-edit",
+                "tool_input": {"file_path": "/repo/App.kt"},
+            })
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual({}, json.loads(result.stdout))
+            states = list((Path(home) / ".jugg/skills/hooks/.state").glob("*.json"))
+            self.assertEqual(1, len(states))
+            self.assertTrue(json.loads(states[0].read_text())["sessionWriteSeen"])
+
+
+    def test_imported_hooks_skip_only_the_matching_native_event(self):
+        events = {"start.py": "beforeSubmitPrompt", "edit.py": "afterFileEdit",
+                  "command.py": "beforeShellExecution", "stop.py": "stop"}
+        for script_name, event in events.items():
+            with self.subTest(script=script_name), tempfile.TemporaryDirectory() as home:
+                root = Path(home)
+                cursor = root / ".cursor"
+                cursor.mkdir()
+                script = root / ".jugg/skills/hooks" / script_name
+                script.parent.mkdir(parents=True)
+                script.touch()
+                (cursor / "hooks.json").write_text(json.dumps({"hooks": {event: [{
+                    "command": f'python3 "{script}" --client cursor', "matcher": "*",
+                }]}}))
+                state = _state_file(home, str(cursor), "owned-event")
+                state.parent.mkdir()
+                state.write_text(json.dumps({"sessionWriteSeen": True, "stopBlockCount": 1}))
+                before = state.read_bytes()
+                result = self.run_hook(home, home, script_name, "claude", {
+                    "cursor_version": "3.20", "session_id": "owned-event",
+                    "tool_input": {"file_path": "/repo/App.kt", "command": "./gradlew assemble"},
+                })
+                self.assertEqual(0, result.returncode, result.stderr)
+                self.assertEqual({}, json.loads(result.stdout))
+                self.assertEqual(before, state.read_bytes())
+                self.assertEqual([state], list(state.parent.glob("*.json")))
+
+    def test_invalid_or_unrelated_native_config_preserves_imported_edit(self):
+        for config in ["{", '{"hooks": null}', '{"hooks":{"stop":[]}}',
+                       '{"hooks":{"afterFileEdit":[{"command":"echo --client cursor"}]}}']:
+            with self.subTest(config=config), tempfile.TemporaryDirectory() as home:
+                cursor = Path(home) / ".cursor"
+                cursor.mkdir()
+                (cursor / "hooks.json").write_text(config)
+                result = self.run_hook(home, home, "edit.py", "claude", {
+                    "cursor_version": "3.20", "session_id": "fallback",
+                    "tool_input": {"file_path": "/repo/App.kt"},
+                })
+                self.assertEqual(0, result.returncode, result.stderr)
+                self.assertEqual({}, json.loads(result.stdout))
+                state = _state_file(home, str(cursor), "fallback")
+                self.assertTrue(json.loads(state.read_text())["sessionWriteSeen"])
+
+    def test_imported_stop_resolves_project_and_reminds_only_once(self):
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as project:
+            cursor = Path(home) / ".cursor"
+            cursor.mkdir()
+            Path(project, "settings.gradle").touch()
+            _write_fake_jugg_cli(home, total=1, files=[project + "/App.kt"],
+                                 expected_cwd=str(Path(project).resolve()))
+            payload = {"cursor_version": "3.20", "session_id": "imported-stop",
+                       "workspace_roots": [project], "tool_input": {"file_path": project + "/App.kt"}}
+            edit = self.run_hook(home, home, "edit.py", "claude", payload)
+            self.assertEqual(0, edit.returncode, edit.stderr)
+            command_payload = {**payload, "tool_input": {"command": "./gradlew assembleDebug"}}
+            denied = self.run_hook(home, home, "command.py", "claude", command_payload)
+            self.assertEqual(0, denied.returncode, denied.stderr)
+            self.assertEqual("deny", json.loads(denied.stdout)["permission"])
+            allowed = self.run_hook(home, home, "command.py", "claude", command_payload)
+            self.assertEqual("allow", json.loads(allowed.stdout)["permission"])
+            first = self.run_hook(home, home, "stop.py", "claude", payload)
+            self.assertEqual(0, first.returncode, first.stderr)
+            self.assertIn("followup_message", json.loads(first.stdout))
+            second = self.run_hook(home, home, "stop.py", "claude", payload)
+            self.assertEqual({}, json.loads(second.stdout))
+            start = self.run_hook(home, home, "start.py", "claude", payload)
+            self.assertEqual({}, json.loads(start.stdout))
+            state = _state_file(home, str(cursor), "imported-stop")
+            self.assertNotIn("sessionWriteSeen", json.loads(state.read_text()))
+
+
 if __name__ == "__main__":
     unittest.main()

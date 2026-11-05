@@ -12,6 +12,8 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from hook_common import (
+    resolve_hook_client,
+    hook_state_cwd,
     decode_json_string_argument,
     debug_log,
     emit_cursor_empty_response,
@@ -179,9 +181,12 @@ def main() -> int:
 def _main_impl() -> int:
     args = _parse_args()
     payload = read_json_payload()
+    args.client = resolve_hook_client(args.client, payload, "edit.py")
+    if args.client is None:
+        return 0
     payload_suffix = payload_debug_suffix(payload)
     home = Path.home()
-    cwd = str(Path.cwd())
+    cwd = hook_state_cwd(args.client, payload)
     session_id = extract_session_id(payload)
     state_file = state_file_path(home, cwd, session_id)
     state = read_hook_state(state_file)
@@ -234,6 +239,7 @@ def _main_impl() -> int:
         )
         if project_cwd_changed:
             write_hook_state(state_file, state)
+        emit_cursor_empty_response(args.client)
         return 0
     if args.client == "antigravity" and not recorded_paths:
         debug_log(
