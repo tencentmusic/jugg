@@ -24,13 +24,34 @@ For example, invoke a project script:
 ./scripts/install-system-app.sh
 ```
 
-You can also invoke a Gradle task defined by the project:
+Jugg automatically appends two positional arguments to the configured command. Do not type argument placeholders into the field:
+
+| Argument | Content |
+|---|---|
+| 1 | Absolute APK paths for this installation, with base/split APKs separated by `;` |
+| 2 | The current device serial; multiple devices still invoke the script separately |
+
+For example, the executed command is:
 
 ```bash
-./gradlew :app:installToSystem
+./scripts/install-system-app.sh '/path/base.apk;/path/split.apk' 'emulator-5554'
 ```
 
-Jugg does not inject device, applicationId, or APK path variables. The script inherits the Android Studio process environment together with the Gradle JDK and Android SDK environment resolved by Jugg. The current Android SDK's `platform-tools` directory is added to `PATH`, so the script can invoke `adb` directly. Bash does not load user shell startup files such as `.zshrc` or `.bashrc`; other project-specific variables must come from the Android Studio launch environment or the script itself.
+Jugg escapes each argument according to the host shell rules, so `;` in the list is not executed as a command separator. If an APK path itself contains `;`, Jugg reports an error before executing the script. Rename the file or its containing directory first. On Windows, arguments containing `%` or `!` also fail before execution to prevent `cmd.exe` environment expansion from changing paths or the serial.
+
+A Bash script can read the arguments and install the APKs as follows:
+
+```bash
+#!/usr/bin/env bash
+set -e
+IFS=';' read -r -a apks <<< "$1"
+serial="$2"
+adb -s "$serial" install-multiple -r "${apks[@]}"
+```
+
+To invoke a project Gradle task, use a wrapper script to read these two arguments and convert them to the arguments expected by the task.
+
+Jugg does not inject additional device, applicationId, or APK path environment variables. The script inherits the Android Studio process environment together with the Gradle JDK and Android SDK environment resolved by Jugg. The current Android SDK's `platform-tools` directory is added to `PATH`, so the script can invoke `adb` directly. Bash does not load user shell startup files such as `.zshrc` or `.bashrc`; other project-specific variables must come from the Android Studio launch environment or the script itself.
 
 ## Scope
 

@@ -59,7 +59,7 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
     private val enableRemoteCompileCheckBox = JCheckBox("Enable remote compile")
     private val enableCustomApkInstallScriptCheckBox = JCheckBox("Enable custom APK install script")
     private val customApkInstallScriptTextField = JBTextField().also {
-        it.emptyText.text = "e.g. ./scripts/install-system-app.sh"
+        it.emptyText.text = "e.g. ./scripts/install-system-app.sh (inject args: '/path/base.apk;/path/split.apk' 'emulator-5554')"
         val size = Dimension(400, outputApkNameTextField.preferredSize.height)
         it.maximumSize = Dimension(Int.MAX_VALUE, size.height)
         it.preferredSize = size
@@ -72,7 +72,7 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
     }
     private val enableCustomApkSignScriptCheckBox = JCheckBox("Enable custom APK sign script")
     private val customApkSignScriptTextField = JBTextField().also {
-        it.emptyText.text = "e.g. ./scripts/sign-system-apk.sh"
+        it.emptyText.text = "e.g. ./scripts/sign-system-apk.sh (inject args: '/path/temp.apk')"
         val size = Dimension(400, outputApkNameTextField.preferredSize.height)
         it.maximumSize = Dimension(Int.MAX_VALUE, size.height)
         it.preferredSize = size
