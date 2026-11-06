@@ -97,7 +97,8 @@ Jugg 默认 install 走同一条 AS installer，签名对齐后**预期**可以�
 
 - UI 开关未启用时仅显示 switch，默认安装行为不变；启用后显示单行高度的输入面板和项目脚本示例占位提示。
 - 脚本在本地工程根目录执行。macOS/Linux 使用 Bash shell，Windows 使用 `cmd.exe`；远程编译产物拉取完成后仍在本地主机执行。
-- Jugg 不注入设备、applicationId 或 APK 路径变量。脚本继承 IDE/Gradle 环境，Android SDK 的 `platform-tools` 会加入 `PATH`；Bash 不加载用户 shell 启动文件。
+- Jugg 在配置的命令末尾追加两个位置参数：本次安装的 APK 绝对路径列表（base/split 以 `;` 分隔）和当前设备 serial。多设备仍逐台调用，每次只传当前 serial。两个参数分别按宿主 shell 规则转义，APK 路径自身含 `;` 时在执行脚本前报错。Windows 下参数包含 `%` 或 `!` 时也在执行前报错，避免 cmd 环境变量展开。输入框无需手写参数占位符。
+- Jugg 不额外注入设备、applicationId 或 APK 路径环境变量。脚本继承 IDE/Gradle 环境，Android SDK 的 `platform-tools` 会加入 `PATH`；Bash 不加载用户 shell 启动文件。
 - 普通 App APK 的 install/reinstall 按每台设备、每个 applicationId 执行脚本；androidTest APK 继续使用默认 installer。
 - 脚本安装结果校验成功后，Jugg 会在 app sandbox 可用时清理旧 Direct Overlay；系统应用脚本不能假设 `adb uninstall` 会删除 app data。
 - 脚本触发 reboot 时应自行等待设备启动和 PackageManager 扫描完成后再退出；Jugg 只复用现有短暂 ADB offline 恢复窗口。

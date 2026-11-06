@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.deploy.run.applychanges
 
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
+import com.sickworm.intellij.jugg.compiler.isWindows
 import com.sickworm.intellij.jugg.deploy.AdbCmdHelper
 import com.sickworm.intellij.jugg.deploy.run.LaunchContext
 import com.sickworm.intellij.jugg.deploy.run.utils.AdbTransientOffline
@@ -31,7 +32,13 @@ class CustomApkInstallScriptRunner(
         }
     })
 
-    fun run(applicationId: String) {
+    fun run(applicationId: String, apks: List<String>) {
+        val absoluteApks = apks.map { File(it).absolutePath }
+        require(absoluteApks.none { ';' in it }) {
+            "Custom APK install script cannot accept APK paths containing ';'."
+        }
+        val apkPaths = absoluteApks.joinToString(";")
+        val command = "$script ${quoteArgument(apkPaths)} ${quoteArgument(launchContext.deviceAdb.serial)}"
         val projectDir = project.basePath?.let(::File)
             ?: throw IllegalStateException("Project directory is unavailable for custom APK install script.")
         val env = withAndroidSdkPlatformTools(LocalGradleCompileClient.buildCompileEnv(project, logger))
@@ -45,7 +52,7 @@ class CustomApkInstallScriptRunner(
         }
         logger.info("Custom APK install script started for $applicationId.")
         val result = try {
-            cmdExecutor.invoke(SimpleSshCommand(script, isSecureCommand = true), env, null, projectDir)
+            cmdExecutor.invoke(SimpleSshCommand(command, isSecureCommand = true), env, null, projectDir)
         } finally {
             launchContext.compileUiHandler.listenCancelAction(null)
         }
@@ -69,6 +76,18 @@ class CustomApkInstallScriptRunner(
     }
 
     companion object {
+        private fun quoteArgument(argument: String): String {
+            return if (isWindows) {
+                // cmd.exe expands environment references even inside double quotes.
+                require('%' !in argument && '!' !in argument) {
+                    "Custom APK install script cannot accept '%' or '!' in arguments on Windows."
+                }
+                "\"${argument.replace("\"", "\"\"")}\""
+            } else {
+                "'${argument.replace("'", "'\"'\"'")}'"
+            }
+        }
+
         internal fun withAndroidSdkPlatformTools(environment: List<String>): List<String> {
             val values = environment.associate { it.substringBefore('=') to it.substringAfter('=') }.toMutableMap()
             val androidHome = values["ANDROID_HOME"] ?: values["ANDROID_SDK_ROOT"] ?: return environment

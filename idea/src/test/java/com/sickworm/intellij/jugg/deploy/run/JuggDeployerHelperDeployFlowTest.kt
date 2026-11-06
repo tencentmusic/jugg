@@ -119,7 +119,7 @@ class JuggDeployerHelperDeployFlowTest {
         val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_002)
         Mockito.mockConstruction(CustomApkInstallScriptRunner::class.java) { runner, _ ->
             Mockito.doThrow(IllegalStateException("Custom APK install script failed with exit code 7."))
-                .`when`(runner).run(org.mockito.kotlin.any())
+                .`when`(runner).run(org.mockito.kotlin.any(), org.mockito.kotlin.any())
         }.use {
             val result = fixture.helper.deploy(fixture.deployOptions.copy(
                 customApkInstallScript = "./install-app.sh",

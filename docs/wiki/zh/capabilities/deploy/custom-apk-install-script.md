@@ -24,13 +24,34 @@ tags:
 ./scripts/install-system-app.sh
 ```
 
-也可以调用项目定义的 Gradle task：
+Jugg 会在配置的命令末尾自动追加两个位置参数，无需在输入框里手写参数占位符：
+
+| 参数 | 内容 |
+|---|---|
+| 1 | 本次安装的 APK 绝对路径，base/split APK 以 `;` 分隔 |
+| 2 | 当前设备的 serial；多设备仍逐台调用脚本 |
+
+例如，实际执行的命令为：
 
 ```bash
-./gradlew :app:installToSystem
+./scripts/install-system-app.sh '/path/base.apk;/path/split.apk' 'emulator-5554'
 ```
 
-Jugg 不注入设备、applicationId 或 APK 路径变量。脚本继承 Android Studio 进程环境以及 Jugg 已解析的 Gradle JDK、Android SDK 环境；当前 Android SDK 的 `platform-tools` 会加入 `PATH`，因此脚本可以直接调用 `adb`。Bash 不加载 `.zshrc`、`.bashrc` 等用户 shell 启动文件，项目需要的其它变量应由 Android Studio 的启动环境或脚本自身提供。
+Jugg 会分别按宿主 shell 规则转义两个参数，列表中的 `;` 不会被作为命令分隔符执行。APK 路径自身包含 `;` 时，在执行脚本前报错，请先调整文件名或所在目录。Windows 下，参数包含 `%` 或 `!` 时也会在执行前报错，避免 `cmd.exe` 展开环境变量后改变路径或 serial。
+
+Bash 脚本可以这样读取参数并安装：
+
+```bash
+#!/usr/bin/env bash
+set -e
+IFS=';' read -r -a apks <<< "$1"
+serial="$2"
+adb -s "$serial" install-multiple -r "${apks[@]}"
+```
+
+调用项目 Gradle task 时，需要用包装脚本读取这两个参数，再转换为 task 所需的参数。
+
+Jugg 不额外注入设备、applicationId 或 APK 路径环境变量。脚本继承 Android Studio 进程环境以及 Jugg 已解析的 Gradle JDK、Android SDK 环境；当前 Android SDK 的 `platform-tools` 会加入 `PATH`，因此脚本可以直接调用 `adb`。Bash 不加载 `.zshrc`、`.bashrc` 等用户 shell 启动文件，项目需要的其它变量应由 Android Studio 的启动环境或脚本自身提供。
 
 ## 生效范围
 

@@ -108,7 +108,7 @@ class JuggDeployerInstallTest {
             assertTrue(result.success)
             assertEquals(setOf(PACKAGE_NAME, testPackage), result.overlayIds.keys)
             assertEquals(listOf(testPackage), fixture.compat.installedPackageNames)
-            Mockito.verify(scripts.constructed().single()).run(PACKAGE_NAME)
+            Mockito.verify(scripts.constructed().single()).run(PACKAGE_NAME, listOf("/tmp/demo.apk"))
         }
     }
 
@@ -217,7 +217,7 @@ class JuggDeployerInstallTest {
 
         assertFalse(result.skippedInstall)
         assertEquals(0, fixture.compat.installCalls)
-        Mockito.verify(scriptRunner).run(PACKAGE_NAME)
+        Mockito.verify(scriptRunner).run(PACKAGE_NAME, listOf("/tmp/demo.apk"))
         Mockito.verify(fixture.deploymentService).storeEntry(
             "emulator-5554",
             PACKAGE_NAME,
@@ -262,7 +262,7 @@ class JuggDeployerInstallTest {
     fun `custom install script failure does not store deployment cache`() {
         val scriptRunner = Mockito.mock(CustomApkInstallScriptRunner::class.java)
         Mockito.doThrow(IllegalStateException("script failed")).`when`(scriptRunner)
-            .run(PACKAGE_NAME)
+            .run(PACKAGE_NAME, listOf("/tmp/demo.apk"))
         val fixture = newFixture()
 
         assertThrows(CustomApkInstallScriptException::class.java) {

@@ -78,7 +78,7 @@ class JuggDeployer(
         try {
             if (scriptRunner != null) {
                 logger.info("going to install apks with custom script: $apks")
-                scriptRunner.run(packageName)
+                scriptRunner.run(packageName, apks)
             } else {
                 var installMode = argInstallMode
                 if (installMode == JuggInstallSession.Mode.DELTA) {
