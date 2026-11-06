@@ -32,12 +32,12 @@ In one Run, only APKs rewritten by Jugg go through the project script.
 The current Run generates Manifest, resources.arsc, or native library artifacts
   -> write them into the latest Gradle APK
   -> zipalign
-  -> script enabled: <configured command> <absolute path of the APK to sign>
+  -> script enabled: supply the absolute APK path based on whether the command references $1
   -> apksigner verify checks the APK produced by the script
   -> only a passing verification replaces the original APK and continues installation
 ```
 
-Jugg runs the script from the local project root and passes the absolute path of the APK to sign as the last positional argument. Paths containing spaces, parentheses, or Unicode characters still arrive as a single argument. The script must overwrite that APK in place; when the signing service writes the result somewhere else, the script must replace that path before it exits.
+Jugg runs the configured command from the local project root. On macOS/Linux, if the configured text contains a complete literal `$1` reference, Jugg first sets Bash `$1` to the absolute APK path and runs the command without appending arguments. Otherwise, it appends the APK path to the command. Windows continues to append the path. Paths containing spaces, parentheses, or Unicode characters still arrive as a single argument. The script must overwrite that APK in place; when the signing service writes the result somewhere else, the script must replace that path before it exits.
 
 ```bash
 # Configured in the Run Configuration
@@ -46,6 +46,14 @@ Jugg runs the script from the local project root and passes the absolute path of
 # What Jugg actually runs
 ./scripts/sign-system-apk.sh --server production "/path/to/.app-debug.apk.tmp_aligned"
 ```
+
+A signing command can reference `$1` directly without an extra `bash -c` wrapper:
+
+```bash
+sign-tool "$1"
+```
+
+Entering only a script path still appends the argument automatically. Detection only checks for a complete literal `$1` reference; `$2` and `$10` do not trigger it, and quotes, escapes, and comments are not parsed. The previously suggested nested `bash -c '… "$1" …' --` form no longer receives arguments automatically.
 
 The `android_demo_project` sample provides `scripts/sign-system-apk.sh`. It takes `$1` as the APK path and signs in place with the project's existing default signing material and the Android SDK `apksigner`, so it can be used directly to verify this capability.
 

@@ -21,7 +21,7 @@ Jugg **没有内置**把普通 APK 首次安装成系统应用的 installer、`p
 |---|---|---|
 | `JuggDeployer.install()` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/applychanges/JuggDeployer.kt` | 统一安装入口。普通 App 可选择自定义脚本，否则调用 Android Studio deployer；成功后统一写 deployment cache 与 overlay id。 |
 | `CustomApkInstallScriptRunner` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/applychanges/CustomApkInstallScriptRunner.kt` | 在本地工程根目录执行用户脚本，补齐 Android SDK platform-tools 路径，并在脚本后校验已安装 APK。 |
-| `CustomApkSignScriptRunner` | `main/src/main/java/com/sickworm/intellij/jugg/apk/CustomApkSignScriptRunner.kt` | 在本地工程根目录执行用户签名脚本，把待签名临时 APK 绝对路径作为最后一个位置参数传入，用于平台签名或服务器签名。 |
+| `CustomApkSignScriptRunner` | `main/src/main/java/com/sickworm/intellij/jugg/apk/CustomApkSignScriptRunner.kt` | 在本地工程根目录执行用户签名命令，按 `$1` 引用选择 Bash 位置参数或末尾追加，传入待签名临时 APK 绝对路径，用于平台签名或服务器签名。 |
 | `IAsDeployerCompat.install()` | `deploy_compat/*/AsDeployerCompat.kt` | 实际执行 AS install session。失败文案来自 PackageManager，不能据此推断“已经按系统应用安装”。 |
 | `AppSandboxExecutor` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/AppSandboxExecutor.kt` | app 私有目录统一入口。以唯一成功标记、UID 范围和探针 SELinux context 判断 Apply Changes 兼容性；不兼容时依次探测普通 shell、root adbd 和非交互 `su`，并固定本轮使用的真实 `dataDir` 与权限模式。 |
 | `DirectAppSandboxDeployTransport` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/hotreload/DirectAppSandboxDeployTransport.kt` | 在 AS deployer 前接管 `run-as` 不兼容应用的 class、资源和 assets 增量部署：先写 Direct Overlay，新增 class 追加 in-memory dex elements，纯方法体尝试在线 redefine；Android 11+ 的普通资源及混合变化刷新运行中 Resources，并按 deploy mode 重建 Activity，失败时请求重启应用。 |
@@ -95,11 +95,12 @@ Jugg 默认 install 走同一条 AS installer，签名对齐后**预期**可以�
 
 ### 4.1 自定义 APK 安装脚本契约
 
-- UI 开关未启用时仅显示 switch，默认安装行为不变；启用后显示单行高度的输入面板和项目脚本示例占位提示。
+- UI 开关未启用时显示 switch 及其右侧帮助按钮，默认安装行为不变；启用后显示单行高度的输入面板和项目脚本示例占位提示。
 - 脚本在本地工程根目录执行。macOS/Linux 使用 Bash shell，Windows 使用 `cmd.exe`；远程编译产物拉取完成后仍在本地主机执行。
-- Jugg 在配置的命令末尾追加两个位置参数：本次安装的 APK 绝对路径列表（base/split 以 `;` 分隔）和当前设备 serial。多设备仍逐台调用，每次只传当前 serial。两个参数分别按宿主 shell 规则转义，APK 路径自身含 `;` 时在执行脚本前报错。Windows 下参数包含 `%` 或 `!` 时也在执行前报错，避免 cmd 环境变量展开。输入框无需手写参数占位符。
+- macOS/Linux 按配置文本选择传参方式：含完整 `$1` 或 `$2` 时，先设置 Bash 位置参数（`$1` = 当前单个 APK 绝对路径，`$2` = serial），执行原命令且不追加；否则末尾自动追加 APK 路径和 serial。可直接填写 `adb -s "$2" install -r -d "$1"`，或只填 `./install.sh`。只识别字面 `$1/$2`，不将 `$10` 视为 `$1`，不解析引号、转义和注释；不兼容此前依赖自动追加的 `bash -c '… "$1" "$2" …' --`。两个参数安全转义，路径含 `;` 时可正常传入。Windows 始终使用 cmd 末尾追加参数，参数含 `%` 或 `!` 时明确失败。
+- install/sign 开关文字右侧始终显示圆形问号；沿用原有 ContextHelpLabel 提示浮窗，仅用原生正文和 HTML 段落展示参数、直接命令及脚本调用示例；移除粗体、等宽字体及不换行空格，沿用 IDE 默认字体、字号和行高；渲染时把正文空白折叠为不换行空格，保留作者显式 `<p>` / `<br>` 换行，按最长完整行自然撑宽，不修改全局 `HelpTooltip.maxWidth`；正文使用主题 `ToolTip.infoForeground`（缺省为 `ContextHelp.FOREGROUND`），逐段设置 HTML 字色，避免无标题提示落到较亮的普通 tooltip 前景色；背景和段落间距仍由原生提示控制，允许显式换行及超过 10 行，不加固定高度、滚动条或脚本文件内容示例；启用后仅展开输入框，不新增标题行。sign 使用下述 `$1` 检测规则传入一个 APK 路径。
 - Jugg 不额外注入设备、applicationId 或 APK 路径环境变量。脚本继承 IDE/Gradle 环境，Android SDK 的 `platform-tools` 会加入 `PATH`；Bash 不加载用户 shell 启动文件。
-- 普通 App APK 的 install/reinstall 按每台设备、每个 applicationId 执行脚本；androidTest APK 继续使用默认 installer。
+- 普通 App APK 的 install/reinstall 按每台设备、每个 APK 执行命令；同 applicationId 全部命令完成后统一校验与更新缓存，任一失败立即停止。split 安装会话由用户脚本负责；androidTest APK 继续使用默认 installer。
 - 脚本安装结果校验成功后，Jugg 会在 app sandbox 可用时清理旧 Direct Overlay；系统应用脚本不能假设 `adb uninstall` 会删除 app data。
 - 脚本触发 reboot 时应自行等待设备启动和 PackageManager 扫描完成后再退出；Jugg 只复用现有短暂 ADB offline 恢复窗口。
 - 退出码非零、用户取消、ADB 未恢复、包不存在或实际 APK checksum 不匹配时失败。脚本自身失败不可 deploy retry 或 Gradle fallback；脚本成功后的其它部署失败沿用原有 retry/fallback 策略，可能重新执行脚本，重复执行的处理由业务方负责。
@@ -108,9 +109,9 @@ Jugg 默认 install 走同一条 AS installer，签名对齐后**预期**可以�
 
 平台证书与 Gradle `SigningConfig` 不一致时，Jugg 改写 Manifest/native library 后按默认 keystore 重签会得到 `INSTALL_FAILED_UPDATE_INCOMPATIBLE`。Run Configuration 可启用 `Enable custom APK sign script`，用项目脚本替换这一步签名，典型用法是把 APK 发送到签名服务器。
 
-- UI 开关未启用时仅显示 switch，默认签名行为不变；启用后显示单行高度的输入面板和项目脚本示例占位提示。
+- UI 开关未启用时显示 switch 及其右侧帮助按钮，默认签名行为不变；启用后显示单行高度的输入面板和项目脚本示例占位提示。
 - 脚本在本地工程根目录执行，macOS/Linux 使用 Bash，Windows 使用 `cmd.exe`；远程编译产物在本地 IDE 主机完成改写，脚本也在该主机执行。Bash 不加载用户 shell 启动文件。
-- Jugg 把 zipalign 后的临时 APK **绝对路径**作为最后一个位置参数传入，并按宿主 shell 规则安全转义；路径含空格、括号或 Unicode 时仍是单个参数。Jugg 不注入设备、applicationId 或其它变量。
+- macOS/Linux 配置文本含完整字面 `$1` 时，先将 zipalign 后的临时 APK **绝对路径**设置为 Bash `$1`，执行原命令且不追加；否则在末尾自动追加这个路径。只检测 `$1`，`$2`、`$10` 不触发；检测不解析 Shell 语法，不兼容原先依赖自动追加的嵌套 Bash 写法。Windows 保持末尾追加。路径按宿主 shell 规则安全转义，空格、括号或 Unicode 仍作为单个参数；必须原地签名。Jugg 不注入设备、applicationId 或其它变量。
 - 脚本必须原地覆盖传入的临时 APK；签名服务返回到其它文件时，脚本需在退出前自行替换该路径。
 - 退出码 `0` 只表示脚本执行完成；Jugg 随后仍用 `apksigner verify` 校验，只有校验通过才原子替换原 APK。校验失败或脚本非零退出时原 APK 保持不变，且当次更新不会进入安装。
 - 不要求本地 `SigningConfig` 有效，也绝不在脚本失败后回退到本地 keystore 签名，避免产生签名身份错误的 APK。

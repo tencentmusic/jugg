@@ -27,7 +27,7 @@
 | `JuggDeployTask` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/applychanges/JuggDeployTask.kt` | 单设备单轮 deploy task。按 `applicationId` 分组，把全量 `JuggDeployData` 裁成 APK-scoped data 后调用 `JuggDeployer`。 |
 | `JuggDeployer` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/applychanges/JuggDeployer.kt` | 封装 Android Studio deployer：install、code swap、full swap、deployment cache、overlay id、Direct Overlay transport。 |
 | `CustomApkInstallScriptRunner` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/applychanges/CustomApkInstallScriptRunner.kt` | 在本地工程根目录执行当前 Run Configuration 的自定义普通 App APK 安装脚本，转发输出、响应取消并校验包与 APK checksum。 |
-| `CustomApkSignScriptRunner` | `main/src/main/java/com/sickworm/intellij/jugg/apk/CustomApkSignScriptRunner.kt` | 在本地工程根目录执行当前 Run Configuration 的自定义 APK 签名脚本，把待签名临时 APK 的绝对路径作为最后一个位置参数传入，转发输出并响应取消。 |
+| `CustomApkSignScriptRunner` | `main/src/main/java/com/sickworm/intellij/jugg/apk/CustomApkSignScriptRunner.kt` | 在本地工程根目录执行当前 Run Configuration 的自定义 APK 签名脚本，按配置文本是否含 `$1` 选择 Bash 位置参数或末尾追加，传入待签名临时 APK 的绝对路径，转发输出并响应取消。 |
 | `ApkFileModifier` | `main/src/main/java/com/sickworm/intellij/jugg/apk/ApkFileModifier.kt` | 在 APK 同目录临时副本上插入文件、zipalign、签名、`apksigner verify`，全部成功后才原子替换原 APK；仅当存在 file-backed 大型 NativeLib 时使用流式 ZIP 重写并继承基线 entry 的压缩方式。 |
 | `DeployFileManager` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/DeployFileManager.kt` | 部署文件 facade。维护 changed/compiled/staging/deployed 状态，生成 `JuggDeployData`，reinstall 后 reset。 |
 | `DeployDataPlanner` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/DeployDataPlanner.kt` | 从 staging + history 规划部署数据，处理 dex merge 与 compat deploy 组装。 |

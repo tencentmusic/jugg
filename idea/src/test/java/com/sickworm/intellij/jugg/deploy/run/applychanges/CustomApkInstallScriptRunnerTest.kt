@@ -25,15 +25,51 @@ import java.nio.file.Files
 class CustomApkInstallScriptRunnerTest {
 
     @Test
-    fun `install script receives APK list and current serial as two literal arguments`() {
+    fun `direct commands receive positional APK and serial without trailing arguments`() {
+        assertArguments("printf \"%s\\0\" \"\$1\" \"\$2\" > arguments")
+    }
+
+    @Test
+    fun `project scripts automatically receive APK and serial without explicit arguments`() {
+        assertArguments("bash install.sh")
+    }
+
+    @Test
+    fun `compound commands use positional arguments without trailing arguments`() {
+        assertArguments("printf \"%s\\0\" \"\$1\" > arguments && printf \"%s\\0\" \"\$2\" >> arguments")
+    }
+
+    @Test
+    fun `APK commands run in order and stop after the first failure`() {
+        assertArguments(
+            "printf \"%s\\0\" \"\$1\" \"\$2\" >> arguments",
+            listOf("first.apk", "second; split.apk", "must-not-run.apk"), 2,
+        )
+    }
+
+    @Test
+    fun `only serial reference selects positional mode`() {
+        assertArguments("bash install.sh \"\$@\"; : \"\$2\"")
+    }
+
+    @Test
+    fun `script names containing dollar ten still receive appended arguments`() {
+        assertArguments("bash 'install\$10.sh'")
+    }
+
+    private fun assertArguments(
+        command: String,
+        apkNames: List<String> = listOf("中文 app's (base); \$HOME.apk"),
+        failAt: Int = apkNames.size,
+    ) {
         assumeFalse(isWindows)
+        TestGlobal.init()
         val root = Files.createTempDirectory("jugg_install_args").toFile()
         val output = File(root, "arguments")
-        val script = File(root, "install.sh")
-        script.writeText("printf '%s\\0' \"\$@\" > arguments")
-        val apks = listOf(File(root, "中文 app's (base).apk"), File(root, "split \$HOME.apk"))
+        File(root, "install.sh").writeText("printf '%s\\0' \"\$@\" > arguments")
+        File(root, "install\$10.sh").writeText(File(root, "install.sh").readText())
+        val apks = apkNames.map { File(root, it).absolutePath }
         val serial = "device-1;echo injected"
-        TestGlobal.init()
         val originalApi = PlatformApi.impl
         val api = Mockito.mock(IPlatformApi::class.java)
         whenever(api.getEnvironmentVariables(any())).thenReturn(emptyMap())
@@ -46,38 +82,25 @@ class CustomApkInstallScriptRunnerTest {
             whenever(context.deviceAdb).thenReturn(deviceAdb)
             whenever(deviceAdb.serial).thenReturn(serial)
             whenever(context.compileUiHandler).thenReturn(Mockito.mock(CompileUiHandler::class.java))
+            var executions = 0
             Mockito.mockConstruction(CmdExecutor::class.java) { executor, _ ->
                 whenever(executor.invoke(any<SimpleSshCommand>(), anyOrNull(), anyOrNull(), anyOrNull()))
                     .thenAnswer { invocation ->
-                        val command = invocation.getArgument<SimpleSshCommand>(0).baseCommand
-                        val process = ProcessBuilder("bash", "--noprofile", "--norc", "-c", command)
+                        val shellCommand = invocation.getArgument<SimpleSshCommand>(0).baseCommand
+                        val process = ProcessBuilder("bash", "--noprofile", "--norc", "-c", shellCommand)
                             .directory(root).start()
                         assertEquals(0, process.waitFor())
-                        9 // Stop before device verification; argv has already been recorded.
+                        if (++executions == failAt) 9 else 0 // Stop before device verification.
                     }
             }.use {
-                val runner = CustomApkInstallScriptRunner(project, "bash install.sh", context, Mockito.mock(Logger::class.java))
-                assertThrows(IllegalStateException::class.java) {
-                    runner.run("com.example.app", apks.map(File::getAbsolutePath))
-                }
-                assertEquals(listOf(apks.joinToString(";") { it.absolutePath }, serial, ""), output.readText().split('\u0000'))
+                val runner = CustomApkInstallScriptRunner(project, command, context, Mockito.mock(Logger::class.java))
+                assertThrows(IllegalStateException::class.java) { runner.run("com.example.app", apks) }
+                assertEquals(apks.take(failAt).flatMap { listOf(it, serial) } + "", output.readText().split('\u0000'))
             }
         } finally {
             PlatformApi.impl = originalApi
             root.deleteRecursively()
         }
-    }
-
-    @Test
-    fun `install rejects semicolons in APK paths before executing script`() {
-        val runner = CustomApkInstallScriptRunner(
-            Mockito.mock(Project::class.java), "echo should-not-run",
-            Mockito.mock(LaunchContext::class.java), Mockito.mock(Logger::class.java),
-        )
-        val failure = assertThrows(IllegalArgumentException::class.java) {
-            runner.run("com.example.app", listOf("/tmp/app;split.apk"))
-        }
-        assertEquals("Custom APK install script cannot accept APK paths containing ';'.", failure.message)
     }
 
     @Test

@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.apk
 
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
+import com.sickworm.intellij.jugg.compiler.isWindows
 import com.sickworm.intellij.jugg.gradle.compile.CmdExecutor
 import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
 import com.sickworm.intellij.jugg.gradle.compile.SimpleSshCommand
@@ -10,7 +11,7 @@ import java.io.File
 /**
  * Runs a user-configured APK sign script on the rewritten APK in place.
  * Collaboration: Created by the incremental deploy flow and invoked by [ApkFileModifier] after zipalign.
- * Data Contract: The configured command receives the absolute APK path as its only added argument, streams output
+ * Data Contract: The configured command receives the absolute APK path as Bash $1 or an added argument, streams output
  * to the Run window, and must sign the APK in place; verification stays in [ApkFileModifier].
  */
 class CustomApkSignScriptRunner(
@@ -32,7 +33,12 @@ class CustomApkSignScriptRunner(
     })
 
     fun run(apkFile: File) {
-        val command = "$script ${shellEscapeArgument(apkFile.absolutePath)}"
+        val argument = shellEscapeArgument(apkFile.absolutePath)
+        val command = if (!isWindows && Regex("""\${'$'}1(?!\d)""").containsMatchIn(script)) {
+            "set -- $argument\n$script"
+        } else {
+            "$script $argument"
+        }
         compileUiHandler.updateIndicatorText("Running custom APK sign script...")
         cmdExecutor.prepareForInvoke()
         compileUiHandler.listenCancelAction(cmdExecutor::release)

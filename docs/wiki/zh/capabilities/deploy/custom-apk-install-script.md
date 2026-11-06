@@ -14,42 +14,40 @@ tags:
 
 ## 启用方式
 
-打开 Jugg Run Configuration，勾选 `Enable custom APK install script`。勾选后，下方会出现单行高度的脚本输入框；未勾选时只显示这个开关，现有安装行为不变。
+打开 Jugg Run Configuration，勾选 `Enable custom APK install script`。勾选后，下方会出现单行高度的脚本输入框；未勾选时显示开关及其右侧帮助按钮，现有安装行为不变。
 
 脚本在本地工程根目录执行。macOS/Linux 使用 Bash，Windows 使用 `cmd.exe`。即使启用了远程编译，脚本也会在连接 Android 设备的本地 IDE 主机执行。
 
-例如调用项目脚本：
+macOS/Linux 中，配置文本包含 `$1` 或 `$2` 时，Jugg 设置下面的位置参数并执行命令，不在末尾追加；没有引用时，自动在末尾追加 APK 路径和设备 serial，脚本只需填写路径：
+
+| 参数 | 内容 |
+|---|---|
+| `$1` | 当前 APK 的绝对路径，每次只传一个 APK |
+| `$2` | 当前设备的 serial；多设备逐台调用 |
+
+可以直接填写安装命令，无需新增脚本文件：
+
+```bash
+adb -s "$2" install -r -d "$1"
+```
+
+调用项目脚本时只填写脚本路径，无需手动追加参数：
 
 ```bash
 ./scripts/install-system-app.sh
 ```
 
-Jugg 会在配置的命令末尾自动追加两个位置参数，无需在输入框里手写参数占位符：
-
-| 参数 | 内容 |
-|---|---|
-| 1 | 本次安装的 APK 绝对路径，base/split APK 以 `;` 分隔 |
-| 2 | 当前设备的 serial；多设备仍逐台调用脚本 |
-
-例如，实际执行的命令为：
+多条命令可以使用 `&&` 连接：
 
 ```bash
-./scripts/install-system-app.sh '/path/base.apk;/path/split.apk' 'emulator-5554'
+adb -s "$2" install -r -d "$1" && echo "Installed"
 ```
 
-Jugg 会分别按宿主 shell 规则转义两个参数，列表中的 `;` 不会被作为命令分隔符执行。APK 路径自身包含 `;` 时，在执行脚本前报错，请先调整文件名或所在目录。Windows 下，参数包含 `%` 或 `!` 时也会在执行前报错，避免 `cmd.exe` 展开环境变量后改变路径或 serial。
+Jugg 会安全转义追加的两个参数，保留空格、引号、Unicode 和路径中的 `;`。直接命令中的 `$1`、`$2` 需使用双引号。检测只识别完整字面 `$1/$2`，不会把 `$10` 当作 `$1`，也不解析引号、转义或注释。此前 `bash -c '… "$1" "$2" …' --` 的嵌套写法不再自动获得参数，请改成上面的直接命令。脚本有固定选项时，这两个参数会追加在选项之后。
 
-Bash 脚本可以这样读取参数并安装：
+Windows 使用 `cmd.exe`，不提供 Bash `$1/$2`。配置项目脚本路径即可，Jugg 仍在命令末尾追加当前 APK 绝对路径和 serial。Windows 参数包含 `%` 或 `!` 时在执行前报错，避免环境变量展开。
 
-```bash
-#!/usr/bin/env bash
-set -e
-IFS=';' read -r -a apks <<< "$1"
-serial="$2"
-adb -s "$serial" install-multiple -r "${apks[@]}"
-```
-
-调用项目 Gradle task 时，需要用包装脚本读取这两个参数，再转换为 task 所需的参数。
+install/sign 开关文字右侧始终显示圆形 `?`，提示浮窗沿用 IDE 默认字体、颜色和宽度，展示参数说明、直接命令及脚本调用示例；sign 按是否引用 `$1` 选择位置参数或末尾追加。
 
 Jugg 不额外注入设备、applicationId 或 APK 路径环境变量。脚本继承 Android Studio 进程环境以及 Jugg 已解析的 Gradle JDK、Android SDK 环境；当前 Android SDK 的 `platform-tools` 会加入 `PATH`，因此脚本可以直接调用 `adb`。Bash 不加载 `.zshrc`、`.bashrc` 等用户 shell 启动文件，项目需要的其它变量应由 Android Studio 的启动环境或脚本自身提供。
 
@@ -62,7 +60,7 @@ Jugg 不额外注入设备、applicationId 或 APK 路径环境变量。脚本�
 - Manifest、native library 等 APK 更新后的安装。
 - Embedded APK 安装。
 
-每台设备上的每个普通 App applicationId 分别执行一次脚本，同一 applicationId 的 base/split APK 作为一组处理。
+每台设备上的每个普通 App APK 分别执行一次命令。同一 applicationId 的全部 APK 命令成功后，Jugg 再统一校验并更新 deployment cache；任意一次失败都会停止后续调用。split APK 需要脚本管理安装会话，逐次 `adb install` 不能代替 split 安装。
 
 纯 class 或 overlay 增量部署不会执行脚本。androidTest APK 也继续使用 Android Studio 默认 installer，避免系统应用脚本误处理测试包。
 

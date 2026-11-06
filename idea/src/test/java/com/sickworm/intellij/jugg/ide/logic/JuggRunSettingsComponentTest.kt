@@ -56,7 +56,6 @@ import javax.swing.JRootPane
 import javax.swing.JTabbedPane
 import javax.swing.JTextField
 import javax.swing.SwingUtilities
-import javax.swing.border.TitledBorder
 
 private typealias JuggPanelContext = JuggControlPanelModel.Context
 private typealias JuggEventCategory = JuggEvent.Category
@@ -218,8 +217,7 @@ class JuggRunSettingsComponentTest {
         val component = JuggRunSettingsComponent()
         val checkbox = descendants(component).filterIsInstance<JCheckBox>()
             .single { it.text == "Enable custom APK install script" }
-        val scriptPanel = descendants(component).filterIsInstance<JPanel>()
-            .single { (it.border as? TitledBorder)?.title == "Custom APK Install Script" }
+        val scriptPanel = readPrivateField<JPanel>(component, "customApkInstallScriptPanel")
         val compileCommandTextField = readPrivateField<JTextField>(component, "compileCommandTextField")
         val scriptTextField = descendants(scriptPanel).filterIsInstance<JBTextField>().single()
 
@@ -227,8 +225,6 @@ class JuggRunSettingsComponentTest {
         assertFalse(scriptPanel.isVisible)
         assertEquals(compileCommandTextField.preferredSize.height, scriptTextField.preferredSize.height)
         assertEquals(compileCommandTextField.insets, scriptTextField.insets)
-        assertEquals("e.g. ./scripts/install-system-app.sh", scriptTextField.emptyText.text)
-        assertTrue(descendants(scriptPanel).filterIsInstance<JLabel>().none())
 
         checkbox.doClick()
         scriptTextField.text = "./scripts/install-system-app.sh"
@@ -246,15 +242,13 @@ class JuggRunSettingsComponentTest {
         val component = JuggRunSettingsComponent()
         val checkbox = descendants(component).filterIsInstance<JCheckBox>()
             .single { it.text == "Enable custom APK sign script" }
-        val scriptPanel = descendants(component).filterIsInstance<JPanel>()
-            .single { (it.border as? TitledBorder)?.title == "Custom APK Sign Script" }
+        val scriptPanel = readPrivateField<JPanel>(component, "customApkSignScriptPanel")
         val compileCommandTextField = readPrivateField<JTextField>(component, "compileCommandTextField")
         val scriptTextField = descendants(scriptPanel).filterIsInstance<JBTextField>().single()
 
         assertFalse(checkbox.isSelected)
         assertFalse(scriptPanel.isVisible)
         assertEquals(compileCommandTextField.preferredSize.height, scriptTextField.preferredSize.height)
-        assertEquals("e.g. ./scripts/sign-system-apk.sh", scriptTextField.emptyText.text)
 
         checkbox.doClick()
         scriptTextField.text = "./scripts/sign-system-apk.sh"
@@ -277,8 +271,7 @@ class JuggRunSettingsComponentTest {
 
         val checkbox = descendants(component).filterIsInstance<JCheckBox>()
             .single { it.text == "Enable custom APK sign script" }
-        val scriptPanel = descendants(component).filterIsInstance<JPanel>()
-            .single { (it.border as? TitledBorder)?.title == "Custom APK Sign Script" }
+        val scriptPanel = readPrivateField<JPanel>(component, "customApkSignScriptPanel")
         val scriptTextField = descendants(scriptPanel).filterIsInstance<JBTextField>().single()
 
         assertTrue(checkbox.isSelected)

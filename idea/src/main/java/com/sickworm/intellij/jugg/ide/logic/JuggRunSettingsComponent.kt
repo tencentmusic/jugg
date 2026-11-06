@@ -5,6 +5,9 @@ package com.sickworm.intellij.jugg.ide.logic
 import com.google.gson.GsonBuilder
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.ComboBox
+import com.intellij.ui.ContextHelpLabel
+import com.intellij.ui.ColorUtil
+import com.intellij.ui.JBColor
 import com.intellij.ui.IdeBorderFactory
 import com.intellij.ui.components.*
 import com.intellij.util.ui.JBUI
@@ -59,30 +62,55 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
     private val enableRemoteCompileCheckBox = JCheckBox("Enable remote compile")
     private val enableCustomApkInstallScriptCheckBox = JCheckBox("Enable custom APK install script")
     private val customApkInstallScriptTextField = JBTextField().also {
-        it.emptyText.text = "e.g. ./scripts/install-system-app.sh (inject args: '/path/base.apk;/path/split.apk' 'emulator-5554')"
+        it.emptyText.text = "e.g. adb -s \"$2\" install -r -d \"$1\" OR ./install.sh"
         val size = Dimension(400, outputApkNameTextField.preferredSize.height)
         it.maximumSize = Dimension(Int.MAX_VALUE, size.height)
         it.preferredSize = size
     }
-    private val customApkInstallScriptPanel = JPanel().also {
-        it.alignmentX = LEFT_ALIGNMENT
-        it.border = IdeBorderFactory.createTitledBorder("Custom APK Install Script")
-        it.layout = BoxLayout(it, BoxLayout.Y_AXIS)
-        it.add(customApkInstallScriptTextField)
-    }
+    private val customApkInstallScriptPanel = createScriptPanel(customApkInstallScriptTextField)
+    private val customApkInstallScriptHelp = """
+        Customize the APK install behavior.
+        <p>Arguments: <br>$1: APK path<br>$2: device serial
+        <p>e.g.
+        <br>adb -s "$2" install -r -d "$1"
+        <br>./install.sh
+    """.trimIndent()
     private val enableCustomApkSignScriptCheckBox = JCheckBox("Enable custom APK sign script")
     private val customApkSignScriptTextField = JBTextField().also {
-        it.emptyText.text = "e.g. ./scripts/sign-system-apk.sh (inject args: '/path/temp.apk')"
+        it.emptyText.text = "e.g. ./sign.sh"
         val size = Dimension(400, outputApkNameTextField.preferredSize.height)
         it.maximumSize = Dimension(Int.MAX_VALUE, size.height)
         it.preferredSize = size
     }
-    private val customApkSignScriptPanel = JPanel().also {
+    private val customApkSignScriptPanel = createScriptPanel(customApkSignScriptTextField)
+    private val customApkSignScriptHelp = """
+        Customize the APK signing behavior.
+        <p>Arguments: <br>$1 = APK path
+        <p>e.g.
+        <br>sign-tool "$1"
+        <br>./sign.sh
+    """.trimIndent()
+
+    private fun createScriptPanel(field: JBTextField): JPanel = JPanel().also {
         it.alignmentX = LEFT_ALIGNMENT
-        it.border = IdeBorderFactory.createTitledBorder("Custom APK Sign Script")
+        it.border = JBUI.Borders.empty(4)
         it.layout = BoxLayout(it, BoxLayout.Y_AXIS)
-        it.add(customApkSignScriptTextField)
+        it.add(field)
     }
+
+    private fun createScriptHeader(checkbox: JCheckBox, help: String): JPanel = JPanel().apply {
+        layout = BoxLayout(this, BoxLayout.X_AXIS)
+        add(checkbox)
+        add(Box.createHorizontalStrut(4))
+        val color = ColorUtil.toHtmlColor(JBColor.namedColor("ToolTip.infoForeground", JBUI.CurrentTheme.ContextHelp.FOREGROUND))
+        // HelpTooltip renders each paragraph as a separate label.
+        val description = help.split("<p>").joinToString("<p>") {
+            val content = it.trim().replace(Regex("\\s+"), "&nbsp;")
+            "<font color='$color'>$content</font>"
+        }
+        add(ContextHelpLabel.create(description))
+    }
+
     private val enableSyncAllProjectsCheckBox = JCheckBox("Enable multiple projects mode (sync and fetch all projects in [Local to remote sync path])")
     private val enableAndroidTestCheckBox = JCheckBox("Enable incremental Android Test (builds app + test APKs via Gradle)")
 
@@ -188,11 +216,11 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
         addPair(enableRemoteCompileCheckBox, reportIssueActionLink, leftWidth = 260, isAlignEnd = true)
         add(Box.createVerticalStrut(5))
 
-        addPair(enableCustomApkInstallScriptCheckBox, null, leftWidth = 0)
+        addPair(createScriptHeader(enableCustomApkInstallScriptCheckBox, customApkInstallScriptHelp), null, leftWidth = 0)
         add(customApkInstallScriptPanel)
         add(Box.createVerticalStrut(5))
 
-        addPair(enableCustomApkSignScriptCheckBox, null, leftWidth = 0)
+        addPair(createScriptHeader(enableCustomApkSignScriptCheckBox, customApkSignScriptHelp), null, leftWidth = 0)
         add(customApkSignScriptPanel)
         add(Box.createVerticalStrut(5))
 

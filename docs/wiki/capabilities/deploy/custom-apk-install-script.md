@@ -14,42 +14,40 @@ System apps, vendor projects, and customized devices may not support installatio
 
 ## Enabling the script
 
-Open the Jugg Run Configuration and select `Enable custom APK install script`. A single-line-height script field appears below the switch. When the switch is not selected, only the switch is shown and the existing installation behavior remains unchanged.
+Open the Jugg Run Configuration and select `Enable custom APK install script`. A single-line-height script field appears below the switch. When the switch is not selected, the switch and its help button are shown and the existing installation behavior remains unchanged.
 
 The script runs from the local project root. Jugg uses Bash on macOS/Linux and `cmd.exe` on Windows. Even when remote compilation is enabled, the script runs on the local IDE host connected to the Android device.
 
-For example, invoke a project script:
+On macOS/Linux, when the configured text contains `$1` or `$2`, Jugg sets the positional parameters below and runs the command without appending arguments. Otherwise, it appends the APK path and device serial, so a script only needs its path:
+
+| Parameter | Content |
+|---|---|
+| `$1` | The absolute path of the current APK; one APK per invocation |
+| `$2` | The current device serial; devices are processed separately |
+
+Enter an installation command directly without creating a script file:
+
+```bash
+adb -s "$2" install -r -d "$1"
+```
+
+To invoke a project script, enter only its path without manually adding arguments:
 
 ```bash
 ./scripts/install-system-app.sh
 ```
 
-Jugg automatically appends two positional arguments to the configured command. Do not type argument placeholders into the field:
-
-| Argument | Content |
-|---|---|
-| 1 | Absolute APK paths for this installation, with base/split APKs separated by `;` |
-| 2 | The current device serial; multiple devices still invoke the script separately |
-
-For example, the executed command is:
+Use `&&` to join multiple commands:
 
 ```bash
-./scripts/install-system-app.sh '/path/base.apk;/path/split.apk' 'emulator-5554'
+adb -s "$2" install -r -d "$1" && echo "Installed"
 ```
 
-Jugg escapes each argument according to the host shell rules, so `;` in the list is not executed as a command separator. If an APK path itself contains `;`, Jugg reports an error before executing the script. Rename the file or its containing directory first. On Windows, arguments containing `%` or `!` also fail before execution to prevent `cmd.exe` environment expansion from changing paths or the serial.
+Jugg safely escapes both appended arguments, preserving spaces, quotes, Unicode, and `;` in paths. Double-quote `$1` and `$2` in direct commands. Detection only recognizes complete literal `$1/$2` references, does not mistake `$10` for `$1`, and does not parse quotes, escapes, or comments. The previously suggested nested `bash -c '… "$1" "$2" …' --` form no longer receives arguments automatically; use the direct command above. If the script has fixed options, the two arguments are appended after those options.
 
-A Bash script can read the arguments and install the APKs as follows:
+Windows uses `cmd.exe` and does not provide Bash `$1/$2`. Configure the project script path; Jugg still appends the current absolute APK path and serial to the command. Windows arguments containing `%` or `!` fail before execution to prevent environment expansion.
 
-```bash
-#!/usr/bin/env bash
-set -e
-IFS=';' read -r -a apks <<< "$1"
-serial="$2"
-adb -s "$serial" install-multiple -r "${apks[@]}"
-```
-
-To invoke a project Gradle task, use a wrapper script to read these two arguments and convert them to the arguments expected by the task.
+The circular `?` beside each install/sign switch is always visible. The tooltip uses the default IDE font, colors, and width to show arguments, direct commands, and script invocation examples. The sign command uses a positional parameter or a trailing argument depending on whether it references `$1`.
 
 Jugg does not inject additional device, applicationId, or APK path environment variables. The script inherits the Android Studio process environment together with the Gradle JDK and Android SDK environment resolved by Jugg. The current Android SDK's `platform-tools` directory is added to `PATH`, so the script can invoke `adb` directly. Bash does not load user shell startup files such as `.zshrc` or `.bashrc`; other project-specific variables must come from the Android Studio launch environment or the script itself.
 
@@ -62,7 +60,7 @@ The custom script takes over install/reinstall for ordinary app APKs, including:
 - Installation after APK updates such as Manifest or native library changes.
 - Embedded APK installation.
 
-The script runs once for each ordinary app applicationId on each device. Base and split APKs with the same applicationId are handled as one group.
+The command runs once for each ordinary app APK on each device. After all APK commands for the same applicationId succeed, Jugg verifies the complete set and updates the deployment cache; any failure stops subsequent invocations. Split APKs require a script-managed installation session; separate `adb install` calls do not replace split installation.
 
 Pure class or overlay incremental deployment does not run the script. Android test APKs continue to use the default Android Studio installer so that a system-app script does not accidentally process test packages.
 
