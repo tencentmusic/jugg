@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.cmdline.standalone
 import com.google.gson.Gson
 import com.sickworm.intellij.jugg.ai.skills.PythonRuntimeResolver
 import java.io.File
+import com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager
 import java.io.IOException
 import java.nio.channels.FileChannel
 import java.nio.file.AtomicMoveNotSupportedException
@@ -135,6 +136,8 @@ class StandaloneRuntimeInstaller(private val juggRootDir: File, private val binD
         binDir.mkdirs()
         val bootstrapDir = juggRootDir.resolve("standalone/bootstrap/${manifest.toolingReleaseBuildId}")
         val javaMain = "com.sickworm.intellij.jugg.bootstrap.StandaloneBootstrap"
+        fun shellPath(file: File) = file.absolutePath.replace("\\", "\\\\")
+            .replace("\"", "\\\"").replace("$", "\\$").replace("`", "\\`")
         val posix = """
             #!/bin/sh
             set -eu
@@ -156,7 +159,7 @@ class StandaloneRuntimeInstaller(private val juggRootDir: File, private val binD
               echo "jugg-standalone: Java was not found. Set JAVA_HOME or add java to PATH." >&2
               exit 127
             fi
-            exec "${'$'}JAVA_CMD" -cp "${bootstrapDir.absolutePath}/*" $javaMain "${'$'}@"
+            exec "${'$'}JAVA_CMD" "-Djugg.root.dir=${shellPath(juggRootDir)}" -cp "${shellPath(bootstrapDir)}/*" $javaMain "${'$'}@"
         """.trimIndent() + "\n"
         val windows = """
             @echo off
@@ -172,7 +175,7 @@ class StandaloneRuntimeInstaller(private val juggRootDir: File, private val binD
             )
             set "JAVA_EXE=java"
             :run
-            "%JAVA_EXE%" -cp "${bootstrapDir.absolutePath}\*" $javaMain %*
+            "%JAVA_EXE%" "-Djugg.root.dir=${juggRootDir.absolutePath.replace("%", "%%")}" -cp "${bootstrapDir.absolutePath.replace("%", "%%")}\*" $javaMain %*
             exit /b %ERRORLEVEL%
         """.trimIndent().replace("\n", "\r\n") + "\r\n"
         binDir.resolve("jugg-standalone").apply { writeText(posix); setExecutable(true, false) }
@@ -251,7 +254,7 @@ class StandaloneRuntimeInstaller(private val juggRootDir: File, private val binD
         val arguments = process.info().arguments().orElse(emptyArray())
         if (STANDALONE_BOOTSTRAP_MAIN !in arguments) return false
         val processRoot = arguments.firstOrNull { it.startsWith(JUGG_ROOT_ARGUMENT) }
-            ?.substringAfter('=') ?: File(System.getProperty("user.home"), ".jugg").path
+            ?.substringAfter('=') ?: JuggGlobalPathManager.preferredRootDir(JuggGlobalPathManager.currentUserHome).path
         return runCatching { File(processRoot).canonicalPath == rootPath }.getOrDefault(false)
     }
 

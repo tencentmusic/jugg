@@ -50,7 +50,7 @@ def prepareStandaloneBundle = tasks.register('prepareStandaloneBundle') {
         def bootstrapDir = new File(stageDir, 'bootstrap')
         bootstrapDir.mkdirs()
         def bootstrapFiles = [bootstrapProject.tasks.named('jar').get().archiveFile.get().asFile] +
-                bootstrapProject.configurations.runtimeClasspath.files.findAll { it.name.startsWith('gson-') }
+                bootstrapProject.configurations.runtimeClasspath.files
         def bootstrapHashes = [:]
         def bootstrapFileNames = bootstrapFiles.collect { source ->
             def targetName = source == bootstrapFiles.first() ? 'standalone-bootstrap.jar' : source.name

@@ -12,8 +12,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.io.File
+import com.sickworm.intellij.jugg.project.runtime.JuggProcessLease
 
 object JuggInitializer {
+
+    private var processLease: JuggProcessLease? = null
 
     private val instanceSet = mutableMapOf<String, JuggLoader>()
 
@@ -39,6 +42,10 @@ object JuggInitializer {
             return
         }
 
+        if (processLease == null) {
+            processLease = JuggProcessLease.acquire("idea")
+            Runtime.getRuntime().addShutdownHook(Thread({ processLease?.close() }, "jugg-process-lease"))
+        }
         val instance = JuggLoader(project, File(projectDir))
         instanceSet[projectDir] = instance
         instance.init()

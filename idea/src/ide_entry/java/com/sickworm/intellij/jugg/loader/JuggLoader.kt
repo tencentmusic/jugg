@@ -103,7 +103,7 @@ class JuggLoader(val project: Project, val projectDir: File) {
             if (className == JuggManagerCreator::class.java.name) {
                 return@isUseOriginClassLoader false
             }
-            if (canNotHotUpdateClass.contains(className)) {
+            if (canNotHotUpdateClass.any { className.startsWith(it) }) {
                 return@isUseOriginClassLoader true
             }
             val packageName = className.substring(0, className.lastIndexOf('.'))
@@ -138,6 +138,8 @@ class JuggLoader(val project: Project, val projectDir: File) {
         }
 
         val canNotHotUpdateClass = setOf(
+            "com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager",
+            "com.sickworm.intellij.jugg.project.runtime.JuggProcessLease",
             // com.intellij.ui.components.DropDownLink.<init>(java.lang.Object, java.util.List, java.util.function.Consumer, int, kotlin.jvm.internal.DefaultConstructorMarker)
             // com.intellij.ui.components.DropDownLink.<init>(java.lang.Object, kotlin.jvm.functions.Function1)
             "kotlin.jvm.internal.DefaultConstructorMarker",

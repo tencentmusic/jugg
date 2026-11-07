@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.ai.skills
 
 import com.sickworm.intellij.jugg.project.runtime.withGlobalResourceLock
 import java.io.File
+import com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager
 import java.io.FileNotFoundException
 
 /**
@@ -19,7 +20,7 @@ object ClientSetupDocExporter {
         @Suppress("UNUSED_PARAMETER") projectDir: File,
         userHome: File = File(System.getProperty("user.home")),
     ): File {
-        val globalRootDir = File(userHome, ".jugg")
+        val globalRootDir = JuggGlobalPathManager.rootDirFor(userHome)
         return withGlobalResourceLock("Export client setup guide", globalRootDir) {
             val bundledSkillsDir = JuggSkillInstaller.ensureBundledSkillsHome(userHome)
             val setupDocFile = File(bundledSkillsDir, SETUP_DOC_RELATIVE_PATH)

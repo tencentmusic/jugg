@@ -1,5 +1,9 @@
 package com.sickworm.intellij.jugg
 
+import com.sickworm.intellij.jugg.ide.ui.DirectorySelector
+import com.sickworm.intellij.jugg.project.runtime.JuggGlobalDirectoryMigration
+import com.sickworm.intellij.jugg.project.runtime.JuggProcessLease
+import com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager
 import com.intellij.ide.actions.RevealFileAction
 import com.intellij.execution.Executor
 import com.intellij.execution.ExecutionResult
@@ -74,7 +78,6 @@ import com.sickworm.intellij.jugg.project.dependency.GradleProjectInfoLocalFetch
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import com.sickworm.intellij.jugg.project.dependency.create
 import com.sickworm.intellij.jugg.project.info.ProjectInfoReader
-import com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager
 import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import com.sickworm.intellij.jugg.project.runtime.CliRunConfigurationStore
 import com.sickworm.intellij.jugg.project.runtime.IdeaCliRunConfigurationManager
@@ -205,6 +208,11 @@ class JuggManager @TestOnly constructor(
     override fun init() {
         observeRunConfigurationSelection()
         runTaskSafe("Init Jugg", {
+            try {
+                JuggGlobalDirectoryMigration().cleanupPreviousRoot()
+            } catch (e: Exception) {
+                logger.warn("Previous Jugg directory cleanup failed; will retry on next startup", e)
+            }
             JuggSettings.migrateLegacyJuggSettings(PropertiesComponent.getInstance())
             juggServer.initialize()
             initializeRuntime()
@@ -933,6 +941,44 @@ class JuggManager @TestOnly constructor(
             runTaskSafe("Compile Changes", ::compileChanges)
         }
         controlPanelController.refresh()
+    }
+
+    fun moveGlobalDirectory() {
+        val root = JuggGlobalPathManager.rootDir
+        val processes = JuggProcessLease.liveProcesses("idea", root)
+        if (processes.size > 1) {
+            Messages.showInfoMessage(project, "Close other Android Studio instances before moving Jugg storage.", "Move Jugg storage")
+            return
+        }
+        if (System.getProperty("jugg.root.dir") != null) {
+            Messages.showInfoMessage(project, "Remove the jugg.root.dir JVM override before moving Jugg storage.", "Move Jugg storage")
+            return
+        }
+        if (JuggGlobalPathManager.configuredRootDir(JuggGlobalPathManager.currentUserHome).canonicalFile != root.canonicalFile) {
+            restartAfterDirectoryMigration(root)
+            return
+        }
+        val target = DirectorySelector(project, "Move Jugg storage",
+            "Choose an empty directory. Android Studio must restart after copying.", root.parentFile).selectDirectory() ?: return
+        taskRunnerManager.runTaskSafe("Move Jugg storage", Runnable {
+            JuggGlobalDirectoryMigration().prepare(target)
+            logger.info("Jugg storage copied to ${target.absolutePath}; restart Android Studio to finish migration")
+            ApplicationManager.getApplication().invokeLater { restartAfterDirectoryMigration(root) }
+        })
+    }
+
+    private fun restartAfterDirectoryMigration(root: File) {
+        val answer = Messages.showYesNoDialog(project,
+            "Jugg storage is ready. Restart Android Studio now? Standalone Jugg runtimes will stop and the old directory will be removed on next startup. New logs and events since copying may remain only in the old directory.",
+            "Move Jugg storage", "Restart", "Later", Messages.getQuestionIcon())
+        if (answer != Messages.YES) return
+        taskRunnerManager.runTaskSafe("Restart after Jugg storage migration", Runnable {
+            check(JuggProcessLease.liveProcesses("idea", root).size <= 1) {
+                "Close other Android Studio instances before restarting."
+            }
+            JuggProcessLease.stopStandaloneProcesses(root)
+            ApplicationManager.getApplication().invokeLater { ApplicationManager.getApplication().restart() }
+        })
     }
 
     private fun warmUpCompile() {

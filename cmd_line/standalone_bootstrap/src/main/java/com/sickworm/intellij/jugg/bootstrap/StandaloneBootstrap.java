@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.bootstrap;
 
 import com.google.gson.Gson;
+import com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager;
 import java.io.File;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -27,7 +28,7 @@ public final class StandaloneBootstrap {
     private StandaloneBootstrap() {}
 
     public static void main(String[] args) throws Exception {
-        File root = new File(System.getProperty("jugg.root.dir", new File(System.getProperty("user.home"), ".jugg").getPath()));
+        File root = JuggGlobalPathManager.resolveRootDir();
         if (isStopAll(args)) {
             List<Long> stopped = stopAllDaemons(root, STOP_TIMEOUT_MILLIS);
             if (stopped.isEmpty()) {
@@ -110,7 +111,8 @@ public final class StandaloneBootstrap {
         for (String argument : arguments) {
             if (argument.startsWith(ROOT_ARGUMENT)) return pathKey(argument.substring(ROOT_ARGUMENT.length()));
         }
-        return pathKey(new File(System.getProperty("user.home"), ".jugg"));
+        return pathKey(JuggGlobalPathManager.INSTANCE.preferredRootDir(
+                JuggGlobalPathManager.INSTANCE.getCurrentUserHome()));
     }
 
     private static boolean contains(String[] arguments, String expected) {

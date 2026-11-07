@@ -22,13 +22,13 @@ class JuggHotUpdateClassLoaderArchitectureTest {
             .flatMap { method -> listOf(method.returnType) + method.parameterTypes }
             .map(::componentType)
             .filter { it.name.startsWith(JUGG_PACKAGE_PREFIX) }
-            .filterNot { JuggLoader.canNotHotUpdateClass.contains(it.name) }
+            .filterNot { classType -> JuggLoader.canNotHotUpdateClass.any { classType.name.startsWith(it) } }
             .map(Class<*>::getName)
 
         assertTrue("Platform bridge contract types are not host loaded: $missingContractTypes", missingContractTypes.isEmpty())
-        assertTrue(JuggLoader.canNotHotUpdateClass.contains(PlatformApi::class.java.name))
-        assertTrue(JuggLoader.canNotHotUpdateClass.contains(IPlatformApi::class.java.name))
-        assertTrue(JuggLoader.canNotHotUpdateClass.contains(IdeaPlatformApi::class.java.name))
+        assertTrue(JuggLoader.canNotHotUpdateClass.any { PlatformApi::class.java.name.startsWith(it) })
+        assertTrue(JuggLoader.canNotHotUpdateClass.any { IPlatformApi::class.java.name.startsWith(it) })
+        assertTrue(JuggLoader.canNotHotUpdateClass.any { IdeaPlatformApi::class.java.name.startsWith(it) })
     }
 
     @Test

@@ -6,6 +6,7 @@ import com.intellij.ide.plugins.cl.PluginAwareClassLoader
 import com.sickworm.intellij.jugg.loader.JuggHotUpdateBootstrap
 import com.sickworm.intellij.jugg.project.runtime.StandaloneHotUpdateManifest
 import java.io.File
+import com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager
 import java.io.FileOutputStream
 import java.nio.file.Files
 import java.util.zip.ZipFile
@@ -23,7 +24,7 @@ object StandaloneBundleInstallService {
     /** Refreshes an IDEA-managed standalone runtime when the embedded tooling build changes. */
     @Synchronized
     fun installIfNeeded(): Boolean {
-        val juggRootDir = File(System.getProperty("user.home"), ".jugg")
+        val juggRootDir = JuggGlobalPathManager.rootDir
         val isCliInstalled = juggRootDir.resolve("bin").isDirectory
         if (!isCliInstalled) return false
         val embeddedBundle = resolveBundle()
@@ -82,7 +83,10 @@ object StandaloneBundleInstallService {
             } else {
                 listOf("sh", stageDir.resolve("install.sh").absolutePath, "--managed-by=idea")
             }
-            val process = ProcessBuilder(command).redirectErrorStream(true).start()
+            val process = ProcessBuilder(command).apply {
+                environment()["JAVA_TOOL_OPTIONS"] = listOfNotNull(environment()["JAVA_TOOL_OPTIONS"],
+                    "-Djugg.root.dir=\"${JuggGlobalPathManager.rootDir.absolutePath}\"").joinToString(" ")
+            }.redirectErrorStream(true).start()
             val output = process.inputStream.bufferedReader().use { it.readText() }
             val exitCode = process.waitFor()
             check(exitCode == 0) { installerFailureMessage(exitCode, output) }

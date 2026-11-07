@@ -5,6 +5,7 @@ import com.sickworm.intellij.jugg.deploy.run.StandaloneDeployerResources
 import com.sickworm.intellij.jugg.project.runtime.RuntimeInfo
 import com.sickworm.intellij.jugg.runtime.PluginInfoReader
 import java.io.File
+import com.sickworm.intellij.jugg.project.runtime.JuggProcessLease
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -17,6 +18,7 @@ class JuggDaemon(
     idleTimeoutMillis: Long = DEFAULT_IDLE_TIMEOUT_MILLIS,
     idleRecheckMillis: Long = DEFAULT_IDLE_RECHECK_MILLIS,
 ) : AutoCloseable {
+    private var processLease: JuggProcessLease? = null
     private val activity = StandaloneDaemonActivity()
     private val registry = StandaloneProjectRegistry(runtimeInfo, activity)
     private val stopped = AtomicBoolean()
@@ -24,6 +26,7 @@ class JuggDaemon(
     private val idleTimer = DaemonIdleTimer(activity, idleTimeoutMillis, idleRecheckMillis, ::close)
 
     fun start(projectDirs: List<File>): Int {
+        processLease = JuggProcessLease.acquire("standalone")
         StandaloneDeployerResources.prepare()
         projectDirs.forEach(registry::initialize)
         McpLocalServer.start(idleTimer::recordExternalActivity)
@@ -41,6 +44,7 @@ class JuggDaemon(
         idleTimer.close()
         McpLocalServer.stop()
         registry.close()
+        processLease?.close()
         stoppedLatch.countDown()
     }
 

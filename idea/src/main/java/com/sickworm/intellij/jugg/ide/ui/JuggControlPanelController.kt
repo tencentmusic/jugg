@@ -219,6 +219,8 @@ open class JuggControlPanelController(
 
     open fun askAi() = manager.askAi()
 
+    open fun moveGlobalDirectory() = manager.moveGlobalDirectory()
+
     open fun installSkills() = manager.installSkills()
 
     open fun checkUpdates() = manager.checkUpdates()

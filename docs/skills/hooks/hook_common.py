@@ -14,6 +14,9 @@ from pathlib import Path
 from typing import Any
 
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "jugg-android-dev-loop" / "scripts" / "py"))
+from jugg_paths import global_root
+
 STATE_DIR_NAME = ".state"
 HOOK_BLOCK_DISABLED_FLAG_NAME = "DISABLE_BLOCK"
 SESSION_WRITE_SEEN_KEY = "sessionWriteSeen"
@@ -23,7 +26,7 @@ PROJECT_CWD_KEY = "projectCwd"
 JUGG_TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 DEBUG_LOG_ENV = "JUGG_HOOK_DEBUG_LOG"
 DEBUG_PAYLOAD_ENV = "JUGG_HOOK_DEBUG_PAYLOAD"
-DEFAULT_DEBUG_LOG_PATH = Path.home() / ".jugg" / "skills" / "hooks" / "jugg-hook-debug.log"
+DEFAULT_DEBUG_LOG_PATH = global_root() / "skills" / "hooks" / "jugg-hook-debug.log"
 DEBUG_LOG_ROTATE_SIZE_BYTES = 1024 * 1024
 DEBUG_LOG_BACKUP_SUFFIX = ".1"
 ANDROID_SOURCE_SUFFIXES = (".java", ".kt", ".xml", ".gradle", ".gradle.kts")
@@ -355,7 +358,7 @@ def extract_tool_call(payload: dict[str, Any]) -> tuple[str, dict[str, Any]]:
 
 def resolve_hooks_dir(home: Path | None = None) -> Path:
     resolved_home = home if home is not None else Path.home()
-    return resolved_home / ".jugg" / "skills" / "hooks"
+    return global_root(resolved_home) / "skills" / "hooks"
 
 
 def is_hook_block_disabled(home: Path | None = None) -> bool:
@@ -489,7 +492,7 @@ def session_write_needs_verification(state: dict[str, Any], structured: dict[str
 
 
 def jugg_cli_path(home: Path) -> Path:
-    return home / ".jugg" / "bin" / "jugg.py"
+    return global_root(home) / "bin" / "jugg.py"
 
 
 def jugg_cli_command(home: Path) -> list[str]:

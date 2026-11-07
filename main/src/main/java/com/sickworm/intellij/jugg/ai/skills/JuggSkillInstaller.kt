@@ -338,6 +338,12 @@ object JuggSkillInstaller {
             .joinToString("\r\n")
     }
 
+    fun relocateWindowsCliPath(newRoot: File, userHome: File) {
+        if (isWindows() && newRoot.resolve("bin/jugg.cmd").isFile) {
+            addWindowsCliDirToUserPath(userHome, newRoot.resolve("bin"))
+        }
+    }
+
     private fun addWindowsCliDirToUserPath(userHome: File, binDir: File) {
         if (!isCurrentUserHome(userHome)) {
             return

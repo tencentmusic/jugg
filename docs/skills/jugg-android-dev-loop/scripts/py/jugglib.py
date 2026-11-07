@@ -6,6 +6,8 @@ Provides: port detection, projectDir resolution, record session management,
 
 from __future__ import annotations
 
+from jugg_paths import global_root
+
 import contextlib
 import hashlib
 import json
@@ -456,7 +458,7 @@ def _standalone_launcher_path() -> Path:
     if configured:
         return Path(configured)
     executable = "jugg-standalone.bat" if sys.platform == "win32" else "jugg-standalone"
-    return Path.home() / ".jugg" / "standalone" / "bin" / executable
+    return global_root() / "standalone" / "bin" / executable
 
 
 def _standalone_java_command() -> str:
@@ -586,7 +588,7 @@ def _standalone_launch_lock(project_dir: str):
 def _standalone_launch_lock_path(project_dir: str) -> Path:
     del project_dir
     configured = os.environ.get("JUGG_STANDALONE_LAUNCH_LOCK")
-    return Path(configured) if configured else Path.home() / ".jugg" / "locks" / "standalone.launch.lock"
+    return Path(configured) if configured else global_root() / "locks" / "standalone.launch.lock"
 
 
 def _try_lock_file(handle) -> bool:
