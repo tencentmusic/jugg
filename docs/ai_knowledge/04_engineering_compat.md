@@ -38,6 +38,8 @@
 
 ## 3. 核心边界模型
 
+Panda 的模块目录优先使用 `ExternalSystemApiUtil.getExternalProjectPath(Module)`，通过反射调用兼容编译 Stub。已确认 Panda DSL 的 `GradleBuildModel.moduleRootDirectory` 会把不同模块的 `main` source set 指向工程中名为 `main` 的 Gradle project，也可能返回未解析的 `settingsDir/...`。External System 返回非空绝对路径时直接采用；API 读取失败、空值或非绝对路径时保留原有 Gradle DSL → content roots / module file 回退。此策略仅作用于 Panda 兼容实现，其余版本保持原有目录读取方式。
+
 ### 3.1 deploy_compat 版本层级
 
 | 目录 | 适配版本 |
