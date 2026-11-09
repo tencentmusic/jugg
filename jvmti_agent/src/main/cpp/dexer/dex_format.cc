@@ -18,9 +18,17 @@
 #include "slicer/common.h"
 
 #include <zlib.h>
+#include <cstdlib>
 #include <sstream>
 
 namespace dex {
+
+// The expected format of the magic is dex\nXXX\0 where XXX are digits. We extract this value.
+// Returns 0 if the version can not be parsed.
+u4 Header::GetVersion(const void* magic) {
+  const char* version = reinterpret_cast<const char*>(magic) + 4;
+  return version[3] == '\0' ? strtol(version, nullptr, 10) : 0;
+}
 
 // Compute the DEX file checksum for a memory-mapped DEX file
 u4 ComputeChecksum(const Header* header) {
