@@ -50,15 +50,14 @@ internal interface IExecutionLockManager {
  */
 internal fun <T> withGlobalResourceLock(
     command: String,
-    globalRootDir: File = JuggGlobalPathManager.rootDir,
     action: () -> T,
 ): T {
-    val lockFile = JuggGlobalPathManager.globalLockFile(globalRootDir)
+    val lockFile = JuggGlobalPathManager.globalLockFile
     return ExecutionFileLock(RuntimeIdentity("resource", PluginInfoReader.getPluginVersion())).withLock(
         lockFile = lockFile,
         ownerFile = File(lockFile.parentFile, "${lockFile.name}.owner.json"),
         command = command,
-        scopeDir = globalRootDir,
+        scopeDir = JuggGlobalPathManager.rootDir,
         action = { ExecutionLockOrderGuard.withGlobalResourceLockHeld(action) },
     )
 }

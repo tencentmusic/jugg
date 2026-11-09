@@ -120,7 +120,7 @@ class InstallJuggSkillsDialog(
 
     /** Builds the CLI install row with a fixed path hint. */
     private fun buildCliRow(): JPanel {
-        return rowPanel(installCliCheckBox, toTildePath(JuggGlobalPathManager.binDir(userHome), userHome))
+        return rowPanel(installCliCheckBox, toTildePath(JuggGlobalPathManager.binDir, userHome))
     }
 
     /** Builds the hook install row with target Claude settings paths. */
@@ -211,7 +211,7 @@ class InstallJuggSkillsDialog(
         }
 
         internal fun hooksInstallPathHint(userHome: File = File(System.getProperty("user.home"))): String {
-            return toTildePath(JuggGlobalPathManager.hooksDir(userHome), userHome)
+            return toTildePath(JuggGlobalPathManager.hooksDir, userHome)
         }
 
         /**

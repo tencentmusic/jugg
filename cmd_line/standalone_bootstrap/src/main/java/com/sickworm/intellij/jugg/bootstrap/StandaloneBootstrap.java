@@ -111,8 +111,7 @@ public final class StandaloneBootstrap {
         for (String argument : arguments) {
             if (argument.startsWith(ROOT_ARGUMENT)) return pathKey(argument.substring(ROOT_ARGUMENT.length()));
         }
-        return pathKey(JuggGlobalPathManager.INSTANCE.preferredRootDir(
-                JuggGlobalPathManager.INSTANCE.getCurrentUserHome()));
+        return pathKey(JuggGlobalPathManager.INSTANCE.getPreferredRootDir().getPath());
     }
 
     private static boolean contains(String[] arguments, String expected) {

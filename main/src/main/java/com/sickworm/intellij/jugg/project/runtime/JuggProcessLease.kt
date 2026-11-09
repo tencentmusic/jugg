@@ -19,10 +19,9 @@ class JuggProcessLease private constructor(
     }
 
     companion object {
-        fun acquire(type: String, root: File = JuggGlobalPathManager.rootDir,
-                    userHome: File = File(System.getProperty("user.home"))): JuggProcessLease {
+        fun acquire(type: String, root: File = JuggGlobalPathManager.rootDir): JuggProcessLease {
             require(type == "idea" || type == "standalone")
-            val dir = JuggGlobalPathManager.processLeaseDir(userHome)
+            val dir = JuggGlobalPathManager.processLeaseDir
             check(dir.isDirectory || dir.mkdirs()) { "Cannot create process lease directory: $dir" }
             val file = File(dir, "${ProcessHandle.current().pid()}-${UUID.randomUUID()}.lock")
             val handle = RandomAccessFile(file, "rw")
@@ -46,7 +45,7 @@ class JuggProcessLease private constructor(
                     val args = process.info().arguments().orElse(emptyArray())
                     val processRoot = args.firstOrNull { it.startsWith("-Djugg.root.dir=") }
                         ?.substringAfter('=')?.let(::File)
-                        ?: JuggGlobalPathManager.preferredRootDir(JuggGlobalPathManager.currentUserHome)
+                        ?: JuggGlobalPathManager.preferredRootDir
                     process.pid() != ProcessHandle.current().pid() &&
                         "com.sickworm.intellij.jugg.bootstrap.StandaloneBootstrap" in args &&
                         processRoot.canonicalFile == rootKey
@@ -59,8 +58,8 @@ class JuggProcessLease private constructor(
             processes.forEach { it.onExit().get(5, java.util.concurrent.TimeUnit.SECONDS) }
         }
 
-        fun liveProcesses(type: String, root: File, userHome: File = File(System.getProperty("user.home"))): Set<Long> {
-            val dir = JuggGlobalPathManager.processLeaseDir(userHome)
+        fun liveProcesses(type: String, root: File): Set<Long> {
+            val dir = JuggGlobalPathManager.processLeaseDir
             val files = if (!dir.exists()) emptyArray() else checkNotNull(dir.listFiles()) { "Cannot list process leases: $dir" }
             return files.filter { it.extension == "lock" }.mapNotNull { file ->
                 RandomAccessFile(file, "rw").use { handle ->

@@ -238,7 +238,7 @@ object JuggSettings {
     @Synchronized
     private fun storage(): Storage {
         val rootDir = JuggGlobalPathManager.rootDir
-        val version = fileVersion(JuggGlobalPathManager.settingsFile(rootDir))
+        val version = fileVersion(JuggGlobalPathManager.settingsFile)
         storageCache?.takeIf { it.rootDir == rootDir && version != null && it.version == version }?.let { return it }
         return Storage(rootDir, createRepository(rootDir), version).also {
             storageCache = it
@@ -265,7 +265,7 @@ object JuggSettings {
     }
 
     private fun createRepository(rootDir: File): JsonRuntimeSettingsRepository {
-        return JsonRuntimeSettingsRepository(JuggGlobalPathManager.settingsFile(rootDir), rootDir, logger)
+        return JsonRuntimeSettingsRepository(JuggGlobalPathManager.settingsFile, logger)
     }
 
     private fun setting(defaultValue: Boolean) = Setting(defaultValue, { it.asBoolean }, ::JsonPrimitive)

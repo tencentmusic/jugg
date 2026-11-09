@@ -76,10 +76,10 @@ object JuggHookInstaller {
         logger: Logger,
         pythonCommand: String,
     ): HookInstallSummary {
-        val startScriptPath = File(JuggGlobalPathManager.hooksDir(userHome), "start.py").absolutePath
-        val stopScriptPath = File(JuggGlobalPathManager.hooksDir(userHome), "stop.py").absolutePath
-        val editScriptPath = File(JuggGlobalPathManager.hooksDir(userHome), "edit.py").absolutePath
-        val commandScriptPath = File(JuggGlobalPathManager.hooksDir(userHome), "command.py").absolutePath
+        val startScriptPath = File(JuggGlobalPathManager.hooksDir, "start.py").absolutePath
+        val stopScriptPath = File(JuggGlobalPathManager.hooksDir, "stop.py").absolutePath
+        val editScriptPath = File(JuggGlobalPathManager.hooksDir, "edit.py").absolutePath
+        val commandScriptPath = File(JuggGlobalPathManager.hooksDir, "command.py").absolutePath
         val targets = resolveTargets(clients, userHome, startScriptPath, stopScriptPath,
             editScriptPath, commandScriptPath, pythonCommand)
         val results = targets.map { target ->

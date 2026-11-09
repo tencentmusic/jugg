@@ -21,7 +21,7 @@ class JuggGlobalDirectoryMigration(
     private val marker get() = File(root, ".migration.properties")
 
     fun prepare(destination: File) {
-        check(JuggProcessLease.liveProcesses("idea", root, userHome).size <= 1) {
+        check(JuggProcessLease.liveProcesses("idea", root).size <= 1) {
             "Close other Android Studio instances before moving Jugg storage."
         }
         check(!marker.exists()) { "Restart Android Studio to finish the pending migration first." }
@@ -44,7 +44,7 @@ class JuggGlobalDirectoryMigration(
                 setProperty("pid", ProcessHandle.current().pid().toString())
             }
             target.resolve(".migration.properties").outputStream().use { data.store(it, "Jugg directory migration") }
-            JuggGlobalPathManager.writeRootLocation(target, userHome)
+            JuggGlobalPathManager.writeRootLocation(target)
         } catch (e: Exception) {
             try { removeTree(target) } catch (cleanup: Exception) { e.addSuppressed(cleanup) }
             throw e
@@ -77,9 +77,7 @@ class JuggGlobalDirectoryMigration(
                 if (file.name.endsWith("-wal") || file.name.endsWith("-shm") || file.name.endsWith("-journal")) return FileVisitResult.CONTINUE
                 val output = target.toPath().resolve(source.toPath().relativize(path)).toFile()
                 if (attrs.isSymbolicLink) copyLink(file, output, source, target)
-                else if (file == JuggGlobalPathManager.settingsFile(source)) {
-                    withGlobalResourceLock("Copy settings for directory migration", source) { copyFile(file, output) }
-                } else copyFile(file, output)
+                else copyFile(file, output)
                 return FileVisitResult.CONTINUE
             }
         })
@@ -138,7 +136,7 @@ class JuggGlobalDirectoryMigration(
         check(File(data.getProperty("new")).canonicalFile == root.canonicalFile)
         check(!old.toPath().startsWith(root.canonicalFile.toPath()) && !root.canonicalFile.toPath().startsWith(old.toPath()))
         if (data.getProperty("pid")?.toLongOrNull() == ProcessHandle.current().pid()) return
-        check(JuggProcessLease.liveProcesses("idea", old, userHome).isEmpty()) { "Another Android Studio still uses $old" }
+        check(JuggProcessLease.liveProcesses("idea", old).isEmpty()) { "Another Android Studio still uses $old" }
         JuggProcessLease.stopStandaloneProcesses(old)
         val alias = File(data.getProperty("oldAlias", old.path))
         listOf(old, alias).distinct().forEach { previous ->

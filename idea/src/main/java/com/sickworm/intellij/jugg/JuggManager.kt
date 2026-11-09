@@ -954,7 +954,7 @@ class JuggManager @TestOnly constructor(
             Messages.showInfoMessage(project, "Remove the jugg.root.dir JVM override before moving Jugg storage.", "Move Jugg storage")
             return
         }
-        if (JuggGlobalPathManager.configuredRootDir(JuggGlobalPathManager.currentUserHome).canonicalFile != root.canonicalFile) {
+        if (JuggGlobalPathManager.configuredRootDir.canonicalFile != root.canonicalFile) {
             restartAfterDirectoryMigration(root)
             return
         }

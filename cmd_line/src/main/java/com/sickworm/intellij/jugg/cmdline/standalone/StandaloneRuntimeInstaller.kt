@@ -254,7 +254,7 @@ class StandaloneRuntimeInstaller(private val juggRootDir: File, private val binD
         val arguments = process.info().arguments().orElse(emptyArray())
         if (STANDALONE_BOOTSTRAP_MAIN !in arguments) return false
         val processRoot = arguments.firstOrNull { it.startsWith(JUGG_ROOT_ARGUMENT) }
-            ?.substringAfter('=') ?: JuggGlobalPathManager.preferredRootDir(JuggGlobalPathManager.currentUserHome).path
+            ?.substringAfter('=') ?: JuggGlobalPathManager.preferredRootDir.path
         return runCatching { File(processRoot).canonicalPath == rootPath }.getOrDefault(false)
     }
 

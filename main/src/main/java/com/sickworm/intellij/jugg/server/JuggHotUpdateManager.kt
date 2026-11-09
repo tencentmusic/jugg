@@ -27,7 +27,6 @@ class JuggHotUpdateManager(
     val standaloneLoadManifestFile: File = File(hotUpdateDir, "standalone_load_manifest.json")
     val candidatesDir: File = File(hotUpdateDir, "candidates")
     val hotUpdateDataFile: File = File(hotUpdateDir, "hot_update_data.json")
-    private val globalRootDir = checkNotNull(hotUpdateDir.absoluteFile.parentFile)
     private val hotUpdateFlag = File(hotUpdateDir, "first_update_flag")
     private val installUpdateFlag = File(hotUpdateDir, "install_update_flag")
     private val logger = logger.getInstance("JuggHotUpdateManager")
@@ -65,7 +64,7 @@ class JuggHotUpdateManager(
     }
 
     private fun snapshotCachedJars(preparedJars: Collection<PreparedHotUpdateJar>): HotUpdateData? {
-        return withGlobalResourceLock("Snapshot hot update cache", globalRootDir) {
+        return withGlobalResourceLock("Snapshot hot update cache") {
             val baseData = readHotUpdateData()
             preparedJars.forEach { prepared ->
                 val target = storageDir.resolve(prepared.info.uniqueName)
@@ -102,7 +101,7 @@ class JuggHotUpdateManager(
         preparedJars: Map<String, PreparedHotUpdateJar>,
         preparedBundle: PreparedBundleCandidate?,
     ): JuggHotUpdateResult {
-        return withGlobalResourceLock("Commit hot update", globalRootDir) {
+        return withGlobalResourceLock("Commit hot update") {
             check(readHotUpdateData() == baseData) { "Hot update was superseded by another runtime" }
             storageDir.mkdirs()
             val publishedJars = preparedJars.mapValues { publishPreparedJar(it.value) }
@@ -152,7 +151,7 @@ class JuggHotUpdateManager(
     }
 
     fun cleanupExpiredJars(nowMillis: Long = System.currentTimeMillis()): List<File> {
-        return withGlobalResourceLock("Cleanup hot update jars", globalRootDir) {
+        return withGlobalResourceLock("Cleanup hot update jars") {
             val allReferenced = mutableSetOf<String>()
             allReferenced.addAll(resolveLoadManifest(loadBaseBuildTime)?.jarFileNames.orEmpty())
             allReferenced.addAll(resolveStandaloneLoadManifest()?.jarFileNames.orEmpty())
@@ -177,7 +176,7 @@ class JuggHotUpdateManager(
     internal fun resolveStandaloneLoadManifest(): StandaloneHotUpdateManifest? = readStandaloneManifest(standaloneLoadManifestFile)
 
     fun activateReinstallCandidate(activePluginBuildId: String): Boolean {
-        return withGlobalResourceLock("Activate standalone reinstall candidate", globalRootDir) {
+        return withGlobalResourceLock("Activate standalone reinstall candidate") {
             val data = readHotUpdateData() ?: return@withGlobalResourceLock false
             if (!data.isNeedReinstall || data.releaseBuildId != activePluginBuildId) return@withGlobalResourceLock false
             val jarFiles = data.standaloneJarFileInfos.orEmpty().map { info ->
@@ -193,11 +192,11 @@ class JuggHotUpdateManager(
     }
 
     fun hasHotUpdateNotification(): Boolean {
-        return withGlobalResourceLock("Check hot update notification", globalRootDir) { hotUpdateFlag.exists() }
+        return withGlobalResourceLock("Check hot update notification") { hotUpdateFlag.exists() }
     }
 
     fun consumeHotUpdateNotification(): HotUpdateData? {
-        return withGlobalResourceLock("Consume hot update notification", globalRootDir) {
+        return withGlobalResourceLock("Consume hot update notification") {
             if (!hotUpdateFlag.exists()) return@withGlobalResourceLock null
             val data = readHotUpdateData() ?: return@withGlobalResourceLock null
             hotUpdateFlag.delete()
@@ -206,20 +205,20 @@ class JuggHotUpdateManager(
     }
 
     fun readInstallUpdateNotification(): HotUpdateData? {
-        return withGlobalResourceLock("Read installed update notification", globalRootDir) {
+        return withGlobalResourceLock("Read installed update notification") {
             if (installUpdateFlag.exists()) readHotUpdateData() else null
         }
     }
 
     fun clearInstallUpdateNotification(expectedData: HotUpdateData): Boolean {
-        return withGlobalResourceLock("Clear installed update notification", globalRootDir) {
+        return withGlobalResourceLock("Clear installed update notification") {
             if (readHotUpdateData() != expectedData) return@withGlobalResourceLock false
             installUpdateFlag.delete()
         }
     }
 
     fun publishUpdateNotification(expectedData: HotUpdateData): Boolean {
-        return withGlobalResourceLock("Publish update notification", globalRootDir) {
+        return withGlobalResourceLock("Publish update notification") {
             if (readHotUpdateData() != expectedData) return@withGlobalResourceLock false
             if (expectedData.isNeedReinstall) {
                 installUpdateFlag.createNewFile()

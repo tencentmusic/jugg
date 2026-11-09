@@ -1,7 +1,6 @@
 package com.sickworm.intellij.jugg.project.runtime
 
 import java.io.File
-import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 
@@ -13,26 +12,56 @@ import java.nio.file.StandardCopyOption
  */
 object JuggGlobalPathManager {
 
-    /** Active global storage root, overridable before or during a runtime session. */
-    @Volatile
-    var rootDir = resolveRootDir()
+    /** Current user's home directory used for Jugg-owned locator and client paths. */
+    val currentUserHome: File = File(System.getProperty("user.home"))
 
-    val hotUpdateDir: File
-        get() = hotUpdateDir(rootDir)
+    /** Immutable global storage root selected when this Runtime starts. */
+    val rootDir = resolveRootDir()
 
-    val deployCacheDbFile: File
-        get() = deployCacheDbFile(rootDir)
+    /** Shared hot-update metadata, manifests, and immutable runtime JAR storage. */
+    val hotUpdateDir: File = File(rootDir, "hot_update")
 
-    val actionDbFile: File
-        get() = File(rootDir, "action.db")
+    /** Shared action history database. */
+    val actionDbFile: File = File(rootDir, "action.db")
 
-    val settingsFile: File
-        get() = settingsFile(rootDir)
+    /** Persisted Runtime settings for the active global root. */
+    val settingsFile: File = File(rootDir, "settings.json")
 
-    val currentUserHome: File
-        get() = File(System.getProperty("user.home"))
+    /** Per-process lease directory under the current user's home. */
+    val processLeaseDir: File = File(currentUserHome, ".jugg-instances")
 
-    fun configuredRootDir(userHome: File): File {
+    /** Configured Jugg root from the current user's `.juggdir`, or the preferred default. */
+    val configuredRootDir: File
+        get() = readConfiguredRootDir(currentUserHome)
+
+    /** Preferred Jugg root under the current user's home directory. */
+    val preferredRootDir: File = File(currentUserHome, ".jugg")
+
+    /** Standalone installation directory consumed by the standalone Python scripts. */
+    val standaloneDir: File = File(rootDir, "standalone")
+
+    /** Standalone launch lock consumed by the standalone Python scripts. */
+    val standaloneLaunchLock: File = File(rootDir, "locks/standalone.launch.lock")
+
+    /** CLI binaries installed into the active Jugg root. */
+    val binDir: File = File(rootDir, "bin")
+
+    /** Bundled and prepared skills stored in the active Jugg root. */
+    val skillsDir: File = File(rootDir, "skills")
+
+    /** Hook scripts stored with the active Jugg skills. */
+    val hooksDir: File = File(skillsDir, "hooks")
+
+    /** cc-switch integration files stored in the active Jugg root. */
+    val ccSwitchDir: File = File(rootDir, "cc-switch")
+
+    /** Test-mode marker under the active Jugg root. */
+    val testFlagDir: File = File(rootDir, "test_flag")
+
+    /** Shared global-resource lock for the active Jugg root. */
+    val globalLockFile: File = File(rootDir, "locks/global.lock")
+
+    private fun readConfiguredRootDir(userHome: File): File {
         return try {
             val text = Files.readString(File(userHome, ".juggdir").toPath()).trim()
             require(!text.contains('\n') && !text.contains('\r'))
@@ -41,17 +70,18 @@ object JuggGlobalPathManager {
             require(path.isNotEmpty() && !path.contains('\u0000'))
             File(path).also { require(it.isAbsolute) }
         } catch (_: Exception) {
-            preferredRootDir(userHome)
+            File(userHome, ".jugg")
         }
     }
 
+    @JvmStatic
     fun resolveRootDir(): File = System.getProperty("jugg.root.dir")?.let(::File)
-        ?: resolveWritableRoot(configuredRootDir(currentUserHome), fallbackRootDir())
+        ?: resolveWritableRoot(readConfiguredRootDir(currentUserHome), fallbackRootDir())
 
-    fun writeRootLocation(root: File, userHome: File) {
+    fun writeRootLocation(root: File) {
         require(root.isAbsolute && !root.path.contains('\n') && !root.path.contains('\r'))
-        val locator = File(userHome, ".juggdir")
-        val temp = Files.createTempFile(userHome.toPath(), ".juggdir-", ".tmp")
+        val locator = File(currentUserHome, ".juggdir")
+        val temp = Files.createTempFile(currentUserHome.toPath(), ".juggdir-", ".tmp")
         try {
             Files.writeString(temp, "juggdir: ${root.path}\n")
             Files.move(temp, locator.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
@@ -60,18 +90,7 @@ object JuggGlobalPathManager {
         }
     }
 
-    fun processLeaseDir(userHome: File): File =
-        File(userHome, ".jugg-instances")
-
-    fun standaloneDir(root: File = rootDir): File = File(root, "standalone")
-
-    fun standaloneLaunchLock(root: File = rootDir): File = File(root, "locks/standalone.launch.lock")
-
-    fun preferredRootDir(userHome: File): File {
-        return File(userHome, ".jugg")
-    }
-
-    fun fallbackRootDir(
+    private fun fallbackRootDir(
         tmpDir: File = File(System.getProperty("java.io.tmpdir")),
         userName: String = System.getProperty("user.name", "user"),
     ): File {
@@ -81,7 +100,7 @@ object JuggGlobalPathManager {
         return File(tmpDir, "jugg-$safeName")
     }
 
-    fun resolveWritableRoot(preferred: File, fallback: File): File {
+    private fun resolveWritableRoot(preferred: File, fallback: File): File {
         if (ensureWritableDirectory(preferred)) {
             return preferred
         }
@@ -93,47 +112,10 @@ object JuggGlobalPathManager {
         )
     }
 
-    fun rootDirFor(userHome: File): File {
-        val realHome = currentUserHome
-        return if (samePath(userHome, realHome)) {
-            rootDir
-        } else {
-            configuredRootDir(userHome)
-        }
-    }
-
-    fun binDir(userHome: File = File(System.getProperty("user.home"))): File {
-        return File(rootDirFor(userHome), "bin")
-    }
-
-    fun skillsDir(userHome: File = File(System.getProperty("user.home"))): File {
-        return File(rootDirFor(userHome), "skills")
-    }
-
-    fun hooksDir(userHome: File = File(System.getProperty("user.home"))): File {
-        return File(skillsDir(userHome), "hooks")
-    }
-
-    fun ccSwitchDir(userHome: File = File(System.getProperty("user.home"))): File {
-        return File(rootDirFor(userHome), "cc-switch")
-    }
-
-    fun testFlagDir(): File {
-        return File(rootDir, "test_flag")
-    }
-
-    fun resourceFile(resourcePath: String, rootDir: File = this.rootDir): File {
+    fun resourceFile(resourcePath: String): File {
         val relativePath = resourcePath.trimStart('/', File.separatorChar)
         return File(File(rootDir, "resources"), relativePath)
     }
-
-    fun hotUpdateDir(rootDir: File = this.rootDir): File = File(rootDir, "hot_update")
-
-    fun deployCacheDbFile(rootDir: File = this.rootDir): File = File(rootDir, "deploy_cache/.deploy_cache.db")
-
-    fun settingsFile(rootDir: File = this.rootDir): File = File(rootDir, "settings.json")
-
-    fun globalLockFile(rootDir: File = this.rootDir): File = File(rootDir, "locks/global.lock")
 
     internal fun ensureWritableDirectory(dir: File): Boolean {
         return try {
@@ -149,11 +131,4 @@ object JuggGlobalPathManager {
         }
     }
 
-    private fun samePath(left: File, right: File): Boolean {
-        return try {
-            left.canonicalFile == right.canonicalFile
-        } catch (_: IOException) {
-            left.absoluteFile.normalize() == right.absoluteFile.normalize()
-        }
-    }
 }

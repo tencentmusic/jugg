@@ -37,7 +37,7 @@ object JuggSkillInstaller {
     }
 
     fun install(projectDir: File, selectedClients: Set<InstallClient>, logger: Logger, userHome: File): InstallSummary {
-        return withGlobalResourceLock("Install Jugg skills", JuggGlobalPathManager.rootDirFor(userHome)) {
+        return withGlobalResourceLock("Install Jugg skills") {
             if (selectedClients.isEmpty()) return@withGlobalResourceLock InstallSummary(emptyList())
             val results = selectedClients.map { client ->
                 installForClient(projectDir, client, logger, userHome)
@@ -114,8 +114,8 @@ object JuggSkillInstaller {
     }
 
     fun ensureBundledSkillsHome(userHome: File): File {
-        return withGlobalResourceLock("Prepare bundled Jugg skills", JuggGlobalPathManager.rootDirFor(userHome)) {
-            val bundledSkillsHome = JuggGlobalPathManager.skillsDir(userHome)
+        return withGlobalResourceLock("Prepare bundled Jugg skills") {
+            val bundledSkillsHome = JuggGlobalPathManager.skillsDir
             extractBundledSkills(targetDir = bundledSkillsHome)
             bundledSkillsHome
         }
@@ -195,9 +195,9 @@ object JuggSkillInstaller {
      */
     fun installCli(logger: Logger, userHome: File = File(System.getProperty("user.home"))): Result<Unit> {
         val windows = isWindows()
-        val result = withGlobalResourceLock("Install Jugg CLI", JuggGlobalPathManager.rootDirFor(userHome)) {
+        val result = withGlobalResourceLock("Install Jugg CLI") {
             runCatching {
-                val binDir = JuggGlobalPathManager.binDir(userHome)
+                val binDir = JuggGlobalPathManager.binDir
                 extractBundledScriptsTo(binDir)
                 if (windows) {
                     normalizeWindowsCmdWrapper(binDir)
@@ -241,7 +241,7 @@ object JuggSkillInstaller {
     }
 
     fun resolveHooksDir(userHome: File): File {
-        return JuggGlobalPathManager.hooksDir(userHome)
+        return JuggGlobalPathManager.hooksDir
     }
 
     /**
@@ -252,7 +252,7 @@ object JuggSkillInstaller {
         logger: Logger,
         userHome: File = File(System.getProperty("user.home")),
     ): Result<Unit> {
-        return withGlobalResourceLock("Update Jugg hook state", JuggGlobalPathManager.rootDirFor(userHome)) {
+        return withGlobalResourceLock("Update Jugg hook state") {
             runCatching {
                 val hooksDir = resolveHooksDir(userHome)
                 hooksDir.mkdirs()
@@ -276,7 +276,7 @@ object JuggSkillInstaller {
      * Makes bundled hook scripts available from ~/.jugg/skills/hooks.
      */
     fun installHooks(logger: Logger, userHome: File = File(System.getProperty("user.home"))): Result<Unit> {
-        return withGlobalResourceLock("Install Jugg hooks", JuggGlobalPathManager.rootDirFor(userHome)) {
+        return withGlobalResourceLock("Install Jugg hooks") {
             runCatching {
                 val bundledHooksDir = File(ensureBundledSkillsHome(userHome), BUNDLED_HOOKS_DIR)
                 HOOK_SCRIPT_FILES.forEach { fileName ->

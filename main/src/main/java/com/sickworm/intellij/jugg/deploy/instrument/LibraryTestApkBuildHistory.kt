@@ -47,8 +47,7 @@ class LibraryTestApkBuildHistory(
     }
 
     fun record(record: LibraryTestApkBuildRecord) {
-        val globalRootDir = recordDir.absoluteFile.parentFile ?: recordDir
-        withGlobalResourceLock("Update library Test APK build history", globalRootDir) {
+        withGlobalResourceLock("Update library Test APK build history") {
             val oldData = load()
             val records = oldData.records
                 .filterNot { it.moduleName == record.moduleName && it.buildVariant == record.buildVariant }

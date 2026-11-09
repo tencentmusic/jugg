@@ -20,8 +20,7 @@ object ClientSetupDocExporter {
         @Suppress("UNUSED_PARAMETER") projectDir: File,
         userHome: File = File(System.getProperty("user.home")),
     ): File {
-        val globalRootDir = JuggGlobalPathManager.rootDirFor(userHome)
-        return withGlobalResourceLock("Export client setup guide", globalRootDir) {
+        return withGlobalResourceLock("Export client setup guide") {
             val bundledSkillsDir = JuggSkillInstaller.ensureBundledSkillsHome(userHome)
             val setupDocFile = File(bundledSkillsDir, SETUP_DOC_RELATIVE_PATH)
             if (!File(bundledSkillsDir, SKILL_NAME).isDirectory) {

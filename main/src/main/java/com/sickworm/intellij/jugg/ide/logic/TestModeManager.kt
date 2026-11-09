@@ -14,7 +14,7 @@ import java.io.File
 object TestModeManager {
 
     private val flagDir: File
-        get() = JuggGlobalPathManager.testFlagDir()
+        get() = JuggGlobalPathManager.testFlagDir
 
     private data class FlagInfo(val file: String, val description: String)
 

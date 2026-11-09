@@ -37,14 +37,14 @@ object JuggCliAutoUpdater {
         }
         isNeedCheckAndUpdate = true
 
-        val juggRoot = JuggGlobalPathManager.rootDirFor(userHome)
-        withGlobalResourceLock("Auto update Jugg CLI", juggRoot) {
-            val binDir = JuggGlobalPathManager.binDir(userHome)
+        val juggRoot = JuggGlobalPathManager.rootDir
+        withGlobalResourceLock("Auto update Jugg CLI") {
+            val binDir = JuggGlobalPathManager.binDir
             if (!binDir.exists()) {
                 logger.info("Jugg CLI bin dir not found, skipping auto-update")
                 return@withGlobalResourceLock
             }
-            val juggSkillDir = File(JuggGlobalPathManager.skillsDir(userHome), SKILL_NAME)
+            val juggSkillDir = File(JuggGlobalPathManager.skillsDir, SKILL_NAME)
             val bundledVersion = readVersionFromZip()
             if (bundledVersion == null) {
                 logger.warn("Failed to read bundled skill version, skipping auto-update")

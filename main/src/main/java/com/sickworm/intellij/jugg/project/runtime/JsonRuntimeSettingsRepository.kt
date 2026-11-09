@@ -16,7 +16,6 @@ import java.nio.file.StandardCopyOption
 /** Stores shared settings atomically without replacing unrelated fields or hiding user-edit failures. */
 class JsonRuntimeSettingsRepository(
     private val settingsFile: File,
-    private val globalRootDir: File,
     private val logger: Logger,
 ) {
     private val gson = GsonBuilder().serializeNulls().setPrettyPrinting().create()
@@ -34,7 +33,7 @@ class JsonRuntimeSettingsRepository(
     }
 
     fun mergeMissing(values: Map<String, JsonElement>): Boolean = try {
-        withGlobalResourceLock("Migrate runtime settings", globalRootDir) {
+        withGlobalResourceLock("Migrate runtime settings") {
             val json = loadStrict()
             val missing = values.filterKeys { !json.has(it) }
             if (missing.isNotEmpty()) {
@@ -58,7 +57,7 @@ class JsonRuntimeSettingsRepository(
 
     /** Publishes related fields together; an expected snapshot prevents stale user decisions from overwriting newer state. */
     fun updateStrict(values: Map<String, JsonElement>, expected: JsonObject? = null): JsonObject {
-        return withGlobalResourceLock("Update runtime settings", globalRootDir) {
+        return withGlobalResourceLock("Update runtime settings") {
             val json = loadStrict()
             if (expected != null && json != expected) throw SettingsChangedException()
             if (values.any { (key, value) -> json.get(key) != value }) {

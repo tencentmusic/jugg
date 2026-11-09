@@ -30,7 +30,6 @@ data class PreparedRuntimeResource(
 /** Refreshes classpath runtime resources under the shared global write lock. */
 class JuggResourceManager(
     private val classLoader: ClassLoader = JuggResourceManager::class.java.classLoader,
-    private val globalRootDir: File = JuggGlobalPathManager.rootDir,
 ) {
 
     fun prepare(resourceRoot: String): PreparedRuntimeResource {
@@ -43,7 +42,7 @@ class JuggResourceManager(
         }
         val metadata = readMetadata(normalizedRoot)
         validateMetadata(metadata)
-        return withGlobalResourceLock("Prepare runtime resource", globalRootDir) {
+        return withGlobalResourceLock("Prepare runtime resource") {
             val targetDir = resolveTarget(normalizedRoot)
             metadata.files.forEach { prepareFile(normalizedRoot, targetDir, it) }
             PreparedRuntimeResource(targetDir, metadata)
@@ -70,7 +69,7 @@ class JuggResourceManager(
     }
 
     private fun resolveTarget(resourceRoot: String): File {
-        val configuredResourcesPath = JuggGlobalPathManager.resourceFile("", globalRootDir).absoluteFile.toPath().normalize()
+        val configuredResourcesPath = JuggGlobalPathManager.resourceFile("").absoluteFile.toPath().normalize()
         check(!Files.isSymbolicLink(configuredResourcesPath)) { "Shared runtime resource directory is a symbolic link" }
         Files.createDirectories(configuredResourcesPath)
         val resourcesPath = configuredResourcesPath.toRealPath()
