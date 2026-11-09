@@ -165,11 +165,17 @@ JuggManager.onSyncEvent()
   -> CompileContextManager.doGetAllModulesByModuleManager()
      创建 IDE project info，并基于完整 IDE Android 模型 androidTest artifact 信息标记 IDE androidTest module
   -> JuggProjectInfoMerger
-     合并 IDE project info、Gradle project info、include build project info、custom config
+     合并 IDE project info、Gradle project info、include build project info
      同名 Application 路径冲突时，仅在主 Gradle 快照存在真实 R.jar 时采用该 Application
+  -> CompileContextManager.getProjectInfo() / buildEffectiveModules()
+     应用 custom config，恢复全量构建保存的 classpath 路径
   -> reInitOnCompileContextUpdate()
      DeployFileManager / JuggCompiler / FileChangesHandler / GitFileChangesDetector / CustomCompilerManager 重新绑定新上下文
 ```
+
+匹配到非 `Unknown` 的 Gradle module 后，`moduleRootDir`、`projectRootDir` 和 `buildPathInfo` 采用 Gradle 快照，`buildPathInfo.buildVariant` 仍沿用既有变体合并规则；`manifestFile` 优先使用 Gradle 非空值，缺失时保留 IDE 值。目录选择不依赖 IDE/Gradle 快照时间先后。缺少 Gradle module、Gradle module 为 `Unknown` 或关闭 Gradle 信息读取时，保留既有 IDE 路径流程。同名 Application 冲突的主快照 + R.jar 特殊分支仍优先执行，满足条件时采用完整 Gradle module。
+
+Merger 的输入是 IDE/Gradle 原始快照，不包含 classpath 备份后的模块。`ClasspathBackupHelper.fetch()` 只在返回的模块副本中把 `buildPathInfo` 映射到备份目录，并由全量构建记录保存；不会写回 merger 输入。`CompileContextManager.getProjectInfo()` 在合并后应用自定义 classpath/sync 配置，`buildEffectiveModules()` 再优先采用全量记录中的 `buildPathInfo`，保留当前自定义配置；全量记录缺少模块时才推断备份目录。修正 merge 不会覆盖已有全量基线中的路径，也不会自动修复错误的历史基线。
 
 项目快照更新不是单纯替换 JSON。它会影响 classpath、module-to-APK 归属、文件变更过滤、自定义编译器、依赖变化确认和部署历史恢复。
 

@@ -53,6 +53,77 @@ class JuggProjectInfoMergerAndroidTestTest {
     }
 
     @Test
+    fun `merge repairs IDE library paths even when IDE snapshot is newer`() {
+        val gradleModule = module("dep", ModuleInfo.Type.Library).copy(
+            manifestFile = File("/project/libs/dep/src/main/AndroidManifest.xml"),
+            moduleRootDir = File("/project/libs/dep"),
+            buildPathInfo = ModuleBuildPathInfo(
+                projectDir, File("/project/libs/dep"), "debug", buildDirRelativePath = "outputs/dep",
+            ),
+        )
+        val ideModule = gradleModule.copy(
+            projectRootDir = File("/wrong-project"),
+            moduleRootDir = File("/wrong-project/main"),
+            manifestFile = File("/wrong-project/main/src/main/AndroidManifest.xml"),
+            buildPathInfo = ModuleBuildPathInfo(
+                File("/wrong-project"), File("/wrong-project/main"), "debug", buildDirRelativePath = "main/build",
+            ),
+        )
+        val merged = mergePaths(ideModule, gradleModule)
+        assertEquals(gradleModule.projectRootDir, merged.projectRootDir)
+        assertEquals(gradleModule.moduleRootDir, merged.moduleRootDir)
+        assertEquals(gradleModule.manifestFile, merged.manifestFile)
+        assertEquals(gradleModule.buildPathInfo, merged.buildPathInfo)
+        assertEquals(File("/project/outputs/dep"), merged.buildPathInfo.buildDir)
+    }
+
+    @Test
+    fun `merge retains IDE manifest when Gradle manifest is absent`() {
+        val ideModule = module("dep", ModuleInfo.Type.Library).copy(
+            manifestFile = File("/project/dep/src/main/AndroidManifest.xml"),
+        )
+        val merged = mergePaths(ideModule, ideModule.copy(manifestFile = null))
+        assertEquals(ideModule.manifestFile, merged.manifestFile)
+    }
+
+    @Test
+    fun `merge retains IDE paths when Gradle module is unknown or absent`() {
+        val ideModule = module("dep", ModuleInfo.Type.Library).copy(
+            manifestFile = File("/project/dep/src/main/AndroidManifest.xml"),
+        )
+        val unknownModule = ideModule.copy(
+            moduleType = ModuleInfo.Type.Unknown,
+            moduleRootDir = File("/project/wrong"),
+        )
+        listOf(unknownModule, null).forEach { gradleModule ->
+            val merged = mergePaths(ideModule, gradleModule)
+            assertEquals(ideModule.projectRootDir, merged.projectRootDir)
+            assertEquals(ideModule.moduleRootDir, merged.moduleRootDir)
+            assertEquals(ideModule.manifestFile, merged.manifestFile)
+            assertEquals(ideModule.buildPathInfo, merged.buildPathInfo)
+        }
+    }
+
+    private fun mergePaths(ideModule: ModuleInfo, gradleModule: ModuleInfo?): ModuleInfo {
+        val ideFile = saveToTempFile(projectInfoWithoutAgpR8(mapOf(ideModule.name to ideModule)))
+        val gradleFile = saveToTempFile(projectInfoWithoutAgpR8(
+            gradleModule?.let { mapOf(it.name to it) }.orEmpty(),
+        ))
+        val now = System.currentTimeMillis()
+        check(gradleFile.setLastModified(now - 10_000))
+        check(ideFile.setLastModified(now))
+        try {
+            val merger = JuggProjectInfoMerger(logger)
+            merger.afterSync(ProjectInfoSerializer(ideFile, logger), BuildTarget.APP)
+            return merger.afterLocalFetch(listOf(ProjectInfoSerializer(gradleFile, logger)), BuildTarget.APP)
+                .mergedInfo!!.modules.getValue(ideModule.name)
+        } finally {
+            ideFile.delete()
+            gradleFile.delete()
+        }
+    }
+
+    @Test
     fun `doMerge uses primary Gradle application and its latest R jar when IDE path conflicts`() {
         val tempRoot = Files.createTempDirectory("jugg_duplicate_app_test_").toFile()
         val mainProjectDir = File(tempRoot, "main").apply { mkdirs() }

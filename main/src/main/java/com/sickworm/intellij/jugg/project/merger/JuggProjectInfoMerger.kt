@@ -308,8 +308,8 @@ class JuggProjectInfoMerger(
             val mergedModuleInfo = ModuleInfo(
                 name = moduleInfo.name,
                 moduleType = gradleModuleInfo.moduleType,
-                moduleRootDir = moduleInfo.moduleRootDir,
-                projectRootDir = moduleInfo.projectRootDir,
+                moduleRootDir = gradleModuleInfo.moduleRootDir,
+                projectRootDir = gradleModuleInfo.projectRootDir,
                 sourceDirs = sourceDirs,
                 kotlinCommonSourceDirs = gradleModuleInfo.kotlinCommonSourceDirs,
                 kotlinFragmentSourceDirs = gradleModuleInfo.kotlinFragmentSourceDirs,
@@ -317,7 +317,7 @@ class JuggProjectInfoMerger(
                 kotlinDefaultFragmentName = gradleModuleInfo.kotlinDefaultFragmentName,
                 resourceDirs = mergeWithBase(name, "resourceDirs", moduleInfo.resourceDirs, gradleModuleInfo.resourceDirs, mergeResult) { it.absolutePath },
                 assetsDirs = mergeWithBase(name, "assetsDirs", moduleInfo.assetsDirs, gradleModuleInfo.assetsDirs, mergeResult) { it.absolutePath },
-                manifestFile = moduleInfo.manifestFile, // gradleModuleInfo.manifestFile may not exist, it will always return debug/AndroidManifestFest.xml
+                manifestFile = gradleModuleInfo.manifestFile ?: moduleInfo.manifestFile,
                 buildVariant = buildVariant,
                 compileVersion = chooseValue(gradleModuleInfo.compileVersion, moduleInfo.compileVersion),
                 minSdkVersion = chooseValue(gradleModuleInfo.minSdkVersion, moduleInfo.minSdkVersion),
@@ -326,10 +326,9 @@ class JuggProjectInfoMerger(
                 kotlinFreeCompilerArgs = mergeWithBase(name, "kotlinFreeCompilerArgs", gradleModuleInfo.kotlinFreeCompilerArgs, moduleInfo.kotlinFreeCompilerArgs, mergeResult) { it },
                 javaSourceCompatibility = chooseValue(gradleModuleInfo.javaSourceCompatibility, moduleInfo.javaSourceCompatibility),
                 javaTargetCompatibility = chooseValue(gradleModuleInfo.javaTargetCompatibility, moduleInfo.javaTargetCompatibility),
-                buildPathInfo = moduleInfo.buildPathInfo.copy(
+                buildPathInfo = gradleModuleInfo.buildPathInfo.copy(
                     buildVariant = buildVariant,
-                    buildDirRelativePath = gradleModuleInfo.buildPathInfo.buildDirRelativePath,
-                ), // keep the local classpath root and use Gradle's authoritative build directory relation
+                ),
                 moduleDependencies = setIfEmpty(name, "moduleDependencies", moduleInfo.moduleDependencies, gradleModuleInfo.moduleDependencies, mergeResult) { it.moduleName }, // merge may cause circular dependencies, just pick the latest one
                 runtimeModuleDependencies = gradleModuleInfo.runtimeModuleDependencies,
                 libraryDependencies = libraryMerger.mergeLibrariesWithBase(name, moduleInfo.libraryDependencies, gradleModuleInfo.libraryDependencies, mergeResult, isNeedUpdateDependency),
