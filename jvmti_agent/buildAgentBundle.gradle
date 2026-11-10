@@ -207,7 +207,6 @@ tasks.register('buildAgentBundle') {
 
         ZipOutputStream zipOutputStream = new ZipOutputStream(new FileOutputStream(agentBundleFile))
         [instrumentsJarFile, agent64SoFile, agent32SoFile, setupScriptFile].forEach { file ->
-            FileInputStream fileInputStream = new FileInputStream(file)
             if (file == agent32SoFile) {
                 ZipEntry zipEntry = new ZipEntry(file.getName().replace(".so", "") + "_alt.so")
                 zipOutputStream.putNextEntry(zipEntry)
@@ -216,14 +215,27 @@ tasks.register('buildAgentBundle') {
                 zipOutputStream.putNextEntry(zipEntry)
             }
 
-            byte[] buffer = new byte[1024]
-            int length
-            while ((length = fileInputStream.read(buffer)) > 0) {
-                zipOutputStream.write(buffer, 0, length)
+            if (file == setupScriptFile) {
+                // Normalize Windows line endings before the script is executed on the Android device.
+                byte[] script = Files.readAllBytes(file.toPath())
+                String normalized = new String(script, StandardCharsets.UTF_8)
+                    .replace("\r\n", "\n")
+                    .replace("\r", "\n")
+                zipOutputStream.write(normalized.getBytes(StandardCharsets.UTF_8))
+            } else {
+                FileInputStream fileInputStream = new FileInputStream(file)
+                try {
+                    byte[] buffer = new byte[1024]
+                    int length
+                    while ((length = fileInputStream.read(buffer)) > 0) {
+                        zipOutputStream.write(buffer, 0, length)
+                    }
+                } finally {
+                    fileInputStream.close()
+                }
             }
 
             zipOutputStream.closeEntry()
-            fileInputStream.close()
         }
         zipOutputStream.close()
 
