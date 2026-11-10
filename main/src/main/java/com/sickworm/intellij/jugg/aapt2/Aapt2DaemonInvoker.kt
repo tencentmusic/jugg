@@ -2,7 +2,7 @@ package com.sickworm.intellij.jugg.aapt2
 
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.project.JuggInternalException
-import com.sickworm.intellij.jugg.compiler.copyResource
+import com.sickworm.intellij.jugg.project.JuggGlobalPathManager
 import com.sickworm.intellij.jugg.compiler.isMac
 import com.sickworm.intellij.jugg.compiler.isLinux
 import com.sickworm.intellij.jugg.compiler.isWindows
@@ -10,6 +10,8 @@ import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.project.JuggException
 import java.io.*
 import java.util.*
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption.REPLACE_EXISTING
 
 /**
  * Aapt2DaemonInvoker owns the embedded `aapt2 daemon` process lifecycle and command execution.
@@ -157,17 +159,33 @@ class Aapt2DaemonInvoker(
     }
 
     companion object {
-        fun getEmbeddedAapt2(): File {
-            val version = "2.19.16"
-            return if (isMac) {
-                copyResource("/tools/darwin/aapt2-inclink-$version")
-            } else if (isLinux) {
-                copyResource("/tools/linux/aapt2-inclink-$version")
-            } else if (isWindows) {
-                copyResource("/tools/windows/aapt2-inclink-$version.exe")
-            } else {
-                throw JuggException.unsupportedOs()
+        private val preparedAapt2: File by lazy {
+            val resourcePath = when {
+                isMac -> "/tools/darwin/aapt2-inclink"
+                isLinux -> "/tools/linux/aapt2-inclink"
+                isWindows -> "/tools/windows/aapt2-inclink.exe"
+                else -> throw JuggException.unsupportedOs()
+            }
+            val target = JuggGlobalPathManager.resourceFile(resourcePath)
+            Files.createDirectories(target.parentFile.toPath())
+            val temporary = Files.createTempFile(target.parentFile.toPath(), "aapt2-inclink-", ".tmp")
+            try {
+                val resource = Aapt2DaemonInvoker::class.java.getResourceAsStream(resourcePath)
+                    ?: throw IOException("Missing embedded aapt2 resource: $resourcePath")
+                resource.use { input ->
+                    Files.newOutputStream(temporary).use { output -> input.copyTo(output) }
+                }
+                if (!temporary.toFile().setExecutable(true)) {
+                    throw IOException("Failed to make embedded aapt2 executable: $temporary")
+                }
+                // Replace the directory entry without truncating a running Unix executable.
+                Files.move(temporary, target.toPath(), REPLACE_EXISTING)
+                target
+            } finally {
+                Files.deleteIfExists(temporary)
             }
         }
+
+        fun getEmbeddedAapt2(): File = preparedAapt2
     }
 }

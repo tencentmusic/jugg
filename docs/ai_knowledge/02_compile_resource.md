@@ -98,7 +98,13 @@ APK 基线还缺两类旁路信息：
 
 普通 `assets/` 文件删除也不会生成移除 overlay，已安装 APK 或既有 overlay 中的旧文件仍可通过 `AssetManager` 读取。重命名资源或 asset 时只有新路径会作为新增/修改输入，旧路径仍按删除语义保留。完整 Gradle 构建用于让这些删除真正生效，不是删除事件触发的自动回退。
 
-### 4.2 Compose Multiplatform resource 链路
+### 4.2 内置 aapt2 准备
+
+三平台运行文件名固定为 `aapt2-inclink`（Windows 为 `aapt2-inclink.exe`），进程名不携带版本号，便于维护进程白名单。每个插件 classloader 生命周期首次获取内置路径时，无条件覆盖本地缓存一次，不计算内容指纹、不读取版本标记；后续 invoker 和 daemon 重建复用该路径。
+
+`ArscCompiler.warmUp()` 的 `loadTable()` 会顺带触发准备；没有可预热 APK 时由首次真实使用触发。复制先写同目录临时文件并设置执行权限，再替换目标，避免截断正在运行的 Unix 可执行文件。复制或替换失败保留异常；Windows 上若文件被其他 IDE 的 daemon 占用，需要退出占用进程后重新初始化。
+
+### 4.3 Compose Multiplatform resource 链路
 
 ```text
 FileChangesHandler
