@@ -12,7 +12,7 @@ Jugg is an Android Studio plugin and standalone runtime that reuses a Gradle-bui
 | Studio deploy adapters | `deploy_compat/` | Version-specific Apply Changes and debugger compatibility; includes standalone deployer. |
 | IDE-free Host | `cmd_line/`, `platform_compat/base_api/` | Daemon/CLI, Bundle bootstrap, and minimal API surface for shared code without IDEA. |
 | App runtime | `jvmti_agent/` | Startup agent, compat loader, ViewHierarchy service, and runtime update support. |
-| Compiler extension and tools | `custom_compilers/`, `aapt2-inclink/` | SPI examples, AAPT2 incremental-link C++ source under `aapt2-inclink/source/`, and prebuilt resource-link binaries. The source uses the AOSP build environment. |
+| Compiler extension and tools | `custom_compilers/`, `aapt2-inclink/` | SPI examples, AAPT2 incremental-link C++ source under `aapt2-inclink/source/`, and prebuilt resource-link binaries. A standalone macOS Debug build uses pinned AOSP dependencies; see `02_compile_aapt2_build.md`. |
 
 ```text
 IDE Run or Standalone request

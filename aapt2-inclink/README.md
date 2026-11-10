@@ -7,7 +7,7 @@
 
 Imported from the local `/Users/wormchen/aosp/aapt2_jugg` checkout of https://github.com/sickworm/aapt2-inclink at `b5b59b2ac` using Git subtree without squashing. All 29 original commits retain their hashes, authors, messages, and parent relationships. Original commit paths are relative to the source repository root; current files live under `aapt2-inclink/source/`. Only tracked content was imported; the original checkout remains intact.
 
-Use `git log b5b59b2ac` or `git show b5b59b2ac` to inspect the original history. Building requires the matching AOSP environment described in [source/development.md](source/development.md). This repository's Gradle module continues to package prebuilt resources; it does not compile the C++ source. Source changes require an AOSP build and an explicit update of the appropriate platform binary.
+Use `git log b5b59b2ac` or `git show b5b59b2ac` to inspect the original history. See [the standalone build guide](../docs/ai/02_compile_aapt2_build.md) for pinned dependencies, macOS runtime smoke, and Linux/Windows target builds. The upstream AOSP route remains in [source/development.md](source/development.md). This repository's Gradle module continues to package prebuilt resources; it does not compile the C++ source. Source changes require a native build and an explicit update of the appropriate platform binary.
 
 ## develop/4.0 integration language review
 

@@ -31,6 +31,8 @@ Help AI complete a task with minimal context:
 | Overall architecture / module boundaries | `98_code_map.md`, `01_architecture.md` | - |
 | Compilation failure / fallback policy | `98_code_map.md`, `02_compile_core.md`, `02_compile_source.md` | `main/src/main/java/com/sickworm/intellij/jugg/compiler/JuggCompilerHelper.kt`, `main/src/main/java/com/sickworm/intellij/jugg/compiler/JuggCompiler.kt` |
 | Resource / Manifest / DataBinding issues | `98_code_map.md`, `02_compile_resource.md`, `02_compile_manifest.md`, `02_compile_databinding.md` | `compiler/overlay`, `compiler/manifest`, `compiler/databinding` |
+| Native AAPT2 inclink algorithm / resource-table state / native link diagnosis | `02_compile_aapt2_inclink.md`, `02_compile_resource.md` | `aapt2-inclink/source/cmd/IncLink.cpp`, `cmd/Link.cpp`, `link/TableMerger.cpp` |
+| macOS AAPT2 source build / debugger / smoke | `02_compile_aapt2_build.md`, `06_testing.md` | `aapt2-inclink/CMakeLists.txt`, `aapt2-inclink/scripts/build_macos.py`, `scripts/smoke.py` |
 | Custom compiler / compilation interaction protocol | `98_code_map.md`, `02_compile_custom_ui.md` | `compiler/custom/*`, `compiler/CompileUiHandler.kt`, `compiler/ui/*` |
 | Deployment failure / hot-update strategy | `98_code_map.md`, `03_deploy_core.md`, `03_deploy_complete.md`, `06_testing.md` §7.1 | `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployerHelper.kt`, `idea/src/test/java/com/sickworm/intellij/jugg/manager/TopLevelFlowTest.kt` |
 | **System app / priv-app / FLAG_SYSTEM / platform signing / custom APK install script / initial install to /system** | `03_deploy_system_app.md`, `03_deploy_core.md` | `CustomApkInstallScriptRunner`, `JuggDeployer.install()`, `DirectOverlayWriter` |
@@ -69,6 +71,8 @@ Help AI complete a task with minimal context:
 | `02_compile_core.md` | Main incremental compilation flow and stage orchestration |
 | `02_compile_source.md` | Java/Kotlin/Dex compilation chain |
 | `02_compile_resource.md` | Resource compilation and aapt2 link |
+| `02_compile_aapt2_inclink.md` | Native inclink source, APK initialization rationale, retained state, changed-file outputs, compatibility history and diagnosis |
+| `02_compile_aapt2_build.md` | macOS Debug build, pinned Android 14 dependencies, smoke and debugger evidence |
 | `02_compile_databinding.md` | Incremental DataBinding/ViewBinding processing |
 | `02_compile_manifest.md` | Incremental Manifest merge |
 | `02_compile_obfuscation.md` | Release DEX remapping, `_jugg_fix`, and injected minified-build R8 rules |
