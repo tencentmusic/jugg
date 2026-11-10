@@ -20,7 +20,7 @@ class JsonRuntimeSettingsRepositoryTest {
     fun `missing settings file loads empty values without creating file`() {
         val globalRoot = temporaryFolder.newFolder("global")
         val settingsFile = File(globalRoot, "settings.json")
-        val repository = JsonRuntimeSettingsRepository(settingsFile, globalRoot, TestGlobal.logger)
+        val repository = JsonRuntimeSettingsRepository(settingsFile, TestGlobal.logger)
 
         assertTrue(repository.load().entrySet().isEmpty())
         assertFalse(settingsFile.exists())
@@ -31,7 +31,7 @@ class JsonRuntimeSettingsRepositoryTest {
         val globalRoot = temporaryFolder.newFolder("migration")
         val settingsFile = File(globalRoot, "settings.json")
         settingsFile.writeText("""{"compileOnSave":false}""")
-        val repository = JsonRuntimeSettingsRepository(settingsFile, globalRoot, TestGlobal.logger)
+        val repository = JsonRuntimeSettingsRepository(settingsFile, TestGlobal.logger)
 
         assertTrue(repository.mergeMissing(mapOf(
             "compileOnSave" to JsonPrimitive(true),
@@ -47,8 +47,8 @@ class JsonRuntimeSettingsRepositoryTest {
     fun `runtime field updates rebase on latest shared json`() {
         val globalRoot = temporaryFolder.newFolder("concurrent")
         val settingsFile = File(globalRoot, "settings.json")
-        val ideaRepository = JsonRuntimeSettingsRepository(settingsFile, globalRoot, TestGlobal.logger)
-        val standaloneRepository = JsonRuntimeSettingsRepository(settingsFile, globalRoot, TestGlobal.logger)
+        val ideaRepository = JsonRuntimeSettingsRepository(settingsFile, TestGlobal.logger)
+        val standaloneRepository = JsonRuntimeSettingsRepository(settingsFile, TestGlobal.logger)
 
         assertTrue(ideaRepository.update("compileOnSave", JsonPrimitive(true)))
         assertTrue(standaloneRepository.update("isEnableDirectOverlayDeploy", JsonPrimitive(false)))
@@ -63,7 +63,7 @@ class JsonRuntimeSettingsRepositoryTest {
         val globalRoot = temporaryFolder.newFolder("retry")
         val blockedParent = temporaryFolder.newFile("blocked_parent")
         val settingsFile = File(blockedParent, "settings.json")
-        val repository = JsonRuntimeSettingsRepository(settingsFile, globalRoot, TestGlobal.logger)
+        val repository = JsonRuntimeSettingsRepository(settingsFile, TestGlobal.logger)
         val legacyValues = mapOf("compileOnSave" to JsonPrimitive(true))
 
         assertFalse(repository.mergeMissing(legacyValues))

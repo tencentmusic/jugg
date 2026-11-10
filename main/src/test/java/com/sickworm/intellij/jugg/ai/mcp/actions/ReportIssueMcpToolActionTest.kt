@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.ai.mcp.actions
 
+import com.sickworm.intellij.jugg.mock.SettingsFileRule
 import com.sickworm.intellij.jugg.ai.mcp.IMcpRuntime
 import com.sickworm.intellij.jugg.ai.mcp.McpErrorCode
 import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
@@ -7,7 +8,6 @@ import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.platform.IPlatformApi
 import com.sickworm.intellij.jugg.platform.PlatformApi
-import com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager
 import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import com.sickworm.intellij.jugg.project.runtime.RuntimeInfo
 import org.junit.After
@@ -24,18 +24,18 @@ import org.mockito.kotlin.whenever
 import java.io.File
 
 class ReportIssueMcpToolActionTest {
+    @get:Rule
+    val settingsFileRule = SettingsFileRule()
 
     @get:Rule
     val temporaryFolder = TemporaryFolder()
 
     private lateinit var originalPlatformApi: IPlatformApi
-    private lateinit var originalGlobalRoot: File
 
     @Before
     fun setUp() {
         originalPlatformApi = runCatching { PlatformApi.impl }.getOrElse { mock() }
-        originalGlobalRoot = JuggGlobalPathManager.rootDir
-        JuggGlobalPathManager.rootDir = temporaryFolder.newFolder("global")
+
         JuggSettings.reload()
         val platformApi = mock<IPlatformApi>()
         whenever(platformApi.getRuntimeInfo()).thenReturn(RuntimeInfo("standalone", "test", "test", ""))
@@ -45,7 +45,7 @@ class ReportIssueMcpToolActionTest {
     @After
     fun tearDown() {
         PlatformApi.impl = originalPlatformApi
-        JuggGlobalPathManager.rootDir = originalGlobalRoot
+
         JuggSettings.reload()
     }
 

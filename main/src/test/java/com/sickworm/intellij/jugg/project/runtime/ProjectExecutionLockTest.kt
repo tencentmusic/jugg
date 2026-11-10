@@ -185,10 +185,9 @@ class ProjectExecutionLockTest {
     @Test
     fun `project lock fails fast while current thread holds global resource lock`() {
         val projectDir = Files.createTempDirectory("jugg-project-lock-order").toFile()
-        val globalRoot = Files.createTempDirectory("jugg-global-lock-order").toFile()
         val lockManager = FileExecutionLockManager(JuggPathManager(projectDir), RuntimeIdentity("idea", "test"))
 
-        withGlobalResourceLock("global update", globalRoot) {
+        withGlobalResourceLock("global update") {
             val blockingError = assertFailsWith<IllegalStateException> {
                 lockManager.withProjectLock("project update") { Unit }
             }
@@ -205,20 +204,19 @@ class ProjectExecutionLockTest {
 
     @Test
     fun `global resource lock serializes independent resource owners`() {
-        val globalRoot = Files.createTempDirectory("jugg-global-lock").toFile()
         val entered = CountDownLatch(1)
         val release = CountDownLatch(1)
         val secondEntered = CountDownLatch(1)
 
         val firstThread = Thread {
-            withGlobalResourceLock("cli update", globalRoot) {
+            withGlobalResourceLock("cli update") {
                 entered.countDown()
                 release.await(5, TimeUnit.SECONDS)
             }
         }
         val secondThread = Thread {
             entered.await(5, TimeUnit.SECONDS)
-            withGlobalResourceLock("hot update", globalRoot) {
+            withGlobalResourceLock("hot update") {
                 secondEntered.countDown()
             }
         }
@@ -235,15 +233,14 @@ class ProjectExecutionLockTest {
 
     @Test
     fun `global lock waits for overlapping JVM file lock from another coordinator`() {
-        val globalRoot = Files.createTempDirectory("jugg-global-overlapping-lock").toFile()
-        val lockFile = JuggGlobalPathManager.globalLockFile(globalRoot)
+        val lockFile = JuggGlobalPathManager.globalLockFile
         lockFile.parentFile.mkdirs()
         val entered = CountDownLatch(1)
 
         RandomAccessFile(lockFile, "rw").channel.use { channel ->
             channel.lock().use {
                 val thread = Thread {
-                    withGlobalResourceLock("wait for loader", globalRoot) {
+                    withGlobalResourceLock("wait for loader") {
                         entered.countDown()
                     }
                 }
@@ -373,6 +370,7 @@ class ProjectExecutionLockTest {
     private fun startLockProcess(projectDir: File, readyFile: File, holdMillis: Long): Process {
         return ProcessBuilder(
             File(System.getProperty("java.home"), "bin/java").absolutePath,
+            "-Djugg.root.dir=${JuggGlobalPathManager.rootDir}",
             "-cp",
             System.getProperty("java.class.path"),
             ProjectLockProcessMain::class.java.name,
@@ -385,6 +383,7 @@ class ProjectExecutionLockTest {
     private fun startLockProcess(projectDir: File, runtimeType: String, readyFile: File, releaseFile: File): Process {
         return ProcessBuilder(
             File(System.getProperty("java.home"), "bin/java").absolutePath,
+            "-Djugg.root.dir=${JuggGlobalPathManager.rootDir}",
             "-cp",
             System.getProperty("java.class.path"),
             ProjectLockProcessMain::class.java.name,

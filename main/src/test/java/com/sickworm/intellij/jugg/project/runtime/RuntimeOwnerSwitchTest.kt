@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.project.runtime
 
+import com.sickworm.intellij.jugg.mock.SettingsFileRule
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.deploy.IDeployStateManager
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
@@ -17,6 +18,8 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class RuntimeOwnerSwitchTest {
+    @get:Rule
+    val settingsFileRule = SettingsFileRule()
 
     @get:Rule
     val temporaryFolder = TemporaryFolder()
@@ -53,25 +56,19 @@ class RuntimeOwnerSwitchTest {
 
     @Test
     fun `runtime switch reloads shared settings`() {
-        val oldRootDir = JuggGlobalPathManager.rootDir
         val pathManager = JuggPathManager(temporaryFolder.newFolder("project"))
-        val settingsFile = JuggGlobalPathManager.settingsFile(pathManager.projectDir)
+        val settingsFile = JuggGlobalPathManager.settingsFile
         val ideaManager = createManager(pathManager, "idea", "4.0")
         val standaloneManager = createManager(pathManager, "standalone", "4.0")
 
-        try {
-            JuggGlobalPathManager.rootDir = pathManager.projectDir
-            settingsFile.writeText("""{"isEnableCompatibleDeploymentMode":false}""")
-            assertFalse(JuggSettings.isEnableCompatibleDeploymentMode)
-            ideaManager.runProjectWriteLocked("initialize idea") {}
+        settingsFile.writeText("""{"compileOnSave":false}""")
+        assertFalse(JuggSettings.compileOnSave)
+        ideaManager.runProjectWriteLocked("initialize idea") {}
 
-            settingsFile.writeText("""{"isEnableCompatibleDeploymentMode":true}""")
-            standaloneManager.runProjectWriteLocked("initialize standalone") {}
+        settingsFile.writeText("""{"compileOnSave":true}""")
+        standaloneManager.runProjectWriteLocked("initialize standalone") {}
 
-            assertTrue(JuggSettings.isEnableCompatibleDeploymentMode)
-        } finally {
-            JuggGlobalPathManager.rootDir = oldRootDir
-        }
+        assertTrue(JuggSettings.compileOnSave)
     }
 
     private fun createManager(pathManager: JuggPathManager, runtimeType: String, runtimeVersion: String): TaskRunnerManager {

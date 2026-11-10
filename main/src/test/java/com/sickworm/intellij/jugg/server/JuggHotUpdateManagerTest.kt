@@ -1,6 +1,5 @@
 package com.sickworm.intellij.jugg.server
 
-import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.project.runtime.HotUpdateLoadManifest
 import com.sickworm.intellij.jugg.project.runtime.StandaloneHotUpdateManifest
 import com.sickworm.intellij.jugg.project.runtime.withGlobalResourceLock
@@ -49,7 +48,7 @@ class JuggHotUpdateManagerTest {
                 .onFailure(updateFailure::set)
         }
         val resourceThread = Thread {
-            withGlobalResourceLock("Update runtime settings", rootDir) { resourceLockAcquired.countDown() }
+            withGlobalResourceLock("Update runtime settings") { resourceLockAcquired.countDown() }
         }
 
         updateThread.start()

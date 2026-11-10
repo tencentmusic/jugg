@@ -1,5 +1,7 @@
 package com.sickworm.intellij.jugg.project.runtime
 
+import com.sickworm.intellij.jugg.mock.SettingsFileRule
+import org.junit.Rule
 import com.google.gson.Gson
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.server.JuggServer
@@ -15,6 +17,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 
 class RuntimeInfoFlowTest {
+    @get:Rule
+    val settingsFileRule = SettingsFileRule()
 
     @Test
     fun `server report uses injected version and host info without runtime type`() {
@@ -34,9 +38,8 @@ class RuntimeInfoFlowTest {
 
     @Test
     fun `custom server command uses shared settings without host dialog`() {
-        val previousRoot = JuggGlobalPathManager.rootDir
         val rootDir = Files.createTempDirectory("jugg-runtime-custom-server").toFile()
-        JuggGlobalPathManager.rootDir = rootDir
+
         val projectDir = rootDir.resolve("project").apply { mkdirs() }
         val pathManager = JuggPathManager(projectDir)
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -53,7 +56,6 @@ class RuntimeInfoFlowTest {
             assertEquals("https://custom.example.com", server.customServerUrl)
         } finally {
             scope.cancel()
-            JuggGlobalPathManager.rootDir = previousRoot
         }
     }
 }

@@ -12,6 +12,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class JuggResourceManagerTest {
+    @get:Rule val isolatedHome = com.sickworm.intellij.jugg.mock.IsolatedHomeRule()
 
     @get:Rule
     val temporaryFolder = TemporaryFolder()
@@ -24,9 +25,9 @@ class JuggResourceManagerTest {
         resourcesDir.resolve("deployer/test/metadata.json").writeText(
             """{"schemaVersion":1,"protocolVersion":"test-1","files":[{"path":"installer/arm64-v8a/installer","executable":true}]}"""
         )
-        val globalRoot = temporaryFolder.newFolder("jugg-home")
+        val globalRoot = JuggGlobalPathManager.rootDir
         val classLoader = URLClassLoader(arrayOf(resourcesDir.toURI().toURL()), null)
-        val manager = JuggResourceManager(classLoader, globalRoot)
+        val manager = JuggResourceManager(classLoader)
 
         val prepared = manager.prepare("deployer/test")
         assertEquals(globalRoot.resolve("resources/deployer/test").canonicalFile, prepared.directory)
@@ -53,7 +54,6 @@ class JuggResourceManagerTest {
         )
         val manager = JuggResourceManager(
             URLClassLoader(arrayOf(resourcesDir.toURI().toURL()), null),
-            temporaryFolder.newFolder("bad-home"),
         )
 
         assertFailsWith<IllegalStateException> {
@@ -70,13 +70,13 @@ class JuggResourceManagerTest {
         resourcesDir.resolve("deployer/test/metadata.json").writeText(
             """{"schemaVersion":1,"protocolVersion":"test-1","files":[{"path":"installer/arm64-v8a/installer","executable":true}]}"""
         )
-        val globalRoot = temporaryFolder.newFolder("linked-file-home")
+        val globalRoot = JuggGlobalPathManager.rootDir
         val targetDir = globalRoot.resolve("resources/deployer/test/installer/arm64-v8a").apply { mkdirs() }
         val linkDestination = targetDir.resolve("x86-installer").apply { writeText("x86") }
         val installer = targetDir.resolve("installer")
         Files.createSymbolicLink(installer.toPath(), linkDestination.toPath())
 
-        JuggResourceManager(URLClassLoader(arrayOf(resourcesDir.toURI().toURL()), null), globalRoot)
+        JuggResourceManager(URLClassLoader(arrayOf(resourcesDir.toURI().toURL()), null))
             .prepare("deployer/test")
 
         assertFalse(Files.isSymbolicLink(installer.toPath()))
@@ -93,7 +93,7 @@ class JuggResourceManagerTest {
         resourcesDir.resolve("deployer/test/metadata.json").writeText(
             """{"schemaVersion":1,"protocolVersion":"test-1","files":[{"path":"installer/arm64-v8a/installer","executable":true}]}"""
         )
-        val globalRoot = temporaryFolder.newFolder("linked-directory-home")
+        val globalRoot = JuggGlobalPathManager.rootDir
         val installerRoot = globalRoot.resolve("resources/deployer/test/installer").apply { mkdirs() }
         val x86Installer = installerRoot.resolve("x86/installer").apply {
             parentFile.mkdirs()
@@ -102,7 +102,7 @@ class JuggResourceManagerTest {
         Files.createSymbolicLink(installerRoot.resolve("arm64-v8a").toPath(), x86Installer.parentFile.toPath())
 
         assertFailsWith<IllegalStateException> {
-            JuggResourceManager(URLClassLoader(arrayOf(resourcesDir.toURI().toURL()), null), globalRoot)
+            JuggResourceManager(URLClassLoader(arrayOf(resourcesDir.toURI().toURL()), null))
                 .prepare("deployer/test")
         }
         assertEquals("x86", x86Installer.readText())
@@ -117,12 +117,12 @@ class JuggResourceManagerTest {
         resourcesDir.resolve("deployer/test/metadata.json").writeText(
             """{"schemaVersion":1,"protocolVersion":"test-1","files":[{"path":"file.bin","executable":false}]}"""
         )
-        val globalRoot = temporaryFolder.newFolder("linked-root-home")
+        val globalRoot = JuggGlobalPathManager.rootDir
         val linkDestination = temporaryFolder.newFolder("linked-root-destination")
         Files.createSymbolicLink(globalRoot.resolve("resources").toPath(), linkDestination.toPath())
 
         assertFailsWith<IllegalStateException> {
-            JuggResourceManager(URLClassLoader(arrayOf(resourcesDir.toURI().toURL()), null), globalRoot)
+            JuggResourceManager(URLClassLoader(arrayOf(resourcesDir.toURI().toURL()), null))
                 .prepare("deployer/test")
         }
         assertFalse(linkDestination.resolve("deployer/test/file.bin").exists())
@@ -131,7 +131,7 @@ class JuggResourceManagerTest {
     @Test
     fun `prepare rejects a resource root with traversal segments`() {
         val exception = assertFailsWith<IllegalStateException> {
-            JuggResourceManager(globalRootDir = temporaryFolder.newFolder("traversal-home"))
+            JuggResourceManager()
                 .prepare("deployer/..")
         }
 
@@ -141,7 +141,7 @@ class JuggResourceManagerTest {
     @Test
     fun `prepare rejects an absolute resource root`() {
         val exception = assertFailsWith<IllegalStateException> {
-            JuggResourceManager(globalRootDir = temporaryFolder.newFolder("absolute-home"))
+            JuggResourceManager()
                 .prepare("/deployer/test")
         }
 

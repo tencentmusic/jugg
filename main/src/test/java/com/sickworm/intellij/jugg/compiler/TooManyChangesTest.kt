@@ -1,5 +1,7 @@
 package com.sickworm.intellij.jugg.compiler
 
+import com.sickworm.intellij.jugg.mock.SettingsFileRule
+import org.junit.Rule
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.project.change.ChangedFile
 import com.sickworm.intellij.jugg.project.info.ModuleInfo
@@ -9,17 +11,10 @@ import org.junit.Test
 import java.io.File
 
 class TooManyChangesTest {
-    @get:org.junit.Rule val temporary = org.junit.rules.TemporaryFolder()
-    private val previousRoot = com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager.rootDir
+    @get:Rule
+    val settingsFileRule = SettingsFileRule()
 
-    @org.junit.Before fun isolateSettings() {
-        com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager.rootDir = temporary.newFolder("settings")
-    }
-
-    @org.junit.After fun restoreSettings() {
-        com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager.rootDir = previousRoot
-        JuggSettings.reload()
-    }
+    @get:Rule val temporary = org.junit.rules.TemporaryFolder()
 
     @Test
     fun evaluate_sameModuleJavaAndKotlin_showsOneModule() {

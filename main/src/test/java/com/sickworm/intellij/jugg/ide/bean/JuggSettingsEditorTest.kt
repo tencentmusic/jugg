@@ -1,23 +1,21 @@
 package com.sickworm.intellij.jugg.ide.bean
 
+import com.sickworm.intellij.jugg.mock.SettingsFileRule
 import com.google.gson.JsonElement
 import com.google.gson.JsonParser
 import com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager
 import kotlin.test.assertFailsWith
-import org.junit.After
 import org.junit.Assert.*
-import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 
 /** Protects typed editing, confirmation, and atomic shared-setting changes. */
 class JuggSettingsEditorTest {
-    @get:Rule val temporary = TemporaryFolder()
-    private val originalRoot = JuggGlobalPathManager.rootDir
+    @get:Rule
+    val settingsFileRule = SettingsFileRule()
 
-    @Before fun setUp() { JuggGlobalPathManager.rootDir = temporary.newFolder("settings") }
-    @After fun tearDown() { JuggGlobalPathManager.rootDir = originalRoot; JuggSettings.reload() }
+    @get:Rule val temporary = TemporaryFolder()
 
     @Test fun `typed edits preserve unrelated fields and reject overflow without writing`() {
         JuggGlobalPathManager.settingsFile.writeText("""{"unknown":{"keep":true}}""")
@@ -107,7 +105,7 @@ class JuggSettingsEditorTest {
 
     @Test fun `stale transaction cannot overwrite newer server trust decision`() {
         val repository = com.sickworm.intellij.jugg.project.runtime.JsonRuntimeSettingsRepository(
-            JuggGlobalPathManager.settingsFile, JuggGlobalPathManager.rootDir,
+            JuggGlobalPathManager.settingsFile,
             com.sickworm.intellij.jugg.mock.TestGlobal.logger)
         val snapshot = repository.loadStrict()
         JuggSettingsEditor().set("serverUrl", "https://trusted.example", confirm = true)

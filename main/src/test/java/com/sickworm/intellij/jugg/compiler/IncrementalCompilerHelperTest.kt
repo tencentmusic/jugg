@@ -1,5 +1,7 @@
 package com.sickworm.intellij.jugg.compiler
 
+import com.sickworm.intellij.jugg.mock.SettingsFileRule
+import org.junit.Rule
 import com.sickworm.intellij.jugg.compiler.ui.TooManyChangesConfirmResult
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.IDeployStateManager
@@ -37,17 +39,10 @@ import kotlin.test.assertTrue
  * Verifies await-const-ref timing in incremental compile flow.
  */
 class IncrementalCompilerHelperTest {
-    @get:org.junit.Rule val temporary = org.junit.rules.TemporaryFolder()
-    private val previousRoot = com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager.rootDir
+    @get:Rule
+    val settingsFileRule = SettingsFileRule()
 
-    @org.junit.Before fun isolateSettings() {
-        com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager.rootDir = temporary.newFolder("settings")
-    }
-
-    @org.junit.After fun restoreSettings() {
-        com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager.rootDir = previousRoot
-        JuggSettings.reload()
-    }
+    @get:Rule val temporary = org.junit.rules.TemporaryFolder()
 
     @Test
     fun `should expose compile error details for visible logs`() {

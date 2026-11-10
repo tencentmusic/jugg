@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.project.runtime
 
+import com.sickworm.intellij.jugg.mock.SettingsFileRule
 import com.google.gson.JsonParser
 import com.google.gson.JsonPrimitive
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
@@ -8,128 +9,80 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
-import org.junit.rules.TemporaryFolder
 
-/** Verifies automatic settings loading, migration refresh, and global-root isolation. */
+/** Verifies automatic settings loading, migration refresh, and persisted updates. */
 class JuggSettingsTest {
-
     @get:Rule
-    val temporaryFolder = TemporaryFolder()
+    val settingsFileRule = SettingsFileRule()
 
     @Test
-    fun `settings automatically follow the active global root`() {
-        val oldRootDir = JuggGlobalPathManager.rootDir
-        val firstRoot = temporaryFolder.newFolder("first")
-        val secondRoot = temporaryFolder.newFolder("second")
-        JuggGlobalPathManager.settingsFile(firstRoot).writeText("""{"compileOnSave":true}""")
-        JuggGlobalPathManager.settingsFile(secondRoot).writeText("""{"compileOnSave":false}""")
-
-        try {
-            JuggGlobalPathManager.rootDir = firstRoot
-            assertTrue(JuggSettings.compileOnSave)
-
-            JuggSettings.deployOnSave = true
-            assertTrue(JsonParser.parseString(JuggGlobalPathManager.settingsFile.readText()).asJsonObject.get("deployOnSave").asBoolean)
-
-            JuggGlobalPathManager.rootDir = secondRoot
-            assertFalse(JuggSettings.compileOnSave)
-        } finally {
-            JuggGlobalPathManager.rootDir = oldRootDir
-        }
+    fun `settings refresh after another runtime replaces the settings file`() {
+        JuggGlobalPathManager.settingsFile.writeText("""{"compileOnSave":true}""")
+        assertTrue(JuggSettings.compileOnSave)
+        JuggSettings.deployOnSave = true
+        assertTrue(JsonParser.parseString(JuggGlobalPathManager.settingsFile.readText()).asJsonObject.get("deployOnSave").asBoolean)
+        JuggGlobalPathManager.settingsFile.writeText("""{"compileOnSave":false}""")
+        assertFalse(JuggSettings.compileOnSave)
     }
 
     @Test
     fun `migration invalidates already loaded settings`() {
-        val oldRootDir = JuggGlobalPathManager.rootDir
-        val rootDir = temporaryFolder.newFolder("migration")
-        JuggGlobalPathManager.settingsFile(rootDir).writeText("""{"compileOnSave":false}""")
+        JuggGlobalPathManager.settingsFile.writeText("""{"compileOnSave":false}""")
 
-        try {
-            JuggGlobalPathManager.rootDir = rootDir
-            assertFalse(JuggSettings.compileOnSave)
+        assertFalse(JuggSettings.compileOnSave)
 
-            assertTrue(JuggSettings.migrate(mapOf("deployOnSave" to JsonPrimitive(true))))
+        assertTrue(JuggSettings.migrate(mapOf("deployOnSave" to JsonPrimitive(true))))
 
-            assertTrue(JuggSettings.deployOnSave)
-        } finally {
-            JuggGlobalPathManager.rootDir = oldRootDir
-        }
+        assertTrue(JuggSettings.deployOnSave)
     }
 
     @Test
     fun `reload reads settings updated by another runtime`() {
-        val oldRootDir = JuggGlobalPathManager.rootDir
-        val rootDir = temporaryFolder.newFolder("runtime_switch")
-        val settingsFile = JuggGlobalPathManager.settingsFile(rootDir)
+        val settingsFile = JuggGlobalPathManager.settingsFile
         settingsFile.writeText("""{"compileOnSave":false}""")
 
-        try {
-            JuggGlobalPathManager.rootDir = rootDir
-            assertFalse(JuggSettings.compileOnSave)
+        assertFalse(JuggSettings.compileOnSave)
 
-            settingsFile.writeText("""{"compileOnSave":true}""")
-            JuggSettings.reload()
+        settingsFile.writeText("""{"compileOnSave":true}""")
+        JuggSettings.reload()
 
-            assertTrue(JuggSettings.compileOnSave)
-        } finally {
-            JuggGlobalPathManager.rootDir = oldRootDir
-        }
+        assertTrue(JuggSettings.compileOnSave)
     }
 
     @Test
     fun `process backup classpath override is not persisted`() {
-        val oldRootDir = JuggGlobalPathManager.rootDir
-        val rootDir = temporaryFolder.newFolder("process_override")
-
         try {
-            JuggGlobalPathManager.rootDir = rootDir
             JuggSettings.isForceEnableBackupClasspath = true
 
             assertTrue(JuggSettings.finalIsEnableBackupClasspath)
             assertFalse(JuggGlobalPathManager.settingsFile.exists())
         } finally {
             JuggSettings.isForceEnableBackupClasspath = false
-            JuggGlobalPathManager.rootDir = oldRootDir
         }
     }
 
     @Test
     fun `remote command history is isolated deduplicated and limited`() {
-        val oldRootDir = JuggGlobalPathManager.rootDir
-        val rootDir = temporaryFolder.newFolder("remote_history")
+        repeat(11) { JuggSettings.recordRemoteCommand("target-a", "command-$it") }
+        JuggSettings.recordRemoteCommand("target-a", "command-5")
+        JuggSettings.recordRemoteCommand("target-b", "other-command")
 
-        try {
-            JuggGlobalPathManager.rootDir = rootDir
-            repeat(11) { JuggSettings.recordRemoteCommand("target-a", "command-$it") }
-            JuggSettings.recordRemoteCommand("target-a", "command-5")
-            JuggSettings.recordRemoteCommand("target-b", "other-command")
-
-            assertEquals(
-                listOf("command-5", "command-10", "command-9", "command-8", "command-7",
-                    "command-6", "command-4", "command-3", "command-2", "command-1"),
-                JuggSettings.getRemoteCommandHistory("target-a"),
-            )
-            assertEquals(listOf("other-command"), JuggSettings.getRemoteCommandHistory("target-b"))
-        } finally {
-            JuggGlobalPathManager.rootDir = oldRootDir
-        }
+        assertEquals(
+            listOf("command-5", "command-10", "command-9", "command-8", "command-7",
+                "command-6", "command-4", "command-3", "command-2", "command-1"),
+            JuggSettings.getRemoteCommandHistory("target-a"),
+        )
+        assertEquals(listOf("other-command"), JuggSettings.getRemoteCommandHistory("target-b"))
     }
 
     @Test
     fun `remote command history ignores blank commands and corrupted data`() {
-        val oldRootDir = JuggGlobalPathManager.rootDir
-        val rootDir = temporaryFolder.newFolder("remote_history_corrupt")
-        JuggGlobalPathManager.settingsFile(rootDir).writeText("""{"remoteCommandHistoryJson":"not-json"}""")
+        JuggGlobalPathManager.settingsFile.writeText("""{"remoteCommandHistoryJson":"not-json"}""")
 
-        try {
-            JuggGlobalPathManager.rootDir = rootDir
-            assertEquals(emptyList<String>(), JuggSettings.getRemoteCommandHistory("target"))
+        assertEquals(emptyList<String>(), JuggSettings.getRemoteCommandHistory("target"))
 
-            JuggSettings.recordRemoteCommand("target", "  ")
+        JuggSettings.recordRemoteCommand("target", "  ")
 
-            assertEquals(emptyList<String>(), JuggSettings.getRemoteCommandHistory("target"))
-        } finally {
-            JuggGlobalPathManager.rootDir = oldRootDir
-        }
+        assertEquals(emptyList<String>(), JuggSettings.getRemoteCommandHistory("target"))
     }
 }

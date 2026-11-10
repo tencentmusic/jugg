@@ -5,17 +5,18 @@ import java.nio.file.Files
 import kotlin.test.*
 
 class JuggDirectoryMigrationTest {
+    @get:org.junit.Rule val isolatedHome = com.sickworm.intellij.jugg.mock.IsolatedHomeRule()
     @Test fun locatorFallsBackOnMalformedOrRelativeContent() {
-        val home = Files.createTempDirectory("jugg-locator").toFile()
+        val home = java.io.File(System.getProperty("user.home"))
         try {
             val locator = home.resolve(".juggdir")
             for (content in listOf("broken", "juggdir: relative", "juggdir: ", "other: /tmp", "juggdir: /a\njuggdir: /b")) {
                 locator.writeText(content)
-                assertEquals(home.resolve(".jugg"), JuggGlobalPathManager.configuredRootDir(home))
+                assertEquals(home.resolve(".jugg"), JuggGlobalPathManager.configuredRootDir)
             }
             val target = home.resolve("space directory")
             locator.writeText("juggdir: ${target.absolutePath}\n")
-            assertEquals(target.canonicalFile, JuggGlobalPathManager.configuredRootDir(home).canonicalFile)
+            assertEquals(target.canonicalFile, JuggGlobalPathManager.configuredRootDir.canonicalFile)
         } finally { home.deleteRecursively() }
     }
 
@@ -46,7 +47,7 @@ class JuggDirectoryMigrationTest {
             JuggGlobalDirectoryMigration(source, home).prepare(target)
             assertTrue(source.isDirectory)
             assertEquals(source.resolve("settings.json").readText(), target.resolve("settings.json").readText())
-            assertEquals(target.canonicalFile, JuggGlobalPathManager.configuredRootDir(home).canonicalFile)
+            assertEquals(target.canonicalFile, JuggGlobalPathManager.configuredRootDir.canonicalFile)
             val marker = target.resolve(".migration.properties")
             marker.writeText(marker.readText().replace("pid=${ProcessHandle.current().pid()}", "pid=-1"))
             JuggGlobalDirectoryMigration(target, home).cleanupPreviousRoot()

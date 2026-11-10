@@ -1,5 +1,7 @@
 package com.sickworm.intellij.jugg.ide.bean
 
+import com.sickworm.intellij.jugg.mock.SettingsFileRule
+import org.junit.Rule
 import com.sickworm.intellij.jugg.deploy.DeployHistoryManager
 import com.sickworm.intellij.jugg.mock.TestGlobal
 import com.sickworm.intellij.jugg.project.change.FileChangesHandler
@@ -10,10 +12,10 @@ import org.junit.rules.TemporaryFolder
 
 /** L2: user edits, global persistence, project locking, and durable history effects. */
 class JuggSettingsEffectsFlowTest {
+    @get:Rule
+    val settingsFileRule = SettingsFileRule()
+
     @get:Rule val temporary = TemporaryFolder()
-    private val originalRoot = JuggGlobalPathManager.rootDir
-    @Before fun setUp() { JuggGlobalPathManager.rootDir = temporary.newFolder("global") }
-    @After fun tearDown() { JuggGlobalPathManager.rootDir = originalRoot; JuggSettings.reload() }
 
     @Test fun `backup changes invalidate each project once and survive host restart`() {
         val paths = JuggPathManager(temporary.newFolder("project"))
