@@ -1,0 +1,123 @@
+[
+  {
+    "name": "androidfw",
+    "url": "https://github.com/tencentmusic/jugg/releases/download/aapt2-deps/android-14.0.0_r75/androidfw.tar.gz",
+    "sha256": "46d8f8485cb54c146780942b3194e692fc0a79cf23c8b1bd5cc14766ce9135e3",
+    "directory": "androidfw",
+    "content_sha256": "654a8842f2f754374fbb9b4a4d02e700b9fd6f6019863875432df02d7201c6cb"
+  },
+  {
+    "name": "idmap",
+    "url": "https://github.com/tencentmusic/jugg/releases/download/aapt2-deps/android-14.0.0_r75/idmap.tar.gz",
+    "sha256": "9c6c4394090521a6d2e58f76fb778c7104c89dfd5b908395463e44c4e5d18f36",
+    "directory": "idmap",
+    "content_sha256": "311209910711f78aef9719ade653b5496b10f92c6026fbef042ae303f8e8193d"
+  },
+  {
+    "name": "base",
+    "directory": "base",
+    "url": "https://github.com/tencentmusic/jugg/releases/download/aapt2-deps/android-14.0.0_r75/base.tar.gz",
+    "sha256": "666e1792f1dc5201a1a16f67d76ed872a69881103c4e2a1555716553d8fd62b2",
+    "content_sha256": "21a0877e89bb964a3c5d3423d1733030f6f4a29dd6fe656b8bbc82eab466d80f"
+  },
+  {
+    "name": "utils",
+    "url": "https://github.com/tencentmusic/jugg/releases/download/aapt2-deps/android-14.0.0_r75/utils.tar.gz",
+    "sha256": "667044f3cae95c7c1f5da90eb6648493ebfcf551e210d05e70cf55ff9c41af6a",
+    "directory": "utils",
+    "content_sha256": "7acae9e4b722c7403a08cc2ecf0effc54ffc1cc5defdcc52c73829e75e40315b"
+  },
+  {
+    "name": "cutils",
+    "url": "https://github.com/tencentmusic/jugg/releases/download/aapt2-deps/android-14.0.0_r75/cutils.tar.gz",
+    "sha256": "d5f2423a1d01d37356a1f16e03b65769819cfaf162afd30e393ec985cd5ac54f",
+    "directory": "cutils",
+    "content_sha256": "02bb3152aa246f3b5834d62ec498a46e09d3ab27989309dc91d1453b10cd9807"
+  },
+  {
+    "name": "log",
+    "directory": "log",
+    "url": "https://github.com/tencentmusic/jugg/releases/download/aapt2-deps/android-14.0.0_r75/log.tar.gz",
+    "sha256": "1c870561c0b7cb289b81bd789b49ff4f66883aff8109e47742ded4b806f8b6da",
+    "content_sha256": "d2afbc2869239872a37fb07a0dafb8dcaca22496938f729f4e790839051f6762"
+  },
+  {
+    "name": "zip",
+    "directory": "zip",
+    "url": "https://github.com/tencentmusic/jugg/releases/download/aapt2-deps/android-14.0.0_r75/zip.tar.gz",
+    "sha256": "825c96306b535de68427586fea71bfe97840ece4de1a3f939f90b7a40b6f0d54",
+    "content_sha256": "ed1ae6b7715a56e5ac3f4c9337ec47fcfa90bdc55e15965fe895698da73fb686"
+  },
+  {
+    "name": "system",
+    "url": "https://github.com/tencentmusic/jugg/releases/download/aapt2-deps/android-14.0.0_r75/system.tar.gz",
+    "sha256": "d187769bb17f216e0a2e147e8322259ae574ce3668a0af432a9145060e06f189",
+    "directory": "system",
+    "content_sha256": "94dc6a04f92182c50cff06ddf21cbd39848651ec9d1e7c14b27d1c03f32c56f4"
+  },
+  {
+    "name": "buildversion",
+    "url": "https://github.com/tencentmusic/jugg/releases/download/aapt2-deps/android-14.0.0_r75/buildversion.tar.gz",
+    "sha256": "43422d612619c2a7ce8d9d299554408bdd9086ad022dfb8ce2a4d02f7d967dd2",
+    "directory": "buildversion",
+    "content_sha256": "38abe813359f1ceedfe9397d17d46e2030bdb7c357ecce09137f388cc0a0e3bf"
+  },
+  {
+    "name": "native",
+    "url": "https://github.com/tencentmusic/jugg/releases/download/aapt2-deps/android-14.0.0_r75/native.tar.gz",
+    "sha256": "09719c424c4feb5694e572d8f9e144a37af484a0731c6d7c1da2bc4d48e7b099",
+    "directory": "native",
+    "content_sha256": "789e2147f5f2034f635d0e44fc611e8958b83924340adc7e24c06c063db1dbd6"
+  },
+  {
+    "name": "gtest",
+    "url": "https://github.com/tencentmusic/jugg/releases/download/aapt2-deps/android-14.0.0_r75/gtest.tar.gz",
+    "sha256": "a6b18dd6096210cf0cbb84e55ec08ef1b4c616ca05e9c321b09ee11e2edc58a5",
+    "directory": "gtest",
+    "content_sha256": "2675e1d6f60c8671e6f4c9a86b279679c5ff70d1720faaad75ca513b40daa092"
+  },
+  {
+    "name": "protobuf",
+    "url": "https://github.com/tencentmusic/jugg/releases/download/aapt2-deps/android-14.0.0_r75/protobuf.tar.gz",
+    "sha256": "e51cc8fc496f893e2a48beb417730ab6cbcb251142ad8b2cd1951faa5c76fe3d",
+    "directory": "protobuf-3.20.3"
+  },
+  {
+    "name": "incfs",
+    "directory": "incfs",
+    "url": "https://github.com/tencentmusic/jugg/releases/download/aapt2-deps/android-14.0.0_r75/incfs.tar.gz",
+    "sha256": "d394601a26a7b31d6f0dfc3974f7ada78467b4ca79a47484e31c704fb298bc56",
+    "content_sha256": "5e39cd2b44ee9fcafce4affca21b6c3860803a5f34a264f722ccf4d356093fbf"
+  },
+  {
+    "name": "fmt",
+    "directory": "fmt",
+    "url": "https://github.com/tencentmusic/jugg/releases/download/aapt2-deps/android-14.0.0_r75/fmt.tar.gz",
+    "sha256": "9b0a690a8173b995ec204d4a41051f3f71aa6b16d5973277a2c18d8159f325cd",
+    "content_sha256": "316aaa41bf81b0f9cdc7d163a268e6efe28a68742b75be4956b6647455c0485b"
+  },
+  {
+    "name": "libpng",
+    "url": "https://github.com/tencentmusic/jugg/releases/download/aapt2-deps/android-14.0.0_r75/libpng.tar.gz",
+    "sha256": "e7ba0b70af42111a910128641f97167107db10fb4d4f46f0ac97fdd7b87eca75",
+    "directory": "libpng",
+    "content_sha256": "2a9fe133eb2abf4138e517677e0194b044ba2020f7643a2944c140de4b818c13",
+    "local_build": true
+  },
+  {
+    "name": "zlib",
+    "url": "https://github.com/tencentmusic/jugg/releases/download/aapt2-deps/android-14.0.0_r75/zlib.tar.gz",
+    "sha256": "f78a42847f48f09dc4ed6c1480679370407b39230afb31ae5a03e8b853f4871b",
+    "directory": "zlib",
+    "content_sha256": "df00b4b6bbf91819ee4d2de7e75da9fac1bd18dab49c27475398f0f384d3a8f2",
+    "local_build": true
+  },
+  {
+    "name": "expat",
+    "url": "https://github.com/tencentmusic/jugg/releases/download/aapt2-deps/android-14.0.0_r75/expat.tar.gz",
+    "sha256": "b9a958f3622d113eecb8e010422290dadc49ed0242e8a171aaa6b82a5a5a1d89",
+    "directory": "expat",
+    "content_sha256": "ae002ddd5093dd6ba908fc9a88cf3add6c573dbef667563a28319b5945409fe4",
+    "local_build": true
+  }
+]

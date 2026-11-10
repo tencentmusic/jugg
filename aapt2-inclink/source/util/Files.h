@@ -59,7 +59,8 @@ FileType GetFileType(const std::string& path);
 void AppendPath(std::string* base, android::StringPiece part);
 
 // Concatenates the list of paths and separates each part with the directory separator.
-std::string BuildPath(std::vector<const android::StringPiece>&& args);
+// Vector elements must be non-const for current libc++ allocators; views keep characters const.
+std::string BuildPath(std::vector<android::StringPiece>&& args);
 
 // Makes all the directories in `path`. The last element in the path is interpreted as a directory.
 bool mkdirs(const std::string& path);

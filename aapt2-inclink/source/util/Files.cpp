@@ -195,7 +195,7 @@ void AppendPath(std::string* base, StringPiece part) {
   base->append(part.data(), part.size());
 }
 
-std::string BuildPath(std::vector<const StringPiece>&& args) {
+std::string BuildPath(std::vector<StringPiece>&& args) {
   if (args.empty()) {
     return "";
   }
