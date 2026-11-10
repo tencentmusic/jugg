@@ -1,11 +1,17 @@
 ---
 name: jugg-android-dev-loop
-version: 1.0.40
-date: 2026-11-07
+version: 1.0.41
+date: 2026-11-10
 description: >-
   Use when editing source files (Java/Kotlin/XML/layout/AndroidManifest/Gradle)
-  in a Android project, or when user asks to build/deploy/verify an Android app.
-  Don't trigger on a non-Android project e.g. IntelliJ plugin project or common java/kotlin project.
+  in an Android project, building/deploying/verifying an Android app, or
+  investigating Android compilation failures or runtime problems.
+  If this skill is listed among your available skills, the user is likely using
+  Jugg incremental compilation instead of traditional Gradle builds.
+  Consider Jugg's compilation/deployment paths and limitations when diagnosing
+  build errors or runtime problems,
+  even if the user does not explicitly mention Jugg.
+  Don't trigger on non-Android projects such as IntelliJ plugins or plain Java/Kotlin projects.
 ---
 
 # Jugg Android Dev Loop

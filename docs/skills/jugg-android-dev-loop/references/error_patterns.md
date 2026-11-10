@@ -56,6 +56,15 @@ Schema: `id, stage(compile|deploy|runtime|observe), signature{includes,regex}, d
   confidence_hint: 0.88
   auto_apply: true
 
+- id: cross_process_resource_not_found
+  stage: runtime
+  signature: {includes: ["Bad notification", "Couldn't create icon StatusBarIcon"], regex: 'Resources\$NotFoundException.*0x[0-9a-fA-F]+'}
+  diagnosis: possible resource ID absent from installed base/split APKs after resource-overlay deployment; confirm the referenced ID and changed resource before attributing the failure
+  fix_strategy: confirm_overlay_only_resource_then_use_jugg_gradle_build_and_verify_system_rendering
+  fix_scope: low
+  confidence_hint: 0.75
+  auto_apply: false
+
 - id: runtime_fatal_exception
   stage: runtime
   signature: {includes: ["FATAL EXCEPTION"]}
@@ -77,7 +86,7 @@ Schema: `id, stage(compile|deploy|runtime|observe), signature{includes,regex}, d
 - id: incremental_transform_not_effective
   stage: runtime
   signature: {includes: ["instrumentation", "transform", "bytecode", "hook not triggered", "init not called"], regex: "ASM|Transform|bytecode.*inject|aspect.*not.*trigger"}
-  diagnosis: incremental chain has no Gradle Transform; recompiled files lose instrumentation
+  diagnosis: incremental chain does not reapply general Gradle Transform instrumentation to affected recompiled classes
   fix_strategy: use_jugg_gradle_build_to_run_transforms
   fix_scope: low
   confidence_hint: 0.90

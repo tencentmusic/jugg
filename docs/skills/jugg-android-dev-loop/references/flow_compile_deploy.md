@@ -90,10 +90,10 @@ Verdict: PASS (compile-only)
 
 **Trigger conditions** (any one)**:**
 - `compile` retries exhausted (3×) and still failing with unexpected errors that cannot be attributed to source changes.
-- Changes involve unsupported annotation processors or Transform/instrumentation (→ see `policy_incremental_compile_limits.md` for decision rule).
+- The decision rule in `policy_incremental_compile_limits.md` requires a full baseline (unsupported generation/instrumentation, missing artifacts, cross-process resources, or removal of old content). These confirmed limitations do not require failed incremental retries.
 
 **Before using, self-check**:
-- Is the failure in the compile phase (not deploy transport)? 
+- Is there a confirmed policy limitation, or is the unresolved failure in the compile phase rather than deploy transport?
 - Did you retry with different fixes, not just re-run? 
 - Is there a concrete reason incremental can't work? 
 
