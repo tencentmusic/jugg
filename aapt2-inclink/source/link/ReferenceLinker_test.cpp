@@ -15,6 +15,8 @@
  */
 
 #include "link/ReferenceLinker.h"
+#include "link/TableMerger.h"
+#include "compile/IdAssigner.h"
 
 #include "test/Test.h"
 
@@ -24,6 +26,27 @@ using ::testing::IsNull;
 using ::testing::NotNull;
 
 namespace aapt {
+
+// A retained binary table may contain references unavailable to the current SDK.
+TEST(ReferenceLinkerTest, PreserveUntouchedBaselineReferences) {
+  auto style = util::make_unique<Style>();
+  style->parent = Reference(ResourceId(0x01830480));
+  auto table = test::ResourceTableBuilder()
+      .SetPackageId("com.app.test", 0x7f)
+      .AddValue("com.app.test:style/Old", std::move(style))
+      .AddValue("com.app.test:string/alias",
+                util::make_unique<Reference>(ResourceId(0x01049999)))
+      .Build();
+  auto context = test::ContextBuilder().SetCompilationPackage("com.app.test")
+      .SetPackageId(0x7f).Build();
+  const std::set<const ResourceConfigValue*> inputs;
+  ReferenceLinker linker(&inputs);
+  ASSERT_TRUE(linker.Consume(context.get(), table.get()));
+  EXPECT_EQ(ResourceId(0x01830480),
+            test::GetValue<Style>(table.get(), "com.app.test:style/Old")->parent.value().id.value());
+  EXPECT_EQ(ResourceId(0x01049999),
+            test::GetValue<Reference>(table.get(), "com.app.test:string/alias")->id.value());
+}
 
 TEST(ReferenceLinkerTest, LinkSimpleReferences) {
   std::unique_ptr<ResourceTable> table =
@@ -369,6 +392,175 @@ TEST(ReferenceLinkerTest, ReferenceSymbolFromOtherSplit) {
                                      context.get(), &table);
 
   EXPECT_THAT(s, IsNull());
+}
+
+class IncrementalReferenceLinkerTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    context = test::ContextBuilder().SetCompilationPackage("com.app.test")
+        .SetPackageId(0x7f).Build();
+    context->GetExternalSymbols()->PrependSource(
+        util::make_unique<ResourceTableSymbolSource>(&table));
+  }
+
+  bool Add(const char* name, std::unique_ptr<Value> value,
+           const char* config = "", const char* product = "") {
+    return table.AddResource(test::ParseNameOrDie(name), test::ParseConfigOrDie(config),
+                             product, std::move(value), context->GetDiagnostics());
+  }
+
+  bool Link(ResourceTable* input) {
+    TableMergerOptions options;
+    options.auto_add_overlay = true;
+    options.track_merged_values = true;
+    TableMerger merger(context.get(), &table, options);
+    if (!merger.Merge({}, input, true)) return false;
+    IdAssigner assigner;
+    if (!assigner.Consume(context.get(), &table)) return false;
+    ReferenceLinker linker(&merger.merged_values());
+    return linker.Consume(context.get(), &table);
+  }
+
+  std::unique_ptr<Reference> BadReference() {
+    return util::make_unique<Reference>(ResourceId(0x01830480));
+  }
+
+  ResourceTable table;
+  std::unique_ptr<IAaptContext> context;
+};
+
+TEST_F(IncrementalReferenceLinkerTest, CurrentMissingTargetStillFails) {
+  auto input = test::ResourceTableBuilder()
+      .AddValue("com.app.test:string/new", BadReference()).Build();
+  EXPECT_FALSE(Link(input.get()));
+}
+
+TEST_F(IncrementalReferenceLinkerTest, CurrentReferencesToBaselineAreResolved) {
+  ASSERT_TRUE(Add("com.app.test:string/old", util::make_unique<Id>()));
+  auto input = test::ResourceTableBuilder()
+      .AddReference("com.app.test:string/new", "string/old").Build();
+  ASSERT_TRUE(Link(input.get()));
+  auto ref = test::GetValue<Reference>(&table, "com.app.test:string/new");
+  ASSERT_TRUE(ref->id);
+  EXPECT_EQ(table.FindResource(test::ParseNameOrDie("com.app.test:string/old"))
+                .value().entry->id.value(), ref->id.value().entry_id());
+}
+
+TEST_F(IncrementalReferenceLinkerTest, StyleInPlaceMergeIsCurrentEvenWithSameParent) {
+  auto old_style = util::make_unique<Style>();
+  old_style->parent = *BadReference();
+  ASSERT_TRUE(Add("com.app.test:style/Old", std::move(old_style)));
+  auto new_style = util::make_unique<Style>();
+  new_style->parent = *BadReference();
+  auto input = test::ResourceTableBuilder()
+      .AddValue("com.app.test:style/Old", std::move(new_style)).Build();
+  EXPECT_FALSE(Link(input.get()));
+}
+
+TEST_F(IncrementalReferenceLinkerTest, StyleItemOnlyMergeStillChecksInheritedParent) {
+  auto old_style = util::make_unique<Style>();
+  old_style->parent = *BadReference();
+  ASSERT_TRUE(Add("com.app.test:style/Old", std::move(old_style)));
+  auto input = test::ResourceTableBuilder()
+      .AddValue("com.app.test:style/Old", util::make_unique<Style>()).Build();
+  EXPECT_FALSE(Link(input.get()));
+}
+
+TEST_F(IncrementalReferenceLinkerTest, SeparateConfigurationsAndProductsRemainUntouched) {
+  ASSERT_TRUE(Add("com.app.test:string/value", BadReference(), "fr"));
+  ASSERT_TRUE(Add("com.app.test:string/value", BadReference(), "", "tablet"));
+  auto input = test::ResourceTableBuilder()
+      .AddString("com.app.test:string/value", "updated").Build();
+  ASSERT_TRUE(Link(input.get()));
+  EXPECT_EQ(ResourceId(0x01830480), test::GetValueForConfig<Reference>(
+      &table, "com.app.test:string/value", test::ParseConfigOrDie("fr"))->id.value());
+  EXPECT_EQ(ResourceId(0x01830480), test::GetValueForConfigAndProduct<Reference>(
+      &table, "com.app.test:string/value", {}, "tablet")->id.value());
+}
+
+TEST_F(IncrementalReferenceLinkerTest, CurrentConfigurationWithBadReferenceFails) {
+  ASSERT_TRUE(Add("com.app.test:string/value", BadReference(), "fr"));
+  auto input = test::ResourceTableBuilder()
+      .AddValue("com.app.test:string/value", test::ParseConfigOrDie("fr"), {},
+                BadReference()).Build();
+  EXPECT_FALSE(Link(input.get()));
+}
+
+TEST_F(IncrementalReferenceLinkerTest, SelectionIsRebuiltForEveryInvocation) {
+  ASSERT_TRUE(Add("com.app.test:string/old", BadReference()));
+  auto first = test::ResourceTableBuilder().AddString("com.app.test:string/new", "one").Build();
+  ASSERT_TRUE(Link(first.get()));
+  auto second = test::ResourceTableBuilder().AddValue("com.app.test:string/old", BadReference()).Build();
+  EXPECT_FALSE(Link(second.get()));
+}
+
+TEST_F(IncrementalReferenceLinkerTest, UntouchedArraysAndStyleItemsArePreserved) {
+  auto array = util::make_unique<Array>();
+  array->elements.push_back(BadReference());
+  ASSERT_TRUE(Add("com.app.test:array/old", std::move(array)));
+  auto style = test::StyleBuilder().AddItem("android:attr/missing", BadReference()).Build();
+  ASSERT_TRUE(Add("com.app.test:style/Old", std::move(style)));
+  auto input = test::ResourceTableBuilder().AddString("com.app.test:string/new", "ok").Build();
+  ASSERT_TRUE(Link(input.get()));
+  EXPECT_EQ(ResourceId(0x01830480), ValueCast<Reference>(
+      test::GetValue<Array>(&table, "com.app.test:array/old")->elements[0].get())->id.value());
+}
+
+TEST_F(IncrementalReferenceLinkerTest, ReconstructedStyleablesRemainStrict) {
+  ASSERT_TRUE(Add("com.app.test:styleable/Old",
+                 test::StyleableBuilder().AddItem("android:attr/missing").Build()));
+  auto input = test::ResourceTableBuilder().AddString("com.app.test:string/new", "ok").Build();
+  EXPECT_FALSE(Link(input.get()));
+}
+
+TEST_F(IncrementalReferenceLinkerTest, OrdinaryLinkStillChecksEntireBaseline) {
+  ASSERT_TRUE(Add("com.app.test:string/old", BadReference()));
+  ReferenceLinker linker;
+  EXPECT_FALSE(linker.Consume(context.get(), &table));
+}
+
+TEST_F(IncrementalReferenceLinkerTest, RepairingBadParentUsesNewParent) {
+  auto old_style = util::make_unique<Style>();
+  old_style->parent = *BadReference();
+  ASSERT_TRUE(Add("com.app.test:style/Old", std::move(old_style)));
+  ASSERT_TRUE(Add("com.app.test:style/Valid", util::make_unique<Style>()));
+  auto input = test::ResourceTableBuilder()
+      .AddValue("com.app.test:style/Old",
+                test::StyleBuilder().SetParent("style/Valid").Build()).Build();
+  ASSERT_TRUE(Link(input.get()));
+  auto parent = test::GetValue<Style>(&table, "com.app.test:style/Old")->parent.value();
+  ASSERT_TRUE(parent.id);
+  EXPECT_NE(ResourceId(0x01830480), parent.id.value());
+}
+
+TEST_F(IncrementalReferenceLinkerTest, CurrentArrayReferencesAreChecked) {
+  auto array = util::make_unique<Array>();
+  array->elements.push_back(BadReference());
+  auto input = test::ResourceTableBuilder()
+      .AddValue("com.app.test:array/new", std::move(array)).Build();
+  EXPECT_FALSE(Link(input.get()));
+}
+
+TEST_F(IncrementalReferenceLinkerTest, CurrentProductWithBadReferenceFails) {
+  ASSERT_TRUE(Add("com.app.test:string/value", util::make_unique<Id>()));
+  ResourceTable input;
+  ASSERT_TRUE(input.AddResource(test::ParseNameOrDie("com.app.test:string/value"), {},
+                                "tablet", BadReference(), context->GetDiagnostics()));
+  EXPECT_FALSE(Link(&input));
+}
+
+TEST_F(IncrementalReferenceLinkerTest, InputSelectionCannotSelectSameNamedValueInAnotherTable) {
+  ASSERT_TRUE(Add("com.app.test:string/value", BadReference()));
+  ResourceTable other;
+  ASSERT_TRUE(other.AddResource(test::ParseNameOrDie("com.app.test:string/value"), {}, "",
+                                util::make_unique<Id>(), context->GetDiagnostics()));
+  auto other_value = other.FindResource(test::ParseNameOrDie("com.app.test:string/value"))
+      .value().entry->FindValue({}, "");
+  const std::set<const ResourceConfigValue*> other_inputs{other_value};
+  ReferenceLinker linker(&other_inputs);
+  EXPECT_TRUE(linker.Consume(context.get(), &table));
+  EXPECT_EQ(ResourceId(0x01830480),
+            test::GetValue<Reference>(&table, "com.app.test:string/value")->id.value());
 }
 
 }  // namespace aapt

@@ -277,6 +277,10 @@ bool TableMerger::DoMerge(const Source& src, ResourceTablePackage* src_package, 
         ResourceConfigValue* dst_config_value = dst_entry->FindValue(
             src_config_value->config, src_config_value->product);
         if (dst_config_value) {
+          // Styles can be mutated in place even when collision handling keeps the original.
+          if (options_.track_merged_values) {
+            merged_values_.insert(dst_config_value);
+          }
           CollisionResult collision_result = MergeConfigValue(
               context_, res_name, overlay, options_.override_styles_instead_of_overlaying,
               dst_config_value, src_config_value.get(), &master_table_->string_pool);
@@ -289,6 +293,9 @@ bool TableMerger::DoMerge(const Source& src, ResourceTablePackage* src_package, 
         } else {
           dst_config_value =
               dst_entry->FindOrCreateValue(src_config_value->config, src_config_value->product);
+          if (options_.track_merged_values) {
+            merged_values_.insert(dst_config_value);
+          }
         }
 
         // Continue if we're taking the new resource.

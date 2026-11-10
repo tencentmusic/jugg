@@ -577,6 +577,7 @@ class IncLinker: private Linker {
 
     TableMergerOptions table_merger_options;
     table_merger_options.auto_add_overlay = true;
+    table_merger_options.track_merged_values = true;
     table_merger_options.override_styles_instead_of_overlaying =
         options_.override_styles_instead_of_overlaying;
     table_merger_options.strict_visibility = options_.strict_visibility;
@@ -671,7 +672,7 @@ class IncLinker: private Linker {
       return 1;
     }
 
-    ReferenceLinker linker;
+    ReferenceLinker linker(&table_merger_->merged_values());
     if (!options_.merge_only && !linker.Consume(context_, &final_table_)) {
       context_->GetDiagnostics()->Error(DiagMessage() << "failed linking references");
       return 1;

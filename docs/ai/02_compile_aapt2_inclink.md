@@ -1,6 +1,6 @@
 # AAPT2 Native Incremental Linker
 
-> Last verified: 2026-11-09
+> Last verified: 2026-11-10
 > Consistency rule: If documentation conflicts with code, code takes precedence.
 
 ## 1. Scope and Maintenance Decisions
@@ -72,7 +72,7 @@ The load path can remove resources without default configurations unless `--no-r
 
 ### 4.2 Incremental merge and outputs
 
-`IncLinkAdv()` creates a fresh `TableMerger` over the existing table with automatic overlay addition enabled. `MergePath(input, true)` applies compiled inputs using overlay semantics. IDs are assigned and references linked before output is written.
+`IncLinkAdv()` creates a fresh `TableMerger` over the existing table with automatic overlay addition enabled. `MergePath(input, true)` applies compiled inputs using overlay semantics. IDs are assigned before output is written. For reference linking, the merger records destination `ResourceConfigValue` objects supplied by this invocation, including in-place style merges that return keep-original. The selection is scoped to one APK table and recreated each invocation; configuration and product values are independent. `ReferenceLinker` visits only selected values, except styleables reconstructed at load, which retain their existing linking behavior. Unselected binary baseline values retain their compiled IDs and items without renewed reference/attribute validation. A current input referencing an absent baseline target still fails: selection is based on the containing value, not the referenced ID. Ordinary `link` supplies no selection and continues linking the full table.
 
 The output combines an **accumulated resource table** with **file resources merged in this invocation**. `ResourceFileFlattener` selects files through `TableMerger::IsMergedFile()`, which requires a backing file and a source path in the merger's current list. APK-loaded file references are retained for lookup without replaying all historical resource bytes. History `84ee7999a` moves baseline entries into `final_table_`; `a5fbab9eb` corrects merged-file output membership.
 
@@ -122,7 +122,7 @@ Jugg-level diagnostic interpretation and log collection are covered in `02_compi
 
 ## 7. Existing Test Entry Points
 
-Existing native test files include `cmd/Link_test.cpp`, `link/TableMerger_test.cpp` and `link/XmlCompatVersioner_test.cpp`. Repository verification policy is in [06_testing.md](06_testing.md).
+Existing native test files include `cmd/Link_test.cpp`, `link/TableMerger_test.cpp` and `link/XmlCompatVersioner_test.cpp`. `link/ReferenceLinker_test.cpp` owns retained-value selection regressions, including style merges, current references, configuration/product isolation, and ordinary-link/styleable behavior. The standalone `aapt2_link_tests` CMake target runs ReferenceLinker and TableMerger unit tests; `scripts/test_retained_resources.py` verifies real daemon load, successive increments, reload, original numeric IDs and strict redeclarations against a deliberately patched binary baseline. Repository verification policy is in [06_testing.md](06_testing.md).
 
 ## 8. Build and Publication
 

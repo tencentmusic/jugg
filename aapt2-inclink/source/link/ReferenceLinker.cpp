@@ -416,6 +416,11 @@ bool ReferenceLinker::Consume(IAaptContext* context, ResourceTable* table) {
                                        &table->string_pool, &decl_stack);
 
         for (auto& config_value : entry->values) {
+          // Binary baseline values are already compiled. Styleables are reconstructed on load.
+          if (values_ && type->type != ResourceType::kStyleable &&
+              values_->count(config_value.get()) == 0) {
+            continue;
+          }
           config_value->value->Accept(&visitor);
         }
 

@@ -35,6 +35,8 @@ namespace aapt {
 struct TableMergerOptions {
   // If true, resources in overlays can be added without previously having existed.
   bool auto_add_overlay = false;
+  // Track input values for incremental linking without revalidating the retained baseline.
+  bool track_merged_values = false;
   // If true, resource overlays with conflicting visibility are not allowed.
   bool strict_visibility = false;
   // If true, styles specified via "aapt2 link -R" completely replace any previously-seen resources.
@@ -78,6 +80,10 @@ class TableMerger {
 
   bool IsMergedFile(FileReference* file);
 
+  const std::set<const ResourceConfigValue*>& merged_values() const {
+    return merged_values_;
+  }
+
  private:
   DISALLOW_COPY_AND_ASSIGN(TableMerger);
 
@@ -88,6 +94,7 @@ class TableMerger {
   std::set<std::string> merged_packages_;
 
   std::vector<std::string> merged_path_of_values_;
+  std::set<const ResourceConfigValue*> merged_values_;
 
   bool MergeImpl(const Source& src, ResourceTable* src_table, bool overlay, bool allow_new);
 

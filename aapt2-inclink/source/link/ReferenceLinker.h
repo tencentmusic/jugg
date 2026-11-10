@@ -35,6 +35,10 @@ class ReferenceLinker : public IResourceTableConsumer {
  public:
   ReferenceLinker() = default;
 
+  // The selection must outlive Consume. A null selection links the complete table.
+  explicit ReferenceLinker(const std::set<const ResourceConfigValue*>* values)
+      : values_(values) {}
+
   // Performs name mangling and looks up the resource in the symbol table. Uses the callsite's
   // package if the reference has no package name defined (implicit).
   // Returns nullptr if the symbol was not found.
@@ -89,6 +93,8 @@ class ReferenceLinker : public IResourceTableConsumer {
 
  private:
   DISALLOW_COPY_AND_ASSIGN(ReferenceLinker);
+
+  const std::set<const ResourceConfigValue*>* values_ = nullptr;
 };
 
 }  // namespace aapt

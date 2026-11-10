@@ -256,8 +256,8 @@ class ConfigDescriptionBuilder {
     config_.inputFlags = inputFlags;
     return *this;
   }
-  ConfigDescriptionBuilder& setInputPad0(uint8_t inputPad0) {
-    config_.inputPad0 = inputPad0;
+  ConfigDescriptionBuilder& setInputFieldPad0(uint8_t inputFieldPad0) {
+    config_.inputFieldPad0 = inputFieldPad0;
     return *this;
   }
   ConfigDescriptionBuilder& setScreenWidth(uint16_t screenWidth) {

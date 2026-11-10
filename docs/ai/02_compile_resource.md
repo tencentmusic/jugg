@@ -1,6 +1,6 @@
 # Compilation System: Resource and Asset Chain
 
-> Last verified: 2026-10-14
+> Last verified: 2026-11-10
 > Consistency rule: If documentation conflicts with code, code takes precedence.
 
 ## 1. Scope
@@ -61,6 +61,8 @@ ArscCompiler.doApkCompile(), per APK
   -> link only this Run's .flat files and optional Manifest
   -> failed/dead invoker: release; load again on the next compile call
 ```
+
+Native inclink preserves untouched compiled resource values without revalidating their references. This applies to ordinary references and compound values such as styles and arrays; styleables reconstructed during load retain their existing processing. Values provided by current flats still undergo normal linking, including same-value redeclarations and in-place style merges. See the native topic for selection identity and test ownership. This source behavior requires rebuilding the packaged native tools; standalone builds do not replace shipped prebuilts.
 
 The APK baseline contains final compiled resources and IDs, so Jugg need not replay historical `.flat` files. Loading only the original Gradle APK after earlier Jugg increments would discard the latest deployed table. The aapt2 process and its loaded table are distinct states: `loadTable failed` proves this invoker has no usable loaded baseline, and `no cache data found, run with --load first` should prompt a check of the same invoker's load result, not a conclusion from process liveness alone.
 

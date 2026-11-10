@@ -59,7 +59,7 @@ include_directories(${D}/log/include)
 include_directories(${D}/zip/include)
 include_directories(${D}/system/include)
 include_directories(${D}/buildversion/include)
-include_directories(${D}/include ${D}/gtest)
+include_directories(${D}/include ${D}/protobuf-3.20.3/third_party/googletest/googletest/include)
 
 set(AAPT2_PROTOBUF_SOURCE_ROOT "${D}/protobuf-3.20.3")
 include_directories(${AAPT2_LIBPNG_INCLUDE_DIR} ${AAPT2_ZLIB_INCLUDE_DIR} ${AAPT2_EXPAT_INCLUDE_DIR} ${AAPT2_PROTOBUF_SOURCE_ROOT}/src)
@@ -207,7 +207,7 @@ foreach(name Configuration Resources ResourcesInternal)
         DEPENDS ${AAPT2_PROTOC_DEPENDENCY} ${CMAKE_CURRENT_LIST_DIR}/source/${name}.proto)
     list(APPEND PROTOS ${CMAKE_CURRENT_BINARY_DIR}/${name}.pb.cc)
 endforeach()
-add_executable(aapt2-inclink ${PROTOS}
+add_library(aapt2_core STATIC ${PROTOS}
     source/compile/IdAssigner.cpp
     source/compile/InlineXmlFormatParser.cpp
     source/compile/NinePatch.cpp
@@ -288,11 +288,34 @@ add_executable(aapt2-inclink ${PROTOS}
     source/cmd/Optimize.cpp
     source/cmd/Util.cpp
     source/cmd/IncLink.cpp
-    source/Main.cpp
 )
+target_compile_options(aapt2_core PRIVATE -fno-rtti -fno-exceptions)
+set(AAPT2_PROTOBUF_LINK_LIBRARY protobuf::libprotobuf)
+target_link_libraries(aapt2_core PUBLIC android_deps ${AAPT2_PROTOBUF_LINK_LIBRARY} ${AAPT2_LIBPNG_LIBRARY} ${AAPT2_Z_LIBRARY} ${AAPT2_EXPAT_LIBRARY})
+
+add_executable(aapt2-inclink source/Main.cpp)
 target_compile_options(aapt2-inclink PRIVATE -fno-rtti -fno-exceptions)
+target_link_libraries(aapt2-inclink PRIVATE aapt2_core)
+
+option(AAPT2_BUILD_TESTS "Build native resource-link regression tests" OFF)
+if(AAPT2_BUILD_TESTS)
+    enable_testing()
+    set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
+    # Reuse GoogleTest from the already pinned protobuf source archive.
+    add_subdirectory(${AAPT2_PROTOBUF_SOURCE_ROOT}/third_party/googletest
+        ${CMAKE_CURRENT_BINARY_DIR}/googletest EXCLUDE_FROM_ALL)
+    set_target_properties(gtest gtest_main gmock gmock_main PROPERTIES CXX_STANDARD 17)
+    add_executable(aapt2_link_tests
+        source/test/Builders.cpp
+        source/test/Common.cpp
+        source/link/ReferenceLinker_test.cpp
+        source/link/TableMerger_test.cpp)
+    target_compile_definitions(aapt2_link_tests PRIVATE _LIBCPP_ENABLE_CXX20_REMOVED_TYPE_TRAITS)
+    target_compile_options(aapt2_link_tests PRIVATE -fno-rtti -fno-exceptions)
+    target_link_libraries(aapt2_link_tests PRIVATE aapt2_core gmock_main)
+    add_test(NAME aapt2_link_tests COMMAND aapt2_link_tests)
+endif()
+
 if(WIN32)
     target_link_options(aapt2-inclink PRIVATE -static)
 endif()
-set(AAPT2_PROTOBUF_LINK_LIBRARY protobuf::libprotobuf)
-target_link_libraries(aapt2-inclink PRIVATE android_deps ${AAPT2_PROTOBUF_LINK_LIBRARY} ${AAPT2_LIBPNG_LIBRARY} ${AAPT2_Z_LIBRARY} ${AAPT2_EXPAT_LIBRARY})

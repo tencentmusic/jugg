@@ -54,6 +54,19 @@ dwarfdump --uuid aapt2-inclink/build/macos-debug/aapt2-inclink aapt2-inclink/bui
 
 For interactive debugging, set the same breakpoint, then run `inclink -o /tmp/inclink-unused.apk --manifest /tmp/inclink-unused.xml`. Continuing intentionally reports missing cache. To inspect retained state, launch daemon with LLDB `settings set target.input-path /absolute/commands.txt`; framing is in [02_compile_aapt2_inclink.md](02_compile_aapt2_inclink.md). Algorithm changes still need relevant native regressions or device evidence.
 
+### Native resource-link regression tests
+
+The optional target reuses GoogleTest/GoogleMock from the pinned protobuf archive, without additional downloads. The test builder uses Android 14's `inputFieldPad0` field. The bundled GoogleMock requires libc++'s removed type-traits compatibility switch when included by C++20 tests; its own libraries compile as C++17.
+
+```bash
+cmake -S aapt2-inclink -B aapt2-inclink/build/macos-debug -DAAPT2_BUILD_TESTS=ON -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+cmake --build aapt2-inclink/build/macos-debug --target aapt2_link_tests aapt2-inclink -j 8
+ctest --test-dir aapt2-inclink/build/macos-debug -R '^aapt2_link_tests$' --output-on-failure
+python3 aapt2-inclink/scripts/test_retained_resources.py aapt2-inclink/build/macos-debug/aapt2-inclink "$HOME/Library/Android/sdk/platforms/android-34/android.jar"
+```
+
+Use the named CTest selection to avoid unrelated third-party test registrations. The native owner covers strict current inputs and retained baseline values; the Python regression checks deliberately patched APK references, output tables and daemon reload. The artificial APK establishes the incremental reuse contract, not the provenance of a user's malformed resource ID.
+
 ## 5. Linux and Windows targets
 
 Linux and Windows use the same pinned source graph and the same CMake entry point. Build on the native target host when possible. A cross build must provide a target compiler toolchain and a host `protoc`; `protoc` runs during the build and must never be the target executable.
