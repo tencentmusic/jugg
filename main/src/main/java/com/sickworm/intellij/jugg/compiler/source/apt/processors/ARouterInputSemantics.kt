@@ -13,6 +13,26 @@ internal class ARouterInputSemantics(private val analysis: AptSourceAnalysis, pr
     private var baselineTypes = emptyMap<String, ClassNode>()
     private val defaults = mutableMapOf<String, Map<String, Any>>()
 
+    /** Confirms annotation ownership without resolving values, fields or parent types. */
+    fun hasSupportedAnnotation(file: File): Boolean {
+        if (!analysis.mentions(file, PACKAGE)) return false
+        val facts = analysis.facts(file)
+        return facts.declarations.any { type ->
+            type.annotations.any { annotationName(facts, it) != null } ||
+                type.fields.any { field -> field.annotations.any { annotationName(facts, it) == "Autowired" } }
+        }
+    }
+
+    private fun annotationName(facts: AptSourceAnalysis.Facts, node: AptSourceAnalysis.Annotation): String? {
+        val fq = facts.imports[node.name] ?: when {
+            node.name.startsWith(PACKAGE) -> node.name
+            PACKAGE in facts.stars || facts.packageName == PACKAGE -> "$PACKAGE.${node.name}"
+            else -> return null
+        }
+        if (!fq.startsWith("$PACKAGE.")) return null
+        return fq.substringAfterLast('.').takeIf { it in NAMES }
+    }
+
     fun current(file: File): Map<String, String> {
         val facts = analysis.facts(file)
         val result = sortedMapOf<String, String>()
@@ -38,18 +58,6 @@ internal class ARouterInputSemantics(private val analysis: AptSourceAnalysis, pr
             project(type.name.replace('/', '.'), annotations, fields, true, null, result)
         }
         return result
-    }
-
-    /** Detects type relationship edits while the old parent class is still available. */
-    fun parentsChanged(file: File, classes: List<ClassNode>): Boolean {
-        val facts = analysis.facts(file)
-        return facts.declarations.any { declaration ->
-            val name = if (facts.packageName.isEmpty()) declaration.name else "${facts.packageName}.${declaration.name}"
-            val old = classes.firstOrNull { it.name.replace('/', '.') == name } ?: return@any false
-            val current = declaration.parents.map { resolver.qualified(it.substringBefore('<'), file, name) }.toSet() - "java.lang.Object"
-            val prior = (listOfNotNull(old.superName) + old.interfaces.orEmpty()).map { it.replace('/', '.') }.toSet() - "java.lang.Object"
-            current != prior
-        }
     }
 
     private data class Field(val name: String, val descriptor: String, val signature: String?, val annotation: Map<String, Any>)
@@ -79,14 +87,7 @@ internal class ARouterInputSemantics(private val analysis: AptSourceAnalysis, pr
 
     private fun annotation(file: File, owner: String, node: AptSourceAnalysis.Annotation): Pair<String, Map<String, Any>>? {
         val facts = analysis.facts(file)
-        val fq = facts.imports[node.name] ?: when {
-            node.name.startsWith(PACKAGE) -> node.name
-            PACKAGE in facts.stars || facts.packageName == PACKAGE -> "$PACKAGE.${node.name}"
-            else -> return null
-        }
-        if (!fq.startsWith("$PACKAGE.")) return null
-        val name = fq.substringAfterLast('.')
-        if (name !in NAMES) return null
+        val name = annotationName(facts, node) ?: return null
         check(node.arguments.keys.none { it.startsWith('#') }) { "Unnamed ARouter argument in $file" }
         val values = defaultValues(name).toMutableMap()
         node.arguments.forEach { (key, expression) -> values[key] = resolver.value(expression, file, owner) }

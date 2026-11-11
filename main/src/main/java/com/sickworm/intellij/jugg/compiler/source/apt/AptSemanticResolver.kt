@@ -28,41 +28,60 @@ class AptSemanticResolver(private val context: ICompileContext, private val modu
     }
 
     fun classInfo(name: String): ClassNode? {
-        if (classes.containsKey(name)) return classes[name]
-        val path = name.replace('.', '/') + ".class"
-        val bytes = paths.firstNotNullOfOrNull { entry ->
-            when {
-                entry.isDirectory -> File(entry, path).takeIf { it.isFile }?.readBytes()
-                entry.isFile && entry.extension == "jar" -> JarFile(entry).use { jar ->
-                    jar.getJarEntry(path)?.let { jar.getInputStream(it).use { input -> input.readBytes() } }
-                }
-                else -> null
+        val timingStart = System.nanoTime()
+        try {
+            analysis.count("resolverClassQueries")
+            if (classes.containsKey(name)) {
+                analysis.count("resolverClassCacheHits")
+                return classes[name]
             }
-        } ?: ClassLoader.getSystemResourceAsStream(path)?.use { it.readBytes() }
-        return bytes?.let { ClassNode().also { node -> ClassReader(it).accept(node, ClassReader.SKIP_CODE or ClassReader.SKIP_FRAMES) } }
-            .also { classes[name] = it }
+            val path = name.replace('.', '/') + ".class"
+            val bytes = paths.firstNotNullOfOrNull { entry ->
+                when {
+                    entry.isDirectory -> File(entry, path).takeIf { it.isFile }?.readBytes()
+                    entry.isFile && entry.extension == "jar" -> JarFile(entry).use { jar ->
+                        analysis.count("resolverJarOpens")
+                        jar.getJarEntry(path)?.let { jar.getInputStream(it).use { input -> input.readBytes() } }
+                    }
+                    else -> null
+                }
+            } ?: ClassLoader.getSystemResourceAsStream(path)?.use { it.readBytes() }
+            return bytes?.let { ClassNode().also { node -> ClassReader(it).accept(node, ClassReader.SKIP_CODE or ClassReader.SKIP_FRAMES) } }
+                .also { classes[name] = it }
+        } finally {
+            analysis.recordTime("resolverClassLookup", System.nanoTime() - timingStart)
+        }
     }
 
     /** Finds a declaration through round snapshots, named paths or SourceFile, without scanning source roots. */
     fun source(name: String): File? {
-        if (sources.containsKey(name)) return sources[name]
-        val top = name.substringBefore('$')
-        val roots = (listOf(module) + module.moduleDependencies.mapNotNull { context.modules[it.moduleName] }).flatMap { it.sourceDirs }
-        val candidates = roots.flatMap { root ->
-            listOf("java", "kt").flatMap { extension ->
-                listOf(File(root, "${top.replace('.', '/')}.$extension"), File(root, "${top.substringAfterLast('.')}.$extension"))
+        val timingStart = System.nanoTime()
+        try {
+            analysis.count("resolverSourceQueries")
+            if (sources.containsKey(name)) {
+                analysis.count("resolverSourceCacheHits")
+                return sources[name]
             }
-        } + analysis.files.map { it.file }
-        val simple = top.substringAfterLast('.')
-        val source = candidates.distinct().firstOrNull { file ->
-            file.isFile && file.extension in listOf("java", "kt") &&
-                (file.nameWithoutExtension == simple || analysis.text(file).contains(simple)) && matchesSource(file, name)
-        } ?: classInfo(name)?.sourceFile?.let { filename ->
-            roots.flatMap { root -> listOf(File(root, "${top.substringBeforeLast('.', "").replace('.', '/')}/$filename"), File(root, filename)) }
-                .firstOrNull { it.isFile && matchesSource(it, name) }
+            val top = name.substringBefore('$')
+            val roots = (listOf(module) + module.moduleDependencies.mapNotNull { context.modules[it.moduleName] }).flatMap { it.sourceDirs }
+            val candidates = roots.flatMap { root ->
+                listOf("java", "kt").flatMap { extension ->
+                    listOf(File(root, "${top.replace('.', '/')}.$extension"), File(root, "${top.substringAfterLast('.')}.$extension"))
+                }
+            } + analysis.files.map { it.file }
+            val simple = top.substringAfterLast('.')
+            val source = candidates.distinct().firstOrNull { file ->
+                file.isFile && file.extension in listOf("java", "kt") &&
+                    (file.nameWithoutExtension == simple || analysis.text(file).contains(simple)) && matchesSource(file, name)
+            } ?: classInfo(name)?.sourceFile?.let { filename ->
+                roots.flatMap { root -> listOf(File(root, "${top.substringBeforeLast('.', "").replace('.', '/')}/$filename"), File(root, filename)) }
+                    .firstOrNull { it.isFile && matchesSource(it, name) }
+            }
+            sources[name] = source
+            return source
+        } finally {
+            analysis.recordTime("resolverSourceLookup", System.nanoTime() - timingStart)
         }
-        sources[name] = source
-        return source
     }
 
     private fun matchesSource(file: File, name: String): Boolean {
@@ -72,24 +91,29 @@ class AptSemanticResolver(private val context: ICompileContext, private val modu
     }
 
     fun qualified(name: String, file: File, owner: String = ""): String {
-        val clean = name.trim().removeSuffix("?")
-        val facts = analysis.facts(file)
-        val first = clean.substringBefore('.')
-        facts.imports[first]?.let { imported ->
-            val importedName = imported + clean.removePrefix(first).replace('.', '$')
-            return resolvedType(importedName) ?: importedName
+        val timingStart = System.nanoTime()
+        try {
+            val clean = name.trim().removeSuffix("?")
+            val facts = analysis.facts(file)
+            val first = clean.substringBefore('.')
+            facts.imports[first]?.let { imported ->
+                val importedName = imported + clean.removePrefix(first).replace('.', '$')
+                return resolvedType(importedName) ?: importedName
+            }
+            val local = facts.declarations.firstOrNull { it.name.replace('$', '.') == clean || it.name == clean }
+            if (local != null) return join(facts.packageName, local.name)
+            BUILTINS[clean]?.let { return it }
+            val candidates = linkedSetOf<String>()
+            if (clean.contains('.')) candidates += clean
+            if (owner.isNotEmpty()) candidates += "$owner\$$clean"
+            candidates += join(facts.packageName, clean.replace('.', '$'))
+            facts.stars.forEach { candidates += "$it.$clean" }
+            candidates += "java.lang.$clean"
+            return candidates.firstNotNullOfOrNull(::resolvedType)
+                ?: error("Cannot resolve type $name in $file")
+        } finally {
+            analysis.recordTime("resolverQualified", System.nanoTime() - timingStart)
         }
-        val local = facts.declarations.firstOrNull { it.name.replace('$', '.') == clean || it.name == clean }
-        if (local != null) return join(facts.packageName, local.name)
-        BUILTINS[clean]?.let { return it }
-        val candidates = linkedSetOf<String>()
-        if (clean.contains('.')) candidates += clean
-        if (owner.isNotEmpty()) candidates += "$owner\$$clean"
-        candidates += join(facts.packageName, clean.replace('.', '$'))
-        facts.stars.forEach { candidates += "$it.$clean" }
-        candidates += "java.lang.$clean"
-        return candidates.firstNotNullOfOrNull(::resolvedType)
-            ?: error("Cannot resolve type $name in $file")
     }
 
     private fun resolvedType(name: String): String? {

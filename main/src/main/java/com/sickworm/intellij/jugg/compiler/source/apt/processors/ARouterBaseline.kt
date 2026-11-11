@@ -12,49 +12,36 @@ internal class ARouterBaseline(private val module: ModuleInfo, private val analy
     private val roots = module.buildPathInfo.allClassPath.filter { it.isDirectory }.distinctBy { it.canonicalPath }
     private val nodes = mutableMapOf<File, ClassNode>()
     private val packages = mutableMapOf<String, List<ClassNode>>()
-    private val allClasses by lazy { roots.flatMap { readClasses(it) }.distinctBy { it.name } }
+    private val allClasses by lazy {
+        analysis.count("baselineFullScans")
+        roots.flatMap { readClasses(it) }.distinctBy { it.name }
+    }
 
     /** Exact declarations take precedence over same-package SourceFile and package-move recovery. */
     fun classes(file: File): List<ClassNode> {
-        val facts = analysis.facts(file)
-        val identities = facts.declarations.map {
-            (if (facts.packageName.isEmpty()) it.name else "${facts.packageName}.${it.name}").replace('.', '/')
-        }.toSet()
-        val local = packages.getOrPut(facts.packageName) {
-            roots.flatMap { root -> readClasses(File(root, facts.packageName.replace('.', '/')), recursive = false) }
-                .distinctBy { it.name }
-        }
-        val matched = local.filter { it.name in identities || it.sourceFile == file.name }
-        if (matched.isNotEmpty()) return matched
-        if (!analysis.mentions(file, ARouterInputSemantics.PACKAGE)) return emptyList()
-        val elsewhere = allClasses.filter { it.name in identities || it.sourceFile == file.name }
-        // SourceFile has no package identity; guessing across packages could compare unrelated annotations.
-        check(elsewhere.map { it.name.substringBeforeLast('/', "") }.distinct().size <= 1) {
-            "Ambiguous SourceFile identity ${file.name}"
-        }
-        return elsewhere
-    }
-
-    /** Reads known annotated dependants before a changed ancestor overwrites its business class. */
-    fun relatedClasses(changed: List<ClassNode>): List<ClassNode> {
-        val affected = changed.map { it.name }.toMutableSet()
-        var expanded: Boolean
-        do {
-            expanded = false
-            allClasses.forEach { type ->
-                if (type.name !in affected && (listOfNotNull(type.superName) + type.interfaces.orEmpty()).any { it in affected }) {
-                    affected += type.name
-                    expanded = true
-                }
+        val timingStart = System.nanoTime()
+        try {
+            val facts = analysis.facts(file)
+            val identities = facts.declarations.map {
+                (if (facts.packageName.isEmpty()) it.name else "${facts.packageName}.${it.name}").replace('.', '/')
+            }.toSet()
+            val local = packages.getOrPut(facts.packageName) {
+                roots.flatMap { root -> readClasses(File(root, facts.packageName.replace('.', '/')), recursive = false) }
+                    .distinctBy { it.name }
             }
-        } while (expanded)
-        return allClasses.filter { type -> hasAnnotations(listOf(type)) && (type.name in affected ||
-            type.fields.any { it.desc.removePrefix("L").removeSuffix(";") in affected }) }
-    }
-
-    fun hasAnnotations(classes: List<ClassNode>): Boolean = classes.any { type ->
-        (type.visibleAnnotations.orEmpty() + type.invisibleAnnotations.orEmpty()).any { it.desc in ANNOTATIONS } ||
-            type.fields.any { field -> (field.visibleAnnotations.orEmpty() + field.invisibleAnnotations.orEmpty()).any { it.desc in ANNOTATIONS } }
+            val matched = local.filter { it.name in identities || it.sourceFile == file.name }
+            if (matched.isNotEmpty()) return matched
+            if (!analysis.mentions(file, ARouterInputSemantics.PACKAGE)) return emptyList()
+            analysis.count("baselinePackageMoveScans")
+            val elsewhere = allClasses.filter { it.name in identities || it.sourceFile == file.name }
+            // SourceFile has no package identity; guessing across packages could compare unrelated annotations.
+            check(elsewhere.map { it.name.substringBeforeLast('/', "") }.distinct().size <= 1) {
+                "Ambiguous SourceFile identity ${file.name}"
+            }
+            return elsewhere
+        } finally {
+            analysis.recordTime("baselineAssociation", System.nanoTime() - timingStart)
+        }
     }
 
     /** Missing outputs of an established module must not be mistaken for a newly added declaration. */
@@ -76,22 +63,25 @@ internal class ARouterBaseline(private val module: ModuleInfo, private val analy
     }
 
     private fun readClasses(root: File, recursive: Boolean = true): List<ClassNode> {
-        if (!root.exists()) return emptyList()
-        check(root.isDirectory && root.canRead()) { "Class directory is not readable: $root" }
-        val files = if (recursive) root.walkTopDown().onEnter { directory ->
-            check(directory.canRead() && directory.listFiles() != null) { "Class directory is not readable: $directory" }
-            true
-        }.onFail { file, cause ->
-            throw IllegalStateException("Cannot read class directory $file", cause)
-        }.filter { it.isFile && it.extension == "class" }.toList() else
-            (root.listFiles() ?: error("Cannot read class directory $root")).filter { it.isFile && it.extension == "class" }
-        return files.map { file -> nodes.getOrPut(file.canonicalFile) {
-            ClassNode().also { ClassReader(file.readBytes()).accept(it, ClassReader.SKIP_CODE or ClassReader.SKIP_FRAMES) }
-        } }
-    }
-
-    private companion object {
-        val ANNOTATIONS = setOf("Route", "Autowired", "Interceptor")
-            .map { "L${ARouterInputSemantics.PACKAGE.replace('.', '/')}/$it;" }.toSet()
+        val timingStart = System.nanoTime()
+        try {
+            if (!root.exists()) return emptyList()
+            check(root.isDirectory && root.canRead()) { "Class directory is not readable: $root" }
+            val files = if (recursive) root.walkTopDown().onEnter { directory ->
+                check(directory.canRead() && directory.listFiles() != null) { "Class directory is not readable: $directory" }
+                true
+            }.onFail { file, cause ->
+                throw IllegalStateException("Cannot read class directory $file", cause)
+            }.filter { it.isFile && it.extension == "class" }.toList() else
+                (root.listFiles() ?: error("Cannot read class directory $root")).filter { it.isFile && it.extension == "class" }
+            return files.map { file -> nodes.getOrPut(file.canonicalFile) {
+                val bytes = file.readBytes()
+                analysis.count("baselineClassReads")
+                analysis.count("baselineClassBytes", bytes.size.toLong())
+                ClassNode().also { ClassReader(bytes).accept(it, ClassReader.SKIP_CODE or ClassReader.SKIP_FRAMES) }
+            } }
+        } finally {
+            analysis.recordTime("baselineReadClasses", System.nanoTime() - timingStart)
+        }
     }
 }

@@ -405,11 +405,23 @@ class ARouterJuggAptProcessorTest {
     }
 
     @Test
-    fun removingLastDeclarationDoesNotSkipGradleBaselineDeletionCheck() {
+    fun removingLastAnnotationLeavesGeneratedSourcesForFullBuild() {
         establishGradleBaseline()
+        val generated = File(temporary.root, "gradle-generated")
+        assertTrue(generated.walkTopDown().any { it.isFile && it.readText().contains("/demo/first") })
         source = writeSource("")
         source.file.writeText(source.file.readText().replace("import com.alibaba.android.arouter.facade.annotation.Route;", ""))
-        assertFailsWith<JuggAptFatalException> { generate() }
+        assertTrue(generate().isEmpty())
+        assertTrue(generated.walkTopDown().any { it.isFile && it.readText().contains("/demo/first") })
+        establishGradleBaseline()
+        assertFalse(generated.walkTopDown().any { it.isFile && it.readText().contains("/demo/first") })
+    }
+
+    @Test
+    fun unusedAnnotationImportDoesNotRecoverRemovedAnnotation() {
+        establishGradleBaseline()
+        source = writeSource("")
+        assertTrue(generate().isEmpty())
     }
 
     @Test
@@ -841,15 +853,15 @@ class ARouterJuggAptProcessorTest {
     }
 
     @Test
-    fun exactDeclarationIdentityStillDetectsRemovalWithoutSourceFileDebugMetadata() {
+    fun exactDeclarationIdentityDetectsAnnotatedChangesWithoutSourceFileDebugMetadata() {
         establishGradleBaseline()
         val file = File(module.buildPathInfo.javaClassPath, "demo/Screen.class")
         val writer = com.sickworm.intellij.jugg.org.objectweb.asm.ClassWriter(0)
         com.sickworm.intellij.jugg.org.objectweb.asm.ClassReader(file.readBytes()).accept(writer,
             com.sickworm.intellij.jugg.org.objectweb.asm.ClassReader.SKIP_DEBUG)
         file.writeBytes(writer.toByteArray())
-        source.file.writeText("package demo; public class Screen extends android.app.Activity {}")
-        assertFailsWith<JuggAptFatalException> { generate() }
+        source.file.writeText(source.file.readText().replace("/demo/first", "/demo/changed"))
+        assertTrue(generate().any { it.readText().contains("/demo/changed") })
     }
 
     @Test
@@ -861,7 +873,7 @@ class ARouterJuggAptProcessorTest {
     }
 
     @Test
-    fun movingACompiledSourceDoesNotRegenerateAndItsRemovalStillFailsClosed() {
+    fun movingACompiledSourceAndRemovingItsLastAnnotationLeaveGeneratedSourcesUnchanged() {
         generate()
         compileBusinessSources()
         val moved = File(source.baseDir, "moved/Screen.java").apply { parentFile.mkdirs() }
@@ -869,7 +881,7 @@ class ARouterJuggAptProcessorTest {
         source = source.copy(file = moved)
         assertTrue(generate().isEmpty())
         moved.writeText("package demo; public class Screen extends android.app.Activity {}")
-        assertFailsWith<JuggAptFatalException> { generate() }
+        assertTrue(generate().isEmpty())
     }
 
     @Test
@@ -1047,7 +1059,7 @@ class ARouterJuggAptProcessorTest {
     }
 
     @Test
-    fun parentTypeChangeFlowUpdatesRouteKindBeforeBusinessClassAdvances() {
+    fun unannotatedParentTypeChangeFlowLeavesRouteIndexesForFullBuild() {
         val parent = File(source.baseDir, "demo/BaseScreen.java").apply {
             writeText("package demo; public class BaseScreen extends android.app.Activity {}")
         }
@@ -1059,9 +1071,13 @@ class ARouterJuggAptProcessorTest {
         val flow = SourceCompiler(context, object : Disposable { override fun dispose() = Unit })
         val result = flow.compile(CompileTask(listOf(input), File(temporary.root, "parent-dex"), CompileStatusHolder.DEFAULT))
         assertTrue(result.isAllSuccess, result.failedFiles.toString())
-        assertTrue(result.outputs.any { it.file.name.contains("ARouter") })
+        assertFalse(result.outputs.any { it.file.name.contains("ARouter") })
         val index = File(context.incrementalDataDir, "arouter/routes/debug/sources")
-        assertTrue(index.walkTopDown().any { it.isFile && it.readText().contains("RouteType.SERVICE") })
+        assertFalse(index.exists())
+        val generated = File(temporary.root, "gradle-generated")
+        assertTrue(generated.walkTopDown().any { it.isFile && it.readText().contains("RouteType.ACTIVITY") })
+        establishGradleBaseline()
+        assertTrue(generated.walkTopDown().any { it.isFile && it.readText().contains("RouteType.SERVICE") })
         val followup = flow.compile(CompileTask(listOf(source), File(temporary.root, "child-dex"), CompileStatusHolder.DEFAULT))
         assertTrue(followup.isAllSuccess, followup.failedFiles.toString())
         assertEquals(setOf("/demo/first"), resolvedRoutes())

@@ -46,32 +46,44 @@ class JuggAptCompiler(
             return CompileResult(task, emptyList(), emptyList())
         }
 
+        val roundStart = System.nanoTime()
+        val processorTimes = linkedMapOf<String, Double>()
         val rewrittenByPath = LinkedHashMap<String, CompileFile>()
 
         val analysis = AptSourceAnalysis(task.files)
-        activeProcessors.forEach { processor ->
-            try {
-                val rewrittenFiles = processor.process(context, module, task.files, analysis)
-                for (rewritten in rewrittenFiles) {
-                    if (rewritten.type != CompileFile.Type.Java && rewritten.type != CompileFile.Type.Kotlin) {
-                        if (processor.failClosed) error("Processor ${processor.id} returned unsupported file type: ${rewritten.type}")
-                        logger.warn("Processor ${processor.id} returned unsupported file type: ${rewritten.type}, file=${rewritten.file}")
-                        continue
+        try {
+            activeProcessors.forEach { processor ->
+                val processorStart = System.nanoTime()
+                try {
+                    val rewrittenFiles = processor.process(context, module, task.files, analysis)
+                    for (rewritten in rewrittenFiles) {
+                        if (rewritten.type != CompileFile.Type.Java && rewritten.type != CompileFile.Type.Kotlin) {
+                            if (processor.failClosed) error("Processor ${processor.id} returned unsupported file type: ${rewritten.type}")
+                            logger.warn("Processor ${processor.id} returned unsupported file type: ${rewritten.type}, file=${rewritten.file}")
+                            continue
+                        }
+                        if (!rewritten.file.exists()) {
+                            if (processor.failClosed) error("Processor ${processor.id} returned missing file: ${rewritten.file}")
+                            logger.warn("Processor ${processor.id} returned missing file: ${rewritten.file}")
+                            continue
+                        }
+                        rewrittenByPath[rewritten.file.absolutePath] = rewritten
+                        analysis.invalidate(rewritten.file)
                     }
-                    if (!rewritten.file.exists()) {
-                        if (processor.failClosed) error("Processor ${processor.id} returned missing file: ${rewritten.file}")
-                        logger.warn("Processor ${processor.id} returned missing file: ${rewritten.file}")
-                        continue
+                } catch (throwable: Throwable) {
+                    if (processor.failClosed) {
+                        throw JuggAptFatalException("Jugg apt processor ${processor.id} failed", throwable)
                     }
-                    rewrittenByPath[rewritten.file.absolutePath] = rewritten
-                    analysis.invalidate(rewritten.file)
+                    logger.warn("Jugg apt processor ${processor.id} failed: ${throwable.message}")
+                } finally {
+                    val key = "${processor.id}:${processor.javaClass.simpleName}"
+                    processorTimes[key] = (processorTimes[key] ?: 0.0) + (System.nanoTime() - processorStart) / 1_000_000.0
                 }
-            } catch (throwable: Throwable) {
-                if (processor.failClosed) {
-                    throw JuggAptFatalException("Jugg apt processor ${processor.id} failed", throwable)
-                }
-                logger.warn("Jugg apt processor ${processor.id} failed: ${throwable.message}")
             }
+        } finally {
+            logger.debug("APT summary: module=${module.name}, inputs=${task.files.size}, " +
+                    "languages=${task.files.groupingBy { it.type }.eachCount()}, totalMs=${(System.nanoTime() - roundStart) / 1_000_000.0}, " +
+                    "processorMs=$processorTimes, ${analysis.timingSummary()}")
         }
 
         val outputs = rewrittenByPath.values.mapNotNull { it.toCompileOutput() }

@@ -48,68 +48,69 @@ class ARouterJuggAptProcessor : BaseJuggAptProcessor() {
     /** Checks every round input before preparing complete aggregate sources. */
     private fun prepare(context: ICompileContext, module: ModuleInfo, files: List<CompileFile>,
         checkpoint: GeneratedSourceCheckpoint, analysis: AptSourceAnalysis): Preparation? {
-        val resolver = AptSemanticResolver(context, module, analysis)
-        val semantics = ARouterInputSemantics(analysis, resolver)
-        val baseline = ARouterBaseline(module, analysis)
-        var changed = false
-        val failures = mutableListOf<Pair<File, Throwable>>()
-        files.forEach { input ->
-            try {
-                if (inputsChanged(context, input.file, analysis, resolver, semantics, baseline)) changed = true
-            } catch (failure: Throwable) {
-                failures += input.file to failure
+        val timingStart = System.nanoTime()
+        try {
+            val resolver = AptSemanticResolver(context, module, analysis)
+            val semantics = ARouterInputSemantics(analysis, resolver)
+            val baseline by lazy { ARouterBaseline(module, analysis) }
+            var changed = false
+            val failures = mutableListOf<Pair<File, Throwable>>()
+            files.forEach { input ->
+                try {
+                    if (semantics.hasSupportedAnnotation(input.file)) {
+                        analysis.count("arouterCandidates")
+                        if (inputsChanged(context, input.file, analysis, semantics, baseline)) changed = true
+                    }
+                } catch (failure: Throwable) {
+                    failures += input.file to failure
+                }
             }
+            if (failures.isNotEmpty()) {
+                failures.forEach { (file, failure) -> logSkipped(context, module, listOf(file), failure) }
+                return null
+            }
+            if (!changed) {
+                context.logger.debug("ARouter processor skipped for ${module.name}: current-round inputs unchanged")
+                return null
+            }
+            // Keep unannotated sources too, so aggregate KAPT can resolve new Kotlin dependencies.
+            val sources = module.sourceDirs.filter { it.exists() }.flatMap { root ->
+                sourceFiles(root).filter { it.extension in listOf("java", "kt") &&
+                    !it.canonicalFile.toPath().startsWith(checkpoint.sourceRoot.canonicalFile.toPath()) }
+            }.distinctBy { it.canonicalPath }
+            // Validate the entire aggregate before invoking a fail-closed processor.
+            sources.filter { analysis.mentions(it, ARouterInputSemantics.PACKAGE) }.forEach { source ->
+                try { semantics.current(source) } catch (failure: Throwable) { failures += source to failure }
+            }
+            if (failures.isNotEmpty()) {
+                failures.forEach { (file, failure) -> logSkipped(context, module, listOf(file), failure) }
+                return null
+            }
+            val ownedSources = checkpoint.sourceRoot.exists()
+            val roots = if (ownedSources) listOf(checkpoint.sourceRoot) else context.getGeneratedSourcePaths(module)
+            // Gradle outputs may be shared; other processors' classes must not enter ARouter shrink checks.
+            val priorNames = roots.filter { it.exists() }.flatMap { root ->
+                sourceFiles(root).filter { it.extension in listOf("java", "kt") && (ownedSources || it.name.contains("ARouter")) }
+                    .map { generatedIdentity(it) }
+            }.distinct()
+            return Preparation(sources, priorNames)
+        } finally {
+            analysis.recordTime("arouterPrepare", System.nanoTime() - timingStart)
         }
-        if (failures.isNotEmpty()) {
-            failures.forEach { (file, failure) -> logSkipped(context, module, listOf(file), failure) }
-            return null
-        }
-        if (!changed) {
-            context.logger.debug("ARouter processor skipped for ${module.name}: current-round inputs unchanged")
-            return null
-        }
-        // Keep unannotated sources too, so aggregate KAPT can resolve new Kotlin dependencies.
-        val sources = module.sourceDirs.filter { it.exists() }.flatMap { root ->
-            sourceFiles(root).filter { it.extension in listOf("java", "kt") &&
-                !it.canonicalFile.toPath().startsWith(checkpoint.sourceRoot.canonicalFile.toPath()) }
-        }.distinctBy { it.canonicalPath }
-        // Validate the entire aggregate before invoking a fail-closed processor.
-        sources.filter { analysis.mentions(it, ARouterInputSemantics.PACKAGE) }.forEach { source ->
-            try { semantics.current(source) } catch (failure: Throwable) { failures += source to failure }
-        }
-        if (failures.isNotEmpty()) {
-            failures.forEach { (file, failure) -> logSkipped(context, module, listOf(file), failure) }
-            return null
-        }
-        val ownedSources = checkpoint.sourceRoot.exists()
-        val roots = if (ownedSources) listOf(checkpoint.sourceRoot) else context.getGeneratedSourcePaths(module)
-        // Gradle outputs may be shared; other processors' classes must not enter ARouter shrink checks.
-        val priorNames = roots.filter { it.exists() }.flatMap { root ->
-            sourceFiles(root).filter { it.extension in listOf("java", "kt") && (ownedSources || it.name.contains("ARouter")) }
-                .map { generatedIdentity(it) }
-        }.distinct()
-        return Preparation(sources, priorNames)
     }
 
-    /** Compares associated inputs and any known annotated users of changed type relationships. */
+    /** Compares actual annotated inputs against their current business classes. */
     private fun inputsChanged(context: ICompileContext, file: File, analysis: AptSourceAnalysis,
-        resolver: AptSemanticResolver, semantics: ARouterInputSemantics, baseline: ARouterBaseline): Boolean {
-        val old = baseline.classes(file)
-        val related = if (semantics.parentsChanged(file, old)) baseline.relatedClasses(old) else emptyList()
-        val candidate = analysis.mentions(file, ARouterInputSemantics.PACKAGE)
-        if (!candidate && !baseline.hasAnnotations(old) && related.isEmpty()) return false
-        val current = semantics.current(file).toMutableMap()
-        val prior = old.toMutableList()
-        related.map { type -> resolver.source(type.name.replace('/', '.'))
-            ?: error("Cannot locate annotated dependant ${type.name} of $file") }.distinctBy { it.canonicalPath }.forEach { source ->
-            if (source.canonicalFile != file.canonicalFile) {
-                current += semantics.current(source)
-                prior += baseline.classes(source)
-            }
+        semantics: ARouterInputSemantics, baseline: ARouterBaseline): Boolean {
+        val timingStart = System.nanoTime()
+        try {
+            val current = semantics.current(file)
+            val old = baseline.classes(file)
+            baseline.requireReliableAssociation(context, file, old, current)
+            return current != semantics.baseline(old)
+        } finally {
+            analysis.recordTime("arouterCompare", System.nanoTime() - timingStart)
         }
-        if (current.isEmpty() && !baseline.hasAnnotations(prior)) return false
-        baseline.requireReliableAssociation(context, file, old, current)
-        return current != semantics.baseline(prior.distinctBy { it.name })
     }
 
     /** File.walk silently ignores unreadable directories; generation must not treat them as empty. */

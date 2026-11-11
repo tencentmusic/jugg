@@ -35,6 +35,7 @@ Jugg 只对少量明确列出的注解入口提供内置增量处理，并把对
 - Kuikly `@Page` 增量处理依赖最近一次 Gradle/KSP 生成的路由入口基线，并且只补充缺失注册。删除页面、修改路由或重命名页面类时，应通过 Gradle 清理旧注册。
 - ARouter 需项目 processor 依赖：APT/KAPT 使用 `AROUTER_MODULE_NAME` 或 `moduleName`，KSP 使用项目实际的 `AROUTER_MODULE_NAME` 或 `MODULE_NAME` 参数；同 id 自定义处理器实例已加载时由该实例接管，适配器需按当前 Jugg 接口重新编译。Fragment 选择、迁移和已知边界见[自定义编译器](./custom-compiler.md)。
 - ARouter 普通方法体、同值常量及默认值的等价写法不重新生成；与当前业务 class 比较全部相关注解输入。无法关联或解析时本模块本轮旧索引可能滞后，正常源码编译继续；若 class 随后更新，不保证下一轮自动补生成；生成类收缩仍要求完整 Gradle 构建。具体支持边界见[自定义编译器](./custom-compiler.md)。
+- 普通无相关注解的源码会在文本筛选后直接继续编译；文本命中后先确认实际注解，再比较相关语义。删除文件中的最后一个 ARouter 注解，或只修改无注解的父类、接口、字段类型时，本轮不会因此重新生成路由索引，旧生成内容继续保留；应执行完整 Gradle 构建刷新。带注解候选自身的父类、接口及字段语义变化仍参与比较。
 - Moshi KSP 只在本轮 Kotlin 源码明确使用 `com.squareup.moshi.JsonClass` 且项目存在对应 KSP 依赖时触发。
 - ARouter KSP1/KSP2 使用当前变体的项目 processor、引擎和参数重新生成，只消费本轮成功产物。Moshi KSP2 仍只能继续编译 Gradle 已生成的源码。
 - Hilt 入口转换已对照 Hilt `2.41`～`2.60.1` 的官方转换语义，并兼容 `2.41`～`2.48.1` 的 Receiver 字段标记与 `2.49` 起使用的注解标记。它只处理已有生成物对应的 Android 入口 class，不代表 Jugg 可以独立运行 Hilt/Dagger 注解处理器。普通方法逻辑变化可以增量生效；任何需要更新生成代码或组件图的修改都应先执行完整 Gradle 构建。

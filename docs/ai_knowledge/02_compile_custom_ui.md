@@ -82,11 +82,13 @@ BaseCompileContext.customCompilers
 
 `ProcessorRegistration` 默认注册 `ARouterJuggAptProcessor`，不要求 custom compiler 配置或单独 JAR。它复用项目 `annotationProcessor` / `kapt` / `ksp` 依赖，不把 ARouter compiler 打入插件。若 `context.customCompilers` 中存在已加载的外部 `IJuggAptProcessor.id == "ARouter"` 实例，内置实例跳过，由外部扩展处理；扩展需按当前接口重新编译，迁移时只移除该扩展配置，保留其他 custom compiler。
 
-`ARouterJuggAptProcessor.prepare()` 比较本轮源码的实际注解输入、声明身份及相关类型结构与现有业务 class，只有确认差异后才收集完整模块源码执行聚合生成。比较包括定制注解属性，不依赖生成模板；普通方法体、格式与无关成员变化不触发生成。删除最后一个注解仍须检查旧 class 的贡献；现有声明的 class 缺失不能误判为新增。源码与 class 无法可靠关联时按下述检测失败边界收口，关联策略见 `ARouterBaseline.classes()` / `requireReliableAssociation()`。
+`ARouterJuggAptProcessor.prepare()` 先用标准注解包名做文本预筛，再通过共享 `AptSourceAnalysis.facts()` 确认声明或字段上实际使用 `Route`、`Autowired`、`Interceptor`，兼容普通/星号 import、全限定写法和 Kotlin alias。未命中时不创建 baseline、不解析类型、不读业务 class；外部 `IJuggAptProcessor` 输入保持原样。语法确认不解析注解参数和字段类型，实际候选才进入语义比较。
 
-父类关系变化时，`ARouterBaseline.relatedClasses()` 定位已知注解声明及字段类型使用方，在普通语言编译覆盖旧父类 class 前比较相关输入。必须先确认全部相关输入可判断，才发布完整聚合索引；不能因部分输入有变化而忽略其他输入的分析失败。
+实际候选比较当前注解输入、声明身份及必要继承语义与现有业务 class，确认差异后才收集完整模块源码聚合生成；普通方法体、格式与无关成员变化不触发生成。不恢复当前无注解输入的旧注解身份，不从无注解父类/接口/字段类型修改主动追踪其他注解使用方；删除最后注解或这类间接变化后，本轮保留旧生成物，需完整 Gradle 构建刷新。实际触发生成后的类集合收缩仍按 fail-closed 处理。
 
 `JuggAptCompiler` 每模块每轮创建一个 `AptSourceAnalysis`，供 ARouter、Kuikly 和外部处理器共享源码快照；改写文件后，后续消费者必须读到失效重建的快照。只读 Kotlin 分析在创建 PSI 前移除文件头 BOM，并将 CRLF/CR 换行归一化为 LF，避免合法 Windows 源码被误判为语法错误；原始文本和用于源码改写的解析入口保持原样，避免位置偏移失配。真实语法错误保留具体解析原因和归一化文本中的错误偏移。`IJuggAptProcessor.process()` 使用统一四参数入口，外部扩展需同步适配并重新编译。
+
+性能诊断每模块每轮汇总为一行 debug `APT summary:`，含输入语言数量、总耗时、各处理器耗时、`inclusiveMs` 嵌套阶段计时和查询计数；父阶段包含子阶段，不可相加。未执行的解析/查询不产生计数项，普通无候选输入应只有源码读取计数。
 
 ARouter 的 `AptSemanticResolver` 只在本轮准备期间复用类型和源码查询结果，包括未找到的空结果，避免重复遍历依赖源码路径和打开 classpath JAR。下一轮重新查询，不缓存跨轮缺失状态。
 

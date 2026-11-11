@@ -24,6 +24,31 @@ class AptSourceAnalysis(val files: List<CompileFile>) {
     data class Facts(val packageName: String, val imports: Map<String, String>, val stars: List<String>,
         val declarations: List<Declaration>, val kotlin: Boolean)
 
+    private val timingNanos = linkedMapOf<String, Long>()
+    private val diagnosticCounts = linkedMapOf<String, Long>()
+
+    internal fun recordTime(phase: String, nanos: Long) {
+        timingNanos[phase] = (timingNanos[phase] ?: 0L) + nanos
+    }
+
+    internal fun count(name: String, amount: Long = 1L) {
+        diagnosticCounts[name] = (diagnosticCounts[name] ?: 0L) + amount
+    }
+
+    // Timings are inclusive: parent phases contain their nested parsing and lookup work.
+    internal fun timingSummary(): String =
+        "inclusiveMs=${timingNanos.mapValues { it.value / 1_000_000.0 }}, counts=$diagnosticCounts"
+
+    private inline fun <T> measured(phase: String, action: () -> T): T {
+        val start = System.nanoTime()
+        try {
+            return action()
+        } finally {
+            recordTime(phase, System.nanoTime() - start)
+            count(phase + "Calls")
+        }
+    }
+
     private val contents = mutableMapOf<String, Result<String>>()
     private val javaTrees = mutableMapOf<String, Result<CompilationUnit>>()
     private val kotlinTrees = mutableMapOf<String, Result<KtFile>>()
@@ -31,11 +56,11 @@ class AptSourceAnalysis(val files: List<CompileFile>) {
     private val constantDefinitions = mutableMapOf<String, List<ConstDefinition>>()
     private val parser by lazy { JavaParser(ParserConfiguration().setLanguageLevel(ParserConfiguration.LanguageLevel.BLEEDING_EDGE)) }
 
-    fun text(file: File): String = contents.getOrPut(file.canonicalPath) { runCatching { file.readText() } }.getOrThrow()
+    fun text(file: File): String = contents.getOrPut(file.canonicalPath) { runCatching { measured("sourceRead") { file.readText() } } }.getOrThrow()
     fun mentions(file: File, packageName: String): Boolean = text(file).contains(packageName)
     fun java(file: File): CompilationUnit = javaTrees.getOrPut(file.canonicalPath) {
         runCatching {
-            val result = parser.parse(text(file))
+            val result = measured("javaParse") { parser.parse(text(file)) }
             check(result.isSuccessful) { "Cannot parse $file: ${result.problems}" }
             result.result.orElseThrow { IllegalStateException("No Java tree for $file") }
         }
@@ -44,7 +69,7 @@ class AptSourceAnalysis(val files: List<CompileFile>) {
         runCatching {
             // Normalize only the read-only tree; rewrite processors need offsets in the original text.
             val content = text(file).removePrefix("\uFEFF").replace("\r\n", "\n").replace('\r', '\n')
-            val tree = BaseKotlinJuggAptProcessor.parseSnapshot(file.name, content)
+            val tree = measured("kotlinParse") { BaseKotlinJuggAptProcessor.parseSnapshot(file.name, content) }
             val parseError = PsiTreeUtil.findChildOfType(tree, PsiErrorElement::class.java)
             if (parseError != null) {
                 throw IllegalStateException("Cannot parse $file at offset ${parseError.textOffset}: ${parseError.errorDescription}")
@@ -53,7 +78,7 @@ class AptSourceAnalysis(val files: List<CompileFile>) {
         }
     }.getOrThrow()
     fun facts(file: File): Facts = sourceFacts.getOrPut(file.canonicalPath) {
-        runCatching { if (file.extension == "java") javaFacts(file) else kotlinFacts(file) }
+        runCatching { measured("sourceFacts") { if (file.extension == "java") javaFacts(file) else kotlinFacts(file) } }
     }.getOrThrow()
     fun definitions(file: File): List<ConstDefinition> = constantDefinitions.getOrPut(file.canonicalPath) {
         if (file.extension == "java") JavaConstParser.definitions(file, java(file), includePrivate = true) else KotlinConstParser.definitions(file, kotlin(file), includePrivate = true)
