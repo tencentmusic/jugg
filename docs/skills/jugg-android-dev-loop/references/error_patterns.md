@@ -1,5 +1,15 @@
 # Error Pattern Library
 
+## Suspected Jugg Problem
+
+If comparable Gradle builds succeed but Jugg fails, or evidence points to
+a Jugg internal failure, offer a dedicated investigation. Explain that it
+may take time and download source; start only with user agreement.
+Ordinary failures or crashes alone do not trigger it. Reuse explicit
+investigation requests or ASK AI prompts as existing authorization.
+If selected, follow the investigation guide:
+https://raw.githubusercontent.com/tencentmusic/jugg/main/.agents/skills/issue-handler/references/local-agent-investigation-guide.md
+
 Auto-fix policy: known pattern + `scope=low` + `confidence ≥ 0.8` → apply. Otherwise: stop and ask user.
 
 Schema: `id, stage(compile|deploy|runtime|observe), signature{includes,regex}, diagnosis, fix_strategy, fix_scope(low|med|high), confidence_hint(0-1), auto_apply(bool)`

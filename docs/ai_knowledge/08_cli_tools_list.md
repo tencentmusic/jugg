@@ -120,6 +120,8 @@ help 在 `jugg.py` 内直接返回，只读取 `help_registry.py`，不会连接
 
 Skill 在首次编译前按 `policy_incremental_compile_limits.md` 判断直接回退：本次修改涉及不支持的注解处理变更，或待重新编译文件明确依赖未支持的插桩行为时，说明具体原因后直接运行 `gradle-build`，不先尝试或耗尽增量重试。支持清单区分 Kuikly `@Page` 仅追加注册、Moshi `@JsonClass` 仅 KSP1，以及 Hilt 仅复用已有生成物的入口转换；项目仅存在某个 processor 或插桩插件不构成直接回退条件。该规则属于 Agent 命令选择，不增加插件运行时自动回退。
 
+Skill 的报错分支按需加载 `references/error_patterns.md`；其中仅在可比条件下 Gradle 成功而 Jugg 失败，或证据指向 Jugg 内部异常时，提示专项调查可能耗时并下载源码，用户同意后才读取现有调查指南。普通失败或 crash 不自动触发；明确的调查请求或 ASK AI prompt 沿用已有授权。
+
 ---
 
 ### 3.8 Cursor 导入 Claude Hooks
