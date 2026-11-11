@@ -6,3 +6,25 @@ plugins {
 sourceCompatibility = 11
 targetCompatibility = 11
 version getDirCommitId(rootDir.relativePath(projectDir))
+
+def verifyLfsBinaries = tasks.register('verifyLfsBinaries') {
+    description = 'Checks that packaged AAPT2 tools contain downloaded Git LFS content.'
+    doLast {
+        def pointerHeader = 'version https://git-lfs.github.com/spec/v1'
+        fileTree('src/main/resources/tools').matching {
+            include '**/aapt2-inclink*'
+        }.each { binary ->
+            def header = binary.withInputStream {
+                new String(it.readNBytes(pointerHeader.length()), 'US-ASCII')
+            }
+            if (header == pointerHeader) {
+                throw new GradleException("Git LFS content is not downloaded: ${rootProject.relativePath(binary)}. " +
+                        'Install Git LFS, then run git lfs install and git lfs pull from the repository root before building.')
+            }
+        }
+    }
+}
+
+tasks.named('processResources') {
+    dependsOn verifyLfsBinaries
+}
