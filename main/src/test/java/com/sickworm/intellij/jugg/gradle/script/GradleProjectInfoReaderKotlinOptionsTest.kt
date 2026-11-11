@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.gradle.script
 
+import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.artifacts.Configuration
@@ -25,6 +26,38 @@ import org.mockito.kotlin.whenever
 import java.io.File
 
 class GradleProjectInfoReaderKotlinOptionsTest {
+
+    @Test
+    fun `KMP JVM target is a Java library and retains its configured build directory`() {
+        val module = createReader(kotlinTask(), "compileKotlinJvm", true,
+            isAndroidApplication = false,
+            kotlinExtension = MultiplatformExtension(listOf(KotlinTarget("common"), KotlinTarget("jvm"))),
+            buildDir = File("/project/build/app"),
+        ).getProjectInfo(false).modules.getValue("app")
+        assertEquals(ModuleInfo.Type.JavaLibrary, module.moduleType)
+        assertEquals(File("/project/build/app"), module.buildPathInfo.buildDir)
+    }
+
+    @Test
+    fun `KMP without a JVM target remains unknown`() {
+        for (targets in listOf(emptyList(), listOf(KotlinTarget("common"), KotlinTarget("js"), KotlinTarget("native")))) {
+            val module = createReader(kotlinTask(), "unused", true, isAndroidApplication = false,
+                kotlinExtension = MultiplatformExtension(targets),
+            ).getProjectInfo(false).modules.getValue("app")
+            assertEquals(ModuleInfo.Type.Unknown, module.moduleType)
+        }
+    }
+
+    @Test
+    fun `Android module retains its type when KMP also exposes a JVM target`() {
+        val module = createReader(kotlinTask(), "compileDebugKotlin", true,
+            kotlinExtension = MultiplatformExtension(listOf(KotlinTarget("jvm"))),
+        ).getProjectInfo(false).modules.getValue("app")
+        assertEquals(ModuleInfo.Type.Application, module.moduleType)
+    }
+
+    class MultiplatformExtension(val targets: List<KotlinTarget>)
+    class KotlinTarget(val platformType: String)
 
     @Test
     fun `built-in Kotlin compiler options populate project info without legacy plugin`() {
@@ -215,6 +248,8 @@ class GradleProjectInfoReaderKotlinOptionsTest {
         isAndroidApplication: Boolean = true,
         isAndroidKmp: Boolean = false,
         kspTask: Task? = null,
+        kotlinExtension: MultiplatformExtension? = null,
+        buildDir: File = File("/project/app/build"),
     ): GradleProjectInfoReader {
         val projectDir = File("/project")
         val appDir = File(projectDir, "app")
@@ -244,7 +279,8 @@ class GradleProjectInfoReaderKotlinOptionsTest {
         val extensions = mock<ExtensionContainer>()
         whenever(extensions.getByName("android")).thenReturn(AndroidExtension())
         whenever(extensions.findByName("kapt")).thenReturn(null)
-        val appLayout = layout(File(appDir, "build"))
+        whenever(extensions.findByName("kotlin")).thenReturn(kotlinExtension)
+        val appLayout = layout(buildDir)
 
         whenever(appProject.path).thenReturn(":app")
         whenever(appProject.name).thenReturn("app")

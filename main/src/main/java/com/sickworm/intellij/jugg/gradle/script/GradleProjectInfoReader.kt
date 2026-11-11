@@ -119,6 +119,13 @@ class GradleProjectInfoReader(
         )
     }
 
+    private fun hasKmpJvmTarget(project: Project): Boolean {
+        if (!project.plugins.hasPlugin("org.jetbrains.kotlin.multiplatform")) return false
+        val kotlin = project.extensions.findByName("kotlin")
+        val targets = readProperty(kotlin, "targets") as? Iterable<*> ?: return false
+        return targets.any { readProperty(it, "platformType")?.toString() == "jvm" }
+    }
+
     private fun getModuleInfo(project: Project): ModuleInfo {
         TraceLogger.start("getModule:${project.standardModuleName}")
         TraceLogger.start("getVar")
@@ -127,6 +134,7 @@ class GradleProjectInfoReader(
             project.plugins.hasPlugin("com.android.library") -> ModuleInfo.Type.Library
             project.plugins.hasPlugin("java-library") -> ModuleInfo.Type.JavaLibrary
             project.plugins.hasPlugin("com.android.dynamic-feature") -> ModuleInfo.Type.DynamicFeature
+            hasKmpJvmTarget(project) -> ModuleInfo.Type.JavaLibrary
             else -> ModuleInfo.Type.Unknown
         }
 
