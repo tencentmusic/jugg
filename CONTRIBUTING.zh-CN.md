@@ -49,7 +49,7 @@
 ### 前置条件
 
 - JDK 17（CI 使用 Temurin 17；插件编译目标为 Java 11）
-- Git
+- Git 和 Git LFS
 - 使用仓库自带的 Gradle Wrapper（`gradlew`）；除非你在改 Wrapper 本身，否则不要另装一套 Gradle
 
 如果要改 native agent，还需要 CI 使用的 Android SDK、NDK 和 CMake。大多数 Kotlin/Java 插件改动不需要。
@@ -57,8 +57,10 @@
 ### 克隆与构建
 
 ```bash
+git lfs install
 git clone https://github.com/tencentmusic/jugg.git
 cd jugg
+git lfs pull
 ./gradlew buildPlugin
 ./gradlew runIde
 ```

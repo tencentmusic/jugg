@@ -49,7 +49,7 @@ Describe the real use case and the user-visible result you want. You do not need
 ### Prerequisites
 
 - JDK 17 (CI uses Temurin 17; the plugin compiles to Java 11)
-- Git
+- Git and Git LFS
 - The Gradle Wrapper in this repository (`gradlew`); do not install a separate Gradle version unless you are changing the wrapper itself
 
 Native agent work also needs the Android SDK, NDK, and CMake used by CI. Most Kotlin/Java plugin changes do not.
@@ -57,8 +57,10 @@ Native agent work also needs the Android SDK, NDK, and CMake used by CI. Most Ko
 ### Clone and build
 
 ```bash
+git lfs install
 git clone https://github.com/tencentmusic/jugg.git
 cd jugg
+git lfs pull
 ./gradlew buildPlugin
 ./gradlew runIde
 ```
