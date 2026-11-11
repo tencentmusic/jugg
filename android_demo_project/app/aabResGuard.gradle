@@ -5,6 +5,13 @@ if (isRelease) {
     new File("$rootDir/app/build/outputs/bundle/release").deleteDir()
 
     apply plugin: "com.bytedance.android.aabResGuard"
+    tasks.configureEach {
+        if (name == "aabresguardRelease") {
+            doFirst {
+                delete file("$buildDir/outputs/bundle/release/base-duplicated.txt")
+            }
+        }
+    }
     aabResGuard {
         enableObfuscate = true // Whether to enable obfuscation
 //    mappingFile = file("mapping.txt").toPath() // Mapping file used for incremental obfuscation
@@ -83,27 +90,18 @@ tasks.register('bundleReleaseToApk') {
         def universalApkFile = new File(outputDir, "duplicated-app.apk")
         if (apkFile.exists()) {
             println "Extracting universal APK..."
-
-            // Use zip to extract universal.apk
-            def zipCommand = [
-                'unzip', '-o', apkFile.absolutePath,
-                'universal.apk',
-                '-d', outputDir.absolutePath
-            ]
-
-            def zipProcess = zipCommand.execute()
-            zipProcess.waitForProcessOutput(System.out, System.err)
-
-            if (zipProcess.exitValue() == 0) {
-                // Rename universal.apk to duplicated-app.apk
-                def extractedApk = new File(outputDir, "universal.apk")
-                if (extractedApk.exists()) {
-                    extractedApk.renameTo(universalApkFile)
-                    println "Universal APK extracted to: ${universalApkFile.absolutePath}"
+            new java.util.zip.ZipFile(apkFile).withCloseable { zip ->
+                def entry = zip.getEntry("universal.apk")
+                if (entry == null) {
+                    throw new GradleException("universal.apk not found in ${apkFile.absolutePath}")
                 }
-            } else {
-                println "Warning: Failed to extract universal APK"
+                zip.getInputStream(entry).withCloseable { input ->
+                    universalApkFile.withOutputStream { output ->
+                        output << input
+                    }
+                }
             }
+            println "Universal APK extracted to: ${universalApkFile.absolutePath}"
         }
     }
 }

@@ -31,7 +31,14 @@ class Aapt2DaemonInvoker(
     @Synchronized
     private fun init() {
         logger.debug("start aapt2 daemon")
-        val process = Runtime.getRuntime().exec("$aapt2 daemon")
+        val process = try {
+            Runtime.getRuntime().exec("$aapt2 daemon")
+        } catch (e: IOException) {
+            if (!isWindows || e.message?.contains("CreateProcess error=32,") != true) throw e
+            logger.debug("Windows temporarily locked the aapt2 executable; retrying daemon startup", e)
+            Thread.sleep(1000)
+            Runtime.getRuntime().exec("$aapt2 daemon")
+        }
         val output = readLine(process!!.inputStream)
         if (output != "Ready") {
             throw JuggInternalException.startAapt2DaemonFailed()
