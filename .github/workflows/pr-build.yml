@@ -20,6 +20,8 @@ jobs:
     steps:
       - name: Check out pull request
         uses: actions/checkout@v6
+        with:
+          lfs: true
 
       - name: Test release notes generation
         run: python3 -m unittest tools.test_generate_release_notes

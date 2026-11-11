@@ -1,1 +1,2 @@
 docs/wiki/zh/articles/*/index.md whitespace=-blank-at-eol
+aapt2-inclink/src/main/resources/tools/**/aapt2-inclink* filter=lfs diff=lfs merge=lfs -text
