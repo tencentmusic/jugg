@@ -575,6 +575,56 @@ class JuggProjectInfoMergerAndroidTestTest {
     }
 
     @Test
+    fun `doMerge removes unresolved KMP source set references only after Gradle dependency is connected`() {
+        val ideDependencies = listOf("kmpAnnotation.jvmMain", "kmpAnnotation.commonMain", "unconfirmed.commonMain")
+        val ideFile = saveToTempFile(projectInfoWithoutAgpR8(mapOf(
+            "app" to module("app", ModuleInfo.Type.Unknown, ideDependencies),
+        )))
+        val gradleFile = saveToTempFile(projectInfoWithoutAgpR8(mapOf(
+            "app" to module("app", ModuleInfo.Type.Application, listOf("kmpAnnotation")),
+            "kmpAnnotation" to module("kmpAnnotation", ModuleInfo.Type.Unknown),
+            "unconfirmed" to module("unconfirmed", ModuleInfo.Type.Unknown),
+        )))
+        try {
+            val merger = JuggProjectInfoMerger(logger)
+            merger.afterSync(ProjectInfoSerializer(ideFile, logger), BuildTarget.APP)
+            val fetched = merger.afterLocalFetch(listOf(ProjectInfoSerializer(gradleFile, logger)), BuildTarget.APP)
+            assertEquals(listOf("unconfirmed.commonMain", "kmpAnnotation"),
+                fetched.mergedInfo?.modules?.get("app")?.moduleDependencies?.map { it.moduleName })
+            val synced = merger.afterSync(ProjectInfoSerializer(ideFile, logger), BuildTarget.APP)
+            assertEquals(listOf("unconfirmed.commonMain", "kmpAnnotation"),
+                synced.mergedInfo?.modules?.get("app")?.moduleDependencies?.map { it.moduleName })
+        } finally {
+            ideFile.delete()
+            gradleFile.delete()
+        }
+    }
+
+    @Test
+    fun `doMerge preserves resolved KMP source sets and unresolved references without a connected target`() {
+        val dependencies = listOf("kmpAnnotation.commonMain", "missing.jvmMain", "cyclic.jvmMain")
+        val ideFile = saveToTempFile(projectInfoWithoutAgpR8(mapOf(
+            "app" to module("app", ModuleInfo.Type.Unknown, dependencies),
+            "kmpAnnotation.commonMain" to module("kmpAnnotation.commonMain", ModuleInfo.Type.Unknown),
+        )))
+        val gradleFile = saveToTempFile(projectInfoWithoutAgpR8(mapOf(
+            "app" to module("app", ModuleInfo.Type.Application, listOf("kmpAnnotation", "missing", "cyclic")),
+            "kmpAnnotation" to module("kmpAnnotation", ModuleInfo.Type.Unknown),
+            "cyclic" to module("cyclic", ModuleInfo.Type.Unknown, listOf("app")),
+        )))
+        try {
+            val merger = JuggProjectInfoMerger(logger)
+            merger.afterSync(ProjectInfoSerializer(ideFile, logger), BuildTarget.APP)
+            val result = merger.afterLocalFetch(listOf(ProjectInfoSerializer(gradleFile, logger)), BuildTarget.APP)
+            assertEquals(dependencies + "kmpAnnotation",
+                result.mergedInfo?.modules?.get("app")?.moduleDependencies?.map { it.moduleName })
+        } finally {
+            ideFile.delete()
+            gradleFile.delete()
+        }
+    }
+
+    @Test
     fun `doMerge skips IDE-known Gradle dependency when adding it creates a cycle`() {
         val ideFile = saveToTempFile(
             projectInfoWithoutAgpR8(

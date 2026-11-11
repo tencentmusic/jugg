@@ -383,10 +383,40 @@ class JuggProjectInfoMerger(
             mergeResult,
         )
 
+        removeCoveredKmpSourceSetDependencies(mergedModules, finalGradleProjectInfo.modules, mergeResult)
+
         return mergeResult.copy(mergedInfo = JuggProjectInfo(
             modules = mergedModules,
             agpR8Classpath = null,
         ))
+    }
+
+    private fun removeCoveredKmpSourceSetDependencies(
+        modules: MutableMap<String, ModuleInfo>,
+        gradleModules: Map<String, ModuleInfo>,
+        mergeResult: JuggProjectInfoMergeResult,
+    ) {
+        modules.toMap().forEach { (ownerName, module) ->
+            val gradleDependencies = gradleModules[ownerName]?.moduleDependencies.orEmpty()
+                .mapTo(mutableSetOf()) { it.moduleName }
+            val connectedDependencies = module.moduleDependencies.mapTo(mutableSetOf()) { it.moduleName }
+            val dependencies = module.moduleDependencies.filterNot { dependency ->
+                val name = dependency.moduleName
+                val sourceSet = name.substringAfterLast('.')
+                val target = name.substringBeforeLast('.', "")
+                // IDE source-set modules may be absent while Gradle exposes their JVM project output.
+                val covered = name !in modules && sourceSet in setOf("jvmMain", "commonMain") &&
+                        target in modules && target in gradleDependencies && target in connectedDependencies
+                if (covered) {
+                    logger.debug("Remove unresolved KMP dependency $ownerName -> $name covered by $target")
+                    mergeResult.addMergedItem(ownerName, "moduleDependencies", "-$name")
+                }
+                covered
+            }
+            if (dependencies.size != module.moduleDependencies.size) {
+                modules[ownerName] = module.copy(moduleDependencies = dependencies)
+            }
+        }
     }
 
     /** Adds Gradle-confirmed dependencies missing from the IDE snapshot without introducing a cycle. */

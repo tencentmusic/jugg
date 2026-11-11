@@ -177,6 +177,8 @@ JuggManager.onSyncEvent()
 
 Merger 的输入是 IDE/Gradle 原始快照，不包含 classpath 备份后的模块。`ClasspathBackupHelper.fetch()` 只在返回的模块副本中把 `buildPathInfo` 映射到备份目录，并由全量构建记录保存；不会写回 merger 输入。`CompileContextManager.getProjectInfo()` 在合并后应用自定义 classpath/sync 配置，`buildEffectiveModules()` 再优先采用全量记录中的 `buildPathInfo`，保留当前自定义配置；全量记录缺少模块时才推断备份目录。修正 merge 不会覆盖已有全量基线中的路径，也不会自动修复错误的历史基线。
 
+合并出口会清理已被 Gradle 工程依赖覆盖的悬空 KMP 引用：仅针对不存在于最终模块表的 `.jvmMain` / `.commonMain` 依赖，且同一 owner 的 Gradle 依赖明确包含对应工程模块、该工程依赖已成功接入最终图时，移除 source set 引用。可解析的 source set、缺少 Gradle 依赖确认、目标模块缺失或因循环被拒绝接入时均保留原引用；不通过降日志等级隐藏未解决的依赖问题。Sync 和 Gradle 读取后刷新共用此出口。
+
 项目快照更新不是单纯替换 JSON。它会影响 classpath、module-to-APK 归属、文件变更过滤、自定义编译器、依赖变化确认和部署历史恢复。
 
 `JuggProjectInfoMerger` 合并得到的最终 `JuggProjectInfo` / `ModuleInfo` 只保存在编译上下文内存中，不会回写 `project_infos.json`。磁盘上的 `project_infos.json`、`gradle_project_infos.json` 和 include build 快照分别代表各自输入源，时间戳和单个文件字段都不能直接代表最终合并状态；排查最终行为时应结合全部输入快照与编译日志判断。
