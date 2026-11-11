@@ -45,7 +45,7 @@
 
 ---
 
-AAPT2 native incremental-link commands live in `aapt2-inclink/source/cmd/IncLink.cpp` and `aapt2-inclink/source/cmd/IncLink.h`. Shared linking/output behavior lives in `source/cmd/Link.cpp`; current-invocation file membership is owned by `source/link/TableMerger.cpp` (both under `aapt2-inclink/`). Build entry points are `aapt2-inclink/source/Android.bp` and `Android.mk` in the same source directory. See `02_compile_aapt2_inclink.md` for native state, compatibility boundaries and diagnostic entry points, and `02_compile_aapt2_build.md` for the standalone macOS CMake build, smoke and debugger evidence. Source history remains in `aapt2-inclink/README.md`.
+AAPT2 native incremental-link commands live in `aapt2-inclink/source/cmd/IncLink.cpp` and `aapt2-inclink/source/cmd/IncLink.h`. Shared linking/output behavior lives in `source/cmd/Link.cpp`; current-invocation file membership is owned by `source/link/TableMerger.cpp` (both under `aapt2-inclink/`). Build entry points are `aapt2-inclink/source/Android.bp` and `Android.mk` in the same source directory. See `02_compile_aapt2_inclink.md` for native state, compatibility boundaries and diagnostic entry points, and `02_compile_aapt2_build.md` for standalone CMake builds, host compatibility gates, smoke and debugger evidence. `aapt2-inclink/scripts/build_host.py` owns Linux/Windows target builds; `scripts/check_host_candidate.py` and `scripts/host_compatibility.json` under the same module own the packaged host dependency contract. Source history remains in `aapt2-inclink/README.md`.
 
 ## 2. IDE Layer (`idea/src/main` + `idea/src/ide_entry`)
 

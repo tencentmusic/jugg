@@ -1,6 +1,6 @@
 # Building AAPT2 inclink on macOS
 
-> Last verified: 2026-11-10
+> Last verified: 2026-11-11
 > Consistency rule: If documentation conflicts with code, code takes precedence.
 
 ## 1. Ownership and prerequisites
@@ -71,19 +71,32 @@ Use the named CTest selection to avoid unrelated third-party test registrations.
 
 Linux and Windows use the same pinned source graph and the same CMake entry point. Build on the native target host when possible. A cross build must provide a target compiler toolchain and a host `protoc`; `protoc` runs during the build and must never be the target executable.
 
-The repository entry point is `scripts/build_host.py`. It accepts explicit `--target linux|windows` and `--mode debug|release` arguments, reuses the archive validation in `build_macos.py`, and forwards compiler, archiver, ranlib and host-protoc paths to CMake. A Linux cross build with Zig is representative:
+The repository entry point is `scripts/build_host.py`. It accepts explicit `--target linux|windows` and `--mode debug|release` arguments and reuses archive validation in `build_macos.py`. Explicit compiler, archiver, ranlib and host-protoc paths remain supported. On POSIX build hosts, `--zig /path/to/zig` generates wrappers in the build directory and requires Zig **0.16.0**. It fixes the full toolchain target, including Zig's own C++ runtime, to `x86_64-linux-gnu.2.14` or `x86_64-windows.vista-gnu`, with `-mcpu=baseline`. Zig is an optional cross compiler, not a replacement for the pinned AOSP source dependencies.
 
 ```bash
 python3 aapt2-inclink/scripts/build_host.py \
-  --target linux --mode release \
-  --cc /path/to/zig-linux-cc --cxx /path/to/zig-linux-cxx \
-  --ar /path/to/zig-linux-ar --ranlib /path/to/zig-linux-ranlib \
-  --protoc /path/to/host/protoc --strip /path/to/target-strip
+  --target linux --mode release --zig /path/to/zig \
+  --protoc /path/to/host/protoc --strip /path/to/llvm-strip \
+  --objdump /path/to/llvm-objdump \
+  --build-number eng.wormch.20260126.211344
 ```
 
-Windows follows the same form and produces `aapt2-inclink.exe`. The Windows graph follows AOSP host selection: it omits Unix-only `cmsg.cpp`, selects `errors_windows.cpp` and `utf8.cpp`, uses the MinGW thread-safe time API and `-mno-ms-bitfields`, and links the executable statically. The platform compiler and system runtime are toolchain inputs; they are not AOSP dependencies and are not stored in the repository.
+Use `--target windows` for the Windows x64 output. Use clean build directories when changing compiler targets; the generated wrappers must not be retargeted underneath an existing CMake cache. Both targets remain x86-64 only, and packaging/runtime selection is unchanged.
 
-Release builds strip debug sections with the target-compatible `--strip` command; cross builds must provide it explicitly. The verified x86-64 Linux and Windows outputs are the packaged prebuilts under `src/main/resources/tools/`. Cross-build verification is limited to successful compilation, target-format inspection (`file` reports ELF or PE32+), and archive/protobuf integrity. Runtime smoke remains a native-host check. The macOS universal build and smoke provide the runtime evidence for this change; Linux and Windows runtime smoke requires their respective hosts.
+The compatibility baseline is the pre-migration binary at commit `39669cb164147e5912b3732b69a2fce3e0911feb`, recorded in `scripts/host_compatibility.json`. Linux must not require GLIBC newer than **2.14** or additional shared libraries. Windows must retain PE system/subsystem 6.0, the existing system/UCRT DLL contract and only old or individually reviewed imports. The Vista target makes libc++ query `GetSystemTimePreciseAsFileTime` dynamically and fall back to `GetSystemTimeAsFileTime`; the precise-time function must not become a mandatory import. A PE version alone does not establish the oldest supported Windows installation, which also needs the existing UCRT.
+
+Unqualified Zig targets are unsafe for compatibility refreshes: Zig 0.16.0 defaults used here selected glibc 2.31 and Windows 10, producing `pow@GLIBC_2.29` and a mandatory precise-time import. Applying a macro only to AAPT2 does not change Zig's separately built libc++. Pin the complete compiler target and inspect the resulting binary.
+
+Windows source selection follows AOSP host configuration: omit Unix-only `cmsg.cpp`, select `errors_windows.cpp` and `utf8.cpp`, use the MinGW thread-safe time API and `-mno-ms-bitfields`, and link the executable statically. Static linkage still leaves system/UCRT DLL imports.
+
+Release builds require target-compatible stripping (`--strip` is mandatory for cross builds), then automatically run `scripts/check_host_candidate.py`. The gate checks architecture and dependencies, GLIBC versions or Windows imports/PE versions, and the requested build number when supplied. It can also inspect candidates independently without executing them:
+
+```bash
+python3 aapt2-inclink/scripts/check_host_candidate.py /path/to/aapt2-inclink --target linux
+python3 aapt2-inclink/scripts/check_host_candidate.py /path/to/aapt2-inclink.exe --target windows
+```
+
+Artifact compatibility inspection and runtime correctness are separate evidence. Run `scripts/smoke.py` on each target host for compile/link, daemon load and consecutive increments. macOS smoke cannot establish Linux or Windows runtime behavior. Pending native-host verification must be recorded explicitly with the candidate hashes in the task record.
 
 ## 6. Historical AOSP route
 
