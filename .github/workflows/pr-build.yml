@@ -20,6 +20,8 @@ jobs:
     steps:
       - name: Check out pull request
         uses: actions/checkout@v6
+        with:
+          lfs: true
 
       - name: Set up Java
         uses: actions/setup-java@v5

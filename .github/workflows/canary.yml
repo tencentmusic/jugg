@@ -21,6 +21,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 1
+          lfs: true
 
       - name: Check for unpublished commits
         id: check

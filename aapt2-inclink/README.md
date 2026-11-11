@@ -3,6 +3,12 @@
 - `source/`: AOSP C++ source for `inclink`; command owners are `cmd/IncLink.cpp` and `cmd/IncLink.h`, with `Android.bp` / `Android.mk` build entry points.
 - `src/main/resources/tools/`: prebuilt platform tools packaged by the existing Gradle module.
 
+## Prebuilt storage
+
+The platform executables under `src/main/resources/tools/` are tracked with Git LFS. Install Git LFS and run `git lfs install` before cloning; in an existing checkout, run `git lfs pull` before building. Gradle packages the downloaded binary bytes at the existing resource paths. Plugin build workflows enable LFS during checkout. Replacing a prebuilt uses the normal `git add` / `git commit` flow; the LFS pre-push hook uploads its content when pushing.
+
+The conversion starts with a new commit and preserves existing history. Earlier commits still contain ordinary Git blobs; this change does not reduce historical clone storage.
+
 ## Source history and builds
 
 Imported from the local `/Users/wormchen/aosp/aapt2_jugg` checkout of https://github.com/sickworm/aapt2-inclink at `b5b59b2ac` using Git subtree without squashing. All 29 original commits retain their hashes, authors, messages, and parent relationships. Original commit paths are relative to the source repository root; current files live under `aapt2-inclink/source/`. Only tracked content was imported; the original checkout remains intact.
