@@ -6,6 +6,8 @@ import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import org.junit.Test
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.verify
+import org.mockito.Mockito.never
+import org.mockito.ArgumentMatchers.anyString
 import java.io.File
 import java.nio.file.Files
 import kotlin.test.assertEquals
@@ -17,6 +19,47 @@ class KotlinCompilerOutputParserTest {
     private val source = CompileFile(
         CompileFile.Type.Kotlin, File("/project/Source.kt"), File("/project"), ModuleInfo.virtualModule,
     )
+
+    @Test
+    fun `silent parsing retains diagnostics and publishes them only on request`() {
+        val parser = KotlinCompilerOutputParser(listOf(source), logger, isOutputEnabled = false)
+        val message = "${source.file.path}:7:3: error: unresolved reference: Missing"
+        parser.printStream.println(message)
+        parser.flush()
+
+        assertEquals(message, parser.getResult(false).single().getFailure().errors.single().second)
+        verify(logger, never()).warn(anyString())
+        verify(logger).debug(message)
+        parser.printDiagnostics()
+        verify(logger).warn(message)
+    }
+
+    @Test
+    fun `silent exceptions retain the missing class cause for final reporting`() {
+        val parser = KotlinCompilerOutputParser(listOf(source), logger, isOutputEnabled = false)
+        parser.printStream.println("exception: org.jetbrains.kotlin.util.FileAnalysisException: analysis failed")
+        parser.printStream.println("Caused by: java.io.FileNotFoundException: /baseline/Missing.class")
+        parser.flush()
+
+        assertTrue(parser.getResult(false).single().getFailure().errorMessages.contains("/baseline/Missing.class"))
+        verify(logger, never()).warn(anyString())
+        parser.printDiagnostics()
+        verify(logger).warn("org.jetbrains.kotlin.util.FileAnalysisException: analysis failed\n" +
+                "Caused by: java.io.FileNotFoundException: /baseline/Missing.class")
+    }
+
+    @Test
+    fun `KAPT result collection stays silent and final diagnostics are deduplicated`() {
+        val parser = KotlinCompilerOutputParser(listOf(source), logger,
+            forceCompilerOutputDebug = true, isOutputEnabled = false)
+        repeat(2) { parser.printStream.println("error: missing processor option") }
+        parser.flush()
+
+        repeat(2) { parser.getResult(false) }
+        verify(logger, never()).warn(anyString())
+        parser.printDiagnostics()
+        verify(logger).warn("error: missing processor option")
+    }
 
     @Test(timeout = 5_000)
     fun `long KAPT classpath output preserves following diagnostics promptly`() {

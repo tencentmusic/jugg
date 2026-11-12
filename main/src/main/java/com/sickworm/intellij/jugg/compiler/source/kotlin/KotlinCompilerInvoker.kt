@@ -165,6 +165,15 @@ class KotlinCompilerInvoker {
         task: CompileTask,
         logger: Logger,
         options: Options,
+    ): CompileResult = compileAttempt(context, module, task, logger, options, isRetry = false)
+
+    private fun compileAttempt(
+        context: ICompileContext,
+        module: ModuleInfo,
+        task: CompileTask,
+        logger: Logger,
+        options: Options,
+        isRetry: Boolean,
     ): CompileResult {
         logger.debug("compile options: $options")
 
@@ -429,6 +438,7 @@ class KotlinCompilerInvoker {
             files = task.files,
             logger = logger,
             forceCompilerOutputDebug = options.isEnableKapt,
+            isOutputEnabled = false,
         )
         val compilerToolchainKey = classpath
             ?.takeIf { kotlinCompile.isUseProjectCompiler && it.isNotEmpty() }
@@ -480,6 +490,19 @@ class KotlinCompilerInvoker {
         outputParser.flush()
         logger.debug("kotlin compile result code: $exitCode")
 
+        val isCompileSuccess = exitCode == ExitCode.OK
+        val compileResults = outputParser.getResult(isCompileSuccess)
+
+        fun retryCompile(retryOptions: Options): CompileResult {
+            val result = compileAttempt(context, module, task, logger, retryOptions, isRetry = true)
+            if (result.isAllSuccess) return result
+            if (!isRetry) {
+                logger.info("Kotlin compiler retry did not resolve the problem. Showing the original compilation errors below.\n")
+                outputParser.printDiagnostics()
+            }
+            return CompileResult(task, compileResults, emptyList())
+        }
+
         if (outputParser.isGotIdeFileSystemCloseException &&
             executionMode == ExecutionMode.IN_PROCESS && compilerToolchainKey != null) {
             ideFileSystemConflictCompilerKeys += compilerToolchainKey
@@ -488,7 +511,7 @@ class KotlinCompilerInvoker {
                 hasRetryCompile = true
             } else {
                 logger.warn("Kotlin compiler conflicts with IDE file system, retry in an isolated process once.")
-                return compile(context, module, task, logger, options.copy(isCanAutoRetry = false))
+                return retryCompile(options.copy(isCanAutoRetry = false))
             }
         }
 
@@ -496,11 +519,9 @@ class KotlinCompilerInvoker {
         if (options.isCanAutoRetry && !hasRetryCompile && handleMetadataError(outputParser, logger)) {
             hasRetryCompile = true
             logger.info("Kotlin compile failed with metadata error, retry once.")
-            return compile(context, module, task, logger, options)
+            return retryCompile(options)
         }
 
-        val isCompileSuccess = exitCode == ExitCode.OK
-        val compileResults = outputParser.getResult(isCompileSuccess)
         val errorResults = compileResults.sumOf {
             if (it.isSuccess) 0 else it.getFailure().errors.size
         }
@@ -521,7 +542,7 @@ class KotlinCompilerInvoker {
                 unsupportedProjectPluginId,
                 options.kotlinPluginOptions,
             )
-            return compile(context, module, task, logger, options)
+            return retryCompile(options)
         }
 
         var shouldRecreate = false
@@ -606,10 +627,10 @@ class KotlinCompilerInvoker {
         if (shouldRecreate) {
             logger.debug("try recreate compiler once, hasRecreateAfterInternalError: $hasRetryCompile")
             if (options.isCanAutoRetry && !hasRetryCompile) {
-                logger.warn("\n$retryReason, retry with recreating compiler once.\n")
+                logger.info("\n$retryReason, retry with recreating compiler once.")
                 hasRetryCompile = true
                 kotlinCompile = K2JVMCompilerIsolate()
-                return compile(context, module, task, logger, options)
+                return retryCompile(options)
             }
         }
 
@@ -622,6 +643,7 @@ class KotlinCompilerInvoker {
         }
 
         if (exitCode != ExitCode.OK) {
+            if (!isRetry) outputParser.printDiagnostics()
             // print infos
             context.printClasspathCheck(module)
             hasRetryCompile = false

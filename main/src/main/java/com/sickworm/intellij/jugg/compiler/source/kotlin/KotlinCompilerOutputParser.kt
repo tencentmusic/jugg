@@ -16,6 +16,7 @@ class KotlinCompilerOutputParser(
     private val files: List<CompileFile>,
     private val logger: Logger,
     private val forceCompilerOutputDebug: Boolean = false,
+    private val isOutputEnabled: Boolean = true,
 ) {
 
     private val outputStream = object : OutputStream() {
@@ -44,9 +45,6 @@ class KotlinCompilerOutputParser(
         get() = innerOutputs.flatMap { it.value }
 
     fun getResult(isCompileSuccess: Boolean): List<Result<CompileFile, CompileError>> {
-        if (!isCompileSuccess && forceCompilerOutputDebug) {
-            innerErrors.values.flatten().map { it.second }.distinct().forEach { logger.warn(it) }
-        }
         return files.map { file ->
             val errorDetails = innerErrors[file]
             if (errorDetails != null) {
@@ -77,6 +75,12 @@ class KotlinCompilerOutputParser(
 
     var isGotIdeFileSystemCloseException: Boolean = false
         private set
+
+    private val diagnostics = linkedSetOf<String>()
+
+    fun printDiagnostics() {
+        diagnostics.forEach { logger.warn(it) }
+    }
 
     private val innerErrors = mutableMapOf<CompileFile, MutableList<Pair<Long, String>>>()
     private val directErrorFiles = mutableSetOf<CompileFile>()
@@ -114,9 +118,9 @@ class KotlinCompilerOutputParser(
             }
             MessageType.ERROR -> {
                 val parsedMessage = parseErrorMessage(message)
-                if (forceCompilerOutputDebug) {
-                    logger.debug(parsedMessage)
-                } else {
+                diagnostics += parsedMessage
+                logger.debug(parsedMessage)
+                if (isOutputEnabled && !forceCompilerOutputDebug) {
                     logger.warn(parsedMessage)
                 }
             }
@@ -198,6 +202,7 @@ class KotlinCompilerOutputParser(
         }
 
         val exceptionMessage = parseExceptionSummary(message) ?: return
+        diagnostics += exceptionMessage
         files.forEach {
             innerErrors.getOrPut(it) { mutableListOf() }.add(-1L to exceptionMessage)
         }
@@ -207,7 +212,10 @@ class KotlinCompilerOutputParser(
         return message.lineSequence()
             .firstOrNull { it.contains("exception:") }
             ?.substringAfter("exception:")
-            ?.trim()
+            ?.let { summary ->
+                (listOf(summary.trim()) + message.lineSequence()
+                    .map { it.trim() }.filter { it.startsWith("Caused by:") }.toList()).joinToString("\n")
+            }
             ?.takeIf { it.isNotEmpty() }
     }
 
@@ -257,7 +265,7 @@ class KotlinCompilerOutputParser(
             if (message.contains(".kotlin_module")) {
                 logger.debug("(.kotlin_module) Failed to parse output message with no source file: $message")
             } else {
-                if (forceCompilerOutputDebug) {
+                if (forceCompilerOutputDebug || !isOutputEnabled) {
                     logger.debug("Failed to parse output message with no source file: $message")
                 } else {
                     logger.warn("Failed to parse output message with no source file: $message")
@@ -268,7 +276,7 @@ class KotlinCompilerOutputParser(
         }
 
         if (outputFiles.isEmpty()) {
-            if (forceCompilerOutputDebug) {
+            if (forceCompilerOutputDebug || !isOutputEnabled) {
                 logger.debug("Failed to parse output message with no output file: $message")
             } else {
                 logger.warn("Failed to parse output message with no output file: $message")
