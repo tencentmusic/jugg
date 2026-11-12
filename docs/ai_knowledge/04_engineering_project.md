@@ -179,6 +179,8 @@ Gradle reader 对已应用 `org.jetbrains.kotlin.multiplatform` 且实际配置�
 
 Merger 的输入是 IDE/Gradle 原始快照，不包含 classpath 备份后的模块。`ClasspathBackupHelper.fetch()` 只在返回的模块副本中把 `buildPathInfo` 映射到备份目录，并由全量构建记录保存；不会写回 merger 输入。`CompileContextManager.getProjectInfo()` 在合并后应用自定义 classpath/sync 配置，`buildEffectiveModules()` 再优先采用全量记录中的 `buildPathInfo`，保留当前自定义配置；全量记录缺少模块时才推断备份目录。修正 merge 不会覆盖已有全量基线中的路径，也不会自动修复错误的历史基线。
 
+Quail/Rabbit 读取 IDE 模块时，缺少 Android 模型的 Gradle 模块通过 External System 关联和工程绝对路径进入既有源码根/依赖读取流程；KMP 的 `jvmMain` / `commonMain` 模块身份按 IDE 原名保留，合并出口不按后缀删除引用。
+
 项目快照更新不是单纯替换 JSON。它会影响 classpath、module-to-APK 归属、文件变更过滤、自定义编译器、依赖变化确认和部署历史恢复。
 
 `JuggProjectInfoMerger` 合并得到的最终 `JuggProjectInfo` / `ModuleInfo` 只保存在编译上下文内存中，不会回写 `project_infos.json`。磁盘上的 `project_infos.json`、`gradle_project_infos.json` 和 include build 快照分别代表各自输入源，时间戳和单个文件字段都不能直接代表最终合并状态；排查最终行为时应结合全部输入快照与编译日志判断。

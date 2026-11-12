@@ -41,6 +41,7 @@ import com.google.common.collect.ImmutableMap
 import com.intellij.execution.RunManager
 import com.intellij.execution.RunnerAndConfigurationSettings
 import com.intellij.execution.configurations.RunConfigurationBase
+import com.intellij.openapi.externalSystem.util.ExternalSystemApiUtil
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.Project
@@ -277,7 +278,8 @@ open class QuailAsDeployerCompat : IAsDeployerCompat {
     }
 
     override fun getIdeModuleInfo(project: Project, module: Module, logger: Logger, isSafeMode: Boolean): IdeModuleInfo? {
-        val gradleAndroidModel = runCatching { GradleAndroidModel.get(module) }.getOrNull() ?: return null
+        val gradleAndroidModel = runCatching { GradleAndroidModel.get(module) }.getOrNull()
+            ?: return getNonAndroidGradleModuleInfo(module, logger)
         val androidFacet = AndroidFacet.getInstance(module)
         val buildVariant = androidFacet?.properties?.SELECTED_BUILD_VARIANT
             .takeUnless { it.isNullOrEmpty() }
@@ -312,6 +314,35 @@ open class QuailAsDeployerCompat : IAsDeployerCompat {
             brokenFields = result.brokenFields,
         )
         return result
+    }
+
+    private fun getNonAndroidGradleModuleInfo(module: Module, logger: Logger): IdeModuleInfo? {
+        // KMP JVM source sets have no Android model but retain Gradle External System metadata.
+        val baseDir = try {
+            val api = ExternalSystemApiUtil::class.java
+            val isGradle = api.getMethod("isExternalSystemAwareModule", String::class.java, Module::class.java)
+                .invoke(null, "GRADLE", module) == true
+            if (!isGradle) return null
+            val path = api.getMethod("getExternalProjectPath", Module::class.java).invoke(null, module) as? String
+            path?.takeIf { it.isNotBlank() }?.let { File(it) }?.takeIf { it.isAbsolute } ?: return null
+        } catch (failure: Exception) {
+            logger.debug("Gradle External System metadata unavailable for ${module.name}; skipping module", failure)
+            return null
+        }
+        return IdeModuleInfo(
+            baseDir = baseDir,
+            buildToolsVersion = null,
+            compileVersion = null,
+            minSdkVersion = null,
+            kotlinJvmTarget = null,
+            kotlinFreeCompilerArgs = emptyList(),
+            javaSourceCompatibility = null,
+            javaTargetCompatibility = null,
+            minifyEnabled = null,
+            buildVariant = "debug",
+            manifestRelativePath = null,
+            brokenFields = emptyList(),
+        )
     }
 
     private fun getSuggestRunConfiguration(
