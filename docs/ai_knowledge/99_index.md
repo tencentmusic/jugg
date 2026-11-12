@@ -31,6 +31,7 @@
 | **app androidTest 支持 / instrumentation 运行链路** | `06_android_test.md`, `06_testing.md` | `JuggAndroidTestRunConfiguration.kt`, `JuggAndroidTestLineMarkerContributor.kt`, `JuggAndroidTestConsoleProperties.kt`, `JuggAndroidTestRerunFailedTestsAction.kt`, `InstrumentationSmRunnerBridge.kt`, `TestLauncher.kt` |
 | 整体架构理解/模块划分 | `98_code_map.md`, `01_architecture.md` | - |
 | 编译失败/回退策略 | `98_code_map.md`, `02_compile_core.md`, `02_compile_source.md` | `idea/.../JuggCompileHelper.kt`, `main/.../JuggCompiler.kt` |
+| **新增注解处理器支持 / APT、KAPT、KSP 适配设计** | `02_compile_annotations.md`, `06_testing.md` | `compiler/source/apt/IJuggAptProcessor.kt`、`JuggAptCompiler.kt`、`processors/*` |
 | 资源/Manifest/DataBinding 异常 | `98_code_map.md`, `02_compile_resource.md`, `02_compile_manifest.md`, `02_compile_databinding.md` | `compiler/overlay`, `compiler/manifest`, `compiler/databinding` |
 | 自定义编译器/编译交互协议 | `98_code_map.md`, `02_compile_custom_ui.md` | `compiler/custom/*`, `compiler/ui/*` |
 | 部署失败/热更策略 | `98_code_map.md`, `03_deploy_core.md`, `03_deploy_complete.md`, `06_testing.md` §7.1 | `idea/.../JuggDeployerHelper.kt`, `idea/.../manager/TopLevelFlowTest` |
@@ -68,6 +69,7 @@
 | `01_architecture.md` | 分层架构与核心链路 |
 | `02_compile_core.md` | 增量编译主流程与阶段编排 |
 | `02_compile_source.md` | Java/Kotlin/Dex 编译链 |
+| `02_compile_annotations.md` | 注解增量支持接入指引：触发成本、输入范围、工具链复用、产物生命周期和验证 |
 | `02_compile_resource.md` | 资源编译与 aapt2 link |
 | `02_compile_databinding.md` | DataBinding/ViewBinding 增量处理 |
 | `02_compile_manifest.md` | Manifest 增量合并 |

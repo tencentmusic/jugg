@@ -10,6 +10,7 @@
 本页覆盖源码到 dex 的增量编译主链路：JuggApt/KSP/KAPT 生成源码、DataBinding mapper、Kotlin/Java 编译、dex 生成、minified 变体重映射。它重点记录阶段顺序、Kotlin 模块身份、脱糖上下文、失败降级和多 APK target 归属。
 
 资源与 `R.java` 生成见 `02_compile_resource.md`；DataBinding 细节见 `02_compile_databinding.md`；release 混淆和 `_jugg_fix` 见 `02_compile_obfuscation.md`。
+新增注解适配的范围评估、设计原则和验证指引见 [02_compile_annotations.md](02_compile_annotations.md)。
 
 ---
 
