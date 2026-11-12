@@ -89,6 +89,20 @@ Kotlin 阶段结果汇总后仍绑定准备阶段的 `compileTask`，保留所�
 ARouter 处理器在自身打印原异常 warn，并只向通用编译链交付不含项目细节的失败标记；`JuggCompilerHelper` 保持通用的查看日志提示。生成源码的直接语言诊断仍由语言编译路径处理。
 公共 APT runner 的失败摘要不展开 `CompileError` 列表；Java APT 和 Kotlin KAPT 在构造失败结果时将实际诊断以 warn 输出，不打印空诊断的连带失败文件，Kotlin 广播到多文件的同一诊断只打印一次。
 
+### ButterKnife 局部处理
+
+`ButterKnifeJuggAptProcessor` 通过模块已解析依赖中的 `butterknife-compiler-*` 做内存门禁。未命中不读源码或 JAR；命中模块只对本轮源码做共享文本筛选，包含 `butterknife` 时才解析实际字段/方法注解，支持普通/星号 import、全限定写法和 Kotlin import alias/use-site。无候选不准备 classpath、扫描继承或执行 processor。无注解但匹配已有生成绑定类的声明仍进入检查，以发现删除最后绑定；跨文件 Kotlin typealias 不参与检测。
+
+真实候选使用项目 `butterknife.compiler.ButterKnifeProcessor`：Java 通过独立 javac `-proc:only` 执行，JDK 来自编译环境 `JAVA_HOME` 或宿主 `java.home`；JDK 9+ 只为该进程开放 javac `code/tree/processing/util`。Kotlin 使用 `AnnotationProcessorRunner` 的显式隔离 KAPT 选项，复用项目 compiler 和现有子进程 module exports/opens。共享 runner 默认调用行为保持不变。ButterKnife 仅传递 `butterknife.minSdk` / `butterknife.debuggable`，独立 javac 使用 `-Xlint:-options` 关闭选项兼容提示；真实处理器执行以 info 打印开始及 finally 结束耗时，无候选轮次不打印。
+
+官方 processor 从 classpath 父类注解恢复绑定。相关输入才读取模块现存 class 头并沿父子关系追加同模块有 binding 的后代源码，同次生成与语言编译，不全量收集业务源码。跨模块有绑定后代无法在当前模块轮次原子提交时明确失败，保留用户主动 Gradle 构建入口；不因仅声明 processor 而整体回退。普通方法体变化的绑定文件目前也会重新生成。
+
+生成物按本轮输出逐文件发布到 `incrementalDataDir/butterknife/<module>/<variant>/sources`，不清空其他类型；经现有 changed files、Kotlin/Java、D8 链路处理。同模块追加源码也属于 failClosed 输入，不能通过移除生成物重试掩盖真实错误。生成失败或已有绑定不再产生时停止本轮，删除最后绑定、重命名绑定类须主动 Gradle 刷新。
+
+`ButterKnifeR2` 只为源码引用的 R2 namespace 准备临时 Java：保留基线常量，追加缺失名称且占位值不冲突。官方 AST/Id 将符号转换为运行时 R；临时 R2 与 binding 一并进入本轮语言编译，避免 APT 成功后正常 javac 仍看到旧 R2。资源数值与部署仍沿用既有 R 链路。
+
+回归 owner：`ButterKnifeJuggAptProcessorTest`（真实 10.2.3 processor、快速跳过、Java/KAPT、R2、继承及 SourceCompiler → DEX）；`JuggCompilerTest.testButterKnifeAnnotationChangeCompilesGeneratedBinding`（demo 基线到增量 staging DEX，主机 Flow）。Demo 首页 `ButterKnife Demo` 可验证 Java/Kotlin 字段、监听器和继承，设备 E2E 由用户执行；新增 binding 后建议重启 App 清除 ButterKnife 反射缓存。
+
 ### 4.1 Kotlin 模块身份与元数据
 
 ```text

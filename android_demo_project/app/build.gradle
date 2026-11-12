@@ -137,6 +137,9 @@ dependencies {
 //    runtimeOnly 'com.squareup.retrofit2:retrofit:2.6.0'
 //    runtimeOnly 'com.squareup.retrofit2:retrofit:2.7.0'
 
+    implementation 'com.jakewharton:butterknife:10.2.3'
+    kapt 'com.jakewharton:butterknife-compiler:10.2.3'
+
     implementation 'com.alibaba:arouter-api:1.5.2'
 //    annotationProcessor 'com.alibaba:arouter-compiler:1.5.2'
     if (!project.hasProperty('juggHiltFixture')) {

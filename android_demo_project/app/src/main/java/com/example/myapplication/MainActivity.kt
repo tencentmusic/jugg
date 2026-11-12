@@ -23,6 +23,10 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
         Log.i(BENCHMARK_LOG_TAG, BENCHMARK_LOG_MARKER)
 
+        findViewById<View>(R.id.btn_butterknife_demo).setOnClickListener {
+            startActivity(Intent(this, com.sickworm.jugg.demo.testcase.butterknife.ButterKnifeDemoActivity::class.java))
+        }
+
         findViewById<View>(R.id.button).setOnClickListener {
             startActivity(Intent(this, MainActivity2::class.java))
         }

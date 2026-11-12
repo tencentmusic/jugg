@@ -21,6 +21,7 @@ Jugg 只对少量明确列出的注解入口提供内置增量处理，并把对
 | 新增 `com.tencent.kuikly.core.annotations.Page` / `@Page` 页面 | 支持 | 基于已有路由入口补充缺失注册，并将更新后的入口加入本轮源码编译 |
 | 删除、重命名或修改已有 Kuikly `@Page` 路由 | 不支持 | 不移除旧路由注册，需要由 Gradle 重新生成完整入口 |
 | ARouter `@Route` / `@Autowired` / `@Interceptor` | 支持 | 本轮相关输入与业务 class 不同时运行项目处理器，支持项目 APT/KAPT 和 KSP1/KSP2，生成 Java/Kotlin 参与编译；检测失败仅记录 debug 日志并跳过，真实生成失败或生成类消失时停止 |
+| ButterKnife 字段绑定和监听器注解 | 支持 | 使用项目官方 APT/KAPT 处理器局部生成绑定源码，同模块受影响的绑定后代参与跟编 |
 | 使用 KSP1 的 `com.squareup.moshi.JsonClass` / `@JsonClass` | 支持 | 通过项目 KSP1 compiler plugin 生成 Moshi adapter，并继续源码编译 |
 | 使用 KSP2 的 `com.squareup.moshi.JsonClass` / `@JsonClass` | 不支持 | 不独立运行 KSP2 processor，只能继续编译 Gradle 已生成的源码 |
 | [DataBinding `<layout>`](./databinding-viewbinding.md) | 支持 | 通过专用 DataBinding annotation processor 生成 mapper、BR 和绑定相关源码 |
@@ -36,6 +37,8 @@ Jugg 只对少量明确列出的注解入口提供内置增量处理，并把对
 - ARouter 需项目 processor 依赖：APT/KAPT 使用 `AROUTER_MODULE_NAME` 或 `moduleName`，KSP 使用项目实际的 `AROUTER_MODULE_NAME` 或 `MODULE_NAME` 参数；同 id 自定义处理器实例已加载时由该实例接管，适配器需按当前 Jugg 接口重新编译。Fragment 选择、迁移和已知边界见[自定义编译器](./custom-compiler.md)。
 - ARouter 普通方法体、同值常量及默认值的等价写法不重新生成；与当前业务 class 比较全部相关注解输入。无法关联或解析时本模块本轮旧索引可能滞后，正常源码编译继续；若 class 随后更新，不保证下一轮自动补生成；生成类收缩仍要求完整 Gradle 构建。具体支持边界见[自定义编译器](./custom-compiler.md)。
 - 普通无相关注解的源码会在文本筛选后直接继续编译；文本命中后先确认实际注解，再比较相关语义。删除文件中的最后一个 ARouter 注解，或只修改无注解的父类、接口、字段类型时，本轮不会因此重新生成路由索引，旧生成内容继续保留；应执行完整 Gradle 构建刷新。带注解候选自身的父类、接口及字段语义变化仍参与比较。
+- ButterKnife 已验证 `10.2.3`：支持 Java 和 Kotlin import alias/use-site，复用已有 R2 并为新增引用补齐资源符号；跨文件 Kotlin typealias 不参与注解检测。普通无关文件在文本筛选后跳过处理器。
+- ButterKnife 删除最后一个绑定、重命名绑定类，或绑定变化影响其他模块的绑定后代时，需主动执行完整 Gradle 构建；真实生成失败会停止本轮编译。新增绑定后建议重启 App，清除运行时反射查找缓存。
 - Moshi KSP 只在本轮 Kotlin 源码明确使用 `com.squareup.moshi.JsonClass` 且项目存在对应 KSP 依赖时触发。
 - ARouter KSP1/KSP2 使用当前变体的项目 processor、引擎和参数重新生成，只消费本轮成功产物。Moshi KSP2 仍只能继续编译 Gradle 已生成的源码。
 - Hilt 入口转换已对照 Hilt `2.41`～`2.60.1` 的官方转换语义，并兼容 `2.41`～`2.48.1` 的 Receiver 字段标记与 `2.49` 起使用的注解标记。它只处理已有生成物对应的 Android 入口 class，不代表 Jugg 可以独立运行 Hilt/Dagger 注解处理器。普通方法逻辑变化可以增量生效；任何需要更新生成代码或组件图的修改都应先执行完整 Gradle 构建。

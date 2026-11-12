@@ -100,6 +100,8 @@ configurations {
     kspTestRuntime1
     kspTestRuntime2
     kspTestProcessorDependencies
+    butterknifeTestProcessors
+    butterknifeTestLibraries { transitive = false }
     arouterTestProcessors
     arouterTestKotlin
     arouterTestLibraries { transitive = false }
@@ -192,6 +194,10 @@ dependencies {
     kspTestProcessorDependencies 'com.google.devtools.ksp:symbol-processing-api:2.1.20-1.0.32'
     kspTestProcessorDependencies 'com.squareup:kotlinpoet:1.18.1'
     kspTestProcessorDependencies 'com.squareup:kotlinpoet-ksp:1.18.1'
+    butterknifeTestProcessors 'com.jakewharton:butterknife-compiler:10.2.3'
+    butterknifeTestLibraries 'com.jakewharton:butterknife:10.2.3@aar'
+    butterknifeTestLibraries 'com.jakewharton:butterknife-runtime:10.2.3@aar'
+    butterknifeTestLibraries 'com.jakewharton:butterknife-annotations:10.2.3'
     arouterTestProcessors 'com.alibaba:arouter-compiler:1.5.2'
     arouterTestKotlin 'org.jetbrains.kotlin:kotlin-compiler-embeddable:1.9.23'
     arouterTestKotlin 'org.jetbrains.kotlin:kotlin-annotation-processing-embeddable:1.9.23'
@@ -219,6 +225,8 @@ tasks.withType(Test).configureEach {
         systemProperty 'ksp.test.runtime1', configurations.kspTestRuntime1.asPath
         systemProperty 'ksp.test.runtime2', configurations.kspTestRuntime2.asPath
         systemProperty 'ksp.test.processor.dependencies', configurations.kspTestProcessorDependencies.asPath
+        systemProperty 'butterknife.test.processors', configurations.butterknifeTestProcessors.asPath
+        systemProperty 'butterknife.test.libraries', configurations.butterknifeTestLibraries.asPath
         systemProperty 'arouter.test.processors', configurations.arouterTestProcessors.asPath
         systemProperty 'arouter.test.kotlin', configurations.arouterTestKotlin.asPath
         systemProperty 'arouter.test.libraries', configurations.arouterTestLibraries.asPath

@@ -72,4 +72,9 @@
             android:text="Cross Module Data Binding Demo"
             android:layout_marginTop="16dp"
     />
+    <Button
+        android:id="@+id/btn_butterknife_demo"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="ButterKnife Demo" />
 </LinearLayout>

@@ -9,12 +9,12 @@ import java.io.File
 /** Uses native KAPT for mixed-language aggregation and javac for Java-only modules. */
 class AnnotationProcessorRunner {
     fun generate(context: ICompileContext, module: ModuleInfo, sources: List<File>,
-        processorPath: List<File>, processorNames: List<String>, options: Map<String, String>, work: File): File {
+        processorPath: List<File>, processorNames: List<String>, options: Map<String, String>, work: File, isolateKapt: Boolean = false): File {
         work.deleteRecursively()
         work.mkdirs()
         val input = sources.distinctBy { it.canonicalPath }
         if (input.any { it.extension == "kt" }) {
-            return generateWithKapt(context, module, input, processorPath, processorNames, options, work)
+            return generateWithKapt(context, module, input, processorPath, processorNames, options, work, isolateKapt)
         }
         val generated = File(work, "sources").apply { mkdirs() }
         if (input.isEmpty()) return generated
@@ -39,6 +39,7 @@ class AnnotationProcessorRunner {
         processorNames: List<String>,
         options: Map<String, String>,
         work: File,
+        isolateKapt: Boolean,
     ): File {
         val kaptContext = context.subContext("arouter_kapt")
         val files = sources.map { source ->
@@ -52,6 +53,8 @@ class AnnotationProcessorRunner {
             kaptContext, module, task, context.logger,
             KotlinCompilerInvoker.Options(
                 isEnableKapt = true,
+                executionMode = if (isolateKapt) KotlinCompilerInvoker.ExecutionMode.ISOLATED_PROCESS
+                    else KotlinCompilerInvoker.ExecutionMode.IN_PROCESS,
                 kaptMode = "stubsAndApt",
                 kaptDependencies = processorPath,
                 kaptProcessors = processorNames,
