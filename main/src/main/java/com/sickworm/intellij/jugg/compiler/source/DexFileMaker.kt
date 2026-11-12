@@ -129,7 +129,7 @@ private class AgpD8Runtime(private val classpath: File) {
     }
 
     private fun logFallback(message: String, throwable: Throwable, logger: Logger) {
-        logger.warn("$message, use bundled R8 instead.", null)
+        logger.debug("$message, use bundled R8 instead.")
         logger.debug("$message (classpath: ${classpath.absolutePath}), " +
                 "use bundled R8 instead", throwable)
     }
