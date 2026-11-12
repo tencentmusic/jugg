@@ -1,5 +1,24 @@
 # Tools
 
+## knowledge_base_scenario.py
+
+Run a local agent test without the AI knowledge base:
+
+```bash
+python3 tools/knowledge_base_scenario.py remove
+python3 tools/knowledge_base_scenario.py recover
+```
+
+`remove` removes the mandatory AI workflow and all `docs/ai` references from
+`AGENTS.md`, then deletes `docs/ai`. It requires both targets to be clean,
+including untracked and ignored files. Changes remain unstaged; do not commit
+the scenario deletions. Other development rules remain in `AGENTS.md`.
+
+`recover` runs `git checkout -- AGENTS.md docs/ai`, restoring tracked files from
+the index and discarding working-tree edits in those paths. Run it before
+resuming normal development. Both commands locate the repository from the script
+path and can be invoked from any working directory.
+
 ## fetch_github_issue.py
 
 `fetch_github_issue.py` reads a GitHub Issue through the read-only GitHub REST
