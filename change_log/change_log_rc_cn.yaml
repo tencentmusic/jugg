@@ -1,3 +1,16 @@
+- version: 3.6.8
+  date: 2026.11.13
+  updates:
+    - "[feature][compile] 支持 ButterKnife 注解"
+    - "[feature][custom install] 自定义 APK 安装脚本支持直接填写命令"
+    - "[optimize][compile] （3.6 引入）优化未修改注解源码时的编译耗时，避免多余的注解基线扫描"
+    - "[optimize][compile] 优化 Kotlin 编译内部错误重试失败时的日志，保留原始根因诊断"
+    - "[bugfix][compile] 修复增量资源更新时基线引用未解析导致资源链接失败的问题"
+    - "[bugfix][deploy] 修复 Android 17 Pixel 设备崩溃的问题"
+    - "[bugfix][system app] 修复 Windows system app 部署失败问题"
+    - "[bugfix][compat] 修复 Android Studio Panda 存在名字 main 的模块时目录识别错误导致编译失败的问题"
+    - "[bugfix][compat] 修复 Android Studio Quail 与 Rabbit 下 KMP 模块识别失败告警（不影响使用）"
+
 - version: 3.6.7
   date: 2026.11.04
   updates:

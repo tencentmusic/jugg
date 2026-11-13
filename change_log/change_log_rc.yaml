@@ -1,3 +1,16 @@
+- version: 3.6.8
+  date: 2026.11.13
+  updates:
+    - "[feature][compile] Support ButterKnife annotations"
+    - "[feature][custom install] Support direct commands in custom APK install scripts"
+    - "[optimize][compile] (Introduced in 3.6) Optimize compilation time for unannotated source edits by avoiding unnecessary annotation baseline scans"
+    - "[optimize][compile] Retain the original root-cause diagnostics when Kotlin compiler internal error recovery fails"
+    - "[bugfix][compile] Fix resource incremental linking failures when baseline resource references cannot resolve"
+    - "[bugfix][deploy] Fix crashes on Android 17 Pixel devices"
+    - "[bugfix][system app] Fix deployment failure for system apps on Windows"
+    - "[bugfix][compat] Fix compilation failure in Android Studio Panda caused by incorrect module directory resolution when a module is named main"
+    - "[bugfix][compat] Fix KMP module identification failure warnings in Android Studio Quail and Rabbit (non-breaking)"
+
 - version: 3.6.7
   date: 2026.11.04
   updates:

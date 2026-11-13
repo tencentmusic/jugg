@@ -1,5 +1,5 @@
 <h1>Change Log</h1>
-<h2>3.6.7 (2026.11.04)</h2>
+<h2>3.6.8 (2026.11.13)</h2>
 <ol>
     <li>[feature] Support incremental Native .so hot update: skip APK repackaging and reinstallation when only .so files change (enabled in Settings under '.so(native library) hot update')</li>
     <li>[feature] Support running declared codegen tasks (such as IDL) before C++ incremental native builds and including generated code in incremental compilation</li>
@@ -11,11 +11,15 @@
     <li>[feature][settings] Retain internal default backend servers after updating to public plugin releases</li>
     <li>[feature][compile] Support Windows remote builds with rsync (via Cygwin)</li>
     <li>[feature][ide] Support managing compiled files in the Control Panel</li>
+    <li>[feature][compile] Support ButterKnife annotations</li>
+    <li>[feature][custom install] Support direct commands in custom APK install scripts</li>
     <li>[optimize] Optimize large native library hot update performance with delta transfers and streaming to reduce transfer size and memory usage</li>
     <li>[optimize][compile] Automatically sync generated ARouter sources to IDE source roots to prevent unresolved reference errors</li>
     <li>[optimize][compile] Automatically roll back changed sources when Git HEAD changes</li>
     <li>[optimize][compile] Automatically clean up legacy temporary class files</li>
     <li>[optimize][mcp] Simplify CLI compile and deploy output</li>
+    <li>[optimize][compile] (Introduced in 3.6) Optimize compilation time for unannotated source edits by avoiding unnecessary annotation baseline scans</li>
+    <li>[optimize][compile] Retain the original root-cause diagnostics when Kotlin compiler internal error recovery fails</li>
     <li>[bugfix] Fix project configuration fetch failure before the first full compilation</li>
     <li>[bugfix] Fix Android sources and resources being misclassified as external native build inputs when located under a Native directory</li>
     <li>[bugfix] Fix native library deployment failure when native libraries or APK exceed 2.1 GB (Int.MAX_VALUE)</li>
@@ -34,6 +38,11 @@
     <li>[bugfix][deploy] Fix slow JVMTI status detection when deploying unrelated test APKs</li>
     <li>[bugfix][compat] Fix installer lookup errors on certain Android Studio versions missing the IdeInfo class</li>
     <li>[bugfix][cli] Fix file count discrepancies in CLI compile and deploy success messages after triggering rollback</li>
+    <li>[bugfix][compile] Fix resource incremental linking failures when baseline resource references cannot resolve</li>
+    <li>[bugfix][deploy] Fix crashes on Android 17 Pixel devices</li>
+    <li>[bugfix][system app] Fix deployment failure for system apps on Windows</li>
+    <li>[bugfix][compat] Fix compilation failure in Android Studio Panda caused by incorrect module directory resolution when a module is named main</li>
+    <li>[bugfix][compat] Fix KMP module identification failure warnings in Android Studio Quail and Rabbit (non-breaking)</li>
 </ol>
 <h2>3.5.5 (2026.10.22)</h2>
 <ol>
