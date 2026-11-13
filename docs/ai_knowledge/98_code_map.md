@@ -111,3 +111,8 @@
 - 新增入口类/关键工具后，优先同步本表。  
 - 路径或类名变更时，同步 `99_index.md` 的专题文档目录描述。  
 - 若本表滞后，回答中必须明确“以代码为准”。
+
+
+## CI 编排样本
+
+`cmd_line` 提供 `findNearestBaseCommit`（沿目标提交 first-parent 查找候选基线）与 `getChangedFiles`（复用 `FileChangesHandler` 输出稳定 ChangedFile JSON）。业务方负责场景 key、基线存储、checkout 和增量资格判断；参考样本位于 `tools/jugg_ci_sample.py`，localhost demo 位于 `cmd_line/src/demo/`。

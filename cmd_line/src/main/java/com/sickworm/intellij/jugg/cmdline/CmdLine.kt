@@ -3,6 +3,8 @@ package com.sickworm.intellij.jugg.cmdline
 import com.sickworm.intellij.jugg.cmdline.incremental.BuildIncrementalApkCommand
 import com.sickworm.intellij.jugg.cmdline.base.BuildGradleBaseCommand
 import com.sickworm.intellij.jugg.cmdline.logger.CmdLineLogger
+import com.sickworm.intellij.jugg.cmdline.ci.FindNearestBaseCommitCommand
+import com.sickworm.intellij.jugg.cmdline.ci.GetChangedFilesCommand
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import kotlin.system.exitProcess
 
@@ -31,6 +33,8 @@ class CmdLine {
                 CmdLineLogger.stdLogger.info("Going to run cmd: buildIncrementalApk.")
                 BuildIncrementalApkCommand.run(args)
             }
+            Command.FIND_NEAREST_BASE_COMMIT.value -> FindNearestBaseCommitCommand.run(args)
+            Command.GET_CHANGED_FILES.value -> GetChangedFilesCommand.run(args)
             Command.BUILD_GRADLE_BASE.value -> {
                 CmdLineLogger.stdLogger.info("Going to run cmd: buildGradleBase.")
                 BuildGradleBaseCommand.run(args)
@@ -52,6 +56,8 @@ class CmdLine {
         val value: String,
     ) {
         BUILD_INCREMENTAL_APK("buildIncrementalApk"),
+        FIND_NEAREST_BASE_COMMIT("findNearestBaseCommit"),
+        GET_CHANGED_FILES("getChangedFiles"),
         BUILD_GRADLE_BASE("buildGradleBase"),
         ;
     }

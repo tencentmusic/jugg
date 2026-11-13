@@ -176,6 +176,36 @@ class GitManager (
         }
     }
 
+    override fun resolveCommit(commit: String): String = withGit { git ->
+        git.repository.resolve(commit)?.name() ?: throw IllegalArgumentException("Invalid commit: $commit")
+    }
+
+    override fun findNearestFirstParentCommit(targetCommit: String, candidateCommits: Set<String>): FirstParentCommitMatch? {
+        return withGit { git ->
+            val candidateIds = candidateCommits.map { value ->
+                git.repository.resolve(value) ?: throw IllegalArgumentException("Invalid candidate commit: $value")
+            }.map { it.name() }.toSet()
+            val targetId = git.repository.resolve(targetCommit)
+                ?: throw IllegalArgumentException("Invalid target commit: $targetCommit")
+            RevWalk(git.repository).use { walk ->
+                var commit = walk.parseCommit(targetId)
+                var distance = 0
+                var result: FirstParentCommitMatch? = null
+                while (result == null) {
+                    if (commit.id.name() in candidateIds) {
+                        result = FirstParentCommitMatch(commit.id.name(), distance)
+                    } else if (commit.parentCount == 0) {
+                        break
+                    } else {
+                        commit = walk.parseCommit(commit.getParent(0))
+                        distance++
+                    }
+                }
+                result
+            }
+        }
+    }
+
     override fun getChangedFiles(oldCommit: String, newCommit: String): List<File> {
         withGit { git ->
             val oldCommitTree = getCanonicalTreeParser(git, oldCommit)

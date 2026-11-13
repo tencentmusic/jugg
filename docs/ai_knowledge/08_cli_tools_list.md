@@ -435,3 +435,8 @@ jugg wait-logs --marker <regex> [--tags <t1,t2,...>] [--timeout-ms <ms>]
 - 代码路径速查：`98_code_map.md`
 - CLI / MCP 行为变更后的 skill 同步规则：`08_mcp_design.md` §9–§10
 - CLI/skill 版本递增：本页 §3.7
+
+
+## CI 编排样本
+
+`cmd_line` 提供 `findNearestBaseCommit`（沿目标提交 first-parent 查找候选基线）与 `getChangedFiles`（复用 `FileChangesHandler` 输出稳定 ChangedFile JSON）。业务方负责场景 key、基线存储、checkout 和增量资格判断；参考样本位于 `tools/jugg_ci_sample.py`，localhost demo 位于 `cmd_line/src/demo/`。

@@ -145,7 +145,7 @@ CI 命令行把构建拆成两个可审计阶段：
 
 ### 4.3 CI 接入编排
 
-`cmd_line` 只提供基线构建和增量构建命令，不负责维护 CI 的 commit 关系、计算 Git diff 或决定是否适合增量构建。接入方应在两条命令之上增加一层 CI 编排，建议按以下流程使用：
+`cmd_line` 提供基线构建、增量构建、first-parent 基线查询和 ChangedFile JSON 命令；基线存储和增量资格由接入方负责。`cmd_line/src/demo/jugg_ci_demo.py` 演示 debug/release 两轮构建和主动 Gradle 回退。接入方可替换样本中的存储与业务策略，建议按以下流程使用：
 
 1. 对一个确定的 commit 执行 `buildGradleBase`，保存 APK、`build/jugg` 基线目录以及该基线对应的 commit，形成 `base commit -> Jugg 基线产物` 的索引。
 2. 新构建由分支或 commit 触发时，从目标 commit 沿提交历史向上查找最近一个已有基线产物的 commit。找到后恢复该基线工程和对应的 Jugg 目录；找不到时，对当前 commit 执行 `buildGradleBase`，并保存新的基线索引。
@@ -168,7 +168,6 @@ CI 命令行把构建拆成两个可审计阶段：
 基线索引和增量资格判断属于 CI 接入方职责；Jugg 只校验调用方传入的 `changedFiles` 是否存在、是否位于 `sourceProjectDir`、是否能被完整识别以及是否包含 build file。
 
 ---
-
 ## 5. 隐形约束
 
 - `IAsDeployerCompat.updateMinApi()` 会根据兼容部署开关在 Android 11 与 Android 8 之间切换最小设备 API；排查“旧设备能否部署”时不要只看当前 AS 版本。
@@ -211,3 +210,8 @@ CI 命令行把构建拆成两个可审计阶段：
 - 部署核心：`03_deploy_core.md`
 - JVMTI / startup agent：`03_runtime_jvmti.md`
 - 自定义编译器：`02_compile_custom_ui.md`
+
+
+## CI 编排样本
+
+`cmd_line` 提供 `findNearestBaseCommit`（沿目标提交 first-parent 查找候选基线）与 `getChangedFiles`（复用 `FileChangesHandler` 输出稳定 ChangedFile JSON）。业务方负责场景 key、基线存储、checkout 和增量资格判断；参考样本位于 `tools/jugg_ci_sample.py`，localhost demo 位于 `cmd_line/src/demo/`。

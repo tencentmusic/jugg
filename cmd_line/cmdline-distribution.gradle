@@ -36,6 +36,7 @@ distributions {
     main {
         contents {
             from("${projectDir}/src/demo") {
+                exclude '**/__pycache__/**', '**/*.pyc'
                 into('demo')
             }
             from(demoProjectZipTask.flatMap { it.archiveFile }) {
