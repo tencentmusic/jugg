@@ -143,6 +143,32 @@ CI 命令行把构建拆成两个可审计阶段：
 
 ---
 
+### 4.3 CI 接入编排
+
+`cmd_line` 只提供基线构建和增量构建命令，不负责维护 CI 的 commit 关系、计算 Git diff 或决定是否适合增量构建。接入方应在两条命令之上增加一层 CI 编排，建议按以下流程使用：
+
+1. 对一个确定的 commit 执行 `buildGradleBase`，保存 APK、`build/jugg` 基线目录以及该基线对应的 commit，形成 `base commit -> Jugg 基线产物` 的索引。
+2. 新构建由分支或 commit 触发时，从目标 commit 沿提交历史向上查找最近一个已有基线产物的 commit。找到后恢复该基线工程和对应的 Jugg 目录；找不到时，对当前 commit 执行 `buildGradleBase`，并保存新的基线索引。
+3. 计算目标 commit 与基线 commit 之间的文件变更，并先判断是否满足增量构建资格。初期接入可以只允许 Java、Kotlin、资源、assets、so 等已确认支持的目录；Gradle 文件或其他构建边界变化应直接走 `buildGradleBase`，不要调用 `buildIncrementalApk`。
+4. 对满足条件的变更，从未消费的基线副本恢复 `baseBuildJuggRootDir`，将当前源码作为 `sourceProjectDir`，把完整变更文件列表传给 `buildIncrementalApk`，生成增量 APK。
+5. 增量构建完成后执行安装、测试或其他产物验证。该基线已被消费，不能继续作为下一次增量构建的输入；如果需要生成多组结果，必须分别复制原始基线。
+
+因此，CI 的整体决策链是：
+
+```text
+触发分支或 commit
+  -> 查找最近的 base commit
+  -> 找不到：buildGradleBase 并保存基线
+  -> 找到：计算 base commit 到目标 commit 的 diff
+  -> 不满足增量条件：buildGradleBase 并保存新基线
+  -> 满足增量条件：恢复干净基线并执行 buildIncrementalApk
+  -> 安装、测试或上传 APK
+```
+
+基线索引和增量资格判断属于 CI 接入方职责；Jugg 只校验调用方传入的 `changedFiles` 是否存在、是否位于 `sourceProjectDir`、是否能被完整识别以及是否包含 build file。
+
+---
+
 ## 5. 隐形约束
 
 - `IAsDeployerCompat.updateMinApi()` 会根据兼容部署开关在 Android 11 与 Android 8 之间切换最小设备 API；排查“旧设备能否部署”时不要只看当前 AS 版本。

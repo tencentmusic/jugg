@@ -46,6 +46,7 @@
 | Jugg Debug attach / 断点不可用 | `98_code_map.md`, `04_engineering_debug_attach.md`, `04_engineering_compat.md` | `JuggDebugProgramRunner.kt`, `JuggDebugSessionManager.kt`, `AndroidStudioDebuggerAttachStarter.kt`, `*AsDeployerCompat.kt` |
 | Gradle 项目信息与依赖读取 | `98_code_map.md`, `04_engineering_project.md` | `gradle/script/GradleProjectInfoReader.kt` |
 | 兼容层（AS 版本适配、Stub 生成与产物一致性验证） | `98_code_map.md`, `04_engineering_compat.md` | `deploy_compat/*/AsDeployerCompat.kt`, `deploy_compat/verify_stub_api.sh` |
+| **Jugg CI 构建工具接入 / 基线复用 / 增量资格判断 / Gradle 降级** | `98_code_map.md`, `04_engineering_compat.md` §4.2–§4.3 | `cmd_line/src/main/java/com/sickworm/intellij/jugg/cmdline/CmdLine.kt`, `BuildGradleBaseCommand.kt`, `BuildIncrementalApkCommand.kt` |
 | MCP 工具设计与调用 | `98_code_map.md`, `08_mcp_tools_list.md`, `08_mcp_design.md` | `ai/mcp/McpToolInvoker.kt`, `ai/mcp/actions/*`, `ai/mcp/util/CrashDetector.kt`, `ai/mcp/util/LastDeployTimestampRegistry.kt` |
 | jugg CLI 子命令使用 / **新增或修改 CLI 参数** / CLI 脚本或 skill 版本 | `08_cli_tools_list.md` | `docs/skills/jugg-android-dev-loop/scripts/jugg.py`、`JuggCliAutoUpdater` |
 | MCP UI 布局验证设计（公开工具边界 / 证据链） | `98_code_map.md`, `08_mcp_layout_verify_design.md` | `McpToolActionRegistry.kt`, `LayoutDumpHelper.kt`, `UiFindMcpToolAction.kt`, `EvalViewMcpToolAction.kt`, `TapMcpToolAction.kt` |
