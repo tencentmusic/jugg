@@ -121,22 +121,19 @@ public class ViewTapper {
         MotionEvent down = MotionEvent.obtain(downTime, downTime, MotionEvent.ACTION_DOWN, localX, localY, 0);
         try {
             boolean downHandled = rootView.dispatchTouchEvent(down);
-            boolean scheduled = rootView.postDelayed(new Runnable() {
-                @Override
-                public void run() {
-                    MotionEvent up = MotionEvent.obtain(
-                        downTime,
-                        SystemClock.uptimeMillis(),
-                        MotionEvent.ACTION_UP,
-                        localX,
-                        localY,
-                        0
-                    );
-                    try {
-                        rootView.dispatchTouchEvent(up);
-                    } finally {
-                        up.recycle();
-                    }
+            boolean scheduled = rootView.postDelayed(() -> {
+                MotionEvent up = MotionEvent.obtain(
+                    downTime,
+                    SystemClock.uptimeMillis(),
+                    MotionEvent.ACTION_UP,
+                    localX,
+                    localY,
+                    0
+                );
+                try {
+                    rootView.dispatchTouchEvent(up);
+                } finally {
+                    up.recycle();
                 }
             }, durationMs);
             return downHandled || scheduled;

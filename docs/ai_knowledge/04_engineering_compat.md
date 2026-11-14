@@ -139,13 +139,23 @@ CI 命令行把构建拆成两个可审计阶段：
 1. `buildGradleBase` 清理目标 Jugg 目录，执行完整 Gradle 构建，保存 APK、project info、classpath、deploy history、APK database 和 source index，形成由 CI 管理的只读基线。
 2. `buildIncrementalApk` 从该基线恢复上下文，只编译调用方显式传入的 `changedFiles`，合并 dex 后把增量产物写回 APK 输出目录。
 
-这里故意不由 Jugg 自行猜测 CI diff。调用方负责给出将要编译的文件集合，命令会校验文件存在、位于 `sourceProjectDir`、能被 `FileChangesHandler` 完整识别且不含 build file。基线目录首次使用时写入 `.dirty`；同一份可变基线再次执行会失败，避免前一轮增量已经改写 history/database 后仍被当成干净输入。若流水线需要多组增量结果，应为每组复制独立基线，而不是并发共享同一目录。
+这里故意不由 Jugg 自行猜测 CI diff。调用方负责给出将要编译的文件集合，非空列表会校验文件存在、位于 `sourceProjectDir`、能被 `FileChangesHandler` 完整识别且不含 build file。实际编译前写入 `.dirty`；同一份可变基线再次执行会失败，避免前一轮增量已经改写 history/database 后仍被当成干净输入。若流水线需要多组增量结果，应为每组复制独立基线，而不是并发共享同一目录。
+
+`getChangedFiles` 对 `GitManager` 返回的变更逐项输出，识别出的路径保留 ChangedFile 类型和 module，其余路径输出 `type: "Unknown"`、`module: ""`。Unknown 只用于 CI 报告，不扩充核心 `CompileFile.Type`。`buildIncrementalApk` 必须显式传 `changedFiles`；空字符串代表空列表，直接从基线元数据导出 APK 到 `outputApkDir`，不初始化编译上下文、不执行自定义编译器和编译、不写 `.dirty`。省略参数仍失败；非空输入含无法识别文件时报 `not all files are compilable`，编排层决定明确忽略还是 Gradle 降级。
 
 ---
 
 ### 4.3 CI 接入编排
 
-`cmd_line` 提供基线构建、增量构建、first-parent 基线查询和 ChangedFile JSON 命令；基线存储和增量资格由接入方负责。`cmd_line/src/demo/jugg_ci_demo.py` 演示 debug/release 两轮构建和主动 Gradle 回退。接入方可替换样本中的存储与业务策略，建议按以下流程使用：
+`cmd_line` 提供基线构建、增量构建、first-parent 基线查询和完整变更 JSON。`cmd_line/src/demo/scripts/jugg_build.py` 对当前 HEAD 执行一次 CI 构建；`demo_flow/run.py` 一次准备工程，随后按正常增量、BuildFile、101 个文件、README、config.json 的顺序持续向前提交并构建，不在场景之间清理、reset 或重新准备。原来的三个独立场景入口已删除。`flow-results.json` 保存六轮结果及提交号，含初始基线；场景预配置的自定义 Gradle Copy task 将根目录 config.json 放入 APK assets，最终检查 APK 配置更新。
+
+连续流程仅启动时删除并重建 `--work-dir`；`prepare_project.py` 创建 `.git/jugg-demo-id`，构建入口匹配 `metadata.projectDir` 和 `metadata.demoCheckoutId` 并过滤缺失归档，隔离不同轮演示。真实 CI 自行 checkout 时无需标识。Gradle 路径不执行 clean，保留模块输出与缓存。发行包保留统一 demo 和 `--scenario release` 参数，真实验收限 debug。
+
+编排只显式过滤工程根目录 README.md，原始清单保留所有路径；其他 Unknown 返回 `unrecognized changed files`，走 Gradle。BuildFile、超过 `MAX_INCREMENTAL_FILES = 100`、缺失输入、无基线和 force 保留 Gradle 路径。过滤后的空列表同样调用 Jugg，传 `changedFiles=` 导出 APK，结果 mode 为 `reuseBaseApk`，不登记新基线。Jugg 基线查找、变更查询、增量编译或空输入导出失败，打印原因并进行一次 Gradle 基线构建；备用构建或归档失败保留最终错误。场景接受已成功的 Jugg 错误降级结果，继续后续提交。
+
+中文日志覆盖清理、准备、各步开发提交、实际构建方式、README 过滤数量、降级原因、APK 和可选安装。`--quite` 只隐藏子命令 stdout/stderr 和命令回显，不隐藏进度；失败保留中文原因并非零退出，不输出演示完成。
+
+示例基线服务默认将完整 Jugg 目录归档到 `scripts/base_build/{projectId}/{id}/`，不增加 `baseline/` 层；APK 已在 `classpath/apk/`，记录不含 `apkPath`，Gradle 基线轮不再额外复制 APK。非隐藏索引文件为脚本同级 `scripts/base-builds.json`，支持 `--data-file` 覆盖，归档目录随之位于该文件同级。场景和 `jugg_build.py` 的 `--project-id` 默认 `default`，通过 HTTP 查询参数 `projectId` 隔离 GET/PUT（兼容 POST）；旧记录无此字段时归入 `default`。每个项目按服务保存顺序保留最近 100 条及对应归档，覆盖同 ID 完整替换并视为最新保存，淘汰只删除服务自己的归档。复制或索引写入失败保留旧基线并返回错误；清理过期目录失败单独记录。GET 打印请求参数和完整返回列表，PUT/POST 打印请求参数。单机服务需要与调用方共享文件系统；跨路径工程迁移和远端传输由业务方实现。构建结果增加 `runDir` 定位本轮诊断文件，`apkDir` 指向实际 APK 所在目录。
 
 1. 对一个确定的 commit 执行 `buildGradleBase`，保存 APK、`build/jugg` 基线目录以及该基线对应的 commit，形成 `base commit -> Jugg 基线产物` 的索引。
 2. 新构建由分支或 commit 触发时，从目标 commit 沿提交历史向上查找最近一个已有基线产物的 commit。找到后恢复该基线工程和对应的 Jugg 目录；找不到时，对当前 commit 执行 `buildGradleBase`，并保存新的基线索引。
@@ -214,4 +224,4 @@ CI 命令行把构建拆成两个可审计阶段：
 
 ## CI 编排样本
 
-`cmd_line` 提供 `findNearestBaseCommit`（沿目标提交 first-parent 查找候选基线）与 `getChangedFiles`（复用 `FileChangesHandler` 输出稳定 ChangedFile JSON）。业务方负责场景 key、基线存储、checkout 和增量资格判断；参考样本位于 `tools/jugg_ci_sample.py`，localhost demo 位于 `cmd_line/src/demo/`。
+`cmd_line` 提供 `findNearestBaseCommit`（沿目标提交 first-parent 查找候选基线）与 `getChangedFiles`（复用 `FileChangesHandler` 输出稳定 ChangedFile JSON）。业务方负责场景 key、基线存储、checkout 和增量资格判断；参考样本位于 `tools/jugg_ci_sample.py`，localhost demo 的复用脚本位于 `cmd_line/src/demo/scripts/`，三个演示流程位于 `cmd_line/src/demo/demo_flow/`。成功构建在工作目录生成 `build-result.json`，供流程检查实际构建模式和安装产物。

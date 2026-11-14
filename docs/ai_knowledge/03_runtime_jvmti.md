@@ -292,6 +292,8 @@ compat deploy 不执行 framework transform，因此不安装 `ClassLoader#getRe
 
 ## 5. 构建与版本约束
 
+- `jugg-runtime.jar` 需要兼容 demo 当前仍支持的 AGP 7.3.1 / D8 3.3。避免在运行时包内使用会产生“无参数名合成构造函数”的捕获型匿名类；D8 3.3 在 `desugarDebugFileDependencies` 处理这些类时会因空 MethodParameters 名称崩溃。优先使用 Java lambda，并在改动后用 Build Tools 33.0.1 的 D8 对最终 runtime jar 做验证。修改后递增根 `build.gradle` 的 `agentVersion`，让设备重新获取 agent bundle。
+
 - native 目标库是 `jugg_jvmti_agent`，构建入口是 `jvmti_agent/CMakeLists.txt`。
 - `jvmti_agent/buildAgentBundle.gradle` 生成 `BuildConfig.AGENT_VERSION`、`AGENT_BUNDLE_PATH`、flag 文件名，并把 agent bundle 放到 plugin resource 路径。
 - `jugg-instruments.jar` 是 native agent 通过 `AddToBootstrapClassLoaderSearch()` 加载的 DEX JAR，仅保留 instrumentation/hotfix/Direct runtime。`viewhierarchy.**` 和私有 Dragonfly 只能进入 APK 注入的 `jugg-runtime.jar`，否则 bootstrap 无法解析宿主 `androidx.compose.*`，且 Dragonfly adapter 会缓存不可用结果。构建按 DEX class definitions 校验采集链未泄漏到 bootstrap。

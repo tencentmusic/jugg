@@ -23,31 +23,23 @@ def demoProjectZipTask = tasks.register('demoProjectZip', Zip) {
     it.destinationDirectory.set(layout.buildDirectory.dir('demo'))
     def demoProjectDir = file("${rootProject.projectDir}/android_demo_project")
     it.from(demoProjectDir) {
-        exclude '**/build/**'
+        exclude '**/build/**', '**/.gradle/**', '**/.idea/**', '**/__pycache__/**',
+            '**/*.pyc', '**/local.properties', '**/.DS_Store'
         into 'demo_project'
     }
 }
 
 // Customize the distribution:
-// - Include debug demo assets under demo/
-// - Include release demo assets under demo_release/
-// - Add demo_project.zip for both demos so the unpacked distribution can run standalone
+// Include the shared debug/release demo and its standalone project archive under demo/.
 distributions {
     main {
         contents {
             from("${projectDir}/src/demo") {
-                exclude '**/__pycache__/**', '**/*.pyc'
+                exclude '**/__pycache__/**', '**/*.pyc', 'scripts/base-builds.json', 'scripts/base_build/**'
                 into('demo')
             }
             from(demoProjectZipTask.flatMap { it.archiveFile }) {
                 into('demo')
-            }
-
-            from("${projectDir}/src/demo_release") {
-                into('demo_release')
-            }
-            from(demoProjectZipTask.flatMap { it.archiveFile }) {
-                into('demo_release')
             }
         }
     }
@@ -76,7 +68,7 @@ def unzipDistTask = tasks.register('unzipDistZip') {
     }
 }
 
-// Post-process: open the unzipped distribution root so both demo directories are visible
+// Post-process: open the unzipped distribution root.
 def openDistRootTask = tasks.register('openDistRootDir') {
     group = 'distribution'
     description = 'Open the root directory of the unzipped distribution'

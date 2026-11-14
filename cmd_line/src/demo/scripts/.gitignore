@@ -1,0 +1,3 @@
+# 基线服务运行时数据不提交到源码仓库。
+base-builds.json
+base_build/
