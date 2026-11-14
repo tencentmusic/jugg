@@ -32,6 +32,8 @@ public final class ApplyChangesOverlayPolicy {
         }
         hostApkPaths.clear();
         hostApkPaths.addAll(paths);
+        // Shared-library replay identifies a host AssetManager by its base APK, not this broader path set.
+        RuntimeSharedLibraries.recordHostApkPath(asString(readField(applicationInfo, "sourceDir")));
         LogUtils.i(InstrumentationHooks.TAG, "ApplyChangesOverlayPolicy hostApkPaths=" + hostApkPaths);
     }
 
@@ -55,6 +57,11 @@ public final class ApplyChangesOverlayPolicy {
         hostApkPaths.clear();
     }
 
+    /**
+     * Collects ApplicationInfo paths for direct ResourcesKey.mResDir matching in the overlay policy.
+     * getAllApkPaths() can include shared libraries and RROs also present in foreign AssetManagers;
+     * matching any asset against this set is not sufficient to identify a host AssetManager.
+     */
     private static LinkedHashSet<String> collectApplicationApkPaths(Object applicationInfo) {
         LinkedHashSet<String> paths = new LinkedHashSet<>();
         appendValues(paths, invokeNoArg(applicationInfo, "getAllApkPaths"));

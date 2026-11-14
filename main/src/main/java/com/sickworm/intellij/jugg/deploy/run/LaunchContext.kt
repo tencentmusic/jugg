@@ -55,10 +55,10 @@ class LaunchContext(
         }
     }
 
-    fun runCustomApkInstall(applicationId: String, logger: Logger) {
+    fun runCustomApkInstall(applicationId: String, logger: Logger, apks: List<String>) {
         val host = deployHost
             ?: throw UnsupportedOperationException("Custom APK install scripts require a deploy host")
-        host.runCustomApkInstall(customApkInstallScript, applicationId, this, logger)
+        host.runCustomApkInstall(customApkInstallScript, applicationId, this, logger, apks)
     }
 
     fun logDirectOverlayEnabled(logger: Logger) {

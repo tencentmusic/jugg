@@ -4,6 +4,7 @@ import com.google.gson.JsonParser
 import com.sickworm.intellij.jugg.ai.mcp.viewhierarchy.LayoutDumpResult
 import com.sickworm.intellij.jugg.ai.mcp.viewhierarchy.ViewHierarchyClient
 import com.sickworm.intellij.jugg.deploy.JuggDeployState
+import com.sickworm.intellij.jugg.deploy.CompatDeployHelper
 import com.sickworm.intellij.jugg.deploy.LastChangedDeployRegistry
 import com.sickworm.intellij.jugg.deploy.IdeaDeviceAdb
 import com.sickworm.intellij.jugg.compiler.CompileOutput
@@ -153,6 +154,46 @@ class TopLevelFlowTest {
 
                 jugg.deploy()
             }
+        }
+    }
+
+    @Test
+    fun testDeployDataBindingAcrossResourceRoots() {
+        testInstallAndLaunch()
+        val device = jugg.deployTargetManager.getSelectedDevices().single()
+        val adb = IdeaDeviceAdb(device, logger)
+        val compatDeployHelper = CompatDeployHelper(logger)
+        // Use compat deployment so the legacy test installer also activates resource overlays.
+        compatDeployHelper.recordCompatDeviceRecord(adb)
+        try {
+            val target = File(jugg.projectDir, "app/src/main/res/layout/activity_data_binding_multi_root.xml")
+            val peer = File(jugg.projectDir, "app/src/debug/res/layout/data_binding_multi_root_peer.xml")
+            changeAndRevert(target, "com.sickworm.jugg.demo.sdk.SdkConstraintLayout",
+                "androidx.constraintlayout.widget.ConstraintLayout") {
+                changeAndRevert(peer, "baseline", "changed") {
+                    jugg.notifyFileChanges(listOf(target, peer))
+                    jugg.compileChangedFiles()
+                    assertTrue(jugg.deployFileManager.getUncompiledFiles().isEmpty())
+                    jugg.deployCompiledApp()
+
+                    val logStart = System.currentTimeMillis() / 1000
+                    val launch = ProcessBuilder(jugg.adbCommand(
+                        "shell", "am", "start", "-W", "-n",
+                        "${projectInfo.packageName}/com.sickworm.jugg.demo.testcase.databinding.MultiRootDataBindingActivity",
+                    )).redirectErrorStream(true).start()
+                    val output = launch.inputStream.bufferedReader().readText()
+                    assertEquals(0, launch.waitFor(), output)
+                    assertTrue(output.contains("Status: ok"), output)
+                    val layout = waitForLayoutDump(ViewHierarchyClient(adb, projectInfo.packageName))
+                    val payload = requireNotNull(layout.payloadJson) { layout.errorMessage ?: "No layout returned" }
+                    assertTrue(payload.contains("\"className\":\"ConstraintLayout\""), payload)
+                    assertTrue(!payload.contains("SdkConstraintLayout"), payload)
+                    val runtimeLog = jugg.readLogcatSince(logStart, "AndroidRuntime:E")
+                    assertTrue(!runtimeLog.contains("ClassCastException"), runtimeLog)
+                }
+            }
+        } finally {
+            compatDeployHelper.clearCompatDeviceRecord(adb)
         }
     }
 }

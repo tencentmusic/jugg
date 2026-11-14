@@ -19,6 +19,35 @@ the index and discarding working-tree edits in those paths. Run it before
 resuming normal development. Both commands locate the repository from the script
 path and can be invoked from any working directory.
 
+## layout-dump-viewer.html
+
+Open `tools/layout-dump-viewer.html` in a modern desktop browser, then choose,
+drop, or paste a Jugg `layout-dump` JSON file in `ui` or `interaction` mode.
+The viewer is a self-contained local page with no build step, server, network
+dependencies, or uploads.
+
+- Select a node in the wireframe or tree to inspect its bounds, size, attributes,
+  and original JSON. Search by text, id, class name, or content description.
+- Drag the canvas to pan; scroll to zoom. With the canvas focused, use `+` / `-`
+  to zoom, arrow keys to pan, and `0` to fit the current view.
+- Click again at the same position, or Alt-click, to choose among overlapping
+  nodes. Candidates use output-tree depth and order, not Android drawing order.
+- Use the window selector for multi-window files. Focus a subtree, temporarily
+  hide a branch, or restore hidden branches to reduce clutter. These actions
+  only change the viewer state.
+- Enable hidden or offscreen content when needed. **Locate node** also reveals
+  the selected branch and its bounds. Missing or zero-area bounds remain
+  inspectable in the tree without a rectangle.
+
+Coordinates use the file's declared bounds unit without density conversion.
+Text and image placeholders only illustrate layout; the viewer does not
+reconstruct fonts, images, ancestor clipping, or actual occlusion. The `ui`
+tree preserves the captured structure; `interaction` can prune containers and
+promote children. A `jugg_details` child is an omission notice, not a control;
+the viewer cannot recover omitted descendants. Review the footer for
+`truncated`, warnings, node diagnostics, and unknown units. Subtree roots do
+not establish the owning window's viewport.
+
 ## fetch_github_issue.py
 
 `fetch_github_issue.py` reads a GitHub Issue through the read-only GitHub REST

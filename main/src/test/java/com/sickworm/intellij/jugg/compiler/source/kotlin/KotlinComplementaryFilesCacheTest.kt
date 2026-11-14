@@ -78,7 +78,7 @@ class KotlinComplementaryFilesCacheTest {
         return K2JVMCompilerIsolate().apply {
             initIfNeeded(
                 module.kotlinPlugins.orEmpty() + module.kotlinExtensions.orEmpty() +
-                    module.kspDependencies.orEmpty().map { it.file },
+                    module.kspInfo?.processorDependencies.orEmpty().map { it.file },
                 logger,
             )
         }

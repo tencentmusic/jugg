@@ -13,4 +13,4 @@ These archives are tracked in the public Jugg source revision for redistributed 
 | `openjdk-jvmti-header/UPSTREAM_jvmti.h` | OpenJDK JVMTI header | Content-equivalent upstream baseline from `jdk8u202-b08` |
 | `openjdk-jvmti-header/jvmti.h.patch` | OpenJDK JVMTI header | One-line Jugg modification against the upstream baseline |
 
-All five archives are unmodified upstream source distributions. Their SHA-256 checksums are verified by `:idea:verifyThirdPartyCompliance`; CI release packaging also requires this directory to match the source revision.
+All six archives are unmodified upstream source distributions. Their SHA-256 checksums are verified by `:idea:verifyThirdPartyCompliance`; CI release packaging also requires this directory to match the source revision.

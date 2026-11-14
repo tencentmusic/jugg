@@ -212,6 +212,18 @@ class LayoutDumpBuildParamsTest(unittest.TestCase):
         result = self.build([])
         self.assertEqual(result, {})
 
+    def test_modes(self):
+        for mode in ("interaction", "ui"):
+            self.assertEqual(self.build(["--mode", mode]), {"mode": mode})
+
+    def test_invalid_mode_fails(self):
+        with self.assertRaises(SystemExit):
+            self.build(["--mode", "unknown"])
+
+    def test_missing_mode_fails(self):
+        with self.assertRaises(SystemExit):
+            self.build(["--mode"])
+
     def test_root_flag(self):
         result = self.build(["--rootLayout", "my_root_id"])
         self.assertEqual(result["rootLayout"], "my_root_id")

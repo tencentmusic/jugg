@@ -177,7 +177,7 @@ class ProjectInfoSerializer(val dataFile: File, private val logger: Logger) {
         }
 
         private fun restoreExternalBuildDefaults(info: JsonObject) {
-            listOf("configFiles", "excludedDirs").forEach { name ->
+            listOf("configFiles", "excludedDirs", "prerequisites").forEach { name ->
                 if (!info.has(name)) {
                     info.add(name, JsonArray())
                 }

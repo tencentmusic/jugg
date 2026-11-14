@@ -4,6 +4,7 @@ import com.android.tools.idea.gradle.dsl.api.GradleBuildModel
 import com.android.tools.idea.gradle.dsl.api.android.AndroidModel
 import com.android.tools.idea.gradle.project.model.GradleAndroidModel
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.externalSystem.util.ExternalSystemApiUtil
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.project.rootManager
@@ -29,7 +30,7 @@ open class PandaAsDeployerFeatureCompat : OtterAsDeployerFeatureCompat() {
         val androidTestPackageInfo = readAndroidTestPackageInfo(gradleAndroidModel)
 
         val result = IdeModuleInfo(
-            baseDir = module.guessModuleDirAdvByBuildModel(buildModel),
+            baseDir = module.guessModuleDirAdvByBuildModel(buildModel, logger),
             buildToolsVersion = gradleVariableHelper.readVariable(
                 "buildToolsVersion",
                 buildModel,
@@ -91,7 +92,20 @@ open class PandaAsDeployerFeatureCompat : OtterAsDeployerFeatureCompat() {
         return result
     }
 
-    private fun Module.guessModuleDirAdvByBuildModel(buildModel: GradleBuildModel): File? {
+    private fun Module.guessModuleDirAdvByBuildModel(buildModel: GradleBuildModel, logger: Logger): File? {
+        // Panda DSL may resolve different main source sets to the Gradle project named main.
+        val externalProjectPath = runCatching {
+            ExternalSystemApiUtil::class.java.getMethod("getExternalProjectPath", Module::class.java)
+                .invoke(null, this) as? String
+        }.getOrElse {
+            logger.debug("External System module directory unavailable for $name, falling back to Gradle DSL", it)
+            null
+        }
+        val externalProjectDir = externalProjectPath?.takeIf { it.isNotBlank() }?.let { File(it) }
+        if (externalProjectDir?.isAbsolute == true) {
+            return externalProjectDir
+        }
+
         val gradleRootDir = buildModel.moduleRootDirectory
         if (gradleRootDir != null) {
             return gradleRootDir

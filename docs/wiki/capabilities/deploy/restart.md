@@ -18,6 +18,7 @@ Restart makes deployment results that require a lifecycle refresh or process rel
 |---|---|---|
 | Refresh the current UI after Apply Changes | Supported | Restarts the Activity |
 | Hot Fix class or push-only overlay | Supported | Restarts the app |
+| Deploy generated ARouter route, Provider, or interceptor registration indexes | Supported | Restarts the app to rebuild registration caches |
 | User selects always restart | Supported | Restarts the app after deployment succeeds |
 | Debug executor starts | Supported | Restarts the app after successful deployment, then attaches the debugger |
 | Detect JVMTI after the first agent push | Supported | Restarts the app so the system loads the startup agent |
@@ -34,6 +35,8 @@ Generate deployment data
 ```
 
 Hot Fix classes, push-only overlays, and some process-level caches require an app restart. Regular non-empty incremental deployments that do not require an app restart recreate the Activity. The Debug entry point restarts the app after deployment by default so that the debugging session starts from the new process state.
+
+ARouter registration indexes trigger an app restart whenever they appear in the current deployment artifacts, including identical indexes recompiled from cached generated sources. Ordinary route classes and property injection helpers do not trigger this rule on their own; deploying registration indexes in the same Run still restarts the app.
 
 ## How the launch target is selected
 

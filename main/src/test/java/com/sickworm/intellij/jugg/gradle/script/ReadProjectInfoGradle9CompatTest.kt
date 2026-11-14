@@ -449,6 +449,9 @@ class ReadProjectInfoGradle9CompatTest : ReadProjectInfoGradleCompatTestBase() {
             )
 
             assertEquals(0, result.exitCode, "Jugg release minify build failed.\n${result.output}")
+            val apk = File(fixtureDir, "app/build/outputs/apk/release/app-release-unsigned.apk")
+            assertTrue(apkContainsClass(apk,
+                "Lcom/sickworm/intellij/jugg/viewhierarchy/ViewHierarchyServerLoader;"))
         } finally {
             fixtureDir.deleteRecursively()
         }

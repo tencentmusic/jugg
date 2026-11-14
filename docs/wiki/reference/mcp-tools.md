@@ -58,7 +58,7 @@ There are currently 20 registered public MCP tools.
 | `report-prepare` | `projectDir`, compatibility parameter `serial` | Prepares a diagnostic bundle, ignores the serial, and collects logs from all target devices. |
 | `report-upload` | `projectDir`, `reportId`, `sha256` | Uploads a confirmed diagnostic bundle after verifying it has not changed. |
 | `devices` | `projectDir` | Lists devices and marks the selected device. |
-| `layout-dump` | `projectDir`, `rootLayout`, `includeGone`, `allWindows` | Exports the UI hierarchy as HTML. |
+| `layout-dump` | `projectDir`, `mode`, `rootLayout`, `includeGone`, `allWindows` | Exports interaction/ui sparse JSON. |
 | `view-locate` | `projectDir`, `target` | Finds the location of a UI element. |
 | `view-inspect` | `projectDir`, `target`, `expressions` | Reads read-only View properties through reflection, including getters, Kotlin properties, and public fields. |
 | `activity-stack` | `projectDir` | Reads the Activity stack. |
@@ -107,13 +107,25 @@ When `deploy` succeeds without compiling source files, the message only states t
 
 | Tool | Key boundaries |
 |---|---|
-| `layout-dump` | Outputs an HTML artifact. The internal JSON is not part of the public contract. |
+| `layout-dump` | Outputs a JSON artifact. mode=interaction (default) prunes a summary; mode=ui preserves the captured tree. Invalid mode returns INVALID_PARAMS. |
 | `view-locate` | Coordinates and dimensions use dp. When multiple elements match, the first result is not a safe click target. |
 | `view-inspect` | Allows only read-only expressions. An explicit `foo()` uses the getter/query allowlist. A name without parentheses reads a public field first, then resolves `getXxx()` / `isXxx()`. |
 | `tap` | Mode priority is coordinate > percent > element. It does not act when multiple elements match. |
 | `activity-stack` | Confirms the foreground Activity and page stability. |
 
 ViewHierarchy tools wait for the app to be online before running. A screen that is off or locked returns `DEVICE_NOT_INTERACTIVE`. If the target app is not in the foreground, they return `APP_NOT_FOREGROUND`.
+
+The file contains mode, units, windows, deviceInfo, truncated, and optional warnings/rootLayout. Bounds/padding normally use integer dp; without valid density, px is retained and declared in units. Empty values and defaults visibility=visible, alpha=1, clickable=false, enabled=true, zero padding, and empty children are omitted. Missing textColor can also mean uncollected or default values. The summary counts actual output nodes; pruning does not set budget truncated.
+
+Both modes share field meanings, with public virtual IDs shortened to `_vid_<hash>`; legacy `_vir_id_` selectors still work. interaction first removes invisible/gone nodes and their entire subtrees without promoting children, even with `--include-gone`, omits `padding` and `textColor`, and retains className. ui retains hidden nodes and visual fields within the requested collection scope; GONE nodes still require `--include-gone`.
+
+Real nodes start on new lines, while attributes and coordinates stay compact; synthetic `jugg_details` nodes stay inline. When children include at least one real node, the opening `[` and closing `]}` each start on a new line.
+
+interaction keeps the first node of an offscreen branch and replaces its descendants with a synthetic child containing only `jugg_details`. Placeholders are excluded from node and clickable counts, and folding does not set `truncated`. Use `--mode ui --root-layout <id>` to expand the branch; see [Layout dump and UI evidence](../concepts/layout-dump-and-ui-evidence.md#interaction-summaries-and-ui-hierarchies-use-different-node-scopes) for the rules and retention conditions.
+
+`data.file` always points to the complete artifact. `contentBytes` is its UTF-8 byte size, including node separators. At or below 16 KiB (16,384 bytes), both modes also include the complete JSON object in `structuredContent.data.layout`. Larger results omit this field rather than returning a partial tree. Text content contains only the summary, so the full tree is not sent twice. CLI plain/json output preserves Unicode. The 16 KiB threshold applies to the file, not the total response size or a token limit. Clients must expose structuredContent to the Agent to use the inline object directly.
+
+If part of the UI hierarchy cannot be extracted, `layout-dump` preserves valid JSON and marks its summary with `incomplete hierarchy`. Optional `data.warnings` and JSON node diagnostics give the cause. Location, inspection, and element input still return results for valid matches, along with diagnostics. If there is no match and the current window's hierarchy is incomplete, they return `UI_HIERARCHY_INCOMPLETE`. Budget limits continue to use `truncated` separately. For recovery steps, see [UI automation](../capabilities/tools/ui-automation.md#when-compose-content-is-missing).
 
 ## Common error codes
 
@@ -130,6 +142,7 @@ ViewHierarchy tools wait for the app to be online before running. A screen that 
 | `MULTIPLE_DEVICE` | A single-device operation found several target devices and requires an explicit serial. |
 | `DEVICE_NOT_INTERACTIVE` | The device screen is off or the device is not interactive. |
 | `APP_NOT_FOREGROUND` | The target app is not in the foreground. |
+| `UI_HIERARCHY_INCOMPLETE` | The current window's UI hierarchy is incomplete; the target element cannot be assumed to be absent. |
 | `INTERNAL_ERROR` | Internal error. |
 
 ## Non-public actions

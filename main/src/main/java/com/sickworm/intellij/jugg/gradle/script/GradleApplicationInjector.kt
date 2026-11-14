@@ -234,6 +234,13 @@ class GradleApplicationInjector(
         rules.add("# Keep all Application subclasses (generic rule as fallback)")
         rules.add("-keep class * extends android.app.Application { *; }")
         rules.add("-keep class * extends android.app.AppComponentFactory { *; }")
+        rules.add("-keep class com.sickworm.intellij.jugg.viewhierarchy.ViewHierarchyServerLoader { public static void init(android.content.Context); }")
+        // Keep the reflective adapter only when the host actually ships Compose.
+        // Host discovery and Dragonfly compare these runtime class names.
+        rules.add("-keepnames class androidx.compose.ui.platform.AbstractComposeView")
+        rules.add("-keepnames class androidx.compose.ui.platform.AndroidComposeView")
+        rules.add("-if class androidx.compose.ui.platform.AbstractComposeView")
+        rules.add("-keep class com.sickworm.intellij.jugg.internal.dragonfly.compose.ComposeAdapter { public <init>(); }")
         rules.add("-dontwarn com.sickworm.intellij.jugg.internal.dragonfly.runtime.kotlin.Metadata")
         rules.add("-dontwarn com.sickworm.intellij.jugg.internal.dragonfly.runtime.kotlin.jvm.JvmStatic")
         rules.add("-dontwarn com.sickworm.intellij.jugg.internal.dragonfly.runtime.kotlin.jvm.internal.markers.KMappedMarker")

@@ -19,6 +19,9 @@ cleanup() {
 }
 trap cleanup EXIT
 
+dragonfly_rules="$task_temp_dir/dragonfly-rules.txt"
+cat "$script_dir/jarjar-host-api-rules.txt" "$script_dir/jarjar-rules.txt" > "$dragonfly_rules"
+
 jarjar_file="$task_temp_dir/jarjar.jar"
 curl -fsSL "$jarjar_url" -o "$jarjar_file"
 actual_sha256="$(shasum -a 256 "$jarjar_file" | awk '{print $1}')"
@@ -61,8 +64,12 @@ relocate() {
   local relocated_jar_dir="$relocated_jar.dir"
   local normalized_jar="$task_temp_dir/$(basename "$output_jar")"
   local normalized_entries="$normalized_jar.entries"
+  local rules="$script_dir/jarjar-rules.txt"
+  if [[ "$source_type" == "class" ]]; then
+    rules="$dragonfly_rules"
+  fi
 
-  java -jar "$jarjar_file" process "$script_dir/jarjar-rules.txt" "$source_jar" "$relocated_jar"
+  java -jar "$jarjar_file" process "$rules" "$source_jar" "$relocated_jar"
 
   mkdir "$relocated_jar_dir"
   unzip -q "$relocated_jar" -d "$relocated_jar_dir"

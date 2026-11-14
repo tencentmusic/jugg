@@ -19,7 +19,6 @@ import java.util.List;
 import java.util.Map;
 
 import com.sickworm.intellij.jugg.jvmti_agent.BuildConfig;
-import com.sickworm.intellij.jugg.viewhierarchy.ViewHierarchyServerLoader;
 
 /**
  * Refer from Lightning :)
@@ -63,6 +62,7 @@ public class BootstrapApplication extends Application {
         if (isNeedEnableHotfix) {
             HotfixLoader.install(base);
         }
+        NativeLibraryPathInstaller.install(base);
 
         super.attachBaseContext(base);
         initRawApplicationAndAppComponentFactory(base);
@@ -111,10 +111,24 @@ public class BootstrapApplication extends Application {
             rawApplication.onCreate();
         }
 
-        // Initialize ViewHierarchy server from BootstrapApplication lifecycle.
-        ViewHierarchyServerLoader.init(this);
+        startViewHierarchyServer();
 
         LogUtils.i(TAG, "onCreate done");
+    }
+
+    /** Start App-owned inspection code without linking bootstrap classes to Compose. */
+    private void startViewHierarchyServer() {
+        ClassLoader loader = getClassLoader();
+        try {
+            Class<?> entry = loader.loadClass(
+                "com.sickworm.intellij.jugg.viewhierarchy.ViewHierarchyServerLoader");
+            entry.getMethod("init", Context.class).invoke(null, this);
+            LogUtils.i(TAG, "ViewHierarchy entry loader=" + entry.getClassLoader());
+        } catch (Throwable throwable) {
+            Throwable cause = throwable.getCause() != null ? throwable.getCause() : throwable;
+            LogUtils.w(TAG, "ViewHierarchy unavailable, loader=" + loader + ": " + cause +
+                    "; rebuild and install the app with the current Jugg runtime. " + android.util.Log.getStackTraceString(cause));
+        }
     }
 
     /**

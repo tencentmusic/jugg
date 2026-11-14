@@ -29,8 +29,6 @@ class KotlinCompilerInvoker {
 
     private var hasRetryCompile = false
     private val ideFileSystemConflictCompilerKeys = mutableSetOf<String>()
-    // Source files that only compile when the SDK android.jar is moved behind the project classpath.
-    private val postponedAndroidJarFiles = mutableSetOf<String>()
     private var tryDisablePlugins: List<File> = emptyList()
     private var disablePlugins: List<File> = emptyList()
     private var tryDisableProjectPluginOptionId: String? = null
@@ -58,7 +56,7 @@ class KotlinCompilerInvoker {
             var kotlinCompilerClasspath = mutableListOf<File>()
             kotlinCompilerClasspath.addAll(module.kotlinPlugins ?: emptyList())
             kotlinCompilerClasspath.addAll(module.kotlinExtensions ?: emptyList())
-            kotlinCompilerClasspath.addAll(module.kspDependencies?.map { it.file } ?: emptyList())
+            kotlinCompilerClasspath.addAll(module.kspInfo?.processorDependencies?.map { it.file } ?: emptyList())
             kotlinCompilerClasspath = kotlinCompilerClasspath
                 .filter {
                     val isExists = it.exists()
@@ -107,6 +105,8 @@ class KotlinCompilerInvoker {
         val isCanAutoRetry: Boolean = true,
         val kaptOptions: Map<String, String> = emptyMap(),
         val kaptDependencies: List<File> = emptyList(),
+        val kaptMode: String = "stubsAndApt",
+        val kaptProcessors: List<String> = emptyList(),
         val javaSourceDirs: List<File>? = null,
         // Force using embedded compiler by bypassing project compiler classpath.
         val forceUseEmbeddedKotlinCompiler: Boolean = false,
@@ -122,7 +122,6 @@ class KotlinCompilerInvoker {
         val commonSourceFiles: List<File> = emptyList(),
         val isNeedComplementaryFiles: Boolean = false,
         val expectActualSourceFiles: List<File> = emptyList(),
-        val isPostponeSdkAndroidJar: Boolean = false,
     )
 
     fun readComplementaryFiles(
@@ -166,6 +165,15 @@ class KotlinCompilerInvoker {
         task: CompileTask,
         logger: Logger,
         options: Options,
+    ): CompileResult = compileAttempt(context, module, task, logger, options, isRetry = false)
+
+    private fun compileAttempt(
+        context: ICompileContext,
+        module: ModuleInfo,
+        task: CompileTask,
+        logger: Logger,
+        options: Options,
+        isRetry: Boolean,
     ): CompileResult {
         logger.debug("compile options: $options")
 
@@ -291,8 +299,12 @@ class KotlinCompilerInvoker {
                 "-P", "plugin:org.jetbrains.kotlin.kapt3:verbose=true",
                 "-P", "plugin:org.jetbrains.kotlin.kapt3:correctErrorTypes=true", // recommend, just add it
                 // stubs, apt, stubsAndApt, compile
-                "-P", "plugin:org.jetbrains.kotlin.kapt3:aptMode=stubsAndApt",
+                "-P", "plugin:org.jetbrains.kotlin.kapt3:aptMode=${options.kaptMode}",
             ))
+            // Kotlin CLI splits comma-separated -P values before KAPT receives them.
+            options.kaptProcessors.forEach {
+                kaptArgs.addAll(listOf("-P", "plugin:org.jetbrains.kotlin.kapt3:processors=$it"))
+            }
 
             options.kaptDependencies.forEach {
                 kaptArgs.addAll(listOf("-P", "plugin:org.jetbrains.kotlin.kapt3:apclasspath=${it.path}"))
@@ -341,6 +353,16 @@ class KotlinCompilerInvoker {
         val moduleName = "${module.gradleModuleName ?: module.name}_${module.buildVariant}"
         val isolatedBaseline = createIsolatedKmpBaseline(context, module, options, kotlinClassPath, logger)
         val baselineClasspath = isolatedBaseline ?: kotlinClassPath
+        val friendPaths = mutableListOf(baselineClasspath.absolutePath)
+        if (module.isAndroidTestModule) {
+            // androidTest is a separate compilation but may access its tested variant's internal declarations.
+            val owner = module.moduleDependencies.asSequence().mapNotNull { context.modules[it.moduleName] }
+                .firstOrNull {
+                    !it.isAndroidTestModule && it.moduleRootDir == module.moduleRootDir &&
+                            "${it.buildVariant}AndroidTest" == module.buildVariant
+                }
+            owner?.buildPathInfo?.kotlinClassPath?.let { friendPaths.add(it.absolutePath) }
+        }
         val outputDir = if (options.isEnableKapt) {
             kaptOutputDir
         } else {
@@ -356,7 +378,7 @@ class KotlinCompilerInvoker {
             "-no-stdlib",
             "-no-reflect",
             "-module-name", moduleName,
-            "-Xfriend-paths=${baselineClasspath.absolutePath}",
+            "-Xfriend-paths=${friendPaths.distinct().joinToString(",")}",
             "-Xskip-prerelease-check", // class 'xxx' is compiled by a pre-release version of Kotlin and cannot be loaded by this version of the compiler
             "-Xskip-metadata-version-check", // let skip-prerelease-check works for Kotlin 1.3
             "-Xallow-no-source-files",
@@ -375,21 +397,12 @@ class KotlinCompilerInvoker {
         }
 
         var classPathArgs = listOf<String>()
-        val resolvedDependencies = context.getModuleDependencies(module, task).map {
+        val dependencies = context.getModuleDependencies(module, task).map {
             if (isolatedBaseline != null && File(it).absoluteFile.normalize() == kotlinClassPath.absoluteFile.normalize()) {
                 isolatedBaseline.path
             } else {
                 it
             }
-        }
-        val isKnownPostponeAndroidJarTask = task.files.any { it.file.absolutePath in postponedAndroidJarFiles }
-        val dependencies = if (options.isPostponeSdkAndroidJar || isKnownPostponeAndroidJarTask) {
-            if (isKnownPostponeAndroidJarTask) {
-                logger.debug("Task contains a file known to need android.jar last, skip the failing attempt")
-            }
-            AndroidJarClasspathRetry.postponeSdkAndroidJar(resolvedDependencies)
-        } else {
-            resolvedDependencies
         }
         if (dependencies.isNotEmpty()) {
             classPathArgs = listOf(
@@ -413,7 +426,7 @@ class KotlinCompilerInvoker {
         logCompileCommand(command, context.projectDir, logger)
 
         // resolve kotlin extension function unresolved reference
-        val merger = IKmModuleMergerForCompilation.create(kotlinCompile.currentCompiler, kotlinClassPath, logger)
+        val merger = KmModuleMergerForCompilation(kotlinClassPath, logger)
         try {
             merger.loadAndMerge()
         } catch (e: Exception) {
@@ -425,15 +438,23 @@ class KotlinCompilerInvoker {
             files = task.files,
             logger = logger,
             forceCompilerOutputDebug = options.isEnableKapt,
+            isOutputEnabled = false,
         )
         val compilerToolchainKey = classpath
             ?.takeIf { kotlinCompile.isUseProjectCompiler && it.isNotEmpty() }
             ?.let(::buildCompilerToolchainKey)
-        val executionMode = if (options.executionMode == ExecutionMode.IN_PROCESS &&
-            compilerToolchainKey != null && compilerToolchainKey in ideFileSystemConflictCompilerKeys) {
-            ExecutionMode.ISOLATED_PROCESS
-        } else {
-            options.executionMode
+        val executionMode = when {
+            options.executionMode == ExecutionMode.IN_PROCESS &&
+                KotlinCompilerHostCompat.shouldUseIsolatedProcess(
+                    Runtime.version().feature(), kotlinCompile.isUseProjectCompiler) -> {
+                logger.debug("JDK ${Runtime.version().feature()} with project Kotlin compiler, " +
+                        "use isolated Kotlin compiler process")
+                ExecutionMode.ISOLATED_PROCESS
+            }
+            options.executionMode == ExecutionMode.IN_PROCESS &&
+                compilerToolchainKey != null && compilerToolchainKey in ideFileSystemConflictCompilerKeys ->
+                ExecutionMode.ISOLATED_PROCESS
+            else -> options.executionMode
         }
         val shouldTrackExpectActual = options.isNeedComplementaryFiles &&
             executionMode == ExecutionMode.IN_PROCESS && kotlinCompile.isUseProjectCompiler
@@ -469,6 +490,19 @@ class KotlinCompilerInvoker {
         outputParser.flush()
         logger.debug("kotlin compile result code: $exitCode")
 
+        val isCompileSuccess = exitCode == ExitCode.OK
+        val compileResults = outputParser.getResult(isCompileSuccess)
+
+        fun retryCompile(retryOptions: Options): CompileResult {
+            val result = compileAttempt(context, module, task, logger, retryOptions, isRetry = true)
+            if (result.isAllSuccess) return result
+            if (!isRetry) {
+                logger.info("Kotlin compiler retry did not resolve the problem. Showing the original compilation errors below.\n")
+                outputParser.printDiagnostics()
+            }
+            return CompileResult(task, compileResults, emptyList())
+        }
+
         if (outputParser.isGotIdeFileSystemCloseException &&
             executionMode == ExecutionMode.IN_PROCESS && compilerToolchainKey != null) {
             ideFileSystemConflictCompilerKeys += compilerToolchainKey
@@ -477,7 +511,7 @@ class KotlinCompilerInvoker {
                 hasRetryCompile = true
             } else {
                 logger.warn("Kotlin compiler conflicts with IDE file system, retry in an isolated process once.")
-                return compile(context, module, task, logger, options.copy(isCanAutoRetry = false))
+                return retryCompile(options.copy(isCanAutoRetry = false))
             }
         }
 
@@ -485,11 +519,9 @@ class KotlinCompilerInvoker {
         if (options.isCanAutoRetry && !hasRetryCompile && handleMetadataError(outputParser, logger)) {
             hasRetryCompile = true
             logger.info("Kotlin compile failed with metadata error, retry once.")
-            return compile(context, module, task, logger, options)
+            return retryCompile(options)
         }
 
-        val isCompileSuccess = exitCode == ExitCode.OK
-        val compileResults = outputParser.getResult(isCompileSuccess)
         val errorResults = compileResults.sumOf {
             if (it.isSuccess) 0 else it.getFailure().errors.size
         }
@@ -510,32 +542,7 @@ class KotlinCompilerInvoker {
                 unsupportedProjectPluginId,
                 options.kotlinPluginOptions,
             )
-            return compile(context, module, task, logger, options)
-        }
-
-        // handles a public SDK android.jar shadowing a more complete framework jar behind it
-        val shadowedSupertypeFiles = compileResults.mapNotNull { result ->
-            val error = result.getFailureOrNull() ?: return@mapNotNull null
-            // a broadcast diagnostic does not tell which file needs the postponed classpath
-            if (!error.hasDirectSourceDiagnostic) return@mapNotNull null
-            val messages = error.errors.map { it.second }
-            if (!AndroidJarClasspathRetry.isShadowedSupertypeDiagnostic(messages)) return@mapNotNull null
-            error.file.file.absolutePath
-        }
-        if (shadowedSupertypeFiles.isNotEmpty() && options.isCanAutoRetry && !hasRetryCompile &&
-            AndroidJarClasspathRetry.postponeSdkAndroidJar(dependencies) != dependencies) {
-            hasRetryCompile = true
-            logger.warn("Kotlin compile failed because SDK android.jar shadows a later classpath type, " +
-                    "retry once with android.jar last.")
-            val firstResult = CompileResult(task, compileResults, emptyList())
-            val retryResult = compile(context, module, task, logger,
-                options.copy(isCanAutoRetry = false, isPostponeSdkAndroidJar = true))
-            if (retryResult.isAllSuccess) {
-                postponedAndroidJarFiles.addAll(shadowedSupertypeFiles)
-                return retryResult
-            }
-            logger.debug("Retry with android.jar last still failed, report the first diagnostics")
-            return firstResult
+            return retryCompile(options)
         }
 
         var shouldRecreate = false
@@ -620,10 +627,10 @@ class KotlinCompilerInvoker {
         if (shouldRecreate) {
             logger.debug("try recreate compiler once, hasRecreateAfterInternalError: $hasRetryCompile")
             if (options.isCanAutoRetry && !hasRetryCompile) {
-                logger.warn("\n$retryReason, retry with recreating compiler once.\n")
+                logger.info("\n$retryReason, retry with recreating compiler once.")
                 hasRetryCompile = true
                 kotlinCompile = K2JVMCompilerIsolate()
-                return compile(context, module, task, logger, options)
+                return retryCompile(options)
             }
         }
 
@@ -636,6 +643,7 @@ class KotlinCompilerInvoker {
         }
 
         if (exitCode != ExitCode.OK) {
+            if (!isRetry) outputParser.printDiagnostics()
             // print infos
             context.printClasspathCheck(module)
             hasRetryCompile = false
@@ -808,7 +816,7 @@ class KotlinCompilerInvoker {
         logger.debug("found metadata error message size ${outputParser.metadataVersionErrors.size}")
         outputParser.metadataVersionErrors.forEach { metadataError ->
             try {
-                val errorMerger = KmModuleMergerForCompilation(metadataError.metadataFile.parentFile.parentFile)
+                val errorMerger = KmModuleMergerForCompilation(metadataError.metadataFile.parentFile.parentFile, logger)
                 errorMerger.loadAndMerge()
                 errorMerger.save(metadataError.expectMetadataVersion)
                 logger.debug("save ${metadataError.metadataFile} from ${metadataError.actualVersion} to " +

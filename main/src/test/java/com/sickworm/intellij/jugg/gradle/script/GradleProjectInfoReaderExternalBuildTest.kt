@@ -11,6 +11,7 @@ import com.sickworm.intellij.jugg.project.info.ExternalBuildInputFilterRule.Nati
 import com.sickworm.intellij.jugg.project.info.ExternalBuildType
 import com.sickworm.intellij.jugg.project.info.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.project.info.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ExternalBuildGeneratedLanguage
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.FileCollection
@@ -83,6 +84,52 @@ class GradleProjectInfoReaderExternalBuildTest {
         assertNull(info.assetsOutputDir)
         assertEquals(mergedDir, info.nativeOutput)
         assertTrue(info.isSupported)
+        assertEquals(emptyList(), info.prerequisites)
+    }
+
+    @Test
+    fun `copies declared external build prerequisites onto the C++ record`() {
+        val project = ProjectBuilder.builder().withProjectDir(temporaryFolder.root).build()
+        project.file("cmake/CMakeLists.txt").apply {
+            parentFile.mkdirs()
+            writeText("cmake_minimum_required(VERSION 3.22)")
+        }
+        project.extensions.add("android", TestAndroidExtension())
+        val mergedDir = temporaryFolder.newFolder("merged-native-libs-prereq")
+        project.tasks.create("mergeDebugNativeLibs", TestNativeMergeTask::class.java).apply {
+            outputDir = mergedDir
+        }
+        val kotlinDir = File(project.projectDir, "build/generated/idl/kotlin/commonMain")
+        project.extensions.extraProperties.set(
+            GradleProjectInfoReader.JUGG_EXTERNAL_BUILD_PREREQUISITES_EXTRA,
+            listOf(
+                mapOf(
+                    "taskPath" to "${project.path}:compileMidl",
+                    "triggerGlobs" to listOf("**/*.idl.hpp"),
+                    "generatedSourceDirs" to listOf(
+                        mapOf("directory" to kotlinDir, "type" to "Kotlin"),
+                    ),
+                    "beforeNativeTaskPrefixes" to listOf("merge", "buildCMake", "externalNativeBuild"),
+                ),
+                mapOf(
+                    "taskPath" to ":invalid",
+                    "triggerGlobs" to emptyList<String>(),
+                ),
+            ),
+        )
+
+        val info = readExternalBuildInfos(project).single()
+
+        assertEquals(1, info.prerequisites.size)
+        val prerequisite = info.prerequisites.single()
+        assertEquals("${project.path}:compileMidl", prerequisite.taskPath)
+        assertEquals(listOf("**/*.idl.hpp"), prerequisite.triggerGlobs)
+        assertEquals(kotlinDir.absoluteFile.normalize(), prerequisite.generatedSourceDirs.single().directory)
+        assertEquals(ExternalBuildGeneratedLanguage.Kotlin, prerequisite.generatedSourceDirs.single().language)
+        assertEquals(
+            listOf("merge", "buildCMake", "externalNativeBuild"),
+            prerequisite.beforeNativeTaskPrefixes,
+        )
     }
 
     @Test

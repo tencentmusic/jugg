@@ -72,7 +72,7 @@ changed dependency library
   -> res changes enter resource compilation
   -> Manifest changes enter incremental merge
   -> assets changes generate asset overlays
-  -> native library changes enter APK update
+  -> native library changes use an overlay or APK update according to the SO hot update setting
   -> artifacts enter deployment according to target APK ownership
 ```
 

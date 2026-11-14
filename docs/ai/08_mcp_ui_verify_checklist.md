@@ -11,7 +11,7 @@
 
 ## 2. Collect actual evidence
 
-- [ ] Use `layout-dump` HTML to orient within windows and discover selectors. Treat the public artifact as HTML; internal JSON is not an Agent contract.
+- [ ] Use `layout-dump --mode ui` JSON to orient within windows and discover selectors. Use public JSON mode/units/warnings/truncated; internal consumers retain an unpruned tree.
 - [ ] Use `view-locate` for node existence and dp bounds. Prefer a stable `resourceId`; combine exact `text`, `contentDesc`, or exact full/simple `className` when needed.
 - [ ] Check `matchCount`, `returnedCount`, `truncated`, and `matches[]`. A unique match is needed for top-level bounds or element-mode tap. Narrow ambiguous selectors; a truncated list does not prove an omitted node is absent.
 - [ ] Use `view-inspect` for runtime properties, not `view-locate` or visual estimates. Review each `data.values[]` entry for its own `error` even if the tool status is OK. Hidden/GONE properties may be readable without making that node a safe click target.
@@ -23,3 +23,9 @@
 - [ ] State any approximate tolerance in the report (the conventional rule is ≤2 dp absolute or ≤5% relative); do not pass a nonexistent `tolerance` argument to public tools.
 - [ ] Before `tap`, identify coordinate, percent, or element mode. Element mode needs a unique match. Collect fresh `activity-stack` / `layout-dump` / `view-locate` evidence afterward; use `wait-logs` only when marker/crash/timeout is part of the claim.
 - [ ] Report each assertion as **Expected / Actual / Diff / Evidence tool / Verdict**. Keep failures and unverifiable claims visible. For FAIL, give a concrete inspection or fix direction; cite best-effort `source.file` / `source.line` only when returned, otherwise name the layout or getter. Recheck the affected page after a fix.
+
+## 6. JSON observation checks
+
+- Use `layout-dump --mode ui` or view-locate dp bounds for geometry/spacing/alignment, not visual guesses.
+- Default interaction discovers candidates but pruning cannot prove absence or original parent/child relationships; inspect ui/rootLayout after selector failure.
+- Record warnings/UI_HIERARCHY_INCOMPLETE separately from truncated; preserve useful partial evidence rather than classifying omitted nodes as absent.

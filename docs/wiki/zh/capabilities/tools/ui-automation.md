@@ -37,13 +37,24 @@ activity-stack
 ## UI 层级
 
 ```text
-jugg layout-dump
+jugg layout-dump --mode interaction
+jugg layout-dump --mode ui
 jugg layout-dump --root-layout content
-jugg layout-dump --include-gone
+jugg layout-dump --mode ui --include-gone
 jugg layout-dump --all-windows
 ```
 
-`layout-dump` 输出公开 HTML artifact，适合 Agent 和用户阅读。内部 JSON 只供工具实现复用，不作为稳定公开接口。
+`layout-dump` 输出公开稀疏 JSON artifact。`interaction`（默认）裁剪页面摘要，用于发现交互候选；`ui` 保留已采集的节点和父子关系，用于布局验证、状态排查及辅助还原。两模式使用相同的字段含义，公开虚拟 ID 简写为 `_vid_<hash>`；旧 `_vir_id_` selector 仍可使用。interaction 先删除 invisible/gone 节点及整个子树（不会提升孩子，`--include-gone` 也不例外），省略 `padding`、`textColor`，并保留 className。ui 在请求的采集范围内保留隐藏节点和视觉字段；GONE 节点仍需 `--include-gone`。
+
+交互摘要会删除无语义节点并提升孩子，不能证明元素不存在或原始层级，也不保证每个节点可点击。ui 仍受窗口、子树、GONE 筛选及预算限制；完整视觉还原需要额外图片、字体和绘制信息。
+
+## Compose 内容缺失时
+
+局部内容采集失败时，`layout-dump` 仍保留有效 JSON，摘要会标记 `incomplete hierarchy`，结果中的 `warnings` 和 JSON 节点诊断说明原因。此时没有出现的文本不能直接判定为页面不存在该元素。
+
+`view-locate`、`view-inspect` 和元素模式 `tap` 命中有效节点时仍返回结果并携带采集诊断；未命中且当前窗口采集不完整时返回 `UI_HIERARCHY_INCOMPLETE`。`truncated` 单独表示节点或结果预算截断。
+
+升级插件后，若页面树仍停留在 Compose 宿主而没有内容，先使用 Jugg 的完整 Gradle 构建并安装更新后的 APK，再重新采集。仅重启旧 APK 不能保证更新 App 内运行时。若仍有诊断，保留 JSON 和具体原因，检查报告的 Compose runtime/tooling 兼容问题。
 
 ## 元素定位
 

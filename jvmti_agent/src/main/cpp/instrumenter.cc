@@ -264,6 +264,12 @@ bool Instrument(jvmtiEnv* jvmti, JNIEnv* jni, const std::string& jar,
         "(Ljava/lang/String;I)Landroid/content/Context;",
         MethodHooks::kNoHook, "handleCreatePackageContextExit");
 
+    const HookTransform sharedLibraries(
+        "android/content/res/AssetManager",
+        "addAssetPathAsSharedLibrary",
+        "(Ljava/lang/String;)I",
+        "resourceSharedLibraryEnter", "resourceSharedLibraryExit");
+
     const HookTransform loadedApk(
         "android/app/LoadedApk",
         "getResources",
@@ -308,6 +314,7 @@ bool Instrument(jvmtiEnv* jvmti, JNIEnv* jni, const std::string& jar,
         { &application, &appComponentFactory, &resManager, &activityThread,
           &classLoader, &contextImpl });
     ApplyTransforms(jvmti, jni, kNoCache, { &resManagerNew, &loadedApk });
+    ApplyTransforms(jvmti, jni, kNoCache, { &sharedLibraries });
   }
 
   // Failing to disable this event does not actually have any bearing on

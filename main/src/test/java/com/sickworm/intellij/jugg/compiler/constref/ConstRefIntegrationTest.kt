@@ -7,10 +7,159 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 
 class ConstRefIntegrationTest : ConstRefTempDirCleanupSupport() {
+    @Test
+    fun `should detect callers through named kotlin companion and aliases`() {
+        assertCompanionCallers(
+            companionName = "Codes",
+            changedConstant = "CMD",
+            callers = mapOf(
+                "NamedUser.kt" to "import com.example.Commands\nval value = Commands.Codes.CMD",
+                "AliasUser.kt" to "import com.example.Commands.Codes.CMD as ALIAS\nval value = ALIAS",
+                "OuterUser.kt" to "import com.example.Commands\nval value = Commands.CMD",
+            ),
+            unchangedCaller = "import com.example.Commands\nval value = Commands.Codes.Nested.LIMIT",
+        )
+    }
+
+    @Test
+    fun `should detect callers of objects nested in kotlin companions`() {
+        listOf("Companion", "Codes").forEach { companionName ->
+            assertCompanionCallers(
+                companionName = companionName,
+                changedConstant = "LIMIT",
+                callers = mapOf(
+                    "NestedUser.kt" to "import com.example.Commands\nval value = Commands.$companionName.Nested.LIMIT",
+                    "AliasUser.kt" to "import com.example.Commands.$companionName.Nested.LIMIT as ALIAS\nval value = ALIAS",
+                ),
+                unchangedCaller = "import com.example.Commands\nval value = Commands.CMD",
+            )
+        }
+    }
+
+    private fun assertCompanionCallers(
+        companionName: String,
+        changedConstant: String,
+        callers: Map<String, String>,
+        unchangedCaller: String,
+    ) {
+        val rootDir = createTempDirectory("const_ref_kotlin_companion")
+        File(rootDir, ".git").mkdirs()
+        val declarationName = if (companionName == "Companion") "" else companionName
+        val source = """
+            package com.example
+            interface Commands {
+                companion object $declarationName {
+                    const val CMD = 1
+                    object Nested { const val LIMIT = 1 }
+                }
+            }
+        """.trimIndent()
+        val constantsFile = File(rootDir, "Commands.kt").apply { writeText(source) }
+        val callerFiles = (callers + ("UnchangedUser.kt" to unchangedCaller)).map { (name, body) ->
+            File(rootDir, name).apply { writeText("package com.example.user\n$body") }
+        }
+        val paths = listOf(constantsFile.toStdPath()) + callerFiles.map { it.toStdPath() }
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        val engine = ConstRefEngine(
+            analyzer = ConstRefAnalyzer(logger),
+            database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
+            logger = logger,
+            taskRunnerManager = createTestTaskRunnerManager(scope),
+            repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
+        )
+        try {
+            assertTrue(engine.analyzeOnDemand(paths).isReady)
+            engine.getEffectedFiles(paths)
+            engine.acknowledgeEffectedFilesAfterDeployCommit()
+            constantsFile.writeText(source.replace("$changedConstant = 1", "$changedConstant = 2"))
+            assertTrue(engine.analyzeOnDemand(listOf(constantsFile.toStdPath())).isReady)
+            val effected = engine.getEffectedFiles(listOf(constantsFile.toStdPath()))
+            val expected = callers.keys.map { File(rootDir, it).toStdPath() }.toSet()
+            assertEquals("companion=$companionName, constant=$changedConstant", expected, effected.map { it.refFilePath }.toSet())
+        } finally {
+            engine.dispose()
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `should detect kotlin callers when implicit java interface constants change`() {
+        val rootDir = createTempDirectory("const_ref_java_interface")
+        File(rootDir, ".git").mkdirs()
+        val constantsFile = File(rootDir, "Commands.java").apply {
+            writeText(javaInterfaceCommandsSource(10494, 10495))
+        }
+        val callers = writeJavaInterfaceConstantCallers(rootDir)
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        val scheduler = ConstRefEngine(
+            analyzer = ConstRefAnalyzer(logger),
+            database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
+            logger = logger,
+            taskRunnerManager = createTestTaskRunnerManager(scope),
+            repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
+        )
+        try {
+            val sourcePaths = listOf(constantsFile.toStdPath()) + callers.map { it.toStdPath() }
+            assertTrue(scheduler.analyzeOnDemand(sourcePaths).isReady)
+            scheduler.getEffectedFiles(sourcePaths)
+            scheduler.acknowledgeEffectedFilesAfterDeployCommit()
+
+            constantsFile.writeText(javaInterfaceCommandsSource(10498, 10499))
+            assertTrue(scheduler.analyzeOnDemand(listOf(constantsFile.toStdPath())).isReady)
+
+            val effected = scheduler.getEffectedFiles(listOf(constantsFile.toStdPath()))
+            val expectedCallers = callers.filter { it.name != "UnchangedUser.kt" }.map { it.toStdPath() }.toSet()
+            assertEquals(expectedCallers, effected.map { it.refFilePath }.toSet())
+        } finally {
+            scheduler.dispose()
+            scope.cancel()
+        }
+    }
+
+    private fun javaInterfaceCommandsSource(mikeCommand: Int, audioCommand: Int): String {
+        return """
+            package com.example;
+            public interface Commands {
+                int CMD_KTV_GAME_SWITCH_ALL_MIKE_STATUS = $mikeCommand;
+                int CMD_KTV_GAME_EMIT_AUDIO_RESTRICTION = $audioCommand;
+                int CMD_KTV_GAME_GET_SAFE_AREA = 10486;
+            }
+        """.trimIndent()
+    }
+
+    private fun writeJavaInterfaceConstantCallers(rootDir: File): List<File> {
+        val sources = mapOf(
+            "GameWebDelegate.kt" to """
+                package com.example.web
+                import com.example.Commands
+                fun handle(cmd: Int) = when (cmd) {
+                    Commands.CMD_KTV_GAME_SWITCH_ALL_MIKE_STATUS -> "mike"
+                    Commands.CMD_KTV_GAME_EMIT_AUDIO_RESTRICTION -> "audio"
+                    else -> "unknown"
+                }
+            """,
+            "GameMediaDebugDialog.kt" to """
+                package com.example.dialog
+                import com.example.Commands
+                fun dispatch(onCommand: (Int) -> Unit) {
+                    onCommand(Commands.CMD_KTV_GAME_SWITCH_ALL_MIKE_STATUS)
+                    onCommand(Commands.CMD_KTV_GAME_EMIT_AUDIO_RESTRICTION)
+                }
+            """,
+            "UnchangedUser.kt" to """
+                package com.example.other
+                import com.example.Commands
+                val command = Commands.CMD_KTV_GAME_GET_SAFE_AREA
+            """,
+        )
+        return sources.map { (name, source) -> File(rootDir, name).apply { writeText(source.trimIndent()) } }
+    }
+
     @Test
     fun `should detect effected files on cold start after full scan becomes ready`() {
         val rootDir = createTempDirectory("const_ref_integration")

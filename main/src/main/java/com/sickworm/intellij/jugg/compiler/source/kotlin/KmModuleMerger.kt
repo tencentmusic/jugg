@@ -1,34 +1,37 @@
-@file:OptIn(UnstableMetadataApi::class)
+@file:OptIn(kotlin.metadata.jvm.UnstableMetadataApi::class)
 
 package com.sickworm.intellij.jugg.compiler.source.kotlin
 
-import kotlinx.metadata.jvm.*
+import com.intellij.openapi.diagnostic.Logger
+import kotlin.metadata.jvm.*
 import java.io.File
 
 /**
  * Read, write and merge .kotlin_module files in classPaths.
+ * @see {@link https://github.com/Kotlin/binary-compatibility-validator/issues/241}
  */
 class KmModuleMergerForCompilation(
     private val classPath: File,
-): IKmModuleMergerForCompilation {
+    private val logger: Logger,
+) {
 
     private val metaInfDir get() = File(classPath, "META-INF")
     private val kmModuleFileMap = mutableMapOf<String, KmModuleMerger>()
 
-    override fun loadAndMerge() {
+    fun loadAndMerge() {
         metaInfDir.listFiles()
             ?.filter { it.extension == "kotlin_module" }
             ?.forEach {
                 var merger = kmModuleFileMap[it.absolutePath]
                 if (merger == null) {
-                    merger = KmModuleMerger()
+                    merger = KmModuleMerger(logger)
                     kmModuleFileMap[it.absolutePath] = merger
                 }
                 merger.merge(it)
             }
     }
 
-    override fun save(targetVersion: JvmMetadataVersion?) {
+    fun save(targetVersion: JvmMetadataVersion? = null) {
         kmModuleFileMap.forEach { (filePath, merger) ->
             val destFile = File(filePath)
             if (targetVersion == null) {
@@ -51,20 +54,26 @@ class KmModuleMergerForCompilation(
 /**
  * Read, write and merge .kotlin_module files.
  */
-class KmModuleMerger {
+class KmModuleMerger(private val logger: Logger) {
 
     private val kmModule = KmModule()
     private var version = JvmMetadataVersion.LATEST_STABLE_SUPPORTED
+    private var originalBytes: ByteArray? = null
+    private var preserveOriginal = false
 
     /**
      * merge kotlin module metadata into [kmModule]
      */
     fun merge(kmModuleFile: File) {
+        if (preserveOriginal) return
         val bytes = kmModuleFile.readBytes()
+        if (originalBytes == null) originalBytes = bytes
         val metadata = try {
             KotlinModuleMetadata.read(bytes)
         } catch (e: Exception) {
-            // kotlin_module isEmpty, ignore
+            preserveOriginal = true
+            logger.warn("Cannot read Kotlin module metadata: $kmModuleFile. " +
+                    "Keeping its original bytes; new top-level declarations may not be resolved.", e)
             return
         }
         val kmModule = metadata.kmModule
@@ -75,19 +84,13 @@ class KmModuleMerger {
     /**
      * write kotlin module metadata to file
      */
-    fun writeTo(destFile: File, targetVersion: JvmMetadataVersion) {
-        val metadata = KotlinModuleMetadata(kmModule, targetVersion).write()
+    fun writeTo(destFile: File, targetVersion: JvmMetadataVersion = version) {
+        // A compiler invocation can replace the index even when the baseline could not be parsed.
+        val metadata = if (preserveOriginal) checkNotNull(originalBytes) else KotlinModuleMetadata(kmModule, targetVersion).write()
         destFile.also {
             it.parentFile?.mkdirs()
             it.writeBytes(metadata)
         }
-    }
-
-    fun writeTo(destFile: File) {
-        // why not optional argument? KmModuleMergerTest will have compilation error:
-        // Cannot access class 'kotlinx.metadata.jvm.JvmMetadataVersion'.
-        // Check your module classpath for missing or conflicting dependencies
-        writeTo(destFile, version)
     }
 
     fun getExtensionClasses(): List<String> {

@@ -38,7 +38,7 @@ SKILL.md contains routing decisions and shared rules (CLI Quick Reference and Bu
 | **D1** Whether the skill activates | User mentions Jugg or Android source is being edited | Frontmatter description |
 | **D2** Which flow to use | `hasAutoRunEntry`, `enabledAndroidTest`, and user intent | Phase 1 route |
 | **D3** Which references to load | Scenario and current step | Phase 1 scenario table |
-| **D4** How to handle compile failure | JSON `status`/`message` and retry count | Build Fallback Chain |
+| **D4** Preflight direct fallback and failure recovery | Confirmed generation/instrumentation limits, JSON `status`/`message`, retry count | Mandatory Rules, Build Fallback Chain and policy_incremental_compile_limits.md |
 
 ---
 

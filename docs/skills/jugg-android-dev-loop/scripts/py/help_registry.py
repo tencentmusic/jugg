@@ -157,9 +157,15 @@ COMMAND_HELP: dict[str, CommandHelp] = {
     ),
     "layout-dump": CommandHelp(
         "layout-dump",
-        "Export UI hierarchy to an HTML file.",
-        "jugg layout-dump [--root-layout <id>] [--include-gone] [--all-windows]",
+        "Export node-separated JSON; files up to 16 KiB also return data.layout inline.",
+        "jugg layout-dump [--mode <interaction|ui>] [--root-layout <id>] [--include-gone] [--all-windows]",
         (
+            OptionHelp(
+                ("--mode",),
+                "interaction (default) prunes nodes for browsing; ui preserves captured hierarchy for UI validation.",
+                "<interaction|ui>",
+                "mode",
+            ),
             OptionHelp(
                 ("--root-layout", "--rootLayout"),
                 "Only dump the subtree under this node.",

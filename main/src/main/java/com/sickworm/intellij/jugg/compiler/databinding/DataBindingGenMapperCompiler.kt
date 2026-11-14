@@ -7,6 +7,7 @@ import com.sickworm.intellij.jugg.compiler.source.JavaCompilerInvoker
 import com.sickworm.intellij.jugg.compiler.source.kotlin.KotlinCompilerInvoker
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.project.info.ModuleInfo
+import com.sickworm.intellij.jugg.logger.getInstance
 import java.io.File
 import java.util.*
 
@@ -125,6 +126,9 @@ private fun String.withoutComments(): String {
 class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable): BaseCompiler(context, parent) {
 
     private lateinit var argsManager: DataBindingArgsManager
+
+    /** Dedicated tag for the incremental mapper hot swap diagnostics. */
+    private val mapperHotSwapLogger = logger.getInstance("DataBindingMapperHotSwap")
 
     private val aptTriggerFile: CompileFile by lazy {
         DataBindingGenBaseClassesCompiler.generateAnnotationProcessorTrigger(argsManager)
@@ -457,11 +461,17 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
         }
 
         val fullMapperFile = argsManager.dataBindingMapperFullFile
-        if (!fullMapperFile.exists()) {
+        val fullMapperNewlyGenerated = !fullMapperFile.exists()
+        if (fullMapperNewlyGenerated) {
             DataBindingTemplates(argsManager.isUseAndroidX).generateFullMapperFile(argsManager.gradleMapperFile, fullMapperFile)
         }
         val targetFullMapperFile = File(currentDataBinderMapperImplFile.parentFile, fullMapperFile.name)
         fullMapperFile.copyTo(targetFullMapperFile)
+
+        // diagnostics only, records what this round hot swapped into the generated source dir
+        mapperHotSwapLogger.debug("moduleNameLiftedIncMapper=${argsManager.moduleInfo.name}/$newName, " +
+                "holderIncMappers=$allIncMapper, fullMapperNewlyGenerated=$fullMapperNewlyGenerated, " +
+                "delegateMapper=$targetDelegateMapperFile, fullMapper=$targetFullMapperFile")
     }
 
     /**

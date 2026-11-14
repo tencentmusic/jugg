@@ -1114,6 +1114,31 @@ class RecordSessionTest(unittest.TestCase):
 
 class PrintKvTest(unittest.TestCase):
 
+    def test_small_layout_is_visible_once_in_plain_and_json_output(self):
+        layout = {"mode": "ui", "windows": [{"root": {
+            "className": "TextView", "text": "登录🙂 <继续>", "bounds": [0, 0, 40, 20]
+        }}]}
+        structured = {"status": "OK", "message": "1 node", "data": {
+            "file": "/tmp/layout.json", "contentBytes": 150, "layout": layout
+        }, "artifacts": [{"type": "json", "path": "/tmp/layout.json"}]}
+        for json_mode in (False, True):
+            with self.subTest(json_mode=json_mode), \
+                 patch.object(jugglib, "resolve_project_dir", return_value="/tmp/project"), \
+                 patch.object(jugglib, "resolve_port", return_value=12320), \
+                 patch.object(jugglib, "raw_call", return_value={"result": {
+                     "content": [{"type": "text", "text": "1 node"}],
+                     "structuredContent": structured
+                 }}), contextlib.redirect_stdout(io.StringIO()) as output:
+                jugglib.simple_call("layout-dump", json_mode=json_mode)
+                text = output.getvalue()
+                self.assertEqual(1, text.count("登录🙂 <继续>"))
+                self.assertIn('"bounds":[0,0,40,20]', text)
+                if json_mode:
+                    self.assertEqual(layout, json.loads(text)["data"]["layout"])
+                else:
+                    line = next(line for line in text.splitlines() if line.startswith("layout: "))
+                    self.assertEqual(layout, json.loads(line[len("layout: "):]))
+
     def _capture(self, structured):
         import io
         from contextlib import redirect_stdout

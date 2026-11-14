@@ -36,7 +36,8 @@ These decisions have a defined order. Deployment data must be complete and devic
 | New class | Apply Changes new class | Delivered with the incremental overlay; usually recreates the Activity |
 | Class with structural changes | Hot Fix DEX | Loaded after the app restarts |
 | Overlay such as `res/**`, `assets/**`, or `resources.arsc` | Apply Changes or Direct Overlay | Recreates the Activity or restarts the app when required |
-| Manifest, associated resource table, or an already generated native library | Written back to the latest Gradle APK and re-signed | Installs the updated APK, then continues the remaining incremental deployment |
+| Manifest and associated resource table | Written back to the latest Gradle APK and re-signed | Installs the updated APK, then continues the remaining incremental deployment |
+| Already generated native library | Enters the target APK overlay when SO hot update is enabled; updates and re-signs the APK when disabled | Loads the `.so` from the overlay after an app restart, or installs the updated APK |
 | Classes and resources on a compatibility device | Compatibility hot-fix artifacts | Loaded after the app restarts without relying on online replacement in the current process |
 
 See [deployment data and impact analysis](./deploy-data-and-impact.md) for the detailed classification. See [classes and overlays in Apply Changes](./apply-changes.md) for how Apply Changes combines classes and overlays.
@@ -87,7 +88,7 @@ If none of these steps succeeds and the failure allows automatic fallback, the R
 |---|---|
 | [Deployment data and impact analysis](./deploy-data-and-impact.md) | How compilation artifacts are classified and why some source files require more compilation |
 | [Classes and overlays in Apply Changes](./apply-changes.md) | How classes and resources enter an online incremental update and why the Activity is usually recreated |
-| [APK update and installation](./apk-update-and-install.md) | Why Manifest and native libraries must be written back to the APK and installed |
+| [APK update and installation](./apk-update-and-install.md) | How Manifest and native libraries with SO hot update disabled are written back to the APK and installed |
 | [Direct Overlay deployment](./direct-overlay.md) | How an overlay is written directly when the device is not ready without committing a partial state |
 | [Compatibility deployment](./compat-deploy.md) | Why some devices load incremental artifacts only after a restart |
 | [Deployment state and recovery](./deploy-state-recover.md) | How history, cache, and overlay ID jointly maintain device state |

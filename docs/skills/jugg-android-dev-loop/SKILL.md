@@ -1,7 +1,7 @@
 ---
 name: jugg-android-dev-loop
-version: 1.0.41
-date: 2026-11-10
+version: 1.0.42
+date: 2026-11-14
 description: >-
   Use when editing source files (Java/Kotlin/XML/layout/AndroidManifest/Gradle)
   in an Android project, building/deploying/verifying an Android app, or
@@ -67,7 +67,7 @@ else:
 | compile/deploy | `references/flow_compile_deploy.md` | `references/error_patterns.md`, `references/policy_incremental_compile_limits.md` |
 | verify with auto-run entry | `references/flow_with_auto_run.md` | `references/guide_write_auto_run_entry_code.md`, `references/error_patterns.md` |
 
-Supplementary references load on-demand at the step that needs them.
+Before any build command, check `references/policy_incremental_compile_limits.md`; load other supplementary references on demand.
 
 ---
 
@@ -78,6 +78,7 @@ Supplementary references load on-demand at the step that needs them.
 | 1 | Route by scenario first; do not mix flows |
 | 2 | Complete **all** source file edits first, then trigger compile/deploy **once**. Never compile after each individual file edit. |
 | 3 | Any source modification must pass compilation before task is done |
+| 4 | Unsupported annotation changes or confirmed unsupported instrumentation affecting files to be compiled require **direct `gradle-build`**, before incremental attempts or retries; tell the user which change triggered it. |
 
 ---
 
@@ -90,8 +91,6 @@ python3 {SKILL_DIR}/scripts/jugg.py [--project-dir <path>] [--serial <adbSerial>
 python3 {SKILL_DIR}/scripts/jugg.py help <subcommand>
 ```
 
-### Output Format
-
 ### Build & Deploy Commands
 
 All build commands **block** until completion. Run compile-class commands (`compile`, `deploy`, `gradle-build`, and `instrument`) as a single foreground CLI call, wait for that process to exit, then parse its output once. These commands may trigger Gradle internally; do not start them in the background or poll `status`, processes, logs, files, or Git state to infer progress. Process exit is the only completion signal.
@@ -103,7 +102,7 @@ Completion means the compile/deploy job reached a terminal state; CLI does not a
 |---------|---------|-------------|
 | `compile` | Compile modified sources, skip deploy | Default after ordinary source edits, including generic "verify/check modification" |
 | `deploy` | Compile + deploy to device | Need to launch/run app to inspect runtime/UI state, or perform device-side verification |
-| `gradle-build` | Full Gradle compile fallback | After `deploy`/`compile` **retries exhausted and still failed** |
+| `gradle-build` | Full Gradle compile fallback | Direct fallback required by policy, or `deploy`/`compile` retries exhausted |
 | `clean-reinstall` | Clear app data(compat with apply changes) + launch device | **Only** for clean APP data |
 | `instrument` | Run androidTest | Verify android test result |
 
@@ -142,11 +141,15 @@ python3 {SKILL_DIR}/scripts/jugg.py wait-logs --marker '<regex>' [--tags t1,t2] 
 
 ### UI Commands (low-frequency)
 
-For UI interaction/inspection (tap, view-locate, view-inspect, layout-dump) → load `references/cli_manual.md`.
+For UI interaction/inspection (tap, view-locate, view-inspect, layout-dump) → read the relevant command sections in `references/cli_manual.md`.
+
+Interaction dumps remove invisible/gone subtrees and `padding`/`textColor`, prune nonsemantic wrappers, and fold offscreen descendants into inline `jugg_details` placeholders. Public virtual IDs use `_vid_`; `className` remains. Placeholders are not controls; use `--mode ui --root-layout <id>` for full details. Real children arrays put opening/closing brackets on separate lines.
+
+Use `layout-dump`'s inline `data.layout` when present; do not reread the same artifact. For large file-only results, locate a known selector or request a subtree before loading the entire tree.
 
 ## Build Fallback Chain
 
-On compile/deploy failure, follow this order:
+Apply direct-fallback policy before the first build; otherwise, on compile/deploy failure:
 
 1. Read error detail.
 2. Modify source and retry the selected command (`compile` or `deploy`) up to 3 times.

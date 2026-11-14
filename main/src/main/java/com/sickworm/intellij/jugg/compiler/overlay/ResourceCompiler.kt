@@ -40,34 +40,16 @@ class ResourceCompiler(
 
         // Expand directory inputs before grouping every resource by its owning root.
         val dirToFilesMap: Map<File, List<File>> = DirToFileMapHelper.createDirToResFileMap(task.files, logger)
-        val compileFilesSet = task.files.groupBy { compileFile ->
+        val compileFileMap = task.files.associateWith { compileFile ->
+            if (compileFile.file.isDirectory) dirToFilesMap[compileFile.file].orEmpty() else listOf(compileFile.file)
+        }
+        val resourceRootGroups = compileFileMap.entries.groupBy { (compileFile, _) ->
             val resourceRoot = if (compileFile.file.isDirectory) compileFile.file else compileFile.baseDir
             resourceRoot.absoluteFile.normalize().path
-        }.map { (resourceRootPath, compileFiles) ->
-            // Keep equal relative resource names from different roots from sharing one flat output.
-            val outputSubDir = outputDir.resolve(resourceRootPath.md5)
-            logger.debug("res root $resourceRootPath, output $outputSubDir")
-            ResCompileSet(
-                task,
-                compileFiles.associateWith { compileFile ->
-                    if (compileFile.file.isDirectory) {
-                        dirToFilesMap[compileFile.file].orEmpty()
-                    } else {
-                        listOf(compileFile.file)
-                    }
-                },
-                outputSubDir,
-            )
         }
-        val compileResultSet = compileFilesSet.map {
-            compileResSet(it, module)
-        }
-        val compileResult = compileResultSet.reduce { acc, compileResult -> acc + compileResult }.copy(task = task)
-        return compileResult
-    }
-
-    private fun compileResSet(resCompileSet: ResCompileSet, module: ModuleInfo): CompileResult {
-        val dataBindingResult = processViewBinding(resCompileSet, module)
+        // Binding state is module-scoped, so generate it once before compiling individual roots.
+        val orderedFileMap = resourceRootGroups.values.flatten().associate { it.toPair() }
+        val dataBindingResult = processViewBinding(ResCompileSet(task, orderedFileMap, outputDir), module)
         if (!dataBindingResult.isAllSuccess) {
             return dataBindingResult
         }
@@ -78,18 +60,22 @@ class ResourceCompiler(
         logger.debug("splitLayoutFiles output: ${splitLayoutFiles.map { it.relativeFile }}, " +
                 "sourceFiles output: ${sourceFiles.map { it.relativeFile }}")
 
-        val flatResult = if (splitLayoutFiles.isNotEmpty()) {
-            // replace xml file which split by data binding
-            val processedResCompileSet = updateResCompileSet(resCompileSet, splitLayoutFiles)
-            aapt2Compile(processedResCompileSet)
-        } else {
-            aapt2Compile(resCompileSet)
+        val compileResultSet = resourceRootGroups.map { (resourceRootPath, entries) ->
+            val outputSubDir = outputDir.resolve(resourceRootPath.md5)
+            logger.debug("res root $resourceRootPath, output $outputSubDir")
+            val resCompileSet = ResCompileSet(
+                task,
+                entries.associate { it.toPair() },
+                outputSubDir,
+            )
+            aapt2Compile(updateResCompileSet(resCompileSet, splitLayoutFiles))
         }
-
-        return flatResult.copy(outputs = flatResult.outputs + sourceFiles)
+        val flatResult = compileResultSet.reduce { acc, result -> acc + result }
+        return flatResult.copy(task = task, outputs = flatResult.outputs + sourceFiles)
     }
 
     private fun processViewBinding(resCompileSet: ResCompileSet, module: ModuleInfo): CompileResult {
+        // Match resource overlay order; the Binding processor otherwise keeps the first duplicate layout.
         val layoutFiles = resCompileSet.compileFileMap.flatMap { (compileFile, xmlFiles) ->
             val baseDir = if (compileFile.file.isDirectory) compileFile.file else compileFile.baseDir
             xmlFiles.filter {
@@ -97,7 +83,7 @@ class ResourceCompiler(
             }.map {
                 CompileFile(CompileFile.Type.Resource, it, baseDir, module)
             }
-        }
+        }.associateBy { it.relativeFile }.values.toList()
         val databindingTask = CompileTask(
             layoutFiles,
             resCompileSet.outputDir.resolve("databinding"),

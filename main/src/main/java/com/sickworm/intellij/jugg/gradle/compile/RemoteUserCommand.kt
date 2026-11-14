@@ -11,7 +11,7 @@ class RemoteUserCommand(
 ) : ISshCommand {
 
     private val encodedCommand = Base64.getEncoder()
-        .encodeToString(command.toByteArray(StandardCharsets.UTF_8))
+        .encodeToString(CompileProjectCommand.withPlainConsole(command).toByteArray(StandardCharsets.UTF_8))
     private val resultPrefix = "__JUGG_REMOTE_COMMAND_${UUID.randomUUID().toString().replace("-", "")}__="
 
     override fun getCommand(isNeedSetChineseLanguage: Boolean, isWindows: Boolean): String {

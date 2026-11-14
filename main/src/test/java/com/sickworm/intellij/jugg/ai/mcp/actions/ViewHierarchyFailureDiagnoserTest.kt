@@ -8,6 +8,15 @@ import org.junit.Test
 class ViewHierarchyFailureDiagnoserTest {
 
     @Test
+    fun `incomplete capture is distinct from a missing element`() {
+        val result = ViewHierarchyFailureDiagnoser.toolError(
+            "tap", "ViewHierarchy server error: UI_HIERARCHY_INCOMPLETE: Compose extraction failed: tooling",
+        )
+        assertEquals("UI_HIERARCHY_INCOMPLETE", result.errorCode)
+        assertTrue(result.message.contains("tooling"))
+    }
+
+    @Test
     fun `missing kotlin runtime is reported as unsupported`() {
         val result = ViewHierarchyFailureDiagnoser.toolError(
             toolName = "view-inspect",

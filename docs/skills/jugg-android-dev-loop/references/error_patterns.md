@@ -1,5 +1,15 @@
 # Error Pattern Library
 
+## Suspected Jugg Problem
+
+If comparable Gradle builds succeed but Jugg fails, or evidence points to
+a Jugg internal failure, offer a dedicated investigation. Explain that it
+may take time and download source; start only with user agreement.
+Ordinary failures or crashes alone do not trigger it. Reuse explicit
+investigation requests or ASK AI prompts as existing authorization.
+If selected, follow the investigation guide:
+https://raw.githubusercontent.com/tencentmusic/jugg/main/.agents/skills/issue-handler/references/local-agent-investigation-guide.md
+
 Auto-fix policy: known pattern + `scope=low` + `confidence ≥ 0.8` → apply. Otherwise: stop and ask user.
 
 Schema: `id, stage(compile|deploy|runtime|observe), signature{includes,regex}, diagnosis, fix_strategy, fix_scope(low|med|high), confidence_hint(0-1), auto_apply(bool)`
@@ -18,6 +28,15 @@ Schema: `id, stage(compile|deploy|runtime|observe), signature{includes,regex}, d
   fix_strategy: open the target project in the IDE, or pass --project-dir of an initialized project
   fix_scope: low
   confidence_hint: 0.98
+  auto_apply: false
+
+- id: UI_HIERARCHY_INCOMPLETE
+  stage: observe
+  signature: {includes: ["UI_HIERARCHY_INCOMPLETE", "incomplete hierarchy"]}
+  diagnosis: part of the UI hierarchy could not be extracted; missing nodes do not prove that the element is absent
+  fix_strategy: preserve available artifacts and warnings; after a plugin upgrade, use a full Jugg Gradle build and install to update the app runtime; otherwise inspect the reported Compose tooling error
+  fix_scope: low
+  confidence_hint: 0.95
   auto_apply: false
 
 - id: NO_DEVICE

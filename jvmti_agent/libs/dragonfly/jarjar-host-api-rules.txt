@@ -1,0 +1,4 @@
+# Applied only to Dragonfly source classes, before jarjar-rules.txt.
+# Keep both the mapTree callback factory and the host method descriptor compatible.
+# Runtime dependencies still relocate their own Function3 definitions and references.
+rule kotlin.jvm.functions.Function3 kotlin.jvm.functions.Function3

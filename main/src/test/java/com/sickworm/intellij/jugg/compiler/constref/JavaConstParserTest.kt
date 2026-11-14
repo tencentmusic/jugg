@@ -20,6 +20,9 @@ class JavaConstParserTest : ConstRefTempDirCleanupSupport() {
                 public class Constants {
                     public static final int MAX = 10;
                     public static final String NAME = "jugg";
+                    public static int MUTABLE = 20;
+                    public final int INSTANCE = 30;
+                    public static final Object OBJECT = new Object();
                     static class Inner {
                         static final boolean FLAG = true;
                     }
@@ -31,9 +34,50 @@ class JavaConstParserTest : ConstRefTempDirCleanupSupport() {
         val parser = JavaConstParser(logger)
         val definitions = parser.parseDefinitions(constantsFile)
 
-        assertTrue(definitions.any { it.fqClassName == "com.example.Constants" && it.constName == "MAX" })
-        assertTrue(definitions.any { it.fqClassName == "com.example.Constants" && it.constName == "NAME" })
-        assertTrue(definitions.any { it.fqClassName == "com.example.Constants.Inner" && it.constName == "FLAG" })
+        assertEquals(
+            setOf("com.example.Constants.MAX", "com.example.Constants.NAME", "com.example.Constants.Inner.FLAG"),
+            definitions.map { "${it.fqClassName}.${it.constName}" }.toSet(),
+        )
+    }
+
+    @Test
+    fun `should parse implicit java interface constants without treating nested class fields as constants`() {
+        val rootDir = createTempDirectory("java_interface_const_defs")
+        val constantsFile = File(rootDir, "Commands.java").apply {
+            writeText(
+                """
+                package com.example;
+                public interface Commands {
+                    int IMPLICIT = 1;
+                    public int PUBLIC = 2;
+                    static int STATIC = 3;
+                    final int FINAL = 4;
+                    public static final int EXPLICIT = 5;
+                    interface Nested { String NAME = "nested"; }
+                    class Holder {
+                        final int INSTANCE = 6;
+                        static int MUTABLE = 7;
+                        static final int CONSTANT = 8;
+                    }
+                }
+                """.trimIndent()
+            )
+        }
+
+        val definitions = JavaConstParser(logger).parseDefinitions(constantsFile)
+
+        assertEquals(
+            mapOf(
+                "com.example.Commands.IMPLICIT" to "1",
+                "com.example.Commands.PUBLIC" to "2",
+                "com.example.Commands.STATIC" to "3",
+                "com.example.Commands.FINAL" to "4",
+                "com.example.Commands.EXPLICIT" to "5",
+                "com.example.Commands.Nested.NAME" to "\"nested\"",
+                "com.example.Commands.Holder.CONSTANT" to "8",
+            ),
+            definitions.associate { "${it.fqClassName}.${it.constName}" to it.constValue },
+        )
     }
 
     @Test
@@ -167,6 +211,7 @@ class JavaConstParserTest : ConstRefTempDirCleanupSupport() {
 
                 public @interface Flags {
                     public static final int MAX = 7;
+                    int MIN = 1;
                 }
                 """.trimIndent()
             )
@@ -178,6 +223,7 @@ class JavaConstParserTest : ConstRefTempDirCleanupSupport() {
 
                 public class User {
                     int value = Flags.MAX;
+                    int minimum = Flags.MIN;
                 }
                 """.trimIndent()
             )
@@ -185,12 +231,12 @@ class JavaConstParserTest : ConstRefTempDirCleanupSupport() {
 
         val parser = JavaConstParser(logger)
         val definitions = parser.parseDefinitions(constantsFile)
-        assertTrue(definitions.any { it.fqClassName == "com.example.Flags" && it.constName == "MAX" })
+        assertEquals(setOf("MAX", "MIN"), definitions.map { it.constName }.toSet())
 
         val definitionIndex = ConstDefinitionIndex(definitions)
         val references = parser.parseReferences(userFile, definitionIndex)
         val keys = references.map { "${it.defFqClassName}.${it.constName}" }.toSet()
-        assertEquals(setOf("com.example.Flags.MAX"), keys)
+        assertEquals(setOf("com.example.Flags.MAX", "com.example.Flags.MIN"), keys)
     }
 
     @Test

@@ -18,6 +18,7 @@ Restart 用于让需要生命周期刷新或进程重新加载的部署结果生
 |---|---|---|
 | Apply Changes 后需要刷新当前界面 | 支持 | 重启 Activity |
 | hot fix class 或 push-only overlay | 支持 | 重启 App |
+| 部署 ARouter 生成的路由、Provider 或拦截器注册索引 | 支持 | 重启 App，重新建立注册缓存 |
 | 用户选择始终重启 | 支持 | 部署成功后重启 App |
 | Debug executor 启动 | 支持 | 成功部署后重启 App，再 attach debugger |
 | JVMTI agent 首次推送后检测 | 支持 | 重启 App，让 startup agent 被系统加载 |
@@ -34,6 +35,8 @@ Restart 用于让需要生命周期刷新或进程重新加载的部署结果生
 ```
 
 Hot Fix class、push-only overlay 和部分进程级缓存会要求重启 App；普通非空且不要求重启 App 的增量部署会重建 Activity。Debug 入口会把“部署后重启 App”作为默认行为，以保证调试会话建立在新的进程状态上。
+
+ARouter 注册索引只要包含在本轮部署产物中，就会触发 App 重启，包括缓存复用后重新编译、内容相同的索引。普通路由业务类和属性注入辅助类本身不触发此规则；同轮带入注册索引时仍会重启。
 
 ## 启动目标的选择顺序
 

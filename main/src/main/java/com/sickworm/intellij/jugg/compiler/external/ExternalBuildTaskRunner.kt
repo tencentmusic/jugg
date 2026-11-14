@@ -127,7 +127,7 @@ internal class ExternalBuildTaskRunner(private val logger: Logger) {
         val collector = initScript?.let { createCollectorCommand(metadataRoot, requests, it) }
         val command = deriveExternalBuildCommand(
             compileCommand,
-            requests.map { it.taskPath },
+            requests.flatMap { it.prerequisiteTaskPaths + listOf(it.taskPath) },
             collector,
         ) ?: return ExternalBuildRunResult(false)
         logger.debug("External build command: $command")

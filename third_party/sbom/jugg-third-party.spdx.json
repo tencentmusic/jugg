@@ -3,7 +3,7 @@
   "dataLicense": "CC0-1.0",
   "SPDXID": "SPDXRef-DOCUMENT",
   "name": "Jugg-third-party-components",
-  "documentNamespace": "https://jugg.sickworm.com/spdx/third-party-components-c817650f45b30801b12074eaba89f8ba3e2167a665e7f3d567315e9bd58ac63d",
+  "documentNamespace": "https://tencentmusic.github.io/jugg/?spdx=third-party-components-2916583a9c8d0ed745b1592e9b173b6b72e4c92340ee1f8419e3f28d416238e7",
   "creationInfo": {
     "created": "2026-08-08T00:00:00Z",
     "creators": [
@@ -114,7 +114,11 @@
     "SPDXRef-Package-101",
     "SPDXRef-Package-102",
     "SPDXRef-Package-103",
-    "SPDXRef-Package-104"
+    "SPDXRef-Package-104",
+    "SPDXRef-Package-105",
+    "SPDXRef-Package-106",
+    "SPDXRef-Package-107",
+    "SPDXRef-Package-108"
   ],
   "packages": [
     {
@@ -764,7 +768,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "Copyright © 2018 The Android Open Source Project",
-      "comment": "Distributed with the plugin as a separate JAR transitive dependency of Android Data Binding."
+      "comment": "Distributed as a separate JAR for Android Data Binding and ARouter processor conversion."
     },
     {
       "SPDXID": "SPDXRef-Package-060",
@@ -1149,7 +1153,7 @@
       "licenseConcluded": "LicenseRef-JDOM",
       "licenseDeclared": "LicenseRef-JDOM",
       "copyrightText": "Copyright © 2000-2012 Jason Hunter, Brett McLaughlin and JDOM contributors",
-      "comment": "JDOM 2.0.6 is embedded and relocated in Kotlin compiler 1.9.23 and distributed with the compiler JAR."
+      "comment": "Distributed as an unmodified, unrelocated Jetifier Processor dependency alongside the version embedded in Kotlin compiler."
     },
     {
       "SPDXID": "SPDXRef-Package-095",
@@ -1260,6 +1264,50 @@
       "licenseDeclared": "Libpng-2.0",
       "copyrightText": "Copyright © 1995-2023 libpng authors",
       "comment": "Statically linked into the distributed AAPT2 executable; the binary includes libpng 1.6.40."
+    },
+    {
+      "SPDXID": "SPDXRef-Package-105",
+      "name": "HDiffPatch and bundled native dependencies",
+      "versionInfo": "5.1.3",
+      "downloadLocation": "https://github.com/sisong/HDiffPatch/releases/tag/v5.1.3",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT AND BSD-2-Clause AND BSD-3-Clause AND Zlib AND bzip2-1.0.6 AND LicenseRef-LZMA-SDK-Public-Domain",
+      "licenseDeclared": "MIT AND BSD-2-Clause AND BSD-3-Clause AND Zlib AND bzip2-1.0.6 AND LicenseRef-LZMA-SDK-Public-Domain",
+      "copyrightText": "Copyright (c) 2012-2025 housisong; component copyrights in bundled THIRD_PARTY_NOTICES.txt",
+      "comment": "Separate-process tools for large native-library delta deployment. Official desktop binaries have pinned SHA-256 values and bundled native dependency notices. Android hpatchz is built from unmodified upstream source using NDK 28.2.13676358 with only zlib enabled and dynamically links device libz. Build scripts, artifact hashes, and licenses are preserved under tools/hdiffpatch/5.1.3."
+    },
+    {
+      "SPDXID": "SPDXRef-Package-106",
+      "name": "Jetifier Processor",
+      "versionInfo": "1.0.0-beta10",
+      "downloadLocation": "https://dl.google.com/dl/android/maven2/com/android/tools/build/jetifier/jetifier-processor/1.0.0-beta10/jetifier-processor-1.0.0-beta10.jar",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "Copyright © 2018 The Android Open Source Project",
+      "comment": "Converts ARouter annotation processor Support/AndroidX references to the current APK baseline types; distributed as a separate JAR."
+    },
+    {
+      "SPDXID": "SPDXRef-Package-107",
+      "name": "ASM / ASM Util / ASM Tree / ASM Analysis / ASM Commons",
+      "versionInfo": "8.0.1",
+      "downloadLocation": "https://repo1.maven.org/maven2/org/ow2/asm/asm/8.0.1/asm-8.0.1.jar",
+      "filesAnalyzed": false,
+      "licenseConcluded": "BSD-3-Clause",
+      "licenseDeclared": "BSD-3-Clause",
+      "copyrightText": "Copyright © 2000-2011 INRIA, France Telecom",
+      "comment": "Five unmodified separate JARs distributed as transitive dependencies of Jetifier Processor, grouped by identical version and license."
+    },
+    {
+      "SPDXID": "SPDXRef-Package-108",
+      "name": "JDOM",
+      "versionInfo": "2.0.6",
+      "downloadLocation": "https://repo1.maven.org/maven2/org/jdom/jdom2/2.0.6/jdom2-2.0.6.jar",
+      "filesAnalyzed": false,
+      "licenseConcluded": "LicenseRef-JDOM",
+      "licenseDeclared": "LicenseRef-JDOM",
+      "copyrightText": "Copyright © 2000-2012 Jason Hunter, Brett McLaughlin and JDOM contributors",
+      "comment": "Distributed as an unmodified, unrelocated Jetifier Processor dependency alongside the version embedded in Kotlin compiler."
     }
   ],
   "hasExtractedLicensingInfos": [

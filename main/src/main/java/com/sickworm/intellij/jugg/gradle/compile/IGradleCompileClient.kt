@@ -67,6 +67,13 @@ interface IGradleCompileClient : Disposable {
 
         fun onOutput(line: String, isNeedPrint: Boolean = true)
         fun onOutputErr(line: String)
+        /** Publishes the connected remote root independently of copied run options. */
+        fun onRemoteSyncPathResolved(path: String) = Unit
+
+        fun onWindowsRsyncSetupFailure(failure: WindowsRsyncSetupException) {
+            onOutputErr(failure.message.orEmpty())
+        }
+
         fun updateIndicatorWithTime(newText: String? = null) = Unit
 
         companion object {

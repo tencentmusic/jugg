@@ -137,6 +137,7 @@ open class ViewHierarchyClient(
                 density = 0.0,
                 matches = emptyList(),
                 errorMessage = response.message ?: "find_elements failed",
+                warnings = parseWarnings(response.data),
             )
         }
         val data = response.data ?: return null
@@ -147,6 +148,7 @@ open class ViewHierarchyClient(
             truncated = data.get("truncated")?.runCatching { asBoolean }?.getOrDefault(false) ?: false,
             density = data.get("density")?.runCatching { asDouble }?.getOrDefault(0.0) ?: 0.0,
             matches = matches,
+            warnings = parseWarnings(data),
         )
     }
 
@@ -227,12 +229,13 @@ open class ViewHierarchyClient(
                 density = 0.0,
                 values = emptyList(),
                 errorMessage = message,
+                warnings = parseWarnings(data),
             )
         }
 
         val data = response.data ?: return null
         val resolvedClassName = data.optStringOrNull("className").orEmpty()
-        val resolvedResourceId = data.optStringOrNull("resourceId").orEmpty()
+        val resolvedResourceId = data.optStringOrNull("resourceId").orEmpty().compactVirtualId()
         val density = data.get("density")?.runCatching { asDouble }?.getOrDefault(0.0) ?: 0.0
         val source = parseSourceLocation(data.optJsonObject("source"))
         val valuesArray = data.optJsonArray("values") ?: return null
@@ -261,6 +264,7 @@ open class ViewHierarchyClient(
             density = density,
             values = values,
             source = source,
+            warnings = parseWarnings(data),
         )
     }
 
@@ -301,6 +305,7 @@ open class ViewHierarchyClient(
                 y = y,
                 matchedElement = matchedElement,
                 matchCount = matchCount,
+                warnings = parseWarnings(data),
             )
         }
 
@@ -310,10 +315,13 @@ open class ViewHierarchyClient(
         val candidates = parseCandidates(data)
 
         return when {
+            message.startsWith("UI_HIERARCHY_INCOMPLETE:") -> FindAndTapResult.Failure(message)
+
             matchCount != null && matchCount > 1 -> FindAndTapResult.Multiple(
                 matchCount = matchCount,
                 matches = candidates,
                 message = message,
+                warnings = parseWarnings(data),
             )
 
             matchCount != null && matchCount == 0 -> FindAndTapResult.NotFound(
@@ -324,6 +332,9 @@ open class ViewHierarchyClient(
             else -> FindAndTapResult.Failure(message)
         }
     }
+
+    private fun parseWarnings(data: JsonObject?): List<String> =
+        data?.optJsonArray("warnings")?.mapNotNull { it.runCatching { asString }.getOrNull() }.orEmpty()
 
     private fun parseMatchedElement(element: JsonObject?): MatchedElementData? {
         if (element == null) {
@@ -338,7 +349,7 @@ open class ViewHierarchyClient(
         return MatchedElementData(
             text = element.optStringOrNull("text").orEmpty(),
             className = element.optStringOrNull("className").orEmpty(),
-            resourceId = element.optStringOrNull("resourceId").orEmpty(),
+            resourceId = element.optStringOrNull("resourceId").orEmpty().compactVirtualId(),
             contentDesc = element.optStringOrNull("contentDesc").orEmpty(),
             bounds = bounds,
             centerX = element.optIntOrNull("centerX") ?: return null,
@@ -356,7 +367,7 @@ open class ViewHierarchyClient(
             val item = element.asJsonObjectOrNull() ?: return@mapNotNull null
             MatchCandidate(
                 text = item.optStringOrNull("text").orEmpty(),
-                resourceId = item.optStringOrNull("resourceId").orEmpty(),
+                resourceId = item.optStringOrNull("resourceId").orEmpty().compactVirtualId(),
                 contentDesc = item.optStringOrNull("contentDesc").orEmpty(),
                 className = item.optStringOrNull("className").orEmpty(),
                 bounds = item.optJsonArray("bounds")?.mapNotNull { it.asIntOrNull() }?.takeIf { it.size == 4 },
@@ -382,8 +393,9 @@ open class ViewHierarchyClient(
             return null
         }
 
+        val runtimeRequest = request.copy(params = runtimeSelectorParams(request.params))
         for (socketName in socketNames) {
-            val response = sendRequestToSocket(socketName, request)
+            val response = sendRequestToSocket(socketName, runtimeRequest)
             if (response != null) {
                 checkServerVersion(response.version)
                 return response
@@ -391,6 +403,20 @@ open class ViewHierarchyClient(
         }
         return null
     }
+
+    /** Expand only selector IDs, leaving text and getter expression values unchanged. */
+    private fun runtimeSelectorParams(params: Map<String, Any?>): Map<String, Any?> = params.mapValues { (key, value) ->
+        when (key) {
+            "resourceId", "rootLayout" -> runtimeSelectorId(value)
+            "target", "target2" -> (value as? Map<*, *>)?.mapValues { (name, id) ->
+                if (name == "resourceId") runtimeSelectorId(id) else id
+            } ?: value
+            else -> value
+        }
+    }
+
+    private fun runtimeSelectorId(value: Any?): Any? =
+        if (value is String && value.startsWith("_vid_")) "_vir_id_" + value.removePrefix("_vid_") else value
 
     protected open fun resolveSocketCandidates(): List<String> {
         if (!PACKAGE_NAME_PATTERN.matches(packageName)) {
@@ -671,6 +697,7 @@ open class ViewHierarchyClient(
         private val PACKAGE_NAME_PATTERN = Regex("^[A-Za-z0-9_.]+$")
         private val WHITESPACE_REGEX = Regex("\\s+")
         private const val CONNECT_TIMEOUT_MS = 500
-        private const val REQUEST_TIMEOUT_MS = 1_000
+        // Cover the server's 10-second main-thread deadline plus response transport time.
+        private const val REQUEST_TIMEOUT_MS = 12_000
     }
 }

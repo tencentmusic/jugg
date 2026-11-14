@@ -14,6 +14,8 @@ import com.sickworm.intellij.jugg.compiler.CompileTaskResult
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.compiler.JuggCompilerHelper
 import com.sickworm.intellij.jugg.compiler.ui.RunResult
+import com.sickworm.intellij.jugg.deploy.LastChangedDeployRegistry
+import com.sickworm.intellij.jugg.deploy.LastChangedDeploySnapshot
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.deploy.IJuggRunningTaskStatusManager
@@ -38,7 +40,9 @@ import com.sickworm.intellij.jugg.project.runtime.LastCompileProjectRegistry
 import com.sickworm.intellij.jugg.project.runtime.ProjectCustomConfigManager
 import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
+import com.sickworm.intellij.jugg.server.isFailureLogUploadEligible
 import com.sickworm.intellij.jugg.server.JuggServer
+import java.io.File
 import java.io.PrintWriter
 import java.io.StringWriter
 import java.util.Collections
@@ -77,6 +81,9 @@ class JuggRunningTask(
     private val lastCompileProjectRegistry: ILastCompileProjectRegistry = LastCompileProjectRegistry.INSTANCE,
     private val logger: Logger = JuggLogger.getInstance(project, "JuggRunningTask"),
     private val controlPanelController: JuggControlPanelController? = null,
+    private val autoUploadFailureLogs: Boolean = false,
+    private val autoUploadFailureLogsExcludeRegex: String? = null,
+    private val projectModuleCount: Int,
 ) : Task.Backgroundable(project, "Running Jugg..."), IJuggRunningTask {
 
     private val compileUiHandler = object : CompileUiHandler by baseCompileUiHandler {
@@ -95,6 +102,7 @@ class JuggRunningTask(
     private var finalDeployType: JuggDeployData.DeployType? = null
     private var didInstall = false
     private var fallbackPath: String? = null
+    private var hasAttemptedDeploy = false
 
     private val indicatorListener = object : ProgressIndicatorListener {
         override fun cancelled() {
@@ -139,7 +147,8 @@ class JuggRunningTask(
             if (compileUiHandler.isForceGradleCompile) {
                 notifyFallback(project, "force fallback", logger)
             }
-            val runResult = doRun(options)
+            val previousDeploy = LastChangedDeployRegistry.INSTANCE.get(options.projectRootPath)
+            val runResult = withCompileDetails(doRun(options), previousDeploy)
             isNeedResetHasRun = runResult.isNeedResetHasRun
             // for gradle compilation, compile success is ok to stage compile result
             // for incremental compilation, we need to deploy success to stage compile result
@@ -149,6 +158,10 @@ class JuggRunningTask(
             if (runResult.isGradleCompile && !processHandler.isCanceled) {
                 deployHistoryManager.isLastFullCompileFailed = !runResult.isCompileSuccess
             }
+            uploadFailureLogsIfNeeded(
+                runResult,
+                isEligible = isFailureLogUploadEligible(runResult, hasAttemptedDeploy),
+            )
             compileUiHandler.onEnd(runResult)
             finishRunEvent(runResult)
         } catch (e: Throwable) {
@@ -161,11 +174,16 @@ class JuggRunningTask(
             val isCompileSuccess = compileResult?.isSuccess == true
             finishEvent(if (isCompileSuccess) JuggEventCategory.DEPLOY else JuggEventCategory.COMPILE,
                 JuggEventStatus.FAILED, "Jugg task failed", e.message)
-            compileUiHandler.onEnd(RunResult(
+            val runResult = RunResult(
                 isGradleCompile = compileResult?.isGradleCompile ?: (compileMode == JuggEvent.CompileMode.GRADLE),
                 isCompileSuccess = isCompileSuccess, isDeploySuccess = false, isCancel = processHandler.isCanceled,
                 errorLog = compileResult?.errorLog.orEmpty(), failedReason = e.message,
-            ))
+            )
+            uploadFailureLogsIfNeeded(
+                runResult.copy(failedReason = listOfNotNull(e::class.java.name, e.message).joinToString(": ")),
+                isEligible = !processHandler.isCanceled,
+            )
+            compileUiHandler.onEnd(withCompileDetails(runResult, null))
         } finally {
             isRunning = false
             lastCompileProjectRegistry.record(options.projectRootPath)
@@ -208,6 +226,25 @@ class JuggRunningTask(
         indicatorListener.installToProgressIfPossible(indicator)
         indicator.text = "Compiling by Jugg..."
         indicator.isIndeterminate = true
+    }
+
+    private fun withCompileDetails(
+        result: RunResult,
+        previousDeploy: LastChangedDeploySnapshot?,
+    ): RunResult {
+        val compile = lastCompileResult ?: return result
+        val incremental = compile.incrementalCompileResult
+        return result.copy(
+            compiledFiles = incremental?.successFiles.orEmpty().map {
+                it.get().file.relativeToOrSelf(File(options.projectRootPath)).invariantSeparatorsPath
+            }.distinct(),
+            deployedFiles = if (result.isDeploySuccess) {
+                LastChangedDeployRegistry.INSTANCE.get(options.projectRootPath)
+                    ?.takeIf { it !== previousDeploy }?.files.orEmpty().map {
+                        it.relativeToOrSelf(File(options.projectRootPath)).invariantSeparatorsPath
+                    }
+            } else emptyList(),
+        )
     }
 
     private fun doRun(options: JuggGradleCompileOptions): RunResult {
@@ -273,7 +310,7 @@ class JuggRunningTask(
             failedAndActiveRunWindowIfNotCanceled()
             return RunResult(isGradleCompile = compileTaskResult.isGradleCompile,
                 isCompileSuccess = false, isDeploySuccess = false, isCancel = isCompileCanceled,
-                errorLog = compileTaskResult.errorLog)
+                errorLog = compileTaskResult.errorLog, failedReason = compileTaskResult.failedReason)
         }
 
         if (compileUiHandler.isSkipDeploy) {
@@ -323,6 +360,7 @@ class JuggRunningTask(
             detail = devices.joinToString { it.name },
         )
         val isMultipleDevices = devices.size > 1
+        hasAttemptedDeploy = true
         devices.forEachIndexed { index, device ->
             val isLastDevice = index == devices.size - 1
             val deployTaskResult = deployDevice(isMultipleDevices, isLastDevice, device, compileUiHandler.progressIndicator, compileTaskResult, detailMap)
@@ -356,11 +394,7 @@ class JuggRunningTask(
             val isErrorCanFallback = deployTaskResultList.all { it.isCanFallback }
             logger.debug("Not all device is deploying success. isErrorCanFallback $isErrorCanFallback, " +
                     "isAutoFallbackToGradleWhenDeployError: ${JuggSettings.isAutoFallbackToGradleWhenDeployError}")
-            val failedReason = if (deployTaskResultList.size == 1) {
-                deployTaskResultList[0].failedReason ?: "deploy failed"
-            } else {
-                deployTaskResultList.joinToString(", ") { it.failedReason ?: "deploy failed" }
-            }
+            val failedReason = buildDeployFailureReason(deployTaskResultList)
             val isCanFallback = isErrorCanFallback && JuggSettings.isAutoFallbackToGradleWhenDeployError
             if (!isCanFallback) {
                 // not all device can fall back
@@ -496,6 +530,11 @@ class JuggRunningTask(
             return
         }
         compileUiHandler.showRunWindow()
+    }
+
+    private fun uploadFailureLogsIfNeeded(result: RunResult, isEligible: Boolean) {
+        juggServer.reportRunFailure(result, isEligible, autoUploadFailureLogs,
+            autoUploadFailureLogsExcludeRegex, projectModuleCount)
     }
 
     private fun recordCompileStarted(isGradleCompile: Boolean, fallbackReason: String?) {
@@ -645,6 +684,11 @@ internal fun prepareRunToolWindowOnTaskStart(isFirstTimeRun: Boolean, compileUiH
 
 internal fun shouldDetachProcessOnTaskStop(isProcessCanceled: Boolean): Boolean {
     return !isProcessCanceled
+}
+
+internal fun buildDeployFailureReason(results: List<DeployTaskResult>): String {
+    return results.filterNot { it.isSuccess }
+        .joinToString(", ") { it.failedReason ?: "deploy failed" }
 }
 
 internal fun buildCompileEventTitle(

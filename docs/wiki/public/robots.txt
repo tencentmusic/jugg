@@ -1,6 +1,15 @@
+# Public documentation, assets and llms.txt are crawlable by default.
+# Rules apply only when served at the host root (/robots.txt).
+# GitHub Pages serves this copy at /jugg/robots.txt; host-level rules must
+# be managed separately at https://tencentmusic.github.io/robots.txt.
 User-agent: *
-Allow: /
+# Root-hosted Wiki mirrors.
 Disallow: /dev/
 Disallow: /zh/dev/
+# Project-hosted Wiki, when these rules are included in the host robots.txt.
+Disallow: /jugg/dev/
+Disallow: /jugg/zh/dev/
 
 Sitemap: https://tencentmusic.github.io/jugg/sitemap.xml
+
+# Documentation index: https://tencentmusic.github.io/jugg/llms.txt

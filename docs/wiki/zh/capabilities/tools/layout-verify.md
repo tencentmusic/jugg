@@ -17,7 +17,7 @@ UI 布局证据页说明 Agent 如何用当前公开的 UI 工具形成可复核
 
 | 证据类型 | 当前支持情况 | 工具 |
 |---|---|---|
-| 当前页面和窗口上下文 | 支持 | `activity-stack`、`layout-dump --all-windows` |
+| 当前页面和窗口上下文 | 支持 | `activity-stack`、`layout-dump --mode ui --all-windows` |
 | 元素 bounds、position、size | 支持 | `view-locate` |
 | View getter 属性 | 支持 | `view-inspect` |
 | 交互后页面变化 | 支持 | `tap` 后再次 `activity-stack` / `layout-dump` |
@@ -57,7 +57,8 @@ centerY           = (top + bottom) / 2
 
 ## 边界
 
-- `layout-dump` 公开 HTML，不公开内部 JSON。
+- `layout-dump --mode ui` 公开稀疏 JSON，并保留已采集父子关系。默认 interaction 会裁剪节点并提升孩子，不用于原始层级判断。
+- ui 用于结构和几何验证，辅助还原仍需要图片、字体、绘制效果等证据；窗口、GONE 筛选和预算限制继续生效。
 - `view-locate` 的 bounds 单位已经是 dp。
 - `view-inspect` 返回 getter 原始值；px 值需要结合 `density` 换算。
 - `matchCount > 1` 时必须消歧，不能把第一个候选当作稳定证据。

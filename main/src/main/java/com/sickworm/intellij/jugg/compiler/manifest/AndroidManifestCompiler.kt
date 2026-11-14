@@ -27,22 +27,26 @@ class AndroidManifestCompiler(
     }
 
     override fun doApkCompile(task: CompileTask, apkFileUnit: ApkFileUnit): CompileResult {
-        val applicationModule = context.applicationModule
-            ?: return createErrorCompileResult(task, "application module not found")
+        val manifestModule = findManifestModule(apkFileUnit)
+            ?: return createErrorCompileResult(task, "manifest module not found for ${apkFileUnit.apkFile.path}")
 
-        val deployedManifest = File(context.tempModule.moduleRootDir, "res/AndroidManifest.xml")
+        val apkKey = ApkFileUnit.getUniqueKey(apkFileUnit.apkFile.path)
+        // Self-targeting test APKs own a manifest baseline even though they have no split name.
+        val cacheDir = if (manifestModule.isAndroidTestModule) "res_$apkKey" else "res"
+        val deployedManifest = File(context.tempModule.moduleRootDir, "$cacheDir/AndroidManifest.xml")
         val finalMergedManifest = if (deployedManifest.exists()) {
             deployedManifest
         } else {
-            applicationModule.buildPathInfo.mergedManifest
+            manifestModule.buildPathInfo.mergedManifest
         }
         if (!finalMergedManifest.exists()) {
-            val reason = "APK merged manifest(${finalMergedManifest}) not exists, fallback to gradle once may fix this"
+            val reason = "APK merged manifest($finalMergedManifest) not exists for ${apkFileUnit.apkFile.path}, fallback to gradle once may fix this"
             return createErrorCompileResult(task, reason)
         }
         logger.debug("merge AndroidManifest.xml to ${finalMergedManifest.path}")
 
-        val outputManifestFile = File(task.outputDir, apkFileUnit.getUniquePath("manifest")).resolve("AndroidManifest.xml")
+        val outputDir = if (manifestModule.isAndroidTestModule) File(task.outputDir, apkKey) else task.outputDir
+        val outputManifestFile = File(outputDir, apkFileUnit.getUniquePath("manifest")).resolve("AndroidManifest.xml")
         outputManifestFile.mkdirs()
         outputManifestFile.delete()
 
@@ -119,6 +123,18 @@ class AndroidManifestCompiler(
             apkFileUnit.apkFile.path,
         )
         return CompileResult(task, task.files.map { Result.success(it) }, listOf(compileOutput))
+    }
+
+    private fun findManifestModule(apkFileUnit: ApkFileUnit): ModuleInfo? {
+        val isTestApk = context.apkInfos.any { info ->
+            info.isTestApk && info.files.any { it.apkFile.path == apkFileUnit.apkFile.path }
+        }
+        if (!isTestApk) {
+            return context.applicationModule
+        }
+        return context.modules.values.find {
+            it.isAndroidTestModule && it.applicationId == apkFileUnit.applicationId
+        }
     }
 
     private fun createErrorCompileResult(task: CompileTask, reason: String): CompileResult {

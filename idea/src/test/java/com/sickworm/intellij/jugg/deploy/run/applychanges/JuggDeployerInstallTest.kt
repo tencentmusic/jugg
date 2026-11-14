@@ -19,6 +19,8 @@ import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.createTestTaskRunnerManager
 import com.sickworm.intellij.jugg.deploy.AppSandboxExecutor
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
+import com.sickworm.intellij.jugg.deploy.nativesandbox.NativeLibraryDelta
+import com.sickworm.intellij.jugg.deploy.nativesandbox.NativeSandboxWriter
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.IJuggDeployerDeploymentService
 import com.sickworm.intellij.jugg.deploy.run.IdeDeployState
@@ -203,6 +205,7 @@ class JuggDeployerInstallTest {
         val result = JuggDeployTask(
             type = AndroidDeployType.INSTALL,
             data = JuggDeployData.forInstall(apks),
+            nativeLibraryDelta = Mockito.mock(NativeLibraryDelta::class.java),
             deploymentService = fixture.deploymentService,
             logger = fixture.ideaLogger,
         ).run(fixture.launchContext)
@@ -349,7 +352,10 @@ class JuggDeployerInstallTest {
 
             val sandbox = sandboxes.constructed().single()
             val order = Mockito.inOrder(sandbox, fixture.deploymentService)
-            order.verify(sandbox).exec("rm -rf code_cache/.overlay && echo success", repairCodeCache = true)
+            order.verify(sandbox).exec(
+                "rm -rf code_cache/.overlay ${NativeSandboxWriter.TEMP_ROOT} && echo success",
+                repairCodeCache = true,
+            )
             order.verify(fixture.deploymentService).storeEntry(
                 "emulator-5554",
                 PACKAGE_NAME,
@@ -426,7 +432,7 @@ class JuggDeployerInstallTest {
             val text = file.readText()
             val signatureText = text.lineSequence()
                 .filterNot { it.contains('"') }
-                .filterNot { it.trimStart().startsWith("*") }
+                .filterNot { it.trimStart().startsWith("*") || it.trimStart().startsWith("//") }
                 .joinToString("\n")
             legacyTypes.forEach { legacyType ->
                 val importReference = Regex("""import\s+com\.android\.tools\.deployer\.(\*|$legacyType)\b""")
@@ -641,7 +647,7 @@ class JuggDeployerInstallTest {
         val environment = TestDeployEnvironment(
             applyChangesExecutor = compat,
             adb = deviceAdb,
-            customApkInstaller = { script, applicationId, _, _ ->
+            customApkInstaller = { script, applicationId, _, _, _ ->
                 customInstallFailure?.let { throw it }
                 customInstallCalls += script to applicationId
             },
@@ -664,6 +670,7 @@ class JuggDeployerInstallTest {
         )
 
         val deployer = JuggDeployer(
+            nativeLibraryDelta = Mockito.mock(NativeLibraryDelta::class.java),
             launchContext = launchContext,
             deploymentService = deploymentService,
             logger = logger,

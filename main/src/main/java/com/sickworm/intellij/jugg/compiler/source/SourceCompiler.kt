@@ -6,6 +6,7 @@ import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.databinding.DataBindingGenMapperCompiler
 import com.sickworm.intellij.jugg.compiler.obfuscation.DexMinifyCompiler
 import com.sickworm.intellij.jugg.compiler.source.apt.JuggAptCompiler
+import com.sickworm.intellij.jugg.compiler.source.apt.JuggAptFatalException
 import com.sickworm.intellij.jugg.compiler.source.kotlin.KotlinCompiler
 import com.sickworm.intellij.jugg.project.change.ChangedFile
 import com.sickworm.intellij.jugg.project.info.ModuleInfo
@@ -54,7 +55,11 @@ class SourceCompiler(
     )
 
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
-        val prepareResult = prepareSourceCompile(task, module)
+        val prepareResult = try {
+            prepareSourceCompile(task, module)
+        } catch (failure: JuggAptFatalException) {
+            return task.allFailed("${failure.message}: ${failure.cause?.message}. Run a full Gradle build to refresh generated sources.")
+        }
         if (!prepareResult.isSuccess) {
             logger.warn("Generate APT/KAPT/KSP failed, the compile result may not be correct. Error: ${prepareResult.errorMsg}")
         }
@@ -86,6 +91,10 @@ class SourceCompiler(
         var classCompileResult = CompileResult(compileTask, emptyList(), emptyList())
 
         var kotlinAptJavaFiles = emptyList<CompileFile>()
+        kotlinCompiler.additionalJavaSourceDirs = juggAptGeneratedFiles
+            .filter { it.type == CompileFile.Type.Java }
+            .map { it.baseDir }
+            .distinct()
         val kotlinCompileTask = CompileTask(
             files = mergeCompileFiles(
                 task.files.filter { it.type == CompileFile.Type.Kotlin },
@@ -108,7 +117,8 @@ class SourceCompiler(
             kotlinAptJavaFiles = kotlinCompileResult.outputs
                 .filter { it.type == CompileOutput.Type.Java }
                 .map { CompileFile(CompileFile.Type.Java, it.file, it.baseDir, module) }
-            classCompileResult += kotlinCompileResult
+            // Generated Kotlin inputs must not change the shared parent of the later Java task.
+            classCompileResult += kotlinCompileResult.copy(task = compileTask)
         }
         if (!classCompileResult.isAllSuccess) {
             return classCompileResult.quickFailedOthers(task, isClearOutput = true)
@@ -252,7 +262,7 @@ class SourceCompiler(
     /**
      * Runs custom generated-source processors before language compilation.
      *
-     * Fail-open strategy: any exception only logs warning and keeps main compile flow available.
+     * Fail-open processors can degrade; fail-closed generators stop the source round.
      */
     private fun collectJuggAptGeneratedFiles(compileTask: CompileTask, module: ModuleInfo): List<CompileFile> {
         return try {
@@ -267,6 +277,7 @@ class SourceCompiler(
                 .filter { it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin }
                 .distinctBy { "${it.type}:${it.file.absolutePath}" }
         } catch (throwable: Throwable) {
+            if (throwable is JuggAptFatalException) throw throwable
             logger.warn("JuggAptCompiler failed: ${throwable.message}")
             emptyList()
         }
@@ -282,6 +293,9 @@ class SourceCompiler(
         if (compileResult.isAllSuccess || juggAptGeneratedFiles.isEmpty()) {
             return false
         }
+        val failedGeneratedFiles = compileResult.failedFiles.map { it.getFailure() }
+            .filter { it.hasDirectSourceDiagnostic }.map { it.file }
+        if (failedGeneratedFiles.any(juggAptCompiler::isFailClosedGeneratedFile)) return false
         val juggAptFileSet = juggAptGeneratedFiles
             .map { "${it.type}:${it.file.absolutePath}" }
             .toHashSet()

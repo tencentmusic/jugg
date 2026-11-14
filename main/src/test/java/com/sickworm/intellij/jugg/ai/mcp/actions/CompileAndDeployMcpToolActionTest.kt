@@ -112,7 +112,7 @@ class CompileAndDeployMcpToolActionTest {
     }
 
     @Test
-    fun testSuccessIncludesDetailWhenNonEmpty() {
+    fun testSuccessOmitsDiagnosticDetail() {
         val action = CompileAndDeployMcpToolAction()
         val runtime = runtimeWithResult(
             JuggRunInvocationResult(
@@ -123,7 +123,7 @@ class CompileAndDeployMcpToolActionTest {
                     isDeploySuccess = true,
                     isCancel = false,
                 ),
-                detail = "compile logs that should be returned on success",
+                detail = "x".repeat(16_000),
             )
         )
 
@@ -140,7 +140,9 @@ class CompileAndDeployMcpToolActionTest {
         Assert.assertEquals(true, data["isDeploySuccess"])
         Assert.assertEquals("local", data["executionType"])
         Assert.assertEquals(runtime.compileLatestLogPath, data["logPath"])
-        Assert.assertEquals("compile logs that should be returned on success", data["detail"])
+        Assert.assertFalse(data.containsKey("detail"))
+        Assert.assertFalse(data.containsKey("detailLength"))
+        Assert.assertFalse(data.containsKey("detailTruncated"))
         Assert.assertTrue(result.artifacts.isEmpty())
     }
 
@@ -482,6 +484,71 @@ class CompileAndDeployMcpToolActionTest {
     }
 
     @Test
+    fun testEmptyCompileDoesNotReportCandidateFilesAsCompiled() {
+        val runtime = runtimeWithResult(JuggRunInvocationResult(
+            isSuccess = true,
+            runResult = RunResult(false, true, true, false, compiledFiles = emptyList()),
+        ))
+        val result = CompileAndDeployMcpToolAction.deployAction(
+            runtime, McpToolActionRegistry.ToolNames.COMPILE,
+            isSkipDeploy = true,
+        )
+        @Suppress("UNCHECKED_CAST")
+        val data = result.data as Map<String, Any>
+        Assert.assertFalse(data.containsKey("compileExecuted"))
+        Assert.assertFalse(data.containsKey("compiledFiles"))
+        Assert.assertFalse(data.containsKey("hasDeployChanges"))
+        Assert.assertFalse(data["runResult"].toString().contains("compiledFiles"))
+        Assert.assertFalse(result.message.contains("Compiled files (total: 1)"))
+    }
+
+    @Test
+    fun testPublicRunResultPreservesOnlyProtocolFields() {
+        listOf<String?>(null, "deployment failed").forEach { reason ->
+            val runtime = runtimeWithResult(JuggRunInvocationResult(
+                isSuccess = true,
+                runResult = RunResult(true, true, false, false, true,
+                    errorLog = listOf("compiler diagnostic"), failedReason = reason,
+                    compiledFiles = listOf("internal.kt"), deployedFiles = listOf("internal.kt")),
+            ))
+            val result = CompileAndDeployMcpToolAction().execute(emptyMap(), runtime)
+            @Suppress("UNCHECKED_CAST")
+            val json = (result.data as Map<String, Any>)["runResult"] as com.google.gson.JsonObject
+            val keys = setOf("isGradleCompile", "isCompileSuccess", "isDeploySuccess", "isCancel", "isNeedResetHasRun", "errorLog")
+            Assert.assertEquals(if (reason == null) keys else keys + "failedReason", json.keySet())
+            Assert.assertTrue(json["isGradleCompile"].asBoolean)
+            Assert.assertTrue(json["isCompileSuccess"].asBoolean)
+            Assert.assertFalse(json["isDeploySuccess"].asBoolean)
+            Assert.assertFalse(json["isCancel"].asBoolean)
+            Assert.assertTrue(json["isNeedResetHasRun"].asBoolean)
+            Assert.assertEquals("compiler diagnostic", json["errorLog"].asJsonArray.single().asString)
+            if (reason != null) Assert.assertEquals(reason, json["failedReason"].asString)
+        }
+    }
+
+    @Test
+    fun testDeployMessageUsesDeployedFilesInsteadOfCompiledFiles() {
+        listOf(emptyList(), listOf("src/main/previously-compiled.kt", "C:\\project\\src\\current.kt")).forEach { deployed ->
+            val runtime = runtimeWithResult(JuggRunInvocationResult(
+                isSuccess = true,
+                runResult = RunResult(false, true, true, false,
+                    compiledFiles = listOf("not-deployed.kt"), deployedFiles = deployed),
+            ))
+            val result = CompileAndDeployMcpToolAction().execute(emptyMap(), runtime)
+            Assert.assertTrue(result.message.contains("Deployed files (total: ${deployed.size})"))
+            if (deployed.isNotEmpty()) {
+                Assert.assertTrue(result.message.endsWith("previously-compiled.kt, current.kt"))
+                Assert.assertFalse(result.message.contains("src/main/"))
+                Assert.assertFalse(result.message.contains("C:"))
+            }
+            Assert.assertFalse(result.message.contains("not-deployed.kt"))
+            @Suppress("UNCHECKED_CAST")
+            val data = result.data as Map<String, Any>
+            Assert.assertFalse(data["runResult"].toString().contains("deployedFiles"))
+        }
+    }
+
+    @Test
     fun testSuccessMessageIncludesCompiledFiles() {
         val runtime = runtimeWithResult(
             JuggRunInvocationResult(
@@ -491,6 +558,7 @@ class CompileAndDeployMcpToolActionTest {
                     isCompileSuccess = true,
                     isDeploySuccess = true,
                     isCancel = false,
+                    compiledFiles = listOf("src/main/Foo.kt", "C:\\project\\Bar.java", "Baz.kt"),
                 ),
             )
         )
@@ -499,7 +567,6 @@ class CompileAndDeployMcpToolActionTest {
             runtime = runtime,
             toolName = McpToolActionRegistry.ToolNames.COMPILE,
             isSkipDeploy = true,
-            compiledFiles = listOf("Foo.kt", "Bar.java", "Baz.kt"),
         )
 
         Assert.assertEquals(McpToolStatus.OK, result.status)
@@ -572,6 +639,7 @@ class CompileAndDeployMcpToolActionTest {
         @Suppress("UNCHECKED_CAST")
         val statusData = statusResult.data as Map<String, Any>
         Assert.assertEquals("compile executed successfully. No pending file changes.", statusData["message"])
+
     }
 
     @Test
@@ -614,7 +682,7 @@ class CompileAndDeployMcpToolActionTest {
         @Suppress("UNCHECKED_CAST")
         val statusData = statusResult.data as Map<String, Any>
         val message = statusData["message"] as String
-        Assert.assertTrue(message.startsWith("deploy executed successfully. No source file changes were compiled."))
+        Assert.assertTrue(message.startsWith("deploy executed successfully. Deployed files (total: 0). No pending file changes."))
         Assert.assertTrue(message.contains("Last successful deployment with file changes:"))
         Assert.assertTrue(message.contains("files (1): Foo.kt"))
     }
@@ -641,10 +709,9 @@ class CompileAndDeployMcpToolActionTest {
         )
 
         Assert.assertEquals(McpToolStatus.OK, result.status)
-        Assert.assertTrue(result.message.startsWith("deploy executed successfully. No source file changes were compiled."))
-        Assert.assertTrue(result.message.contains("No previous changed-file deployment details are available in this runtime session."))
-        Assert.assertFalse(result.message.contains("already deployed"))
-        Assert.assertFalse(result.message.contains("IDE session"))
+        Assert.assertTrue(result.message.startsWith("deploy executed successfully. Deployed files (total: 0). No pending file changes."))
+        Assert.assertTrue(result.message.contains("Last deployment details are unavailable in this IDE session."))
+        Assert.assertTrue(result.message.contains("already deployed"))
     }
 
     @Test
@@ -706,7 +773,7 @@ class CompileAndDeployMcpToolActionTest {
         )
 
         Assert.assertEquals(McpToolStatus.OK, result.status)
-        Assert.assertTrue(result.message.contains("No source file changes were compiled."))
+        Assert.assertTrue(result.message.contains("Deployed files (total: 0). No pending file changes."))
         Assert.assertTrue(result.message.contains("Last successful deployment with file changes:"))
         Assert.assertTrue(result.message.contains("deployedAt:"))
         Assert.assertTrue(result.message.contains("ago)"))

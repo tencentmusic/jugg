@@ -116,17 +116,18 @@ class ArscCompiler(
 
         var resApkFile: File = apkFileUnit.apkFile
         if (isNeedLoadLatestResApk) {
+            val apkCompileDir = getApkOutputDir(context.tempCompileDir, apkFileUnit)
             // apk is deployed before, needs load latest res
             var manifestFile = context.deployedFiles.find {
                 it.apkPath == apkFileUnit.apkFile.path && it.relativeFile.path == "AndroidManifest.xml"
             }?.file
             if (manifestFile == null) {
-                manifestFile = File(context.tempCompileDir, "AndroidManifest.xml")
+                manifestFile = File(apkCompileDir, "AndroidManifest.xml")
                 manifestFile.delete()
                 resApkFile.extractFile("AndroidManifest.xml", manifestFile)
             }
 
-            val latestResApkFile = File(context.tempCompileDir, "${apkFileUnit.getUniquePath("res")}.apk")
+            val latestResApkFile = File(apkCompileDir, "${apkFileUnit.getUniquePath("res")}.apk")
             if (latestResApkFile.exists()) {
                 latestResApkFile.delete()
             }
@@ -211,8 +212,9 @@ class ArscCompiler(
     }
 
     private fun incLinkCompile(apkFileUnit: ApkFileUnit, aapt2Invoker: Aapt2DaemonInvoker, flatFiles: List<File>, androidManifest: File?, outputDir: File): List<CompileOutput> {
-        val rFileDir = File(outputDir, apkFileUnit.getUniquePath("rjava"))
-        val overlayDir = File(outputDir, apkFileUnit.getUniquePath("overlays"))
+        val apkOutputDir = getApkOutputDir(outputDir, apkFileUnit)
+        val rFileDir = File(apkOutputDir, apkFileUnit.getUniquePath("rjava"))
+        val overlayDir = File(apkOutputDir, apkFileUnit.getUniquePath("overlays"))
         rFileDir.mkdirs()
         overlayDir.mkdirs()
 
@@ -253,6 +255,14 @@ class ArscCompiler(
 
         // check whether resources has more config created. e.g. layout-v22
         return rFiles + overlays
+    }
+
+    private fun getApkOutputDir(outputDir: File, apkFileUnit: ApkFileUnit): File {
+        // Test APKs also report isBaseApk, so split-only paths are not unique here.
+        val isTestApk = context.apkInfos.any { info ->
+            info.isTestApk && info.files.any { it.apkFile.path == apkFileUnit.apkFile.path }
+        }
+        return if (isTestApk) File(outputDir, ApkFileUnit.getUniqueKey(apkFileUnit.apkFile.path)) else outputDir
     }
 
     override fun warmUp() {

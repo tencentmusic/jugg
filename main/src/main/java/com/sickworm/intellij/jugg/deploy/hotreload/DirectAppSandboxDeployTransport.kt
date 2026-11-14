@@ -205,6 +205,8 @@ class DirectAppSandboxDeployTransport(
 
     private fun restartReason(data: JuggDeployData): String? {
         return when {
+            data.nativeLibraryOverlays.isNotEmpty() ->
+                "Direct app sandbox native library changes require app restart to load the committed overlay."
             data.hotFixModifiedClasses.isNotEmpty() ->
                 "Direct app sandbox class structure changes require app restart to load the committed overlay."
             data.updateApkFiles.isNotEmpty() ->
@@ -232,7 +234,8 @@ class DirectAppSandboxDeployTransport(
     }
 
     private fun hasRuntimeChanges(data: JuggDeployData): Boolean {
-        return hasClassRuntimeChanges(data) || data.overlays.isNotEmpty()
+        return hasClassRuntimeChanges(data) || data.overlays.isNotEmpty() ||
+            data.nativeLibraryOverlays.isNotEmpty()
     }
 
     private fun hasClassRuntimeChanges(data: JuggDeployData): Boolean {

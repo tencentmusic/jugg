@@ -29,7 +29,10 @@ class LibrariesBackupHelper(
                 kotlinPlugins = moduleInfo.kotlinPlugins?.backupFile(),
                 kotlinExtensions = moduleInfo.kotlinExtensions?.backupFile(),
                 coreLibraryDesugaring = moduleInfo.coreLibraryDesugaring?.backup(),
-                kspDependencies = moduleInfo.kspDependencies?.backup(),
+                kspInfo = moduleInfo.kspInfo?.let {
+                    it.copy(processorDependencies = it.processorDependencies.backup(),
+                        runtimeDependencies = it.runtimeDependencies.backup())
+                },
                 composeResourceInfo = moduleInfo.composeResourceInfo?.let {
                     it.copy(generatorClasspath = it.generatorClasspath.backupFile())
                 },

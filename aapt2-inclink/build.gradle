@@ -12,7 +12,7 @@ def verifyLfsBinaries = tasks.register('verifyLfsBinaries') {
     doLast {
         def pointerHeader = 'version https://git-lfs.github.com/spec/v1'
         fileTree('src/main/resources/tools').matching {
-            include '**/aapt2-inclink-*'
+            include '**/aapt2-inclink*'
         }.each { binary ->
             def header = binary.withInputStream {
                 new String(it.readNBytes(pointerHeader.length()), 'US-ASCII')

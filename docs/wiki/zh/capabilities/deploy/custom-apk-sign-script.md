@@ -32,12 +32,12 @@ tags:
 本轮生成 Manifest、resources.arsc 或 native lib 增量产物
   -> 写入最近的 Gradle APK
   -> zipalign
-  -> 启用脚本: <配置的命令> <待签名 APK 绝对路径>
+  -> 启用脚本: 按命令是否引用 $1 传入待签名 APK 绝对路径
   -> apksigner verify 校验脚本产出的 APK
   -> 校验通过才替换原 APK 并继续安装
 ```
 
-Jugg 在本地工程根目录执行脚本，并把待签名 APK 的绝对路径作为最后一个位置参数传入。路径包含空格、括号或 Unicode 字符时仍作为单个参数传递。脚本必须原地覆盖这个 APK；签名服务把结果写到其它文件时，脚本需要在退出前替换该路径。
+Jugg 在本地工程根目录执行配置的命令。macOS/Linux 中，配置文本包含完整字面 `$1` 时，Jugg 先把待签名 APK 的绝对路径设为 Bash `$1`，执行命令且不追加参数；否则在命令末尾自动追加 APK 路径。Windows 保持自动追加。路径包含空格、括号或 Unicode 字符时仍作为单个参数传递。脚本必须原地覆盖这个 APK；签名服务把结果写到其它文件时，脚本需要在退出前替换该路径。
 
 ```bash
 # Run Configuration 中配置
@@ -46,6 +46,14 @@ Jugg 在本地工程根目录执行脚本，并把待签名 APK 的绝对路径�
 # Jugg 实际执行
 ./scripts/sign-system-apk.sh --server production "/path/to/.app-debug.apk.tmp_aligned"
 ```
+
+可直接引用 `$1` 填写签名命令，无需额外包裹 `bash -c`：
+
+```bash
+sign-tool "$1"
+```
+
+只填写脚本路径时仍自动追加参数。检测只判断完整字面 `$1`，`$2` 和 `$10` 不触发，也不解析引号、转义或注释。此前 `bash -c '… "$1" …' --` 的嵌套写法不再自动获得参数。
 
 示例工程 `android_demo_project` 提供 `scripts/sign-system-apk.sh`，接收 `$1` 作为 APK 路径，使用工程已有默认签名和 Android SDK `apksigner` 原地签名，可直接用于验证这条能力。
 

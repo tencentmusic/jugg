@@ -58,3 +58,7 @@ The patch also excludes root `package`, root version attributes, `<uses-sdk>`, a
 - Resource compilation: `02_compile_resource.md`
 - Core compilation: `02_compile_core.md`
 - Verification policy: `06_testing.md`
+
+## 8. Library Test APK cache ownership
+
+Incremental merged-Manifest cache belongs to the target APK. Main keeps tempModule/res/AndroidManifest.xml; library Test APK uses an APK-unique cache and its matching androidTest module's complete Manifest, never the main App Manifest. Plain library main Manifest changes can patch both owning main APK and self-targeting library Test APK, retaining each package/application/instrumentation identity; App main Manifest does not enter the library test. androidTest merged candidates include packaged_manifests/variant and must be synchronized in remote baselines. Missing test baseline fails explicitly and requests a complete Gradle build rather than substituting main App identity.

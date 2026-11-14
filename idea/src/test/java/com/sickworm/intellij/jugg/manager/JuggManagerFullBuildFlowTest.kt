@@ -67,6 +67,63 @@ class JuggManagerFullBuildFlowTest {
     val temporaryFolder = TemporaryFolder()
 
     @Test
+    fun deselectingCompiledInputReleasesCompilerStateButOrdinarySelectionKeepsIt() {
+        val files = mock<DeployFileManager>()
+        val source = temporaryFolder.newFile("strings.xml")
+        val changed = com.sickworm.intellij.jugg.project.change.ChangedFile(
+            com.sickworm.intellij.jugg.compiler.CompileFile.Type.Resource, source, temporaryFolder.root,
+            com.sickworm.intellij.jugg.project.info.ModuleInfo.virtualModule)
+        whenever(files.getCompiledFiles()).thenReturn(listOf(changed))
+        val contextManager = mock<CompileContextManager>()
+        whenever(contextManager.compileContext).thenReturn(mock<ICompileContext>())
+        val helper = org.mockito.Mockito.mock(JuggCompilerHelper::class.java, org.mockito.Mockito.CALLS_REAL_METHODS)
+        val oldCompiler = mock<com.sickworm.intellij.jugg.compiler.JuggCompiler>()
+        helper.juggCompiler = oldCompiler
+        var released = false
+        com.intellij.openapi.util.Disposer.register(oldCompiler, com.intellij.openapi.Disposable { released = true })
+        val manager = fileSelectionManager(files, contextManager, helper)
+        org.mockito.Mockito.mockConstruction(com.sickworm.intellij.jugg.compiler.JuggCompiler::class.java).use {
+            kotlin.test.assertTrue(manager.applyFileSelection(listOf(changed), emptySet()))
+            kotlin.test.assertTrue(released, "Canceled compiled inputs must not remain in the cached resource table")
+            val replacement = helper.juggCompiler
+            kotlin.test.assertNotSame(oldCompiler, replacement)
+            whenever(files.getCompiledFiles()).thenReturn(emptyList())
+            kotlin.test.assertTrue(manager.applyFileSelection(listOf(changed), setOf(source.absolutePath)))
+            kotlin.test.assertSame(replacement, helper.juggCompiler)
+        }
+        helper.juggCompiler?.let(com.intellij.openapi.util.Disposer::dispose)
+        org.mockito.Mockito.doNothing().`when`(helper).close()
+        manager.dispose()
+    }
+
+    private fun fileSelectionManager(
+        files: DeployFileManager,
+        contextManager: CompileContextManager,
+        compilerHelper: JuggCompilerHelper,
+    ): JuggManager {
+        val project = mock<Project>()
+        whenever(project.basePath).thenReturn(temporaryFolder.root.absolutePath)
+        val paths = mock<JuggPathManager>()
+        whenever(paths.projectDir).thenReturn(temporaryFolder.root)
+        return JuggManager(
+            project = project, pathManager = paths, logger = TestGlobal.logger,
+            juggServer = mock(), ideaHotUpdateCoordinator = mock(),
+            runtimeInfo = RuntimeInfo("idea", "test", "test", "0"),
+            deploymentService = mock(), compileEnvironmentSource = mock(), projectModelSource = mock(),
+            fileChangeManager = mock(), runManager = mock(),
+            fileChangesHandler = mock(), fileChangesDetector = mock(),
+            deployHistoryManager = mock(), deployTargetManager = mock(),
+            deployStateManager = mock(), taskRunnerManager = com.sickworm.intellij.jugg.createTestTaskRunnerManager(
+                JuggPathManager(temporaryFolder.root)),
+            customCompilerManager = mock(), deployFileManager = files,
+            compileContextManager = contextManager, juggRunningTaskStatusManager = mock(),
+            dependencyChangeManager = mock(), gradleProjectInfoLocalFetchManager = mock(),
+            gitFileChangesDetector = mock(), juggDeployerHelper = mock(),
+            juggCompilerHelper = compilerHelper, projectCustomConfigManager = mock(), ideSyncProblemResolver = mock(),
+        )
+    }
+
+    @Test
     fun initIncrementalCompileAfterFullBuild_remoteClasspathFetch_waitsForProjectInfoAndPreservesOldBaseline() {
         val project = mock<Project>()
         whenever(project.basePath).thenReturn(temporaryFolder.root.absolutePath)
@@ -146,6 +203,8 @@ class JuggManagerFullBuildFlowTest {
     fun initIncrementalCompileAfterFullBuild_ideFallback_prefersGradleLibraries() {
         val project = mock<Project>()
         whenever(project.basePath).thenReturn(temporaryFolder.root.absolutePath)
+        whenever(project.getService(com.intellij.execution.RunManager::class.java))
+            .thenReturn(mock<com.intellij.execution.RunManager>())
         val pathManager = mock<JuggPathManager>()
         whenever(pathManager.projectDir).thenReturn(temporaryFolder.root)
         whenever(pathManager.stagingDir).thenReturn(temporaryFolder.newFolder("staging-fallback"))
@@ -182,6 +241,7 @@ class JuggManagerFullBuildFlowTest {
         val taskRunnerManager = mock<TaskRunnerManager>()
         val dependencyChangeManager = mock<IDependencyChangeManager>()
         val compileEnvironmentSource = mock<IdeaCompileEnvironmentSource>()
+        val files = mock<DeployFileManager>()
         val gradleProjectInfoLocalFetchManager = GradleProjectInfoLocalFetchManager(
             pathManager,
             compileContextManager,
@@ -207,7 +267,7 @@ class JuggManagerFullBuildFlowTest {
             taskRunnerManager = taskRunnerManager,
             deploymentService = mock<JuggDeploymentService>(),
             customCompilerManager = mock<CustomCompilerManager>(),
-            deployFileManager = mock<DeployFileManager>(),
+            deployFileManager = files,
             compileEnvironmentSource = compileEnvironmentSource,
             projectModelSource = mock<IdeaProjectModelSource>(),
             compileContextManager = compileContextManager,
@@ -223,8 +283,37 @@ class JuggManagerFullBuildFlowTest {
             runManager = mock<RunManager>(),
         )
 
-        manager.initIncrementalCompileAfterFullBuild(1L, options)
+        assertFullBuildRefreshesPendingFiles(manager, files, options)
 
         verify(compileContextManager).updateCompileContext(eq(true), eq(true), any())
+    }
+
+    private fun assertFullBuildRefreshesPendingFiles(
+        manager: JuggManager,
+        files: DeployFileManager,
+        options: JuggGradleCompileOptions,
+    ) {
+        val tracker = com.sickworm.intellij.jugg.deploy.DeployFileStateTracker()
+        val source = temporaryFolder.newFile("Pending.kt")
+        tracker.addChangedFiles(listOf(com.sickworm.intellij.jugg.project.change.ChangedFile(
+            com.sickworm.intellij.jugg.compiler.CompileFile.Type.Kotlin, source, temporaryFolder.root,
+            com.sickworm.intellij.jugg.project.info.ModuleInfo.virtualModule)))
+        whenever(files.getUndeployedFiles()).thenAnswer { tracker.getUndeployedFiles() }
+        org.mockito.kotlin.doAnswer {
+            tracker.resetKeepingRecentUncompiled(it.getArgument(2))
+            null
+        }.`when`(files).init(any(), any(), anyOrNull())
+        val models = mutableListOf<com.sickworm.intellij.jugg.ide.controlpanel.JuggControlPanelModel>()
+        org.mockito.Mockito.mockConstruction(com.sickworm.intellij.jugg.ide.ui.JuggControlPanel::class.java) { _, context ->
+            models.add(context.arguments()[1] as com.sickworm.intellij.jugg.ide.controlpanel.JuggControlPanelModel)
+        }.use {
+            manager.getJuggControlPanel("overview")
+            kotlin.test.assertEquals(1, models.single().snapshot().context.changedFileCount)
+            manager.initIncrementalCompileAfterFullBuild(System.currentTimeMillis(), options)
+            kotlin.test.assertTrue(tracker.getUndeployedFiles().isEmpty())
+            kotlin.test.assertTrue(models.single().snapshot().context.changedFiles.isEmpty(),
+                "Finishing asynchronous full-build initialization must refresh the panel")
+        }
+        com.intellij.openapi.util.Disposer.dispose(manager)
     }
 }

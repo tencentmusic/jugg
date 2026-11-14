@@ -44,6 +44,7 @@ jugg clean-reinstall
 
 ## 相关页面
 
+- [清除 App 数据或缓存会影响增量编译吗？](../troubleshooting/clear-data-and-cache.md)
 - [运行 App](./run.md)
 - [降级 Gradle 编译](./downgrade-gradle.md)
 - [部署状态与恢复](../concepts/deploy-state-recover.md)

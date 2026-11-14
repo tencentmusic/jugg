@@ -36,7 +36,8 @@ Jugg 将这套过程称为增量部署。它不固定使用一种热更新方式
 | 新增 class | Apply Changes new class | 随增量 overlay 下发，通常重建 Activity |
 | 结构变化 class | Hot Fix DEX | 重启 App 后加载 |
 | `res/**`、`assets/**`、`resources.arsc` 等 overlay | Apply Changes 或 Direct Overlay | 重建 Activity，或在需要时重启 App |
-| Manifest、配套资源表、已经生成的 native lib | 写回最近的 Gradle APK 并重新签名 | 安装更新后的 APK，再继续本轮剩余增量部署 |
+| Manifest 与配套资源表 | 写回最近的 Gradle APK 并重新签名 | 安装更新后的 APK，再继续本轮剩余增量部署 |
+| 已经生成的 native lib | SO hot update 开启时进入目标 APK 的 overlay；关闭时更新并重签 APK | 重启 App 后加载 overlay 中的 `.so`，或安装更新后的 APK |
 | 兼容设备上的 class 和资源 | 兼容热修复产物 | 重启 App 后加载，不依赖当前进程在线替换 |
 
 具体分类由[部署数据与影响分析](./deploy-data-and-impact.md)说明。Apply Changes 如何组合 class 和 overlay，见[Apply Changes 中的 class 与 overlay](./apply-changes.md)。
@@ -87,7 +88,7 @@ Jugg 当前对普通、非空且无需重启 App 的增量数据使用 Apply Cha
 |---|---|
 | [部署数据与影响分析](./deploy-data-and-impact.md) | 编译产物如何分类，为什么部分源码需要继续补编译 |
 | [Apply Changes 中的 class 与 overlay](./apply-changes.md) | class 与资源怎样进入在线增量更新，为什么通常重建 Activity |
-| [APK 更新与安装](./apk-update-and-install.md) | Manifest 和 native lib 为什么需要写回 APK 并安装 |
+| [APK 更新与安装](./apk-update-and-install.md) | Manifest 和关闭 SO hot update 时的 native lib 如何写回 APK 并安装 |
 | [Direct Overlay 部署机制](./direct-overlay.md) | 设备未 ready 时怎样直接写入 overlay，并避免半提交状态 |
 | [兼容部署](./compat-deploy.md) | 为什么部分设备要改为重启后加载增量产物 |
 | [部署状态与恢复](./deploy-state-recover.md) | history、cache 与 overlay ID 如何共同维持设备状态 |

@@ -123,3 +123,14 @@ Help AI complete a task with minimal context:
 - When updating an existing topic, describe the current implementation directly; do not frame current behavior with a date boundary such as “since a certain date.”
 - If documentation has not yet been synchronized, state “code takes precedence” in the conclusion.
 - **MCP/CLI behavior changes**: synchronization rules are in `08_mcp_design.md` §8; CLI/skill version increments are in `08_cli_tools_list.md` §3.7.
+
+## 7. Additional topic routing
+
+| Task | Read | Owner |
+|---|---|---|
+| New APT/KAPT/KSP adapter | 02_compile_annotations.md, 02_compile_custom_ui.md, 06_testing.md | IJuggAptProcessor, JuggAptCompiler, processors |
+| Native SO hot update / HDiffPatch | 03_deploy_core.md §8, 03_runtime_jvmti.md §8 | NativeSandboxWriter, NativeLibraryDelta, NativeLibraryPathInstaller |
+| Isolated Kotlin process hang / ROM API classpath | 02_compile_source.md §8, 09_plugin_runtime_debug.md §8 | KotlinCompilerProcessDiagnostics, FrameworkJarDetector |
+| GitHub release-note aggregation | 98_code_map.md §7, 06_testing.md | tools/generate_release_notes.rb |
+
+02_compile_annotations.md is the annotation integration guide: detection cost, input closure, existing engine reuse, publication lifecycle, failure scope and verification. Changes to jvmti_agent runtime/bundle inputs require agentVersion increments under 03_runtime_jvmti.md.

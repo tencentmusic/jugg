@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg
 
 import com.sickworm.intellij.jugg.ide.ui.DirectorySelector
 import com.sickworm.intellij.jugg.project.runtime.JuggGlobalDirectoryMigration
+import com.sickworm.intellij.jugg.project.change.ChangedFile
 import com.sickworm.intellij.jugg.project.runtime.JuggProcessLease
 import com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager
 import com.intellij.ide.actions.RevealFileAction
@@ -226,7 +227,7 @@ class JuggManager @TestOnly constructor(
 
             logger.debug("Checking updates...")
             juggServer.checkUpdate {
-                val checkUpdateHandler = CheckUpdateHandler(project, juggServer.version, projectCustomConfigManager, JuggLogger.getInstance(project, "CheckUpdateHandler"))
+                val checkUpdateHandler = CheckUpdateHandler(project, juggServer.version, projectCustomConfigManager, JuggLogger.getInstance(project, "CheckUpdateHandler"), controlPanelController::refreshSettings)
                 taskRunnerManager.runProjectWriteLocked("Apply server custom config") {
                     checkUpdateHandler.handle(it)
                 }
@@ -785,12 +786,41 @@ class JuggManager @TestOnly constructor(
         }
     }
 
+    fun applyFileSelection(candidates: List<ChangedFile>, selectedPaths: Set<String>): Boolean =
+        taskRunnerManager.runProjectWriteLocked("Update selected files") {
+            if (juggConfigurationRunner.isCompiling || deployStateManager.isInitializingIncrementalCompile) {
+                return@runProjectWriteLocked false
+            }
+            val managedPaths = candidates.map { it.file.absolutePath }.toSet()
+            val discardedCompiledInput = deployFileManager.getCompiledFiles().any {
+                it.file.absolutePath in managedPaths && it.file.absolutePath !in selectedPaths
+            }
+            deployFileManager.applyFileSelection(candidates, selectedPaths)
+            if (discardedCompiledInput) {
+                // Stateful resource tables must reload the deployed baseline after discarding compiled inputs.
+                val compiler = JuggCompiler(compileContextManager.compileContext, this)
+                juggCompilerHelper.juggCompiler = compiler
+                customCompilerManager.init(compileContextManager.compileContext)
+            }
+            dependencyChangeManager.onUpdateChangedBuildFiles(deployFileManager.getUndeployedFiles()
+                .filter { it.type == CompileFile.Type.BuildFile }.map { it.file })
+            true
+        }
+
+    fun refreshFileChanges(): Boolean = taskRunnerManager.runProjectWriteLocked("Update selected files") {
+        val success = gitFileChangesDetector.refreshFileChanges()
+        dependencyChangeManager.onUpdateChangedBuildFiles(deployFileManager.getUndeployedFiles()
+            .filter { it.type == CompileFile.Type.BuildFile }.map { it.file })
+        success
+    }
+
     override fun getJuggControlPanel(page: String): JComponent {
         return controlPanelController.getPanel(page)
     }
 
     override fun reportIssue() {
         controlPanelController.recordUserAction("Report Issue")
+        val destination = juggServer.issueReportDestination
         val progressDialog = ReportIssueProgressDialog("Preparing diagnostics...")
         taskRunnerManager.runBackgroundSafe("Prepare issue report") {
             try {
@@ -809,6 +839,7 @@ class JuggManager @TestOnly constructor(
                     pathManager.projectDir,
                     File(System.getProperty("user.home")),
                     logger.getInstance("IssueReportBundleBuilder"),
+                    destination,
                 )
                 val logFiles = IssueReportBundleBuilder.selectRecentLogFiles(
                     pathManager.logDir, pathManager.standaloneCliLogDir,
@@ -826,13 +857,23 @@ class JuggManager @TestOnly constructor(
                     projectInfoDir = pathManager.projectInfosDir,
                     logFiles = logFiles,
                     standaloneLogDir = pathManager.standaloneCliLogDir,
+                    logFileLimit = 10,
                     logcat = logcatErrorLog,
                     hookDebugLog = File(JuggGlobalPathManager.rootDir, "skills/hooks/jugg-hook-debug.log"),
                     knownSecrets = knownSecrets,
                 )
                 SwingUtilities.invokeLater {
                     progressDialog.close(DialogWrapper.OK_EXIT_CODE)
-                    showReportIssueDialog(builder, candidates, IssueReportUploader.JUGG_REPORT_URL)
+                    if (destination.backendServerUrl == null) {
+                        showReportIssueDialog(builder, candidates, destination.uploadUrl)
+                    } else {
+                        taskRunnerManager.runBackgroundSafe("Create issue report") {
+                            val selectedPaths = candidates.filter {
+                                it.isSelectedByDefault || it.path.startsWith("diagnostics/logs/")
+                            }.map { it.path }.toSet()
+                            uploadIssueReport(builder.build(selectedPaths))
+                        }
+                    }
                 }
             } catch (e: Throwable) {
                 SwingUtilities.invokeLater {
@@ -863,20 +904,26 @@ class JuggManager @TestOnly constructor(
                     ReportIssueResultDialog(null).show()
                 }
             } else {
-                uploadIssueReport(bundle, uploadUrl)
+                uploadIssueReport(bundle)
             }
         }
     }
 
-    private fun uploadIssueReport(bundle: IssueReportBundle, uploadUrl: String) {
+    private fun uploadIssueReport(bundle: IssueReportBundle) {
         SwingUtilities.invokeLater {
             val progressDialog = ReportIssueProgressDialog("Uploading logs...")
             taskRunnerManager.runBackgroundSafe("Upload issue report") {
-                val uploadResult = IssueReportUploader().upload(bundle, uploadUrl)
+                val uploadResult = IssueReportUploader().upload(
+                    bundle, projectName = juggServer.projectName, username = juggServer.username,
+                )
                 SwingUtilities.invokeLater {
                     progressDialog.close(DialogWrapper.OK_EXIT_CODE)
-                    ReportIssueResultDialog(uploadResult) {
-                        uploadIssueReport(bundle, uploadUrl)
+                    ReportIssueResultDialog(
+                        uploadResult,
+                        bundle.destination.backendServerUrl,
+                        bundleFile = bundle.file.takeIf { bundle.destination.backendServerUrl != null },
+                    ) {
+                        uploadIssueReport(bundle)
                     }.show()
                 }
             }
@@ -930,6 +977,7 @@ class JuggManager @TestOnly constructor(
     private fun startFileMonitoring() {
         fileChangeManager.start(fileChangesDetector, ::handleFileChangeResult)
         logger.info("Jugg init complete, start listening file changes.")
+        controlPanelController.refresh()
 
         if (JuggSettings.isEnableWarmUp) {
             warmUpCompile()
@@ -1060,6 +1108,9 @@ class JuggManager @TestOnly constructor(
         ): IJuggRunningTask {
             logger.debug("Create running task: ${options.toSafeString()}")
 
+            projectCustomConfigManager.refresh()
+            val customConfig = projectCustomConfigManager.config
+
             val startCompileTime = System.currentTimeMillis()
             val initIncrementalCompileTask = task@{
                 // do it async
@@ -1074,6 +1125,9 @@ class JuggManager @TestOnly constructor(
                 ::recoverAfterRuntimeOwnerChange,
                 androidTestRunSpec,
                 controlPanelController = controlPanelController,
+                autoUploadFailureLogs = customConfig?.autoUploadFailureLogs == true,
+                autoUploadFailureLogsExcludeRegex = customConfig?.autoUploadFailureLogsExcludeRegex,
+                projectModuleCount = compileContextManager.compileContext.modules.size,
             )
 
             ProgressManager.getInstance().run(task)

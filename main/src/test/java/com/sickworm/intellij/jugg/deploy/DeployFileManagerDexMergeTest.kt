@@ -139,7 +139,7 @@ class DeployFileManagerDexMergeTest {
 
             val deployData = deployFileManager.getDeployData()
             deployFileManager.commit(deployData)
-            deployFileManager.resetAfterReinstall()
+            deployFileManager.resetAfterReinstall(replayNativeLibraries = true)
 
             assertEquals(historyDex.size + stagingDex.size, deployFileManager.getStagingFiles().size)
         }

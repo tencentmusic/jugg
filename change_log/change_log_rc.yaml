@@ -4,6 +4,98 @@
   updates:
     - run Jugg compile and deploy workflows from a standalone cross-platform CLI without Android Studio
 
+- version: 3.6.8
+  date: 2026.11.13
+  updates:
+    - "[feature][compile] Support ButterKnife annotations"
+    - "[feature][custom install] Support direct commands in custom APK install scripts"
+    - "[optimize][compile] (Introduced in 3.6) Optimize compilation time for unannotated source edits by avoiding unnecessary annotation baseline scans"
+    - "[optimize][compile] Retain the original root-cause diagnostics when Kotlin compiler internal error recovery fails"
+    - "[bugfix][compile] Fix resource incremental linking failures when baseline resource references cannot resolve"
+    - "[bugfix][deploy] Fix crashes on Android 17 Pixel devices"
+    - "[bugfix][system app] Fix deployment failure for system apps on Windows"
+    - "[bugfix][compat] Fix compilation failure in Android Studio Panda caused by incorrect module directory resolution when a module is named main"
+    - "[bugfix][compat] Fix KMP module identification failure warnings in Android Studio Quail and Rabbit (non-breaking)"
+
+- version: 3.6.7
+  date: 2026.11.04
+  updates:
+    - "[feature][compile] Support Windows remote builds with rsync (via Cygwin)"
+    - "[feature][ide] Support managing compiled files in the Control Panel"
+    - "[optimize][compile] Automatically roll back changed sources when Git HEAD changes"
+    - "[optimize][compile] Automatically clean up legacy temporary class files"
+    - "[optimize][mcp] Simplify CLI compile and deploy output"
+    - "[bugfix][compile] Fix missed changed files in multi-git sub-repository projects"
+    - "[bugfix][compile] Fix parent class inaccessible errors when generated Java files (such as AIDL) are empty"
+    - "[bugfix][compile] Fix missing hidden API compilation errors for system app projects with custom framework.jar"
+    - "[bugfix][compile] Fix ARouter annotation code generation failures on Windows"
+    - "[bugfix][compile] Fix Manifest compilation failures in projects with library Test APKs"
+    - "[bugfix][compile] Fix incorrect styleable import in AGP 9 and multi-APK scenarios"
+    - "[bugfix][compile] Fix missing caller recompilation when top-level facade classes change in Kotlin 2.4"
+    - "[bugfix][compile] Fix intermittent androidTest compilation failures caused by missing internal friend paths to module internal declarations"
+    - "[bugfix][deploy] Fix crashes on Oppo Android 16 with WebView after deploying resources in specific timing conditions"
+    - "[bugfix][deploy] Fix slow JVMTI status detection when deploying unrelated test APKs"
+    - "[bugfix][compat] Fix installer lookup errors on certain Android Studio versions missing the IdeInfo class"
+    - "[bugfix][cli] Fix file count discrepancies in CLI compile and deploy success messages after triggering rollback"
+
+- version: 3.6.6
+  date: 2026.10.18
+  updates:
+    - "[feature][settings] Retain internal default backend servers after updating to public plugin releases"
+    - "[optimize][compile] Automatically sync generated ARouter sources to IDE source roots to prevent unresolved reference errors"
+
+- version: 3.6.5
+  date: 2026.10.15
+  updates:
+    - "[feature][compile] Support ARouter annotations with APT/KAPT and KSP1/KSP2 processors"
+    - "[bugfix][compile] Fix excessive KAPT compilation time caused by regex backtracking"
+    - "[bugfix][settings] Fix failure to load custom compilers when project custom config is missing optional build rule fields"
+
+- version: 3.6.4
+  date: 2026.09.28
+  updates:
+    - "[feature] Refactor native library hot update into the unified deployment channel, supporting state recovery"
+    - "[optimize] Optimize large native library hot update performance with delta transfers and streaming to reduce transfer size and memory usage"
+    - "[bugfix] Fix native library updates being skipped after rebuilds produce different content with identical file size"
+
+- version: 3.6.3
+  date: 2026.09.23
+  updates:
+    - "[feature] Support including project and user info when reporting issues to custom backends, and ensure public uploads remain strictly redacted"
+    - "[bugfix] Fix Android sources and resources being misclassified as external native build inputs when located under a Native directory"
+    - "[bugfix] Fix native library deployment failure when native libraries or APK exceed 2.1 GB (Int.MAX_VALUE)"
+
+- version: 3.6.2
+  date: 2026.09.22
+  updates:
+    - "[feature] Support configuring automatic failure log uploads when configuring backend service"
+    - "[feature] Support configuring default settings when configuring backend service"
+    - "[bugfix] Fix project configuration fetch failure before the first full compilation"
+
+- version: 3.6.0
+  date: 2026.09.18
+  updates:
+    - "[feature] Support incremental Native .so hot update: skip APK repackaging and reinstallation when only .so files change (takes effect on restart, disabled by default, can be enabled in Settings under 'SO hot update')"
+    - "[feature] Support running declared codegen tasks (such as IDL) before C++ incremental native builds and including generated code in incremental compilation"
+
+- version: 3.5.5
+  date: 2026.10.22
+  updates:
+    - "[feature][compile] Support Kotlin 2.4; fix unresolved extension functions and metadata warnings during incremental compilation in Kotlin 2.4 projects"
+    - "[feature][compile] Support symlinks to files outside the project directory in remote build scenarios"
+    - "[optimize][compile] Use --no-daemon by default for Gradle fallback builds to reduce resident memory; toggle available in control panel"
+    - "[optimize][mcp] Reduce layout-dump read overhead for agents, supporting both interaction and UI modes"
+    - "[optimize][ide] Use plain console output for remote commands to avoid escape sequence interference"
+    - "[optimize][deploy] Improve deploy stability by automatically retrying on installer socket timeouts"
+    - "[optimize][diagnostics] Automatically capture compiler thread dumps when isolated Kotlin incremental compilation times out"
+    - "[bugfix][compile] Fix runtime class cast exceptions caused by stale Binding artifacts when identical DataBinding layouts exist across multiple resource roots"
+    - "[bugfix][compile] Fix crashes on pages with cross-module DataBinding includes after incremental compile due to unmerged baseline dependency mappers"
+    - "[bugfix][compile] Fix ambiguous Module reference errors during incremental compilation of Java code on JDK 9+"
+    - "[bugfix][compile] Fix missing caller recompilation when interface constants or Kotlin companion object constants change"
+    - "[bugfix][project] Fix memory leak caused by unreleased Git index objects after repository queries"
+    - "[bugfix][mcp] Fix missing Compose node content in layout-dump"
+    - "[bugfix][mcp] Fix premature UI request timeouts when layout capture is slow on lower-performance devices"
+
 - version: 3.5.4
   date: 2026.10.13
   updates:

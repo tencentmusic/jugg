@@ -16,6 +16,17 @@ if (readFileSync(new URL(keyFiles[0], publicDir), 'utf8').trim() !== key) {
 }
 const keyLocation = new URL(keyFiles[0], siteRoot).href
 
+function hasCommit(commit) {
+  try {
+    execFileSync('git', ['cat-file', '-e', `${commit}^{commit}`], {
+      cwd: repoRoot, stdio: 'ignore'
+    })
+    return true
+  } catch {
+    return false
+  }
+}
+
 function changedPaths(before) {
   return execFileSync('git', [
     'diff', '--no-renames', '--name-only', '-z', before, 'HEAD', '--', 'docs/wiki'
@@ -38,9 +49,15 @@ function allPageUrls() {
 
 function urlsToSubmit() {
   const before = process.env.INDEXNOW_BEFORE
-  const all = process.env.INDEXNOW_ALL === 'true' || /^0+$/.test(before || '')
-  if (!all && !before) throw new Error('INDEXNOW_BEFORE is required for a push')
+  const requestedAll = process.env.INDEXNOW_ALL === 'true' || /^0+$/.test(before || '')
+  if (!requestedAll && !before) throw new Error('INDEXNOW_BEFORE is required for a push')
 
+  const canDiff = Boolean(before) && hasCommit(before)
+  if (!requestedAll && !canDiff) {
+    console.warn(`Before commit ${before} is not available in git history; falling back to all URLs`)
+  }
+
+  const all = requestedAll || !canDiff
   const paths = all ? [] : changedPaths(before)
   const keyChanged = paths.includes(`docs/wiki/public/${keyFiles[0]}`)
   const urls = all || keyChanged ? allPageUrls() : paths.map(pageUrl).filter(Boolean)

@@ -13,6 +13,10 @@
   - Change only the factor causing a failure when falling back, such as the implementation, an incompatible capability, a parameter, or a safe default. Reuse the original flow and preserve result and state contracts.
   - Retry only known, recoverable errors. A retry must change the failure condition and have a limit; without a specific design, retry at most once.
   - Record the failure cause and fallback at the scope affected. If the fallback also fails, preserve the final exception; never swallow errors or fabricate success.
+- Prefer incremental capability:
+  - Before falling back an entire module or flow to Gradle, evaluate local adaptation, local invalidation, and incremental compilation of unaffected files.
+  - Recommend automatic Gradle fallback only when the current path cannot produce a minimum valid result and local degradation cannot preserve its contract; state the failure boundary, scope, and lost incremental benefit.
+  - Explain retained incremental benefit, failure containment, and reuse of existing manual fallback controls.
 - Follow YAGNI:
   - Implement only confirmed requirements, compatibility differences, and failure modes. Do not preemptively add configuration, extension points, data structures, or general frameworks for hypothetical cases.
   - For a bug fix, locate the actual behavior owner and failure boundary; change only the logic needed to solve the problem. Do not mix in unrelated refactoring, cleanup, optimization, or behavior changes.

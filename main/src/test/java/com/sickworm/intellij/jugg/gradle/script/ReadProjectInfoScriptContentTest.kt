@@ -8,6 +8,13 @@ import kotlin.test.assertTrue
 class ReadProjectInfoScriptContentTest {
 
     @Test
+    fun generatedScript_shouldDeclareReferencedKspSnapshotModel() {
+        val script = requireNotNull(javaClass.getResource("/gradle/readProjectInfo.gradle.kts")).readText()
+        assertTrue(Regex("""(?:data\s+)?class\s+KspInfo\b""").containsMatchIn(script),
+            "KSP snapshot references need their model declaration in the standalone init script")
+    }
+
+    @Test
     fun generatedScript_shouldRemoveTrailingCommasForPreKotlin14Grammar() {
         val scriptText = javaClass.getResource("/gradle/readProjectInfo.gradle.kts")?.readText()
         assertNotNull(scriptText)
@@ -112,6 +119,18 @@ class ReadProjectInfoScriptContentTest {
         assertTrue(scriptText.contains("outputs.upToDateWhen { false }"))
         assertTrue(scriptText.contains("configureExternalBuildInfoCollector()"))
         assertTrue(scriptText.contains("skip full project info read during external build collection"))
+    }
+
+    @Test
+    fun generatedScript_shouldConfigureTasksWithExplicitActionNotReceiverLambda() {
+        val scriptText = javaClass.getResource("/gradle/readProjectInfo.gradle.kts")?.readText()
+        assertNotNull(scriptText)
+
+        assertFalse(
+            Regex("""\.configureEach\s*\{\s*\w+\s*->""").containsMatchIn(scriptText),
+            "Kotlin DSL Action has an implicit receiver; configureEach with a named parameter fails to compile",
+        )
+        assertTrue(scriptText.contains("configureEach(object : org.gradle.api.Action<org.gradle.api.Task>"))
     }
 
     @Test

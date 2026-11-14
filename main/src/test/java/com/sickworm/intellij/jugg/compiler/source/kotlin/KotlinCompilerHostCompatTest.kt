@@ -86,6 +86,14 @@ class KotlinCompilerHostCompatTest {
     }
 
     @Test
+    fun `isolates project compiler on jdk 25 and newer only`() {
+        assertTrue(KotlinCompilerHostCompat.shouldUseIsolatedProcess(25, true))
+        assertTrue(KotlinCompilerHostCompat.shouldUseIsolatedProcess(26, true))
+        assertFalse(KotlinCompilerHostCompat.shouldUseIsolatedProcess(25, false))
+        assertFalse(KotlinCompilerHostCompat.shouldUseIsolatedProcess(21, true))
+    }
+
+    @Test
     fun `recognizes IDE file system close conflict`() {
         val message = """
             exception: java.lang.UnsupportedOperationException

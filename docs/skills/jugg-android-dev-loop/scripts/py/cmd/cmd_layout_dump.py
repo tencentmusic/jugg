@@ -1,4 +1,4 @@
-"""cmd_layout_dump — export UI hierarchy to HTML file."""
+"""cmd_layout_dump — export interaction or UI hierarchy to a JSON file."""
 
 from __future__ import annotations
 
@@ -13,7 +13,13 @@ def build_params(args: list[str]) -> dict:
     params: dict = {}
     i = 0
     while i < len(args):
-        if args[i] == "--rootLayout":
+        if args[i] == "--mode":
+            if i + 1 >= len(args) or args[i + 1] not in ("interaction", "ui"):
+                print("--mode requires interaction or ui", file=sys.stderr)
+                sys.exit(1)
+            params["mode"] = args[i + 1]
+            i += 2
+        elif args[i] == "--rootLayout":
             if i + 1 >= len(args):
                 print("--rootLayout requires a value", file=sys.stderr)
                 sys.exit(1)

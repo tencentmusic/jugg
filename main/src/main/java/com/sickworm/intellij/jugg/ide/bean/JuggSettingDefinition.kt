@@ -151,6 +151,8 @@ class JuggSettingDefinition(
             JuggSettingDefinition(JuggSettings::isAutoFallbackToGradleWhenDeployError, "Auto fallback after deploy failure", "Recover with a full Gradle build."),
             JuggSettingDefinition(JuggSettings::isEmbeddedToApk, "Embed changes into APK", "Supports Android RemoteViews with a slower deploy."),
             JuggSettingDefinition(JuggSettings::isCheckChecksumWhenFileChanges, "Check file checksums", "Check checksums before treating a file as changed."),
+            JuggSettingDefinition(JuggSettings::isEnableNativeSandboxDeploy, "Native library hot update", "Deploy changed native libraries without reinstalling the APK."),
+            JuggSettingDefinition(JuggSettings::isGradleCompileNoDaemon, "Disable Gradle daemon", "Run full Gradle builds without retaining a daemon."),
             JuggSettingDefinition(JuggSettings::isEnableDirectOverlayDeploy, "Quick deploy", "Skip app startup when direct overlay is available."),
             JuggSettingDefinition(JuggSettings::isUseProjectKotlinCompiler, "Use project Kotlin compiler", "Matches the compiler configured by the project."),
             JuggSettingDefinition(JuggSettings::isEnableBackupClasspath, "Backup classpath", "May improve recovery at the cost of extra storage."),

@@ -66,28 +66,52 @@ internal class KotlinCompilerProcessRunner(private val logger: Logger) {
             }
         }
         val process = processBuilder.start()
-        val outputThread = thread(name = "jugg-kotlin-compiler-output", isDaemon = true) {
-            process.inputStream.use { it.copyTo(outputStream) }
+        logger.debug("isolated Kotlin compiler started, pid=${process.pid()}, sources=${task.files.size}, " +
+                "argfile=$compilerArgsFile")
+        lateinit var diagnostics: KotlinCompilerProcessDiagnostics
+        val outputThread = thread(name = "jugg-kotlin-compiler-output", isDaemon = true, start = false) {
+            diagnostics.copyOutput(outputStream)
         }
+        diagnostics = KotlinCompilerProcessDiagnostics(
+            process, javaHome, Thread.currentThread(), outputThread, logger,
+        )
+        outputThread.start()
+        diagnostics.start()
+        return try {
+            waitForCompiler(process, task, outputThread, outputStream, diagnostics)
+        } finally {
+            diagnostics.finish()
+        }
+    }
+
+    /** Preserves compiler exit handling while recording each potentially blocking cleanup phase. */
+    private fun waitForCompiler(
+        process: Process,
+        task: CompileTask,
+        outputThread: Thread,
+        outputStream: PrintStream,
+        diagnostics: KotlinCompilerProcessDiagnostics,
+    ): ExitCode {
         val deadline = System.nanoTime() + TimeUnit.MINUTES.toNanos(PROCESS_TIMEOUT_MINUTES)
         while (!process.waitFor(PROCESS_POLL_MILLIS, TimeUnit.MILLISECONDS)) {
             if (task.isShouldCancel) {
-                logger.debug("isolated Kotlin compiler canceled")
-                process.toHandle().descendants().forEach { it.destroyForcibly() }
-                process.destroyForcibly()
-                outputThread.join()
+                diagnostics.phase("canceled")
+                terminateCompiler(process, outputThread, diagnostics)
                 return ExitCode.COMPILATION_ERROR
             }
             if (System.nanoTime() >= deadline) {
                 logger.warn("Isolated Kotlin compiler timed out after $PROCESS_TIMEOUT_MINUTES minutes")
-                process.toHandle().descendants().forEach { it.destroyForcibly() }
-                process.destroyForcibly()
-                outputThread.join()
+                diagnostics.phase("timed-out")
+                terminateCompiler(process, outputThread, diagnostics)
                 return ExitCode.COMPILATION_ERROR
             }
         }
+        diagnostics.phase("process-exited exitCode=${process.exitValue()}")
+        diagnostics.phase("wait-output")
         outputThread.join()
+        diagnostics.phase("flush-output")
         outputStream.flush()
+        diagnostics.phase("finished")
         return when (process.exitValue()) {
             0 -> ExitCode.OK
             1 -> ExitCode.COMPILATION_ERROR
@@ -95,6 +119,29 @@ internal class KotlinCompilerProcessRunner(private val logger: Logger) {
             3 -> ExitCode.SCRIPT_EXECUTION_ERROR
             else -> ExitCode.INTERNAL_ERROR
         }
+    }
+
+    /** Records process termination and output joining separately to identify stalled cleanup. */
+    private fun terminateCompiler(
+        process: Process,
+        outputThread: Thread,
+        diagnostics: KotlinCompilerProcessDiagnostics,
+    ) {
+        diagnostics.phase("terminate-descendants")
+        process.toHandle().descendants().use { descendants ->
+            descendants.forEach { child ->
+                diagnostics.trackDescendant(child)
+                diagnostics.phase("terminate-descendant pid=${child.pid()}")
+                val requested = child.destroyForcibly()
+                diagnostics.terminationResult(child, "destroyForcibly=$requested")
+            }
+        }
+        diagnostics.phase("terminate-compiler")
+        process.destroyForcibly()
+        diagnostics.terminationResult(process.toHandle(), "destroyForcibly returned")
+        diagnostics.phase("wait-output")
+        outputThread.join()
+        diagnostics.phase("finished alive=${process.isAlive}")
     }
 
     companion object {

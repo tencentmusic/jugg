@@ -1,5 +1,8 @@
 package com.sickworm.intellij.jugg.compiler.context
 
+import com.sickworm.intellij.jugg.project.FrameworkJarDetector
+import com.sickworm.intellij.jugg.project.filterEmptyGeneratedJavaSources
+
 import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.google.gson.Gson
 import com.intellij.openapi.diagnostic.Logger
@@ -51,6 +54,23 @@ class BaseCompileContext(
 ): ICompileContext {
 
     private var includedBuildModuleRootPaths = includedBuildModuleRoots.toNormalizedPaths()
+
+    private var frameworkJarPaths = detectFrameworkJars()
+
+    /** Detects compile-only platform stubs once per project model, before source compiler warm-up. */
+    private fun detectFrameworkJars(): Set<String> {
+        val started = System.nanoTime()
+        val candidates = modules.values.filter { it.runtimeLibraryDependencies.isNotEmpty() }.flatMap { module ->
+            val runtimePaths = module.runtimeLibraryDependencies.mapTo(hashSetOf()) { it.file.normalizedPath }
+            module.libraryDependencies.filter { !it.isRes && !it.isAndroidManifest }
+                .map { it.file }.filter { it.normalizedPath !in runtimePaths }
+        }.distinctBy { it.normalizedPath }
+        val detected = candidates.filter { FrameworkJarDetector.containsPlatformClasses(it, logger) }
+            .mapTo(linkedSetOf()) { it.normalizedPath }
+        logger.debug("Framework classpath detection: candidates=${candidates.size}, frameworks=$detected, " +
+                "cost=${(System.nanoTime() - started) / 1_000_000}ms")
+        return detected
+    }
 
     private val tempLibraryDir: File = File(tempModuleDir, "libs")
     private val tempLibraryRecordFile: File = File(tempLibraryDir, "infos.json")
@@ -331,7 +351,8 @@ class BaseCompileContext(
             dependencies.addAll(it.dependencyPaths)
         }
 
-        return dependencies
+        val (frameworks, remaining) = dependencies.partition { File(it).normalizedPath in frameworkJarPaths }
+        return frameworks.distinct() + remaining
     }
 
     /** Source compile classpath of one module: normal Gradle outputs plus its single Gradle R.jar. */
@@ -513,7 +534,7 @@ class BaseCompileContext(
             }
         }
 
-        return dirs
+        return filterEmptyGeneratedJavaSources(dirs, File(tempModule.buildPathInfo.buildDir, "filtered_generated_sources"), logger)
     }
 
     private var desugaredLibraryConfigurationCache: MutableMap<String, String?> = mutableMapOf()
@@ -700,6 +721,7 @@ class BaseCompileContext(
         }
         modules?.let {
             this.modules = HashMap(it)
+            frameworkJarPaths = detectFrameworkJars()
             finalRFiles = getRFiles()
             dynamicFeatureModules = findDynamicFeatureModules() // must run before findApplicationModule
             applicationModule = findApplicationModule()

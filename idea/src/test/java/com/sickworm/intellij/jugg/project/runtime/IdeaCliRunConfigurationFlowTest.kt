@@ -45,19 +45,8 @@ class IdeaCliRunConfigurationFlowTest {
     @get:Rule
     val temporaryFolder = TemporaryFolder()
 
-    private lateinit var originalGlobalRoot: File
-
-    @Before
-    fun isolateGlobalSettings() {
-        TestGlobal.init()
-        originalGlobalRoot = JuggGlobalPathManager.rootDir
-        JuggGlobalPathManager.rootDir = temporaryFolder.newFolder("global-settings")
-    }
-
-    @After
-    fun restoreGlobalSettings() {
-        JuggGlobalPathManager.rootDir = originalGlobalRoot
-    }
+    @get:Rule
+    val settingsFileRule = com.sickworm.intellij.jugg.mock.SettingsFileRule()
 
     @Test
     fun `new project suggestion inherits saved remote settings in idea and shared profile`() {

@@ -204,6 +204,7 @@ class EvalViewMcpToolAction : McpToolAction {
                         })
                     }
                     put("values", valuesData)
+                    if (evalResult.warnings.isNotEmpty()) put("warnings", evalResult.warnings)
                 }
 
                 val errorCount = evalResult.values.count { it.error != null }

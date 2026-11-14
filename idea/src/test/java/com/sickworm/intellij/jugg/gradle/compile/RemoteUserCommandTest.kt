@@ -12,6 +12,40 @@ import java.nio.file.Files
 class RemoteUserCommandTest {
 
     @Test
+    fun `Gradle commands default to plain console and preserve explicit console options`() {
+        val workingDirectory = Files.createTempDirectory("jugg remote gradle").toFile()
+        try {
+            listOf("gradlew", "build.sh").forEach { name ->
+                val script = workingDirectory.resolve(name)
+                script.writeText("#!/bin/sh\nprintf '%s\\n' \"\$@\"\n")
+                assertTrue(script.setExecutable(true))
+            }
+            val commands = mapOf(
+                "./gradlew help" to "help\n--console=plain",
+                "./gradlew help --console=plain" to "help\n--console=plain",
+                "./gradlew help --console=rich" to "help\n--console=rich",
+                "./gradlew help --console plain" to "help\n--console\nplain",
+                "./build.sh help" to "help",
+                "./gradlew help && printf done" to "help\ndone",
+            )
+            commands.forEach { (rawCommand, expectedOutput) ->
+                val command = RemoteUserCommand(workingDirectory.absolutePath, rawCommand)
+                val process = ProcessBuilder("/bin/sh", "-c", command.getCommand(false, false))
+                    .redirectErrorStream(true)
+                    .start()
+                val output = process.inputStream.bufferedReader().readText()
+
+                assertEquals(rawCommand, 0, process.waitFor())
+                assertEquals(rawCommand, 0, output.lineSequence().mapNotNull(command::hasFinishWithResult).single())
+                assertEquals(rawCommand, expectedOutput, output.lineSequence().filter { command.isCanOutput(it, false) }
+                    .joinToString("\n").trim())
+            }
+        } finally {
+            workingDirectory.deleteRecursively()
+        }
+    }
+
+    @Test
     fun `user command is isolated from completion protocol`() {
         val rawCommand = "echo hello # comment\nexit 3\necho '(Jugg) SimpleSshCommand result: 0'"
         val workingDirectory = Files.createTempDirectory("jugg remote ' command")

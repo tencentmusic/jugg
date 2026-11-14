@@ -119,6 +119,13 @@ class GradleProjectInfoReader(
         )
     }
 
+    private fun hasKmpJvmTarget(project: Project): Boolean {
+        if (!project.plugins.hasPlugin("org.jetbrains.kotlin.multiplatform")) return false
+        val kotlin = project.extensions.findByName("kotlin")
+        val targets = readProperty(kotlin, "targets") as? Iterable<*> ?: return false
+        return targets.any { readProperty(it, "platformType")?.toString() == "jvm" }
+    }
+
     private fun getModuleInfo(project: Project): ModuleInfo {
         TraceLogger.start("getModule:${project.standardModuleName}")
         TraceLogger.start("getVar")
@@ -127,6 +134,7 @@ class GradleProjectInfoReader(
             project.plugins.hasPlugin("com.android.library") -> ModuleInfo.Type.Library
             project.plugins.hasPlugin("java-library") -> ModuleInfo.Type.JavaLibrary
             project.plugins.hasPlugin("com.android.dynamic-feature") -> ModuleInfo.Type.DynamicFeature
+            hasKmpJvmTarget(project) -> ModuleInfo.Type.JavaLibrary
             else -> ModuleInfo.Type.Unknown
         }
 
@@ -348,13 +356,16 @@ class GradleProjectInfoReader(
                 annotationProcessorDependencies = annotationProcessorDependencies.filterIsInstance<LibraryDependency>(),
                 kaptDependencies = kaptDependencies.filterIsInstance<LibraryDependency>(),
                 coreLibraryDesugaring = coreLibraryDesugaring.filterIsInstance<LibraryDependency>(),
-                kspDependencies = kspDependencies.filterIsInstance<LibraryDependency>(),
+                kspInfo = kspDependencies.filterIsInstance<LibraryDependency>().takeIf { it.isNotEmpty() }
+                    ?.let { KspInfo(processorDependencies = it) },
             )
         } catch (e: Throwable) {
             println("Jugg: get dependency info for ${project.standardModuleName} failed: $e")
             printException(e)
         }
         TraceLogger.end("getDep")
+
+        moduleInfo = readKspTask(project, moduleInfo)
 
         moduleInfo = moduleInfo.copy(
             composeResourceInfo = getComposeResourceInfo(project, moduleInfo),
@@ -363,6 +374,53 @@ class GradleProjectInfoReader(
 
         TraceLogger.end("getModule:${project.standardModuleName}")
         return moduleInfo
+    }
+
+    /** Reads the selected variant's resolved processor artifacts, including project dependencies. */
+    private fun readKspTask(project: Project, module: ModuleInfo): ModuleInfo {
+        val suffix = module.buildVariant.camelCompat
+        val names = listOf("ksp${suffix}KotlinAndroid", "ksp${suffix}Kotlin") +
+            if (project.plugins.hasPlugin("com.android.kotlin.multiplatform.library")) listOf("kspAndroidMain") else emptyList()
+        val task = names.asSequence().mapNotNull { findTaskByNameWithRetry(project, it) }.firstOrNull() ?: return module
+        return try {
+            val config = readProperty(task, "kspConfig")
+            val ksp2 = config != null
+            val values = readProperty(task, "options")
+            val options = ((if (values is org.gradle.api.provider.Provider<*>) values.orNull else values) as? List<*>)
+                .orEmpty().mapNotNull { option ->
+                    val key = readProperty(option, "key")?.toString() ?: return@mapNotNull null
+                    key to readProperty(option, "value").toString()
+                }
+            val processorFiles = if (ksp2) readKspClasspath(config, "processorClasspath")
+                else options.filter { it.first == "apclasspath" }.flatMap { it.second.split(File.pathSeparator).map(::File) }
+                    .ifEmpty { project.configurations.findByName("${readProperty(task, "name")}ProcessorClasspath")?.files?.toList().orEmpty() }
+            val runtimeFiles = if (ksp2) readKspClasspath(task, "kspClasspath")
+                else readKspClasspath(task, "pluginClasspath")
+            val arguments = if (ksp2) {
+                val value = readProperty(config, "processorOptions")
+                (if (value is org.gradle.api.provider.Provider<*>) value.orNull else value) as? Map<String, String> ?: emptyMap()
+            } else options.filter { it.first == "apoption" && it.second.contains('=') }
+                .associate { it.second.substringBefore('=') to it.second.substringAfter('=') }
+            module.copy(kspInfo = KspInfo(
+                processorDependencies = processorFiles.distinct().map { LibraryDependency(it.name, it) },
+                runtimeDependencies = runtimeFiles.distinct().map { LibraryDependency(it.name, it) },
+                arguments = arguments, useKsp2 = ksp2,
+                languageVersion = readKspVersion(config ?: readProperty(task, "compilerOptions"), "languageVersion"),
+                apiVersion = readKspVersion(config ?: readProperty(task, "compilerOptions"), "apiVersion")))
+        } catch (failure: Throwable) {
+            println("Jugg: cannot read selected KSP task ${readProperty(task, "name")} for ${module.name}: $failure")
+            printException(failure)
+            module
+        }
+    }
+
+    private fun readKspClasspath(owner: Any?, name: String): List<File> =
+        (readProperty(owner, name) as? FileCollection)?.files?.toList().orEmpty()
+
+    private fun readKspVersion(config: Any?, name: String): String? {
+        val value = readProperty(config, name)
+        val resolved = if (value is org.gradle.api.provider.Provider<*>) value.orNull else value
+        return readProperty(resolved, "version")?.toString() ?: resolved?.toString()
     }
 
     /** Reads resolved runtime library artifacts only for modules that contribute final APK contents. */
@@ -835,9 +893,67 @@ class GradleProjectInfoReader(
                 unsupportedReason = reason,
                 configFiles = cppConfig.configFiles,
                 excludedDirs = nativeInputs.excludedDirs,
+                prerequisites = readExternalBuildPrerequisites(project),
             ))
         }
         return result
+    }
+
+    /**
+     * Copies optional codegen contracts declared by the Gradle project. Malformed extra entries are
+     * skipped so a bad project extra cannot hide the native build metadata itself.
+     */
+    @Suppress("UNCHECKED_CAST")
+    private fun readExternalBuildPrerequisites(project: Project): List<ExternalBuildPrerequisite> {
+        val raw = try {
+            val extras = project.extensions.extraProperties
+            if (!extras.has(JUGG_EXTERNAL_BUILD_PREREQUISITES_EXTRA)) {
+                return emptyList()
+            }
+            extras.get(JUGG_EXTERNAL_BUILD_PREREQUISITES_EXTRA)
+        } catch (_: Throwable) {
+            return emptyList()
+        }
+        val entries = raw as? List<*> ?: return emptyList()
+        return entries.mapNotNull { parseExternalBuildPrerequisite(it) }
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun parseExternalBuildPrerequisite(raw: Any?): ExternalBuildPrerequisite? {
+        val entry = raw as? Map<*, *> ?: return null
+        val taskPath = entry["taskPath"]?.toString()?.takeIf { it.isNotEmpty() } ?: return null
+        val triggerGlobs = (entry["triggerGlobs"] as? List<*>).orEmpty()
+            .mapNotNull { it?.toString()?.takeIf(String::isNotEmpty) }
+        if (triggerGlobs.isEmpty()) {
+            return null
+        }
+        val prefixes = (entry["beforeNativeTaskPrefixes"] as? List<*>).orEmpty()
+            .mapNotNull { it?.toString()?.takeIf(String::isNotEmpty) }
+            .ifEmpty { listOf("merge", "buildCMake", "externalNativeBuild") }
+        return ExternalBuildPrerequisite(
+            taskPath = taskPath,
+            triggerGlobs = triggerGlobs,
+            generatedSourceDirs = parseGeneratedSourceDirs(entry["generatedSourceDirs"]),
+            beforeNativeTaskPrefixes = prefixes,
+        )
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun parseGeneratedSourceDirs(raw: Any?): List<ExternalBuildGeneratedSourceDir> {
+        val entries = raw as? List<*> ?: return emptyList()
+        return entries.mapNotNull { element ->
+            val entry = element as? Map<*, *> ?: return@mapNotNull null
+            val directory = when (val value = entry["directory"]) {
+                is File -> value.absoluteFile.normalize()
+                is String -> File(value).absoluteFile.normalize()
+                else -> return@mapNotNull null
+            }
+            val languageName = (entry["language"] ?: entry["type"])?.toString() ?: return@mapNotNull null
+            val language = runCatching {
+                ExternalBuildGeneratedLanguage.valueOf(languageName)
+            }.getOrNull() ?: return@mapNotNull null
+            ExternalBuildGeneratedSourceDir(directory, language)
+        }
     }
 
     /**
@@ -2011,6 +2127,8 @@ class GradleProjectInfoReader(
     }
 
     companion object {
+
+        const val JUGG_EXTERNAL_BUILD_PREREQUISITES_EXTRA = "juggExternalBuildPrerequisites"
 
         /**
          * Builds a synthetic ModuleInfo representing the androidTest source set of [appModuleInfo].

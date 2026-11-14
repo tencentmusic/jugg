@@ -104,7 +104,8 @@ class IdeaDeployEnvironment(
         applicationId: String,
         launchContext: LaunchContext,
         logger: Logger,
+        apks: List<String>,
     ) {
-        CustomApkInstallScriptRunner(project, script, launchContext, logger).run(applicationId)
+        CustomApkInstallScriptRunner(project, script, launchContext, logger).run(applicationId, apks)
     }
 }

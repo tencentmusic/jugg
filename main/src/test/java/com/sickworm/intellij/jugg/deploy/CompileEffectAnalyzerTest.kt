@@ -8,6 +8,7 @@ import com.sickworm.intellij.jugg.compiler.DesugarInfo
 import com.sickworm.intellij.jugg.deploy.data.ClassAnalysisBatch
 import com.sickworm.intellij.jugg.deploy.data.ClassFileParser
 import com.sickworm.intellij.jugg.deploy.data.DeployDataGenerator
+import com.sickworm.intellij.jugg.deploy.data.EffectedClassNode
 import com.sickworm.intellij.jugg.deploy.data.ParsedDex
 import com.sickworm.intellij.jugg.deploy.data.SourceFileManager
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
@@ -17,22 +18,63 @@ import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import com.sickworm.intellij.jugg.mock.AssembleAndroidProjectOnce
 import com.sickworm.intellij.jugg.mock.TestGlobal
+import com.sickworm.intellij.jugg.project.info.LibraryDependency
+import java.io.File
+import java.util.jar.JarEntry
+import java.util.jar.JarOutputStream
+import kotlin.metadata.jvm.JvmMetadataVersion
+import kotlin.metadata.jvm.KmModule
+import kotlin.metadata.jvm.KmPackageParts
+import kotlin.metadata.jvm.KotlinModuleMetadata
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import org.mockito.Mockito
 import org.mockito.kotlin.any
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
-import java.io.File
-import kotlin.test.assertFalse
-import kotlin.test.assertTrue
 
 class CompileEffectAnalyzerTest {
 
     @get:Rule
     val temporaryFolder = TemporaryFolder()
+
+    @Test
+    fun `desugar dependency extraction keeps classes in a dedicated temporary directory`() {
+        val projectDir = temporaryFolder.newFolder("dependency-extraction")
+        val pathManager = JuggPathManager(projectDir)
+        val classPath = "com/sickworm/intellij/jugg/deploy/ClassFileLookupHelper.class"
+        val classBytes = javaClass.getResourceAsStream("/$classPath")!!.use { it.readBytes() }
+        val dependencyJar = File(projectDir, "dependency.jar")
+        JarOutputStream(dependencyJar.outputStream()).use {
+            it.putNextEntry(JarEntry(classPath))
+            it.write(classBytes)
+            it.closeEntry()
+        }
+        val module = ModuleInfo.virtualModule.copy(
+            libraryDependencies = listOf(LibraryDependency("dependency", dependencyJar)),
+        )
+        val generator = mock<DeployDataGenerator>()
+        whenever(generator.getDesugarInfo(any(), any())).thenReturn(
+            DesugarInfo(listOf("Lcom/sickworm/intellij/jugg/deploy/ClassFileLookupHelper;"), emptyMap(), false, null),
+        )
+        val analyzer = CompileEffectAnalyzer(pathManager, generator, mock(), mock())
+        val outputDir = temporaryFolder.newFolder("dependency-classpath")
+
+        analyzer.getDesugarInfo(
+            ClassPreparation(emptyList()), module, mapOf(module.name to module), outputDir, File(projectDir, "base.apk"),
+        )
+
+        assertTrue(File(pathManager.tmpDir, "extracted_classes/$classPath").readBytes().contentEquals(classBytes))
+        assertTrue(File(outputDir, classPath).readBytes().contentEquals(classBytes))
+        assertFalse(File(pathManager.tmpDir, classPath).exists())
+        assertTrue(dependencyJar.isFile)
+    }
 
     @Test
     fun `isBootClasspathClass returns true for java stdlib classes`() {
@@ -314,6 +356,51 @@ class CompileEffectAnalyzerTest {
                 "com/sickworm/jugg/demo/testcase/defaultinterface/ParentOverrideRootClass.class",
             ).exists(),
         )
+    }
+
+    @Test
+    fun `top level facade effects are detected for modern and legacy metadata`() {
+        val versions = listOf(JvmMetadataVersion(1, 1, 16)) + (4..9).map { JvmMetadataVersion(1, it) } +
+            (0..4).map { JvmMetadataVersion(2, it) }
+        versions.forEach { version ->
+            val classpath = temporaryFolder.newFolder()
+            val metadata = KmModule().apply {
+                packageParts["example"] = KmPackageParts(
+                    mutableListOf("example/ExtensionsKt"), mutableMapOf(),
+                )
+            }
+            File(classpath, "META-INF/app.kotlin_module").apply {
+                parentFile.mkdirs()
+                writeBytes(KotlinModuleMetadata(
+                    metadata, version,
+                ).write())
+            }
+            val module = mock<ModuleInfo>(defaultAnswer = Mockito.RETURNS_DEEP_STUBS)
+            whenever(module.buildPathInfo.kotlinClassPath).thenReturn(classpath)
+            val caller = File(classpath, "Caller.kt").apply { writeText("class Caller") }
+            val plain = File(classpath, "Plain.kt").apply { writeText("class Plain") }
+            val generator = mockDeployDataGenerator()
+            whenever(generator.buildDeployData(
+                items = any(), isWarmUp = any(), isNeedCheckRecompile = any(),
+                isNeedCheckRecompileMinifyRemovedClass = any(),
+                isCompilingEffectedSourceFiles = any(), constRefChangedSourcePaths = any(),
+            )).thenReturn(emptyDeployData().copy(effectedClassNodes = listOf(
+                EffectedClassNode(
+                    "Lexample/Caller;", "Caller.kt", listOf("Lexample/ExtensionsKt;"),
+                    EffectedClassNode.EffectedType.SOURCE,
+                ),
+                EffectedClassNode("Lexample/Plain;", "Plain.kt", listOf("Lexample/RegularClass;"),
+                    EffectedClassNode.EffectedType.SOURCE),
+            )))
+
+            val result = newAnalyzer(generator).getRecompileFiles(
+                emptyList(), listOf(caller, plain).map { ChangedFile(CompileFile.Type.Kotlin, it, classpath, module) },
+                emptyMap(), false, false, null,
+            )
+
+            assertEquals(setOf(caller.absolutePath), result.topLevelFacadeEffectedSourcePaths,
+                "Kotlin $version facade effects")
+        }
     }
 
     private fun newAnalyzer(deployDataGenerator: DeployDataGenerator): CompileEffectAnalyzer {

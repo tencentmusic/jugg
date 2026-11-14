@@ -12,6 +12,7 @@ import com.sickworm.intellij.jugg.compiler.context.ICompileEnvironmentSource
 import com.sickworm.intellij.jugg.compiler.ui.TooManyChangesConfirmResult
 import com.sickworm.intellij.jugg.compiler.external.ExternalBuildTarget
 import com.sickworm.intellij.jugg.compiler.external.deriveExternalBuildCommand
+import com.sickworm.intellij.jugg.compiler.external.matchedPrerequisites
 import com.sickworm.intellij.jugg.compiler.external.resolveExternalBuilds
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.api.IDevice
@@ -380,26 +381,7 @@ class JuggCompilerHelper(
                     "isShouldCheck: $isShouldCheck")
 
             if (isShouldCheck) {
-                try {
-                    val startTime = System.currentTimeMillis()
-                    if (uncompiledFiles.size > 100) {
-                        logger.info("Checking files whether is really changed...")
-                    }
-                    val rollbackFiles = deployHistoryManager.filterUnchangedFiles(uncompiledFiles.map { it.file })
-                    if (rollbackFiles.isNotEmpty()) {
-                        logger.debug("Found files rollback, size: ${rollbackFiles.size}, files: ${rollbackFiles.map { it.name }}")
-                        deployFileManager.removeChangedFile(rollbackFiles)
-                    } else {
-                        logger.debug("No files rollback.")
-                    }
-                    val costTime = System.currentTimeMillis() - startTime
-
-                    if (uncompiledFiles.size > 100) {
-                        logger.info("Checking finished, cost ${costTime}ms. Rollback files ${rollbackFiles.size}.")
-                    }
-                } catch (e: Exception) {
-                    logger.debug("Check files whether is really changed failed: ${e.message}", e)
-                }
+                gitFileChangesDetector.rollbackUnchangedFiles(uncompiledFiles)
             }
         }
     }
@@ -408,7 +390,7 @@ class JuggCompilerHelper(
         options: JuggGradleCompileOptions,
         uiHandler: CompileUiHandler,
     ): CompileTaskResult? {
-        val gitRefreshResult = gitFileChangesDetector.refreshChangedFilesIfHeadChanged()
+        val gitRefreshResult = gitFileChangesDetector.refreshFileChangesIfHeadChanged()
         val isLastGradleCompileFailed = deployHistoryManager.isLastFullCompileFailed
         logger.debug("preprocessIncrementalCompile isForceInstall ${uiHandler.isForceGradleCompile}, " +
                 "gitRefreshResult=$gitRefreshResult")
@@ -451,9 +433,12 @@ class JuggCompilerHelper(
             return CompileTaskResult.incrementalFailed(true, reason)
         }
         if (hasExternalBuildSources) {
-            val taskPaths = externalBuildSources.flatMap(::resolveExternalBuildTargets)
-                .mapNotNull { it.buildInfo.taskPath }
-                .distinct()
+            val taskPaths = externalBuildSources.flatMap { source ->
+                resolveExternalBuildTargets(source).flatMap { target ->
+                    matchedPrerequisites(target.buildInfo, listOf(source.file)).map { it.taskPath } +
+                            listOfNotNull(target.buildInfo.taskPath)
+                }
+            }.distinct()
             if (lastCompileCommand == null || deriveExternalBuildCommand(lastCompileCommand, taskPaths) == null) {
                 logger.info("External source changes require a derivable Gradle command, forcing Gradle full compile.")
                 return CompileTaskResult.incrementalFailed(true, "External build command cannot be derived")

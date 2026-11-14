@@ -9,9 +9,11 @@ tags:
 
 # Jugg backend
 
-Jugg can connect to an HTTP backend for centralized plugin upgrades, hot updates, project defaults, usage events, and remote-machine applications. A backend is not required to run Jugg. Local features such as incremental compilation, deployment, CLI, and MCP remain available without one. User-submitted issue logs do not go through this backend.
+Jugg can connect to an HTTP backend for centralized plugin upgrades, hot updates, project defaults, usage events, and remote-machine applications. A backend is not required to run Jugg. Local features such as incremental compilation, deployment, CLI, and MCP remain available without one. When a backend is available, both manual reports and automatic failure-log uploads go to it; without one, automatic uploads are skipped.
 
-Public builds do not include a predefined `servers.json`, so they do not connect to a Jugg backend automatically. Internal teams can use `buildPluginInternal` to package local configuration into the plugin. A Custom Server explicitly configured by the user still takes effect when there is no built-in configuration.
+Public builds from GitHub Releases and JetBrains Marketplace do not include a predefined server list. A fresh public installation without backend configuration does not connect to a backend automatically. Teams can use `buildPluginInternal` to bundle a server list. After an internal build that supports configuration inheritance runs, the IDE remembers that list. Upgrading to a public build then retains the internal defaults, including automatic server selection and backend connections. The list is stored in global IDE settings, so cleaning a project's build directory or opening another project does not remove it. An explicitly configured Custom Server takes priority; clearing it to restore defaults returns to the remembered list.
+
+Configuration inheritance requires running an internal build that supports this behavior at least once. An older installation that has already switched to a public build without retaining a server list cannot recover it automatically from a historical address alone. Available backends continue to receive events and original diagnostic logs according to existing settings. Without an available backend, users can still choose to upload a redacted diagnostic bundle to the public service.
 
 These pages are for teams that need to self-host a backend. They explain which backend features the plugin currently supports, which interfaces form a minimal implementation, and which features are optional enhancements.
 

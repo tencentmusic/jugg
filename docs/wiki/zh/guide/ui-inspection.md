@@ -12,7 +12,7 @@ tags:
 
 Jugg 提供一组面向 Agent 和脚本的 UI 工具，用于导出当前 App 的 View 层级、定位元素、读取 View 属性，以及执行点击、长按、滑动等操作。
 
-这些工具走 App 进程内的 ViewHierarchy 通道，不是 uiautomator dump。公开产物优先是裁剪后的 HTML，方便 Agent 阅读和引用。
+这些工具走 App 进程内的 ViewHierarchy 通道，不是 uiautomator dump。公开产物为稀疏 JSON，可按用途选择交互摘要或保留已采集的 UI 层级。
 
 ## 前置条件
 
@@ -37,9 +37,10 @@ layout-dump
 ## 导出布局
 
 ```bash
-jugg layout-dump
+jugg layout-dump --mode interaction
+jugg layout-dump --mode ui
 jugg layout-dump --root-layout content
-jugg layout-dump --include-gone
+jugg layout-dump --mode ui --include-gone
 jugg layout-dump --all-windows
 ```
 
@@ -47,11 +48,18 @@ jugg layout-dump --all-windows
 
 | 参数 | 用途 |
 |---|---|
+| `--mode` | interaction（默认）用于浏览交互候选；ui 用于布局验证、状态排查和辅助还原 |
 | `--root-layout` | 只导出指定节点子树 |
-| `--include-gone` | 包含 GONE 节点 |
+| `--include-gone` | ui 模式包含 GONE 节点；interaction 仍删除隐藏子树 |
 | `--all-windows` | 导出所有窗口，而不是只看 top window |
 
-输出是 HTML artifact。内部 JSON 仅供 `view-locate`、`view-inspect` 和其它工具实现使用。
+输出为 JSON artifact，文件路径见 `data.file`。`interaction` 在未命中窗口外保留规则时，删除无真实 ID、文本、描述、点击行为或诊断的非根节点，并提升其子节点；`ui` 保留已采集的父子关系和装饰节点。两模式使用相同的字段含义，公开虚拟 ID 简写为 `_vid_<hash>`；旧 `_vir_id_` selector 仍可使用。interaction 先删除 invisible/gone 节点及整个子树（不会提升孩子，`--include-gone` 也不例外），省略 `padding`、`textColor`，并保留 className。ui 在请求的采集范围内保留隐藏节点和视觉字段；GONE 节点仍需 `--include-gone`。
+
+interaction 用 `jugg_details` 伪子节点提示窗口外后代已省略；它不是可点击控件。需要展开时使用 `jugg layout-dump --mode ui --root-layout <id>`。子树请求不做窗口外折叠，部分可见或含窗口内后代、未知几何后代、诊断后代的分支也保留展开。规则与边界见[布局 dump 与 UI 证据](../concepts/layout-dump-and-ui-evidence.md#交互摘要与-ui-层级采用不同节点范围)。
+
+模式不会自动改变窗口、子树、GONE 筛选或采集预算。布局验证使用 `ui`；辅助还原还需要截图、图片资源和源码等证据。
+
+小结果会同时返回完整的 `data.layout` 对象，直接使用即可，无需再读同一文件。大结果保留完整文件，节点之间换行，属性和坐标数组保持紧凑。已知目标时优先使用 `view-locate` 或 `--root-layout`；未知目标时先搜索文件中的文本或 ID，再读取相关行。内联大小条件见 [MCP 工具参考](../reference/mcp-tools.md)。
 
 ## 定位元素
 
@@ -110,11 +118,12 @@ jugg tap --x-percent 50 --y-percent 90
 
 ## Agent 使用建议
 
-- 先 `layout-dump`，再定位或点击。
+- 不熟悉页面时先用 `layout-dump --mode interaction`；已有 selector 时直接定位或元素点击。
+- 验证布局、隐藏状态或辅助还原时使用 `--mode ui`。interaction 的未出现节点和提升后的层级不能证明不存在或真实父子关系。
 - 对文本重复的按钮，优先加 `resource-id` 或 `class-name`。
 - 点击后用 `layout-dump`、`activity-stack` 或 `wait-logs` 验证结果。
 - 不要把隐藏节点当成点击目标；隐藏节点可用于属性检查，但不适合触控。
-- 所有 bounds / padding 坐标以 dp 表示，截图像素以 px 表示，两者需要按 density 换算。
+- 正常采集的 bounds / padding 以 dp 表示，文件 `units` 标明单位；截图像素以 px 表示，两者需要按 density 换算。
 
 ## 常见问题
 

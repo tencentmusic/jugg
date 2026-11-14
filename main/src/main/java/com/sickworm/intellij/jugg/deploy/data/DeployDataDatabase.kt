@@ -428,7 +428,9 @@ class IncrementalDeployDataDatabase(private val logger: Logger) {
             fieldOwnerRefs.getOrPut(it.key.owner) { mutableListOf() }.addAll(it.value)
         }
 
-        val overlayDeployItems = deployedItems.filter { it.type != CompileOutput.Type.Dex }
+        val overlayDeployItems = deployedItems.filter {
+            it.type == CompileOutput.Type.Res || it.type == CompileOutput.Type.Asset
+        }
         overlayDeployItems.forEach {
             deployedOverlays[it.name] = JuggFileInfo(it.name, it.checksum)
         }

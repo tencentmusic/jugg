@@ -67,7 +67,7 @@ Compile/deploy tools return the Host-provided absolute `compile_latest.log` thro
 
 ## 7. ViewHierarchy Boundary
 
-Public `layout-dump`, `view-locate`, `view-inspect`, and `tap` use the app-side ViewHierarchy LocalSocket through `ViewHierarchyClient` and project device transport. There is no uiautomator fallback. The client attempts main-process PID sockets, remaining process sockets, then the legacy `jugg_vh` name. The app server response carries a version; the current client warns on mismatch. A breaking field, type, or semantic change requires a server protocol bump and matching client/documentation update. `layout-dump` publishes HTML; implementation JSON is not a public artifact. Dragonfly supplies both View and Compose nodes; `_vir_id_` for id-less nodes is stable only while hierarchy ordering and structure remain stable.
+Public `layout-dump`, `view-locate`, `view-inspect`, and `tap` use the app-side ViewHierarchy LocalSocket through `ViewHierarchyClient` and project device transport. There is no uiautomator fallback. The client attempts main-process PID sockets, remaining process sockets, then the legacy `jugg_vh` name. The app server response carries a version; the current client warns on mismatch. A breaking field, type, or semantic change requires a server protocol bump and matching client/documentation update. `layout-dump` publishes sparse interaction/ui JSON; internal consumers retain the unpruned JSON. Dragonfly supplies both View and Compose nodes; `_vir_id_` for id-less nodes is stable only while hierarchy ordering and structure remain stable.
 
 `LayoutVerifyMcpToolAction` and `FigmaLayoutVerifyMcpToolAction` exist internally but are absent from `defaultActions()`. Do not advertise them in public MCP/CLI lists until registration, capability exposure, and their documentation agree. The Figma algorithm belongs to `08_mcp_figma_layout_verify_internals.md`.
 
@@ -83,3 +83,9 @@ For skill synchronization, check `SKILL.md` and `references/flow_compile_deploy.
 - `04_engineering_compat.md` — Standalone registration, locks, and idle lifecycle.
 - `08_mcp_layout_verify_design.md` and `08_mcp_figma_layout_verify_internals.md` — UI verification internals.
 - `09_plugin_runtime_debug.md` — log interpretation.
+
+## 10. Updated output and UI evidence boundary
+
+Public layout-dump now returns sparse interaction/ui JSON, optionally inline below the 16 KiB file threshold. Internal layout verification retains unpruned JSON; selector/inspect query the App live. Virtual ID shortening occurs only at the Host boundary, preserving App protocol. See `08_mcp_tools_list.md` for exact pruning/diagnostic contracts.
+
+compile message lists successfully compiled filenames; deploy lists this round's successfully committed filenames as Deployed files (total: N), including previously compiled outputs first deployed now. No output has N=0 plus last-deployment detail when available. Last changed successful deployment time (absolute/relative) and up to 20 filenames are session-only; no session history is reported explicitly. Direct and asynchronous terminal messages agree. Failure/cancel attaches detail/detailLength/optional detailTruncated only if diagnostic output exists; success keeps message/logPath without detail or detail-log artifact.

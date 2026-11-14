@@ -93,6 +93,11 @@ object KotlinCompilerHostCompat {
         return dependencies.any { File(it).name == "android.jar" }
     }
 
+    /** Returns true when project compilers should avoid the IDE process on JDK 25+ hosts. */
+    fun shouldUseIsolatedProcess(hostJavaFeature: Int, isUseProjectCompiler: Boolean): Boolean {
+        return isUseProjectCompiler && hostJavaFeature >= MIN_BROKEN_HOST_JAVA_FEATURE
+    }
+
     /** Returns true for the known project compiler and IDE file-system ownership conflict. */
     fun isIdeFileSystemCloseConflict(message: String): Boolean {
         return message.contains("java.lang.UnsupportedOperationException") &&

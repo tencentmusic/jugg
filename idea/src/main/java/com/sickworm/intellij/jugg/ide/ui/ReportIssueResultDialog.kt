@@ -1,11 +1,13 @@
 package com.sickworm.intellij.jugg.ide.ui
 
+import com.intellij.ide.actions.RevealFileAction
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.util.ui.JBUI
 import com.sickworm.intellij.jugg.diagnostics.IssueReportUploadResult
 import java.awt.BorderLayout
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
+import java.io.File
 import javax.swing.Action
 import javax.swing.JComponent
 import javax.swing.JLabel
@@ -16,6 +18,8 @@ import javax.swing.JPanel
  */
 class ReportIssueResultDialog(
     private val uploadResult: IssueReportUploadResult?,
+    private val serverUrl: String? = null,
+    private val bundleFile: File? = null,
     private val onRetry: (() -> Unit)? = null,
 ) : DialogWrapper(true) {
     init {
@@ -25,16 +29,24 @@ class ReportIssueResultDialog(
     }
 
     override fun createActions(): Array<Action> {
-        if (uploadResult?.isSuccess != false || onRetry == null) {
-            return arrayOf(okAction)
+        val actions = mutableListOf<Action>()
+        if (bundleFile != null) {
+            actions.add(object : DialogWrapperAction("Save to local") {
+                override fun doAction(e: java.awt.event.ActionEvent?) {
+                    RevealFileAction.openFile(bundleFile)
+                }
+            })
         }
-        val retryAction = object : DialogWrapperAction("Retry Upload") {
-            override fun doAction(e: java.awt.event.ActionEvent?) {
-                close(CANCEL_EXIT_CODE)
-                onRetry.invoke()
-            }
+        if (uploadResult?.isSuccess == false && onRetry != null) {
+            actions.add(object : DialogWrapperAction("Retry Upload") {
+                override fun doAction(e: java.awt.event.ActionEvent?) {
+                    close(CANCEL_EXIT_CODE)
+                    onRetry.invoke()
+                }
+            })
         }
-        return arrayOf(retryAction, okAction)
+        actions.add(okAction)
+        return actions.toTypedArray()
     }
 
     override fun createCenterPanel(): JComponent {
@@ -50,11 +62,15 @@ class ReportIssueResultDialog(
     }
 
     override fun doOKAction() {
-        val result = uploadResult?.reportId ?: uploadResult?.errorMessage ?: "Diagnostics bundle saved locally"
         Toolkit.getDefaultToolkit().systemClipboard.setContents(
-            StringSelection("Jugg report: $result"),
+            StringSelection(reportIssueClipboardText(uploadResult, serverUrl)),
             null,
         )
         super.doOKAction()
     }
+}
+
+internal fun reportIssueClipboardText(uploadResult: IssueReportUploadResult?, serverUrl: String?): String {
+    val result = uploadResult?.reportId ?: uploadResult?.errorMessage ?: "Diagnostics bundle saved locally"
+    return "Jugg report: $result" + (serverUrl?.let { "\nServer Url: $it" } ?: "")
 }

@@ -94,3 +94,11 @@ The incremental command marks a baseline `.dirty` on first use and rejects a sec
 - `05_utilities.md` — CLI setup and command portability.
 - `08_mcp_design.md` — MCP validation and tool responses.
 - `03_deploy_core.md` and `03_runtime_jvmti.md` — deployment and runtime effects.
+
+## 8. IDE module-path and local-tool compatibility
+
+Panda first reflectively reads ExternalSystemApiUtil.getExternalProjectPath(Module), accepting nonempty absolute paths, then retains Gradle DSL/content-root/module-file fallback. Its GradleBuildModel.moduleRootDirectory can misidentify source-set main as a Gradle project or retain unresolved settingsDir. Other adapters retain their path rules. Quail/Rabbit non-Android KMP JVM modules can use confirmed GRADLE External System association and absolute path for minimal IdeModuleInfo; do not guess SDK/Manifest/build directory, and keep source-set names. Failed reads debug and omit that module only.
+
+CopyEmbeddedDistributionPaths reflectively checks IdeInfo.isAndroidStudio at its development-path assertion; failed reflection debugs and uses ApplicationInfo productCode AI, while a real false stays false. Installed/downloaded directory search order is unchanged.
+
+Windows tool setup errors distinguish missing tools from start/probe/conversion errors and report controlled paths/reasons/exit codes. Only confirmed missing tools suggest installation/PATH adjustment. Sharing-conflict exit code does not identify an owner. See `04_engineering_project.md` for the one preparation-only retry; neither version probing nor actual rsync transmission is replayed.

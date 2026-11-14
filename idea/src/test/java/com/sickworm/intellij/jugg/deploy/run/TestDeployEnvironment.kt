@@ -14,7 +14,7 @@ class TestDeployEnvironment(
     private val installersRoot: String = "/tmp/installers",
     override val isDirectOverlayEnabled: Boolean = false,
     private val adbFactory: ((IDevice, Logger) -> IDeviceAdb)? = null,
-    private val customApkInstaller: ((String, String, LaunchContext, Logger) -> Unit)? = null,
+    private val customApkInstaller: ((String, String, List<String>, LaunchContext, Logger) -> Unit)? = null,
 ) : IDeployHost {
     override fun installersRoot(): String = installersRoot
     override fun createDeployDebugger(applyChangesExecutor: IApplyChangesExecutor): IDeployDebugger = NoDeployDebugger
@@ -35,8 +35,9 @@ class TestDeployEnvironment(
         applicationId: String,
         launchContext: LaunchContext,
         logger: Logger,
+        apks: List<String>,
     ) {
-        customApkInstaller?.invoke(script, applicationId, launchContext, logger)
-            ?: super.runCustomApkInstall(script, applicationId, launchContext, logger)
+        customApkInstaller?.invoke(script, applicationId, apks, launchContext, logger)
+            ?: super.runCustomApkInstall(script, applicationId, launchContext, logger, apks)
     }
 }

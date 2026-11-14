@@ -23,6 +23,8 @@ LICENSE_SELECTIONS = {
 }.freeze
 
 SPDX_LICENSES = {
+  'MIT, BSD-2-Clause, BSD-3-Clause, zlib, bzip2-1.0.6, Public Domain' =>
+    'MIT AND BSD-2-Clause AND BSD-3-Clause AND Zlib AND bzip2-1.0.6 AND LicenseRef-LZMA-SDK-Public-Domain',
   'Apache-2.0' => 'Apache-2.0',
   'Apache-2.0 WITH LLVM-exception' => 'Apache-2.0 WITH LLVM-exception',
   'Apache-2.0 and BSD-2-Clause; SQLite core is public domain' =>
@@ -60,7 +62,7 @@ LICENSE_REFS = {
 
 def import_components(path)
   rows = CSV.read(path, encoding: 'bom|utf-8')
-  raise "Expected 104 component rows, found #{rows.size}" unless rows.size == 104
+  raise "Expected 108 component rows, found #{rows.size}" unless rows.size == 108
   raise 'Each component row must contain eight fields' unless rows.all? { |row| row.size == 8 }
 
   rows.each do |row|
@@ -83,7 +85,7 @@ end
 
 def load_components
   table = CSV.read(COMPONENTS_FILE, headers: true, encoding: 'utf-8')
-  raise "Expected 104 component rows, found #{table.size}" unless table.size == 104
+  raise "Expected 108 component rows, found #{table.size}" unless table.size == 108
   raise "Unexpected headers: #{table.headers.inspect}" unless table.headers == HEADERS
   raise 'Component inventory contains blank fields' unless table.all? { |row| HEADERS.all? { |header| !row[header].to_s.empty? } }
 
@@ -167,7 +169,7 @@ def write_sbom(rows)
     'dataLicense' => 'CC0-1.0',
     'SPDXID' => 'SPDXRef-DOCUMENT',
     'name' => 'Jugg-third-party-components',
-    'documentNamespace' => "https://jugg.sickworm.com/spdx/third-party-components-#{digest}",
+    'documentNamespace' => "https://tencentmusic.github.io/jugg/?spdx=third-party-components-#{digest}",
     'creationInfo' => {
       'created' => '2026-08-08T00:00:00Z',
       'creators' => ['Tool: tools/generate_third_party_compliance.rb']

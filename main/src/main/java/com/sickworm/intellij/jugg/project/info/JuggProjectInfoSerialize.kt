@@ -23,7 +23,7 @@ class JuggProjectInfoSerialize(
 
     companion object {
 
-        private const val VERSION = 9
+        private const val VERSION = 10
 
         fun serialize(juggProjectInfo: JuggProjectInfo): JuggProjectInfoSerialize {
             val dependencyList = mutableListOf<LibraryDependency>()
@@ -60,7 +60,7 @@ class JuggProjectInfoSerialize(
                         libraryDependencies = emptyList(), runtimeLibraryDependencies = emptyList(),
                         annotationProcessorDependencies = emptyList(), kaptDependencies = emptyList(),
                         kotlinPlugins = emptyList(), kotlinExtensions = emptyList(),
-                        kspDependencies = emptyList(),
+                        kspInfo = null,
                     ),
                     libraryDependencies = convertLibraryToIndexList(it.value.libraryDependencies),
                     runtimeLibraryDependencies = convertLibraryToIndexList(it.value.runtimeLibraryDependencies),
@@ -68,7 +68,13 @@ class JuggProjectInfoSerialize(
                     kaptDependencies = convertLibraryToIndexList(it.value.kaptDependencies),
                     kotlinPlugins = null,
                     kotlinExtensions = null,
-                    kspDependencies = convertLibraryToIndexList(it.value.kspDependencies),
+                    kspInfo = it.value.kspInfo?.let { ksp ->
+                        KspInfoSerialize(
+                            processorDependencies = convertLibraryToIndexList(ksp.processorDependencies),
+                            runtimeDependencies = convertLibraryToIndexList(ksp.runtimeDependencies),
+                            arguments = ksp.arguments, useKsp2 = ksp.useKsp2,
+                            languageVersion = ksp.languageVersion, apiVersion = ksp.apiVersion)
+                    },
                 )
 
                 // covert kotlinPlugins and kotlinExtensions at last, because it has no dependency name
@@ -104,7 +110,13 @@ class JuggProjectInfoSerialize(
                     kaptDependencies = serialize.kaptDependencies?.map { dependencyMap[it]!! } ?: emptyList(),
                     kotlinPlugins = serialize.kotlinPlugins?.map { dependencyMap[it]!!.file } ?: emptyList(),
                     kotlinExtensions = serialize.kotlinExtensions?.map { dependencyMap[it]!!.file } ?: emptyList(),
-                    kspDependencies = serialize.kspDependencies?.map { dependencyMap[it]!! } ?: emptyList(),
+                    kspInfo = serialize.kspInfo?.let { ksp ->
+                        KspInfo(
+                            processorDependencies = ksp.processorDependencies?.map { dependencyMap[it]!! } ?: emptyList(),
+                            runtimeDependencies = ksp.runtimeDependencies?.map { dependencyMap[it]!! } ?: emptyList(),
+                            arguments = ksp.arguments, useKsp2 = ksp.useKsp2,
+                            languageVersion = ksp.languageVersion, apiVersion = ksp.apiVersion)
+                    },
                 )
                 return@associate moduleInfo.name to moduleInfo
             }
@@ -126,7 +138,7 @@ class ModuleInfoSerialize(
     val kaptDependencies: List<Int>?,
     val kotlinPlugins: List<Int>?,
     val kotlinExtensions: List<Int>?,
-    val kspDependencies: List<Int>?,
+    val kspInfo: KspInfoSerialize?,
 ) {
 
     fun update(kotlinPlugins: List<Int>?, kotlinExtensions: List<Int>?): ModuleInfoSerialize {
@@ -134,7 +146,17 @@ class ModuleInfoSerialize(
             moduleInfoExceptLibraries,
             libraryDependencies, runtimeLibraryDependencies,
             annotationProcessorDependencies, kaptDependencies,
-            kotlinPlugins, kotlinExtensions, kspDependencies
+            kotlinPlugins, kotlinExtensions, kspInfo
         )
     }
 }
+
+/** Compact KSP task metadata with classpath references into the snapshot's shared dependency list. */
+class KspInfoSerialize(
+    val processorDependencies: List<Int>?,
+    val runtimeDependencies: List<Int>?,
+    val arguments: Map<String, String>,
+    val useKsp2: Boolean?,
+    val languageVersion: String?,
+    val apiVersion: String?,
+)

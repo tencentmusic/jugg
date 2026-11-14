@@ -81,10 +81,35 @@ data class ExternalBuildInfo(
     val configFiles: List<File> = emptyList(),
     /** Generated output and cache roots owned by the toolchain; never watched as sources. */
     val excludedDirs: List<File> = emptyList(),
+    /**
+     * Optional Gradle tasks that must run before this native build when a changed file matches
+     * [ExternalBuildPrerequisite.triggerGlobs]. Empty for projects that do not declare codegen.
+     */
+    val prerequisites: List<ExternalBuildPrerequisite> = emptyList(),
 ) {
     val isSupported: Boolean
         get() = taskPath != null && nativeOutput != null && unsupportedReason == null &&
                 (type != ExternalBuildType.Flutter || assetsOutputDir != null)
+}
+
+/** Gradle codegen that must run before a native external build when matching sources change. */
+data class ExternalBuildPrerequisite(
+    val taskPath: String,
+    val triggerGlobs: List<String>,
+    val generatedSourceDirs: List<ExternalBuildGeneratedSourceDir> = emptyList(),
+    val beforeNativeTaskPrefixes: List<String> = listOf("merge", "buildCMake", "externalNativeBuild"),
+)
+
+/** Codegen output root that Jugg compiles itself after the prerequisite Gradle task. */
+data class ExternalBuildGeneratedSourceDir(
+    val directory: File,
+    val language: ExternalBuildGeneratedLanguage,
+)
+
+/** Language of files Jugg should compile from a codegen output directory. */
+enum class ExternalBuildGeneratedLanguage {
+    Kotlin,
+    Java,
 }
 
 /** Supported external source toolchains. */
@@ -102,6 +127,8 @@ data class ExternalBuildInfoRequestItem(
     val type: ExternalBuildType,
     val apkOwnerModuleRootDir: File? = null,
     val apkOwnerBuildVariant: String? = null,
+    val prerequisiteTaskPaths: List<String> = emptyList(),
+    val prerequisiteBeforeNativePrefixes: List<String> = emptyList(),
 )
 
 /** Invocation-scoped request consumed by the Gradle init script collector. */
@@ -175,7 +202,7 @@ data class ModuleInfo(
     val isUseCompose: Boolean? = null,
     val isUseViewBinding: Boolean? = null,
     val isUseDataBinding: Boolean? = null,
-    val kspDependencies: List<LibraryDependency>? = null,
+    val kspInfo: KspInfo? = null,
     val instrumentationTargetPackage: String? = null,
     val composeResourceInfo: ComposeResourceInfo? = null,
     /** Effective options declared by Kotlin compiler subplugins for this module. */
@@ -369,10 +396,13 @@ data class ModuleBuildPathInfo(
     // in AGP 8.x, application module has both merged_manifests and merged_manifest directory,
     // so it cannot use to detect application module
     private val applicationMergedManifestDir get() = File(buildDir, "intermediates/merged_manifests/$buildVariant")
+    private val androidTestPackagedManifestDir get() = File(buildDir, "intermediates/packaged_manifests/$buildVariant")
+        .takeIf { buildVariant.endsWith("AndroidTest") }
 
     // compatible with AGP 8.x, which path like merged_manifests/debug/processDebugManifest/AndroidManifest.xml
     // prefer the newest manifest within each directory to avoid stale AGP 7 outputs shadowing the current AGP 8 output
-    val mergedManifest get() = listOf(oldLibraryMergedManifestDir, applicationMergedManifestDir, libraryMergedManifestDir)
+    val mergedManifest get() = listOfNotNull(oldLibraryMergedManifestDir, applicationMergedManifestDir,
+        libraryMergedManifestDir, androidTestPackagedManifestDir)
         .flatMap { it.findManifestCandidates() }
         .newestFile() ?: File(libraryMergedManifestDir, "AndroidManifest.xml")
 
@@ -406,13 +436,13 @@ data class ModuleBuildPathInfo(
 
     // use to fetch all class path after full build
     val allBuildPaths get() = listOf(legacyKotlinClassPath, builtInKotlinClassPath, kmpAndroidKotlinClassPath,
-        kmpJvmKotlinClassPath, javaClassPathNew, javaClassPathOld, rFilePathDir, moduleCompileRFileDir,
+        kmpJvmKotlinClassPath, javaClassPathNew, javaClassPathOld, rFilePathDir, rFilePathDirAgp9, moduleCompileRFileDir,
         kotlinClassPathForJavaLibrary, javaClassPathForJavaLibrary, generatedSourcePath,
         oldLibraryMergedManifestDir, libraryMergedManifestDir, applicationMergedManifestDir, libraryRFileDirInLowAgp,
         dataBindingInfoDir, dataBindingDependencyInfoDir, dataBindingArtifactDir,
         applicationDataBindingIntoTypeDir, libraryDataBindingIntoTypeDir,
         mappingFile, usageFile, aabResGuardMappingFile
-    ) + customClasspathFiles + customSyncFiles
+    ) + listOfNotNull(androidTestPackagedManifestDir) + customClasspathFiles + customSyncFiles
 
     val allBuildPathRelative get() = allBuildPaths.map { it.relativeTo(projectRootDir) }
 

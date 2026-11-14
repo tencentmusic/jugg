@@ -78,3 +78,7 @@ Mapper processing uses Java APT under the current `isFallbackApt = true` policy.
 - Source compilation: `02_compile_source.md`
 - Project-model paths: `04_engineering_project.md`
 - Verification policy: `06_testing.md`
+
+## 8. Multiple resource roots
+
+ResourceCompiler combines this module round's changed layouts before invoking DataBindingGenBaseClassesCompiler once. Repeated per-root DataBindingArgsManager.reset deletes earlier layout-info/source. Last root wins for the same relative layout path (including qualifier directory); passing duplicates directly would let the official generator keep the wrong first layout-info. Return generated sources/trigger once, then compile each root's stripped XML separately. DataBindingResourceRootsCompileFlowTest owns the combined generation/compilation path.

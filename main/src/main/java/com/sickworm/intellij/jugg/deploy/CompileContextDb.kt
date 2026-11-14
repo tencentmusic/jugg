@@ -148,7 +148,8 @@ class CompileContextDb(
                     it.file.copyToBaseDir(it.baseDir, assetDeployedDir)
                 }
                 CompileOutput.Type.NativeLib -> {
-                    // no-op, it has already updated to APK
+                    val nativeDeployedDir = getDeployStorageDir(it.apkPath, CompileOutput.Type.NativeLib)
+                    it.file.copyToBaseDir(it.baseDir, nativeDeployedDir)
                 }
                 else -> {
                     logger.debug("Unknown output type: ${it.type} for file: ${it.file}")
@@ -171,6 +172,7 @@ class CompileContextDb(
 
         val overlayFiles = mutableListOf<CompileOutput>()
         val assetFiles = mutableListOf<CompileOutput>()
+        val nativeFiles = mutableListOf<CompileOutput>()
 
         val apkFileUnits = apkInfosCache?.flatMap { it.files }
         apkFileUnits?.forEach { apkFileUnit ->
@@ -185,15 +187,19 @@ class CompileContextDb(
                 CompileOutput(CompileOutput.Type.Asset, it, assetsDir, apkPath)
             }
             assetFiles.addAll(subAssetFiles)
+            val nativeDir = getDeployStorageDir(apkPath, CompileOutput.Type.NativeLib)
+            nativeFiles.addAll(nativeDir.listFilesRecursively().map {
+                CompileOutput(CompileOutput.Type.NativeLib, it, nativeDir, apkPath)
+            })
         }
-        return dexFiles + overlayFiles + assetFiles
+        return dexFiles + overlayFiles + assetFiles + nativeFiles
     }
 
     private fun getDeployStorageDir(apkPath: String?, type: CompileOutput.Type): File {
-        val baseDirName = if (type == CompileOutput.Type.Asset) {
-            "asset"
-        } else {
-            "res"
+        val baseDirName = when (type) {
+            CompileOutput.Type.Asset -> "asset"
+            CompileOutput.Type.NativeLib -> "native"
+            else -> "res"
         }
         return File(deployedDir, getDeployResDirName(apkPath, baseDirName))
     }

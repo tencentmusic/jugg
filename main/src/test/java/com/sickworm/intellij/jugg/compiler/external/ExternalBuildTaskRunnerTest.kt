@@ -38,6 +38,19 @@ class ExternalBuildTaskRunnerTest {
     }
 
     @Test
+    fun `inserts prerequisite tasks before the native task and preserves Gradle arguments`() {
+        val command = deriveExternalBuildCommand(
+            "./gradlew :app:assembleDebug --offline -Pchannel=demo",
+            listOf(":app:compileMidl", ":app:mergeDebugNativeLibs"),
+        )
+
+        assertEquals(
+            "./gradlew :app:compileMidl :app:mergeDebugNativeLibs --offline -Pchannel=demo",
+            command,
+        )
+    }
+
+    @Test
     fun `rejects compound shell commands`() {
         assertNull(deriveExternalBuildCommand(
             "./gradlew :app:assembleDebug && echo done",

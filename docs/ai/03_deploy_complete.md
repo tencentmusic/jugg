@@ -78,3 +78,7 @@ On full Gradle compilation, `initIncrementalCompileTask()` is called after succe
 - IDE lifecycle: `04_engineering_ide.md`
 - Android test flow: `06_android_test.md`
 - Verification strategy: `06_testing.md` §7.1
+
+## 8. Final-failure diagnostics scope
+
+JuggRunningTask triggers backend-enabled failure upload at most once after the final Run outcome: compile reason/Gradle errorLog, failed-device final reasons, or top-level exception type/message form the exclusion-regex input. Internal retry/multi-device subtasks/intermediate Gradle-fallback failures do not upload separately; eventual success, cancellation, explicit skip-deploy and no-device-without-deployment do not upload. Async diagnostic success/failure does not change RunResult. Current target/redaction/bundle rules are in `05_utilities.md`; the incoming historical claim of a fixed public target is superseded by available-backend-only implementation.

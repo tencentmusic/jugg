@@ -16,6 +16,8 @@ import java.io.File
 
 /** Verifies legacy IDEA property conversion before JSON migration. */
 class IdeaRuntimeSettingsMigrationTest {
+    @get:Rule
+    val settingsFileRule = com.sickworm.intellij.jugg.mock.SettingsFileRule()
 
     @get:Rule
     val temporaryFolder = TemporaryFolder()
@@ -32,6 +34,10 @@ class IdeaRuntimeSettingsMigrationTest {
         whenever(properties.isValueSet("jugg.serverExpireTimeMill")).thenReturn(true)
         whenever(properties.getValue("jugg.serverExpireTimeMill")).thenReturn("123")
 
+        listOf("isEnableNativeSandboxDeploy", "isGradleCompileNoDaemon").forEach { key ->
+            whenever(properties.isValueSet("jugg.$key")).thenReturn(true)
+            whenever(properties.getValue("jugg.$key")).thenReturn("true")
+        }
         val values = readLegacyJuggSettings(properties)
 
         assertEquals(
@@ -40,13 +46,27 @@ class IdeaRuntimeSettingsMigrationTest {
                 "isUseProjectKotlinCompiler",
                 "isEnableCompatibleDeploymentMode",
                 "serverExpireTimeMill",
+                "isEnableNativeSandboxDeploy",
+                "isGradleCompileNoDaemon",
             ),
             values.keys,
         )
         assertTrue(values.getValue("compileOnSave").asBoolean)
+        assertTrue(values.getValue("isEnableNativeSandboxDeploy").asBoolean)
+        assertTrue(values.getValue("isGradleCompileNoDaemon").asBoolean)
         assertFalse(values.getValue("isUseProjectKotlinCompiler").asBoolean)
         assertFalse(values.getValue("isEnableCompatibleDeploymentMode").asBoolean)
         assertEquals(123L, values.getValue("serverExpireTimeMill").asLong)
+    }
+
+    @Test
+    fun `migration preserves inherited backend identity in shared settings`() {
+        val properties = mock<PropertiesComponent>()
+        val rules = "[{\"url\":\"https://backend.example\"}]"
+        whenever(properties.isValueSet("jugg.inheritedServerRulesJson")).thenReturn(true)
+        whenever(properties.getValue("jugg.inheritedServerRulesJson")).thenReturn(rules)
+        assertTrue(JuggSettings.migrateLegacyJuggSettings(properties))
+        assertEquals(rules, JuggSettings.snapshot()["inheritedServerRulesJson"]?.asString)
     }
 
     @Test
@@ -61,18 +81,9 @@ class IdeaRuntimeSettingsMigrationTest {
         whenever(properties.getValue("jugg.compileOnSave")).thenReturn("true")
         whenever(properties.isValueSet("jugg.isConfirmFallbackWhenTooManyChanges")).thenReturn(true)
         whenever(properties.getValue("jugg.isConfirmFallbackWhenTooManyChanges")).thenReturn("false")
-        val oldRootDir = JuggGlobalPathManager.rootDir
-
-        try {
-            JuggGlobalPathManager.rootDir = temporaryFolder.newFolder("success")
-
-            assertTrue(JuggSettings.migrateLegacyJuggSettings(properties))
-
-            assertFalse(JuggSettings.isConfirmFallbackWhenTooManyChanges)
-            verify(properties).setValue(RUNTIME_SETTINGS_MIGRATION_COMPLETED_KEY, true, false)
-        } finally {
-            JuggGlobalPathManager.rootDir = oldRootDir
-        }
+        assertTrue(JuggSettings.migrateLegacyJuggSettings(properties))
+        assertFalse(JuggSettings.isConfirmFallbackWhenTooManyChanges)
+        verify(properties).setValue(RUNTIME_SETTINGS_MIGRATION_COMPLETED_KEY, true, false)
     }
 
     @Test
@@ -80,17 +91,8 @@ class IdeaRuntimeSettingsMigrationTest {
         val properties = mock<PropertiesComponent>()
         whenever(properties.isValueSet("jugg.compileOnSave")).thenReturn(true)
         whenever(properties.getValue("jugg.compileOnSave")).thenReturn("true")
-        val oldRootDir = JuggGlobalPathManager.rootDir
-        val blockedParent = temporaryFolder.newFile("blocked_parent")
-
-        try {
-            JuggGlobalPathManager.rootDir = File(blockedParent, ".jugg")
-
-            assertFalse(JuggSettings.migrateLegacyJuggSettings(properties))
-
-            verify(properties, never()).setValue(RUNTIME_SETTINGS_MIGRATION_COMPLETED_KEY, true, false)
-        } finally {
-            JuggGlobalPathManager.rootDir = oldRootDir
-        }
+        JuggGlobalPathManager.settingsFile.writeText("invalid JSON")
+        assertFalse(JuggSettings.migrateLegacyJuggSettings(properties))
+        verify(properties, never()).setValue(RUNTIME_SETTINGS_MIGRATION_COMPLETED_KEY, true, false)
     }
 }

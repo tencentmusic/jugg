@@ -335,8 +335,8 @@ def verifyThirdPartyCompliance = tasks.register('verifyThirdPartyCompliance') {
 
             def components = zip.getInputStream(zip.getEntry('jugg/third_party/components.csv'))
                     .getText('UTF-8')
-            if (components.readLines().size() != 105) {
-                throw new GradleException('Third-party component inventory must contain one header and 104 entries')
+            if (components.readLines().size() != 109) {
+                throw new GradleException('Third-party component inventory must contain one header and 108 entries')
             }
             ['JavaParser Core,3.17.0,Apache-2.0',
              'juniversalchardet,1.0.3,MPL-1.1',
@@ -351,7 +351,7 @@ def verifyThirdPartyCompliance = tasks.register('verifyThirdPartyCompliance') {
                     .getText('UTF-8'))
             if (sbom.spdxVersion != 'SPDX-2.3' ||
                     sbom.name != 'Jugg-third-party-components' ||
-                    sbom.packages?.size() != 104) {
+                    sbom.packages?.size() != 108) {
                 throw new GradleException('Invalid SPDX SBOM')
             }
         } finally {

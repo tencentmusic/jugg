@@ -34,6 +34,17 @@ Confirm that the command directory contains `gradle/wrapper/gradle-wrapper.prope
 
 Jugg always excludes `.gradle` and `build`. Do not rely on these directories being synchronized between the local and remote environments.
 
+## Q: The remote build succeeds, but the APK is missing resources mapped through symbolic links
+
+If a Gradle script adds a resource directory to a sourceSet only when the directory exists, missing remote resources can still produce a successful build. The problem may appear only at runtime.
+
+When uploading source files, Jugg copies the actual contents of relative symbolic links that point outside the transfer tree and of absolute-path links, supporting shared resources mapped through Repo linkfiles. Relative links inside the transfer tree remain symbolic links. Local links and source contents stay unchanged, and the boundary depends on the current synchronization scope.
+
+1. Confirm that local link targets whose contents must be copied exist and are readable. A missing or unreadable target causes synchronization to fail; restore the resources or read permissions first.
+2. Check whether `Exclude patterns` excludes the mapped directory or files inside it.
+3. Run a full remote build again, confirm that the mapped remote directory contains the actual contents, then check the corresponding resources in the APK.
+4. Confirm that the target variant's sourceSet includes the resources. Resources added only to debug still do not enter release.
+
 ## Q: The remote build succeeds, but the APK cannot be found locally
 
 1. Confirm that the compilation command in the Run Configuration generates the target variant.

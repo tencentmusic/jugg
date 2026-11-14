@@ -12,6 +12,8 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from hook_common import (
+    resolve_hook_client,
+    hook_state_cwd,
     debug_log,
     is_codebuddy_ide_payload,
     is_hook_block_disabled,
@@ -82,11 +84,14 @@ def main() -> int:
 def _main_impl() -> int:
     args = _parse_args()
     payload = read_json_payload()
+    args.client = resolve_hook_client(args.client, payload, "stop.py")
+    if args.client is None:
+        return 0
     client_part = f" client={args.client}" if args.client else ""
     debug_log("JUGG-STOP", f"hook triggered cwd={Path.cwd()}{client_part}")
 
     home = Path.home()
-    cwd = str(Path.cwd())
+    cwd = hook_state_cwd(args.client, payload)
     session_id = extract_session_id(payload)
     state_file = state_file_path(home, cwd, session_id)
     state = read_hook_state(state_file)
@@ -110,7 +115,7 @@ def _main_impl() -> int:
     structured = read_status_snapshot(home, project_cwd, timeout_seconds=10)
     if structured is None:
         debug_log("JUGG-STOP", "exit: project is not available to jugg")
-        if args.client == "antigravity":
+        if args.client in {"cursor", "antigravity"}:
             print(json.dumps({}, ensure_ascii=False))
         return 0
 
@@ -138,13 +143,13 @@ def _main_impl() -> int:
             else "no session write was recorded"
         )
         debug_log("JUGG-STOP", f"exit: allow stop because {reason}")
-        if args.client == "antigravity":
+        if args.client in {"cursor", "antigravity"}:
             print(json.dumps({}, ensure_ascii=False))
         return 0
 
     if is_hook_block_disabled(home):
         debug_log("JUGG-STOP", "exit: allow stop because DISABLE_BLOCK flag is set")
-        if args.client == "antigravity":
+        if args.client in {"cursor", "antigravity"}:
             print(json.dumps({}, ensure_ascii=False))
         return 0
 
@@ -155,7 +160,7 @@ def _main_impl() -> int:
             # If we cannot persist the block count, allow the stop rather than
             # risk blocking indefinitely on every subsequent attempt.
             debug_log("JUGG-STOP", "exit: allow stop because state persistence failed")
-            if args.client == "antigravity":
+            if args.client in {"cursor", "antigravity"}:
                 print(json.dumps({}, ensure_ascii=False))
             return 0
         status_summary = format_status_summary(structured)

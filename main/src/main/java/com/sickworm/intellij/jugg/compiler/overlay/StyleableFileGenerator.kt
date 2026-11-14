@@ -22,13 +22,13 @@ class StyleableFileGenerator(
 ) {
 
     fun generateStyleableFile(context: ICompileContext, outputDir: File, apkFileUnit: ApkFileUnit): File? {
-        val selectedApplicationModule = context.applicationModule
-        if (selectedApplicationModule == null) {
-            logger.warn("generateStyleableFile failed, no application module found")
+        val selectedModule = findResourceModule(context, apkFileUnit)
+        if (selectedModule == null) {
+            logger.warn("generateStyleableFile failed, no resource module found for ${apkFileUnit.apkFile.path}")
             return null
         }
         val modules: List<ModuleInfo> = if (context.isSingleApk || apkFileUnit.isBaseApk) {
-            listOf(selectedApplicationModule)
+            listOf(selectedModule)
         } else {
             context.moduleBelongsApkMap.entries()
                 .filter { it.value.apkFile.path == apkFileUnit.apkFile.path }
@@ -50,22 +50,31 @@ class StyleableFileGenerator(
         return if (rFiles.isNotEmpty()) {
             generateStyleableFile(rFiles, outputDir)
         } else {
-            // low AGP don't have R.jar, it stored in java classpath
-            // won't handle dynamicFeatureModules because I'm lazy to test :)
-            logger.debug("generateStyleableFile by java classpath: ${selectedApplicationModule.buildPathInfo.javaClassPath}")
-
-            val manifestFile = selectedApplicationModule.manifestFile
-            if (manifestFile == null || !manifestFile.exists()) {
-                logger.warn("generateStyleableFile failed, manifest file not found in ${selectedApplicationModule.name}")
-                return null
-            }
-            val packageName = RPackageReader(manifestFile, logger).readPackageName() // we find R package name(namespace) not app package name
-            if (packageName == null) {
-                logger.warn("generateStyleableFile failed, read package name from manifest file ${manifestFile.absolutePath} failed")
-                return null
-            }
-            generateStyleableFile2(selectedApplicationModule.buildPathInfo.javaClassPath, packageName, outputDir)
+            generateStyleableFileFromClasses(selectedModule, outputDir)
         }
+    }
+
+    private fun findResourceModule(context: ICompileContext, apkFileUnit: ApkFileUnit): ModuleInfo? {
+        val isTestApk = context.apkInfos.any { info ->
+            info.isTestApk && info.files.any { it.apkFile.path == apkFileUnit.apkFile.path }
+        }
+        if (!isTestApk) return context.applicationModule
+        // Test APKs also have an empty split name, but own a separate aggregate R.jar.
+        return context.modules.values.find {
+            it.isAndroidTestModule && it.applicationId == apkFileUnit.applicationId
+        }
+    }
+
+    private fun generateStyleableFileFromClasses(module: ModuleInfo, outputDir: File): File? {
+        logger.debug("generateStyleableFile by java classpath: ${module.buildPathInfo.javaClassPath}")
+        // R classes use the namespace; only legacy modules require the source manifest package.
+        val packageName = module.namespace?.takeIf { it.isNotBlank() }
+            ?: module.manifestFile?.takeIf { it.isFile }?.let { RPackageReader(it, logger).readPackageName() }
+        if (packageName == null) {
+            logger.warn("generateStyleableFile failed, resource namespace not found in ${module.name}")
+            return null
+        }
+        return generateStyleableFile2(module.buildPathInfo.javaClassPath, packageName, outputDir)
     }
 
     // compat for R split, see: RJavaFixer

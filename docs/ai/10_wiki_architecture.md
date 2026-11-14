@@ -55,3 +55,11 @@ After successful Pages deployment, `submit-indexnow.mjs` validates the public ke
 
 - `10_wiki_authoring.md` — article content, bilingual mirror, and writing rules.
 - `97_maintenance_manual.md` — current knowledge-base maintenance and placement rules.
+
+## 10. Crawl and AI index publication
+
+public/robots.txt and public/llms.txt copy unchanged to build root. Root hosting serves /robots.txt and /llms.txt; GitHub Pages project hosting serves /jugg/robots.txt and /jugg/llms.txt. Crawlers read only host-root robots, so a project copy cannot govern tencentmusic.github.io; host-root maintainers must merge rules without overriding other projects. Root backend hosting can use the file directly. Public docs/assets remain crawlable; dev paths cover root and /jugg prefixes and production srcExclude still removes dev pages.
+
+llms.txt is a concise Markdown retrieval index with paired English/Chinese public HTML routes, product summary/boundaries and optional external entries. It is not access control, indexing/recommendation proof, or a copy of version/performance tables. rel=describedby follows JUGG_WIKI_BASE; index links align with existing GitHub Pages canonical/sitemap routes. Check paired order/meaning, real targets, root and /jugg builds.
+
+IndexNow main pushes submit changed added/modified/deleted public Markdown URLs, excluding dev-only. New/replaced key or manual Pages run submits all public routes. Unreachable pre-push commit after rewritten history falls back to full submission. HTTP 200/202 means request acceptance, not search indexing. Backend publication uses a separate site/key.

@@ -80,3 +80,7 @@ Before clean, preserve the remote module's `build/kotlin/compileDebugKotlin` and
 ## 5. Finish with observable verification
 
 Preserve the original failure signal and scene, identify the behavior owner, and select automated or manual evidence through `06_testing.md`. After a fix, rerun the affected flow and an unaffected normal path. A new log line is not proof that the user-visible outcome occurred: verify process restart, VM connection, APK/DEX result, or compile/deploy completion at the layer the claim concerns. Apply the counterevidence gate again before closing the investigation.
+
+## 8. Updated first hops
+
+For ROM `cannot access` / `unresolved supertypes`, inspect FrameworkJarDetector compile/runtime path difference, detection candidates/hits/duration and actual classpath, rather than the removed SDK-last retry. Missing runtime metadata disables detection. For isolated compiler timeout/hang, correlate PID phases, minute-two/four CPU/output samples, jcmd/host stacks and ten-second cleanup-stalled snapshots. bytesRead > bytesForwarded plus host Thread.join/wait-output supports output handoff blockage; CPU growth alone proves neither health nor deadlock. Termination result is only a request outcome; compare alive/knownDescendants. Unavailable/failed/timeout stack collection is not proof of no blockage. See `02_compile_source.md` for unchanged join and timeout limitations.

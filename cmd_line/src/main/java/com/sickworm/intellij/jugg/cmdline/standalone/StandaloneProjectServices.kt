@@ -222,6 +222,15 @@ internal class StandaloneProjectServices(
         runningTaskStatusManager.isProjectSwitchedThisRun = false
     }
 
+    fun reportRunFailure(result: RunResult, hasAttemptedDeploy: Boolean) {
+        val config = projectCustomConfigManager.config
+        juggServer.reportRunFailure(
+            result, com.sickworm.intellij.jugg.server.isFailureLogUploadEligible(result, hasAttemptedDeploy),
+            config?.autoUploadFailureLogs == true, config?.autoUploadFailureLogsExcludeRegex,
+            compileContextManager.compileContext.modules.size,
+        )
+    }
+
     fun refreshChangedFiles() {
         if (deployHistoryManager.hasBeenFullCompiled) gitFileChangesDetector.updateChangedFiles()
     }

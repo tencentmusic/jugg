@@ -44,6 +44,7 @@ Clearing app data directly from system settings also removes Jugg's deployment r
 
 ## Related pages
 
+- [Does clearing app data or cache affect incremental compilation?](../troubleshooting/clear-data-and-cache.md)
 - [Run an app](./run.md)
 - [Fall back to Gradle compilation](./downgrade-gradle.md)
 - [Deployment state and recovery](../concepts/deploy-state-recover.md)

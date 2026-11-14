@@ -117,6 +117,29 @@ class TopLevelFlowWithGitTest {
     }
 
     @Test
+    fun runAfterHeadChangeDiscardsRestoredPendingSourceWithoutCompilingIt() {
+        val jugg = createInitializedGitJugg()
+        val source = File(jugg.projectDir, "app/src/main/java/com/example/myapplication/MainActivity2.java")
+        val originalContent = source.readText()
+        try {
+            source.writeText(originalContent + "\n// Pending edit before switching revision.\n")
+            jugg.deployFileManager.addChangedFile(jugg.fileChangesHandler.filter(listOf(source)))
+            assertEquals(listOf(source), jugg.deployFileManager.getUncompiledFiles().map { it.file })
+            GitManager(jugg.projectDir).addAllAndCommit("commit pending source edit")
+            source.writeText(originalContent)
+            GitManager(jugg.projectDir).addAllAndCommit("switch to revision with restored source")
+
+            jugg.deploy()
+
+            assertTrue(jugg.deployFileManager.getUncompiledFiles().isEmpty())
+            assertTrue(jugg.deployFileManager.getCompiledFiles().isEmpty())
+            assertTrue(jugg.deployFileManager.getDeployedFiles().isEmpty())
+        } finally {
+            source.writeText(originalContent)
+        }
+    }
+
+    @Test
     fun recoveryDeployWithGit() {
         val jugg = createInitializedGitJugg()
 

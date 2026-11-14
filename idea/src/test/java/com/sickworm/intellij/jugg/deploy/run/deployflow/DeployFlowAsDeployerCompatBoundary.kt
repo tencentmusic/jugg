@@ -36,6 +36,8 @@ class DeployFlowAsDeployerCompatBoundary(
 
     val optimisticSwapRestartArgs: MutableList<Boolean> = mutableListOf()
 
+    var optimisticSwapFailure: Exception? = null
+
     override fun createInstallSession(
         installersFolder: String,
         device: IDevice,
@@ -82,6 +84,7 @@ class DeployFlowAsDeployerCompatBoundary(
             OptimisticSwapPolicy.RECORD_SUCCESS -> {
                 optimisticSwapInvokeCount++
                 optimisticSwapRestartArgs += argRestart
+                optimisticSwapFailure?.let { throw it }
                 val rawOverlayId = OverlayId.builder(overlayUpdate.cachedDump.overlayId.raw as OverlayId).build()
                 JuggOverlayId(rawOverlayId, rawOverlayId.sha, rawOverlayId.isBaseInstall)
             }

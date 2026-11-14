@@ -216,6 +216,7 @@ const englishSidebar = {
             { text: 'How do I cancel an ongoing Gradle build?', link: '/guide/downgrade-gradle' },
             { text: 'How do I restart only the app?', link: '/guide/restart-app' },
             { text: 'How do I clear app data and reinstall?', link: '/guide/clean-data' },
+            { text: 'Does clearing app data or cache affect incremental compilation?', link: '/troubleshooting/clear-data-and-cache' },
             { text: 'How do I export an incremental APK?', link: '/guide/export-incremental-apk' },
             { text: 'Which packaging methods are supported?', link: '/troubleshooting/supported-packaging' }
           ]
@@ -533,6 +534,7 @@ const chineseSidebar = {
             { text: '如何取消已经开始的 Gradle 编译？', link: '/zh/guide/downgrade-gradle' },
             { text: '如何只重启 App？', link: '/zh/guide/restart-app' },
             { text: '如何清数据并重装？', link: '/zh/guide/clean-data' },
+            { text: '清除 App 数据或缓存会影响增量编译吗？', link: '/zh/troubleshooting/clear-data-and-cache' },
             { text: '如何导出增量 APK？', link: '/zh/guide/export-incremental-apk' },
             { text: '支持哪些打包方式？', link: '/zh/troubleshooting/supported-packaging' }
           ]
@@ -644,6 +646,7 @@ export default defineConfig({
   title: 'Jugg Wiki',
   description: 'User documentation for Jugg',
   head: [
+    ['link', { rel: 'describedby', href: `${wikiBase}llms.txt`, type: 'text/plain' }],
     ['script', { async: '', src: `https://www.googletagmanager.com/gtag/js?id=${GA_ID}` }],
     [
       'script',

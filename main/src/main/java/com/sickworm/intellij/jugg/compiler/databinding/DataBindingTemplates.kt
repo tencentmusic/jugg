@@ -13,6 +13,23 @@ class DataBindingTemplates(isUseAndroidX: Boolean) {
         fullMapperFile.writeText(originText)
     }
 
+    /**
+     * Testable twin of the merge algorithm emitted by the generated mapper's
+     * collectDependencies(): concatenate the dependency lists reported by the whole incremental
+     * chain and by the baseline, deduplicated while keeping the first seen order.
+     */
+    fun <T> mergeDependencies(incLists: List<List<T>?>, originList: List<T>?): List<T> {
+        val result = mutableListOf<T>()
+        (incLists + originList).forEach { list ->
+            list?.forEach { mapper ->
+                if (!result.contains(mapper)) {
+                    result.add(mapper)
+                }
+            }
+        }
+        return result
+    }
+
     val holderTemplate = if (isUseAndroidX) {
         """
 package _package_name_holder_;
@@ -111,15 +128,28 @@ public class DataBinderMapperImpl extends DataBinderMapper {
 
     @Override
     public List<DataBinderMapper> collectDependencies() {
+        List<DataBinderMapper> dependantMappers = new java.util.ArrayList<DataBinderMapper>();
         if (incDataBinderMapperArray.length > 0) {
             for (DataBinderMapper inc: incDataBinderMapperArray) {
                 List<DataBinderMapper> list = inc.collectDependencies();
                 if (list != null) {
-                    return list;
+                    for (DataBinderMapper mapper: list) {
+                        if (!dependantMappers.contains(mapper)) {
+                            dependantMappers.add(mapper);
+                        }
+                    }
                 }
             }
         }
-        return origin.collectDependencies();
+        List<DataBinderMapper> originList = origin.collectDependencies();
+        if (originList != null) {
+            for (DataBinderMapper mapper: originList) {
+                if (!dependantMappers.contains(mapper)) {
+                    dependantMappers.add(mapper);
+                }
+            }
+        }
+        return dependantMappers;
     }
 }
         """
@@ -192,15 +222,28 @@ public class DataBinderMapperImpl extends DataBinderMapper {
 
     @Override
     public List<DataBinderMapper> collectDependencies() {
+        List<DataBinderMapper> dependantMappers = new java.util.ArrayList<DataBinderMapper>();
         if (incDataBinderMapperArray.length > 0) {
             for (DataBinderMapper inc: incDataBinderMapperArray) {
                 List<DataBinderMapper> list = inc.collectDependencies();
                 if (list != null) {
-                    return list;
+                    for (DataBinderMapper mapper: list) {
+                        if (!dependantMappers.contains(mapper)) {
+                            dependantMappers.add(mapper);
+                        }
+                    }
                 }
             }
         }
-        return origin.collectDependencies();
+        List<DataBinderMapper> originList = origin.collectDependencies();
+        if (originList != null) {
+            for (DataBinderMapper mapper: originList) {
+                if (!dependantMappers.contains(mapper)) {
+                    dependantMappers.add(mapper);
+                }
+            }
+        }
+        return dependantMappers;
     }
 }
         """

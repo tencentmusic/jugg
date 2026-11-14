@@ -50,7 +50,7 @@ abstract class BaseKotlinJuggAptProcessor : BaseJuggAptProcessor() {
 
     protected fun parseKotlinContent(fileName: String, content: String): KtFile? {
         return try {
-            psiFactory.createFile(fileName, content)
+            parseSnapshot(fileName, content)
         } catch (_: Throwable) {
             null
         }
@@ -349,7 +349,10 @@ abstract class BaseKotlinJuggAptProcessor : BaseJuggAptProcessor() {
         return name.firstOrNull()?.isUpperCase() == true
     }
 
-    private companion object {
+    internal companion object {
+        fun parseSnapshot(fileName: String, content: String): KtFile =
+            synchronized(psiFactory) { psiFactory.createFile(fileName, content) }
+
         private val ownerTextRegex = Regex("^[A-Za-z_][A-Za-z0-9_$.]*$")
         private val disposable: Disposable = Disposer.newDisposable()
         private val psiFactory: KtPsiFactory by lazy {

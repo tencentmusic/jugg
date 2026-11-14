@@ -35,6 +35,7 @@ class JuggPathManager(
     val deploymentCacheTempFile = File(databaseDir, "deploy_cache.db.tmp")
 
     val tmpDir = File(juggRootDir, "tmp")
+    val extractedClassesDir = File(tmpDir, "extracted_classes")
     val diagnosticsDir = File(tmpDir, "diagnostics")
     val remoteDiffDir = File(tmpDir, "diff")
     val remoteDiffLibraryDir = File(remoteDiffDir, "libraries")

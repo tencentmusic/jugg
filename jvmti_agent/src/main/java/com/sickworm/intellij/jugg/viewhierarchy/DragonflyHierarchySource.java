@@ -11,6 +11,8 @@ import android.widget.TextView;
 
 import com.sickworm.intellij.jugg.hotfix.LogUtils;
 import com.sickworm.intellij.jugg.internal.dragonfly.Dragonfly;
+import com.sickworm.intellij.jugg.internal.dragonfly.adapter.ComposeAdapterKt;
+import com.sickworm.intellij.jugg.internal.dragonfly.adapter.IComposeAdapter;
 import com.sickworm.intellij.jugg.internal.dragonfly.extractor.ViewExtractorKt;
 import com.sickworm.intellij.jugg.internal.dragonfly.node.HierarchyNode;
 import com.sickworm.intellij.jugg.internal.dragonfly.node.android.WindowNode;
@@ -42,17 +44,42 @@ public class DragonflyHierarchySource {
     private static final String VIRTUAL_ID_PREFIX = "_vir_id_";
 
     private boolean composeEnabled;
+    private String composeFailure = "";
 
     /**
      * Capture the current top window or all windows in top-to-bottom order.
      */
     public Snapshot capture(boolean topWindowOnly) {
-        List<WindowNode> windows = extractWindows(topWindowOnly);
-        if (!composeEnabled && containsComposeView(windows) && Dragonfly.enableComposeExtract()) {
-            composeEnabled = true;
-            windows = extractWindows(topWindowOnly);
+        return buildSnapshot(extractWindows(topWindowOnly));
+    }
+
+    /** Enable inspection before Dragonfly initializes its lazy adapter; callers yield a frame. */
+    View prepareCompose() {
+        if (composeEnabled || !composeFailure.isEmpty()) {
+            return null;
         }
-        return buildSnapshot(windows);
+        for (View root : getFallbackRootViews()) {
+            View host = findComposeHost(root, 0);
+            if (host == null) {
+                continue;
+            }
+            try {
+                LogUtils.i(TAG, "Compose host loader=" + host.getClass().getClassLoader() +
+                        ", Dragonfly loader=" + Dragonfly.class.getClassLoader());
+                IComposeAdapter adapter = ComposeAdapterKt.getComposeAdapter();
+                if (adapter == null) {
+                    throw new IllegalStateException("Compose adapter unavailable in " + Dragonfly.class.getClassLoader());
+                }
+                adapter.enableSourceInformation();
+                composeEnabled = true;
+                return root;
+            } catch (Throwable throwable) {
+                composeFailure = "Compose initialization failed: " + throwable;
+                LogUtils.w(TAG, composeFailure + "\n" + android.util.Log.getStackTraceString(throwable));
+                return null;
+            }
+        }
+        return null;
     }
 
     /**
@@ -303,6 +330,12 @@ public class DragonflyHierarchySource {
         );
         elements.add(element);
 
+        if (isComposeHost(androidView(hierarchyNode)) && node.message.isEmpty()
+            && !(hierarchyNode instanceof com.sickworm.intellij.jugg.internal.dragonfly.node.android.ComposeViewNode)) {
+            node.message = composeFailure.isEmpty()
+                ? "Compose host has no extracted content; it may be empty or tooling may be unavailable."
+                : composeFailure;
+        }
         List<CapturedNode> children = new ArrayList<>();
         if (!overNodeLimit && !overDepthLimit) {
             List<HierarchyNode> hierarchyChildren = safeChildren(hierarchyNode);
@@ -340,6 +373,7 @@ public class DragonflyHierarchySource {
         node.alpha = parseFloat(properties.get("alpha"), 1.0f);
         node.clickable = parseBoolean(properties.get("clickable"), false);
         node.enabled = parseBoolean(properties.get("enabled"), true);
+        node.message = firstValue(properties, "error", "warning");
         parseBounds(properties.get("bounds"), node.bounds);
         parsePadding(properties.get("padding"), node.padding);
         node.textColor = parseColor(properties.get("textColor"));
@@ -389,32 +423,30 @@ public class DragonflyHierarchySource {
         }
     }
 
-    private boolean containsComposeView(List<? extends HierarchyNode> windows) {
-        Class<?> composeViewClass;
-        try {
-            composeViewClass = Class.forName("androidx.compose.ui.platform.AbstractComposeView");
-        } catch (Throwable ignored) {
-            return false;
-        }
-        for (HierarchyNode window : windows) {
-            if (containsViewType(window, composeViewClass)) {
+    private boolean isComposeHost(View view) {
+        for (Class<?> type = view == null ? null : view.getClass(); type != null; type = type.getSuperclass()) {
+            if ("androidx.compose.ui.platform.AbstractComposeView".equals(type.getName())) {
                 return true;
             }
         }
         return false;
     }
 
-    private boolean containsViewType(HierarchyNode node, Class<?> viewClass) {
-        View view = androidView(node);
-        if (viewClass.isInstance(view)) {
-            return true;
+    private View findComposeHost(View view, int depth) {
+        if (isComposeHost(view)) {
+            return view;
         }
-        for (HierarchyNode child : safeChildren(node)) {
-            if (containsViewType(child, viewClass)) {
-                return true;
+        if (!(view instanceof ViewGroup) || depth >= MAX_DEPTH) {
+            return null;
+        }
+        ViewGroup group = (ViewGroup) view;
+        for (int index = 0; index < group.getChildCount(); index++) {
+            View found = findComposeHost(group.getChildAt(index), depth + 1);
+            if (found != null) {
+                return found;
             }
         }
-        return false;
+        return null;
     }
 
     private View androidView(HierarchyNode node) {
@@ -599,6 +631,16 @@ public class DragonflyHierarchySource {
             this.truncated = truncated;
         }
 
+        List<String> warnings() {
+            List<String> warnings = new ArrayList<>();
+            for (MatchedElement element : elements) {
+                if (!element.node.message.isEmpty() && !warnings.contains(element.node.message)) {
+                    warnings.add(element.node.message);
+                }
+            }
+            return warnings;
+        }
+
         static Snapshot empty() {
             return new Snapshot(Collections.emptyList(), Collections.emptyList(), false);
         }
@@ -655,12 +697,17 @@ public class DragonflyHierarchySource {
 
         private JSONObject buildFullJson(boolean excludeGone) throws JSONException {
             JSONArray windowsJson = new JSONArray();
+            List<String> warnings = new ArrayList<>();
             for (CapturedWindow window : windows) {
                 windowsJson.put(window.toJson(excludeGone));
+                if (window.root != null) window.root.collectWarnings(warnings, excludeGone);
             }
             JSONObject data = new JSONObject();
             data.put("windows", windowsJson);
             data.put("truncated", truncated);
+            if (!warnings.isEmpty()) {
+                data.put("warnings", new JSONArray(warnings));
+            }
             appendDeviceInfo(data);
             return data;
         }
@@ -671,6 +718,8 @@ public class DragonflyHierarchySource {
             boolean excludeGone
         ) throws JSONException {
             ViewNode root = target.toViewNode(excludeGone);
+            List<String> warnings = new ArrayList<>();
+            target.collectWarnings(warnings, excludeGone);
             JSONObject window = new JSONObject();
             window.put("windowType", "subtree");
             window.put("title", rootId);
@@ -680,6 +729,9 @@ public class DragonflyHierarchySource {
             data.put("windows", new JSONArray().put(window));
             data.put("truncated", truncated);
             data.put("rootLayout", rootId);
+            if (!warnings.isEmpty()) {
+                data.put("warnings", new JSONArray(warnings));
+            }
             appendDeviceInfo(data);
             return data;
         }
@@ -790,6 +842,13 @@ public class DragonflyHierarchySource {
                 }
             }
             return null;
+        }
+
+        private void collectWarnings(List<String> warnings, boolean excludeGone) {
+            if (excludeGone && "gone".equals(element.visibility)) return;
+            String message = element.node.message;
+            if (!message.isEmpty() && !warnings.contains(message)) warnings.add(message);
+            for (CapturedNode child : children) child.collectWarnings(warnings, excludeGone);
         }
 
         private ViewNode toViewNode(boolean excludeGone) {

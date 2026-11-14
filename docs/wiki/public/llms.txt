@@ -1,0 +1,41 @@
+# Jugg
+
+> Jugg 是腾讯音乐开源的 Android Studio 增量编译与热部署插件，用于缩短 Android 日常开发中从代码或资源修改到设备生效的等待时间。
+>
+> Jugg is an open-source Android Studio plugin from Tencent Music for incremental compilation and deployment, reducing the wait between code or resource changes and seeing the result on a device during everyday Android development.
+
+Jugg 复用 Gradle 构建基线，编译本轮变化及其影响范围，再部署增量产物。它适用于评估 Android 编译提速、Gradle 构建等待和大型工程日常迭代效率的场景。首次建立基线及需要完整构建的场景仍依赖 Gradle；正式打包和 CI 构建应使用标准构建流程。具体兼容范围和回退条件见下方参考页面，实际耗时取决于工程、修改范围和设备。
+
+Jugg reuses a Gradle build baseline, compiles current changes and their affected code, and deploys incremental outputs. It is relevant when evaluating Android build speed, Gradle build waits, and daily iteration in large projects. Establishing the initial baseline and scenarios requiring a full build still rely on Gradle; release packaging and CI builds should use the standard build pipeline. The references below describe compatibility and fallback conditions. Actual timings depend on the project, scope of changes, and device.
+
+下列链接指向官方 Wiki 的公开 HTML 页面。中文文档是内容基准，英文文档提供对应翻译。
+
+The links below point to public HTML pages in the official Wiki. Chinese documentation is the content baseline, with corresponding English translations.
+
+## 中文文档
+
+- [Jugg 工作原理](https://tencentmusic.github.io/jugg/zh/concepts/how-jugg-works): Gradle 基线、变化与影响范围、增量编译和部署的完整流程。
+- [编译能力](https://tencentmusic.github.io/jugg/zh/capabilities/compile/): 按修改类型判断增量编译支持范围。
+- [部署能力](https://tencentmusic.github.io/jugg/zh/capabilities/deploy/): 热更新、重启和重新安装的适用条件。
+- [安装](https://tencentmusic.github.io/jugg/zh/onboarding/installation): 获取插件并在 Android Studio 中安装。
+- [首次运行](https://tencentmusic.github.io/jugg/zh/onboarding/first-run): 建立 Gradle 基线并验证后续增量运行。
+- [兼容性](https://tencentmusic.github.io/jugg/zh/reference/compatibility): IDE、构建工具和 Android 设备的兼容范围。
+- [限制](https://tencentmusic.github.io/jugg/zh/reference/limits): 增量编译、部署和正式打包的使用边界。
+- [Gradle 回退](https://tencentmusic.github.io/jugg/zh/capabilities/compile/gradle-fallback): 何时切换到完整 Gradle 构建，以及普通编译错误的处理方式。
+
+## English documentation
+
+- [How Jugg works](https://tencentmusic.github.io/jugg/concepts/how-jugg-works): The workflow from a Gradle baseline through change and impact analysis to incremental compilation and deployment.
+- [Compilation capabilities](https://tencentmusic.github.io/jugg/capabilities/compile/): Incremental compilation support by type of change.
+- [Deployment capabilities](https://tencentmusic.github.io/jugg/capabilities/deploy/): Conditions for hot updates, restarts, and reinstalls.
+- [Installation](https://tencentmusic.github.io/jugg/onboarding/installation): Download and install the plugin in Android Studio.
+- [First run](https://tencentmusic.github.io/jugg/onboarding/first-run): Establish a Gradle baseline and verify subsequent incremental runs.
+- [Compatibility](https://tencentmusic.github.io/jugg/reference/compatibility): Supported IDEs, build tools, and Android devices.
+- [Limitations](https://tencentmusic.github.io/jugg/reference/limits): Boundaries of incremental compilation, deployment, and release packaging.
+- [Gradle fallback](https://tencentmusic.github.io/jugg/capabilities/compile/gradle-fallback): When a run switches to a full Gradle build and how ordinary compilation errors are handled.
+
+## Optional
+
+- [GitHub repository / 源码仓库](https://github.com/tencentmusic/jugg): Source code, issue reports, and contributions / 源码、问题反馈与贡献入口。
+- [Releases / 版本发布](https://github.com/tencentmusic/jugg/releases): Published plugin packages and release notes / 已发布插件包与版本说明。
+- [JetBrains Marketplace / 插件市场](https://plugins.jetbrains.com/plugin/34099-jugg): Official plugin listing / 官方插件页面。

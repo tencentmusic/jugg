@@ -18,6 +18,7 @@ package com.sickworm.intellij.jugg.deploy.run.applychanges
 import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.apk.ApkInfo
+import com.sickworm.intellij.jugg.deploy.nativesandbox.NativeLibraryDelta
 import com.sickworm.intellij.jugg.deploy.run.IJuggDeployerDeploymentService
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.deploy.run.JuggClassRedefiner
@@ -39,6 +40,7 @@ import java.io.File
 class JuggDeployTask(
     private val type: AndroidDeployType,
     private val data: JuggDeployData,
+    private val nativeLibraryDelta: NativeLibraryDelta,
     private val deploymentService: IJuggDeployerDeploymentService,
     private val logger: Logger = Logger.getInstance(JuggDeployTask::class.java),
 ) {
@@ -53,6 +55,7 @@ class JuggDeployTask(
         val deployType = if (type == AndroidDeployType.INSTALL) "Install" else "Apply Changes"
         val deployer = JuggDeployer(
             launchContext = launchContext,
+            nativeLibraryDelta = nativeLibraryDelta,
             deploymentService = deploymentService,
             logger = logger,
             applyChangesExecutor = applyChangesExecutor,

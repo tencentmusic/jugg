@@ -1,6 +1,8 @@
 package com.sickworm.intellij.jugg.deploy.run
 
 import com.google.gson.Gson
+import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestApkSelector
+import java.io.File
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.JuggException
 import com.sickworm.intellij.jugg.JuggInternalException
@@ -9,6 +11,7 @@ import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.compiler.context.CompileContextManager
 import com.sickworm.intellij.jugg.compiler.jarDexFileName
 import com.sickworm.intellij.jugg.deploy.AdbCmdHelper
+import com.sickworm.intellij.jugg.deploy.nativesandbox.NativeLibraryDelta
 import com.sickworm.intellij.jugg.deploy.AppAbiCache
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
@@ -105,7 +108,22 @@ class JuggDeployOrchestrator(
             request, androidDeployType, launchResult, isNeedRestartApp,
             baseLaunchContext, composeResourceRestartHelper, isNeedSecondComposeResourceRestart,
         )?.let { return it }
-        checkJvmti(device, data, launchResult, isNeedPushAgentAfterDeploy, isNeedRestartApp)
+        val launchedPackageName = when {
+            request.androidTestRunSpec != null -> {
+                val projectInfo = compileContextManager.getProjectInfo()
+                // Use the launch owner's source-aware selector, including its no-target result.
+                AndroidTestApkSelector.select(
+                    request.androidTestRunSpec, data.apks,
+                    projectInfo.modules.values.firstOrNull()?.projectRootDir
+                        ?: File(request.androidTestRunSpec.sourcePath.orEmpty()).parentFile ?: File("."),
+                    projectInfo.modules.values,
+                )?.instrumentationTargetPackage
+            }
+            request.deferPostDeployLaunch -> null
+            isNeedRestartApp || androidDeployType == AndroidDeployType.INSTALL -> deployTargetManager.getPackageName()
+            else -> null
+        }
+        checkJvmti(device, data, launchResult, isNeedPushAgentAfterDeploy, isNeedRestartApp, launchedPackageName)
         logger.debug("runTask end")
         isRunning = false
         launchResult
@@ -119,6 +137,7 @@ class JuggDeployOrchestrator(
         TimeLogger.start("deploy_to_device")
         lateinit var launchResult: LaunchResult
         var successfulSliceCount = 0
+        val nativeLibraryDelta = NativeLibraryDelta(baseLaunchContext.compileUiHandler, logger, deployHistoryManager)
         dataList.forEachIndexed { index, splitData ->
             if (dataList.size > 1) TimeLogger.start("deploy_to_device_slice$index")
             val classCount = splitData.newClasses.size + splitData.hotFixModifiedClasses.size +
@@ -127,7 +146,7 @@ class JuggDeployOrchestrator(
             try {
                 val launchContext = baseLaunchContext.withSkipExceptOverlayCheck(request.isSkipExceptOverlayCheck || index != 0)
                 val task = JuggDeployTask(
-                    androidDeployType.forDeploySlice(index, dataList.lastIndex), splitData, deploymentService, logger,
+                    androidDeployType.forDeploySlice(index, dataList.lastIndex), splitData, nativeLibraryDelta, deploymentService, logger,
                 )
                 launchResult = task.run(launchContext)
                 if (!launchResult.success) throw JuggException.applyChangesFailed(launchResult)
@@ -263,12 +282,12 @@ class JuggDeployOrchestrator(
 
     private fun checkJvmti(
         device: IDevice, data: JuggDeployData, launchResult: LaunchResult,
-        isNeedPushAgentAfterDeploy: Boolean, isNeedRestartApp: Boolean,
+        isNeedPushAgentAfterDeploy: Boolean, isNeedRestartApp: Boolean, launchedPackageName: String?,
     ) {
         TimeLogger.start("check_jvmti")
-        if (isNeedPushAgentAfterDeploy && isNeedRestartApp) {
+        if (isNeedPushAgentAfterDeploy && isNeedRestartApp && launchedPackageName != null) {
             val adb = environment.createDeviceAdb(device, logger)
-            if (JuggJvmtiAgentManagerHelper(logger).isHasJvmtiCompatIssue(adb, data) && !data.isCompatDeploy) {
+            if (JuggJvmtiAgentManagerHelper(logger).isHasJvmtiCompatIssue(adb, data, launchedPackageName) && !data.isCompatDeploy) {
                 juggServer.report {
                     action = "jvmti_compat_issue"
                     detail = Gson().toJson(mapOf("device" to adb.displayName, "application" to data.apks.firstOrNull()?.applicationId))

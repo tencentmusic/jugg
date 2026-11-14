@@ -52,7 +52,7 @@ Jugg 在部署前比较新旧 class 结构，并把 class 变化交给 Apply Cha
 
 首次向某个部署基线发送资源 overlay 时，Jugg 会补齐完整资源集合。设备端此前没有可复用的资源 overlay，只发送单个变化文件无法构成完整的新资源视图。后续部署已经有可信资源状态时，才继续叠加本轮差异。
 
-Manifest 和 native lib 不走普通 overlay。它们需要成为安装包内容时，会进入[APK 更新与安装](./apk-update-and-install.md)路径。
+Manifest 和配套资源表需要写回安装包，进入[APK 更新与安装](./apk-update-and-install.md)路径。native lib 在 SO hot update 开启时进入 overlay，并在重启 App 后加载；关闭时才进入 APK 更新路径。详见 [so 更新](../capabilities/compile/so-update.md)。
 
 ## Code Swap 和 Full Swap 的区别
 
@@ -75,9 +75,12 @@ warm-up、状态探测或不需要界面刷新的特殊调用可以使用不重�
 - 兼容部署中只在重启后读取的 overlay；
 - APK 根目录的 classpath resource；
 - Compose 资源等具有进程级缓存的内容；
+- 本轮部署中的 ARouter 注册索引；
 - 用户开启“部署后始终重启”，或从 Debug 入口运行。
 
 这些场景仍可使用本轮增量编译产物，但新进程需要重新建立 ClassLoader、Resources 或运行时缓存。具体加载方式见[App 进程内 Jugg runtime](./jugg-runtime.md)和[兼容部署](./compat-deploy.md)。
+
+ARouter 会把生成索引中的注册信息加载到进程级缓存。在线替换索引的方法体、重建 Activity，都不会重新建立已经加载的路由映射。因此 Jugg 在部署这些索引后重启 App，即使索引的 class 结构允许在线替换。触发范围与保守重启边界见 [Restart](../capabilities/deploy/restart.md)。
 
 ## 相关页面
 

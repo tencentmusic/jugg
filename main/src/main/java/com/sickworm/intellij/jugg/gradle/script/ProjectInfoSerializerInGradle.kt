@@ -84,7 +84,7 @@ class ProjectInfoSerializerInGradle(private val dataFile: File) {
                         it["kaptDependencies"] as? List<Int>,
                         it["kotlinPlugins"] as? List<Int>,
                         it["kotlinExtensions"] as? List<Int>,
-                        it["kspDependencies"] as? List<Int>,
+                        parseKspInfo(it["kspInfo"]),
                     )
                 }
                 val dependencyList = (json["dependencyList"] as List<Map<String, Any>>).map {
@@ -105,7 +105,8 @@ class ProjectInfoSerializerInGradle(private val dataFile: File) {
                         agpR8Classpath = (rootInfo?.get("agpR8Classpath") as? String)?.let(::File),
                     ),
                     modules = modules,
-                    dependencyList = dependencyList)
+                    dependencyList = dependencyList,
+                    version = (json["version"] as? Number)?.toInt() ?: 0)
             }
 //            val costTime = System.currentTimeMillis() - startTime
 //            println("Jugg: Load project info to ${dataFile.absolutePath} cost $costTime ms")
@@ -115,6 +116,18 @@ class ProjectInfoSerializerInGradle(private val dataFile: File) {
             printException(e)
             return null
         }
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun parseKspInfo(value: Any?): KspInfoSerialize? {
+        val ksp = value as? Map<String, Any> ?: return null
+        return KspInfoSerialize(
+            processorDependencies = ksp["processorDependencies"] as? List<Int>,
+            runtimeDependencies = ksp["runtimeDependencies"] as? List<Int>,
+            arguments = ksp["arguments"] as? Map<String, String> ?: emptyMap(),
+            useKsp2 = ksp["useKsp2"] as? Boolean,
+            languageVersion = ksp["languageVersion"] as? String,
+            apiVersion = ksp["apiVersion"] as? String)
     }
 
     /**
@@ -163,7 +176,47 @@ class ProjectInfoSerializerInGradle(private val dataFile: File) {
                 unsupportedReason = info["unsupportedReason"] as? String,
                 configFiles = (info["configFiles"] as? List<String>).orEmpty().map(::File),
                 excludedDirs = (info["excludedDirs"] as? List<String>).orEmpty().map(::File),
+                prerequisites = parseExternalBuildPrerequisites(info["prerequisites"]),
             )
+        }
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun parseExternalBuildPrerequisites(value: Any?): List<ExternalBuildPrerequisite> {
+        return (value as? List<Map<String, Any>>).orEmpty().mapNotNull { entry ->
+            val taskPath = entry["taskPath"] as? String ?: return@mapNotNull null
+            val triggerGlobs = (entry["triggerGlobs"] as? List<String>).orEmpty().filter { it.isNotEmpty() }
+            if (taskPath.isEmpty() || triggerGlobs.isEmpty()) {
+                return@mapNotNull null
+            }
+            val prefixes = (entry["beforeNativeTaskPrefixes"] as? List<String>).orEmpty()
+                .filter { it.isNotEmpty() }
+                .ifEmpty { listOf("merge", "buildCMake", "externalNativeBuild") }
+            ExternalBuildPrerequisite(
+                taskPath = taskPath,
+                triggerGlobs = triggerGlobs,
+                generatedSourceDirs = parseGeneratedSourceDirs(entry["generatedSourceDirs"]),
+                beforeNativeTaskPrefixes = prefixes,
+            )
+        }
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun parseGeneratedSourceDirs(value: Any?): List<ExternalBuildGeneratedSourceDir> {
+        return (value as? List<Map<String, Any>>).orEmpty().mapNotNull { entry ->
+            val directory = readPrerequisiteFile(entry["directory"]) ?: return@mapNotNull null
+            val language = (entry["language"] as? String ?: entry["type"] as? String)?.let {
+                runCatching { ExternalBuildGeneratedLanguage.valueOf(it) }.getOrNull()
+            } ?: return@mapNotNull null
+            ExternalBuildGeneratedSourceDir(directory, language)
+        }
+    }
+
+    private fun readPrerequisiteFile(value: Any?): File? {
+        return when (value) {
+            is File -> value
+            is String -> File(value)
+            else -> null
         }
     }
 

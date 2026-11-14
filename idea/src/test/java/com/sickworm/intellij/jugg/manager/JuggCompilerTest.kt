@@ -57,6 +57,22 @@ class JuggCompilerTest {
      * * Kotlin inline method (diffusion compilation)
      *******************************************************************/
 
+    @Test
+    fun testButterKnifeAnnotationChangeCompilesGeneratedBinding() {
+        val pkg = "com.sickworm.jugg.demo.testcase.butterknife"
+        val source = File(assetsAndroidDir, "app/src/main/java/${pkg.replace('.', '/')}/KotlinBindings.kt")
+        changeAndRevert(source, "@field:BV(R.id.butterknife_kotlin_title)", "@field:BV(R.id.butterknife_java_title)") {
+            jugg.notifyFileChanges(listOf(source))
+            jugg.compileChangedFiles()
+            assertTrue(jugg.deployFileManager.getUncompiledFiles().isEmpty())
+            val generated = File(jugg.pathManager.stagingDir, "classes/${pkg.replace('.', '/')}/KotlinBindings_ViewBinding.dex")
+            assertTrue(generated.isFile && generated.length() > 0, "Missing regenerated ButterKnife DEX")
+            val sources = jugg.pathManager.juggRootDir.walkTopDown()
+                .filter { it.name == "KotlinBindings_ViewBinding.java" }.toList()
+            assertTrue(sources.any { it.readText().contains("R.id.butterknife_java_title") })
+        }
+    }
+
     // java class
 
     @Test

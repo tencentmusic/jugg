@@ -1,5 +1,7 @@
 package com.sickworm.intellij.jugg.deploy.run
 
+import com.sickworm.intellij.jugg.apk.ApkInfo
+import com.sickworm.intellij.jugg.jvmti_agent.BuildConfig
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlayStateCheckResult
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlayStateChecker
@@ -33,6 +35,8 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.whenever
 import org.mockito.MockedConstruction
 import java.io.File
+import java.lang.reflect.InvocationTargetException
+import java.nio.channels.InterruptedByTimeoutException
 
 /**
  * L2 deploy-flow via [com.sickworm.intellij.jugg.deploy.run.deployflow.VirtualDeployDevice].
@@ -41,11 +45,160 @@ import java.io.File
 class JuggDeployerHelperDeployFlowTest {
 
     @Test
+    fun `instrumentation flow checks JVMTI for the source selected second test APK`() {
+        assertInstrumentationJvmtiPackage(matchingModule = true)
+    }
+
+    @Test
+    fun `instrumentation flow skips JVMTI when no test APK is available`() {
+        assertInstrumentationJvmtiPackage(matchingModule = false)
+    }
+
+    private fun assertInstrumentationJvmtiPackage(matchingModule: Boolean) {
+        val projectDir = java.nio.file.Files.createTempDirectory("jvmti-test-target").toFile()
+        try {
+            val sourceRoot = projectDir.resolve("library/src/androidTest/kotlin").apply { mkdirs() }
+            val source = sourceRoot.resolve("LibraryTest.kt").apply { writeText("class LibraryTest") }
+            val first = ApkInfo(File("first.apk"), "example.first.test").copy(instrumentationTargetPackage = "example.first")
+            val selected = ApkInfo(File("library.apk"), "example.library.test").copy(instrumentationTargetPackage = "example.library.test")
+            val module = com.sickworm.intellij.jugg.project.info.ModuleInfo.virtualModule.copy(
+                name = "library.androidTest", moduleType = com.sickworm.intellij.jugg.project.info.ModuleInfo.Type.Library,
+                moduleRootDir = projectDir.resolve("library"), projectRootDir = projectDir,
+                sourceDirs = listOf(sourceRoot), buildVariant = "debugAndroidTest",
+                applicationId = selected.applicationId, instrumentationTargetPackage = selected.instrumentationTargetPackage,
+            )
+            val data = JuggDeployData.forDryDeploy(if (matchingModule) listOf(first, selected) else listOf(first.copy(instrumentationTargetPackage = null)))
+            val contexts = Mockito.mock(com.sickworm.intellij.jugg.compiler.context.CompileContextManager::class.java)
+            val projectInfo = com.sickworm.intellij.jugg.project.info.JuggProjectInfo(
+                if (matchingModule) mapOf(module.name to module) else emptyMap(), null,
+            )
+            whenever(contexts.getProjectInfo()).thenReturn(projectInfo)
+            whenever(contexts.compileContext).thenReturn(Mockito.mock(com.sickworm.intellij.jugg.compiler.ICompileContext::class.java))
+            val adb = Mockito.mock(IDeviceAdb::class.java)
+            val environment = Mockito.mock(IDeployHost::class.java)
+            whenever(environment.createDeviceAdb(any(), any())).thenReturn(adb)
+            val handler = Mockito.mock(CompileUiHandler::class.java)
+            whenever(handler.isDebugRun).thenReturn(true)
+            val launchContext = Mockito.mock(LaunchContext::class.java)
+            whenever(launchContext.deviceAdb).thenReturn(adb)
+            whenever(launchContext.compileUiHandler).thenReturn(handler)
+            whenever(launchContext.withSkipExceptOverlayCheck(any())).thenReturn(launchContext)
+            val tasks = Mockito.mock(com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager::class.java)
+            whenever(tasks.runAsyncSafe<Boolean>(any(), any())).thenReturn(kotlinx.coroutines.CompletableDeferred(true))
+            val checkedPackages = mutableListOf<String>()
+            Mockito.mockConstruction(LaunchContextFactory::class.java) { factory, _ ->
+                whenever(factory.create(any(), any(), any(), any(), any(), any(), any(), any())).thenReturn(launchContext)
+            }.use {
+                Mockito.mockConstruction(com.sickworm.intellij.jugg.deploy.SliceDeployHelper::class.java) { helper, _ ->
+                    whenever(helper.get(any())).thenReturn(100 to 100)
+                }.use {
+                    Mockito.mockConstruction(com.sickworm.intellij.jugg.deploy.run.applychanges.JuggDeployTask::class.java) { task, _ ->
+                        whenever(task.run(any())).thenReturn(LaunchResult(true, 0, null, emptyMap()))
+                    }.use {
+                        Mockito.mockConstruction(com.sickworm.intellij.jugg.deploy.JuggJvmtiAgentManagerHelper::class.java) { helper, _ ->
+                            whenever(helper.isHasJvmtiCompatIssue(any(), any(), any(), any())).thenAnswer {
+                                checkedPackages.add(it.getArgument(2))
+                                false
+                            }
+                        }.use {
+                            val orchestrator = JuggDeployOrchestrator(
+                                Mockito.mock(com.sickworm.intellij.jugg.deploy.IDeployTargetManager::class.java),
+                                Mockito.mock(com.sickworm.intellij.jugg.deploy.IDeployHistoryManager::class.java),
+                                Mockito.mock(com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager::class.java),
+                                contexts, Mockito.mock(com.sickworm.intellij.jugg.server.JuggServer::class.java), tasks,
+                                Mockito.mock(IJuggDeployerDeploymentService::class.java), environment, logger,
+                            )
+                            val result = orchestrator.execute(JuggDeployRunTaskRequest(
+                                Mockito.mock(com.sickworm.intellij.jugg.deploy.api.IDevice::class.java), data, handler,
+                                androidTestRunSpec = com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec(null, null, sourcePath = if (matchingModule) source.path else null),
+                            ))
+                            assertTrue(result.success)
+                        }
+                    }
+                }
+            }
+            assertEquals(if (matchingModule) listOf(selected.instrumentationTargetPackage) else emptyList<String>(), checkedPackages)
+        } finally {
+            projectDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `JVMTI retry checks the launched app instead of unrelated self targeting tests`() {
+        assertJvmtiTargetStatus(available = true, launchTestPackage = false)
+    }
+
+    @Test
+    fun `JVMTI retry still detects incompatibility in the launched app`() {
+        assertJvmtiTargetStatus(available = false, launchTestPackage = false)
+    }
+
+    @Test
+    fun `JVMTI retry checks a self targeting test when it is the launch target`() {
+        assertJvmtiTargetStatus(available = true, launchTestPackage = true)
+    }
+
+    private fun assertJvmtiTargetStatus(available: Boolean, launchTestPackage: Boolean) {
+        val oldRecordJson = JuggSettings.deviceCompatRecordJson
+        JuggSettings.deviceCompatRecordJson = "[]"
+        val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_001)
+        val app = ApkInfo(File("app.apk"), DeployFlowOverlaySeed.packageName())
+        val testPackage = "com.example.library.test"
+        val test = ApkInfo(File("test.apk"), testPackage)
+            .copy(instrumentationTargetPackage = testPackage)
+        val data = JuggDeployData.forDryDeploy(listOf(app, test))
+        val launchedPackage = if (launchTestPackage) testPackage else app.applicationId
+        whenever(fixture.deployTargetManager.getPackageName()).thenReturn(launchedPackage)
+        try {
+            Mockito.mockConstruction(AppSandboxExecutor::class.java) { sandbox, construction ->
+                val packageName = construction.arguments()[1] as String
+                whenever(sandbox.applyChangesCapability).thenReturn(AppSandboxExecutor.ApplyChangesCapability.INCOMPATIBLE)
+                val flag = if ((packageName == launchedPackage) == available) {
+                    BuildConfig.JVMTI_AVAILABLE_FLAG_FILE
+                } else {
+                    BuildConfig.JVMTI_NOT_AVAILABLE_FLAG_FILE
+                }
+                whenever(sandbox.exec(any(), any())).thenReturn(flag)
+            }.use {
+                assertEquals(!available, fixture.helper.detectJvmtiCompatIssue(fixture.device, data))
+            }
+        } finally {
+            JuggSettings.deviceCompatRecordJson = oldRecordJson
+        }
+    }
+
+    @Test
+    fun `wrapped installer socket timeout retries then recovers with one reinstall`() {
+        val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_006)
+        fixture.compatBoundary.optimisticSwapFailure = InvocationTargetException(InterruptedByTimeoutException())
+
+        val result = fixture.helper.deploy(fixture.deployOptions)
+
+        assertTrue("deploy failed: ${result.failedReason}", result.isSuccess)
+        assertEquals(3, fixture.compatBoundary.optimisticSwapInvokeCount)
+        assertEquals(1, fixture.virtualDevice.installInvokeCount)
+        assertTrue(fixture.virtualDevice.hasDirectOverlayApply())
+        Mockito.verify(fixture.deployFileManager).resetAfterReinstall(Mockito.anyBoolean())
+    }
+
+    @Test
+    fun `unrelated reflection failure does not enter timeout recovery`() {
+        val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_006)
+        fixture.compatBoundary.optimisticSwapFailure = InvocationTargetException(NoSuchMethodException("overlayInstall"))
+
+        val result = fixture.helper.deploy(fixture.deployOptions)
+
+        assertFalse(result.isSuccess)
+        assertEquals(1, fixture.compatBoundary.optimisticSwapInvokeCount)
+        assertEquals(0, fixture.virtualDevice.installInvokeCount)
+    }
+
+    @Test
     fun `recover reinstall executes configured script and stops on script failure`() {
         val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_002)
         Mockito.mockConstruction(CustomApkInstallScriptRunner::class.java) { runner, _ ->
             Mockito.doThrow(IllegalStateException("Custom APK install script failed with exit code 7."))
-                .`when`(runner).run(org.mockito.kotlin.any())
+                .`when`(runner).run(org.mockito.kotlin.any(), org.mockito.kotlin.any())
         }.use {
             val result = fixture.helper.deploy(fixture.deployOptions.copy(
                 customApkInstallScript = "./install-app.sh",
@@ -56,7 +209,7 @@ class JuggDeployerHelperDeployFlowTest {
             assertTrue(result.failedReason.orEmpty().contains("exit code 7"))
             assertEquals(0, fixture.virtualDevice.installInvokeCount)
             assertFalse(fixture.virtualDevice.hasDirectOverlayApply())
-            Mockito.verify(fixture.deployFileManager, Mockito.never()).resetAfterReinstall()
+            Mockito.verify(fixture.deployFileManager, Mockito.never()).resetAfterReinstall(Mockito.anyBoolean())
         }
     }
 
@@ -83,13 +236,25 @@ class JuggDeployerHelperDeployFlowTest {
             fixture.virtualDevice.hadRecoverMismatchOverlayCheckBeforeInstallAndDirectWrite(mismatchedDeviceOverlayId),
         )
         assertTrue(fixture.virtualDevice.installInvokeCount >= 1)
-        Mockito.verify(fixture.deployFileManager).resetAfterReinstall()
+        Mockito.verify(fixture.deployFileManager).resetAfterReinstall(Mockito.anyBoolean())
         assertTrue(fixture.virtualDevice.hasDirectOverlayApply())
         val deviceOverlayId = fixture.virtualDevice.readOverlayId().orEmpty()
         assertNotEquals("", deviceOverlayId)
         assertNotEquals(mismatchedDeviceOverlayId, deviceOverlayId)
         assertEquals(0, fixture.compatBoundary.optimisticSwapInvokeCount)
         Mockito.verify(fixture.deployTargetManager, Mockito.times(1)).restartApp(fixture.device)
+    }
+
+    @Test
+    fun `recover reinstall replays native history when SO hot update is supported`() {
+        withNativeSandboxDeploy(enabled = true) {
+            val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_002)
+
+            val result = fixture.helper.deploy(fixture.deployOptions)
+
+            assertTrue("deploy failed: ${result.failedReason}", result.isSuccess)
+            Mockito.verify(fixture.deployFileManager).resetAfterReinstall(true)
+        }
     }
 
     @Test
@@ -197,7 +362,7 @@ class JuggDeployerHelperDeployFlowTest {
             fixture.virtualDevice.hadRecoverMismatchOverlayCheckBeforeInstallAndDirectWrite(mismatchedDeviceOverlayId),
         )
         assertTrue(fixture.virtualDevice.installInvokeCount >= 1)
-        Mockito.verify(fixture.deployFileManager).resetAfterReinstall()
+        Mockito.verify(fixture.deployFileManager).resetAfterReinstall(Mockito.anyBoolean())
         assertTrue(fixture.virtualDevice.hasAsStartupAgentPush())
         assertTrue(fixture.virtualDevice.listStartupAgents().contains("dced2491-agent.so"))
         assertTrue(fixture.virtualDevice.hasDirectOverlayApply())
@@ -549,6 +714,62 @@ class JuggDeployerHelperDeployFlowTest {
     }
 
     @Test
+    fun `native-only overlay deploy uses ordinary swap and restarts app`() {
+        withNativeSandboxDeploy(enabled = true) {
+            val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_009)
+            Mockito.`when`(
+                fixture.deployFileManager.getDeployData(Mockito.anyBoolean(), Mockito.anyBoolean()),
+            ).thenReturn(DeployFlowTestSupport.nativeLibOnlyDeployData())
+
+            val result = fixture.helper.deploy(fixture.deployOptions)
+
+            assertTrue("deploy failed: ${result.failedReason}", result.isSuccess)
+            assertEquals(0, fixture.virtualDevice.installInvokeCount)
+            assertEquals(1, fixture.compatBoundary.optimisticSwapInvokeCount)
+            Mockito.verify(fixture.deployTargetManager).restartApp(fixture.device)
+            assertEquals(JuggDeployData.DeployType.HOT_FIX, result.deployType)
+            assertTrue(result.hasDeployChanges)
+        }
+    }
+
+    @Test
+    fun `native-only deploy updates apk when so hot update is disabled`() {
+        withNativeSandboxDeploy(enabled = false) {
+            val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_009)
+            Mockito.`when`(
+                fixture.deployFileManager.getDeployData(Mockito.anyBoolean(), Mockito.anyBoolean()),
+            ).thenReturn(DeployFlowTestSupport.nativeLibOnlyDeployData())
+
+            val result = fixture.helper.deploy(fixture.deployOptions)
+
+            assertFalse(result.isSuccess)
+            assertTrue(result.isCanFallback)
+            assertTrue(result.failedReason.orEmpty().contains("signing config"))
+            assertEquals(0, fixture.compatBoundary.optimisticSwapInvokeCount)
+            assertEquals(0, fixture.virtualDevice.installInvokeCount)
+        }
+    }
+
+    @Test
+    fun `native-only deploy updates apk when device api is below oreo`() {
+        withNativeSandboxDeploy(enabled = true) {
+            val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_009)
+            fixture.virtualDevice.apiLevel = 25
+            Mockito.`when`(
+                fixture.deployFileManager.getDeployData(Mockito.anyBoolean(), Mockito.anyBoolean()),
+            ).thenReturn(DeployFlowTestSupport.nativeLibOnlyDeployData())
+
+            val result = fixture.helper.deploy(fixture.deployOptions)
+
+            assertFalse(result.isSuccess)
+            assertTrue(result.isCanFallback)
+            assertTrue(result.failedReason.orEmpty().contains("signing config"))
+            assertEquals(0, fixture.compatBoundary.optimisticSwapInvokeCount)
+            assertEquals(0, fixture.virtualDevice.installInvokeCount)
+        }
+    }
+
+    @Test
     fun `always restart flag does not restart app after empty deploy when app is foreground`() {
         val fixture = DeployFlowMockBackend.buildFixture(DeployFlowCaseId.DF_L2_009)
         val compileUiHandler = object : CompileUiHandler by CompileUiHandler.DEFAULT {
@@ -783,6 +1004,16 @@ class JuggDeployerHelperDeployFlowTest {
             block()
         } finally {
             JuggSettings.sliceDeployRecordJson = oldRecordJson
+        }
+    }
+
+    private fun withNativeSandboxDeploy(enabled: Boolean, block: () -> Unit) {
+        val previous = JuggSettings.isEnableNativeSandboxDeploy
+        JuggSettings.isEnableNativeSandboxDeploy = enabled
+        try {
+            block()
+        } finally {
+            JuggSettings.isEnableNativeSandboxDeploy = previous
         }
     }
 

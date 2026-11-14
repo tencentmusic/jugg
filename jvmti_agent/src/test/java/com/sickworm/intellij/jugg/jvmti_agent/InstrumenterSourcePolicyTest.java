@@ -121,6 +121,7 @@ public class InstrumenterSourcePolicyTest {
     public void setupScriptShouldNotCreateLegacyDexPathFixFlag() throws Exception {
         String source = read("src/main/script/jugg_agent_setup.sh");
 
+        assertTrue(source.startsWith("#!/system/bin/sh\n"));
         assertFalse(source.contains(".need_fix_dex_path_list"));
         assertFalse(source.contains("compareVersion"));
     }

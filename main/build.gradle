@@ -95,6 +95,18 @@ repositories {
     }
 }
 
+configurations {
+    kspTestCompiler
+    kspTestRuntime1
+    kspTestRuntime2
+    kspTestProcessorDependencies
+    butterknifeTestProcessors
+    butterknifeTestLibraries { transitive = false }
+    arouterTestProcessors
+    arouterTestKotlin
+    arouterTestLibraries { transitive = false }
+}
+
 
 compileKotlin {
     kotlinOptions {
@@ -124,13 +136,7 @@ dependencies {
 
     // for K2JVMCompiler
     implementation "org.jetbrains.kotlin:kotlin-compiler-embeddable"
-    // kotlinx-metadata-jvm:
-    // 0.2.0 depends kotlin-stdlib:1.4.10
-    // 0.3.0 depends kotlin-stdlib:1.5.0
-    // 0.4.2 depends kotlin-stdlib:1.7.0
-    // 0.9.0 depends kotlin-stdlib:1.9.0
-    implementation "org.jetbrains.kotlinx:kotlinx-metadata-jvm:0.9.0"
-    implementation "org.jetbrains.kotlin:kotlin-metadata-jvm:2.2.21"
+    implementation "org.jetbrains.kotlin:kotlin-metadata-jvm:2.4.10"
 
     // kapt
     // kotlin-annotation-processing will get compile error: org.jetbrains.kotlin.kapt3.Kapt3ComponentRegistrar is not compatible with this version of compiler
@@ -141,6 +147,7 @@ dependencies {
     implementation "io.github.classgraph:classgraph:4.8.110"
     implementation 'com.github.mwiede:jsch:0.2.16'
     implementation "com.github.javaparser:javaparser-core:3.17.0"
+    implementation 'com.android.tools.build.jetifier:jetifier-processor:1.0.0-beta10'
 
     // Keep IDEA and standalone on the same Java 11-compatible Data Binding compiler.
     // Only used for Jugg parsing; kapt uses the project classpath.
@@ -181,6 +188,24 @@ dependencies {
     testImplementation "org.jetbrains.kotlin:kotlin-test:1.9.23"
     testImplementation "org.json:json:20240303"
 
+    kspTestCompiler 'org.jetbrains.kotlin:kotlin-compiler-embeddable:2.1.20'
+    kspTestRuntime1 'com.google.devtools.ksp:symbol-processing:2.1.20-1.0.32'
+    kspTestRuntime2 'com.google.devtools.ksp:symbol-processing-aa-embeddable:2.1.20-1.0.32'
+    kspTestProcessorDependencies 'com.google.devtools.ksp:symbol-processing-api:2.1.20-1.0.32'
+    kspTestProcessorDependencies 'com.squareup:kotlinpoet:1.18.1'
+    kspTestProcessorDependencies 'com.squareup:kotlinpoet-ksp:1.18.1'
+    butterknifeTestProcessors 'com.jakewharton:butterknife-compiler:10.2.3'
+    butterknifeTestLibraries 'com.jakewharton:butterknife:10.2.3@aar'
+    butterknifeTestLibraries 'com.jakewharton:butterknife-runtime:10.2.3@aar'
+    butterknifeTestLibraries 'com.jakewharton:butterknife-annotations:10.2.3'
+    arouterTestProcessors 'com.alibaba:arouter-compiler:1.5.2'
+    arouterTestKotlin 'org.jetbrains.kotlin:kotlin-compiler-embeddable:1.9.23'
+    arouterTestKotlin 'org.jetbrains.kotlin:kotlin-annotation-processing-embeddable:1.9.23'
+    arouterTestLibraries 'com.alibaba:arouter-api:1.5.2@aar'
+    arouterTestLibraries 'androidx.fragment:fragment:1.5.4@aar'
+    arouterTestLibraries 'com.android.support:support-fragment:28.0.0@aar'
+    arouterTestLibraries 'androidx.annotation:annotation:1.5.0'
+
     // java code analysis
     testImplementation "com.github.javaparser:javaparser-symbol-solver-core:3.17.0"
     testImplementation "org.eclipse.jdt:org.eclipse.jdt.core:3.28.0"
@@ -194,6 +219,21 @@ tasks.withType(Test).configureEach {
     def juggTestRootDir = file("$buildDir/test-jugg-home")
     systemProperty "jugg.root.dir", juggTestRootDir.absolutePath
     doFirst { juggTestRootDir.deleteDir() }
+    inputs.files(fileTree('src/test/assets/arouter-ksp')).withPropertyName('arouterKspFixture')
+    inputs.files(configurations.kspTestCompiler, configurations.kspTestRuntime1,
+            configurations.kspTestRuntime2, configurations.kspTestProcessorDependencies)
+            .withPropertyName('kspTestArtifacts').withNormalizer(ClasspathNormalizer)
+    doFirst {
+        systemProperty 'ksp.test.compiler', configurations.kspTestCompiler.asPath
+        systemProperty 'ksp.test.runtime1', configurations.kspTestRuntime1.asPath
+        systemProperty 'ksp.test.runtime2', configurations.kspTestRuntime2.asPath
+        systemProperty 'ksp.test.processor.dependencies', configurations.kspTestProcessorDependencies.asPath
+        systemProperty 'butterknife.test.processors', configurations.butterknifeTestProcessors.asPath
+        systemProperty 'butterknife.test.libraries', configurations.butterknifeTestLibraries.asPath
+        systemProperty 'arouter.test.processors', configurations.arouterTestProcessors.asPath
+        systemProperty 'arouter.test.kotlin', configurations.arouterTestKotlin.asPath
+        systemProperty 'arouter.test.libraries', configurations.arouterTestLibraries.asPath
+    }
     // Forward benchmark system properties to the test JVM.
     [
             "benchmark.project.dir",

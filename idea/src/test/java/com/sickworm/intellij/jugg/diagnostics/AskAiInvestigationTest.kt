@@ -50,6 +50,26 @@ class AskAiInvestigationTest {
     }
 
     @Test
+    fun `local rsync setup failure publishes one setup link without collecting investigation data`() {
+        val delegate = mock<CompileUiHandler>()
+        whenever(delegate.createOutputParser()).thenReturn(com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient.TerminalOutputListener.IDLE)
+        val console = mock<ConsoleView>()
+        Mockito.doAnswer { it.getArgument<Runnable>(0).run(); null }
+            .`when`(console).performWhenNoDeferredOutput(Mockito.any(Runnable::class.java))
+        val investigation = mock<AskAiInvestigation>()
+        val handler = AskAiCompileUiHandler(delegate, investigationProject(), console, mock(), investigation, mock(), 123L)
+        val output = handler.createOutputParser()
+        val failure = com.sickworm.intellij.jugg.gradle.compile.WindowsRsyncSetupException("rsync_not_found")
+        output.onWindowsRsyncSetupFailure(failure)
+        output.onWindowsRsyncSetupFailure(failure)
+        handler.onEnd(RunResult.FAILED)
+        SwingUtilities.invokeAndWait { }
+        Mockito.verify(console, Mockito.times(1)).printHyperlink(Mockito.contains("Windows rsync"), Mockito.any())
+        Mockito.verifyNoInteractions(investigation)
+        Mockito.verify(delegate).onEnd(RunResult.FAILED)
+    }
+
+    @Test
     fun `project disposal during investigation does not prevent the original completion callback`() {
         val project = investigationProject()
         val delegate = mock<CompileUiHandler>()

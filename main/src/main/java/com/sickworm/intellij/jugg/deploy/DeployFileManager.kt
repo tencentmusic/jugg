@@ -104,6 +104,7 @@ class DeployFileManager(
     fun init(apks: List<ApkInfo>, deployedFiles: List<CompileOutput>, resetFilesBeforeTimeMill: Long?) {
         logger.debug("init deploy file manager, apks: ${apks.size}, deployedFiles: ${deployedFiles.size}, resetFilesBeforeTimeMill: $resetFilesBeforeTimeMill")
         reset(resetFilesBeforeTimeMill)
+        compileEffectAnalyzer.clear()
         stateTracker.clearMergedDexFilePaths()
         val deployItems = deployedFiles.map { it.toDeployItem() }
         deployDataGenerator.init(apks, deployItems)
@@ -129,9 +130,25 @@ class DeployFileManager(
     }
 
     @Synchronized
+    fun getFileChangeCandidates(): List<ChangedFile> = stateTracker.getFileChangeCandidates()
+
+    @Synchronized
+    fun applyFileSelection(candidates: List<ChangedFile>, selectedPaths: Set<String>) {
+        stateTracker.applyFileSelection(candidates, selectedPaths)
+        resourceApkGenerator.deleteResourceApk()
+    }
+
+    @Synchronized
     fun rollbackChangedFile(files: List<ChangedFile>) {
         logger.debug("rollback changed files after cancel, size: ${files.size}, paths: $files")
         stateTracker.rollbackChangedFiles(files)
+    }
+
+    @Synchronized
+    fun removeRolledBackFiles(files: List<File>) {
+        val manualPaths = stateTracker.getUndeployedFiles().filter { it.isManuallySelected }
+            .map { it.file.stdAbsPath }.toSet()
+        removeChangedFile(files.filter { it.stdAbsPath !in manualPaths })
     }
 
     @Synchronized
@@ -279,12 +296,12 @@ class DeployFileManager(
     }
 
     @Synchronized
-    fun resetAfterReinstall() {
+    fun resetAfterReinstall(replayNativeLibraries: Boolean) {
         logger.debug("resetAfterReinstall start, staging file size: ${stateTracker.getStagingFiles().size}, " +
                 "deployed file size: ${stateTracker.getDeployedFiles().size}")
         deployDataGenerator.clearDeployedData()
         resourceApkGenerator.deleteResourceApk()
-        stateTracker.resetAfterReinstall()
+        stateTracker.resetAfterReinstall(replayNativeLibraries)
         logger.debug("resetAfterReinstall done, staging file size: ${stateTracker.getStagingFiles().size}")
     }
 

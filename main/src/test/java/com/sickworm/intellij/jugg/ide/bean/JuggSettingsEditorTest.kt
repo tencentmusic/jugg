@@ -52,7 +52,9 @@ class JuggSettingsEditorTest {
 
     @Test fun `custom server needs trust and commits URL and mode together`() {
         val editor = JuggSettingsEditor()
-        assertFailsWith<SettingConfirmationRequired> { editor.set("serverUrl", "https://example.com") }
+        val prompt = assertFailsWith<SettingConfirmationRequired> { editor.set("serverUrl", "https://example.com") }
+        assertTrue(prompt.confirmation.message.contains("unredacted logs"))
+        assertTrue(prompt.confirmation.message.contains("HTTP connections are not encrypted"))
         editor.set("serverUrl", "https://example.com", confirm = true)
         assertEquals("https://example.com", JuggSettings.serverUrl)
         assertEquals(-1L, JuggSettings.serverExpireTimeMill)

@@ -85,8 +85,8 @@ class DeployRetryHandler(
         }
 
         val isAgentNotResponses = reason.contains("MISSING_AGENT_RESPONSES") || reason.contains("AGENT_ATTACH_FAILED")
-        // got: "MessagePipeWrapper read() timeout (5000ms)" and throw by JuggDeployer.optimisticSwap
-        val isDeployTimeout = reason.contains("MessagePipeWrapper read() timeout")
+        val isDeployTimeout = reason.contains("MessagePipeWrapper read() timeout") ||
+            reason.contains("java.nio.channels.InterruptedByTimeoutException")
         val isJvmtiDeployStuck = isAgentNotResponses || isDeployTimeout
 
         val isOverlayIdNotCorrect = reason.contains("OVERLAY_ID_MISMATCH") || reason.contains("unable to recognize the APK")
@@ -122,14 +122,14 @@ class DeployRetryHandler(
                 isJvmtiDeployStuck -> {
                     val isNeedReduce = deployData.overlays.size >= JuggSettings.overlayDeploySplitSizeFirstSlice
                     if (isNeedReduce) {
-                        logger.warn("Got deploy timeout exception, reduce overlay and retry")
+                        logger.warn("Got deploy timeout exception: $reason, reduce overlay and retry")
                         environment.onDeployTimeout(deployOptions.device, logger)
                     } else {
                         if (reinstallWhenTimeout) {
-                            logger.warn("Got deploy timeout exception, retry the last time with reinstalling APK.")
+                            logger.warn("Got deploy timeout exception: $reason, retry the last time with reinstalling APK.")
                             isRetryDirectly = false
                         } else {
-                            logger.warn("Got deploy timeout exception, retry after 5s.")
+                            logger.warn("Got deploy timeout exception: $reason, retry after 5s.")
                             Thread.sleep(5_000)
                             isRetryDirectly = true
                         }

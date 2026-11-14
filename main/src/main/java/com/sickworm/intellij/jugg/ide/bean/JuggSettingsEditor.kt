@@ -100,6 +100,7 @@ class JuggSettingsEditor(
         val revision = when (key) {
             "isEnableBackupClasspath" -> "backupClasspathRevision"
             "deviceCompatRecordJson" -> "deviceCompatRevision"
+            "isEnableNativeSandboxDeploy" -> "nativeSandboxRevision"
             else -> return
         }
         updates[revision] = JsonPrimitive(Math.addExact(snapshot[revision]?.asLong ?: 0L, 1L))
@@ -109,6 +110,10 @@ class JuggSettingsEditor(
         key == "isEnableBackupClasspath" -> SettingConfirmation("Confirm Switch Backup Classpath", "This will effects compilation stability. Continue?")
         key == "isEmbeddedToApk" && !previous.asBoolean && value.asBoolean -> SettingConfirmation("Enable Embedded to APK",
             "This will embed incremental changes to APK, let incremental effects for Android RemoteViews, but it will cost more time to deploy.\n\nAre you sure to enable?")
+        key == "isEnableNativeSandboxDeploy" && !previous.asBoolean && value.asBoolean -> SettingConfirmation(
+            "Enable Native Library Hot Update",
+            "System.loadLibrary is supported. Absolute-path System.load, native dlopen/android_dlopen_ext, " +
+                    "and ELF DT_NEEDED dependencies are not supported. The next Run will reinstall the app. Continue?")
         key == "serverUrl" && !value.isJsonNull -> serverConfirmation(value.asString)
         key == "serverExpireTimeMill" && value.asLong == -1L -> {
             val url = snapshot["serverUrl"]
@@ -120,9 +125,12 @@ class JuggSettingsEditor(
 
     private fun serverConfirmation(url: String) = SettingConfirmation("Trust Custom Server?",
         "Jugg will connect to:\n$url\n\nThis server can check for Jugg updates, download and install Jugg update JARs, " +
-                "and download and load custom compiler JARs. Continue only if you control or trust it.", "Trust Server")
+                "and download and load custom compiler JARs. " +
+                "Manual and automatic issue reports will send unredacted logs to this server, " +
+                "including project paths, usernames, and possible secrets. " +
+                "HTTP connections are not encrypted. Continue only if you control or trust it.", "Trust Server")
 
     companion object {
-        private val EFFECT_KEYS = setOf("isEnableBackupClasspath", "deviceCompatRecordJson")
+        private val EFFECT_KEYS = setOf("isEnableBackupClasspath", "deviceCompatRecordJson", "isEnableNativeSandboxDeploy")
     }
 }

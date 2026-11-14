@@ -1,6 +1,8 @@
 package com.sickworm.intellij.jugg.ai.mcp.actions
 
 import com.sickworm.intellij.jugg.deploy.api.IDevice
+import com.google.gson.Gson
+import com.google.gson.JsonParser
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
@@ -14,6 +16,8 @@ import com.sickworm.intellij.jugg.ide.logic.IJuggConfigurationRunner
 import com.sickworm.intellij.jugg.ide.logic.JuggRunInvocationResult
 import com.sickworm.intellij.jugg.ai.mcp.IMcpRuntime
 import com.sickworm.intellij.jugg.ai.mcp.McpErrorCode
+import com.sickworm.intellij.jugg.ai.mcp.McpResultMapper
+import com.sickworm.intellij.jugg.ai.mcp.McpToolResult
 import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
 import com.sickworm.intellij.jugg.ai.mcp.viewhierarchy.LayoutDumpResult
 import com.sickworm.intellij.jugg.ai.mcp.viewhierarchy.ViewHierarchyClient
@@ -45,6 +49,175 @@ class LayoutDumpMcpToolActionTest {
     }
 
     @Test
+    fun testOffscreenPlaceholderIsNotCountedAndInternalUiArtifactStaysComplete() {
+        val projectDir = createTempDir(prefix = "jugg_layout_offscreen_")
+        val setup = setup(projectDir, packageName = "com.example.app")
+        val payload = """{"deviceInfo":{"density":2},"truncated":false,"windows":[{"root":{
+            "className":"FrameLayout","bounds":[0,0,200,200],"children":[
+            {"className":"Page","id":"_vir_id_page","bounds":[200,0,400,200],"clickable":true,
+            "children":[{"className":"TextView","text":"Offscreen label","bounds":[220,0,240,20],
+            "clickable":true}]}]}}]}"""
+        Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, _ ->
+            Mockito.`when`(mock.dumpLayout(anyOrNull(), any(), any())).thenReturn(LayoutDumpResult(payload, null))
+        }.use {
+            val output = LayoutDumpHelper.dumpInternal(setup.runtime, "layout-dump", mode = "interaction")
+                as LayoutDumpHelper.DumpInternalResult.Success
+            val json = JsonParser.parseString(output.outputFile.readText()).asJsonObject
+            Assert.assertEquals(json, output.inlineLayout)
+            Assert.assertEquals(output.outputFile.length(), output.contentBytes.toLong())
+            Assert.assertTrue(output.summary.contains("2 nodes, 1 clickable"))
+            Assert.assertTrue(output.summary.contains("not truncated"))
+            val page = json.getAsJsonArray("windows")[0].asJsonObject.getAsJsonObject("root")
+                .getAsJsonArray("children")[0].asJsonObject
+            Assert.assertEquals("[100,0,200,100]", page["bounds"].toString())
+            Assert.assertTrue(page.getAsJsonArray("children")[0].asJsonObject.has("jugg_details"))
+            Assert.assertFalse(output.outputFile.readText().contains("Offscreen label"))
+            Assert.assertTrue(output.jsonFile.readText().contains("Offscreen label"))
+            Assert.assertFalse(output.jsonFile.readText().contains("jugg_details"))
+        }
+    }
+
+    @Test
+    fun testLayoutModesExposeJsonAndPreserveTheirNodeScope() {
+        val projectDir = createTempDir(prefix = "jugg_layout_modes_")
+        val setup = setup(projectDir, packageName = "com.example.app")
+        val payload = """{"deviceInfo":{"density":2,"scaledDensity":2.5},"truncated":false,
+            "windows":[{"windowType":"activity","title":"Main","root":{"className":"FrameLayout",
+            "id":"_vir_id_root","bounds":[0,0,720,1280],"children":[
+            {"className":"FrameLayout","id":"_vir_id_wrapper","children":[
+            {"className":"TextView","id":"_vir_id_label","text":"状态","bounds":[20,40,220,80],
+            "visibility":"gone","alpha":0.5,"enabled":false,"padding":[2,4,6,8]}]},
+            {"className":"ImageView","id":"_vir_id_image","bounds":[0,100,100,200]}]}}]}"""
+        Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, _ ->
+            Mockito.`when`(mock.dumpLayout(anyOrNull(), any(), any())).thenReturn(LayoutDumpResult(payload, null))
+        }.use {
+            for (mode in listOf(null, "interaction", "ui")) {
+                val arguments = mutableMapOf<String, Any>("projectDir" to projectDir.absolutePath)
+                if (mode != null) arguments["mode"] = mode
+                val result = LayoutDumpMcpToolAction().execute(arguments, setup.runtime)
+                assertLayoutMode(result, mode ?: "interaction")
+            }
+        }
+    }
+
+    private fun assertLayoutMode(result: McpToolResult, mode: String) {
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        Assert.assertEquals("json", result.artifacts.single().type)
+        val data = result.data as Map<*, *>
+        val file = File(data["file"] as String)
+        Assert.assertTrue(file.name.endsWith(".json"))
+        Assert.assertEquals(file.length(), (data["contentBytes"] as Number).toLong())
+        val json = JsonParser.parseString(file.readText()).asJsonObject
+        Assert.assertEquals(json, data["layout"])
+        Assert.assertTrue(file.readText().lines().any { it.startsWith("{\"className\":") })
+        Assert.assertEquals(mode, json["mode"].asString)
+        Assert.assertEquals("dp", json.getAsJsonObject("units")["bounds"].asString)
+        Assert.assertFalse(json["truncated"].asBoolean)
+        val window = json.getAsJsonArray("windows")[0].asJsonObject
+        Assert.assertEquals("activity", window["windowType"].asString)
+        val root = window.getAsJsonObject("root")
+        Assert.assertEquals("_vid_root", root["id"].asString)
+        if (mode == "interaction") {
+            Assert.assertFalse(root.has("children"))
+            Assert.assertTrue(result.message.contains("1 nodes"))
+            return
+        }
+        val children = root.getAsJsonArray("children")
+        Assert.assertEquals(2, children.size())
+        Assert.assertEquals("ImageView", children[1].asJsonObject["className"].asString)
+        Assert.assertTrue(result.message.contains("4 nodes"))
+        val label = children[0].asJsonObject.getAsJsonArray("children")[0].asJsonObject
+        Assert.assertEquals("_vid_label", label["id"].asString)
+        Assert.assertEquals("gone", label["visibility"].asString)
+        Assert.assertEquals(0.5, label["alpha"].asDouble, 0.0)
+        Assert.assertFalse(label["enabled"].asBoolean)
+        Assert.assertEquals("[10,20,110,40]", label["bounds"].toString())
+        Assert.assertEquals("[1,2,3,4]", label["padding"].toString())
+    }
+
+    @Test
+    fun testInlineLimitUsesUtf8BytesAndKeepsTheCompleteArtifact() {
+        val projectDir = createTempDir(prefix = "jugg_layout_inline_")
+        val setup = setup(projectDir, packageName = "com.example.app")
+        var payload = ""
+        Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, _ ->
+            Mockito.`when`(mock.dumpLayout(anyOrNull(), any(), any())).thenAnswer { LayoutDumpResult(payload, null) }
+        }.use {
+            val arguments = mapOf("projectDir" to projectDir.absolutePath, "mode" to "ui")
+            fun dump(text: String): McpToolResult {
+                payload = Gson().toJson(mapOf("windows" to listOf(mapOf("root" to mapOf(
+                    "className" to "TextView", "text" to text,
+                )))))
+                return LayoutDumpMcpToolAction().execute(arguments, setup.runtime)
+            }
+            val marker = "内联唯一文本🙂"
+            val initial = dump(marker)
+            val initialBytes = (initial.data as Map<*, *>)["contentBytes"] as Int
+            val boundaryText = marker + "x".repeat(16 * 1024 - initialBytes)
+            for (extra in listOf("", "界")) {
+                val result = dump(boundaryText + extra)
+                val data = result.data as Map<*, *>
+                val file = File(data["file"] as String)
+                Assert.assertEquals(16 * 1024L + extra.toByteArray(StandardCharsets.UTF_8).size, file.length())
+                Assert.assertEquals(file.length(), (data["contentBytes"] as Number).toLong())
+                val stored = JsonParser.parseString(file.readText()).asJsonObject
+                val text = stored.getAsJsonArray("windows")[0].asJsonObject.getAsJsonObject("root")["text"].asString
+                Assert.assertEquals(boundaryText + extra, text)
+                Assert.assertEquals(extra.isEmpty(), data.containsKey("layout"))
+                val response = JsonParser.parseString(Gson().toJson(McpResultMapper().toolSuccess(1, result)))
+                    .asJsonObject.getAsJsonObject("result")
+                val wireData = response.getAsJsonObject("structuredContent").getAsJsonObject("data")
+                Assert.assertEquals(extra.isEmpty(), wireData.has("layout"))
+                if (extra.isEmpty()) Assert.assertEquals(stored, wireData["layout"])
+                Assert.assertFalse(response.getAsJsonArray("content").toString().contains(marker))
+            }
+        }
+    }
+
+    @Test
+    fun testInvalidLayoutModeFailsBeforeDeviceAccess() {
+        val runtime = Mockito.mock(IMcpRuntime::class.java)
+        for (mode in listOf("unknown", "", 1)) {
+            val result = LayoutDumpMcpToolAction().execute(mapOf("mode" to mode), runtime)
+            Assert.assertEquals(McpToolStatus.ERROR, result.status)
+            Assert.assertEquals(McpErrorCode.INVALID_PARAMS, result.errorCode)
+        }
+        Mockito.verifyNoInteractions(runtime)
+    }
+
+    @Test
+    fun testIncompleteLayoutKeepsArtifactsAndReportsWarnings() {
+        val projectDir = createTempDir(prefix = "jugg_layout_incomplete_")
+        val setup = setup(projectDir, packageName = "com.example.app")
+        Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, _ ->
+            Mockito.`when`(mock.dumpLayout(anyOrNull(), any(), any())).thenReturn(
+                LayoutDumpResult(
+                    payloadJson = """{"warnings":["Compose tooling unavailable"],"windows":[{"root":{
+                        "className":"FrameLayout","children":[
+                          {"className":"ComposeView","message":"Compose tooling unavailable"},
+                          {"className":"TextView","text":"Available"}]
+                    }}]}""",
+                    remoteFilePath = null,
+                )
+            )
+        }.use {
+            val result = LayoutDumpMcpToolAction().execute(mapOf("projectDir" to projectDir.absolutePath), setup.runtime)
+            Assert.assertEquals(McpToolStatus.OK, result.status)
+            Assert.assertTrue(result.message.contains("incomplete hierarchy"))
+            val data = result.data as Map<*, *>
+            Assert.assertEquals(listOf("Compose tooling unavailable"), data["warnings"])
+            val json = File(data["file"] as String).readText()
+            Assert.assertTrue(json.contains("Available"))
+            Assert.assertTrue(json.contains("Compose tooling unavailable"))
+            val artifact = JsonParser.parseString(json).asJsonObject
+            Assert.assertEquals(artifact, data["layout"])
+            Assert.assertEquals("Compose tooling unavailable", artifact.getAsJsonArray("warnings")[0].asString)
+            Assert.assertEquals("px", artifact.getAsJsonObject("units")["bounds"].asString)
+            Assert.assertEquals("json", result.artifacts.single().type)
+        }
+    }
+
+    @Test
     fun testLayoutDumpUsesServerInlineJsonWhenAvailable() {
         val projectDir = createTempDir(prefix = "jugg_layout_dump_json_")
         val setup = setup(projectDir, packageName = "com.example.app")
@@ -64,11 +237,11 @@ class LayoutDumpMcpToolActionTest {
             Assert.assertTrue(result.message.contains("nodes"))
             Assert.assertEquals(1, construction.constructed().size)
             Assert.assertEquals(0, setup.adb.pullCount)
-            Assert.assertEquals("html", result.artifacts.firstOrNull()?.type)
+            Assert.assertEquals("json", result.artifacts.firstOrNull()?.type)
             @Suppress("UNCHECKED_CAST")
             val data = result.data as Map<String, Any>
             val filePath = data["file"] as String
-            Assert.assertTrue(filePath.endsWith(".html"))
+            Assert.assertTrue(filePath.endsWith(".json"))
             val content = File(filePath).readText(StandardCharsets.UTF_8)
             Assert.assertTrue(content.contains("MainActivity"))
         }
@@ -93,13 +266,13 @@ class LayoutDumpMcpToolActionTest {
             Assert.assertEquals(McpToolStatus.OK, result.status)
             Assert.assertEquals(1, setup.adb.pullCount)
             Assert.assertTrue(setup.adb.pullFromPaths.contains(remotePath))
-            Assert.assertEquals("html", result.artifacts.firstOrNull()?.type)
+            Assert.assertEquals("json", result.artifacts.firstOrNull()?.type)
             @Suppress("UNCHECKED_CAST")
             val data = result.data as Map<String, Any>
             val filePath = data["file"] as String
-            Assert.assertTrue(filePath.endsWith(".html"))
+            Assert.assertTrue(filePath.endsWith(".json"))
             val content = File(filePath).readText(StandardCharsets.UTF_8)
-            Assert.assertTrue(content.contains("<html>"))
+            Assert.assertEquals("interaction", JsonParser.parseString(content).asJsonObject["mode"].asString)
         }
     }
 
@@ -251,7 +424,7 @@ class LayoutDumpMcpToolActionTest {
             Assert.assertFalse("inlineThresholdKb should not be present", data.containsKey("inlineThresholdKb"))
             Assert.assertFalse("data.jsonFile should stay internal", data.containsKey("jsonFile"))
             Assert.assertTrue((data["contentBytes"] as Number).toInt() > 0)
-            Assert.assertTrue((data["file"] as String).endsWith(".html"))
+            Assert.assertTrue((data["file"] as String).endsWith(".json"))
         }
     }
 
@@ -436,7 +609,7 @@ class LayoutDumpMcpToolActionTest {
         val setup = setup(projectDir, packageName = "com.example.app")
         val action = LayoutDumpMcpToolAction()
         // density=3.0, bounds=[0,0,300,600] in px should become [0,0,100,200] in dp;
-        // Button is clickable so it appears in the HTML output with the converted bounds.
+        // Button is clickable so it appears in the JSON output with the converted bounds.
         val jsonWithPx = """{"windows":[{"title":"MainActivity","root":{"className":"Button","bounds":[0,0,300,600],"clickable":true}}],"truncated":false,"deviceInfo":{"density":3.0,"scaledDensity":3.0}}"""
 
         Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, _ ->
@@ -449,15 +622,15 @@ class LayoutDumpMcpToolActionTest {
             @Suppress("UNCHECKED_CAST")
             val data = result.data as Map<String, Any>
             val filePath = data["file"] as String
-            Assert.assertTrue("artifact should be HTML", filePath.endsWith(".html"))
+            Assert.assertTrue("artifact should be JSON", filePath.endsWith(".json"))
             val content = File(filePath).readText(StandardCharsets.UTF_8)
-            // Converted bounds [0,0,100,200] should appear in HTML output
-            Assert.assertTrue("HTML should contain converted bounds", content.contains("0,0,100,200"))
+            // Converted bounds [0,0,100,200] should appear in JSON output
+            Assert.assertTrue("JSON should contain converted bounds", content.contains("0,0,100,200"))
         }
     }
 
     @Test
-    fun testLayoutDumpVirtualIdNodesArePrunedInHtml() {
+    fun testLayoutDumpKeepsVirtualIdForWindowRoot() {
         val projectDir = createTempDir(prefix = "jugg_layout_dump_virtual_id_")
         val setup = setup(projectDir, packageName = "com.example.app")
         val action = LayoutDumpMcpToolAction()
@@ -475,8 +648,8 @@ class LayoutDumpMcpToolActionTest {
             val data = result.data as Map<String, Any>
             val filePath = data["file"] as String
             val content = File(filePath).readText(StandardCharsets.UTF_8)
-            Assert.assertFalse("Virtual ID _vir_id_0 should be pruned from HTML", content.contains("_vir_id_0"))
-            Assert.assertTrue("Real child btn_action should appear in HTML", content.contains("btn_action"))
+            Assert.assertTrue("Window root keeps its virtual ID", content.contains("_vid_0"))
+            Assert.assertTrue("Real child btn_action should appear in JSON", content.contains("btn_action"))
         }
     }
 

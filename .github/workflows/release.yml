@@ -64,9 +64,14 @@ jobs:
           fi
 
       - name: Generate bilingual release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          ruby tools/generate_release_notes.rb "$GITHUB_REF_NAME" > "$RUNNER_TEMP/release-notes.md"
+          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+            > "$RUNNER_TEMP/releases.json"
+          ruby tools/generate_release_notes.rb "$GITHUB_REF_NAME" "$RUNNER_TEMP/releases.json" \
+            > "$RUNNER_TEMP/release-notes.md"
           cat "$RUNNER_TEMP/release-notes.md" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Prepare release version

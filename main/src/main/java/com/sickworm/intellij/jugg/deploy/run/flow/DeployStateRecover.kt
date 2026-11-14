@@ -4,6 +4,7 @@ import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.deploy.*
+import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlayStateChecker
 import com.sickworm.intellij.jugg.deploy.direct.DirectOverlayStateCheckResult
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
@@ -113,7 +114,7 @@ open class DeployStateRecover(
             }
         }
 
-        deployFileManager.resetAfterReinstall()
+        deployFileManager.resetAfterReinstall(replayNativeLibraries = JuggSettings.isEnableNativeSandboxDeploy)
         return true to true
     }
 

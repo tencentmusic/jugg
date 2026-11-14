@@ -17,6 +17,34 @@ import java.util.Map;
 public class DragonflyHierarchySourceTest {
 
     @Test
+    public void dump_shouldLimitWarningsToReturnedSubtreeAndVisibility() throws Exception {
+        HierarchyNode target = node("Text", properties("id", "target", "text", "Available"));
+        HierarchyNode failed = node("ComposeView", properties("error", "Tooling failed", "visibility", "gone"));
+        DragonflyHierarchySource.Snapshot snapshot = new DragonflyHierarchySource().buildSnapshot(
+            Collections.singletonList(window(node("Root", Collections.emptyMap(), target, failed))));
+
+        Assert.assertFalse(snapshot.toJson("target", false).has("warnings"));
+        Assert.assertFalse(snapshot.toJson(null, true).has("warnings"));
+        Assert.assertTrue(snapshot.toJson(null, false).has("warnings"));
+    }
+
+    @Test
+    public void snapshot_shouldPreserveExtractionFailuresAndValidSiblings() throws Exception {
+        HierarchyNode failed = node("ComposeView", properties("error", "NoSuchMethodError: tooling"));
+        HierarchyNode valid = node("TextView", properties("text", "Available"));
+        DragonflyHierarchySource.Snapshot snapshot = new DragonflyHierarchySource().buildSnapshot(
+            Collections.singletonList(window(node("Root", Collections.emptyMap(), failed, valid))));
+
+        JSONObject json = snapshot.toJson(null, false);
+        Assert.assertEquals("NoSuchMethodError: tooling", json.getJSONArray("windows")
+            .getJSONObject(0).getJSONObject("root").getJSONArray("children")
+            .getJSONObject(0).getString("message"));
+        Assert.assertTrue(json.getJSONArray("warnings").getString(0).contains("tooling"));
+        Assert.assertEquals(1, snapshot.find("Available", null, null, null, false).size());
+        Assert.assertFalse(json.getBoolean("truncated"));
+    }
+
+    @Test
     public void dump_shouldSearchAllWindowsWhenRootLayoutIsSpecified() throws Exception {
         HierarchyNode target = node(
             "Text",

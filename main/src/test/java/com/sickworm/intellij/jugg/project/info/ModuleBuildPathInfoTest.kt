@@ -623,6 +623,30 @@ class ModuleBuildPathInfoTest {
         assertEquals(applicationManifest.canonicalPath, info.mergedManifest.canonicalPath)
     }
 
+    @Test
+    fun `androidTest packaged manifest is resolved and included in synced baseline`() {
+        val moduleRootDir = tempFolder.newFolder("library")
+        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debugAndroidTest", buildDirRelativePath = "")
+        val manifest = createManifest(
+            moduleRootDir,
+            "build/intermediates/packaged_manifests/debugAndroidTest/processDebugAndroidTestManifest/AndroidManifest.xml",
+            2000L,
+        )
+
+        assertEquals(manifest.canonicalFile, info.mergedManifest.canonicalFile)
+        assertTrue(info.allBuildPaths.any { manifest.startsWith(it) }, "test manifest must survive remote baseline sync")
+    }
+
+    @Test
+    fun `ordinary variant ignores packaged manifest when resolving merge baseline`() {
+        val moduleRootDir = tempFolder.newFolder("ordinary")
+        val info = ModuleBuildPathInfo(moduleRootDir.parentFile, moduleRootDir, "debug", buildDirRelativePath = "")
+        val merged = createManifest(moduleRootDir, "build/intermediates/merged_manifests/debug/AndroidManifest.xml", 1000L)
+        createManifest(moduleRootDir, "build/intermediates/packaged_manifests/debug/AndroidManifest.xml", 2000L)
+
+        assertEquals(merged.canonicalFile, info.mergedManifest.canonicalFile)
+    }
+
     private fun createRJar(moduleRootDir: File, relativePath: String, lastModifiedTime: Long): File {
         val rJar = File(moduleRootDir, relativePath)
         rJar.parentFile.mkdirs()

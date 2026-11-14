@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.gradle.script
 
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.artifacts.Configuration
@@ -25,6 +26,38 @@ import org.mockito.kotlin.whenever
 import java.io.File
 
 class GradleProjectInfoReaderKotlinOptionsTest {
+
+    @Test
+    fun `KMP JVM target is a Java library and retains its configured build directory`() {
+        val module = createReader(kotlinTask(), "compileKotlinJvm", true,
+            isAndroidApplication = false,
+            kotlinExtension = MultiplatformExtension(listOf(KotlinTarget("common"), KotlinTarget("jvm"))),
+            buildDir = File("/project/build/app"),
+        ).getProjectInfo(false).modules.getValue("app")
+        assertEquals(ModuleInfo.Type.JavaLibrary, module.moduleType)
+        assertEquals(File("/project/build/app"), module.buildPathInfo.buildDir)
+    }
+
+    @Test
+    fun `KMP without a JVM target remains unknown`() {
+        for (targets in listOf(emptyList(), listOf(KotlinTarget("common"), KotlinTarget("js"), KotlinTarget("native")))) {
+            val module = createReader(kotlinTask(), "unused", true, isAndroidApplication = false,
+                kotlinExtension = MultiplatformExtension(targets),
+            ).getProjectInfo(false).modules.getValue("app")
+            assertEquals(ModuleInfo.Type.Unknown, module.moduleType)
+        }
+    }
+
+    @Test
+    fun `Android module retains its type when KMP also exposes a JVM target`() {
+        val module = createReader(kotlinTask(), "compileDebugKotlin", true,
+            kotlinExtension = MultiplatformExtension(listOf(KotlinTarget("jvm"))),
+        ).getProjectInfo(false).modules.getValue("app")
+        assertEquals(ModuleInfo.Type.Application, module.moduleType)
+    }
+
+    class MultiplatformExtension(val targets: List<KotlinTarget>)
+    class KotlinTarget(val platformType: String)
 
     @Test
     fun `built-in Kotlin compiler options populate project info without legacy plugin`() {
@@ -153,12 +186,70 @@ class GradleProjectInfoReaderKotlinOptionsTest {
         assertEquals(pluginOptions, module.kotlinPluginOptions)
     }
 
+    @Test
+    fun ksp1ReadsSelectedKmpTaskArtifactsAndOptions() {
+        val task = Mockito.mock(Task::class.java, Mockito.withSettings().extraInterfaces(Ksp1TaskModel::class.java))
+        whenever(task.name).thenReturn("kspDebugKotlinAndroid")
+        val options = mock<Provider<List<KspOption>>>()
+        whenever(options.orNull).thenReturn(listOf(KspOption("apclasspath", "/project/infra/build/custom.jar"),
+            KspOption("apoption", "MODULE_NAME=debug"), KspOption("apoption", "token=a=b")))
+        whenever((task as Ksp1TaskModel).options).thenReturn(options)
+        val runtime = mock<org.gradle.api.file.FileCollection>()
+        whenever(runtime.files).thenReturn(setOf(File("/cache/symbol-processing-2.1.20-1.0.32.jar")))
+        whenever(task.pluginClasspath).thenReturn(runtime)
+        val module = createReader(kotlinTask = kotlinTask(), kotlinTaskName = "compileDebugKotlinAndroid",
+            hasLegacyKotlinPlugin = true, kspTask = task).getProjectInfo(false).modules.getValue("app")
+        assertEquals(listOf(File("/project/infra/build/custom.jar")), module.kspInfo!!.processorDependencies.map { it.file })
+        assertEquals(mapOf("MODULE_NAME" to "debug", "token" to "a=b"), module.kspInfo?.arguments)
+        assertEquals(false, module.kspInfo?.useKsp2)
+        assertEquals(runtime.files.toList(), module.kspInfo!!.runtimeDependencies.map { it.file })
+    }
+
+    @Test
+    fun ksp2ReadsAnalysisEngineAndEffectiveProcessorArguments() {
+        val task = Mockito.mock(Task::class.java, Mockito.withSettings().extraInterfaces(Ksp2TaskModel::class.java))
+        whenever(task.name).thenReturn("kspDebugKotlinAndroid")
+        val processors = mock<org.gradle.api.file.FileCollection>()
+        whenever(processors.files).thenReturn(setOf(File("/project/infra/build/custom.jar")))
+        val runtime = mock<org.gradle.api.file.FileCollection>()
+        whenever(runtime.files).thenReturn(setOf(File("/cache/symbol-processing-aa-embeddable-2.1.20-1.0.32.jar")))
+        val args = mock<Provider<Map<String, String>>>()
+        whenever(args.orNull).thenReturn(mapOf("AROUTER_MODULE_NAME" to "debug"))
+        whenever((task as Ksp2TaskModel).kspConfig).thenReturn(KspConfig(processors, args))
+        whenever(task.kspClasspath).thenReturn(runtime)
+        val module = createReader(kotlinTask = kotlinTask(), kotlinTaskName = "compileDebugKotlinAndroid",
+            hasLegacyKotlinPlugin = true, kspTask = task).getProjectInfo(false).modules.getValue("app")
+        assertEquals(processors.files.toList(), module.kspInfo!!.processorDependencies.map { it.file })
+        assertEquals(runtime.files.toList(), module.kspInfo!!.runtimeDependencies.map { it.file })
+        assertEquals(true, module.kspInfo?.useKsp2)
+        assertEquals(mapOf("AROUTER_MODULE_NAME" to "debug"), module.kspInfo?.arguments)
+        assertEquals("2.1", module.kspInfo?.languageVersion)
+    }
+
+    interface Ksp1TaskModel {
+        val options: Provider<List<KspOption>>
+        val pluginClasspath: org.gradle.api.file.FileCollection
+    }
+    interface Ksp2TaskModel {
+        val kspConfig: KspConfig
+        val kspClasspath: org.gradle.api.file.FileCollection
+    }
+    class KspOption(val key: String, val value: String)
+    class KspConfig(val processorClasspath: org.gradle.api.file.FileCollection,
+        val processorOptions: Provider<Map<String, String>>) {
+        fun getLanguageVersion(): String = "2.1"
+        fun getApiVersion(): String = "2.1"
+    }
+
     private fun createReader(
         kotlinTask: Task,
         kotlinTaskName: String,
         hasLegacyKotlinPlugin: Boolean,
         isAndroidApplication: Boolean = true,
         isAndroidKmp: Boolean = false,
+        kspTask: Task? = null,
+        kotlinExtension: MultiplatformExtension? = null,
+        buildDir: File = File("/project/app/build"),
     ): GradleProjectInfoReader {
         val projectDir = File("/project")
         val appDir = File(projectDir, "app")
@@ -175,6 +266,7 @@ class GradleProjectInfoReaderKotlinOptionsTest {
         }
         val tasks = mock<TaskContainer>()
         whenever(tasks.findByName(kotlinTaskName)).thenReturn(kotlinTask)
+        whenever(tasks.findByName("kspDebugKotlinAndroid")).thenReturn(kspTask)
         whenever(tasks.iterator()).thenReturn(mutableListOf<Task>().iterator())
         val configurations = mock<ConfigurationContainer>()
         // Application modules must expose a variant runtime classpath, like real Gradle.
@@ -187,7 +279,8 @@ class GradleProjectInfoReaderKotlinOptionsTest {
         val extensions = mock<ExtensionContainer>()
         whenever(extensions.getByName("android")).thenReturn(AndroidExtension())
         whenever(extensions.findByName("kapt")).thenReturn(null)
-        val appLayout = layout(File(appDir, "build"))
+        whenever(extensions.findByName("kotlin")).thenReturn(kotlinExtension)
+        val appLayout = layout(buildDir)
 
         whenever(appProject.path).thenReturn(":app")
         whenever(appProject.name).thenReturn("app")

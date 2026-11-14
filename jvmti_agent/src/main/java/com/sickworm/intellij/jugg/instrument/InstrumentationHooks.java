@@ -11,6 +11,7 @@ import android.content.res.Resources;
 import android.os.Build;
 import com.sickworm.intellij.jugg.hotfix.HotfixLoader;
 import com.sickworm.intellij.jugg.hotfix.LogUtils;
+import com.sickworm.intellij.jugg.hotfix.NativeLibraryPathInstaller;
 import com.sickworm.intellij.jugg.hotfix.ReflectUtil;
 import com.sickworm.intellij.jugg.jvmti_agent.BuildConfig;
 
@@ -74,6 +75,7 @@ public class InstrumentationHooks {
                 HotfixLoader.installDex(base);
                 LogUtils.i(TAG, "handleAttachBaseContextEntry fix finished");
             }
+            NativeLibraryPathInstaller.install(base);
         } catch (Exception e) {
             LogUtils.e(TAG, "handleAttachBaseContextEntry", e);
             throw e;
@@ -95,6 +97,7 @@ public class InstrumentationHooks {
                 InstrumentationHooks.base = base;
                 LogUtils.i(TAG, "handleAttachBaseContextEntry fix finished");
             }
+            NativeLibraryPathInstaller.install(base);
         } catch (Exception e) {
             LogUtils.e(TAG, "handleAttachBaseContextEntry", e);
             throw new RuntimeException(e);
@@ -113,6 +116,7 @@ public class InstrumentationHooks {
                 InstrumentationHooks.base = base;
                 LogUtils.i(TAG, "handleAttachBaseContextEntry2 fix finished");
             }
+            NativeLibraryPathInstaller.install(base);
         } catch (Exception e) {
             LogUtils.e(TAG, "handleAttachBaseContextEntry2", e);
             throw new RuntimeException(e);
@@ -199,9 +203,12 @@ public class InstrumentationHooks {
         }
         if (isNeedFix) {
             tryFixOutSideApk(assetManager);
-        } else if (FlutterAssetRefresh.shouldScheduleRefresh()) {
-            // The host AssetManager is recreated by Apply Changes; running Flutter engines need it.
-            FlutterAssetRefresh.scheduleRefresh();
+        } else {
+            RuntimeSharedLibraries.restore(assetManager);
+            if (FlutterAssetRefresh.shouldScheduleRefresh()) {
+                // The host AssetManager is recreated by Apply Changes; running Flutter engines need it.
+                FlutterAssetRefresh.scheduleRefresh();
+            }
         }
         return assetManager;
     }
@@ -225,6 +232,7 @@ public class InstrumentationHooks {
             return assetManager;
         }
         if (!isNeedFix) {
+            RuntimeSharedLibraries.restore(assetManager);
             // The host AssetManager is recreated by Apply Changes; running Flutter engines need it.
             if (FlutterAssetRefresh.shouldScheduleRefresh()) {
                 FlutterAssetRefresh.scheduleRefresh();
@@ -299,6 +307,15 @@ public class InstrumentationHooks {
         } catch (Throwable e) {
             LogUtils.e(TAG, "tryFixOutSideApk failed", e);
         }
+    }
+
+    public static void resourceSharedLibraryEnter(AssetManager manager, String path) {
+        RuntimeSharedLibraries.beforeAdd(manager, path);
+    }
+
+    public static int resourceSharedLibraryExit(int cookie) {
+        RuntimeSharedLibraries.afterAdd(cookie);
+        return cookie;
     }
 
     /**

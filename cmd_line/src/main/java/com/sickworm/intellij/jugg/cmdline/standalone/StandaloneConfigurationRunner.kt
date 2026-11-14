@@ -10,6 +10,8 @@ import com.sickworm.intellij.jugg.compiler.ForceGradleCompileHelper
 import com.sickworm.intellij.jugg.compiler.GradleCompileExecutionResult
 import com.sickworm.intellij.jugg.compiler.RemoteSshInfoResult
 import com.sickworm.intellij.jugg.compiler.ui.RunResult
+import com.sickworm.intellij.jugg.deploy.LastChangedDeploySnapshot
+import com.sickworm.intellij.jugg.deploy.LastChangedDeployRegistry
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
 import com.sickworm.intellij.jugg.deploy.run.DeployOptions
 import com.sickworm.intellij.jugg.deploy.run.DeployProgress
@@ -27,6 +29,7 @@ internal class StandaloneConfigurationRunner(
     private val activity: StandaloneDaemonActivity,
 ) : IJuggConfigurationRunner {
     private val runLock = Any()
+    private var hasAttemptedDeploy = false
     private val currentRequest = AtomicReference<AtomicBoolean?>()
     @Volatile private var currentHandler: StandaloneCompileUiHandler? = null
     @Volatile private var compiling = false
@@ -136,24 +139,67 @@ internal class StandaloneConfigurationRunner(
     private fun runCompileAndDeploy(
         options: JuggGradleCompileOptions, handler: StandaloneCompileUiHandler, request: RunRequest,
     ): JuggRunInvocationResult {
-        services.refreshCustomConfig()
-        services.refreshChangedFiles()
-        val startTime = System.currentTimeMillis()
-        val compileResult = services.compilerHelper.compile(
-            options, handler, isAndroidTestRun = request.androidTestRunSpec != null,
-        )
-        if (!compileResult.isSuccess) return compileFailure(compileResult, handler, request.isSkipDeploy)
-        if (compileResult.isGradleCompile) services.initAfterFullBuild(startTime, options)
-        if (request.isSkipDeploy) {
-            return result(
-                RunResult(
-                    compileResult.isGradleCompile, true, false, handler.isCanceled, isNeedResetHasRun = true,
-                ),
-                true,
+        hasAttemptedDeploy = false
+        val previousDeploy = LastChangedDeployRegistry.INSTANCE.get(options.projectRootPath)
+        var compileResult: CompileTaskResult? = null
+        var unexpectedFailure = false
+        val invocation = try {
+            services.refreshCustomConfig()
+            services.refreshChangedFiles()
+            val startTime = System.currentTimeMillis()
+            val compiled = services.compilerHelper.compile(
+                options, handler, isAndroidTestRun = request.androidTestRunSpec != null,
+            ).also { compileResult = it }
+            if (!compiled.isSuccess) {
+                compileFailure(compiled, handler, request.isSkipDeploy)
+            } else {
+                if (compiled.isGradleCompile) services.initAfterFullBuild(startTime, options)
+                if (request.isSkipDeploy) {
+                    result(RunResult(compiled.isGradleCompile, true, false, handler.isCanceled,
+                        isNeedResetHasRun = true), true)
+                } else {
+                    deploy(compiled, handler, request.androidTestRunSpec)
+                }
+            }
+        } catch (e: Throwable) {
+            unexpectedFailure = true
+            services.logger.warn("Standalone compile/deploy failed", e)
+            val failed = RunResult(
+                compileResult?.isGradleCompile ?: request.forceGradle,
+                compileResult?.isSuccess == true, false, handler.isCanceled,
+                errorLog = compileResult?.errorLog.orEmpty(), failedReason = e.message ?: e.javaClass.name,
             )
+            result(failed, request.isSkipDeploy).copy(isSuccess = false, detail = e.stackTraceToString())
         }
-        return deploy(compileResult, handler, request.androidTestRunSpec)
+        val finalInvocation = invocation.copy(runResult = invocation.runResult?.let {
+            withCompileDetails(it, compileResult, options.projectRootPath, previousDeploy)
+        })
+        finalInvocation.runResult?.let { reportRunFailure(it, unexpectedFailure || hasAttemptedDeploy) }
+        return finalInvocation
     }
+
+    private fun reportRunFailure(result: RunResult, isEligible: Boolean) {
+        try {
+            services.reportRunFailure(result, isEligible)
+        } catch (e: Exception) {
+            services.logger.debug("Auto upload failure logs preparation failed", e)
+        }
+    }
+
+    private fun withCompileDetails(
+        result: RunResult, compileResult: CompileTaskResult?, projectRootPath: String,
+        previousDeploy: LastChangedDeploySnapshot?,
+    ): RunResult = result.copy(
+        compiledFiles = compileResult?.incrementalCompileResult?.successFiles.orEmpty().map {
+            it.get().file.relativeToOrSelf(services.projectDir).invariantSeparatorsPath
+        }.distinct(),
+        deployedFiles = if (result.isDeploySuccess) {
+            LastChangedDeployRegistry.INSTANCE.get(projectRootPath)
+                ?.takeIf { it !== previousDeploy }?.files.orEmpty().map {
+                    it.relativeToOrSelf(services.projectDir).invariantSeparatorsPath
+                }
+        } else emptyList(),
+    )
 
     private fun canceledResult(isSkipDeploy: Boolean): JuggRunInvocationResult {
         return result(RunResult(false, false, false, true, failedReason = "Canceled by next task."), isSkipDeploy)
@@ -183,6 +229,7 @@ internal class StandaloneConfigurationRunner(
             )
             return result(runResult, false)
         }
+        hasAttemptedDeploy = true
         val shouldInstall = compileResult.isGradleCompile || forceReinstall
         forceReinstall = false
         val deployResults = devices.mapIndexed { index, device ->

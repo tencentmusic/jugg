@@ -81,7 +81,7 @@ class DirectOverlaySwapTransport(
         when (DirectOverlayWriter(adb, logger).write(preparedRequest.request)) {
             DirectOverlayWriteResult.SUCCESS -> {
                 if (!launchContext.isDeviceReadyDeploy) {
-                    logger.info("IDE deployment unavailable, Direct Overlay fallback succeeded.")
+                    logger.debug("IDE deployment unavailable, Direct Overlay fallback succeeded.")
                 }
                 return preparedRequest.overlayId
             }

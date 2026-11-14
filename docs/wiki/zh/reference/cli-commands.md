@@ -45,7 +45,7 @@ jugg help <subcommand>
 | `restart` | 重启目标 App。 |
 | `instrument` | 从 androidTest 源文件锚点运行测试。 |
 | `status` | 查看设备、fallback、未编译文件和 androidTest baseline 状态。 |
-| `layout-dump` | 导出 UI 层级 HTML。 |
+| `layout-dump` | 导出 interaction/ui 稀疏 JSON。 |
 | `view-locate` | 通过文本、resource id 或 content-desc 查找元素位置。 |
 | `view-inspect` | 反射读取 View 只读属性，含 getter、Kotlin property 和 public 字段。 |
 | `tap` | 执行 tap、long-press 或 swipe。 |
@@ -102,6 +102,8 @@ jugg restart
 > [!IMPORTANT]
 > `deploy`、`gradle-build` 的终态需要同时看 `isCompileSuccess` 和 `isDeploySuccess`。编译成功不等于部署成功。
 
+`deploy` 的成功消息显示 `Deployed files (total: N)` 和本轮成功部署的文件；此前已编译、本轮才部署的文件也计入。无文件下发时 N 为 0。两个成功字段表示流程正常完成，无改动也可成功；`compile` 的消息则显示本轮实际成功编译的文件。
+
 ## Android Test
 
 ```bash
@@ -136,7 +138,8 @@ jugg activity-stack
 ## UI 工具
 
 ```bash
-jugg layout-dump --include-gone --all-windows
+jugg layout-dump --mode interaction
+jugg layout-dump --mode ui --include-gone --all-windows
 jugg view-locate --resource-id login_button
 jugg view-inspect --text 登录 getText() isEnabled()
 jugg view-inspect --resource-id bubble_container layoutParams.leftMargin getLayoutParams().getMarginStart()
@@ -147,10 +150,12 @@ jugg tap --action swipe --x 500 --y 1600 --end-x 500 --end-y 300 --duration 300
 
 | 命令 | 常用参数 |
 |---|---|
-| `layout-dump` | `--root-layout`、`--include-gone`、`--all-windows` |
+| `layout-dump` | `--mode`、`--root-layout`、`--include-gone`、`--all-windows` |
 | `view-locate` | `--text`、`--resource-id`、`--content-desc` |
 | `view-inspect` | `--text`、`--resource-id`、`--content-desc`、`--class-name`、只读表达式 |
 | `tap` | `--action`、坐标参数、百分比参数、元素 selector、`--duration` |
+
+`layout-dump` 默认 interaction，裁剪交互摘要；ui 保留已采集树，用于布局验证及辅助还原。mode 不改变其他筛选参数，精确输出含义见 [MCP 工具](./mcp-tools.md)。
 
 `tap` 的模式优先级是 coordinate > percent > element。`swipe` 只支持坐标或百分比模式，不支持元素模式。
 

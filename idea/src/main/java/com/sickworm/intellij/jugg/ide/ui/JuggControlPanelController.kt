@@ -22,6 +22,7 @@ import kotlin.reflect.KProperty0
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.ide.controlpanel.JuggControlPanelModel
 import com.sickworm.intellij.jugg.ide.controlpanel.JuggEvent
+import com.sickworm.intellij.jugg.project.change.ChangedFile
 import com.sickworm.intellij.jugg.logger.getInstance
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -94,6 +95,39 @@ open class JuggControlPanelController(
         model.updateSettings(currentSettings())
         model.updateHealth(buildHealth(context))
         refreshDevices()
+    }
+
+    fun manageFileChanges() {
+        FileChangeManagerDialog(project, this).show()
+    }
+
+    fun fileChangeCandidates(): List<ChangedFile> = deployFileManager.getFileChangeCandidates()
+
+    fun selectedFilePaths(): Set<String> = deployFileManager.getUndeployedFiles()
+        .map { it.file.absolutePath }.toSet()
+
+    fun applyFileSelection(candidates: List<ChangedFile>, selectedPaths: Set<String>): Boolean {
+        if (!manager.applyFileSelection(candidates, selectedPaths)) return false
+        refresh()
+        return true
+    }
+
+    fun refreshFileChanges(onComplete: (Boolean) -> Unit) {
+        manager.launch(Dispatchers.IO) {
+            val success = try {
+                manager.refreshFileChanges()
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                logger.warn("Refresh file changes failed", e)
+                false
+            }
+            SwingUtilities.invokeLater {
+                if (!isCleared && !project.isDisposed) {
+                    refresh()
+                    onComplete(success)
+                }
+            }
+        }
     }
 
     open fun refreshSettings() {
@@ -296,10 +330,12 @@ open class JuggControlPanelController(
             confirmFallbackWhenTooManyChanges = JuggSettings.isConfirmFallbackWhenTooManyChanges,
             alwaysRestartAppAfterDeployment = JuggSettings.isAlwaysRestartAppAfterDeployment,
             quickDeploy = JuggSettings.isEnableDirectOverlayDeploy,
+            nativeSandboxDeploy = JuggSettings.isEnableNativeSandboxDeploy,
             autoFallbackAfterDeployFailure = JuggSettings.isAutoFallbackToGradleWhenDeployError,
             embedChangesIntoApk = JuggSettings.isEmbeddedToApk,
             useProjectKotlinCompiler = JuggSettings.isUseProjectKotlinCompiler,
             backupClasspath = JuggSettings.isEnableBackupClasspath,
+            gradleCompileNoDaemon = JuggSettings.isGradleCompileNoDaemon,
             isInjectGradleCompileEnabled = JuggSettings.isEnableInjectGradleCompile,
             canUseBackupClasspath = JuggSettings.isCanUseBackupClasspath,
             forceCompatDevices = model.snapshot().settings.forceCompatDevices,
@@ -382,7 +418,9 @@ open class JuggControlPanelController(
         AUTO_FALLBACK(JuggSettings::isAutoFallbackToGradleWhenDeployError),
         EMBED_APK(JuggSettings::isEmbeddedToApk),
         PROJECT_KOTLIN(JuggSettings::isUseProjectKotlinCompiler),
-        BACKUP_CLASSPATH(JuggSettings::isEnableBackupClasspath);
+        BACKUP_CLASSPATH(JuggSettings::isEnableBackupClasspath),
+        SO_HOT_UPDATE(JuggSettings::isEnableNativeSandboxDeploy),
+        GRADLE_COMPILE_NO_DAEMON(JuggSettings::isGradleCompileNoDaemon);
 
         val definition get() = JuggSettingDefinition.find(property.name)
         val displayName get() = definition.label

@@ -90,7 +90,7 @@ class PrepareIssueReportMcpToolAction : McpToolAction {
                     "filePath" to bundle.file.absolutePath,
                     "size" to prepared.content.size,
                     "sha256" to prepared.sha256,
-                    "uploadUrl" to IssueReportUploader.JUGG_REPORT_URL,
+                    "uploadUrl" to com.sickworm.intellij.jugg.diagnostics.IssueReportDestination.PUBLIC_REPORT_URL,
                     "entries" to prepared.archiveEntries.map(::entryData),
                 ),
                 artifacts = listOf(McpArtifact("file", bundle.file.absolutePath)),
@@ -132,8 +132,7 @@ class UploadIssueReportMcpToolAction : McpToolAction {
         }
         val uploadResult = IssueReportUploader().upload(
             prepared.bundle,
-            IssueReportUploader.JUGG_REPORT_URL,
-            prepared.content,
+            verifiedContent = prepared.content,
         )
         if (!uploadResult.isSuccess) {
             return McpToolResult.internalErrorResult(

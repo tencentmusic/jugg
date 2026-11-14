@@ -11,7 +11,6 @@ import org.jetbrains.kotlin.com.intellij.psi.PsiManager
 import org.jetbrains.kotlin.config.CommonConfigurationKeys
 import org.jetbrains.kotlin.config.CompilerConfiguration
 import org.jetbrains.kotlin.lexer.KtTokens
-import org.jetbrains.kotlin.psi.KtClass
 import org.jetbrains.kotlin.psi.KtClassOrObject
 import org.jetbrains.kotlin.psi.KtDotQualifiedExpression
 import org.jetbrains.kotlin.psi.KtFile
@@ -48,35 +47,8 @@ class KotlinConstParser(
             return emptyList()
         }
         return try {
-            val sourcePath = sourceFile.toStdPath()
             val ktFile = parseKtFile(sourceFile) ?: return emptyList()
-            val packageName = readPackageName(ktFile)
-            val definitions = mutableListOf<ConstDefinition>()
-
-            ktFile.declarations.filterIsInstance<KtProperty>().forEach { property ->
-                if (!property.isVisibleConstDefinition()) {
-                    return@forEach
-                }
-                definitions += ConstDefinition(
-                    filePath = sourcePath,
-                    packageName = packageName,
-                    fqClassName = topLevelClassName(packageName, sourceFile),
-                    constName = property.name ?: return@forEach,
-                    constType = property.typeReference?.text ?: inferTypeFromInitializer(property.initializer?.text),
-                    constValue = property.initializer?.text,
-                )
-            }
-
-            ktFile.declarations.filterIsInstance<KtClassOrObject>().forEach { classOrObject ->
-                collectDefinitionsFromClassOrObject(
-                    classOrObject = classOrObject,
-                    packageName = packageName,
-                    outerClassName = null,
-                    sourcePath = sourcePath,
-                    definitions = definitions,
-                )
-            }
-            definitions
+            definitions(sourceFile, ktFile)
         } catch (t: Throwable) {
             logger.debug("KotlinConstParser parseDefinitions failed for ${sourceFile.path}: ${t.message}")
             emptyList()
@@ -424,97 +396,12 @@ class KotlinConstParser(
         return references
     }
 
-    private fun collectDefinitionsFromClassOrObject(
-        classOrObject: KtClassOrObject,
-        packageName: String,
-        outerClassName: String?,
-        sourcePath: String,
-        definitions: MutableList<ConstDefinition>,
-    ) {
-        val name = classOrObject.name ?: return
-        val className = if (outerClassName == null) {
-            name
-        } else {
-            "$outerClassName.$name"
-        }
-        val fqClassName = if (packageName.isBlank()) className else "$packageName.$className"
-
-        classOrObject.declarations.filterIsInstance<KtProperty>().forEach { property ->
-            if (!property.isVisibleConstDefinition()) {
-                return@forEach
-            }
-            definitions += ConstDefinition(
-                filePath = sourcePath,
-                packageName = packageName,
-                fqClassName = fqClassName,
-                constName = property.name ?: return@forEach,
-                constType = property.typeReference?.text ?: inferTypeFromInitializer(property.initializer?.text),
-                constValue = property.initializer?.text,
-            )
-        }
-
-        if (classOrObject is KtClass) {
-            classOrObject.companionObjects.forEach { companion ->
-                companion.declarations.filterIsInstance<KtProperty>().forEach companionProperty@{ property ->
-                    if (!property.isVisibleConstDefinition()) {
-                        return@companionProperty
-                    }
-                    definitions += ConstDefinition(
-                        filePath = sourcePath,
-                        packageName = packageName,
-                        fqClassName = fqClassName,
-                        constName = property.name ?: return@companionProperty,
-                        constType = property.typeReference?.text ?: inferTypeFromInitializer(property.initializer?.text),
-                        constValue = property.initializer?.text,
-                    )
-                }
-            }
-        }
-
-        classOrObject.declarations.filterIsInstance<KtClassOrObject>()
-            .filterNot { it is KtObjectDeclaration && it.isCompanion() }
-            .forEach { nested ->
-                collectDefinitionsFromClassOrObject(
-                    classOrObject = nested,
-                    packageName = packageName,
-                    outerClassName = className,
-                    sourcePath = sourcePath,
-                    definitions = definitions,
-                )
-            }
-    }
-
-    private fun KtProperty.isVisibleConstDefinition(): Boolean {
-        return hasModifier(KtTokens.CONST_KEYWORD) && !hasModifier(KtTokens.PRIVATE_KEYWORD)
-    }
-
     private fun parseKtFile(sourceFile: File): KtFile? {
         return try {
             psiFactory.createFile(sourceFile.name, sourceFile.readText())
         } catch (t: Throwable) {
             logger.debug("KotlinConstParser failed to parse ${sourceFile.path}: ${t.message}")
             null
-        }
-    }
-
-    private fun topLevelClassName(packageName: String, sourceFile: File): String {
-        val className = "${sourceFile.nameWithoutExtension}Kt"
-        return if (packageName.isBlank()) className else "$packageName.$className"
-    }
-
-    // Lightweight fallback when type reference is absent. Precision is not required for const-ref matching.
-    private fun inferTypeFromInitializer(initializer: String?): String {
-        if (initializer == null) {
-            return ""
-        }
-        return when {
-            initializer.startsWith("\"") -> "String"
-            initializer.endsWith("L") -> "Long"
-            initializer.endsWith("f", ignoreCase = true) -> "Float"
-            initializer.contains('.') -> "Double"
-            initializer == "true" || initializer == "false" -> "Boolean"
-            initializer.startsWith('\'') && initializer.endsWith('\'') -> "Char"
-            else -> "Int"
         }
     }
 
@@ -715,5 +602,69 @@ class KotlinConstParser(
             val n = constName.trim()
             if (c.isNotEmpty() && n.isNotEmpty()) classConstKeys += c to n
         }
+    }
+
+    companion object {
+        /** Extracts definitions from the caller's Kotlin PSI snapshot. */
+        fun definitions(sourceFile: File, ktFile: KtFile, includePrivate: Boolean = false): List<ConstDefinition> {
+            val sourcePath = sourceFile.toStdPath()
+            val packageName = ktFile.packageFqName.asString()
+            val definitions = ktFile.declarations.filterIsInstance<KtProperty>().mapNotNull {
+                definition(it, sourcePath, packageName, topLevelClassName(packageName, sourceFile), includePrivate)
+            }.toMutableList()
+            ktFile.declarations.filterIsInstance<KtClassOrObject>().forEach {
+                collectDefinitionsFromClassOrObject(it, packageName, null, sourcePath, definitions, includePrivate)
+            }
+            return definitions
+        }
+
+        private fun collectDefinitionsFromClassOrObject(type: KtClassOrObject, packageName: String, outerClassName: String?,
+            sourcePath: String, definitions: MutableList<ConstDefinition>, includePrivate: Boolean) {
+            val name = type.name ?: return
+            val className = if (outerClassName == null) name else "$outerClassName.$name"
+            val fqClassName = if (packageName.isBlank()) className else "$packageName.$className"
+            val isCompanion = type is KtObjectDeclaration && type.isCompanion()
+            val definitionOwner = if (isCompanion) fqClassName.substringBeforeLast('.') else fqClassName
+            val properties = type.declarations.filterIsInstance<KtProperty>()
+            val ownDefinitions = properties.mapNotNull { definition(it, sourcePath, packageName, definitionOwner, includePrivate) }
+            definitions += ownDefinitions
+            if (isCompanion && name != "Companion") {
+                // Keep the enclosing owner and index the named companion as a source-level alias.
+                definitions += ownDefinitions.map { it.copy(fqClassName = fqClassName) }
+            }
+            type.declarations.filterIsInstance<KtClassOrObject>().forEach {
+                collectDefinitionsFromClassOrObject(it, packageName, className, sourcePath, definitions, includePrivate)
+            }
+        }
+
+        private fun definition(property: KtProperty, sourcePath: String, packageName: String,
+            fqClassName: String, includePrivate: Boolean): ConstDefinition? {
+            if (!property.hasModifier(KtTokens.CONST_KEYWORD) || !includePrivate && property.hasModifier(KtTokens.PRIVATE_KEYWORD)) return null
+            val name = property.name ?: return null
+            return ConstDefinition(sourcePath, packageName, fqClassName, name,
+                property.typeReference?.text ?: inferTypeFromInitializer(property.initializer?.text), property.initializer?.text)
+        }
+
+        private fun topLevelClassName(packageName: String, sourceFile: File): String {
+            val className = "${sourceFile.nameWithoutExtension}Kt"
+            return if (packageName.isBlank()) className else "$packageName.$className"
+        }
+
+        // Lightweight fallback when type reference is absent. Precision is not required for const-ref matching.
+        private fun inferTypeFromInitializer(initializer: String?): String {
+            if (initializer == null) {
+                return ""
+            }
+            return when {
+                initializer.startsWith("\"") -> "String"
+                initializer.endsWith("L") -> "Long"
+                initializer.endsWith("f", ignoreCase = true) -> "Float"
+                initializer.contains('.') -> "Double"
+                initializer == "true" || initializer == "false" -> "Boolean"
+                initializer.startsWith('\'') && initializer.endsWith('\'') -> "Char"
+                else -> "Int"
+            }
+        }
+
     }
 }

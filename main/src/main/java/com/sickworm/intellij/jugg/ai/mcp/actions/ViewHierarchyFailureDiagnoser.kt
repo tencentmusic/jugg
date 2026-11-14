@@ -20,10 +20,10 @@ internal object ViewHierarchyFailureDiagnoser {
             message = "$toolName failed. Reason: $errorMessage",
             data = data,
             artifacts = emptyList(),
-            errorCode = if (errorMessage.contains(NO_KOTLIN_MESSAGE)) {
-                McpErrorCode.FEATURE_NOT_SUPPORTED
-            } else {
-                McpErrorCode.INTERNAL_ERROR
+            errorCode = when {
+                errorMessage.contains("UI_HIERARCHY_INCOMPLETE:") -> McpErrorCode.UI_HIERARCHY_INCOMPLETE
+                errorMessage.contains(NO_KOTLIN_MESSAGE) -> McpErrorCode.FEATURE_NOT_SUPPORTED
+                else -> McpErrorCode.INTERNAL_ERROR
             },
         )
     }

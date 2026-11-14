@@ -60,6 +60,9 @@ object JuggSettings {
     var isAutoFallbackToGradleWhenDeployError by setting(false)
     var isEmbeddedToApk by setting(false)
 
+    /** Whether to append --no-daemon when running Gradle fallback compile */
+    var isGradleCompileNoDaemon by setting(true)
+
     // Run options end
 
     /** whether check checksum to make sure file is really change when file changes */
@@ -94,6 +97,7 @@ object JuggSettings {
      */
     var isEnableDirectOverlayDeploy by setting(true)
     var isUseProjectKotlinCompiler by setting(true)
+    var isEnableNativeSandboxDeploy by setting(false)
 
     /** limit max source modules to compile for better performance */
     var maxCompileSourceModules by setting(25)
@@ -178,6 +182,7 @@ object JuggSettings {
 
     var serverUrl by nullableStringSetting()
     var serverExpireTimeMill by setting(0L)
+    internal var inheritedServerRulesJson by setting("")
 
     /** Returns recent commands for one remote SSH target and project directory. */
     fun getRemoteCommandHistory(targetKey: String): List<String> {

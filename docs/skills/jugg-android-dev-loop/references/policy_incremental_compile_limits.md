@@ -1,17 +1,23 @@
 # Policy: Incremental Compile Limitations
 
-Use this policy when deciding whether to stay on incremental compile or switch to Gradle fallback.
+Before the first build command, use the current changes and known build configuration to decide whether incremental compile can preserve the intended behavior. A successful incremental compile alone cannot prove that generated code or instrumentation is current.
 
 ## Supported Annotation Processors / Plugins
 
-Jugg incremental compile supports only:
+Supported annotation processing / compiler plugin paths are:
 
-- `DataBinding`
-- `ViewBinding`
-- `Compose`
-- `Parcelize`
-- `Page` for Kuikly
-- `JsonClass` for Moshi
+| Processor / plugin | Incremental support boundary |
+|--------------------|------------------------------|
+| `DataBinding` | Dedicated binding source / mapper generation |
+| `ViewBinding` | Binding class generation for layout changes |
+| `Compose` | Project Compose compiler plugin |
+| `Parcelize` | Project Parcelize compiler plugin |
+| Kuikly `@Page` | Append new page registrations to an existing Gradle-generated entry; deleting, renaming, or changing existing routes requires `gradle-build` |
+| ARouter | Project APT/KAPT or KSP1/KSP2; current annotated semantic changes trigger aggregate regeneration; final annotation removal/indirect unannotated changes need Gradle |
+| ButterKnife | Official project APT/KAPT for current binding inputs and same-module descendants; removed binding outputs or cross-module affected bindings need Gradle |
+| Moshi `@JsonClass` | KSP1 with the project's KSP dependencies; KSP2 does not re-run processors and requires `gradle-build` for generated-code changes |
+
+This list is not general APT/KAPT/KSP support. Hilt entry-point transformation below does not make Hilt/Dagger a supported annotation processor.
 
 ## Unsupported Annotation Behavior
 
@@ -76,15 +82,15 @@ Some devices can hit probabilistic `AssetManager` native crashes or WebView nati
 
 ## Decision Rule
 
-Switch to `gradle-build` directly when any condition is true:
+Switch to `gradle-build` directly, without first running or exhausting retries of `compile` / `deploy`, when any condition is true:
 
 1. Change requires an unsupported processor to regenerate code, including annotation removal, model/schema changes, or Hilt injection declarations and bindings.
-2. Changed files depend on Transform/instrumented bytecode behavior other than the supported Hilt Android entry-point rewrite.
+2. Files to recompile are confirmed to depend on unsupported Transform/instrumented behavior (ASM hooks, AOP or injected routing/init), even when annotations did not change.
 3. Part of `build/` was manually deleted or some Gradle maven dependencies are missing.
 4. Change introduces resource IDs consumed by cross-process system components (notification icons/actions, widget or notification RemoteViews, resource-backed shortcuts), or requires those components to display updated packaged resource contents.
 5. Correctness depends on removing old classes, resources, or assets after deletion or rename.
 
-`gradle-build` builds and installs/deploys the new baseline. Then verify the affected runtime behavior when runtime verification is in scope; do not repeat `deploy` unless further changes require it.
+Explain the exact changed processor input or instrumentation dependency; merely having the plugin installed is insufficient. If the user forbids Gradle, report the conflicting change and stop before building. Otherwise `gradle-build` builds and installs/deploys the new baseline. Then verify the affected runtime behavior when runtime verification is in scope; do not repeat `deploy` unless further changes require it.
 
 ## Symptom Linkage
 

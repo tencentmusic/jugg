@@ -7,9 +7,9 @@ import com.sickworm.intellij.jugg.compiler.ICompileContext
 import com.sickworm.intellij.jugg.compiler.listFilesRecursively
 import com.sickworm.intellij.jugg.project.info.LibraryDependency
 import com.sickworm.intellij.jugg.project.info.ModuleInfo
+import com.sickworm.intellij.jugg.compiler.source.apt.AnnotationProcessorClasspath
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
-import java.util.jar.JarFile
 
 /**
  * DataBindingClasspathHelper resolves and filters DataBinding/KAPT classpath inputs for incremental compilation.
@@ -142,7 +142,7 @@ object DataBindingClasspathHelper {
         val path = file.absolutePath
         processorJarCache[path]?.let { return it }
         val isProcessor = runCatching {
-            JarFile(file).use { jar -> jar.getEntry(annotationProcessorServicePath) != null }
+            AnnotationProcessorClasspath.contains(file, annotationProcessorServicePath)
         }.getOrDefault(false)
         processorJarCache[path] = isProcessor
         return isProcessor

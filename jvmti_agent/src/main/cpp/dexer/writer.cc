@@ -226,7 +226,7 @@ static void CopySection(const T& section, dex::u1* image, dex::u4 image_size) {
   SLICER_CHECK(section.ItemsCount() > 0);
   dex::u4 offset = section.SectionOffset();
   dex::u4 size = section.size();
-  SLICER_CHECK(offset >= sizeof(dex::Header));
+  SLICER_CHECK(offset >= dex::Header::kV40Size);
   SLICER_CHECK(offset + size <= image_size);
 
   ::memcpy(image + offset, section.data(), size);
@@ -246,12 +246,19 @@ dex::u1* Writer::CreateImage(Allocator* allocator, size_t* new_image_size) {
   // (ideally we shouldn't change the IR while generating an image)
   dex_ir_->Normalize();
 
+  int version = dex::Header::GetVersion(dex_ir_->magic.ptr());
+  SLICER_CHECK(version != 0);
+  SLICER_CHECK(version >= dex::Header::kMinVersion);
+  SLICER_CHECK(version <= dex::Header::kMaxVersion);
+  dex::u4 header_size =
+      version >= dex::Header::kV41 ? dex::Header::kV41Size : dex::Header::kV40Size;
+
   // track the current offset within the .dex image
   dex::u4 offset = 0;
 
   // allocate the image and index sections
   // (they will be back-filled)
-  offset += sizeof(dex::Header);
+  offset += header_size;
   offset += dex_->string_ids.Init(offset, dex_ir_->strings.size());
   offset += dex_->type_ids.Init(offset, dex_ir_->types.size());
   offset += dex_->proto_ids.Init(offset, dex_ir_->protos.size());
@@ -295,7 +302,7 @@ dex::u1* Writer::CreateImage(Allocator* allocator, size_t* new_image_size) {
   memset(image, 0, image_size);
 
   // finally, back-fill the header
-  SLICER_CHECK(image_size > sizeof(dex::Header));
+  SLICER_CHECK(image_size > header_size);
 
   dex::Header* header = reinterpret_cast<dex::Header*>(image + 0);
 
@@ -303,7 +310,7 @@ dex::u1* Writer::CreateImage(Allocator* allocator, size_t* new_image_size) {
   memcpy(header->magic, dex_ir_->magic.ptr(), dex_ir_->magic.size());
 
   header->file_size = image_size;
-  header->header_size = sizeof(dex::Header);
+  header->header_size = header_size;
   header->endian_tag = dex::kEndianConstant;
 
   header->link_size = 0;
@@ -324,6 +331,11 @@ dex::u1* Writer::CreateImage(Allocator* allocator, size_t* new_image_size) {
   header->class_defs_off = dex_->class_defs.SectionOffset();
   header->data_size = image_size - data_offset;
   header->data_off = data_offset;
+  if (version >= dex::Header::kV41) {
+    header->data_size = 0;
+    header->data_off = 0;
+    header->SetContainer(0, header->file_size);
+  }
 
   // copy the individual sections to the final image
   CopySection(dex_->string_ids, image, image_size);
@@ -374,7 +386,7 @@ dex::u4 Writer::CreateStringDataSection(dex::u4 section_offset) {
 template <class T>
 static void AddMapItem(const T& section, std::vector<dex::MapItem>& items) {
   if (section.ItemsCount() > 0) {
-    SLICER_CHECK(section.SectionOffset() >= sizeof(dex::Header));
+    SLICER_CHECK(section.SectionOffset() >= dex::Header::kV40Size);
     dex::MapItem map_item = {};
     map_item.type = section.MapEntryType();
     map_item.size = section.ItemsCount();

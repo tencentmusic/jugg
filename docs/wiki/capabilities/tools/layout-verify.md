@@ -17,7 +17,7 @@ This page explains how an Agent uses the currently public UI tools to produce a 
 
 | Evidence type | Current support | Tool |
 |---|---|---|
-| Current page and window context | Supported | `activity-stack`, `layout-dump --all-windows` |
+| Current page and window context | Supported | `activity-stack`, `layout-dump --mode ui --all-windows` |
 | Element bounds, position, and size | Supported | `view-locate` |
 | View getter properties | Supported | `view-inspect` |
 | Page changes after interaction | Supported | Run `activity-stack` / `layout-dump` again after `tap` |
@@ -57,7 +57,8 @@ With a Figma design, the Agent should extract expected values from structured de
 
 ## Boundaries
 
-- `layout-dump` publishes HTML, not the internal JSON.
+- `layout-dump --mode ui` publishes sparse JSON and preserves captured parent-child relationships. The default interaction mode prunes nodes and promotes children, so it cannot establish original hierarchy.
+- UI mode supports structure and geometry validation; reconstruction references also require images, fonts, drawing effects, and other evidence. Window, GONE filtering, and budget limits still apply.
 - Bounds from `view-locate` are already in dp.
 - `view-inspect` returns raw getter values. Convert px values using `density`.
 - When `matchCount > 1`, disambiguate the matches instead of treating the first candidate as stable evidence.

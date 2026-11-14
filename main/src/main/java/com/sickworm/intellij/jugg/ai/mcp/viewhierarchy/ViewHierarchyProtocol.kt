@@ -2,6 +2,10 @@ package com.sickworm.intellij.jugg.ai.mcp.viewhierarchy
 
 import com.google.gson.JsonObject
 
+/** Shorten public virtual IDs while keeping the app-side selector protocol unchanged. */
+internal fun String.compactVirtualId(): String =
+    if (startsWith("_vir_id_")) "_vid_" + removePrefix("_vir_id_") else this
+
 /**
  * ViewHierarchyRequest describes one socket action request sent to app-side server.
  */
@@ -61,6 +65,7 @@ data class FindElementsResult(
     val density: Double,
     val matches: List<MatchCandidate>,
     val errorMessage: String? = null,
+    val warnings: List<String> = emptyList(),
 )
 
 /**
@@ -94,12 +99,14 @@ sealed class FindAndTapResult {
         val y: Int,
         val matchedElement: MatchedElementData,
         val matchCount: Int,
+        val warnings: List<String> = emptyList(),
     ) : FindAndTapResult()
 
     data class Multiple(
         val matchCount: Int,
         val matches: List<MatchCandidate>,
         val message: String,
+        val warnings: List<String> = emptyList(),
     ) : FindAndTapResult()
 
     data class NotFound(
@@ -122,6 +129,7 @@ data class EvalViewResult(
     val values: List<EvalViewValue>,
     val source: SourceLocation? = null,
     val errorMessage: String? = null,
+    val warnings: List<String> = emptyList(),
 )
 
 /**

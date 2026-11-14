@@ -1,8 +1,9 @@
 package com.sickworm.intellij.jugg.deploy.run.utils
 
 import android.annotation.SuppressLint
-import com.android.tools.idea.IdeInfo
+import com.intellij.openapi.application.ApplicationInfo
 import com.intellij.openapi.application.PathManager
+import com.sickworm.intellij.jugg.logger.JuggLogger
 import java.io.File
 
 /**
@@ -23,11 +24,22 @@ class CopyEmbeddedDistributionPaths {
             return file.absolutePath
         }
         // Development mode
-        assert(IdeInfo.getInstance().isAndroidStudio) { "Bazel paths exist only in AndroidStudio development mode" }
+        assert(isAndroidStudio()) { "Bazel paths exist only in AndroidStudio development mode" }
         return File(
             PathManager.getHomePath(),
             "../../bazel-bin/tools/base/deploy/installer/android-installer"
         ).absolutePath
+    }
+
+    private fun isAndroidStudio(): Boolean {
+        return try {
+            val clazz = Class.forName("com.android.tools.idea.IdeInfo")
+            val instance = clazz.getMethod("getInstance").invoke(null)
+            clazz.getMethod("isAndroidStudio").invoke(instance) as Boolean
+        } catch (e: Throwable) {
+            JuggLogger.getGlobalLogger("CopyEmbeddedDistributionPaths").debug("IdeInfo unavailable; using IDE product code", e)
+            ApplicationInfo.getInstance().build.productCode == "AI"
+        }
     }
 
     @SuppressLint("PrivateApi")

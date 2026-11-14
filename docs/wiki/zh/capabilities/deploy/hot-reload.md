@@ -21,7 +21,8 @@ Hot Reload 是 Jugg 默认优先尝试的在线增量部署能力。它把本轮
 | 首次资源 overlay | 支持 | 补齐全量资源，避免设备端缺资源 |
 | 新增 class | 支持在线生效 | Apply Changes 或 Direct sandbox 会把新 DEX 加入当前进程的 Application ClassLoader；普通非空部署仍按上层语义重建 Activity |
 | 结构变化 class | 支持增量下发，但需要重启 | 进入 Hot Fix 路径 |
-| Manifest、`resources.arsc`、`.so` 更新 | 支持作为 APK 更新 | 修改 APK 并重签名后安装或恢复状态 |
+| Manifest 与配套 `resources.arsc` 更新 | 支持作为 APK 更新 | 修改 APK 并重签名后安装或恢复状态 |
+| `.so` 更新 | 支持按 SO hot update 开关分流 | 开启时进入 overlay 并重启 App；关闭时修改 APK、重签并安装 |
 | 设备状态不匹配 | 支持自动恢复 | 先 recover/retry，再决定是否继续热更 |
 
 > [!NOTE]
@@ -39,13 +40,13 @@ Hot Reload 是 Jugg 默认优先尝试的在线增量部署能力。它把本轮
   -> 成功后提交部署历史
 ```
 
-Hot Reload 的核心是部署数据分类。Jugg 会把可在线更新的 class 放入 hot reload，把结构变化或需要进程重启的内容放入 hot fix，把 Manifest、`resources.arsc`、native lib 等放入 APK 更新路径。
+Hot Reload 的核心是部署数据分类。Jugg 会把可在线更新的 class 放入 hot reload，把结构变化或需要进程重启的内容放入 hot fix，把 Manifest 与配套 `resources.arsc` 放入 APK 更新路径。native lib 按 SO hot update 开关进入 overlay 或 APK 更新路径。
 
 Jugg 用一次可回滚写入探测判断 Android Studio Apply Changes 的前提：只有 `run-as` 返回唯一成功标记、原始 UID 位于 `10000..19999`，且新建文件与 App 既有缓存目录使用相同 SELinux label，才继续进入该通道。其它结果不依赖应用 flags 或具体错误文本；Jugg 会在真实 data 目录依次验证普通 shell、一次 root adbd 和非交互 `su`。权限可用时，它先把 Dex 写入持久化 overlay，再尝试在线替换；在线失败时重启 App，由 Jugg startup agent 加载同一份 overlay。
 
 Direct 路径会让 Dex 和请求文件继承 App 缓存目录的动态 SELinux label，并把 JVMTI Agent `.so` 标为 App 进程可执行的类型。这样 root 写入不会因为 owner、MCS categories 或文件执行类型不同而在重启或 dynamic attach 时失效。
 
-`run-as`、UID 或 SELinux label 不兼容时，Jugg 可以直接下发 class、资源和 assets。新增 class 会以 in-memory DEX elements 加入当前进程的 Application ClassLoader，方法体变化由 JVMTI 在线替换；Android 11+ 的普通资源、assets 或与代码混合的变化会刷新主进程资源并重建当前 Activity，刷新失败时再重启 App。Android 8～10 的资源变化需要重启进程，兼容部署沿用资源 APK。Manifest 和 native library 仍走 APK 更新与安装流程。权限探测失败或缺少 deployment cache 时会直接报告失败。
+`run-as`、UID 或 SELinux label 不兼容时，Jugg 可以直接下发 class、资源和 assets。新增 class 会以 in-memory DEX elements 加入当前进程的 Application ClassLoader，方法体变化由 JVMTI 在线替换；Android 11+ 的普通资源、assets 或与代码混合的变化会刷新主进程资源并重建当前 Activity，刷新失败时再重启 App。Android 8～10 的资源变化需要重启进程，兼容部署沿用资源 APK。Manifest 仍走 APK 更新与安装；native library 在开启 SO hot update 时进入 overlay 并重启 App，关闭时走 APK 更新。权限探测失败或缺少 deployment cache 时会直接报告失败。
 
 ## 使用边界
 

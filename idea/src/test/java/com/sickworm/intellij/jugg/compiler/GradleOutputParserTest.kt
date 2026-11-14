@@ -10,6 +10,44 @@ import org.mockito.Mockito
 
 class GradleOutputParserTest {
 
+    @Test
+    fun testRemoteDiagnosticsUseResolvedRootWithoutSharingRunOptions() {
+        val options = Mockito.mock(JuggGradleCompileOptions::class.java)
+        Mockito.`when`(options.isRemoteCompile).thenReturn(true)
+        Mockito.`when`(options.projectRootPath).thenReturn("/local/demo")
+        Mockito.`when`(options.finalRemoteSyncPath).thenReturn("\$HOME/remote")
+        val parser = GradleOutputParser(options, IProcessHandler.DEFAULT, DumbProgressIndicator.INSTANCE,
+            Mockito.mock(Logger::class.java))
+
+        parser.onRemoteSyncPathResolved("/custom/home/remote")
+        parser.onOutput("e: /custom/home/remote/demo/src/Main.kt: unresolved reference", false)
+        parser.onRemoteSyncPathResolved("/reconnected/home/remote")
+        parser.onOutput("e: /reconnected/home/remote/demo/src/Other.kt: unresolved reference", false)
+
+        Assert.assertEquals(listOf(
+            "e: /local/demo/src/Main.kt: unresolved reference",
+            "e: /local/demo/src/Other.kt: unresolved reference",
+        ), parser.possibleErrorLog)
+    }
+
+    @Test
+    fun testRemoteDiagnosticsKeepExplicitMappingAndUnresolvedOutput() {
+        val options = Mockito.mock(JuggGradleCompileOptions::class.java)
+        Mockito.`when`(options.isRemoteCompile).thenReturn(true)
+        Mockito.`when`(options.projectRootPath).thenReturn("/local/demo")
+        Mockito.`when`(options.finalRemoteSyncPath).thenReturn("\$HOME/remote", "/explicit/remote")
+        val parser = GradleOutputParser(options, IProcessHandler.DEFAULT, DumbProgressIndicator.INSTANCE,
+            Mockito.mock(Logger::class.java))
+
+        parser.onOutput("e: /unresolved/demo/src/Main.kt: unresolved reference", false)
+        parser.onOutput("e: /explicit/remote/demo/src/Other.kt: unresolved reference", false)
+
+        Assert.assertEquals(listOf(
+            "e: /unresolved/demo/src/Main.kt: unresolved reference",
+            "e: /local/demo/src/Other.kt: unresolved reference",
+        ), parser.possibleErrorLog)
+    }
+
     private fun buildParser(): GradleOutputParser {
         val options = Mockito.mock(JuggGradleCompileOptions::class.java)
         Mockito.`when`(options.isRemoteCompile).thenReturn(false)

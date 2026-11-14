@@ -62,7 +62,8 @@ Jugg selects how changes take effect according to the current artifacts, device 
 |---|---|
 | Code and resources that can be replaced online | Send local artifacts to the app process, then refresh the UI or restart the Activity as needed |
 | Code structural changes that require the process to reload | Restart the app process or use a hot-fix path that can carry the structural change |
-| Manifest, native libraries, and other content that must be written back to the install package | Update the corresponding entries in the existing APK, re-sign, and install it |
+| Manifest and associated resource table | Update the corresponding entries in the existing APK, re-sign, and install it |
+| Native libraries | Enter an overlay and load after an app restart when SO hot update is enabled; otherwise update, re-sign, and install the APK |
 | Local records and device state do not match | Recover the deployment snapshot, reinstall, or return to the full Gradle flow |
 | Complete Gradle build artifacts | Install the complete APK and use the new build result as the next baseline |
 

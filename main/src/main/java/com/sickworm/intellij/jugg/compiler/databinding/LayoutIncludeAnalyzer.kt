@@ -22,6 +22,10 @@ class LayoutIncludeAnalyzer(
 
     fun findAllIncludePath(compileDataBindingXmlFiles: List<CompileFile>): List<File> {
         try {
+            logger.debug("findAllIncludePath start, files: ${compileDataBindingXmlFiles.joinToString { it.file.name }}")
+            // unresolved include layout names are collected during the whole resolution and warned once at the end
+            val unresolvedLayoutNames = mutableListOf<String>()
+
             // convert to layout info files
             var layoutInfoFiles = mutableListOf<File>()
             compileDataBindingXmlFiles.forEach { file ->
@@ -47,9 +51,8 @@ class LayoutIncludeAnalyzer(
 
                 val newIncludeLayoutInfoFiles = mutableListOf<File>()
                 includeLayoutNames.forEach { name ->
-                    val subLayoutInfoFiles = findLayoutInfoFileByLayoutName(name)
+                    val subLayoutInfoFiles = findLayoutInfoFileByLayoutName(name, unresolvedLayoutNames)
                     if (subLayoutInfoFiles.isEmpty()) {
-                        logger.warn("Can not find layout info file for layout name: $name")
                         return@forEach
                     }
                     subLayoutInfoFiles.forEach { layoutInfoFile ->
@@ -64,6 +67,11 @@ class LayoutIncludeAnalyzer(
                 layoutInfoFiles = newIncludeLayoutInfoFiles
             }
 
+            logger.debug("findAllIncludePath end, result: ${result.joinToString { it.name }}")
+            if (unresolvedLayoutNames.isNotEmpty()) {
+                logger.warn("Can not find layout info file for layout name: " +
+                        unresolvedLayoutNames.distinct().joinToString(", "))
+            }
             return result
         } catch (e: Throwable) {
             logger.debug("findAllIncludePath failed", e)
@@ -96,14 +104,19 @@ class LayoutIncludeAnalyzer(
     }
 
     /**
-     * find the layout info file by layout name in [DataBindingArgsManager.backupDataBindingLayoutXmlDir] and
+     * Find the layout info file by layout name in [DataBindingArgsManager.backupDataBindingLayoutXmlDir]
+     * and in the layout-info dirs of the dependency modules.
+     *
+     * @param unresolvedLayoutNames optional collector for the caller to warn about every include it
+     * could not resolve in one aggregated message.
      */
-    private fun findLayoutInfoFileByLayoutName(layoutName: String): List<File> {
+    private fun findLayoutInfoFileByLayoutName(
+        layoutName: String,
+        unresolvedLayoutNames: MutableList<String>? = null,
+    ): List<File> {
         // find in moduleInfo
-        val layoutInfoFiles = argsManager.backupDataBindingLayoutXmlDir.listFiles()?.filter {
-            it.name.startsWith(layoutName)
-        }
-        if (!layoutInfoFiles.isNullOrEmpty()) {
+        val layoutInfoFiles = findLayoutInfoInDirs(listOf(argsManager.backupDataBindingLayoutXmlDir), layoutName)
+        if (layoutInfoFiles.isNotEmpty()) {
             return layoutInfoFiles
         }
 
@@ -116,19 +129,41 @@ class LayoutIncludeAnalyzer(
                 return@forEach
             }
             val subArgsManager = DataBindingArgsManager(argsManager.context, subModuleInfo)
-            val layoutXmlDir = if (subArgsManager.backupDataBindingLayoutXmlDir.exists()) {
-                subArgsManager.backupDataBindingLayoutXmlDir
-            } else {
-                subArgsManager.gradleDataBindingLayoutXmlDir
-            }
-            val subLayoutInfoFile = layoutXmlDir.listFiles()?.filter {
-                it.name.startsWith(layoutName)
-            }
-            if (!subLayoutInfoFile.isNullOrEmpty()) {
-                return subLayoutInfoFile
+            // a dependency module keeps both a backup dir and a Gradle layout-info dir, and a
+            // <merge> layout can exist in only one of them, so probe both instead of picking one
+            val subLayoutInfoFiles = findLayoutInfoInDirs(
+                listOf(subArgsManager.backupDataBindingLayoutXmlDir, subArgsManager.gradleDataBindingLayoutXmlDir),
+                layoutName,
+            )
+            if (subLayoutInfoFiles.isNotEmpty()) {
+                logger.debug("resolve cross module layout info file for $layoutName in module " +
+                        "${subModuleInfo.name}: ${subLayoutInfoFiles.joinToString { it.name }}")
+                return subLayoutInfoFiles
             }
         }
         logger.debug("can not find layout info file for $layoutName in dependency modules")
+        unresolvedLayoutNames?.add(layoutName)
+        return emptyList()
+    }
+
+    /**
+     * Probe [dirs] in order and return the first non-empty match for [layoutName].
+     * The same directory is probed at most once, so a module that reports the same
+     * directory twice does not duplicate the search.
+     */
+    private fun findLayoutInfoInDirs(dirs: List<File>, layoutName: String): List<File> {
+        val visitedDirs = mutableSetOf<String>()
+        dirs.forEach { dir ->
+            if (!visitedDirs.add(dir.absolutePath)) {
+                return@forEach
+            }
+            val layoutInfoFiles = dir.listFiles()?.filter {
+                it.name.startsWith(layoutName)
+            }
+            if (!layoutInfoFiles.isNullOrEmpty()) {
+                return layoutInfoFiles
+            }
+        }
         return emptyList()
     }
 

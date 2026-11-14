@@ -47,9 +47,7 @@ fun File.pathEquals(other: File?): Boolean {
     )
 }
 
-/** Used to generate hash of a file */
-private val crc32Digest = CRC32()
-
+/** Computes a file's content CRC32 without loading the whole file into memory. */
 val File.crc32: Long get() {
     if (!exists()) {
         return -1L
@@ -57,15 +55,16 @@ val File.crc32: Long get() {
     if (isDirectory) {
         return -2L
     }
-    if (length() > 100_000_000) {
-        // compat with large file. don't calculate crc32 for large file > 100MB
-        return length()
+    val checksum = CRC32()
+    inputStream().use { input ->
+        val buffer = ByteArray(64 * 1024)
+        while (true) {
+            val count = input.read(buffer)
+            if (count < 0) break
+            checksum.update(buffer, 0, count)
+        }
     }
-    return crc32Digest.run {
-        reset()
-        update(readBytes())
-        value
-    }
+    return checksum.value
 }
 
 fun File.zipFiles(files: List<File>, parentPath: String = "") {

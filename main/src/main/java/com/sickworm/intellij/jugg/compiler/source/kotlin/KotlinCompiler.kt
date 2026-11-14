@@ -26,10 +26,15 @@ class KotlinCompiler(
 
     private val invoker = KotlinCompilerInvoker()
 
+    var additionalJavaSourceDirs: List<File> = emptyList()
+
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
         val owner = resolveInvocationOwner(module)
         val analyzedOptions = analyzeSource(task.files.map { it.file }, owner)
-        val (compileTask, options) = prepareKmpCompilation(task, owner, analyzedOptions)
+        val (compileTask, baseOptions) = prepareKmpCompilation(task, owner, analyzedOptions)
+        val options = if (additionalJavaSourceDirs.isEmpty()) baseOptions else baseOptions.copy(
+            javaSourceDirs = additionalJavaSourceDirs + owner.sourceDirs + context.getGeneratedSourcePaths(owner),
+        )
         logger.debug("analyzeSource result: $options")
 
         // ksp compile
@@ -252,7 +257,7 @@ class KotlinCompiler(
             .flatMap { it.kotlinExtensions ?: emptyList() }
         val kotlinPluginOptions = selectKotlinPluginOptions(allRelativeModules)
         val kspDependencies = allRelativeModules
-           .flatMap { it.kspDependencies ?: emptyList() }
+           .flatMap { it.kspInfo?.processorDependencies ?: emptyList() }
            .map { it.file }
 
         // Detect KSP2 (Kotlin 2.0+)

@@ -4,7 +4,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.CompileError
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.Result
-import kotlinx.metadata.jvm.JvmMetadataVersion
+import kotlin.metadata.jvm.JvmMetadataVersion
 import java.io.File
 import java.io.OutputStream
 import java.io.PrintStream
@@ -16,6 +16,7 @@ class KotlinCompilerOutputParser(
     private val files: List<CompileFile>,
     private val logger: Logger,
     private val forceCompilerOutputDebug: Boolean = false,
+    private val isOutputEnabled: Boolean = true,
 ) {
 
     private val outputStream = object : OutputStream() {
@@ -75,6 +76,12 @@ class KotlinCompilerOutputParser(
     var isGotIdeFileSystemCloseException: Boolean = false
         private set
 
+    private val diagnostics = linkedSetOf<String>()
+
+    fun printDiagnostics() {
+        diagnostics.forEach { logger.warn(it) }
+    }
+
     private val innerErrors = mutableMapOf<CompileFile, MutableList<Pair<Long, String>>>()
     private val directErrorFiles = mutableSetOf<CompileFile>()
     /** Map<SourceFile, List<OutputClassFile>> */
@@ -84,8 +91,7 @@ class KotlinCompilerOutputParser(
     private var currentMessageType: MessageType = MessageType.LOGGING
 
     private fun onNewLine(line: String) {
-        val contents = MessageType.newLineRegex.find(line)?.groups
-        val tag = contents?.get(2)?.value
+        val tag = MessageType.newLineRegex.findAll(line).lastOrNull()?.groupValues?.get(1)
 
         val newMessageType = MessageType.getByTag(tag)
         if (newMessageType != null) {
@@ -112,9 +118,9 @@ class KotlinCompilerOutputParser(
             }
             MessageType.ERROR -> {
                 val parsedMessage = parseErrorMessage(message)
-                if (forceCompilerOutputDebug) {
-                    logger.debug(parsedMessage)
-                } else {
+                diagnostics += parsedMessage
+                logger.debug(parsedMessage)
+                if (isOutputEnabled && !forceCompilerOutputDebug) {
                     logger.warn(parsedMessage)
                 }
             }
@@ -196,6 +202,7 @@ class KotlinCompilerOutputParser(
         }
 
         val exceptionMessage = parseExceptionSummary(message) ?: return
+        diagnostics += exceptionMessage
         files.forEach {
             innerErrors.getOrPut(it) { mutableListOf() }.add(-1L to exceptionMessage)
         }
@@ -205,7 +212,10 @@ class KotlinCompilerOutputParser(
         return message.lineSequence()
             .firstOrNull { it.contains("exception:") }
             ?.substringAfter("exception:")
-            ?.trim()
+            ?.let { summary ->
+                (listOf(summary.trim()) + message.lineSequence()
+                    .map { it.trim() }.filter { it.startsWith("Caused by:") }.toList()).joinToString("\n")
+            }
             ?.takeIf { it.isNotEmpty() }
     }
 
@@ -255,7 +265,7 @@ class KotlinCompilerOutputParser(
             if (message.contains(".kotlin_module")) {
                 logger.debug("(.kotlin_module) Failed to parse output message with no source file: $message")
             } else {
-                if (forceCompilerOutputDebug) {
+                if (forceCompilerOutputDebug || !isOutputEnabled) {
                     logger.debug("Failed to parse output message with no source file: $message")
                 } else {
                     logger.warn("Failed to parse output message with no source file: $message")
@@ -266,7 +276,7 @@ class KotlinCompilerOutputParser(
         }
 
         if (outputFiles.isEmpty()) {
-            if (forceCompilerOutputDebug) {
+            if (forceCompilerOutputDebug || !isOutputEnabled) {
                 logger.debug("Failed to parse output message with no output file: $message")
             } else {
                 logger.warn("Failed to parse output message with no output file: $message")
@@ -299,7 +309,8 @@ class KotlinCompilerOutputParser(
 
         companion object {
 
-            val newLineRegex = Regex("(.*):?(logging|warning|error|output|exception):(.*)")
+            // Match tags directly to avoid quadratic backtracking on long KAPT lines.
+            val newLineRegex = Regex("(logging|warning|error|output|exception):")
 
             fun getByTag(tag: String?): MessageType? = when (tag) {
                 "logging" -> LOGGING

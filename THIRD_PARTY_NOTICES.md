@@ -533,7 +533,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - License/source reference: https://dl.google.com/dl/android/maven2/com/android/tools/build/jetifier/jetifier-core/1.0.0-beta10/jetifier-core-1.0.0-beta10.pom
 - Download/source: https://dl.google.com/dl/android/maven2/com/android/tools/build/jetifier/jetifier-core/1.0.0-beta10/jetifier-core-1.0.0-beta10.jar
 - Modified by Jugg: No
-- Notes: Distributed with the plugin as a separate JAR transitive dependency of Android Data Binding.
+- Notes: Distributed as a separate JAR for Android Data Binding and ARouter processor conversion.
 
 ## 60. Jimfs 1.1
 
@@ -848,7 +848,7 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - License/source reference: https://github.com/hunterhacker/jdom/blob/JDOM-2.0.6/LICENSE.txt
 - Download/source: https://packages.jetbrains.team/maven/p/ij/intellij-dependencies/org/jetbrains/intellij/deps/jdom/2.0.6/jdom-2.0.6.jar
 - Modified by Jugg: No
-- Notes: JDOM 2.0.6 is embedded and relocated in Kotlin compiler 1.9.23 and distributed with the compiler JAR.
+- Notes: Distributed as an unmodified, unrelocated Jetifier Processor dependency alongside the version embedded in Kotlin compiler.
 
 ## 95. Bouncy Castle Provider / PKIX 1.67
 
@@ -939,3 +939,39 @@ The machine-readable inventory is `third_party/components.csv`. Corresponding li
 - Download/source: https://github.com/pnggroup/libpng/archive/refs/tags/v1.6.40.tar.gz
 - Modified by Jugg: No
 - Notes: Statically linked into the distributed AAPT2 executable; the binary includes libpng 1.6.40.
+
+## 105. HDiffPatch and bundled native dependencies 5.1.3
+
+- License: MIT, BSD-2-Clause, BSD-3-Clause, zlib, bzip2-1.0.6, Public Domain
+- Copyright: Copyright (c) 2012-2025 housisong; component copyrights in bundled THIRD_PARTY_NOTICES.txt
+- License/source reference: https://github.com/sisong/HDiffPatch/blob/v5.1.3/LICENSE
+- Download/source: https://github.com/sisong/HDiffPatch/releases/tag/v5.1.3
+- Modified by Jugg: No
+- Notes: Separate-process tools for large native-library delta deployment. Official desktop binaries have pinned SHA-256 values and bundled native dependency notices. Android hpatchz is built from unmodified upstream source using NDK 28.2.13676358 with only zlib enabled and dynamically links device libz. Build scripts, artifact hashes, and licenses are preserved under tools/hdiffpatch/5.1.3.
+
+## 106. Jetifier Processor 1.0.0-beta10
+
+- License: Apache-2.0
+- Copyright: Copyright © 2018 The Android Open Source Project
+- License/source reference: https://dl.google.com/dl/android/maven2/com/android/tools/build/jetifier/jetifier-processor/1.0.0-beta10/jetifier-processor-1.0.0-beta10.pom
+- Download/source: https://dl.google.com/dl/android/maven2/com/android/tools/build/jetifier/jetifier-processor/1.0.0-beta10/jetifier-processor-1.0.0-beta10.jar
+- Modified by Jugg: No
+- Notes: Converts ARouter annotation processor Support/AndroidX references to the current APK baseline types; distributed as a separate JAR.
+
+## 107. ASM / ASM Util / ASM Tree / ASM Analysis / ASM Commons 8.0.1
+
+- License: BSD-3-Clause
+- Copyright: Copyright © 2000-2011 INRIA, France Telecom
+- License/source reference: https://gitlab.ow2.org/asm/asm/-/blob/ASM_8_0_1/LICENSE.txt
+- Download/source: https://repo1.maven.org/maven2/org/ow2/asm/asm/8.0.1/asm-8.0.1.jar
+- Modified by Jugg: No
+- Notes: Five unmodified separate JARs distributed as transitive dependencies of Jetifier Processor, grouped by identical version and license.
+
+## 108. JDOM 2.0.6
+
+- License: JDOM License (BSD-style)
+- Copyright: Copyright © 2000-2012 Jason Hunter, Brett McLaughlin and JDOM contributors
+- License/source reference: https://github.com/hunterhacker/jdom/blob/JDOM-2.0.6/LICENSE.txt
+- Download/source: https://repo1.maven.org/maven2/org/jdom/jdom2/2.0.6/jdom2-2.0.6.jar
+- Modified by Jugg: No
+- Notes: Distributed as an unmodified, unrelocated Jetifier Processor dependency alongside the version embedded in Kotlin compiler.

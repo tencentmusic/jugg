@@ -23,6 +23,9 @@ jobs:
         with:
           lfs: true
 
+      - name: Test release notes generation
+        run: python3 -m unittest tools.test_generate_release_notes
+
       - name: Set up Java
         uses: actions/setup-java@v5
         with:

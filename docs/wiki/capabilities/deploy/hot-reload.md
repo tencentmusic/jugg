@@ -21,7 +21,8 @@ Hot Reload is Jugg's preferred online incremental deployment capability. It send
 | First resource overlay | Supported | Includes all baseline resources to avoid missing resources on the device |
 | New class | Supported online | Apply Changes or Direct sandbox adds the new DEX to the current process's Application ClassLoader; ordinary non-empty deployment still recreates the Activity according to the upper-level lifecycle policy |
 | Class with structural changes | Supported for incremental delivery, but requires restart | Enters the Hot Fix path |
-| Manifest, `resources.arsc`, or `.so` update | Supported as an APK update | Modifies and re-signs the APK, then installs it or recovers state |
+| Manifest and associated `resources.arsc` update | Supported as an APK update | Modifies and re-signs the APK, then installs it or recovers state |
+| `.so` update | Routed by the SO hot update setting | Enters an overlay and restarts the app when enabled; modifies, re-signs, and installs the APK when disabled |
 | Device state does not match | Automatic recovery supported | Runs recover/retry first, then determines whether Hot Reload can continue |
 
 > [!NOTE]
@@ -39,13 +40,13 @@ Incremental compilation succeeds
   -> Commit deployment history after success
 ```
 
-Hot Reload centers on deployment-data classification. Jugg places classes eligible for online updates in Hot Reload, structural changes or content requiring a process restart in Hot Fix, and Manifest, `resources.arsc`, native libraries, and similar files in the APK-update path.
+Hot Reload centers on deployment-data classification. Jugg places classes eligible for online updates in Hot Reload, structural changes or content requiring a process restart in Hot Fix, and Manifest with its associated `resources.arsc` in the APK-update path. Native libraries use an overlay or APK update according to the SO hot update setting.
 
 Jugg checks the Android Studio Apply Changes prerequisites with a reversible write probe. It continues into that channel only when `run-as` returns one unique success marker, the original UID is within `10000..19999`, and newly created files use the same SELinux label as the app's existing cache directory. Other results do not depend on app flags or a particular error message. Jugg instead validates access to the real data directory through the ordinary shell, one root-adbd request, and non-interactive `su`. When access is available, it persists the Dex in the overlay and then attempts online replacement. If that fails, Jugg restarts the app and its startup agent loads the same overlay.
 
 The Direct path makes DEX and request files inherit the app cache directory's dynamic SELinux label and labels JVMTI Agent `.so` files with a type the app process can execute. Root-written files therefore remain usable after restart or dynamic attach despite differences in ownership, MCS categories, or executable file type.
 
-When `run-as`, the UID, or the SELinux label is incompatible, Jugg can deliver classes, resources, and assets directly. New classes are added to the current process's Application ClassLoader as in-memory DEX elements, while method-body changes are replaced online through JVMTI. On Android 11+, ordinary resource, asset, and mixed code/resource changes refresh resources in the main process and recreate the current Activity; Jugg restarts the app if refresh fails. Resource changes on Android 8–10 require a process restart, while compatible deployment retains the resource-APK path. Manifest and native-library changes still use APK updates and installation. Failed permission probes or a missing deployment cache cause an explicit failure.
+When `run-as`, the UID, or the SELinux label is incompatible, Jugg can deliver classes, resources, and assets directly. New classes are added to the current process's Application ClassLoader as in-memory DEX elements, while method-body changes are replaced online through JVMTI. On Android 11+, ordinary resource, asset, and mixed code/resource changes refresh resources in the main process and recreate the current Activity; Jugg restarts the app if refresh fails. Resource changes on Android 8–10 require a process restart, while compatible deployment retains the resource-APK path. Manifest still uses APK update and installation; native libraries enter an overlay and load after an app restart when SO hot update is enabled, or use an APK update when disabled. Failed permission probes or a missing deployment cache cause an explicit failure.
 
 ## Boundaries
 

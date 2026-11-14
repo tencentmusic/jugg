@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.deploy.run.applychanges
 
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
+import com.sickworm.intellij.jugg.compiler.isWindows
 import com.sickworm.intellij.jugg.deploy.AdbCmdHelper
 import com.sickworm.intellij.jugg.deploy.run.LaunchContext
 import com.sickworm.intellij.jugg.deploy.run.utils.AdbTransientOffline
@@ -31,29 +32,17 @@ class CustomApkInstallScriptRunner(
         }
     })
 
-    fun run(applicationId: String) {
+    fun run(applicationId: String, apks: List<String>) {
         val projectDir = project.basePath?.let(::File)
             ?: throw IllegalStateException("Project directory is unavailable for custom APK install script.")
         val env = withAndroidSdkPlatformTools(LocalGradleCompileClient.buildCompileEnv(project, logger))
         launchContext.compileUiHandler.updateIndicatorText("Running custom APK install script...")
-        cmdExecutor.prepareForInvoke()
-        launchContext.compileUiHandler.listenCancelAction(cmdExecutor::release)
-        if (launchContext.compileUiHandler.isCanceled) {
-            cmdExecutor.release()
-            launchContext.compileUiHandler.listenCancelAction(null)
-            throw IllegalStateException("Custom APK install script canceled.")
-        }
         logger.info("Custom APK install script started for $applicationId.")
-        val result = try {
-            cmdExecutor.invoke(SimpleSshCommand(script, isSecureCommand = true), env, null, projectDir)
-        } finally {
-            launchContext.compileUiHandler.listenCancelAction(null)
-        }
-        if (launchContext.compileUiHandler.isCanceled) {
-            throw IllegalStateException("Custom APK install script canceled.")
-        }
-        if (result != 0) {
-            throw IllegalStateException("Custom APK install script failed with exit code $result.")
+        val usesPositionalArguments = !isWindows && Regex("""\${'$'}[12](?!\d)""").containsMatchIn(script)
+        for (apk in apks) {
+            val arguments = "${quoteArgument(File(apk).absolutePath)} ${quoteArgument(launchContext.deviceAdb.serial)}"
+            val command = if (usesPositionalArguments) "set -- $arguments\n$script" else "$script $arguments"
+            executeCommand(command, env, projectDir)
         }
         val isDeviceReady = launchContext.deviceAdb.isAdbTransportReady() ||
             AdbTransientOffline.waitForAdbTransport("custom APK install script", launchContext.deviceAdb) {
@@ -68,7 +57,40 @@ class CustomApkInstallScriptRunner(
         logger.info("Custom APK install script finished for $applicationId.")
     }
 
+    private fun executeCommand(command: String, env: List<String>, projectDir: File) {
+        cmdExecutor.prepareForInvoke()
+        launchContext.compileUiHandler.listenCancelAction(cmdExecutor::release)
+        if (launchContext.compileUiHandler.isCanceled) {
+            cmdExecutor.release()
+            launchContext.compileUiHandler.listenCancelAction(null)
+            throw IllegalStateException("Custom APK install script canceled.")
+        }
+        val result = try {
+            cmdExecutor.invoke(SimpleSshCommand(command, isSecureCommand = true), env, null, projectDir)
+        } finally {
+            launchContext.compileUiHandler.listenCancelAction(null)
+        }
+        if (launchContext.compileUiHandler.isCanceled) {
+            throw IllegalStateException("Custom APK install script canceled.")
+        }
+        if (result != 0) {
+            throw IllegalStateException("Custom APK install script failed with exit code $result.")
+        }
+    }
+
     companion object {
+        private fun quoteArgument(argument: String): String {
+            return if (isWindows) {
+                // cmd.exe expands environment references even inside double quotes.
+                require('%' !in argument && '!' !in argument) {
+                    "Custom APK install script cannot accept '%' or '!' in arguments on Windows."
+                }
+                "\"${argument.replace("\"", "\"\"")}\""
+            } else {
+                "'${argument.replace("'", "'\"'\"'")}'"
+            }
+        }
+
         internal fun withAndroidSdkPlatformTools(environment: List<String>): List<String> {
             val values = environment.associate { it.substringBefore('=') to it.substringAfter('=') }.toMutableMap()
             val androidHome = values["ANDROID_HOME"] ?: values["ANDROID_SDK_ROOT"] ?: return environment

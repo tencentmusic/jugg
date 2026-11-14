@@ -18,18 +18,22 @@ class JuggSettingsProjectEffects(private val paths: JuggPathManager, private val
         val applied = if (file.exists()) JsonParser.parseString(file.readText()).asJsonObject else JsonObject()
         val backup = global["backupClasspathRevision"]?.asLong ?: 0L
         val compat = global["deviceCompatRevision"]?.asLong ?: 0L
+        val nativeSandbox = global["nativeSandboxRevision"]?.asLong ?: 0L
+        val nativeChanged = nativeSandbox > (applied["nativeSandboxRevision"]?.asLong ?: 0L)
         val backupChanged = backup > (applied["backupClasspathRevision"]?.asLong ?: 0L)
         val compatChanged = compat > (applied["deviceCompatRevision"]?.asLong ?: 0L)
-        if (!backupChanged && !compatChanged) return false
-        if (backupChanged) {
+        if (!backupChanged && !compatChanged && !nativeChanged) return false
+        if (backupChanged || (nativeChanged && !JuggSettings.isEnableNativeSandboxDeploy)) {
             history.deleteDeployHistory()
             check(!paths.compileContextDbDir.resolve("complete_flag").exists() &&
                     !paths.deployHistoryDbDir.resolve("deploy_history.json").exists()) { "Failed to invalidate deployment history." }
         }
         if (compatChanged && !backupChanged && history.lastDeployOverlayIds.isNotEmpty()) history.isCleanAndReinstall = true
+        if (nativeChanged) history.isCleanAndReinstall = true
         val next = JsonObject().apply {
             addProperty("backupClasspathRevision", backup)
             addProperty("deviceCompatRevision", compat)
+            addProperty("nativeSandboxRevision", nativeSandbox)
         }
         Files.createDirectories(file.parentFile.toPath())
         val temp = Files.createTempFile(file.parentFile.toPath(), "settings-applied-", ".tmp")

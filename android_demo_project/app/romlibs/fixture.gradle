@@ -1,0 +1,16 @@
+// This opt-in fixture compiles platform APIs absent from the public Android SDK.
+if (providers.gradleProperty('juggRomApiFixture').orNull == 'true') {
+    android.sourceSets.main.java.srcDir 'src/romApi/java'
+    def framework = files('romlibs/rom_framework.jar')
+    tasks.withType(JavaCompile).configureEach {
+        doFirst {
+            options.bootstrapClasspath = framework + options.bootstrapClasspath
+        }
+    }
+    tasks.matching { it.name.endsWith("Kotlin") && it.hasProperty("libraries") }.configureEach {
+        doFirst {
+            def originalLibraries = libraries.files.toList()
+            libraries.setFrom(framework, originalLibraries)
+        }
+    }
+}

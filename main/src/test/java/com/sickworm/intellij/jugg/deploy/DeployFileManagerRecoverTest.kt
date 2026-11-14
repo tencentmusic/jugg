@@ -8,6 +8,7 @@ import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import com.sickworm.intellij.jugg.project.runtime.createImmediateTestTaskRunnerManager
 import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -16,6 +17,34 @@ import java.nio.file.Files
 class DeployFileManagerRecoverTest {
 
     private val taskRunnerManager = createImmediateTestTaskRunnerManager()
+
+    @Test
+    fun initShouldDeleteExtractedClassesAndKeepOtherTemporaryFiles() {
+        val testRoot = Files.createTempDirectory("deploy-extracted-classes-test").toFile()
+        val pathManager = JuggPathManager(testRoot, globalJuggRootDir = File(testRoot, "global"))
+        val extractedClassesDir = pathManager.extractedClassesDir
+        val extractedClass = File(extractedClassesDir, "com/example/Dependency.class")
+        val legacyClass = File(pathManager.tmpDir, "com/example/Legacy.class")
+        val diagnosticsFile = File(pathManager.diagnosticsDir, "report/log.txt")
+        listOf(extractedClass, legacyClass, diagnosticsFile).forEach {
+            it.parentFile.mkdirs()
+            it.writeText("preserved content")
+        }
+        val deployFileManager = DeployFileManager(pathManager, taskRunnerManager, logger)
+        try {
+            deployFileManager.init(emptyList(), emptyList(), resetFilesBeforeTimeMill = null)
+
+            assertFalse(extractedClassesDir.exists())
+            assertEquals("preserved content", legacyClass.readText())
+            assertEquals("preserved content", diagnosticsFile.readText())
+
+            deployFileManager.init(emptyList(), emptyList(), resetFilesBeforeTimeMill = null)
+            assertFalse(extractedClassesDir.exists())
+        } finally {
+            deployFileManager.dispose()
+            testRoot.deleteRecursively()
+        }
+    }
 
     @Test
     fun constRefFailureShouldNotBlockDeployFileManagerFlow() {
@@ -91,7 +120,7 @@ class DeployFileManagerRecoverTest {
 
         deployFileManager.replaceDeployedFilesForTest(listOf(oldRecoveredDex))
         deployFileManager.addStagingFiles(listOf(newStagingDex))
-        deployFileManager.resetAfterReinstall()
+        deployFileManager.resetAfterReinstall(replayNativeLibraries = true)
 
         val deployData = deployFileManager.getDeployData()
         val classItems = deployData.newClasses + deployData.hotFixModifiedClasses + deployData.hotReloadModifiedClasses
@@ -128,7 +157,7 @@ class DeployFileManagerRecoverTest {
         )
 
         deployFileManager.replaceDeployedFilesForTest(listOf(oldRecoveredDex))
-        deployFileManager.resetAfterReinstall()
+        deployFileManager.resetAfterReinstall(replayNativeLibraries = true)
         deployFileManager.addStagingFiles(listOf(newStagingDex))
 
         assertEquals(listOf(newStagingDex), deployFileManager.getStagingFiles())
@@ -167,7 +196,7 @@ class DeployFileManagerRecoverTest {
 
         deployFileManager.replaceDeployedFilesForTest(listOf(baseDex))
         deployFileManager.addStagingFiles(listOf(testDex))
-        deployFileManager.resetAfterReinstall()
+        deployFileManager.resetAfterReinstall(replayNativeLibraries = true)
 
         val deployData = deployFileManager.getDeployData()
         val classItems = deployData.newClasses + deployData.hotFixModifiedClasses + deployData.hotReloadModifiedClasses

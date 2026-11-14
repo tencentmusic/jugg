@@ -15,6 +15,9 @@ import com.sickworm.intellij.jugg.project.info.ModuleDependency
 import com.sickworm.intellij.jugg.project.info.ComposeResourceDirectory
 import com.sickworm.intellij.jugg.project.info.ComposeResourceInfo
 import com.sickworm.intellij.jugg.project.info.ComposeResourceSupportStatus
+import com.sickworm.intellij.jugg.project.info.ExternalBuildGeneratedLanguage
+import com.sickworm.intellij.jugg.project.info.ExternalBuildGeneratedSourceDir
+import com.sickworm.intellij.jugg.project.info.ExternalBuildPrerequisite
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -184,6 +187,18 @@ class ProjectInfoSerializerInGradleAndroidTestTest {
                 taskPath = ":native:mergeDebugNativeLibs",
                 assetsOutputDir = null,
                 nativeOutput = File("/project/native/build/intermediates/merged_native_libs/debug/out"),
+                prerequisites = listOf(
+                    ExternalBuildPrerequisite(
+                        taskPath = ":native:compileMidl",
+                        triggerGlobs = listOf("**/*.idl.hpp"),
+                        generatedSourceDirs = listOf(
+                            ExternalBuildGeneratedSourceDir(
+                                File("/project/native/build/generated/idl/kotlin/commonMain"),
+                                ExternalBuildGeneratedLanguage.Kotlin,
+                            ),
+                        ),
+                    ),
+                ),
             ),
             ExternalBuildInfo(
                 type = ExternalBuildType.Flutter,

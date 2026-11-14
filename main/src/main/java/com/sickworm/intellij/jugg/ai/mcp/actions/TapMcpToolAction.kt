@@ -495,6 +495,7 @@ class TapMcpToolAction : McpToolAction {
                     "matchedElement" to toMatchedElementMap(serverResult.matchedElement),
                     "matchCount" to serverResult.matchCount,
                 )
+                if (serverResult.warnings.isNotEmpty()) baseData["warnings"] = serverResult.warnings
                 if (duration != null) {
                     baseData["duration"] = duration
                 }
@@ -524,12 +525,12 @@ class TapMcpToolAction : McpToolAction {
                     status = McpToolStatus.ERROR,
                     message = "tap failed. Reason: ${serverResult.matchCount} elements matched. " +
                         "Use coordinate mode (x+y) or percent mode (xPercent+yPercent) to tap the intended element.",
-                    data = mapOf(
+                    data = linkedMapOf<String, Any>(
                         "action" to action,
                         "matchCount" to serverResult.matchCount,
                         "mode" to "element",
                         "matches" to matchesSummary,
-                    ),
+                    ).apply { if (serverResult.warnings.isNotEmpty()) put("warnings", serverResult.warnings) },
                     artifacts = emptyList(),
                     errorCode = McpErrorCode.INVALID_PARAMS,
                 )

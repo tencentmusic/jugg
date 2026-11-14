@@ -1,5 +1,7 @@
 # Windows 内置 Cygwin rsync 接入方案
 
+> 历史方案：实施以 [2026-10 Windows rsync 最终适配方案](../2026-10/windows_rsync_final_plan.md)为准，先验证原生 oc-rsync，Cygwin 保留为备选且优先审核官方二进制。本文的自构建、旧版本下限、包体、工期、具体类设计和测试安排不视为当前承诺；过滤规则作用域、链接、真实退出码和验证要求以最终方案及当前代码为准。[中间交接记录](../2026-10/windows_rsync_decision_handoff.md)保留选型历史。
+
 ## 1. 背景
 
 Jugg 的 Remote Gradle Compile 已支持 `rsync_simple`、`rsync` 与 `iFT` 三种同步模式，但当前 Windows 会被直接判定为不支持 rsync，用户只能使用 iFT。

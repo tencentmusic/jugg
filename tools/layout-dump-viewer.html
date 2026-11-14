@@ -1,0 +1,678 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Layout dump 检查器</title>
+<style>
+:root { color-scheme: light; font: 13px/1.5 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; color: #243447; background: #f1f4f7; --line: #d7e0e8; --blue: #2463c5; }
+* { box-sizing: border-box; }
+body { margin: 0; height: 100vh; height: 100dvh; display: flex; flex-direction: column; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button, select { border: 1px solid var(--line); border-radius: 4px; background: white; padding: 6px 10px; }
+button { cursor: pointer; }
+button:hover:not(:disabled) { background: #edf3fc; border-color: #9ab6df; }
+button:disabled { opacity: .45; cursor: default; }
+:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+button.primary { background: var(--blue); color: white; border-color: var(--blue); }
+button.primary:hover { background: #1b50a2; }
+[hidden] { display: none !important; }
+h1, h2, h3, p { margin: 0; }
+h1 { font-size: 16px; font-weight: 650; white-space: nowrap; }
+h2 { font-size: 13px; font-weight: 650; }
+h3 { font-size: 12px; margin: 16px 0 8px; }
+header { background: white; border-bottom: 1px solid var(--line); display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 12px 16px; }
+.brand { display: flex; align-items: center; gap: 8px; margin-right: 12px; }
+.brand svg { color: var(--blue); }
+.file-name { flex: 1; min-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #56677b; }
+#windowSelect { max-width: 320px; min-width: 120px; }
+.toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; padding: 8px 16px; border-bottom: 1px solid var(--line); background: #f9fafc; }
+.toolbar label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+input[type=checkbox] { accent-color: var(--blue); margin: 0; }
+.toolbar .spacer { flex: 1; }
+#zoomLabel { display: inline-block; width: 48px; text-align: center; font-variant-numeric: tabular-nums; }
+.zoom { display: flex; align-items: center; gap: 4px; }
+.workspace { flex: 1; min-height: 0; display: grid; grid-template-columns: 280px minmax(240px, 1fr) 304px; }
+.panel { background: white; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
+.tree-panel { border-right: 1px solid var(--line); }
+.property-panel { border-left: 1px solid var(--line); }
+.panel-head { display: flex; align-items: center; justify-content: space-between; min-height: 48px; padding: 12px 16px; border-bottom: 1px solid var(--line); gap: 8px; }
+.muted, .hint { color: #617287; }
+.hint { font-size: 12px; }
+.search { padding: 12px; }
+#search { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 4px; background: #f9fafc; }
+#searchCount { min-height: 20px; margin-top: 4px; font-size: 12px; }
+#tree { overflow: auto; flex: 1; padding: 0 0 16px; }
+.tree-row { display: flex; align-items: center; min-height: 32px; padding-right: 8px; gap: 2px; cursor: pointer; border-left: 3px solid transparent; }
+.tree-row:hover { background: #f1f5fa; }
+.tree-row.selected { background: #e8f0fc; border-left-color: var(--blue); }
+.tree-row.preview { background: #f0f5ff; }
+.tree-row.dim { color: #778597; }
+.tree-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: transparent; border: 0; padding: 5px 2px; text-align: left; }
+.tree-label:hover:not(:disabled) { background: transparent; }
+.disclosure { width: 22px; flex: 0 0 22px; padding: 2px; background: transparent; border: 0; }
+.badge { font-size: 11px; padding: 1px 5px; border: 1px solid var(--line); border-radius: 3px; white-space: nowrap; }
+.omission { color: #946200; font-size: 12px; padding-top: 4px; padding-bottom: 4px; overflow-wrap: anywhere; }
+.canvas-panel { position: relative; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.canvas-top { padding: 8px 16px; display: flex; gap: 8px; align-items: center; border-bottom: 1px solid var(--line); min-height: 40px; }
+#scopeLabel { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#stage { position: relative; flex: 1; min-height: 160px; overflow: hidden; background-color: #f1f4f7; background-image: radial-gradient(#cbd5df .7px, transparent .7px); background-size: 16px 16px; }
+#stage.dragover { outline: 3px solid var(--blue); outline-offset: -3px; }
+#canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
+#canvas.panning { cursor: grabbing; }
+.wire, .window-frame, .highlight { vector-effect: non-scaling-stroke; }
+.wire { stroke: #859cb1; stroke-opacity: .45; stroke-width: 1; fill: none; }
+.wire.actionable { stroke: #4f87a6; stroke-opacity: .7; }
+.wire.is-hidden { stroke-dasharray: 4 3; stroke: #9a7a99; }
+.node-text { fill: #334d68; font-size: 10px; pointer-events: none; }
+.window-frame { fill: white; stroke: #657b90; stroke-width: 1.5; }
+.highlight { fill: #2463c518; stroke: var(--blue); stroke-width: 2; pointer-events: none; }
+.highlight.hover { fill: #2463c508; stroke-dasharray: 4 3; stroke-width: 1.5; }
+#empty { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; padding: 24px; pointer-events: none; }
+#empty svg { margin: 0 auto 20px; color: #728da8; }
+#empty h2 { font-size: 20px; margin-bottom: 8px; }
+#empty p { color: #617287; max-width: 320px; }
+#empty button { margin: 20px auto 0; pointer-events: auto; }
+#hoverLabel { position: absolute; left: 12px; bottom: 12px; max-width: calc(100% - 24px); background: #fffef5; border: 1px solid #d8d1ad; padding: 4px 8px; border-radius: 4px; pointer-events: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.canvas-foot { display: flex; gap: 12px; flex-wrap: wrap; padding: 8px 16px; border-top: 1px solid var(--line); font-size: 12px; color: #617287; }
+.properties { padding: 16px; overflow: auto; flex: 1; }
+#nodeHeading { font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
+#nodePath { overflow-wrap: anywhere; margin: 6px 0 16px; font-size: 12px; }
+dl { margin: 12px 0; }
+.field { display: grid; grid-template-columns: 76px minmax(0,1fr); gap: 8px; padding: 6px 0; border-bottom: 1px solid #edf0f4; }
+dt { color: #617287; }
+dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.actions { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0; }
+pre { white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.6 ui-monospace, SFMono-Regular, Consolas, monospace; background: #f5f7fa; padding: 12px; border-radius: 4px; max-height: 360px; overflow: auto; }
+.note { padding: 8px 12px; border-left: 3px solid #c79a39; background: #fff8e8; color: #795600; margin: 12px 0; font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+footer { background: white; border-top: 1px solid var(--line); padding: 8px 16px; display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: center; }
+#status { flex: 1; min-width: 200px; }
+#diagnostics { width: 100%; font-size: 12px; color: #795600; }
+#diagnosticList { margin: 8px 0; padding-left: 20px; max-height: 140px; overflow: auto; overflow-wrap: anywhere; }
+#error { background: #fff0ef; color: #a2312d; padding: 8px 16px; border-bottom: 1px solid #ebc5c2; white-space: pre-wrap; overflow-wrap: anywhere; }
+dialog { border: 1px solid var(--line); border-radius: 8px; padding: 0; color: inherit; width: min(640px, calc(100vw - 32px)); }
+dialog::backdrop { background: #24344755; }
+.dialog-body { padding: 16px; }
+.dialog-actions { padding: 12px 16px; border-top: 1px solid var(--line); display: flex; justify-content: flex-end; gap: 8px; }
+#jsonInput { width: 100%; min-height: 240px; resize: vertical; border: 1px solid var(--line); padding: 12px; border-radius: 4px; font: 12px/1.6 ui-monospace, SFMono-Regular, Consolas, monospace; margin-top: 12px; }
+#pasteError { color: #a2312d; white-space: pre-wrap; margin-top: 8px; }
+#candidateList { max-height: 50vh; overflow: auto; }
+.candidate { width: 100%; text-align: left; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; padding: 10px 16px; display: block; }
+.candidate span { display: block; overflow-wrap: anywhere; }
+@media (max-width: 1100px) { .workspace { grid-template-columns: 236px minmax(200px,1fr) 260px; } .toolbar { gap: 8px 12px; } }
+@media (max-width: 820px) {
+  body { height: auto; min-height: 100dvh; }
+  .workspace { flex: none; grid-template-columns: minmax(150px, 32%) minmax(0,1fr); grid-template-rows: 65vh auto; }
+  .property-panel { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--line); }
+  .properties { max-height: 50vh; }
+  header { gap: 8px; padding: 12px; } .file-name { flex-basis: 100%; order: 1; }
+  #windowSelect { max-width: 100%; } .canvas-foot { padding: 8px; } .canvas-top { padding: 8px; }
+  .search { padding: 8px; } .panel-head { padding: 12px; } .toolbar .spacer { display: none; }
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="3"/><path d="M8 2v20M8 9h14M15 9v13"/></svg><h1>Layout dump 检查器</h1></div>
+  <button id="openFile" class="primary">打开 JSON</button><button id="pasteOpen">粘贴 JSON</button>
+  <input id="fileInput" type="file" accept=".json,application/json" hidden>
+  <span id="fileName" class="file-name">文件仅在当前浏览器中读取</span>
+  <label for="windowSelect" class="hint">窗口</label><select id="windowSelect" disabled><option>尚未打开</option></select>
+</header>
+<div id="error" role="alert" hidden></div>
+<div class="toolbar">
+  <label><input id="showText" type="checkbox" checked>文本示意</label>
+  <label><input id="showHidden" type="checkbox">显示隐藏节点</label>
+  <label><input id="showOffscreen" type="checkbox">显示窗口外内容</label>
+  <button id="restore" disabled>恢复隐藏</button>
+  <span class="spacer"></span>
+  <div class="zoom"><button id="zoomOut" aria-label="缩小" disabled>−</button><output id="zoomLabel">100%</output><button id="zoomIn" aria-label="放大" disabled>＋</button></div>
+  <button id="fit" disabled>适应窗口</button>
+</div>
+<main class="workspace">
+  <aside class="panel tree-panel" aria-label="节点树">
+    <div class="panel-head"><h2>节点树</h2><span id="modeLabel" class="badge">等待导入</span></div>
+    <div class="search"><input id="search" type="search" placeholder="搜索文字、id、类名或描述" aria-label="搜索节点" disabled><div id="searchCount" class="muted">保留导出文件中的树结构</div></div>
+    <div id="tree"><p class="hint" style="padding: 12px 16px">打开文件后，在这里选择节点。</p></div>
+  </aside>
+  <section class="canvas-panel" aria-label="布局线框">
+    <div class="canvas-top"><span id="scopeLabel" class="hint">布局线框</span><button id="clearScope" hidden>查看整个窗口</button></div>
+    <div id="stage">
+      <svg id="canvas" xmlns="http://www.w3.org/2000/svg" tabindex="0" role="img" aria-label="布局线框，可拖动平移，滚轮缩放" hidden></svg>
+      <div id="empty"><svg width="72" height="88" viewBox="0 0 72 88" fill="none" stroke="currentColor" aria-hidden="true"><rect x="10" y="2" width="52" height="84" rx="6" stroke-width="2"/><path d="M18 16h36v12H18zM18 36h16v22H18zM40 36h14v22H40zM18 66h36v10H18z" stroke-dasharray="3 2"/></svg><h2>看一眼布局框架</h2><p>拖入 ui 或 interaction JSON，检查位置、尺寸和节点内容。</p><button id="emptyOpen">选择 JSON 文件</button></div>
+      <div id="hoverLabel" class="hint" hidden></div>
+    </div>
+    <div class="canvas-foot"><span>拖动平移 · 滚轮缩放</span><span>重复点击 / Alt + 点击：选择重叠节点</span><span>线框不代表真实遮挡或裁剪</span></div>
+  </section>
+  <aside class="panel property-panel" aria-label="节点属性">
+    <div class="panel-head"><h2>节点属性</h2><button id="locate" disabled>定位节点</button></div>
+    <div class="properties">
+      <div id="noSelection" class="hint">从画布或节点树选择一个节点，查看它的原始数据。</div>
+      <div id="selection" hidden><div id="nodeHeading"></div><div id="nodePath" class="muted"></div><div class="actions"><button id="focusNode">只看该子树</button><button id="hideNode">临时隐藏</button></div><dl id="fields"></dl><div id="nodeNotes"></div><details><summary>原始节点 JSON</summary><pre id="rawJson"></pre></details></div>
+    </div>
+  </aside>
+</main>
+<footer><span id="status" role="status">未打开文件</span><span id="unitLabel" class="hint">坐标按文件声明的单位显示</span><details id="diagnostics" hidden><summary id="diagnosticSummary"></summary><ul id="diagnosticList"></ul></details></footer>
+<dialog id="pasteDialog" aria-labelledby="pasteTitle"><div class="dialog-body"><h2 id="pasteTitle">粘贴 layout dump JSON</h2><textarea id="jsonInput" spellcheck="false" aria-label="JSON 内容" placeholder='{"mode":"ui","windows":[…]}'></textarea><p id="pasteError" role="alert"></p></div><div class="dialog-actions"><button id="pasteCancel">取消</button><button id="pasteImport" class="primary">显示布局</button></div></dialog>
+<dialog id="candidates" aria-labelledby="candidateTitle"><div class="dialog-body"><h2 id="candidateTitle">此处的节点</h2><p class="hint">按输出树深度排列；不代表真实绘制顺序。悬停可预览。</p></div><div id="candidateList"></div><div class="dialog-actions"><button id="candidateClose">关闭</button></div></dialog>
+<script>
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const state = { document: null, windows: [], windowIndex: 0, selected: null, hover: null, scope: null,
+    hidden: new Set(), expanded: new Set(), query: '', drawn: [], scale: 1, x: 0, y: 0, lastHit: null };
+  let importSequence = 0;
+  let pan = null;
+  let wireLayer, overlayLayer;
+
+  function element(tag, text, className) {
+    const item = document.createElement(tag);
+    if (text !== undefined) item.textContent = text;
+    if (className) item.className = className;
+    return item;
+  }
+
+  function svgElement(tag, attrs, parent) {
+    const item = document.createElementNS(svgNS, tag);
+    Object.entries(attrs).forEach(([key, value]) => item.setAttribute(key, value));
+    if (parent) parent.append(item);
+    return item;
+  }
+
+  function bounds(raw) {
+    if (!Array.isArray(raw) || raw.length !== 4 || !raw.every(Number.isFinite)) return null;
+    return raw[2] >= raw[0] && raw[3] >= raw[1] ? raw : null;
+  }
+
+  const area = b => b && b[2] > b[0] && b[3] > b[1];
+  const currentWindow = () => state.windows[state.windowIndex];
+  const number = value => Number(value.toFixed(2)).toString();
+  const unit = () => state.document?.units?.bounds || '单位未声明';
+  const title = node => node.raw.text || node.raw.contentDesc ||
+    (String(node.raw.id || '').startsWith('_vir_id_') ? node.raw.className : node.raw.id) || node.raw.className || '未命名节点';
+  const label = node => title(node) === node.raw.className ? title(node) : `${node.raw.className || '节点'} · ${title(node)}`;
+  const inside = (point, b) => area(b) && point.x >= b[0] && point.x <= b[2] && point.y >= b[1] && point.y <= b[3];
+  const intersects = (a, b) => a[2] > b[0] && a[0] < b[2] && a[3] > b[1] && a[1] < b[3];
+
+  function ancestors(node) {
+    const result = [];
+    for (let parent = node.parent; parent; parent = parent.parent) result.push(parent);
+    return result;
+  }
+
+  function inScope(node) {
+    return !state.scope || node === state.scope || ancestors(node).includes(state.scope);
+  }
+
+  function hiddenState(node) {
+    const branch = [node, ...ancestors(node)];
+    return {
+      temporary: branch.some(item => state.hidden.has(item.key)),
+      original: branch.some(item => ['invisible', 'gone'].includes(String(item.raw.visibility).toLowerCase()) || item.raw.alpha === 0)
+    };
+  }
+
+  function path(node) {
+    return [...ancestors(node).reverse(), node].map(item => `${item.raw.className || '节点'}[${item.index}]`).join(' / ');
+  }
+
+  function union(nodes) {
+    const boxes = nodes.map(node => node.bounds).filter(area);
+    if (!boxes.length) return [0, 0, 400, 600];
+    return boxes.reduce((a, b) => [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[2], b[2]), Math.max(a[3], b[3])]);
+  }
+
+  /** Keep source objects untouched; tree position identifies nodes even when IDs repeat. */
+  function parseWindow(raw, windowIndex, subtreeRequested) {
+    if (!raw || typeof raw !== 'object' || !raw.root || typeof raw.root !== 'object' || Array.isArray(raw.root)) {
+      throw new Error(`窗口 ${windowIndex + 1} 缺少有效的 root 对象。`);
+    }
+    const nodes = [], notes = [];
+    const stack = [{ raw: raw.root, parent: null, depth: 0 }];
+    while (stack.length) {
+      const entry = stack.pop();
+      if (!entry.raw || typeof entry.raw !== 'object' || Array.isArray(entry.raw)) {
+        notes.push('存在无效子节点，已保留其他有效节点。');
+        continue;
+      }
+      if (Object.keys(entry.raw).length === 1 && typeof entry.raw.jugg_details === 'string') {
+        if (entry.parent) entry.parent.omissions.push(entry.raw.jugg_details);
+        else notes.push(entry.raw.jugg_details);
+        continue;
+      }
+      const node = { ...entry, key: `w${windowIndex}n${nodes.length}`, index: nodes.length,
+        bounds: bounds(entry.raw.bounds), children: [], omissions: [] };
+      nodes.push(node);
+      if (node.parent) node.parent.children.push(node);
+      if (!node.bounds) notes.push(`节点 ${node.index}（${title(node)}）缺少或包含无效 bounds，仅在树中显示。`);
+      else if (!area(node.bounds)) notes.push(`节点 ${node.index}（${title(node)}）为零面积，仅在树中显示。`);
+      if (node.raw.message) notes.push(`节点 ${node.index}：${String(node.raw.message)}`);
+      if (node.raw.children !== undefined && !Array.isArray(node.raw.children)) notes.push(`节点 ${node.index} 的 children 不是数组，已跳过该字段。`);
+      const children = Array.isArray(node.raw.children) ? node.raw.children : [];
+      children.slice().reverse().forEach(child => stack.push({raw: child, parent: node, depth: node.depth + 1}));
+    }
+    const subtree = subtreeRequested || raw.windowType === 'subtree';
+    // A subtree root does not establish its owning window's viewport.
+    return { raw, nodes, notes, subtree, viewport: !subtree && area(nodes[0]?.bounds) ? nodes[0].bounds : null };
+  }
+
+  /** Validate the next document before replacing a previously usable view. */
+  function importJson(text, fileName) {
+    const data = JSON.parse(text);
+    if (!data || !Array.isArray(data.windows) || !data.windows.length) throw new Error('需要包含非空 windows 数组的 layout dump JSON。');
+    const windows = data.windows.map((window, index) => parseWindow(window, index, data.rootLayout !== undefined));
+    state.document = data;
+    state.windows = windows;
+    $('fileName').textContent = fileName;
+    $('fileName').title = fileName;
+    $('modeLabel').textContent = data.mode || 'mode 未声明';
+    $('windowSelect').replaceChildren(...windows.map((window, index) => {
+      const option = element('option', `${index + 1}. ${window.raw.windowType || '窗口'} — ${window.raw.title || '未命名'}`);
+      option.value = index;
+      return option;
+    }));
+    ['windowSelect', 'search', 'zoomOut', 'zoomIn', 'fit'].forEach(id => $(id).disabled = false);
+    $('error').hidden = true;
+    $('empty').hidden = true;
+    $('canvas').removeAttribute('hidden');
+    switchWindow(0);
+  }
+
+  async function readFile(file) {
+    if (!file) return;
+    const sequence = ++importSequence;
+    try {
+      const text = await file.text();
+      if (sequence === importSequence) importJson(text, file.name);
+    } catch (error) {
+      if (sequence !== importSequence) return;
+      $('error').textContent = `无法打开 ${file.name}：${error.message}`;
+      $('error').hidden = false;
+    }
+  }
+
+  function switchWindow(index) {
+    state.windowIndex = index;
+    state.selected = state.hover = state.scope = state.lastHit = null;
+    state.hidden.clear();
+    state.expanded = new Set(currentWindow().nodes.filter(node => node.depth < 2).map(node => node.key));
+    state.query = '';
+    $('search').value = '';
+    $('windowSelect').value = index;
+    closeCandidates();
+    renderTree();
+    renderProperties();
+    renderCanvas();
+    renderStatus();
+    fit();
+  }
+
+  function matchingNodes() {
+    return currentWindow().nodes.filter(node => inScope(node) && [node.raw.text, node.raw.id, node.raw.className, node.raw.contentDesc]
+      .some(value => String(value ?? '').toLowerCase().includes(state.query)));
+  }
+
+  function renderTreeRow(node, visible) {
+    const row = element('div', undefined, 'tree-row');
+    row.dataset.key = node.key;
+    row.hidden = !visible;
+    row.style.paddingLeft = `${8 + Math.min(node.depth, 12) * 12}px`;
+    const hidden = hiddenState(node);
+    row.classList.toggle('dim', hidden.original || hidden.temporary);
+    row.classList.toggle('selected', node === state.selected);
+    const toggle = element('button', node.children.length || node.omissions.length ? (state.expanded.has(node.key) ? '▾' : '▸') : '·', 'disclosure');
+    toggle.disabled = !node.children.length && !node.omissions.length;
+    toggle.setAttribute('aria-label', `展开或折叠 ${label(node)}`);
+    toggle.setAttribute('aria-expanded', String(state.expanded.has(node.key)));
+    toggle.onclick = () => {
+      if (state.expanded.has(node.key)) state.expanded.delete(node.key);
+      else state.expanded.add(node.key);
+      renderTree();
+    };
+    const name = element('button', title(node), 'tree-label');
+    name.title = `${label(node)}\n${path(node)}`;
+    name.setAttribute('aria-label', label(node));
+    name.setAttribute('aria-pressed', String(node === state.selected));
+    row.append(toggle, name);
+    if (hidden.temporary || hidden.original) row.append(element('span', hidden.temporary ? '已隐藏' : '不可见', 'badge'));
+    if (node.raw.message) row.append(element('span', '诊断', 'badge'));
+    row.onclick = event => { if (event.target !== toggle) selectNode(node); };
+    row.onmouseenter = () => preview(node);
+    row.onmouseleave = () => preview(null);
+    return row;
+  }
+
+  function renderTree() {
+    const matches = matchingNodes();
+    const allowed = new Set(matches.flatMap(node => [node, ...ancestors(node)]));
+    const fragment = document.createDocumentFragment();
+    currentWindow().nodes.forEach(node => {
+      const open = ancestors(node).every(parent => state.expanded.has(parent.key));
+      const visible = inScope(node) && (state.query ? allowed.has(node) : open || node === state.scope);
+      fragment.append(renderTreeRow(node, visible));
+      node.omissions.forEach(note => {
+        const row = element('div', `↳ 后代已省略 · ${note}`, 'omission');
+        row.hidden = !visible || (!state.query && !state.expanded.has(node.key));
+        row.style.paddingLeft = `${24 + Math.min(node.depth, 12) * 12}px`;
+        fragment.append(row);
+      });
+    });
+    if (!matches.length) fragment.append(element('p', '没有匹配节点。可清空搜索或退出子树。', 'hint'));
+    $('tree').replaceChildren(fragment);
+    $('searchCount').textContent = state.query ? `${matches.length} 个匹配；画布保留布局上下文` : `${currentWindow().nodes.filter(inScope).length} 个节点；按输出树排列`;
+  }
+
+  function selectNode(node) {
+    state.selected = node;
+    state.hover = null;
+    if (state.query && !matchingNodes().includes(node)) state.query = $('search').value = '';
+    ancestors(node).forEach(parent => state.expanded.add(parent.key));
+    renderTree();
+    renderProperties();
+    renderHighlights();
+    const row = [...$('tree').querySelectorAll('.tree-row')].find(item => item.dataset.key === node.key);
+    row?.scrollIntoView({block: 'nearest'});
+  }
+
+  function field(name, value) {
+    const row = element('div', undefined, 'field');
+    row.append(element('dt', name), element('dd', value));
+    $('fields').append(row);
+  }
+
+  function renderProperties() {
+    const node = state.selected;
+    $('noSelection').hidden = Boolean(node);
+    $('selection').hidden = !node;
+    $('locate').disabled = !node || !area(node.bounds);
+    if (!node) return;
+    $('nodeHeading').textContent = node.raw.className || '未命名节点';
+    $('nodePath').textContent = path(node);
+    $('fields').replaceChildren();
+    if (node.bounds) {
+      field('bounds', `[${node.bounds.map(number).join(', ')}] ${unit()}`);
+      field('尺寸', `${number(node.bounds[2] - node.bounds[0])} × ${number(node.bounds[3] - node.bounds[1])} ${unit()}`);
+    } else field('bounds', '缺失或无效，未绘制矩形');
+    Object.entries(node.raw).filter(([key]) => !['className', 'bounds', 'children'].includes(key)).forEach(([key, value]) => {
+      field(key, typeof value === 'object' ? JSON.stringify(value) : String(value));
+    });
+    $('nodeNotes').replaceChildren();
+    const hidden = hiddenState(node);
+    const notes = [...node.omissions];
+    if (hidden.original) notes.push('本节点或祖先为 invisible / gone / alpha=0。打开“显示隐藏节点”可查看虚线示意。');
+    if (hidden.temporary) notes.push('本节点或祖先已临时隐藏。使用“恢复隐藏”重新显示。');
+    if (node.bounds && !area(node.bounds)) notes.push('零面积节点，仅在树中显示。');
+    notes.forEach(note => $('nodeNotes').append(element('p', note, 'note')));
+    $('rawJson').textContent = JSON.stringify(node.raw, null, 2);
+  }
+
+  function drawNode(node, defs) {
+    const b = node.bounds;
+    const group = svgElement('g', {'data-key': node.key}, wireLayer);
+    const attrs = {x: b[0], y: b[1], width: b[2] - b[0], height: b[3] - b[1]};
+    const hidden = hiddenState(node).original;
+    svgElement('rect', {...attrs, class: `wire${node.raw.clickable ? ' actionable' : ''}${hidden ? ' is-hidden' : ''}`}, group);
+    if (!$('showText').checked || b[2] - b[0] < 6 || b[3] - b[1] < 6) return;
+    const text = node.raw.text || (/image/i.test(node.raw.className || '') ? '▧' : '');
+    if (!text) return;
+    const clip = svgElement('clipPath', {id: `clip-${node.key}`}, defs);
+    svgElement('rect', attrs, clip);
+    const line = svgElement('text', {x: b[0] + 2, y: b[1] + Math.min(12, b[3] - b[1] - 1), class: 'node-text', 'clip-path': `url(#clip-${node.key})`}, group);
+    line.textContent = String(text).replace(/\s+/g, ' ');
+  }
+
+  function renderCanvas() {
+    if (!state.document) return;
+    const canvas = $('canvas');
+    canvas.replaceChildren();
+    const window = currentWindow();
+    const defs = svgElement('defs', {}, canvas);
+    if (window.viewport) {
+      const b = window.viewport;
+      const attrs = {x: b[0], y: b[1], width: b[2] - b[0], height: b[3] - b[1]};
+      svgElement('rect', {...attrs, class: 'window-frame'}, canvas);
+      svgElement('rect', attrs, svgElement('clipPath', {id: 'viewport-clip'}, defs));
+    }
+    wireLayer = svgElement('g', {}, canvas);
+    overlayLayer = svgElement('g', {}, canvas);
+    const clipped = !$('showOffscreen').checked && window.viewport;
+    if (clipped) {
+      wireLayer.setAttribute('clip-path', 'url(#viewport-clip)');
+      overlayLayer.setAttribute('clip-path', 'url(#viewport-clip)');
+    }
+    state.drawn = window.nodes.filter(node => {
+      const hidden = hiddenState(node);
+      return area(node.bounds) && inScope(node) && !hidden.temporary && (!hidden.original || $('showHidden').checked) && (!clipped || intersects(node.bounds, window.viewport));
+    });
+    state.drawn.forEach(node => drawNode(node, defs));
+    $('scopeLabel').textContent = state.scope ? `子树：${label(state.scope)}` : window.raw.title || '当前窗口';
+    $('clearScope').hidden = !state.scope;
+    $('restore').disabled = !state.hidden.size;
+    renderHighlights();
+    updateCamera();
+  }
+
+  function highlight(node, className) {
+    if (!node || !state.drawn.includes(node)) return;
+    const b = node.bounds;
+    svgElement('rect', {x: b[0], y: b[1], width: b[2] - b[0], height: b[3] - b[1], class: `highlight ${className}`}, overlayLayer);
+  }
+
+  function renderHighlights() {
+    if (!overlayLayer) return;
+    overlayLayer.replaceChildren();
+    highlight(state.selected, 'selected');
+    if (state.hover !== state.selected) highlight(state.hover, 'hover');
+    $('hoverLabel').hidden = !state.hover;
+    if (state.hover) $('hoverLabel').textContent = label(state.hover);
+    $('tree').querySelectorAll('.preview').forEach(row => row.classList.remove('preview'));
+    if (state.hover) $('tree').querySelector(`[data-key="${state.hover.key}"]`)?.classList.add('preview');
+  }
+
+  function preview(node) {
+    if (state.hover === node) return;
+    state.hover = node;
+    renderHighlights();
+  }
+
+  function renderStatus() {
+    const window = currentWindow();
+    const omissions = window.nodes.reduce((sum, node) => sum + node.omissions.length, 0);
+    $('status').textContent = `${state.document.mode || '未知模式'} · ${window.nodes.length} 个节点 · ${omissions} 处后代省略 · 窗口 ${state.windowIndex + 1}/${state.windows.length}`;
+    $('unitLabel').textContent = `bounds: ${unit()} · 文字与图片仅作示意`;
+    const notes = [...window.notes];
+    if (state.document.mode === 'interaction') notes.unshift('interaction 已裁剪部分容器，输出树不能证明真实父子关系；省略的后代无法从本文件恢复。');
+    if (!['ui', 'interaction'].includes(state.document.mode)) notes.unshift('mode 未声明或未知，按文件现有节点显示。');
+    if (!['dp', 'px'].includes(state.document.units?.bounds)) notes.unshift('bounds 单位未声明或未知，按原始数值显示，不进行 density 换算。');
+    if (!window.viewport && !window.subtree) notes.unshift('窗口根节点没有有效范围，画布按现有节点取范围，无法判断窗口内外。');
+    if (window.subtree) notes.unshift('这是子树快照，按已采集节点取范围；根范围不代表完整屏幕或所属窗口范围，不按根裁剪。');
+    if (state.document.truncated) notes.unshift('truncated=true：采集已截断，当前文件不是完整结果。');
+    const warnings = state.document.warnings;
+    if (warnings) notes.push(...(Array.isArray(warnings) ? warnings : [warnings]).map(note => typeof note === 'string' ? note : JSON.stringify(note)));
+    $('diagnostics').hidden = !notes.length;
+    $('diagnosticSummary').textContent = `${notes.length} 条数据说明 / 诊断${state.document.truncated ? '（采集已截断）' : ''}`;
+    $('diagnosticList').replaceChildren(...notes.map(note => element('li', note)));
+    $('diagnostics').open = Boolean(state.document.truncated || warnings || window.nodes.some(node => node.raw.message || !node.bounds));
+  }
+
+  function updateCamera() {
+    if (!state.document) return;
+    const {width, height} = $('stage').getBoundingClientRect();
+    $('canvas').setAttribute('viewBox', `${state.x} ${state.y} ${Math.max(1, width) / state.scale} ${Math.max(1, height) / state.scale}`);
+    $('zoomLabel').textContent = `${Math.round(state.scale * 100)}%`;
+  }
+
+  function frame(box) {
+    const {width, height} = $('stage').getBoundingClientRect();
+    state.scale = Math.max(.001, Math.min(12, (width - 48) / (box[2] - box[0]), (height - 48) / (box[3] - box[1])));
+    state.x = (box[0] + box[2]) / 2 - width / state.scale / 2;
+    state.y = (box[1] + box[3]) / 2 - height / state.scale / 2;
+    updateCamera();
+  }
+
+  function fit() {
+    if (!state.document) return;
+    let box = currentWindow().viewport || union(currentWindow().nodes);
+    if ($('showOffscreen').checked) box = union(state.drawn);
+    if (state.scope) box = union(state.drawn);
+    frame(box);
+  }
+
+  function locateSelected() {
+    const node = state.selected;
+    if (!area(node?.bounds)) return;
+    [node, ...ancestors(node)].forEach(item => state.hidden.delete(item.key));
+    if (hiddenState(node).original) $('showHidden').checked = true;
+    const viewport = currentWindow().viewport;
+    if (viewport && (node.bounds[0] < viewport[0] || node.bounds[1] < viewport[1] || node.bounds[2] > viewport[2] || node.bounds[3] > viewport[3])) {
+      $('showOffscreen').checked = true;
+    }
+    renderTree(); renderProperties(); renderCanvas();
+    frame(node.bounds);
+  }
+
+  function zoom(factor, clientX, clientY) {
+    if (!state.document) return;
+    const rect = $('stage').getBoundingClientRect();
+    const x = clientX === undefined ? rect.width / 2 : clientX - rect.left;
+    const y = clientY === undefined ? rect.height / 2 : clientY - rect.top;
+    const next = Math.max(.001, Math.min(20, state.scale * factor));
+    state.x += x / state.scale - x / next;
+    state.y += y / state.scale - y / next;
+    state.scale = next;
+    updateCamera();
+  }
+
+  function pointAt(event) {
+    const rect = $('stage').getBoundingClientRect();
+    return {x: state.x + (event.clientX - rect.left) / state.scale, y: state.y + (event.clientY - rect.top) / state.scale};
+  }
+
+  function hitsAt(event) {
+    const point = pointAt(event);
+    if (!$('showOffscreen').checked && currentWindow()?.viewport && !inside(point, currentWindow().viewport)) return [];
+    return state.drawn.filter(node => inside(point, node.bounds)).sort((a, b) => b.depth - a.depth || b.index - a.index);
+  }
+
+  function closeCandidates() {
+    $('candidates').close();
+    preview(null);
+  }
+
+  function showCandidates(hits) {
+    $('candidateTitle').textContent = `此处的 ${hits.length} 个节点`;
+    $('candidateList').replaceChildren(...hits.map(node => {
+      const button = element('button', undefined, 'candidate');
+      button.append(element('span', label(node)), element('span', path(node), 'hint'));
+      button.onmouseenter = button.onfocus = () => preview(node);
+      button.onmouseleave = button.onblur = () => preview(null);
+      button.onclick = () => { closeCandidates(); selectNode(node); };
+      return button;
+    }));
+    $('candidates').showModal();
+  }
+
+  function canvasClick(event) {
+    const hits = hitsAt(event);
+    if (!hits.length) return;
+    const point = pointAt(event);
+    const last = state.lastHit;
+    const repeated = last && Math.hypot(point.x - last.x, point.y - last.y) * state.scale < 5;
+    state.lastHit = point;
+    if (hits.length > 1 && (repeated || event.altKey)) showCandidates(hits);
+    else selectNode(hits[0]);
+  }
+
+  function bindCanvas() {
+    const canvas = $('canvas');
+    canvas.addEventListener('wheel', event => { event.preventDefault(); zoom(Math.exp(-event.deltaY * .0015), event.clientX, event.clientY); }, {passive: false});
+    canvas.onpointerdown = event => {
+      if (event.button !== 0 && event.button !== 1) return;
+      canvas.focus({preventScroll: true});
+      pan = {clientX: event.clientX, clientY: event.clientY, x: state.x, y: state.y, moved: false};
+      canvas.setPointerCapture(event.pointerId);
+    };
+    canvas.onpointermove = event => {
+      if (!pan) { preview(hitsAt(event)[0] || null); return; }
+      const dx = event.clientX - pan.clientX, dy = event.clientY - pan.clientY;
+      pan.moved ||= Math.hypot(dx, dy) > 4;
+      if (!pan.moved) return;
+      canvas.classList.add('panning');
+      state.x = pan.x - dx / state.scale;
+      state.y = pan.y - dy / state.scale;
+      preview(null);
+      updateCamera();
+    };
+    canvas.onpointerup = event => {
+      const clicked = pan && !pan.moved && event.button === 0;
+      pan = null;
+      canvas.classList.remove('panning');
+      if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+      if (clicked) canvasClick(event);
+    };
+    canvas.onpointercancel = () => { pan = null; canvas.classList.remove('panning'); };
+    canvas.onpointerleave = () => { if (!pan) preview(null); };
+    canvas.onkeydown = event => {
+      if (event.key === '+' || event.key === '=') zoom(1.2);
+      else if (event.key === '-') zoom(1 / 1.2);
+      else if (event.key === '0') fit();
+      else if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
+        const direction = {ArrowLeft: [-1,0], ArrowRight: [1,0], ArrowUp: [0,-1], ArrowDown: [0,1]}[event.key];
+        state.x += direction[0] * 40 / state.scale;
+        state.y += direction[1] * 40 / state.scale;
+        updateCamera();
+      } else return;
+      event.preventDefault();
+    };
+  }
+
+  function bindControls() {
+    $('openFile').onclick = $('emptyOpen').onclick = () => $('fileInput').click();
+    $('fileInput').onchange = () => { readFile($('fileInput').files[0]); $('fileInput').value = ''; };
+    $('pasteOpen').onclick = () => { $('pasteError').textContent = ''; $('pasteDialog').showModal(); $('jsonInput').focus(); };
+    $('pasteCancel').onclick = () => $('pasteDialog').close();
+    $('pasteImport').onclick = () => {
+      try { ++importSequence; importJson($('jsonInput').value, '粘贴的 JSON'); $('pasteDialog').close(); }
+      catch (error) { $('pasteError').textContent = error.message; }
+    };
+    $('windowSelect').onchange = event => switchWindow(Number(event.target.value));
+    $('search').oninput = event => { state.query = event.target.value.trim().toLowerCase(); renderTree(); };
+    $('fit').onclick = fit;
+    $('zoomIn').onclick = () => zoom(1.2);
+    $('zoomOut').onclick = () => zoom(1 / 1.2);
+    ['showText', 'showHidden', 'showOffscreen'].forEach(id => $(id).onchange = () => {
+      renderCanvas();
+      if (id === 'showOffscreen') fit();
+    });
+    $('locate').onclick = locateSelected;
+    $('focusNode').onclick = () => {
+      state.scope = state.selected;
+      state.expanded.add(state.scope.key);
+      state.query = $('search').value = '';
+      renderTree(); renderCanvas(); fit();
+    };
+    $('clearScope').onclick = () => { state.scope = null; renderTree(); renderCanvas(); fit(); };
+    $('hideNode').onclick = () => { state.hidden.add(state.selected.key); renderTree(); renderProperties(); renderCanvas(); };
+    $('restore').onclick = () => { state.hidden.clear(); renderTree(); renderProperties(); renderCanvas(); };
+    $('candidateClose').onclick = closeCandidates;
+    $('candidates').addEventListener('close', () => preview(null));
+    document.addEventListener('dragover', event => {
+      if (!event.dataTransfer.types.includes('Files')) return;
+      event.preventDefault(); $('stage').classList.add('dragover');
+    });
+    document.addEventListener('dragleave', event => { if (!event.relatedTarget) $('stage').classList.remove('dragover'); });
+    document.addEventListener('drop', event => {
+      if (!event.dataTransfer.files.length) return;
+      event.preventDefault(); $('stage').classList.remove('dragover');
+      readFile(event.dataTransfer.files[0]);
+    });
+    new ResizeObserver(fit).observe($('stage'));
+  }
+
+  bindControls();
+  bindCanvas();
+})();
+</script>
+</body>
+</html>

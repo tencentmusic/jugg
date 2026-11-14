@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/system/bin/sh
 
 # Must run inside the target app sandbox.
 

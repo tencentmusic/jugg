@@ -91,7 +91,7 @@ dependencies {
     // ROM hidden api fixture: rom_framework.jar redeclares android.net.wifi.WifiManager with the
     // SoftApCallback nested type that the public android.jar strips, and rom_sdk.jar subclasses it.
     // The device provides both at runtime, so they stay compileOnly.
-    // Regenerate: javac -d out romlibs/src/**/*.java && jar cf romlibs/rom_*.jar -C out .
+    // Regenerate with: python3 romlibs/build_fixtures.py
     compileOnly fileTree(dir: 'romlibs', include: ['*.jar'])
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
     implementation 'androidx.appcompat:appcompat:1.7.1'
@@ -104,7 +104,6 @@ dependencies {
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.1.1'
 
     implementation 'com.google.code.gson:gson:2.10.1'
-    implementation 'com.alibaba:fastjson:2.0.2.android'
     implementation 'io.reactivex.rxjava3:rxjava:3.1.8'
 
     implementation 'com.alibaba:arouter-api:1.5.2'
@@ -127,3 +126,6 @@ dependencies {
     implementation project(':databindingApt')
     implementation project(':kmpCompose')
 }
+
+// Optional full-build reproduction of compile-only ROM APIs.
+apply from: 'romlibs/fixture.gradle'

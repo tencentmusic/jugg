@@ -119,3 +119,11 @@ Check counter-evidence before concluding a resource issue: the owning APK, curre
 - Compilation control and deletion semantics: `02_compile_core.md`
 - Manifest, binding, and obfuscation: `02_compile_manifest.md`, `02_compile_databinding.md`, `02_compile_obfuscation.md`
 - Deployment of resource overlays: `03_deploy_core.md`
+
+## 8. Binding roots, Test APK isolation and tool preparation
+
+ResourceCompiler generates Binding once per module across this round's changed layout roots before per-root flat compilation. DataBindingArgsManager.reset is module-scoped: calling it separately per root deletes prior layout-info/generated source. Deduplicate identical relative layout paths in existing root batch order, keeping the last override; qualifier directories remain distinct. Strip XML back into its owning batches and return generated sources/trigger once. This does not scan every unchanged layout. Generation failure stops module resource compilation; see `02_compile_databinding.md`.
+
+A library Test APK and main APK can both lack split names. Manifest/R.java/link/temp-resource outputs therefore use an APK-unique key and retain separate physical directories through JuggCompiler final collection, preserving relative deployment path and apkPath. Test styleables use the aggregate R.jar of the androidTest module matching target applicationId; missing matching module omits only that auxiliary input. Without R.jar, prefer module namespace for Java R.class lookup, using Manifest package only if namespace is absent.
+
+Bundled process names are `aapt2-inclink` / `aapt2-inclink.exe`. The first bundled-path request per plugin classloader replaces the local cached executable once, without fingerprint/version-marker checks; later invoker/daemon recreation reuses it. Warm-up loadTable triggers preparation when an APK exists, otherwise first use does. Copy via a same-directory temporary executable then replace to avoid truncating an active Unix executable. Copy/replace failure propagates; a Windows daemon holding the file must exit before reinitialization.

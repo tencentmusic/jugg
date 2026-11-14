@@ -32,6 +32,18 @@ class CompileEffectAnalyzer(
     private val sourceFileManager: SourceFileManager,
     private val logger: Logger,
 ) {
+    /** Removes extracted dependency classes when deploy files are initialized. */
+    fun clear() {
+        val dir = pathManager.extractedClassesDir
+        try {
+            if (dir.exists() && !dir.deleteRecursively()) {
+                logger.debug("Delete extracted dependency classes failed: $dir")
+            }
+        } catch (e: Exception) {
+            logger.debug("Delete extracted dependency classes failed: $dir", e)
+        }
+    }
+
     /**
      * Computes next-round recompile file set from staged dex and compiled source deltas.
      */
@@ -294,7 +306,7 @@ class CompileEffectAnalyzer(
                 }
                 val kotlinClassPath = changedFile.module.buildPathInfo.kotlinClassPath
                 val extensionClasses = extensionClassesByClassPath.getOrPut(kotlinClassPath.absolutePath) {
-                    val kmModuleMerger = KmModuleMergerForCompilation(kotlinClassPath)
+                    val kmModuleMerger = KmModuleMergerForCompilation(kotlinClassPath, logger)
                     kmModuleMerger.loadAndMerge()
                     kmModuleMerger.getExtensionClasses().toSet()
                 }
@@ -402,7 +414,7 @@ class CompileEffectAnalyzer(
             classNames = classNames,
             dependModules = dependModules,
             dependLibraries = dependLibraries,
-            tempDir = pathManager.tmpDir,
+            tempDir = pathManager.extractedClassesDir,
             logger = logger,
         ).map { lookupResult ->
             ChangedFile(

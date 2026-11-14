@@ -91,6 +91,9 @@ interface IDeployHistoryManager {
      */
     fun updateHistoryOnAfterDeployed(deployedFiles: List<CompileOutput>)
 
+    /** Returns persisted outputs from successful deployments, or null when no full-build history exists. */
+    fun getDeployedData(): List<CompileOutput>? = null
+
     /**
      * Check whether file is changed with checking its checksum.
      */

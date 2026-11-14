@@ -28,6 +28,7 @@ interface IDeployHost {
         applicationId: String,
         launchContext: LaunchContext,
         logger: Logger,
+        apks: List<String>,
     ) {
         throw UnsupportedOperationException("Custom APK install scripts are not supported by this deploy host")
     }

@@ -4,6 +4,98 @@
   updates:
     - 支持 Standalone Jugg CLI，不依赖 Android Studio 执行编译和部署
 
+- version: 3.6.8
+  date: 2026.11.13
+  updates:
+    - "[feature][compile] 支持 ButterKnife 注解"
+    - "[feature][custom install] 自定义 APK 安装脚本支持直接填写命令"
+    - "[optimize][compile] （3.6 引入）优化未修改注解源码时的编译耗时，避免多余的注解基线扫描"
+    - "[optimize][compile] 优化 Kotlin 编译内部错误重试失败时的日志，保留原始根因诊断"
+    - "[bugfix][compile] 修复增量资源更新时基线引用未解析导致资源链接失败的问题"
+    - "[bugfix][deploy] 修复 Android 17 Pixel 设备崩溃的问题"
+    - "[bugfix][system app] 修复 Windows system app 部署失败问题"
+    - "[bugfix][compat] 修复 Android Studio Panda 存在名字 main 的模块时目录识别错误导致编译失败的问题"
+    - "[bugfix][compat] 修复 Android Studio Quail 与 Rabbit 下 KMP 模块识别失败告警（不影响使用）"
+
+- version: 3.6.7
+  date: 2026.11.04
+  updates:
+    - "[feature][compile] Windows 支持 rsync 远程编译（基于 Cygwin）"
+    - "[feature][ide] 控制面板支持管理编译文件"
+    - "[optimize][compile] 检测到 Git HEAD 切换时，自动同步回滚变更源码"
+    - "[optimize][compile] 增加自动清理历史临时 class 文件"
+    - "[optimize][mcp] 精简 CLI compile 与 deploy 输出"
+    - "[bugfix][compile] 修复多 Git 子仓工程中，丢失变更文件的问题"
+    - "[bugfix][compile] 修复 AIDL 等生成的 Java 文件为空时，编译报父类无法访问错误的问题"
+    - "[bugfix][compile] 修复 system app 工程，自带自定义 framework.jar 时，源码增量编译报错缺失隐藏 API 的问题"
+    - "[bugfix][compile] 修复 Windows 下 ARouter 注解代码生成的问题"
+    - "[bugfix][compile] 修复带有 library Test APK 的 Manifest 编译失败问题"
+    - "[bugfix][compile] 修复 AGP 9 及多 APK 场景，styleable 导入不正确的问题"
+    - "[bugfix][compile] 修复 Kotlin 2.4 下顶层函数/属性所在 Facade 类变更后，调用方未触发重编译的问题"
+    - "[bugfix][compile] 修复增量编译 androidTest 概率失败，因缺少 internal 友元路径导致无法访问模块内 internal 声明的问题"
+    - "[bugfix][deploy] 修复 Oppo Android 16 上使用 WebView 时，特定时序下部署资源后崩溃的问题"
+    - "[bugfix][deploy] 修复部署包含无关测试 APK 时，JVMTI 状态检测耗时过长的问题"
+    - "[bugfix][compat] 修复部分 Android Studio 版本下因缺少 IdeInfo 类导致查找安装器异常的问题"
+    - "[bugfix][cli] 修复触发 rollback 后，CLI compile 与 deploy 命令成功提示中的文件数量与实际生效文件不一致的问题"
+
+- version: 3.6.6
+  date: 2026.10.18
+  updates:
+    - "[feature][settings] 支持在升级公开插件版本后自动保留内网默认后台服务配置"
+    - "[optimize][compile] ARouter 注解代码生成后自动同步 IDE 源码目录，避免未识别生成类导致代码报错"
+
+- version: 3.6.5
+  date: 2026.10.15
+  updates:
+    - "[feature][compile] 支持 ARouter 注解；支持使用 APT/KAPT 与 KSP1/KSP2 处理器"
+    - "[bugfix][compile] 优化 KAPT 因正则回溯导致编译耗时异常过长的问题"
+    - "[bugfix][settings] 修复项目自定义配置中缺少可选构建规则字段时，自定义编译器加载失败的问题"
+
+- version: 3.6.4
+  date: 2026.09.28
+  updates:
+    - "[feature] Native 动态库热更新重构，整合进统一部署通道，支持状态恢复"
+    - "[optimize] 优化超大 Native 动态库热更新耗时，支持差分增量传输，并采用流式处理降低内存占用"
+    - "[bugfix] 修复 Native 重新编译后同大小但内容变动的动态库未被更新的问题"
+
+- version: 3.6.3
+  date: 2026.09.23
+  updates:
+    - "[feature] 手工上报问题至自定义后台时支持附带工程与用户信息，并加强向公共服务上报时的脱敏保护"
+    - "[bugfix] 修复 Android 源码或资源位于 Native 监控目录下时被误识别为外部构建的问题"
+    - "[bugfix] 修复 Native 动态库或 APK 大于 2.1 GB（Int.MAX_VALUE）时部署失败的问题"
+
+- version: 3.6.2
+  date: 2026.09.22
+  updates:
+    - "[feature] 设置后台服务时，支持配置自动上传失败日志"
+    - "[feature] 设置后台服务时，支持配置默认设置"
+    - "[bugfix] 修复首次全量编译前获取项目配置失败的问题"
+
+- version: 3.6.0
+  date: 2026.09.18
+  updates:
+    - "[feature] 支持 Native .so 增量热更新，仅 .so 变更时跳过 APK 改写与重装耗时（冷启动生效，可在设置中开启「SO hot update」）"
+    - "[feature] 支持在 C++ 增量构建前执行声明的代码生成任务（如 IDL），并将生成的源码纳入增量编译"
+
+- version: 3.5.5
+  date: 2026.10.22
+  updates:
+    - "[feature][compile] 适配 Kotlin 2.4，修复 Kotlin 2.4 项目增量编译时扩展函数无法解析及元数据告警的问题"
+    - "[feature][compile] 支持远程构建场景软链接目录外文件"
+    - "[optimize][compile] gradle build 默认使用 -no-daemon，以减少常驻内存。控制面板支持开关"
+    - "[optimize][mcp] 优化 layout-dump 布局 Agent 读取开销，支持交互模式和 UI 模式"
+    - "[optimize][ide] 远程命令执行时使用纯文本控制台输出，避免控制字符干扰"
+    - "[optimize][deploy] 优化应用安装部署稳定性，安装连接超时后增加自动重试"
+    - "[optimize][diagnostics] 独立进程 Kotlin 增量编译超时或卡死时，自动捕获编译器线程栈现场以便排查"
+    - "[bugfix][compile] 修复多资源目录中存在同名 DataBinding 布局时，增量修改未更新对应 Binding 产物导致运行时类型转换异常的问题"
+    - "[bugfix][compile] 修复跨模块 include DataBinding 布局时，增量编译后因未正确合并底层依赖 mapper 导致页面崩溃的问题"
+    - "[bugfix][compile] 修复在 JDK 9+ 环境下增量编译含 Module 引用的 Java 代码时报类引用歧义的问题"
+    - "[bugfix][compile] 修复修改接口常量或 Kotlin companion object 中的常量后，调用方未触发重编译的问题"
+    - "[bugfix][project] 修复一处内存泄露。Git 仓库状态查询后未及时释放索引对象"
+    - "[bugfix][mcp] 修复 layout-dump Compose 节点内容缺失的问题"
+    - "[bugfix][mcp] 修复低性能设备上页面布局层级获取较慢时 MCP 请求过早超时的问题"
+
 - version: 3.5.4
   date: 2026.10.13
   updates:

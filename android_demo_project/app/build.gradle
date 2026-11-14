@@ -28,7 +28,7 @@ apply from: './aabResGuard.gradle'
 android {
     namespace 'com.example.myapplication'
     compileSdkVersion 34
-    buildToolsVersion "30.0.3"
+    buildToolsVersion "36.0.0"
     defaultConfig {
         applicationId "com.example.myapplication"
         minSdkVersion 21
@@ -116,7 +116,7 @@ dependencies {
     // ROM hidden api fixture: rom_framework.jar redeclares android.net.wifi.WifiManager with the
     // SoftApCallback nested type that the public android.jar strips, and rom_sdk.jar subclasses it.
     // The device provides both at runtime, so they stay compileOnly.
-    // Regenerate: javac -d out romlibs/src/**/*.java && jar cf romlibs/rom_*.jar -C out .
+    // Regenerate with: python3 romlibs/build_fixtures.py
     compileOnly fileTree(dir: 'romlibs', include: ['*.jar'])
     implementation"org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
     implementation 'androidx.appcompat:appcompat:1.0.2'
@@ -129,7 +129,6 @@ dependencies {
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.1.1'
 
     implementation 'com.google.code.gson:gson:2.10.1'
-    implementation 'com.alibaba:fastjson:2.0.2.android'
     implementation 'io.reactivex.rxjava3:rxjava:3.1.8'
 
     // test runtimeOnly incremental compile
@@ -137,6 +136,9 @@ dependencies {
 //    runtimeOnly 'com.github.Dimezis:BlurView:version-3.2.0'
 //    runtimeOnly 'com.squareup.retrofit2:retrofit:2.6.0'
 //    runtimeOnly 'com.squareup.retrofit2:retrofit:2.7.0'
+
+    implementation 'com.jakewharton:butterknife:10.2.3'
+    kapt 'com.jakewharton:butterknife-compiler:10.2.3'
 
     implementation 'com.alibaba:arouter-api:1.5.2'
 //    annotationProcessor 'com.alibaba:arouter-compiler:1.5.2'
@@ -171,3 +173,6 @@ dependencies {
         compileOnly project(':split_classloader_api')
     }
 }
+
+// Optional full-build reproduction of compile-only ROM APIs.
+apply from: 'romlibs/fixture.gradle'

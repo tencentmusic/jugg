@@ -65,3 +65,7 @@ Method ownership comes first from complete AndroidX `TestRunner: started/finishe
 ## Capability limits and verification
 
 The current path does not support incremental androidTest resources, test annotation processing/KAPT, app-style missing-Test-APK backfill, Debug executor, or a persistent in-process instrumentation harness. For verification evidence, test-value decisions, and targeted Gradle commands, follow [06_testing.md](06_testing.md); do not run the full `:main:test` or `:idea:test` suites.
+
+## 8. Kotlin friend visibility
+
+KotlinCompilerInvoker retains test-baseline friend paths and additionally grants access only to the direct same-module-root main owner whose variant matches the test variant `${ownerVariant}AndroidTest`. Other dependency modules remain ordinary classpath and do not expose internal declarations. KotlinAndroidTestInternalCompileTest verifies owner read/write, unrelated-dependency restriction and normal incremental compilation.

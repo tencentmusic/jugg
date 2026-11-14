@@ -12,6 +12,8 @@ import com.android.tools.r8.D8
 import com.android.tools.r8.D8Command
 import com.android.tools.r8.origin.Origin
 
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.nio.file.Files
 import java.nio.charset.StandardCharsets
 import java.util.zip.ZipEntry
@@ -51,9 +53,27 @@ android {
     }
 }
 
+// Inspect class definitions, since DEX strings also contain references to absent classes.
+def dexClassNames = { byte[] bytes ->
+    def buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
+    int stringIds = buffer.getInt(60)
+    int typeIds = buffer.getInt(68)
+    int classCount = buffer.getInt(96)
+    int classDefs = buffer.getInt(100)
+    (0..<classCount).collect { index ->
+        int typeIndex = buffer.getInt(classDefs + index * 32)
+        int stringIndex = buffer.getInt(typeIds + typeIndex * 4)
+        int offset = buffer.getInt(stringIds + stringIndex * 4)
+        while ((bytes[offset++] & 0x80) != 0) { }
+        int end = offset
+        while (bytes[end] != 0) { end++ }
+        new String(bytes, offset, end - offset, StandardCharsets.UTF_8)
+    }
+}
+
 tasks.register('buildInstrumentJar') {
 
-    inputs.files jarFile, dragonflyJarFiles
+    inputs.file jarFile
     outputs.file instrumentsJarFile
 
     doLast {
@@ -65,8 +85,11 @@ tasks.register('buildInstrumentJar') {
         instrumentsJarFile.delete()
 
         List<String> args = ["--min-api", "26", "--output", instrumentsJarFile.absolutePath]
-        args.add(jarFile.absolutePath)
-        args.addAll(dragonflyJarFiles.collect { it.absolutePath })
+        File bootstrapJar = new File(temporaryDir, "bootstrap.jar")
+        ant.zip(destfile: bootstrapJar) {
+            zipfileset(src: jarFile, excludes: 'com/sickworm/intellij/jugg/viewhierarchy/**')
+        }
+        args.add(bootstrapJar.absolutePath)
         D8Command command = D8Command
                 .parse(args.toArray(new String[0]), Origin.root())
                 .build()
@@ -80,14 +103,12 @@ tasks.register('buildInstrumentJar') {
             if (dexEntries.isEmpty()) {
                 throw new IllegalStateException("DEX entries missing from $instrumentsJarFile")
             }
-            String dexContent = dexEntries.collect { dexEntry ->
-                new String(instrumentsJar.getInputStream(dexEntry).readAllBytes(), StandardCharsets.ISO_8859_1)
-            }.join()
-            if (!dexContent.contains("Lcom/sickworm/intellij/jugg/internal/dragonfly/Dragonfly;")) {
-                throw new IllegalStateException("Dragonfly classes missing from $instrumentsJarFile")
+            def classNames = dexEntries.collectMany { entry ->
+                dexClassNames(instrumentsJar.getInputStream(entry).readAllBytes())
             }
-            if (!dexContent.contains("Lcom/sickworm/intellij/jugg/internal/dragonfly/runtime/kotlin/LazyThreadSafetyMode;")) {
-                throw new IllegalStateException("Dragonfly Kotlin runtime missing from $instrumentsJarFile")
+            if (classNames.any { it.startsWith("Lcom/sickworm/intellij/jugg/viewhierarchy/") ||
+                    it.startsWith("Lcom/sickworm/intellij/jugg/internal/dragonfly/") }) {
+                throw new IllegalStateException("App-side hierarchy classes leaked into $instrumentsJarFile")
             }
         } finally {
             instrumentsJar.close()
@@ -149,6 +170,9 @@ tasks.register('buildRuntimeJar') {
 
         ZipFile runtimeJar = new ZipFile(mergedRuntimeJarFile)
         try {
+            if (runtimeJar.getEntry("com/sickworm/intellij/jugg/viewhierarchy/ViewHierarchyServerLoader.class") == null) {
+                throw new IllegalStateException("ViewHierarchy entry missing from $mergedRuntimeJarFile")
+            }
             if (runtimeJar.getEntry("com/sickworm/intellij/jugg/internal/dragonfly/Dragonfly.class") == null) {
                 throw new IllegalStateException("Dragonfly classes missing from $mergedRuntimeJarFile")
             }
@@ -183,7 +207,6 @@ tasks.register('buildAgentBundle') {
 
         ZipOutputStream zipOutputStream = new ZipOutputStream(new FileOutputStream(agentBundleFile))
         [instrumentsJarFile, agent64SoFile, agent32SoFile, setupScriptFile].forEach { file ->
-            FileInputStream fileInputStream = new FileInputStream(file)
             if (file == agent32SoFile) {
                 ZipEntry zipEntry = new ZipEntry(file.getName().replace(".so", "") + "_alt.so")
                 zipOutputStream.putNextEntry(zipEntry)
@@ -192,14 +215,27 @@ tasks.register('buildAgentBundle') {
                 zipOutputStream.putNextEntry(zipEntry)
             }
 
-            byte[] buffer = new byte[1024]
-            int length
-            while ((length = fileInputStream.read(buffer)) > 0) {
-                zipOutputStream.write(buffer, 0, length)
+            if (file == setupScriptFile) {
+                // Normalize Windows line endings before the script is executed on the Android device.
+                byte[] script = Files.readAllBytes(file.toPath())
+                String normalized = new String(script, StandardCharsets.UTF_8)
+                    .replace("\r\n", "\n")
+                    .replace("\r", "\n")
+                zipOutputStream.write(normalized.getBytes(StandardCharsets.UTF_8))
+            } else {
+                FileInputStream fileInputStream = new FileInputStream(file)
+                try {
+                    byte[] buffer = new byte[1024]
+                    int length
+                    while ((length = fileInputStream.read(buffer)) > 0) {
+                        zipOutputStream.write(buffer, 0, length)
+                    }
+                } finally {
+                    fileInputStream.close()
+                }
             }
 
             zipOutputStream.closeEntry()
-            fileInputStream.close()
         }
         zipOutputStream.close()
 

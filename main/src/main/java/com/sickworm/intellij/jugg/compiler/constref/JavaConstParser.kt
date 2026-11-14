@@ -21,30 +21,14 @@ class JavaConstParser(
         .setCharacterEncoding(Charsets.UTF_8)
     private val parser = JavaParser(parserConfiguration)
 
-    private val inlineableTypes = setOf(
-        "int", "long", "float", "double", "boolean",
-        "byte", "short", "char", "String", "java.lang.String",
-    )
     private val candidateOwnerTextRegex = Regex("^[A-Za-z_][A-Za-z0-9_$.]*$")
 
     fun parseDefinitions(sourceFile: File): List<ConstDefinition> {
         if (sourceFile.extension != "java" || !sourceFile.exists()) {
             return emptyList()
         }
-        val sourcePath = sourceFile.toStdPath()
         val compilationUnit = parse(sourceFile) ?: return emptyList()
-        val packageName = compilationUnit.packageDeclaration.map { it.nameAsString }.orElse("")
-        val definitions = mutableListOf<ConstDefinition>()
-        compilationUnit.types.forEach { typeDeclaration ->
-            collectDefinitions(
-                typeDeclaration = typeDeclaration,
-                packageName = packageName,
-                outerClassName = null,
-                sourcePath = sourcePath,
-                definitions = definitions,
-            )
-        }
-        return definitions
+        return definitions(sourceFile, compilationUnit)
     }
 
     fun parseReferences(sourceFile: File, definitionIndex: ConstDefinitionLookup): List<ConstReference> {
@@ -245,74 +229,6 @@ class JavaConstParser(
         return ownerText
     }
 
-    private fun collectDefinitions(
-        typeDeclaration: TypeDeclaration<*>,
-        packageName: String,
-        outerClassName: String?,
-        sourcePath: String,
-        definitions: MutableList<ConstDefinition>,
-    ) {
-        val className = typeDeclaration.nameAsString
-        val fullClassName = if (outerClassName == null) {
-            className
-        } else {
-            "$outerClassName.$className"
-        }
-        val fqClassName = if (packageName.isBlank()) {
-            fullClassName
-        } else {
-            "$packageName.$fullClassName"
-        }
-
-        typeDeclaration.members
-            .filterIsInstance<FieldDeclaration>()
-            .forEach { fieldDeclaration ->
-                if (fieldDeclaration.isPrivate) {
-                    return@forEach
-                }
-                if (!fieldDeclaration.isFinal || (!fieldDeclaration.isStatic && !isInterfaceField(fieldDeclaration, typeDeclaration))) {
-                    return@forEach
-                }
-                val fieldType = fieldDeclaration.commonType.asString()
-                if (!inlineableTypes.contains(fieldType)) {
-                    return@forEach
-                }
-                fieldDeclaration.variables.forEach variableLoop@{ variable ->
-                    if (!variable.initializer.isPresent) {
-                        return@variableLoop
-                    }
-                    definitions += ConstDefinition(
-                        filePath = sourcePath,
-                        packageName = packageName,
-                        fqClassName = fqClassName,
-                        constName = variable.nameAsString,
-                        constType = fieldType,
-                        constValue = variable.initializer.get().toString(),
-                    )
-                }
-            }
-
-        typeDeclaration.members
-            .filterIsInstance<TypeDeclaration<*>>()
-            .forEach { nestedType ->
-                collectDefinitions(
-                    typeDeclaration = nestedType,
-                    packageName = packageName,
-                    outerClassName = fullClassName,
-                    sourcePath = sourcePath,
-                    definitions = definitions,
-                )
-            }
-    }
-
-    private fun isInterfaceField(fieldDeclaration: FieldDeclaration, typeDeclaration: TypeDeclaration<*>): Boolean {
-        return when (typeDeclaration) {
-            is ClassOrInterfaceDeclaration -> typeDeclaration.isInterface && fieldDeclaration.isFinal
-            is AnnotationDeclaration -> fieldDeclaration.isFinal
-            else -> false
-        }
-    }
-
     private fun addReference(
         sourcePath: String,
         fqClassName: String,
@@ -450,5 +366,52 @@ class JavaConstParser(
                 classConstKeys += normalizedClass to normalizedConst
             }
         }
+    }
+
+    companion object {
+        /** Extracts definitions from an existing read-only tree without parsing the source again. */
+        fun definitions(sourceFile: File, compilationUnit: CompilationUnit, includePrivate: Boolean = false): List<ConstDefinition> {
+            val packageName = compilationUnit.packageDeclaration.map { it.nameAsString }.orElse("")
+            val definitions = mutableListOf<ConstDefinition>()
+            compilationUnit.types.forEach {
+                collectDefinitions(it, packageName, null, sourceFile.toStdPath(), definitions, includePrivate)
+            }
+            return definitions
+        }
+
+        private val inlineableTypes = setOf("int", "long", "float", "double", "boolean", "byte", "short", "char", "String", "java.lang.String")
+        private fun collectDefinitions(typeDeclaration: TypeDeclaration<*>, packageName: String, outerClassName: String?,
+            sourcePath: String, definitions: MutableList<ConstDefinition>, includePrivate: Boolean) {
+            val className = typeDeclaration.nameAsString
+            val fullClassName = if (outerClassName == null) className else "$outerClassName.$className"
+            val fqClassName = if (packageName.isBlank()) fullClassName else "$packageName.$fullClassName"
+            typeDeclaration.members.filterIsInstance<FieldDeclaration>().forEach { field ->
+                definitions += fieldDefinitions(field, typeDeclaration, sourcePath, packageName, fqClassName, includePrivate)
+            }
+            typeDeclaration.members.filterIsInstance<TypeDeclaration<*>>().forEach { nested ->
+                collectDefinitions(nested, packageName, fullClassName, sourcePath, definitions, includePrivate)
+            }
+        }
+
+        private fun fieldDefinitions(field: FieldDeclaration, owner: TypeDeclaration<*>, sourcePath: String,
+            packageName: String, fqClassName: String, includePrivate: Boolean): List<ConstDefinition> {
+            if (!includePrivate && field.isPrivate) return emptyList()
+            if (!hasImplicitConstantModifiers(owner) && (!field.isStatic || !field.isFinal)) return emptyList()
+            val fieldType = field.commonType.asString()
+            if (fieldType !in inlineableTypes) return emptyList()
+            return field.variables.filter { it.initializer.isPresent }.map {
+                ConstDefinition(sourcePath, packageName, fqClassName, it.nameAsString, fieldType, it.initializer.get().toString())
+            }
+        }
+
+        private fun hasImplicitConstantModifiers(typeDeclaration: TypeDeclaration<*>): Boolean {
+            // JavaParser exposes only written modifiers; interface and annotation fields are implicitly static final.
+            return when (typeDeclaration) {
+                is ClassOrInterfaceDeclaration -> typeDeclaration.isInterface
+                is AnnotationDeclaration -> true
+                else -> false
+            }
+        }
+
     }
 }

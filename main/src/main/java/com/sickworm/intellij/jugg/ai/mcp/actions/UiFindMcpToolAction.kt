@@ -190,6 +190,7 @@ class UiFindMcpToolAction : McpToolAction {
             "truncated" to result.truncated,
             "matches" to result.matches.map { it.toOutput(result.density) },
         )
+        if (result.warnings.isNotEmpty()) data["warnings"] = result.warnings
         if (result.matchCount == 1) {
             result.matches.singleOrNull()?.let { match ->
                 match.bounds?.let { bounds ->

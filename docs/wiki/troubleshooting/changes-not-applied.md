@@ -30,10 +30,11 @@ When the Agent recommends an Issue, it provides a prefilled bug report link and 
 
 This usually means that the IDE has not yet notified Jugg of the file change, or Jugg's project structure has not been refreshed.
 
-1. Cancel the current run and run again.
-2. If the message still appears, run Gradle Sync once, then run again.
-3. If the change still does not take effect, run [Fallback to Gradle compilation](../guide/downgrade-gradle.md) once.
-4. If the problem persists, [report the issue](../guide/report-issue.md).
+1. Open `Manage...` or `Manual add...` in the [Control Panel](../guide/control-panel.md#manage-pending-files-manually) and click `Refresh`. If the file is listed, check it, confirm, and run again. Candidates include only files already received in the current session that have not been deleted.
+2. If the file is not listed, cancel the current run and run again.
+3. If the message still appears, run Gradle Sync once, then run again.
+4. If the change still does not take effect, run [Fallback to Gradle compilation](../guide/downgrade-gradle.md) once.
+5. If the problem persists, [report the issue](../guide/report-issue.md).
 
 ## Q: Compilation and deployment succeed, but the code still uses the old logic
 

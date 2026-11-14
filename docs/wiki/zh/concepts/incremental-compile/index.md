@@ -26,7 +26,7 @@ Jugg 的增量编译建立在一次可信的 Gradle 构建之上。Gradle 先生
 | [DataBinding / ViewBinding](./databinding-viewbinding.md) | layout split、base class、mapper、BR 与两阶段处理。 |
 | [Android Manifest 编译](./manifest.md) | merged manifest 基线、增量 patch 与完整 merge 边界。 |
 | [release 增量编译](./release-compile.md) | 实验性的 mapping 重映射、inline 与删除成员补偿。 |
-| [assets 与 native lib](./assets-native.md) | assets overlay 与需要写回 APK 的 native lib。 |
+| [assets 与 native lib](./assets-native.md) | assets overlay 与按 SO hot update 开关选择部署路径的 native lib。 |
 | [依赖库增量编译](./dependency-incremental.md) | 构建文件确认、依赖变化对比、变化库差分编译与部署处理。 |
 | [自定义编译器](./custom-compiler.md) | 自定义编译器装载、扩展点插入位置与 hook 语义。 |
 
@@ -44,7 +44,7 @@ Jugg 的增量编译建立在一次可信的 Gradle 构建之上。Gradle 先生
   -> 检测 IDE 与 Git 记录中的变化文件
   -> Dart/C/C++ 先执行当前变体的 Flutter/native task
   -> 按文件类型进入 assets、native lib、资源、源码、Manifest 等编译链路
-  -> 输出 DEX、resources.arsc、资源 overlay、assets、Manifest 或需写回 APK 的文件
+  -> 输出 DEX、resources.arsc、资源 overlay、assets、Manifest 或 native lib 等局部产物
   -> 分析受影响源码和需重转 DEX 的 class，必要时继续下一轮编译
   -> 将 staging 产物交给部署阶段
 ```

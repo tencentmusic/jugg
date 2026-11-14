@@ -445,7 +445,7 @@ class JuggDeployerHelperRecoverTest {
 
         assertEquals(true to true, result)
         assertEquals(1, recoverHost.recoverInvokeCount)
-        Mockito.verify(deployFileManager).resetAfterReinstall()
+        Mockito.verify(deployFileManager).resetAfterReinstall(false)
     }
 
     @Test
@@ -491,7 +491,7 @@ class JuggDeployerHelperRecoverTest {
             compileUiHandler = CompileUiHandler.DEFAULT,
         )
 
-        Mockito.verify(deployFileManager).resetAfterReinstall()
+        Mockito.verify(deployFileManager).resetAfterReinstall(false)
     }
 
     @Test

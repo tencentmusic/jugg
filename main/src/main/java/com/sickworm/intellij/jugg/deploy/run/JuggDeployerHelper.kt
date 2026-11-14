@@ -4,10 +4,13 @@ import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.JuggException
 import com.sickworm.intellij.jugg.compiler.CompileFile
+import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.compiler.IncrementalDeployHelper
 import com.sickworm.intellij.jugg.compiler.context.CompileContextManager
 import com.sickworm.intellij.jugg.deploy.*
+import java.nio.channels.InterruptedByTimeoutException
+import com.sickworm.intellij.jugg.deploy.nativesandbox.NativeLibraryDelta
 import com.sickworm.intellij.jugg.deploy.run.applychanges.CustomApkInstallScriptException
 import com.sickworm.intellij.jugg.deploy.run.flow.DeployRetryHandler
 import com.sickworm.intellij.jugg.deploy.run.flow.DeployStateRecover
@@ -162,7 +165,10 @@ class JuggDeployerHelper(
             if (isOutOfMemoryFailure(e)) {
                 return handleOutOfMemoryFailure(deployOptions, deployData, costTime(), e)
             }
-            val reason = e.message ?: e.cause?.message ?: e.toString()
+            // Installer reflection can wrap a socket timeout without an exception message.
+            val socketTimeout = generateSequence<Throwable>(e) { it.cause }
+                .take(16).firstOrNull { it is InterruptedByTimeoutException }
+            val reason = socketTimeout?.toString() ?: e.message ?: e.cause?.message ?: e.toString()
             val retryReason = deployOptions.retryReason
             val isCustomInstallScriptFailure = e is CustomApkInstallScriptException
             val canRetry = !isCustomInstallScriptFailure &&
@@ -262,6 +268,7 @@ class JuggDeployerHelper(
 
         var deployData = deployOptions.retryDeployData
             ?: deployFileManager.getDeployData(deployOptions.isWarmUp, isNeedPushResourceApk(device, initialDeployData))
+        deployData = routeNativeLibraries(device, deployData)
         publishDeployState(deployData)
         deployData = libraryTestApkBackfillHelper.backfillIfNeeded(
             spec = deployOptions.androidTestRunSpec,
@@ -361,6 +368,7 @@ class JuggDeployerHelper(
                 deployOptions.isWarmUp,
                 isNeedPushResourceApk(device, deployData),
             ).copy(isRecoverReplayAfterReinstall = true)
+            deployData = routeNativeLibraries(device, deployData)
             publishDeployState(deployData)
         }
 
@@ -480,13 +488,16 @@ class JuggDeployerHelper(
     }
 
     private fun logDeployPayloadMemory(deployData: JuggDeployData) {
-        val overlayBytes = deployData.overlays.sumOf { it.content.size.toLong() }
-        val maxOverlayBytes = deployData.overlays.maxOfOrNull { it.content.size } ?: 0
+        val payloadFiles = deployData.overlays + deployData.nativeLibraryOverlays
+        val overlayBytes = payloadFiles.sumOf { it.size }
+        val maxOverlayBytes = payloadFiles.maxOfOrNull { it.size } ?: 0L
         val runtime = Runtime.getRuntime()
         val heapUsedBytes = runtime.totalMemory() - runtime.freeMemory()
+        val apkSizes = deployData.apks.flatMap { it.files }.joinToString { "${it.apkFile.name}:${it.apkFile.length()}" }
         logger.debug("Deploy payload memory: overlayCount=${deployData.overlays.size}, " +
+                "nativeLibraryCount=${deployData.nativeLibraryOverlays.size}, " +
                 "overlayBytes=$overlayBytes, maxOverlayBytes=$maxOverlayBytes, " +
-                "heapUsedBytes=$heapUsedBytes, heapMaxBytes=${runtime.maxMemory()}")
+                "heapUsedBytes=$heapUsedBytes, heapMaxBytes=${runtime.maxMemory()}, apkSizes=[$apkSizes]")
     }
 
     private fun embeddedToApk(deployOptions: DeployOptions): DeployTaskResult {
@@ -499,7 +510,8 @@ class JuggDeployerHelper(
             logger.info("Embedding APK...\n${apkFiles.joinToString("\n")}")
         }
         val classes = (incDeployData.newClasses + incDeployData.hotFixModifiedClasses + incDeployData.hotReloadModifiedClasses)
-        val deployItems = classes.map { it.deployItem } + incDeployData.overlays + incDeployData.updateApkFiles
+        val deployItems = classes.map { it.deployItem } + incDeployData.overlays +
+            incDeployData.nativeLibraryOverlays + incDeployData.updateApkFiles
         val deployedItems = deployFileManager.getDeployedFiles()
             .map { it.toDeployItem() }
             .filter { deployedItem ->
@@ -556,7 +568,7 @@ class JuggDeployerHelper(
             deployTargetManager.restartApp(device)
         }
 
-        return jvmtiAgentManagerHelper.isHasJvmtiCompatIssue(adb, deployData)
+        return jvmtiAgentManagerHelper.isHasJvmtiCompatIssue(adb, deployData, deployTargetManager.getPackageName())
     }
 
     private fun updateInfoAfterIncDeploy(launchResult: LaunchResult, deployData: JuggDeployData) {
@@ -571,7 +583,8 @@ class JuggDeployerHelper(
         val compatStart = System.currentTimeMillis()
         val adb = environment.createDeviceAdb(device, logger)
         val isDirectAppSandboxClassDeploy = !data.isInstall && data.hasClassChanges &&
-            data.overlays.isEmpty() && data.updateApkFiles.isEmpty() &&
+            data.overlays.isEmpty() && data.nativeLibraryOverlays.isEmpty() &&
+            data.updateApkFiles.isEmpty() &&
             data.apks.filter { !it.isOtherTargetingTestApk }.any {
                 AppSandboxExecutor.probeApplyChangesCapability(adb, it.applicationId) ==
                     AppSandboxExecutor.ApplyChangesCapability.INCOMPATIBLE
@@ -595,6 +608,17 @@ class JuggDeployerHelper(
             return true
         }
         return false
+    }
+
+    private fun routeNativeLibraries(device: IDevice, data: JuggDeployData): JuggDeployData {
+        if (data.nativeLibraryOverlays.isEmpty() ||
+            (JuggSettings.isEnableNativeSandboxDeploy && device.version.apiLevel >= 26)) {
+            return data
+        }
+        return data.copy(
+            nativeLibraryOverlays = emptyList(),
+            updateApkFiles = data.updateApkFiles + data.nativeLibraryOverlays,
+        )
     }
 
     private data class InstallDeployOutcome(

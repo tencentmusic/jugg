@@ -418,10 +418,10 @@ class DeployHistoryDb(
         gitFileMap[projectDir] = mutableListOf()
         gitCommitMap[projectDir] = deployHistoryData.fullCompileGitCommitHash
 
-        deployHistoryData.subModulesFullCompileGitCommitHash?.firstNotNullOfOrNull { (subDir, subCommitHash) ->
+        deployHistoryData.subModulesFullCompileGitCommitHash?.forEach { (subDir, subCommitHash) ->
             if (subCommitHash == null) {
                 logger.debug("filterUnchangedFiles failed, subCommitHash is null, which should not happen.")
-                return@firstNotNullOfOrNull false
+                return@forEach
             }
             gitCommitMap[File(subDir)] = subCommitHash
             gitFileMap[File(subDir)] = mutableListOf()

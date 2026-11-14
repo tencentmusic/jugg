@@ -27,6 +27,8 @@ class ProjectCustomConfigManager(
 
     private val store = ProjectCustomConfigStore(configDir, logger)
 
+    val config: ProjectCustomConfig? get() = store.config
+
     fun refresh(): Boolean {
         return try {
             refreshInternal()
@@ -177,17 +179,27 @@ private class ProjectCustomConfigStore(
         }
     }
 
+    @Suppress("DEPRECATION")
+    private fun readConfig(file: File): ProjectCustomConfig? {
+        val config = Gson().fromJson(file.readText(), ProjectCustomConfig::class.java) ?: return null
+        return config.copy(
+            buildFileList = config.buildFileList.orEmpty(),
+            buildFileRules = config.buildFileRules.orEmpty(),
+            dontFilterIgnoredFileRules = config.dontFilterIgnoredFileRules.orEmpty(),
+        )
+    }
+
     private fun loadConfig(): ProjectCustomConfig? {
         if (customConfigFile.exists()) {
             try {
-                return Gson().fromJson(customConfigFile.readText(), ProjectCustomConfig::class.java).also { logger.debug("Load custom config: $it") }
+                return readConfig(customConfigFile).also { logger.debug("Load custom config: $it") }
             } catch (exception: Exception) {
                 logger.warn("Load custom config failed.", exception)
             }
         }
         if (defaultCustomConfigFile.exists()) {
             try {
-                return Gson().fromJson(defaultCustomConfigFile.readText(), ProjectCustomConfig::class.java).also { logger.debug("Load default custom config: $it") }
+                return readConfig(defaultCustomConfigFile).also { logger.debug("Load default custom config: $it") }
             } catch (exception: Exception) {
                 logger.warn("Load default custom config failed.", exception)
             }

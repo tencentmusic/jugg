@@ -16,6 +16,7 @@ import org.junit.Before
 import org.junit.Test
 import java.io.File
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -205,6 +206,61 @@ class JuggAptCompilerTest {
         assertFalse(entryB.readText().contains("""BridgeManager.registerPageRouter("page_a")"""))
     }
 
+    @Test
+    fun failClosedBuiltinStopsGenerationInsteadOfReturningPartialOutputs() {
+        val module = createModule("moduleA")
+        val source = createPlainKotlinSource(module, "NormalClass")
+        createKotlinEntry(module)
+        val closed = object : IJuggAptProcessor {
+            override val id = "closed"
+            override val failClosed = true
+            override fun process(context: ICompileContext, module: ModuleInfo, allCompileFiles: List<CompileFile>, analysis: AptSourceAnalysis): List<CompileFile> =
+                error("Generation failed")
+        }
+        val compiler = JuggAptCompiler(createContext(module), TestGlobal.mockParentDisposable,
+            listOf(ReturnFirstGeneratedProcessor(), closed))
+
+        assertFailsWith<JuggAptFatalException> { compiler.compile(createTask(source)) }
+    }
+
+    @Test
+    fun failClosedOwnershipUsesTheInstanceThatGeneratedTheFile() {
+        val module = createModule("moduleA")
+        val source = createPlainKotlinSource(module, "NormalClass")
+        val entry = createKotlinEntry(module)
+        var generated: CompileFile? = null
+        val closed = object : IJuggAptProcessor {
+            override val id = "closed"
+            override val failClosed = true
+            override fun process(context: ICompileContext, module: ModuleInfo, allCompileFiles: List<CompileFile>, analysis: AptSourceAnalysis): List<CompileFile> {
+                generated = CompileFile(CompileFile.Type.Kotlin, entry, entry.parentFile, module)
+                return listOf(generated!!)
+            }
+            override fun ownsGeneratedFile(file: CompileFile): Boolean = file == generated
+        }
+        val compiler = JuggAptCompiler(createContext(module), TestGlobal.mockParentDisposable, listOf(closed))
+
+        assertFalse(compiler.isFailClosedGeneratedFile(source))
+        compiler.compile(createTask(source))
+        assertTrue(compiler.isFailClosedGeneratedFile(generated!!))
+        assertFalse(compiler.isFailClosedGeneratedFile(source))
+    }
+
+    @Test
+    fun arouterDetectionFailureDoesNotBlockPageRegistrationFromTheSameSnapshot() {
+        val module = createModule("moduleA")
+        val context = createContext(module)
+        val source = createKotlinPageSource(module, "SharedPage", "shared_page")
+        source.file.writeText(source.file.readText().replace("import com.tencent.kuikly.core.annotations.Page",
+            "import com.tencent.kuikly.core.annotations.Page\nimport com.alibaba.android.arouter.facade.annotation.Route")
+            .replace("@Page(\"shared_page\")", "@Page(\"shared_page\")\n@Route(path = \"/demo/shared\", priority = 1 shl 2)"))
+        val entry = createKotlinEntry(module)
+        val result = JuggAptCompiler(context, TestGlobal.mockParentDisposable).compile(createTask(source))
+        assertTrue(result.isAllSuccess)
+        assertEquals(listOf(entry), result.outputs.map { it.file })
+        assertTrue(entry.readText().contains("registerPageRouter(\"shared_page\")"))
+    }
+
     private fun createContext(vararg modules: ModuleInfo): SimpleCompileContext {
         val base = TestGlobal.context
         val moduleMap = linkedMapOf<String, ModuleInfo>()
@@ -241,7 +297,6 @@ class JuggAptCompilerTest {
             runtimeLibraryDependencies = emptyList(),
             annotationProcessorDependencies = emptyList(),
             kaptDependencies = emptyList(),
-            kspDependencies = emptyList(),
             kotlinPlugins = emptyList(),
             kotlinExtensions = emptyList(),
         )
@@ -452,6 +507,7 @@ class JuggAptCompilerTest {
             context: ICompileContext,
             module: ModuleInfo,
             allCompileFiles: List<CompileFile>,
+            analysis: AptSourceAnalysis,
         ): List<CompileFile> {
             error("intentional fail for fail-open test")
         }
@@ -464,6 +520,7 @@ class JuggAptCompilerTest {
             context: ICompileContext,
             module: ModuleInfo,
             allCompileFiles: List<CompileFile>,
+            analysis: AptSourceAnalysis,
         ): List<CompileFile> {
             return discoverGeneratedAptFiles(context, module, allCompileFiles).take(1)
         }

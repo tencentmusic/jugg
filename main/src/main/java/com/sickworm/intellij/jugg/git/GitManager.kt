@@ -72,15 +72,16 @@ class GitManager (
         }
     }
 
-    private fun getGit(): Git {
-        return Git.wrap(repository)
+    private inline fun <T> withGit(action: (Git) -> T): T {
+        // Git.wrap does not close the caller-owned repository.
+        return repository.use { action(Git.wrap(it)) }
     }
 
     override val hasInitGit: Boolean get() {
         if (!gitDir.exists()) {
             return false
         }
-        return repository != null
+        return repository.use { it != null }
     }
 
     override val name: String? by lazy {
@@ -109,7 +110,7 @@ class GitManager (
 
     override val userName: String? by lazy {
         try {
-            repository?.config?.getString("user", null, "name")
+            repository?.use { it.config.getString("user", null, "name") }
         } catch (e: Exception) {
             "get_git_username_failed_${e.message}"
         }
@@ -117,7 +118,7 @@ class GitManager (
 
     override val originRemoteUrl: String? get() {
         return try {
-            repository?.config?.getString("remote", "origin", "url")
+            repository?.use { it.config.getString("remote", "origin", "url") }
         } catch (e: Exception) {
             null
         }
@@ -125,10 +126,12 @@ class GitManager (
 
     override val remoteUrls: List<String> get() {
         return try {
-            val config = repository?.config ?: return emptyList()
-            config.getSubsections("remote").flatMap { remoteName ->
-                config.getStringList("remote", remoteName, "url").toList()
-            }
+            repository?.use { repository ->
+                val config = repository.config
+                config.getSubsections("remote").flatMap { remoteName ->
+                    config.getStringList("remote", remoteName, "url").toList()
+                }
+            } ?: emptyList()
         } catch (e: Exception) {
             emptyList()
         }
@@ -141,7 +144,7 @@ class GitManager (
                     it.setGitDir(gitDir)
                 }
             }
-            .call()
+            .call().close()
     }
 
     override fun deleteGit() {
@@ -149,7 +152,7 @@ class GitManager (
     }
 
     override fun getUncommittedFiles(): List<File> {
-        getGit().use { git ->
+        withGit { git ->
             val status = diffIndex(git.repository, "HEAD")
             val uncommittedFiles = status.untracked.toList() + status.modified.toList() + status.removed.toList() + status.added.toList()
             return uncommittedFiles.toSet().map {
@@ -174,7 +177,7 @@ class GitManager (
     }
 
     override fun getChangedFiles(oldCommit: String, newCommit: String): List<File> {
-        getGit().use { git ->
+        withGit { git ->
             val oldCommitTree = getCanonicalTreeParser(git, oldCommit)
             val newCommitTree = getCanonicalTreeParser(git, newCommit)
             val diffResult = git.diff()
@@ -197,14 +200,14 @@ class GitManager (
     }
 
     override fun addAllAndCommit(message: String) {
-        getGit().use { git ->
+        withGit { git ->
             git.add().addFilepattern(".").call()
             git.commit().setMessage(message).call()
         }
     }
 
     override fun getCurrentBranchCommitSize(): Int {
-        getGit().use { git ->
+        withGit { git ->
             return try {
                 val commits = git.log().call()
                 return commits.count()
@@ -216,7 +219,7 @@ class GitManager (
 
     override fun getLastCommitHash(): String? {
         try {
-            getGit().use { git ->
+            withGit { git ->
                 val head = git.repository.resolve("HEAD") ?: return null
                 val commit = git.repository.resolve(head.name())
                 return commit.name()
@@ -233,11 +236,13 @@ class GitManager (
         val relativePaths = files.map { file ->
             file.relativeToOrSelf(rootDir).path.replace('\\', '/')
         }
-        val diff = IndexDiff(repository, commitHash, FileTreeIterator(repository))
-        diff.setIgnoreSubmoduleMode(SubmoduleWalk.IgnoreSubmoduleMode.ALL)
-        diff.setFilter(PathFilterGroup.createFromStrings(relativePaths))
-        diff.diff()
-        val status = Status(diff)
+        val status = repository.use { repository ->
+            val diff = IndexDiff(repository, commitHash, FileTreeIterator(repository))
+            diff.setIgnoreSubmoduleMode(SubmoduleWalk.IgnoreSubmoduleMode.ALL)
+            diff.setFilter(PathFilterGroup.createFromStrings(relativePaths))
+            diff.diff()
+            Status(diff)
+        }
 
         val changedFiles = status.uncommittedChanges.map { File(rootDir, it) }
         val untrackedFiles = status.untracked.map { File(rootDir, it) }
@@ -254,7 +259,7 @@ class GitManager (
     override fun getLastCommitFileContent(commitId: String, file: File, outputFile: File): Boolean {
         try {
             val filePath = file.relativeToOrSelf(rootDir).path
-            getGit().use { git ->
+            withGit { git ->
                 val lastCommitHash = git.repository.resolve(commitId) ?: return false
                 RevWalk(git.repository).use { revWalk ->
                     val commit: RevCommit = revWalk.parseCommit(lastCommitHash)

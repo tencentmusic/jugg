@@ -72,7 +72,7 @@ class GitFileChangesDetector(
                 isWaitingFileChangesEnd = false
                 checkDelayJob = null
                 taskRunnerManager.runTaskSafe("Checking changed files", Runnable {
-                    refreshChangedFilesIfHeadChanged()
+                    refreshFileChangesIfHeadChanged()
                 })
             }
         }
@@ -104,10 +104,10 @@ class GitFileChangesDetector(
     }
 
     /**
-     * Checks every Git root HEAD and synchronously publishes missed file changes when any HEAD moved.
-     * The stored HEAD baseline advances only after the file refresh succeeds.
+     * Publishes missed changes and removes restored pending files when any Git root HEAD moved.
+     * The stored HEAD baseline advances only after both checks succeed.
      */
-    fun refreshChangedFilesIfHeadChanged(): GitRefreshResult {
+    fun refreshFileChangesIfHeadChanged(): GitRefreshResult {
         val checkStart = System.currentTimeMillis()
         val newGitHeads = try {
             gitManagers.mapValues { it.value.getLastCommitHash() }
@@ -131,13 +131,49 @@ class GitFileChangesDetector(
         if (!updateChangedFiles(emptyList())) {
             return GitRefreshResult.FAILED
         }
+        if (!rollbackUnchangedFiles(deployFileManager.getUncompiledFiles())) {
+            return GitRefreshResult.FAILED
+        }
         gitHeads.compareAndSet(previousGitHeads, newGitHeads)
         return GitRefreshResult.REFRESHED
+    }
+
+    internal fun rollbackUnchangedFiles(uncompiledFiles: List<ChangedFile>): Boolean {
+        if (uncompiledFiles.isEmpty()) {
+            return true
+        }
+        return try {
+            val startTime = System.currentTimeMillis()
+            if (uncompiledFiles.size > 100) {
+                logger.info("Checking files whether is really changed...")
+            }
+            val ordinaryFiles = uncompiledFiles.filterNot { it.isManuallySelected }.map { it.file }
+            val rollbackFiles = if (ordinaryFiles.isEmpty()) emptyList() else
+                deployHistoryManager.filterUnchangedFiles(ordinaryFiles)
+            if (rollbackFiles.isNotEmpty()) {
+                logger.debug("Found files rollback, size: ${rollbackFiles.size}, files: ${rollbackFiles.map { it.name }}")
+                deployFileManager.removeRolledBackFiles(rollbackFiles)
+            } else {
+                logger.debug("No files rollback.")
+            }
+            if (uncompiledFiles.size > 100) {
+                logger.info("Checking finished, cost ${System.currentTimeMillis() - startTime}ms. " +
+                        "Rollback files ${rollbackFiles.size}.")
+            }
+            true
+        } catch (e: Exception) {
+            logger.debug("Check files whether is really changed failed: ${e.message}", e)
+            false
+        }
     }
 
     fun updateChangedFiles(): Boolean {
         return updateChangedFiles(emptyList())
     }
+
+    /** Explicit refresh also removes restored inputs even when Git HEAD has not moved. */
+    fun refreshFileChanges(): Boolean = updateChangedFiles() &&
+            rollbackUnchangedFiles(deployFileManager.getUncompiledFiles())
 
     fun updateChangedFiles(filterFiles: List<File>): Boolean {
         logger.debug("updateChangedFiles")

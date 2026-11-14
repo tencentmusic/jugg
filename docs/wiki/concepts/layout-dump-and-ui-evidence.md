@@ -1,6 +1,6 @@
 ---
 title: Layout dump and UI evidence
-description: Explains how layout-dump generates HTML evidence from an instantaneous in-app view snapshot, and the boundaries of structure, properties, units, and snapshot freshness.
+description: Explains how layout-dump generates dual-mode JSON evidence from an instantaneous in-app view snapshot, and the boundaries of structure, properties, units, and snapshot freshness.
 status: active
 tags:
   - concept
@@ -12,7 +12,7 @@ tags:
 
 A UI judgment must state both what is expected and what the device currently presents. A screenshot records the pixel appearance of a page, while a view tree provides node identity, hierarchy, text, bounds, and selected runtime properties. The two evidence types answer different questions and cannot replace one another.
 
-Jugg `layout-dump` captures the current view hierarchy from a running app and organizes Android View and Compose nodes into a readable HTML artifact. This artifact represents a page snapshot at the time of one request and documents actual page structure. It does not provide the design expectation or constitute the final pass or fail conclusion by itself.
+Jugg `layout-dump` captures the current view hierarchy from a running app and organizes Android View and Compose nodes into a sparse JSON artifact. This artifact represents a page snapshot at the time of one request and documents actual page structure. It does not provide the design expectation or constitute the final pass or fail conclusion by itself.
 
 ## Pixel appearance and view structure answer different questions
 
@@ -36,26 +36,38 @@ running target app
   -> capture Android View and Compose nodes from current windows
   -> organize windows, hierarchy, text, IDs, and bounds
   -> convert node bounds / padding from px to dp using device density
-  -> prune structural nodes without semantic content
-  -> write the HTML artifact
+  -> prune an interaction summary or preserve the captured tree in ui mode
+  -> write the JSON artifact
 ```
 
-The public result provides the HTML file path, artifact information, and content size. Structured data used to generate the HTML is consumed only by internal Jugg tools and is not a stable public interface.
+The public result provides the JSON file path, artifact information, and UTF-8 content size. The file carries mode, units, windows, device density, budget truncated, and optional warnings/rootLayout so its collection scope and diagnostics can be read independently. The summary counts actual output nodes.
 
-## HTML is a reading artifact, not a complete data interface
+Small results also include the complete layout object in the response, saving a separate file read. Large results remain in the file, with newlines between nodes for selective retrieval; node properties and coordinate arrays stay compact. Inline data and the file represent the same snapshot, whose scope is determined by the mode and collection parameters. See [MCP tools](../reference/mcp-tools.md) for the exact size condition.
 
-HTML helps Agents and developers read page structure, locate candidate nodes, and cite evidence from the current Run. To control information volume, it omits intermediate structural nodes that have no text, ID, description, or other useful semantics. The HTML is therefore not a field-for-field representation of original app view objects.
+## Interaction summaries and UI hierarchies use different node scopes
+
+interaction (default) browses a page and discovers interaction candidates. Apart from the offscreen retention rules below, it keeps visible window roots and nodes with real IDs, text, descriptions, clickability, or diagnostics. Other nodes are removed and their children are promoted to retained ancestors. Leaf nodes such as images without semantic content may also be omitted, so the summary cannot establish absence or original parent-child relationships and does not guarantee that all output nodes are clickable.
+
+Real nodes start on new lines, while attributes and coordinates stay compact; synthetic `jugg_details` nodes stay inline. When children include at least one real node, the opening `[` and closing `]}` each start on a new line.
+
+In ordinary windows, interaction keeps the first node fully outside the window bounds, including its className, ID, bounds, and state, and replaces its descendants with a synthetic child containing `jugg_details`: `View is off-screen; descendants omitted in interaction mode.` The placeholder indicates that descendants were omitted from the summary; it is not a real control and is excluded from node and clickable counts. Offscreen nodes that already have no children remain unchanged.
+
+Partially visible nodes, zero-area nodes, and branches with descendants inside the window, unknown descendant geometry, or descendant diagnostics are not folded. When window bounds are invalid or `rootLayout` requests a subtree, the existing semantic pruning continues without inferring screen bounds from the subtree. To expand descendants, use `jugg layout-dump --mode ui --root-layout <id>`. Retained node order, bounds, and className can suggest a direction for swipe exploration; collect a new snapshot afterward to confirm content changes.
+
+ui preserves the currently captured tree for geometry, parent-child structure, decorative nodes, and hidden-state validation. It provides structure and text as reconstruction references, but complete visual or source reconstruction also requires images, fonts, drawing effects, source, and other information. Both modes observe window, subtree, GONE filtering, and collection budgets; intentional pruning does not set truncated.
+
+Both modes share field meanings, with public virtual IDs shortened to `_vid_<hash>`; legacy `_vir_id_` selectors still work. interaction first removes invisible/gone nodes and their entire subtrees without promoting children, even with `--include-gone`, omits `padding` and `textColor`, and retains className. ui retains hidden nodes and visual fields within the requested collection scope; GONE nodes still require `--include-gone`. Empty values and default states are omitted to control information volume.
 
 Different questions use different evidence sources:
 
 | Question | Evidence source |
 |---|---|
-| Which windows, nodes, and parent-child relationships currently exist | HTML snapshot from `layout-dump` |
+| Which windows, nodes, and parent-child relationships currently exist | JSON snapshot from `layout-dump --mode ui` |
 | Whether an element exists, plus its bounds, position, and size | Geometry result from `view-locate` |
 | Runtime properties such as text color, visibility, and enabled | Getter result from `view-inspect` |
 | Whether an interaction produced the expected page change | A new snapshot or runtime evidence after the interaction |
 
-`view-locate` returns structural data suitable for calculating spacing and alignment, while `view-inspect` returns raw getter values. Both supplement exact information not directly represented in HTML instead of exposing internal layout JSON as a public protocol.
+`view-locate` returns structural data suitable for calculating spacing and alignment, while `view-inspect` returns raw getter values. They locate live elements and supplement properties not covered by the dump. For a known selector, query or tap the element directly without first reading the entire dump.
 
 ## Every request has its own timestamp
 
@@ -73,7 +85,7 @@ The in-app view structure carries device density. Jugg recursively converts `bou
 dp = px / density
 ```
 
-Node geometry in `layout-dump` and bounds, position, and size from `view-locate` use dp. An Agent can use these values directly to calculate element spacing, centers, and alignment.
+Normally captured node geometry in `layout-dump` and bounds, position, and size from `view-locate` use dp. The dump uses integer dp; without valid density, px is retained and declared in the file's units. An Agent should confirm units before calculating spacing, centers, and alignment.
 
 `view-inspect` returns raw getter values together with density. Whether one getter returns px, sp, a color integer, or a business object depends on the property itself and must be interpreted according to the corresponding Android API. The use of dp for layout bounds does not make every getter result or touch coordinate use dp.
 

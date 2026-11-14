@@ -1,0 +1,13 @@
+trial,wall_s,ide_cpu_s,ide_idle_pct,ide_increment_cpu_s,ide_start_mib,ide_peak_mib,ide_end_mib,aapt2_cpu_s,aapt2_start_mib,aapt2_peak_mib,aapt2_end_mib,reinstall,source_compile_ms,classification,incremental_compile_success,deploy_success
+java-add,17.658,17.84,62.313,6.573,6274.391,6524.281,6524.281,0.0,10.312,10.312,10.312,True,846,baseline reinstall,True,True
+java-add-r2,2.847,4.36,142.506,-0.167,7028.969,7062.453,7062.453,0.0,10.375,10.375,10.375,False,535,incremental hot reload,True,True
+java-restore-r1,3.193,4.77,58.037,2.751,6627.516,6815.547,6815.547,0.0,10.375,10.375,10.375,False,594,incremental hot reload,True,True
+java-restore-r3,3.244,8.54,56.617,6.649,6891.156,7050.641,7050.641,0.0,10.375,10.375,10.375,False,746,incremental hot reload,True,True
+kotlin-add,4.535,10.49,59.42,7.647,7185.828,7422.484,7422.484,0.0,10.375,10.375,10.375,False,2218,incremental hot reload,True,True
+kotlin-add-r2,3.072,6.58,60.537,4.609,7845.562,7850.938,7850.609,0.0,92.359,92.359,92.359,False,950,incremental hot reload,True,True
+kotlin-restore,3.811,10.78,189.39,3.52,7444.625,7709.0,7709.0,0.0,10.375,10.375,10.375,False,1190,incremental hot reload,True,True
+kotlin-restore-r3,2.957,7.82,81.681,5.185,7859.125,7873.844,7873.844,0.0,92.359,92.359,92.359,False,623,incremental hot reload,True,True
+res-add,6.507,5.88,75.748,0.897,7630.047,7776.25,7776.25,0.11,10.297,84.719,84.719,False,121,initial overlay sync,True,True
+res-add-r2,2.211,4.98,50.712,3.646,7926.297,7954.688,7948.5,0.07,92.359,98.25,98.25,False,78,incremental hot reload,True,True
+res-restore,3.148,12.43,52.778,10.66,7810.625,7844.203,7844.203,0.1,84.734,92.391,92.391,False,152,incremental hot reload,True,True
+res-restore-r3,2.231,4.26,51.281,3.025,7947.016,8032.125,8032.125,0.07,98.25,105.547,105.547,False,70,incremental hot reload,True,True

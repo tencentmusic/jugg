@@ -5,6 +5,7 @@ import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.util.Log
 import android.view.View
+import com.sickworm.jugg.demo.testcase.databinding.CrossModuleDataBindingActivity
 import com.sickworm.jugg.demo.testcase.databinding.DataBindingJavaDemoActivity
 import com.sickworm.jugg.demo.testcase.databinding.DataBindingKotlinDemoActivity
 import com.sickworm.jugg.demo.testcase.kmp.KmpComposeResourceDemoActivity
@@ -21,6 +22,10 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         Log.i(BENCHMARK_LOG_TAG, BENCHMARK_LOG_MARKER)
+
+        findViewById<View>(R.id.btn_butterknife_demo).setOnClickListener {
+            startActivity(Intent(this, com.sickworm.jugg.demo.testcase.butterknife.ButterKnifeDemoActivity::class.java))
+        }
 
         findViewById<View>(R.id.button).setOnClickListener {
             startActivity(Intent(this, MainActivity2::class.java))
@@ -44,6 +49,10 @@ class MainActivity : AppCompatActivity() {
 
         findViewById<View>(R.id.btn_kmp_compose_resource_demo).setOnClickListener {
             startActivity(Intent(this, KmpComposeResourceDemoActivity::class.java))
+        }
+
+        findViewById<View>(R.id.btn_cross_module_databinding_demo).setOnClickListener {
+            startActivity(Intent(this, CrossModuleDataBindingActivity::class.java))
         }
     }
 }

@@ -53,6 +53,22 @@ class DeployDataGeneratorTest {
     }
 
     @Test
+    fun `native library changes stay separate from resource and apk updates`() {
+        val apkPath = projectInfo.apkInfos.first().files.first().apkFile.path
+        val native = DeployItem(
+            "lib/arm64-v8a/libdemo.so", CompileOutput.Type.NativeLib, 1L,
+            byteArrayOf(1, 2, 3), apkPath,
+        )
+
+        val data = generator.buildDeployData(ParsedDex.EMPTY, emptyList(), changedLibs = listOf(native))
+
+        assertEquals(listOf(native), data.nativeLibraryOverlays)
+        assertTrue(data.updateApkFiles.isEmpty())
+        assertTrue(data.overlays.isEmpty())
+        assertFalse(data.isFullRes)
+    }
+
+    @Test
     fun testHotModified() {
         val generator = DeployDataGenerator(logger, buildDir)
         generator.init(projectInfo.apkInfos, emptyList())

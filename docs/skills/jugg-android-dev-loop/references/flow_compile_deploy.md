@@ -9,6 +9,8 @@ This flow handles compile/deploy as the decisive result. It may include a light-
 Choose one decisive command:
 
 ```text
+Unsupported annotation changes or confirmed unsupported instrumentation affecting recompiled files?
+  -> gradle-build directly (see policy_incremental_compile_limits.md)
 Need runtime/device/UI/log confirmation, app launch, or deploy-side behavior?
   -> deploy
 Need only source buildability or generic "verify/check"?
@@ -27,9 +29,9 @@ Standalone build commands create the current build profile on demand before comp
 
 ## Pre-flight: Check Incremental Compile Eligibility
 
-> Run this pre-flight only when the user ask "no Gradle fallback". Otherwise, skip.
+Check the current changes against [incremental compile limits](policy_incremental_compile_limits.md) before the first build. Apply its direct-fallback rule before selecting `compile` / `deploy`; no failed incremental attempt or retry is required. Explain the affected annotation/processor or instrumented files to the user.
 
-Before compiling, check whether the project can use incremental compile (i.e., will NOT require `gradle-build`):
+Only when the user asks for "no Gradle fallback": stop if the policy requires Gradle; if it does not, also check project baseline eligibility:
 
 ```bash
 python3 {SKILL_DIR}/scripts/jugg.py --console=json status | python3 -c "
@@ -49,7 +51,7 @@ print('NEEDS_GRADLE_BUILD' if data.get('needFallback', False) else 'OK')
 ### Steps
 
 1. **Modify** — Edit source files.
-2. **Compile** — Run `compile`.
+2. **Compile** — Run `compile`, or go directly to Gradle-Build Fallback Mode when pre-flight requires it.
    - On `status: OK` → Step 3.
    - `message: compile executed successfully. No pending file changes.` is also a successful terminal result. It means no new compile output was generated and deploy was skipped.
    - On `status: ERROR`:
@@ -57,13 +59,7 @@ print('NEEDS_GRADLE_BUILD' if data.get('needFallback', False) else 'OK')
      b. Load `error_patterns.md`, apply Error Reviewer to diagnose and fix.
      c. Re-run `compile`. Retry budget: max 3 attempts.
      d. If compile still fails after retries with unexpected/unresolvable errors → **fall back to `gradle-build`** (see [Gradle-Build Fallback](#gradle-build-fallback) below).
-3. **Done** — Output report. Deploy and verification = `⏭ SKIP (compile-only)`.
-
-```
-Step 1: Modify → [files changed]
-Step 2: compile → status: OK ✅
-Verdict: PASS (compile-only)
-```
+3. **Done** — Report the decisive command's actual compile/deploy results (`deploy=skip` for `compile`, actual deploy result for `gradle-build`). Verification = `⏭ SKIP (compile-only)`.
 
 ---
 
@@ -72,7 +68,7 @@ Verdict: PASS (compile-only)
 ### Steps
 
 1. **Modify** — Edit source files.
-2. **Deploy** — Run `deploy`. Blocks until completion.
+2. **Deploy** — Run `deploy`, or go directly to Gradle-Build Fallback Mode when pre-flight requires it. Blocks until completion.
    - On `status: OK` + `isFinal: true` → Step 3.
    - `message` containing `No pending file changes` is also a successful terminal result. It means all Jugg-detected changes are already deployed.
    - On `status: ERROR`:
@@ -86,13 +82,13 @@ Verdict: PASS (compile-only)
 
 ## Gradle-Build Fallback Mode
 
-> ⚠️ **`gradle-build` is a heavyweight operation** — full Gradle compilation, significantly slower than incremental `compile`. Use only as a last resort.
+`gradle-build` performs a full Gradle build + install/start. Use it immediately for known incremental limitations, or after failed incremental fixes exhaust retries.
 
 **Trigger conditions** (any one)**:**
 - `compile` retries exhausted (3×) and still failing with unexpected errors that cannot be attributed to source changes.
 - The decision rule in `policy_incremental_compile_limits.md` requires a full baseline (unsupported generation/instrumentation, missing artifacts, cross-process resources, or removal of old content). These confirmed limitations do not require failed incremental retries.
 
-**Before using, self-check**:
+**For failure-driven fallback, self-check** (direct policy fallback skips these retry checks):
 - Is there a confirmed policy limitation, or is the unresolved failure in the compile phase rather than deploy transport?
 - Did you retry with different fixes, not just re-run? 
 - Is there a concrete reason incremental can't work? 

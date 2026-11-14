@@ -14,6 +14,7 @@ for (final def file in scriptDirectory.listFiles()) {
 File projectInfoDirectory = new File(projectDir, "src/main/java/com/sickworm/intellij/jugg/project/info")
 File projectInfoSerializeFile = new File(projectInfoDirectory, "JuggProjectInfoSerialize.kt")
 willCollectFiles.add(new File(projectInfoDirectory, "JuggProjectInfo.kt"))
+willCollectFiles.add(new File(projectInfoDirectory, "KspInfo.kt"))
 willCollectFiles.add(projectInfoSerializeFile)
 willCollectFiles.add(new File(projectDir, "src/main/java/com/sickworm/intellij/jugg/project/runtime/JuggGlobalPathManager.kt"))
 willCollectFiles.add(new File(projectDir, "src/main/java/com/sickworm/intellij/jugg/project/runtime/JuggPathManager.kt"))

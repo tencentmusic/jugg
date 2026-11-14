@@ -72,7 +72,7 @@ tags:
   -> res 变化进入资源编译
   -> Manifest 变化进入增量合并
   -> assets 变化生成 asset overlay
-  -> native lib 变化进入 APK 更新
+  -> native lib 变化按 SO hot update 开关进入 overlay 或 APK 更新
   -> 产物按目标 APK 归属交给部署阶段
 ```
 

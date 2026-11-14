@@ -145,4 +145,75 @@ class IsNormalGradleCommandTest {
         assertEquals(false, command.contains("jugg.libraryTestTasks"), command)
     }
 
+    @Test
+    fun fallbackCommand_shouldIncludeNoDaemonByDefault() {
+        val oldSetting = com.sickworm.intellij.jugg.ide.bean.JuggSettings.isGradleCompileNoDaemon
+        try {
+            com.sickworm.intellij.jugg.ide.bean.JuggSettings.isGradleCompileNoDaemon = true
+            val command = CompileProjectCommand(
+                "./gradlew :app:customDebugTask",
+                "/root/projects/projectABC",
+                "readProjectInfo.gradle",
+            ).baseCommand
+
+            assertTrue(command.contains("--no-daemon"), command)
+        } finally {
+            com.sickworm.intellij.jugg.ide.bean.JuggSettings.isGradleCompileNoDaemon = oldSetting
+        }
+    }
+
+    @Test
+    fun fallbackCommand_shouldAppendNoDaemonWhenDaemonSpecified() {
+        val oldSetting = com.sickworm.intellij.jugg.ide.bean.JuggSettings.isGradleCompileNoDaemon
+        try {
+            com.sickworm.intellij.jugg.ide.bean.JuggSettings.isGradleCompileNoDaemon = true
+            val command = CompileProjectCommand(
+                "./gradlew :app:customDebugTask --daemon",
+                "/root/projects/projectABC",
+                "readProjectInfo.gradle",
+            ).baseCommand
+
+            assertTrue(command.contains("--no-daemon"), command)
+            assertTrue(command.indexOf("--no-daemon") > command.indexOf("--daemon"), command)
+        } finally {
+            com.sickworm.intellij.jugg.ide.bean.JuggSettings.isGradleCompileNoDaemon = oldSetting
+        }
+    }
+
+    @Test
+    fun fallbackCommand_shouldNotDuplicateNoDaemonWhenAlreadyPresent() {
+        val oldSetting = com.sickworm.intellij.jugg.ide.bean.JuggSettings.isGradleCompileNoDaemon
+        try {
+            com.sickworm.intellij.jugg.ide.bean.JuggSettings.isGradleCompileNoDaemon = true
+            val command = CompileProjectCommand(
+                "./gradlew :app:customDebugTask --no-daemon",
+                "/root/projects/projectABC",
+                "readProjectInfo.gradle",
+            ).baseCommand
+
+            val count = command.split(" ").count { it == "--no-daemon" }
+            assertEquals(1, count, command)
+        } finally {
+            com.sickworm.intellij.jugg.ide.bean.JuggSettings.isGradleCompileNoDaemon = oldSetting
+        }
+    }
+
+    @Test
+    fun fallbackCommand_shouldRespectSettingsSwitchWhenNoDaemonDisabled() {
+        val oldSetting = com.sickworm.intellij.jugg.ide.bean.JuggSettings.isGradleCompileNoDaemon
+        try {
+            com.sickworm.intellij.jugg.ide.bean.JuggSettings.isGradleCompileNoDaemon = false
+            val command = CompileProjectCommand(
+                "./gradlew :app:customDebugTask --daemon",
+                "/root/projects/projectABC",
+                "readProjectInfo.gradle",
+            ).baseCommand
+
+            assertTrue(!command.contains("--no-daemon"), command)
+            assertTrue(command.contains("--daemon"), command)
+        } finally {
+            com.sickworm.intellij.jugg.ide.bean.JuggSettings.isGradleCompileNoDaemon = oldSetting
+        }
+    }
+
 }

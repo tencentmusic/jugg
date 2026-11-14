@@ -42,16 +42,43 @@ class CommonConfirmDialog(
         val constraints = GridBagConstraints()
         constraints.gridx = 0
         constraints.gridy = 0
-        constraints.fill = GridBagConstraints.HORIZONTAL
+        constraints.fill = GridBagConstraints.BOTH
+        constraints.weightx = 1.0
+        constraints.weighty = 1.0
 
         constraints.insets = JBUI.insets(4, 0, 12, 0)
         constraints.gridwidth = 1
 
-        val jLabel = JBLabel(content)
+        val label = JBLabel()
+        val contentView = object : JTextPane() {
+            override fun getScrollableTracksViewportWidth(): Boolean = true
+        }.apply {
+            contentType = if (content.startsWith("<html>", ignoreCase = true)) "text/html" else "text/plain"
+            text = content
+            isEditable = false
+            isOpaque = false
+            isFocusable = false
+            border = null
+            font = label.font
+            foreground = label.foreground
+            putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, true)
+            caretPosition = 0
+        }
 
-        // contentPanel
-        val contentPanel = JPanel(BorderLayout())
-        contentPanel.add(jLabel, BorderLayout.CENTER)
+        val screenSize = Toolkit.getDefaultToolkit().screenSize
+        val contentWidth = min(contentView.preferredSize.width, JBUI.scale(560))
+        contentView.setSize(contentWidth, screenSize.height)
+        val contentHeight = min(contentView.preferredSize.height, screenSize.height / 2)
+        val jScrollPane = JScrollPane(contentView).apply {
+            border = null
+            horizontalScrollBarPolicy = ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER
+            verticalScrollBarPolicy = ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED
+            preferredSize = Dimension(contentWidth, contentHeight)
+        }
+        mainPanel.add(jScrollPane, constraints)
+        constraints.gridy++
+        constraints.weighty = 0.0
+        constraints.fill = GridBagConstraints.HORIZONTAL
 
         // link buttons
         if (linkActions.isNotEmpty()) {
@@ -68,20 +95,9 @@ class CommonConfirmDialog(
                     linkPanel.add(JLabel(" | "))
                 }
             }
-            contentPanel.add(linkPanel, BorderLayout.SOUTH)
+            mainPanel.add(linkPanel, constraints)
+            constraints.gridy++
         }
-
-        val jScrollPane = JScrollPane(contentPanel)
-        jScrollPane.border = null
-        jScrollPane.verticalScrollBarPolicy = ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED
-
-        val screenSize = Toolkit.getDefaultToolkit().screenSize
-        jScrollPane.preferredSize = Dimension(
-            jScrollPane.preferredSize.width,
-            min(jLabel.preferredSize.height + if (linkActions.isNotEmpty()) 30 else 0, screenSize.height / 2))
-
-        mainPanel.add(jScrollPane, constraints)
-        constraints.gridy++
 
         if (isShowDoNotAsk) {
             constraints.insets = JBUI.insetsBottom(4)

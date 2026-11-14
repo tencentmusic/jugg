@@ -45,7 +45,7 @@ Camel-case global options such as `--projectDir` and `--ifCompiling` are normali
 | `restart` | Restarts the target app. |
 | `instrument` | Runs tests from an androidTest source file anchor. |
 | `status` | Shows device, fallback, uncompiled file, and androidTest baseline status. |
-| `layout-dump` | Exports the UI hierarchy as HTML. |
+| `layout-dump` | Exports interaction/ui sparse JSON. |
 | `view-locate` | Finds an element by text, resource id, or content-desc. |
 | `view-inspect` | Reads read-only View properties through reflection, including getters, Kotlin properties, and public fields. |
 | `tap` | Performs a tap, long-press, or swipe. |
@@ -102,6 +102,8 @@ jugg restart
 > [!IMPORTANT]
 > Check both `isCompileSuccess` and `isDeploySuccess` for the final state of `deploy` or `gradle-build`. Successful compilation does not mean that deployment succeeded.
 
+A successful `deploy` message shows `Deployed files (total: N)` and the files successfully deployed in this invocation, including files compiled earlier and deployed now. N is 0 when no files were deployed. The two success flags indicate successful workflow completion, including runs with no changes. A `compile` message lists files successfully compiled in the current invocation.
+
 ## Android Test
 
 ```bash
@@ -136,7 +138,8 @@ jugg activity-stack
 ## UI tools
 
 ```bash
-jugg layout-dump --include-gone --all-windows
+jugg layout-dump --mode interaction
+jugg layout-dump --mode ui --include-gone --all-windows
 jugg view-locate --resource-id login_button
 jugg view-inspect --text 登录 getText() isEnabled()
 jugg view-inspect --resource-id bubble_container layoutParams.leftMargin getLayoutParams().getMarginStart()
@@ -147,10 +150,12 @@ jugg tap --action swipe --x 500 --y 1600 --end-x 500 --end-y 300 --duration 300
 
 | Command | Common options |
 |---|---|
-| `layout-dump` | `--root-layout`, `--include-gone`, `--all-windows` |
+| `layout-dump` | `--mode`, `--root-layout`, `--include-gone`, `--all-windows` |
 | `view-locate` | `--text`, `--resource-id`, `--content-desc` |
 | `view-inspect` | `--text`, `--resource-id`, `--content-desc`, `--class-name`, read-only expressions |
 | `tap` | `--action`, coordinate options, percentage options, element selector, `--duration` |
+
+`layout-dump` defaults to interaction, which prunes an interaction summary; ui preserves the captured tree for layout validation and reconstruction references. The mode does not change other filters. See [MCP tools](./mcp-tools.md) for exact output meanings.
 
 The `tap` mode priority is coordinate > percent > element. `swipe` supports only coordinate or percentage mode, not element mode.
 

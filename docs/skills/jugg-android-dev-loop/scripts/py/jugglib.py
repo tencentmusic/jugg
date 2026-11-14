@@ -1057,7 +1057,8 @@ def print_kv(structured: dict) -> None:
     if isinstance(data, dict):
         for k, v in data.items():
             if isinstance(v, (dict, list)):
-                print(f"{k}: {json.dumps(v)}")
+                separators = (",", ":") if k == "layout" else None
+                print(f"{k}: {json.dumps(v, ensure_ascii=False, separators=separators)}")
             else:
                 print(f"{k}: {v}")
     elif data:
@@ -1274,7 +1275,8 @@ def simple_call(tool: str, *, json_mode: Optional[bool] = None,
     structured = extract_structured(response)
 
     if _json_mode:
-        print(json.dumps(structured))
+        separators = (",", ":") if tool == "layout-dump" else None
+        print(json.dumps(structured, ensure_ascii=False, separators=separators))
         return structured
 
     status = structured.get("status", "")

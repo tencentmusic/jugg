@@ -31,7 +31,8 @@ object RsyncCompatibleHelper {
             return
         }
         if (isWindows) {
-            isCompatible = false
+            // Windows validates its selected tools once at the first native transfer.
+            isCompatible = true
             isInit = true
             return
         }

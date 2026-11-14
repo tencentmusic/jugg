@@ -35,7 +35,7 @@ if (customConfigs.exists()) {
                 srcDirs = ["src/custom/$folder/java"]
             }
             resources {
-                srcDirs = ["/src/custom/$folder/resources"]
+                srcDirs = ["src/custom/$folder/resources"]
             }
         }
     }

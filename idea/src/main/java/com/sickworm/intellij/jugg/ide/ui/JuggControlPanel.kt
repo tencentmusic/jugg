@@ -84,6 +84,7 @@ class JuggControlPanel(
     private val healthPanel = contentPanel(8)
     private val activityPanel = contentPanel(0)
     private val changedFilesList = JBList<JuggEvent.ChangedFileSnapshot>(DefaultListModel())
+    private val emptyChangedFiles = createChangedFilesEmptyState()
     private val recentRunsList = JBList<JuggControlPanelModel.RunSummary>(DefaultListModel())
     private val recentRunDetails = contentPanel(4)
     private val sessionLabels = List(4) { monoLabel("0") }
@@ -163,21 +164,27 @@ class JuggControlPanel(
         })
     }
 
+    private fun createChangedFilesEmptyState(): JComponent {
+        val message = secondaryLabel("No pending changes").apply { alignmentX = 0.5f }
+        val link = ActionLink("Manual add...") { controller.manageFileChanges() }.apply { alignmentX = 0.5f }
+        val group = Box.createVerticalBox().apply {
+            add(message)
+            add(verticalGap(5))
+            add(link)
+        }
+        return JPanel(java.awt.GridBagLayout()).transparent().apply { add(group) }
+    }
+
     private fun changedFilesSection(): JComponent = overviewSection(null, "changedFiles") {
-        add(eyebrow("Changed files"))
+        add(JPanel(BorderLayout()).transparent().apply {
+            add(eyebrow("Changed files"), BorderLayout.WEST)
+            add(ActionLink("Manage...") { controller.manageFileChanges() }, BorderLayout.EAST)
+        })
         add(verticalGap(8))
         changedFilesList.apply {
             name = "overview.changedFilesList"
             selectionMode = ListSelectionModel.SINGLE_SELECTION
-            cellRenderer = object : ColoredListCellRenderer<JuggEvent.ChangedFileSnapshot>() {
-                override fun customizeCellRenderer(list: JList<out JuggEvent.ChangedFileSnapshot>, value: JuggEvent.ChangedFileSnapshot,
-                                                   index: Int, selected: Boolean, hasFocus: Boolean) {
-                    val virtualFile = LocalFileSystem.getInstance().findFileByPath(value.absolutePath)
-                    icon = virtualFile?.fileType?.icon ?: FileTypeManager.getInstance().getFileTypeByFileName(value.path).icon
-                    append("${value.moduleName} / ${value.path}")
-                    toolTipText = value.absolutePath
-                }
-            }
+            cellRenderer = changedFileRenderer()
             addMouseListener(object : java.awt.event.MouseAdapter() {
                 override fun mouseClicked(event: java.awt.event.MouseEvent) {
                     if (event.clickCount == 2) openChangedFile(selectedValue)
@@ -363,12 +370,14 @@ class JuggControlPanel(
                 settingToggle(JuggControlPanelController.Setting.ALWAYS_RESTART)),
             settingGroup("Deployment", "deployment",
                 settingToggle(JuggControlPanelController.Setting.QUICK_DEPLOY),
+                settingToggle(JuggControlPanelController.Setting.SO_HOT_UPDATE),
                 settingToggle(JuggControlPanelController.Setting.AUTO_FALLBACK),
                 settingToggle(JuggControlPanelController.Setting.EMBED_APK),
                 forceCompatDevicesPanel),
             settingGroup("Compiler", "compiler",
                 settingToggle(JuggControlPanelController.Setting.PROJECT_KOTLIN),
-                settingToggle(JuggControlPanelController.Setting.BACKUP_CLASSPATH)),
+                settingToggle(JuggControlPanelController.Setting.BACKUP_CLASSPATH),
+                settingToggle(JuggControlPanelController.Setting.GRADLE_COMPILE_NO_DAEMON)),
             settingGroup("Integrations", "integrations",
                 settingAction("Install CLI and agent skills", "Install the Jugg CLI, agent skills, hooks, and required permissions.", "Install…", controller::installSkills),
                 settingAction("Check Jugg updates", "Check whether a newer Jugg plugin is available.", "Check now", controller::checkUpdates),
@@ -412,7 +421,14 @@ class JuggControlPanel(
         val help = setting.definition.description
         val toggle = JBCheckBox(label).apply {
             addActionListener {
-                if (!isRenderingSettings) controller.updateSetting(setting, isSelected)
+                if (!isRenderingSettings) {
+                    val enabled = isSelected
+                    if (setting == JuggControlPanelController.Setting.SO_HOT_UPDATE && enabled) {
+                        isSelected = latestSnapshot.settings.nativeSandboxDeploy
+                    }
+                    controller.updateSetting(setting, enabled)
+                    renderSettings(latestSnapshot.settings)
+                }
             }
         }
         settingToggles[setting] = toggle
@@ -621,7 +637,8 @@ class JuggControlPanel(
 
     private fun renderChangedFiles(snapshot: JuggControlPanelSnapshot) {
         replaceListModel(changedFilesList, snapshot.context.changedFiles)
-        changedFilesList.emptyText.text = "No pending changes"
+        val view = if (snapshot.context.changedFiles.isEmpty()) emptyChangedFiles else changedFilesList
+        changedFilesScroll?.let { if (it.viewport.view !== view) it.setViewportView(view) }
         updateListHeights()
     }
 
@@ -730,10 +747,12 @@ class JuggControlPanel(
             JuggControlPanelController.Setting.CONFIRM_FALLBACK_WHEN_TOO_MANY_CHANGES to settings.confirmFallbackWhenTooManyChanges,
             JuggControlPanelController.Setting.ALWAYS_RESTART to settings.alwaysRestartAppAfterDeployment,
             JuggControlPanelController.Setting.QUICK_DEPLOY to settings.quickDeploy,
+            JuggControlPanelController.Setting.SO_HOT_UPDATE to settings.nativeSandboxDeploy,
             JuggControlPanelController.Setting.AUTO_FALLBACK to settings.autoFallbackAfterDeployFailure,
             JuggControlPanelController.Setting.EMBED_APK to settings.embedChangesIntoApk,
             JuggControlPanelController.Setting.PROJECT_KOTLIN to settings.useProjectKotlinCompiler,
             JuggControlPanelController.Setting.BACKUP_CLASSPATH to settings.backupClasspath,
+            JuggControlPanelController.Setting.GRADLE_COMPILE_NO_DAEMON to settings.gradleCompileNoDaemon,
         )
         isRenderingSettings = true
         values.forEach { (setting, enabled) -> settingToggles[setting]?.isSelected = enabled }
@@ -949,4 +968,15 @@ private val JuggEvent.Status.symbol: String
         JuggEvent.Status.FAILED -> "!"
         JuggEvent.Status.CANCELED -> "×"
         else -> "·"
+    }
+
+internal fun changedFileRenderer(): ColoredListCellRenderer<JuggEvent.ChangedFileSnapshot> =
+    object : ColoredListCellRenderer<JuggEvent.ChangedFileSnapshot>() {
+        override fun customizeCellRenderer(list: JList<out JuggEvent.ChangedFileSnapshot>, value: JuggEvent.ChangedFileSnapshot,
+                                           index: Int, selected: Boolean, hasFocus: Boolean) {
+            val virtualFile = LocalFileSystem.getInstance().findFileByPath(value.absolutePath)
+            icon = virtualFile?.fileType?.icon ?: FileTypeManager.getInstance().getFileTypeByFileName(value.path).icon
+            append("${value.moduleName} / ${value.path}")
+            toolTipText = value.absolutePath
+        }
     }

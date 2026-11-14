@@ -7,6 +7,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.Process;
 import android.text.TextUtils;
+import android.view.View;
 
 import com.sickworm.intellij.jugg.hotfix.LogUtils;
 
@@ -20,8 +21,9 @@ import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.Callable;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -32,7 +34,7 @@ public class ViewHierarchyServer {
     private static final String TAG = "Jugg#ViewHierarchyServer";
     private static final String SOCKET_PREFIX = "jugg_vh_";
     private static final String PROTOCOL_VERSION = "1.1";
-    private static final long MAIN_THREAD_TIMEOUT_MS = 5000L;
+    private static final long MAIN_THREAD_TIMEOUT_MS = 10000L;
 
     private static volatile ViewHierarchyServer sInstance;
 
@@ -201,51 +203,45 @@ public class ViewHierarchyServer {
         }
     }
 
+    /** Initialize Compose once, then capture after traversal without blocking the main thread. */
     private JSONObject runOnMainThread(Callable<JSONObject> task) {
-        if (Looper.myLooper() == Looper.getMainLooper()) {
-            try {
-                return task.call();
-            } catch (Throwable t) {
-                LogUtils.e(TAG, "runOnMainThread direct call failed", t);
-                return error("Main thread action failed: " + t.getMessage(), null);
+        FutureTask<JSONObject> request = new FutureTask<>(task);
+        AtomicReference<View> frameRoot = new AtomicReference<>();
+        Runnable afterFrame = () -> {
+            if (!request.isCancelled()) mainHandler.post(request);
+        };
+        Runnable start = () -> {
+            if (request.isCancelled()) return;
+            View root = hierarchySource.prepareCompose();
+            if (root == null) {
+                request.run();
+            } else if (!request.isCancelled()) {
+                frameRoot.set(root);
+                root.requestLayout();
+                root.invalidate();
+                root.postOnAnimation(afterFrame);
+                if (request.isCancelled()) root.removeCallbacks(afterFrame);
             }
-        }
-
-        AtomicReference<JSONObject> resultRef = new AtomicReference<>();
-        AtomicReference<Throwable> errorRef = new AtomicReference<>();
-        CountDownLatch latch = new CountDownLatch(1);
-
-        mainHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    resultRef.set(task.call());
-                } catch (Throwable t) {
-                    errorRef.set(t);
-                } finally {
-                    latch.countDown();
-                }
-            }
-        });
-
+        };
+        mainHandler.post(start);
         try {
-            boolean finished = latch.await(MAIN_THREAD_TIMEOUT_MS, TimeUnit.MILLISECONDS);
-            if (!finished) {
-                return error("Main thread operation timeout.", null);
-            }
+            return request.get(MAIN_THREAD_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+        } catch (TimeoutException e) {
+            return error("Main thread operation timeout.", null);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return error("Main thread operation interrupted.", null);
+        } catch (Exception e) {
+            Throwable cause = e.getCause() != null ? e.getCause() : e;
+            LogUtils.w(TAG, "Main thread action failed: " + android.util.Log.getStackTraceString(cause));
+            return error("Main thread action failed: " + cause, null);
+        } finally {
+            request.cancel(false);
+            mainHandler.removeCallbacks(start);
+            mainHandler.removeCallbacks(request);
+            View root = frameRoot.get();
+            if (root != null) root.removeCallbacks(afterFrame);
         }
-
-        Throwable throwable = errorRef.get();
-        if (throwable != null) {
-            LogUtils.e(TAG, "runOnMainThread task failed", throwable);
-            return error("Main thread action failed: " + throwable.getMessage(), null);
-        }
-
-        JSONObject result = resultRef.get();
-        return result != null ? result : error("Empty main thread result.", null);
     }
 
     private JSONObject doLayoutDump(JSONObject params) {
@@ -271,11 +267,14 @@ public class ViewHierarchyServer {
         boolean topWindowOnly = optBoolean(params, "topWindowOnly", true);
 
         try {
-            ElementFinder elementFinder = captureFinder(topWindowOnly);
+            DragonflyHierarchySource.Snapshot snapshot = hierarchySource.capture(topWindowOnly);
+            ElementFinder elementFinder = new ElementFinder(snapshot);
             List<MatchedElement> matches = visibleOnly
                 ? elementFinder.find(text, resourceId, contentDesc, className, topWindowOnly)
                 : elementFinder.findInspectable(text, resourceId, contentDesc, className, topWindowOnly);
-            return ok(buildFindElementsData(matches, maxResults));
+            JSONObject data = withWarnings(buildFindElementsData(matches, maxResults), snapshot);
+            return matches.isEmpty() && !snapshot.warnings().isEmpty()
+                ? missingElement("No matching UI element found.", data, snapshot) : ok(data);
         } catch (Throwable t) {
             LogUtils.e(TAG, "doFindElements failed", t);
             return error("find_elements failed: " + t.getMessage(), null);
@@ -301,16 +300,17 @@ public class ViewHierarchyServer {
         String actionName = isLongPress ? "find_and_long_press" : "find_and_tap";
 
         try {
-            ElementFinder elementFinder = captureFinder(topWindowOnly);
+            DragonflyHierarchySource.Snapshot snapshot = hierarchySource.capture(topWindowOnly);
+            ElementFinder elementFinder = new ElementFinder(snapshot);
             List<MatchedElement> matches = elementFinder.find(text, resourceId, contentDesc, className, topWindowOnly);
             if (matches.isEmpty()) {
                 List<MatchedElement> candidates = elementFinder.findClickableCandidates(5, topWindowOnly);
-                JSONObject data = buildElementsData(candidates);
+                JSONObject data = withWarnings(buildElementsData(candidates), snapshot);
                 data.put("matchCount", 0);
-                return error("No matching UI element found.", data);
+                return missingElement("No matching UI element found.", data, snapshot);
             }
             if (matches.size() > 1) {
-                JSONObject data = buildElementsData(matches);
+                JSONObject data = withWarnings(buildElementsData(matches), snapshot);
                 return error("Multiple elements matched (" + matches.size() + "). Use coordinate mode to tap.", data);
             }
 
@@ -322,6 +322,7 @@ public class ViewHierarchyServer {
             data.put("x", target.centerX);
             data.put("y", target.centerY);
             data.put("matchedElement", target.toMatchedElementJson());
+            withWarnings(data, snapshot);
             if (isLongPress) {
                 data.put("duration", duration);
             }
@@ -362,11 +363,12 @@ public class ViewHierarchyServer {
 
     private JSONObject doVerify(JSONObject params) {
         try {
+            DragonflyHierarchySource.Snapshot snapshot = hierarchySource.capture(true);
             LayoutVerifier layoutVerifier = new LayoutVerifier(
-                captureFinder(true),
+                new ElementFinder(snapshot),
                 android.content.res.Resources.getSystem().getDisplayMetrics()
             );
-            return layoutVerifier.verify(params);
+            return withWarnings(layoutVerifier.verify(params), snapshot);
         } catch (Throwable t) {
             LogUtils.e(TAG, "doVerify failed", t);
             return error("verify failed: " + t.getMessage(), null);
@@ -390,7 +392,8 @@ public class ViewHierarchyServer {
                 return error("eval_view requires non-empty 'expressions' array.", null);
             }
 
-            ElementFinder elementFinder = captureFinder(true);
+            DragonflyHierarchySource.Snapshot snapshot = hierarchySource.capture(true);
+            ElementFinder elementFinder = new ElementFinder(snapshot);
             List<MatchedElement> matches = elementFinder.findInspectable(
                 text, resourceId, contentDesc, className, true);
 
@@ -402,8 +405,8 @@ public class ViewHierarchyServer {
                     candidatesArray.put(c.toMatchedElementJson());
                 }
                 data.put("candidates", candidatesArray);
-                return error("No matching element found for selector {"
-                    + describeSelector(targetObj) + "}.", data);
+                return missingElement("No matching element found for selector {"
+                    + describeSelector(targetObj) + "}.", withWarnings(data, snapshot), snapshot);
             }
             if (matches.size() > 1) {
                 JSONObject data = new JSONObject();
@@ -413,6 +416,7 @@ public class ViewHierarchyServer {
                 }
                 data.put("matchCount", matches.size());
                 data.put("matches", matchesArray);
+                withWarnings(data, snapshot);
                 return error("Multiple elements matched (" + matches.size()
                     + "). Narrow the selector or add className.", data);
             }
@@ -453,6 +457,7 @@ public class ViewHierarchyServer {
                 data.put("source", source);
             }
             data.put("values", values);
+            withWarnings(data, snapshot);
             return ok(data);
 
         } catch (Throwable t) {
@@ -483,8 +488,16 @@ public class ViewHierarchyServer {
         return sb.toString();
     }
 
-    private ElementFinder captureFinder(boolean topWindowOnly) {
-        return new ElementFinder(hierarchySource.capture(topWindowOnly));
+    private JSONObject withWarnings(JSONObject data, DragonflyHierarchySource.Snapshot snapshot) throws Exception {
+        List<String> warnings = snapshot.warnings();
+        if (!warnings.isEmpty()) data.put("warnings", new JSONArray(warnings));
+        return data;
+    }
+
+    private JSONObject missingElement(String message, JSONObject data, DragonflyHierarchySource.Snapshot snapshot) {
+        List<String> warnings = snapshot.warnings();
+        if (warnings.isEmpty()) return error(message, data);
+        return error("UI_HIERARCHY_INCOMPLETE: " + TextUtils.join("; ", warnings), data);
     }
 
     private JSONObject buildElementsData(List<MatchedElement> matches) throws Exception {

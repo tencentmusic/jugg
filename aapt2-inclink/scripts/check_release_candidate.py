@@ -30,7 +30,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('candidate', type=pathlib.Path)
     parser.add_argument('--reference', type=pathlib.Path,
-                        default=ROOT / 'src/main/resources/tools/darwin/aapt2-inclink-2.19.16')
+                        default=ROOT / 'src/main/resources/tools/darwin/aapt2-inclink')
     args = parser.parse_args()
     candidate = args.candidate.resolve()
     reference = args.reference.resolve()

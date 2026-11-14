@@ -19,10 +19,11 @@ import kotlin.test.*
 
 /** Connects user edits and durable project effects to real deployment orchestration. */
 class SettingsDeployFlowTest {
+    @get:org.junit.Rule
+    val settingsFileRule = com.sickworm.intellij.jugg.mock.SettingsFileRule()
     @Test fun `compat edit requires reinstall after canceled and failed deployment`() {
         val previousRoot = JuggGlobalPathManager.rootDir
         val root = Files.createTempDirectory("settings-deploy-flow").toFile()
-        JuggGlobalPathManager.rootDir = root.resolve("global")
         try {
             DeployFlowMockBackend.initSettings()
             val paths = JuggPathManager(root.resolve("project").apply { mkdirs() })
@@ -41,7 +42,7 @@ class SettingsDeployFlowTest {
             assertCanceled(fixture)
             assertTrue(history().isCleanAndReinstall)
             Mockito.mockConstruction(CustomApkInstallScriptRunner::class.java) { runner, _ ->
-                Mockito.doThrow(IllegalStateException("Settings flow install failed")).`when`(runner).run(any())
+                Mockito.doThrow(IllegalStateException("Settings flow install failed")).`when`(runner).run(any(), any())
             }.use {
                 val failed = fixture.helper.deploy(fixture.deployOptions.copy(customApkInstallScript = "./install.sh"))
                 assertFalse(failed.isSuccess)
@@ -53,7 +54,6 @@ class SettingsDeployFlowTest {
             assertTrue(fixture.virtualDevice.installInvokeCount > 0)
             assertFalse(history().isCleanAndReinstall)
         } finally {
-            JuggGlobalPathManager.rootDir = previousRoot
             JuggSettings.reload()
             root.deleteRecursively()
         }

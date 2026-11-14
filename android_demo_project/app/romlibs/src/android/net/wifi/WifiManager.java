@@ -6,6 +6,16 @@ package android.net.wifi;
  */
 public class WifiManager {
 
+    public interface ActionListener {}
+
+    public void connect(int networkId, ActionListener listener) {}
+
+    public void forget(int networkId, ActionListener listener) {}
+
+    public void disconnectForNetId(int networkId) {}
+
+    public void ipConfigurationLostReceived(int networkId) {}
+
     public abstract static class SoftApCallback {
 
         public void onStateChanged(int state, int failureReason) {
