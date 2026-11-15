@@ -108,6 +108,9 @@ class FileChangeManager(
             "[PERF] FileChangeManager.processFileChanges source=$source, " +
                 "changedSize=${changedFiles.size}, deletedSize=${deletedFiles.size}"
         )
+        // Deletion events currently only remove queued inputs. FileChangesHandler can classify
+        // deleted prerequisite triggers, but deletedFiles do not reach that classifier here, so
+        // these events do not automatically request the full Gradle baseline needed for removal.
         if (deletedFiles.isNotEmpty()) {
             deployFileManager.removeChangedFile(deletedFiles)
         }
