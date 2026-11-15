@@ -201,9 +201,10 @@ class NativeSandboxWriter(
             val target = "$OVERLAY_ROOT/${file.path}"
             val pending = "$TEMP_ROOT/${request.sessionId}/pending/${file.path}"
             val backup = "$TEMP_ROOT/${request.sessionId}/backup/${file.path}"
-            "mkdir -p ${target.substringBeforeLast('/')} ${backup.substringBeforeLast('/')} && " +
-                "if [ -e $target ]; then mv $target $backup; fi && " +
-                "touch $backup.published && mv $pending $target"
+            // set -e ignores failures inside && chains; each mutation must stop before the success marker.
+            "mkdir -p ${target.substringBeforeLast('/')} ${backup.substringBeforeLast('/')} || exit 1; " +
+                "if [ -e $target ]; then mv $target $backup || exit 1; fi; " +
+                "touch $backup.published || exit 1; mv $pending $target || exit 1"
         }
         val output = try {
             sandbox.execNoFallback("set -e; $commands; echo \"$MARKER OK\"", repairCodeCache = true)
