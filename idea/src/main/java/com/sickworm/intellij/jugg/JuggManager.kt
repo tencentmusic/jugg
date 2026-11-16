@@ -258,6 +258,13 @@ class JuggManager @TestOnly constructor(
                 ExpiredArtifactCleaner.cleanupExpiredFiles(pathManager.investigationDir,
                     logger.getInstance("InvestigationCleaner"), retentionDays = 30)
             }
+            taskRunnerManager.runBackgroundSafe("Cleanup deploy resources", delayMs = 120_000) {
+                ExpiredArtifactCleaner.cleanupExpiredFiles(
+                    JuggGlobalPathManager.resourceFile("deploy"),
+                    logger.getInstance("DeployResourceCleaner"),
+                    retentionDays = 30,
+                )
+            }
         })
     }
 
