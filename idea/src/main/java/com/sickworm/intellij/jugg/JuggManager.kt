@@ -240,30 +240,8 @@ class JuggManager @TestOnly constructor(
                     .onFailure { logger.warn("Auto update Jugg standalone failed", it) }
                 JuggCliAutoUpdater.checkAndUpdate(logger.getInstance("JuggCliAutoUpdater"))
             }
-            taskRunnerManager.runBackgroundSafe("Cleanup mcp fetch cache", delayMs = 120_000) {
-                ExpiredArtifactCleaner.cleanupExpiredFiles(
-                    pathManager.mcpFetchDir,
-                    logger.getInstance("McpArtifactCleaner"),
-                    retentionDays = 30,
-                )
-            }
-            taskRunnerManager.runBackgroundSafe("Cleanup diagnostics cache", delayMs = 120_000) {
-                ExpiredArtifactCleaner.cleanupExpiredFiles(
-                    pathManager.diagnosticsDir,
-                    logger.getInstance("DiagnosticsCleaner"),
-                    retentionDays = 7,
-                )
-            }
-            taskRunnerManager.runBackgroundSafe("Cleanup investigation snapshots", delayMs = 120_000) {
-                ExpiredArtifactCleaner.cleanupExpiredFiles(pathManager.investigationDir,
-                    logger.getInstance("InvestigationCleaner"), retentionDays = 30)
-            }
-            taskRunnerManager.runBackgroundSafe("Cleanup deploy resources", delayMs = 120_000) {
-                ExpiredArtifactCleaner.cleanupExpiredFiles(
-                    JuggGlobalPathManager.resourceFile("deploy"),
-                    logger.getInstance("DeployResourceCleaner"),
-                    retentionDays = 30,
-                )
+            taskRunnerManager.runBackgroundSafe("Cleanup Jugg artifacts", delayMs = 120_000) {
+                JuggArtifactCleanupManager(pathManager, logger.getInstance("JuggArtifactCleaner")).cleanup()
             }
         })
     }
