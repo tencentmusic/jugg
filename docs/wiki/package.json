@@ -3,8 +3,8 @@
   "private": true,
   "scripts": {
     "dev": "vitepress dev .",
-    "build": "vitepress build .",
-    "check:homepage": "vitepress build . && node scripts/check-homepage-render.mjs",
+    "build": "vitepress build . && node scripts/generate-redirects.mjs",
+    "check:homepage": "vitepress build . && node scripts/generate-redirects.mjs && node scripts/check-homepage-render.mjs",
     "preview": "vitepress preview ."
   },
   "devDependencies": {

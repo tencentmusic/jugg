@@ -19,7 +19,10 @@
 |---|---|
 | `docs/wiki/package.json` | Wiki 开发、打包、产物预览的 npm scripts 入口；后续 npm 操作都在 `docs/wiki` 下执行。 |
 | `docs/wiki/.vitepress/config.mts` | VitePress 站点配置，包含 base/nav/sidebar/search、GA4 首屏统计和 dev-only 页面排除。 |
-| `docs/wiki/.vitepress/theme/index.ts` | 继承 VitePress 默认主题、加载现有样式，并在浏览器端补充 GA4 单页路由统计。 |
+| `docs/wiki/.vitepress/theme/index.ts` | 继承 VitePress 默认主题、加载现有样式，配置自定义 NotFound 插槽并在浏览器端补充 GA4 单页路由统计。 |
+| `docs/wiki/.vitepress/theme/NotFound.vue` | 自定义 404 组件，提供客户端智能路径重定向与友好引导。 |
+| `docs/wiki/scripts/redirect-rules.mjs` | Wiki 历史路径与 404 智能重定向规则定义。 |
+| `docs/wiki/scripts/generate-redirects.mjs` | 打包完成后在 `.vitepress/dist` 生成静态 HTML 重定向文件，解决历史链接与末尾斜杠 404。 |
 | `.agents/skills/wiki-writer/scripts/validate_wiki.py` | 检查中英文 Markdown 路径、nav/sidebar 路由顺序、相对链接、配置路由和构建产物。 |
 | `.github/workflows/wiki-pages.yml` | `main` 分支 Wiki 变更触发 GitHub Pages 构建与发布，部署成功后通知 IndexNow。 |
 | `docs/wiki/scripts/submit-indexnow.mjs` | 从本次变更的 Markdown 路径计算 Wiki URL，首次接入和手工发布时从仓库内公开页面批量提交。 |

@@ -17,18 +17,18 @@ It does not generate a complete APK. Except for recognized Flutter/native extern
 
 | Page | Content |
 |---|---|
-| [Source incremental compilation](./source.md) | Java, Kotlin, DEX, and default method handling when desugaring is disabled. |
-| [KMP source incremental compilation](./kmp-source.md) | How the Gradle compilation model supplies KMP `expect` / `actual` and intermediate source set source code. |
-| [Recompilation](./recompile-propagation.md) | How class structures and the reference index drive additional source compilation after the first pass. |
-| [Constant reference analysis](./const-ref.md) | How users of Java/Kotlin compile-time constants are recompiled after a constant changes. |
-| [Resource incremental compilation](./resource.md) | aapt2 compile / link, Jugg's customized `inclink` in-memory cache, resource table loading, and resource overlays. |
-| [Compose Multiplatform resources](./compose-multiplatform-resource.md) | Accessor generation, complete resource context, incremental deployment, and runtime restart boundaries. |
-| [DataBinding / ViewBinding](./databinding-viewbinding.md) | Layout splitting, base classes, mapper, BR, and two-stage processing. |
-| [Android Manifest compilation](./manifest.md) | Merged manifest baseline, incremental patching, and full merge boundaries. |
-| [Release incremental compilation](./release-compile.md) | Experimental mapping remapping, inline handling, and removed-member compensation. |
-| [Assets and native libraries](./assets-native.md) | Asset overlays and native libraries whose deployment path depends on the SO hot update setting. |
-| [Dependency incremental compilation](./dependency-incremental.md) | Build file confirmation, dependency change comparison, differential compilation of changed libraries, and deployment handling. |
-| [Custom compiler](./custom-compiler.md) | Custom compiler loading, extension insertion points, and hook semantics. |
+| [Source incremental compilation](/concepts/incremental-compile/source) | Java, Kotlin, DEX, and default method handling when desugaring is disabled. |
+| [KMP source incremental compilation](/concepts/incremental-compile/kmp-source) | How the Gradle compilation model supplies KMP `expect` / `actual` and intermediate source set source code. |
+| [Recompilation](/concepts/incremental-compile/recompile-propagation) | How class structures and the reference index drive additional source compilation after the first pass. |
+| [Constant reference analysis](/concepts/incremental-compile/const-ref) | How users of Java/Kotlin compile-time constants are recompiled after a constant changes. |
+| [Resource incremental compilation](/concepts/incremental-compile/resource) | aapt2 compile / link, Jugg's customized `inclink` in-memory cache, resource table loading, and resource overlays. |
+| [Compose Multiplatform resources](/concepts/incremental-compile/compose-multiplatform-resource) | Accessor generation, complete resource context, incremental deployment, and runtime restart boundaries. |
+| [DataBinding / ViewBinding](/concepts/incremental-compile/databinding-viewbinding) | Layout splitting, base classes, mapper, BR, and two-stage processing. |
+| [Android Manifest compilation](/concepts/incremental-compile/manifest) | Merged manifest baseline, incremental patching, and full merge boundaries. |
+| [Release incremental compilation](/concepts/incremental-compile/release-compile) | Experimental mapping remapping, inline handling, and removed-member compensation. |
+| [Assets and native libraries](/concepts/incremental-compile/assets-native) | Asset overlays and native libraries whose deployment path depends on the SO hot update setting. |
+| [Dependency incremental compilation](/concepts/incremental-compile/dependency-incremental) | Build file confirmation, dependency change comparison, differential compilation of changed libraries, and deployment handling. |
+| [Custom compiler](/concepts/incremental-compile/custom-compiler) | Custom compiler loading, extension insertion points, and hook semantics. |
 
 ## Main flow
 
@@ -93,11 +93,11 @@ After Gradle fallback succeeds, Jugg recollects build artifacts and refreshes th
 
 ## Related pages
 
-- [Compilation stages](../../guide/compile.md)
-- [Compilation capabilities](../../capabilities/compile/)
-- [Compilation orchestration](../compile-pipeline.md)
-- [Deployment data and impact analysis](../deploy-data-and-impact.md)
-- [Gradle fallback and baseline rebuild](../gradle-fallback-baseline.md)
-- [Source compilation capability](../../capabilities/compile/source-compile.md)
-- [Resource compilation capability](../../capabilities/compile/resource-compile.md)
-- [DataBinding / ViewBinding capability](../../capabilities/compile/databinding-viewbinding.md)
+- [Compilation stages](/guide/compile)
+- [Compilation capabilities](/capabilities/compile/)
+- [Compilation orchestration](/concepts/compile-pipeline)
+- [Deployment data and impact analysis](/concepts/deploy-data-and-impact)
+- [Gradle fallback and baseline rebuild](/concepts/gradle-fallback-baseline)
+- [Source compilation capability](/capabilities/compile/source-compile)
+- [Resource compilation capability](/capabilities/compile/resource-compile)
+- [DataBinding / ViewBinding capability](/capabilities/compile/databinding-viewbinding)

@@ -14,24 +14,24 @@ tags:
 
 | 你想做什么 | 推荐页面 | 适合场景 |
 |---|---|---|
-| 修改代码或资源后运行 App | [运行 App](./run.md) | 点击 Jugg Run 后，一次完成编译、部署、启动和结果判断 |
-| 没有文件变化但想重新构建 | [降级 Gradle 编译](./downgrade-gradle.md) | 处理无文件变化运行降级、主动点击降级按钮、依赖变化弹窗、源码过多确认 |
-| 把本轮增量结果导成 APK | [导出增量 APK](./export-incremental-apk.md) | 从降级确认弹窗导出已编译的增量 APK |
-| 不重新编译，只重启当前 App | [重启 App](./restart-app.md) | 验证启动逻辑、缓存、单例、static / companion 变化 |
-| 清理 App 数据并重装 | [清理数据](./clean-data.md) | 需要干净安装现场，或设备部署状态需要重建 |
-| 同时跑多台设备 | [多设备选择](./multi-device.md) | 编译一次，按 Android Studio 设备选择逐台部署 |
-| 更新桌面小组件或通知 RemoteViews | [Android RemoteViews](./android-remoteviews.md) | 增量变化需要写入 APK 内容才能被系统读取 |
-| 某台设备部署反复失败 | [设备兼容部署](./compat-device.md) | 为指定设备改用兼容热修复路径 |
-| 进入断点调试 | [Debug](./debug.md) | 点击 Debug 后，让 Jugg 完成编译部署，并接入 Android Studio Java debugger |
-| 跑 `src/androidTest` 测试 | [Android Test](./android-test.md) | 从 gutter、Run Configuration 或 CLI 运行 instrumentation 测试 |
-| 在终端或 Agent 中使用 Jugg | [CLI](./cli.md) | 使用 `jugg compile`、`deploy`、`instrument`、UI 工具和日志命令 |
-| 配置 MCP | [MCP](./mcp.md) | 了解 MCP 的公开能力、端口、返回模型和为什么多数场景更推荐 CLI |
-| 导出布局、定位元素、点击设备 | [UI 检查](./ui-inspection.md) | 给 Agent 或脚本提供 UI 层级、属性查询和触控能力 |
-| 使用云开发机/远端构建 | [远端 Gradle](./remote-gradle.md) | 本地只保留 IDE 与部署，Gradle 构建在远端执行 |
-| 扩展编译阶段 | [自定义编译器](./custom-compiler.md) | 接入业务专用生成、转换或校验逻辑 |
-| 调整 More Options 开关 | [高级选项](./advanced-options.md) | 查看运行策略、工具入口和内部排查项的作用 |
-| 上传问题日志 | [报告问题](./report-issue.md) | 增量编译、部署或运行结果异常时，上传日志并获取 Issue ID |
-| 自建配置、更新和事件上报后台 | [Jugg 后台](./jugg-backend/) | 集中下发项目配置、插件升级、热更新和使用情况事件 |
+| 修改代码或资源后运行 App | [运行 App](/zh/guide/run) | 点击 Jugg Run 后，一次完成编译、部署、启动和结果判断 |
+| 没有文件变化但想重新构建 | [降级 Gradle 编译](/zh/guide/downgrade-gradle) | 处理无文件变化运行降级、主动点击降级按钮、依赖变化弹窗、源码过多确认 |
+| 把本轮增量结果导成 APK | [导出增量 APK](/zh/guide/export-incremental-apk) | 从降级确认弹窗导出已编译的增量 APK |
+| 不重新编译，只重启当前 App | [重启 App](/zh/guide/restart-app) | 验证启动逻辑、缓存、单例、static / companion 变化 |
+| 清理 App 数据并重装 | [清理数据](/zh/guide/clean-data) | 需要干净安装现场，或设备部署状态需要重建 |
+| 同时跑多台设备 | [多设备选择](/zh/guide/multi-device) | 编译一次，按 Android Studio 设备选择逐台部署 |
+| 更新桌面小组件或通知 RemoteViews | [Android RemoteViews](/zh/guide/android-remoteviews) | 增量变化需要写入 APK 内容才能被系统读取 |
+| 某台设备部署反复失败 | [设备兼容部署](/zh/guide/compat-device) | 为指定设备改用兼容热修复路径 |
+| 进入断点调试 | [Debug](/zh/guide/debug) | 点击 Debug 后，让 Jugg 完成编译部署，并接入 Android Studio Java debugger |
+| 跑 `src/androidTest` 测试 | [Android Test](/zh/guide/android-test) | 从 gutter、Run Configuration 或 CLI 运行 instrumentation 测试 |
+| 在终端或 Agent 中使用 Jugg | [CLI](/zh/guide/cli) | 使用 `jugg compile`、`deploy`、`instrument`、UI 工具和日志命令 |
+| 配置 MCP | [MCP](/zh/guide/mcp) | 了解 MCP 的公开能力、端口、返回模型和为什么多数场景更推荐 CLI |
+| 导出布局、定位元素、点击设备 | [UI 检查](/zh/guide/ui-inspection) | 给 Agent 或脚本提供 UI 层级、属性查询和触控能力 |
+| 使用云开发机/远端构建 | [远端 Gradle](/zh/guide/remote-gradle) | 本地只保留 IDE 与部署，Gradle 构建在远端执行 |
+| 扩展编译阶段 | [自定义编译器](/zh/guide/custom-compiler) | 接入业务专用生成、转换或校验逻辑 |
+| 调整 More Options 开关 | [高级选项](/zh/guide/advanced-options) | 查看运行策略、工具入口和内部排查项的作用 |
+| 上传问题日志 | [报告问题](/zh/guide/report-issue) | 增量编译、部署或运行结果异常时，上传日志并获取 Issue ID |
+| 自建配置、更新和事件上报后台 | [Jugg 后台](/zh/guide/jugg-backend/) | 集中下发项目配置、插件升级、热更新和使用情况事件 |
 
 ## 一次普通开发循环
 
@@ -59,21 +59,21 @@ tags:
 
 ## 相关页面
 
-- [运行 App](./run.md)
-- [降级 Gradle 编译](./downgrade-gradle.md)
-- [导出增量 APK](./export-incremental-apk.md)
-- [重启 App](./restart-app.md)
-- [清理数据](./clean-data.md)
-- [多设备选择](./multi-device.md)
-- [Android RemoteViews](./android-remoteviews.md)
-- [设备兼容部署](./compat-device.md)
-- [实现原理](../concepts/)
-- [Jugg 工作原理](../concepts/how-jugg-works.md)
-- [Gradle 回退与基线重建](../concepts/gradle-fallback-baseline.md)
-- [Jugg 能力概览](../capabilities/)
-- [高级选项](./advanced-options.md)
-- [报告问题](./report-issue.md)
-- [编译失败](../troubleshooting/compile-failed.md)
-- [改动没有生效](../troubleshooting/changes-not-applied.md)
-- [无法安装、启动或进入 Debug](../troubleshooting/app-cannot-run.md)
-- [日志文件](../reference/log-files.md)
+- [运行 App](/zh/guide/run)
+- [降级 Gradle 编译](/zh/guide/downgrade-gradle)
+- [导出增量 APK](/zh/guide/export-incremental-apk)
+- [重启 App](/zh/guide/restart-app)
+- [清理数据](/zh/guide/clean-data)
+- [多设备选择](/zh/guide/multi-device)
+- [Android RemoteViews](/zh/guide/android-remoteviews)
+- [设备兼容部署](/zh/guide/compat-device)
+- [实现原理](/zh/concepts/)
+- [Jugg 工作原理](/zh/concepts/how-jugg-works)
+- [Gradle 回退与基线重建](/zh/concepts/gradle-fallback-baseline)
+- [Jugg 能力概览](/zh/capabilities/)
+- [高级选项](/zh/guide/advanced-options)
+- [报告问题](/zh/guide/report-issue)
+- [编译失败](/zh/troubleshooting/compile-failed)
+- [改动没有生效](/zh/troubleshooting/changes-not-applied)
+- [无法安装、启动或进入 Debug](/zh/troubleshooting/app-cannot-run)
+- [日志文件](/zh/reference/log-files)
