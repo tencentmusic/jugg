@@ -481,8 +481,9 @@ def launch_standalone(project_dir: str) -> StandaloneLaunch:
     command = [str(launcher)] + (["--project-dir", project_dir] if project_dir else [])
     if sys.platform == "win32" and launcher.suffix.lower() in (".bat", ".cmd"):
         command = ["cmd", "/c", *command]
-    startup_log = (Path(project_dir) / "build" / "jugg" / "log" / "standlone_cli" / "standalone_startup.log"
-                   if project_dir else _cache_dir() / "standalone_startup.log")
+    # The JVM redirects startup output through FileLogger, whose active generation is .0.log.
+    startup_log = (Path(project_dir) / "build" / "jugg" / "log" / "standlone_cli" / "standalone_startup.0.log"
+                   if project_dir else _cache_dir() / "standalone_startup.0.log")
     startup_log.parent.mkdir(parents=True, exist_ok=True)
     popen_args = {"stdin": subprocess.DEVNULL, "close_fds": True}
     creation_flags = 0

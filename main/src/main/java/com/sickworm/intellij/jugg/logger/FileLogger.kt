@@ -226,6 +226,10 @@ class FileLogger(
 
     companion object {
 
+        fun createStartupLogger(dir: File): FileLogger {
+            return FileLogger(dir, 50 * 1024 * 1024, 2, "standalone_startup.%g.log")
+        }
+
         private const val LATEST_LOG_NAME = "compile_latest.log"
         private const val LAST_LATEST_LOG_NAME = "compile_latest-1.log"
         private const val DEFAULT_LIMIT_BYTES = 50 * 1024 * 1024

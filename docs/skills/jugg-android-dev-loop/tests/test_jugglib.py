@@ -420,7 +420,7 @@ class ResolvePortTest(unittest.TestCase):
     def test_resolve_port_reports_standalone_process_startup_failure(self):
         project_dir = os.path.join(self.tmp, "project")
         os.makedirs(project_dir)
-        startup_log = Path(project_dir) / "build" / "jugg" / "log" / "standlone_cli" / "standalone_startup.log"
+        startup_log = Path(project_dir) / "build" / "jugg" / "log" / "standlone_cli" / "standalone_startup.0.log"
         startup_log.parent.mkdir(parents=True)
         startup_log.write_text("IllegalStateException: standalone protocol mismatch\n")
 

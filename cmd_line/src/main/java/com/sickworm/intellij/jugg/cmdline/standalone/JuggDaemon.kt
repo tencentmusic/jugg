@@ -6,6 +6,8 @@ import com.sickworm.intellij.jugg.project.runtime.RuntimeInfo
 import com.sickworm.intellij.jugg.runtime.PluginInfoReader
 import java.io.File
 import com.sickworm.intellij.jugg.project.runtime.JuggProcessLease
+import com.sickworm.intellij.jugg.logger.FileLogger
+import com.sickworm.intellij.jugg.logger.LoggerPrintStream
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -66,11 +68,25 @@ fun main(args: Array<String>) {
 
 internal fun runStandaloneDaemon(args: Array<String>) {
     val projectDirs = parseProjectDirs(args)
+    val startupLogger = projectDirs.firstOrNull()?.let { projectDir ->
+        FileLogger.createStartupLogger(com.sickworm.intellij.jugg.project.runtime.JuggPathManager(projectDir).standaloneCliLogDir)
+    }
+    startupLogger?.let {
+        System.setOut(LoggerPrintStream(it.logger))
+        System.setErr(LoggerPrintStream(it.logger))
+    }
     val daemon = JuggDaemon()
-    Runtime.getRuntime().addShutdownHook(Thread(daemon::close, "jugg-standalone-shutdown"))
-    val port = daemon.start(projectDirs)
-    println("Jugg standalone daemon started on port $port")
-    daemon.awaitTermination()
+    Runtime.getRuntime().addShutdownHook(Thread({
+        daemon.close()
+        startupLogger?.dispose()
+    }, "jugg-standalone-shutdown"))
+    try {
+        val port = daemon.start(projectDirs)
+        println("Jugg standalone daemon started on port $port")
+        daemon.awaitTermination()
+    } finally {
+        startupLogger?.dispose()
+    }
 }
 
 private fun parseProjectDirs(args: Array<String>): List<File> {
