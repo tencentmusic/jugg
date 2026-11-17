@@ -68,12 +68,12 @@ class CmdLineContextManager(
 
     lateinit var compileContext: ICompileContext
 
-    fun init(): ICompileContext {
-        compileContext = createCompileContext()
+    fun init(initializeApkData: Boolean = true): ICompileContext {
+        compileContext = createCompileContext(initializeApkData)
         return compileContext
     }
 
-    private fun createCompileContext(): ICompileContext {
+    private fun createCompileContext(initializeApkData: Boolean): ICompileContext {
         val envValue = System.getenv("ANDROID_HOME")
             ?: throw IncrementalException("Environment variable ANDROID_HOME is not set.")
         val androidHome = File(envValue)
@@ -208,7 +208,9 @@ class CmdLineContextManager(
         )
 
         fileChangesHandler.init(baseContext)
-        deployFileManager.init(baseContext.apkInfos, emptyList(), null)
+        if (initializeApkData) {
+            deployFileManager.init(baseContext.apkInfos, emptyList(), null)
+        }
         return baseContext
     }
 

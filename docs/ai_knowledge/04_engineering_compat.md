@@ -147,6 +147,10 @@ CI 命令行把构建拆成两个可审计阶段：
 
 `CiProjectInfo` 合并主快照和 `gradle_include_builds.txt` 引用的 included-build 快照；快照从清单同目录读取，支持基线归档移动。同根模块保留主快照中的备份路径，同名不同根模块明确失败。完整基线据此备份所有模块并通过既有 deploy history 记录外部仓库提交，查询和增量恢复复用相同模型。旧单仓库基线继续可用；检测到外部仓库但缺少对应基线提交或仓库不可用时，查询明确失败。查询只比较提交，工作区干净检查由 CI 编排执行。业务方可复用现有 Gradle 入口刷新这份基线，正常的外部源码变更继续保留增量路径。
 
+`getChangedFiles` 初始化文件识别上下文时跳过 `deployFileManager.init`，不解析 APK 或更新 APK 数据库；提交范围相同时跳过仓库 diff。`CmdLineContextManager.init()` 的默认构建路径继续初始化 APK 数据，查询使用 `initializeApkData = false`。查询仍需基线 project info、compile context 和 history，不能用任意空目录代替完整基线。
+
+多仓库基线选择由业务编排组织：PUT 附带 `repositories: [{gitRoot, commit}]`，从已生成基线 history 读取并校验，保留主仓库 `baseCommit`。分别以每个仓库当前提交调用 `findNearestBaseCommit`，将命中提交映射回完整记录并按 ID 去重，三仓首轮最多三个候选。同提交记录按服务 `uploadedAt` 倒序取第一份；记录上传顺序不作为各仓库源码版本的总顺序。每轮先排除 BuildFile、未过滤 Unknown 及业务规则拒绝的候选，再选有效文件最少的一份；本轮全部拒绝才移除已尝试记录继续向前查询，最终无可用候选才走 Gradle。每份候选使用独立基线目录，并核对记录仓库提交与 ZIP 内 history 一致。Android_Demo 的 `scripts/jugg_ci/build.py` 实施该策略；Jugg 保留单仓 first-parent 查询原契约，业务策略不进入 GitManager。旧记录没有仓库集合时保留主仓库选择路径，由下载后的 history 决定是否可复用。
+
 ---
 
 ### 4.3 CI 接入编排

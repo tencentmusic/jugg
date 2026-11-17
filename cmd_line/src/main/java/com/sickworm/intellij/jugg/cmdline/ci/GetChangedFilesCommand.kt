@@ -33,7 +33,8 @@ object GetChangedFilesCommand {
         val scope = CoroutineScope(Dispatchers.IO)
         val manager = CmdLineContextManager(JuggPathManager(source, baseRoot), scope, CmdLineLogger.stdLogger)
         try {
-            val context = manager.init()
+            // File classification only needs the project model, not APK parsing or database writes.
+            val context = manager.init(initializeApkData = false)
             val result = collect(source, baseRoot, params.req("baseCommit"), params.req("targetCommit"),
                 context.modules.values.map { it.moduleRootDir }, manager.fileChangesHandler)
             write(File(params.req("output")), result)
@@ -51,7 +52,9 @@ object GetChangedFilesCommand {
                          moduleRoots: List<File>, handler: IFileChangesHandler): ChangedFilesDocument {
         val repositories = repositories(source, baseRoot, base, target, moduleRoots)
         val filesWithRoots = repositories.flatMap { repo ->
-            GitManager(File(repo.gitRoot)).getChangedFiles(repo.baseCommit, repo.targetCommit).map { it to repo.gitRoot }
+            if (repo.baseCommit == repo.targetCommit) emptyList() else {
+                GitManager(File(repo.gitRoot)).getChangedFiles(repo.baseCommit, repo.targetCommit).map { it to repo.gitRoot }
+            }
         }.distinctBy { it.first.absolutePath }
         val recognized = handler.filter(filesWithRoots.map { it.first }).associateBy { it.file.absolutePath }
         val entries = filesWithRoots.map { (file, root) ->
