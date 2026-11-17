@@ -89,14 +89,14 @@ class IdeaForceGradleCompileHelper(
             content,
             okButtonText = "Yes",
             negativeButtonText = "No",
-            leftButtonText = "Clean And Reinstall",
+            leftButtonText = "Just clean reinstall APK",
             linkActions = listOf(
                 CommonConfirmDialog.CustomLinkAction("Export incremental APK") {
                     ExportIncrementalApkHelper(project, taskRunnerManager, deployFileManager, logger)
                         .exportIncrementalApk(it, compileContextManager.compileContext)
                 }
             ),
-            checkBoxText = "clean gradle cache on fallback",
+            checkBoxText = "Clean Gradle cache on fallback",
             checkBoxSelectionAction = { isGradleCacheRefreshRequested = it },
         )
         recordFallbackConfirm(confirmResult)
@@ -210,14 +210,14 @@ class IdeaForceGradleCompileHelper(
                 .append(":").append(options.remoteSshPort).append("</html>")
         }
         val confirmed = CommonConfirmDialog.showAndGetResult(
-            title = "Confirm Remote SSH Info Access",
+            title = "Confirm remote SSH info access",
             content = confirmContent,
             okButtonText = "Allow",
             cancelButtonText = "Deny",
         )
         userActions?.recordUserAction(
             action = if (confirmed) "confirmed" else "canceled",
-            title = "Confirm Remote SSH Info Access",
+            title = "Confirm remote SSH info access",
             status = if (confirmed) JuggEvent.Status.SUCCEEDED else JuggEvent.Status.CANCELED,
         )
         if (!confirmed) {

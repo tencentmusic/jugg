@@ -74,14 +74,14 @@ open class JuggCompileUiHandler(
             return ConfirmResult.NEGATIVE
         }
         return recordConfirm(
-            "Confirm Fallback to Gradle",
+            "Confirm fallback to Gradle",
             CommonConfirmDialog.showAndGetOrCancel(
-                title = "Confirm Fallback to Gradle",
+                title = "Confirm fallback to Gradle",
                 content = "No file changes, do you want to fallback to gradle?",
                 okButtonText = "Fallback to Gradle",
                 negativeButtonText = "Don't fallback",
                 leftButtonText = "Cancel",
-                checkBoxText = "clean gradle cache on fallback",
+                checkBoxText = "Clean Gradle cache on fallback",
                 checkBoxSelectionAction = { isGradleCacheRefreshRequested = it },
             ),
         )
@@ -109,9 +109,9 @@ open class JuggCompileUiHandler(
             return ConfirmResult.POSITIVE
         }
         return recordConfirm(
-            "Embedded to APK is Enabled",
+            "Embedded to APK is enabled",
             CommonConfirmDialog.showAndGetOrCancel(
-                "Embedded to APK is Enabled",
+                "Embedded to APK is enabled",
                 "<html>Embedded to APK is enabled, which will cost more time to deploy.<br>Do you still need it?</html>",
                 okButtonText = "Yes, embed to APK",
                 negativeButtonText = "No, disable embedded mode",

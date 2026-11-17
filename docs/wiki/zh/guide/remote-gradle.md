@@ -48,7 +48,7 @@ macOS 上请选择该账号可写的同步目录，不要直接沿用 Linux 的 
 
 ## 控制同步排除内容
 
-Remote Compile Options 中的 `Exclude patterns` 会显示当前可配置排除列表。未修改时使用以下默认值：
+Remote compile options 中的 `Exclude patterns` 会显示当前可配置排除列表。未修改时使用以下默认值：
 
 ```text
 local.properties; .idea/; *.iml; .git/objects/; .git/modules/; .cxx/
@@ -78,7 +78,7 @@ local.properties; .idea/; *.iml; .git/objects/; .git/modules/; .cxx/
 
 ## 同步多个工程
 
-使用 iFT 或完整 `rsync` 模式时，可以在 Remote Compile Options 中打开：
+使用 iFT 或完整 `rsync` 模式时，可以在 Remote compile options 中打开：
 
 ```text
 Enable multiple projects mode (sync and fetch all projects in [Local to remote sync path])

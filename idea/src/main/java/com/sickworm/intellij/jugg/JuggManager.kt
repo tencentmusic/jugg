@@ -290,7 +290,7 @@ class JuggManager @TestOnly constructor(
 
         // check dependency again to avoid missing dependency(in ide little chance)
         if (isAfterSync) {
-            taskRunnerManager.runBackgroundSafe("Check Project Info Delay", delayMs = 5000L, isProjectWrite = true) {
+            taskRunnerManager.runBackgroundSafe("Check project info delay", delayMs = 5000L, isProjectWrite = true) {
                 updateProjectInfo(isAfterSync = false)
             }
         }
@@ -615,7 +615,7 @@ class JuggManager @TestOnly constructor(
     }
 
     private fun showRemoteCommandWarning(message: String) {
-        Messages.showWarningDialog(project, message, "Run Remote Command")
+        Messages.showWarningDialog(project, message, "Run remote command")
     }
 
     override fun restartApp() {
@@ -631,12 +631,12 @@ class JuggManager @TestOnly constructor(
     override fun resetJuggCache() {
         logger.info("[options] cleanAndResetJugg")
         val confirmed = CommonConfirmDialog.showAndGetResult(
-            "Confirm Clean and Reset Jugg",
+            "Confirm clean and reset Jugg",
             "<html>This will delete all cache files and reopen project.<br>Are you sure to continue?</html>"
         )
         controlPanelController.recordUserAction(
             action = if (confirmed) "confirmed" else "canceled",
-            title = "Clear Jugg Build",
+            title = "Clear Jugg build",
             status = if (confirmed) JuggEvent.Status.SUCCEEDED else JuggEvent.Status.CANCELED,
         )
         if (!confirmed) return
@@ -663,7 +663,7 @@ class JuggManager @TestOnly constructor(
     }
 
     override fun installSkills() {
-        controlPanelController.recordUserAction("Install CLI & Skill")
+        controlPanelController.recordUserAction("Install CLI & skill")
         InstallJuggSkillsDialog.installJuggMcpAndSkills(project, pathManager.projectDir, taskRunnerManager, logger)
     }
 
@@ -733,12 +733,12 @@ class JuggManager @TestOnly constructor(
             Messages.showWarningDialog(
                 project,
                 "Select a Jugg run configuration first.",
-                "Mark as Gradle Compiled"
+                "Mark as Gradle compiled"
             )
             return
         }
         logger.info("[test options] markAsGradleCompiledAndReInitCompiler")
-        taskRunnerManager.runTaskSafe("Mark as Gradle Compiled", {
+        taskRunnerManager.runTaskSafe("Mark as Gradle compiled", {
             dependencyChangeManager.onStartBuilding()
             val compileOptions = options.toCompileOptions(pathManager)
             val result = juggCompilerHelper.gradleCompile(
@@ -804,7 +804,7 @@ class JuggManager @TestOnly constructor(
     }
 
     override fun reportIssue() {
-        controlPanelController.recordUserAction("Report Issue")
+        controlPanelController.recordUserAction("Report issue")
         val destination = juggServer.issueReportDestination
         val progressDialog = ReportIssueProgressDialog("Preparing diagnostics...")
         taskRunnerManager.runBackgroundSafe("Prepare issue report") {
@@ -971,7 +971,7 @@ class JuggManager @TestOnly constructor(
 
     private fun handleFileChangeResult(result: FileChangeResult) {
         if (result.hasChanges && JuggSettings.compileOnSave) {
-            runTaskSafe("Compile Changes", ::compileChanges)
+            runTaskSafe("Compile changes", ::compileChanges)
         }
         controlPanelController.refresh()
     }
@@ -1015,7 +1015,7 @@ class JuggManager @TestOnly constructor(
     }
 
     private fun warmUpCompile() {
-        runTaskSafe("Warm Up Compile", {
+        runTaskSafe("Warm up compile", {
             juggCompilerHelper.warmUp()
         })
     }
@@ -1102,7 +1102,7 @@ class JuggManager @TestOnly constructor(
                 fun action() {
                     initIncrementalCompileAfterFullBuild(startCompileTime, options)
                 }
-                runTaskSafe("Init Incremental Compile", ::action)
+                runTaskSafe("Init incremental compile", ::action)
             }
             val task = JuggRunningTask(options, project, juggServer, deployTargetManager, dependencyChangeManager,
                 juggRunningTaskStatusManager, deployHistoryManager, juggCompilerHelper, juggDeployerHelper, initIncrementalCompileTask,

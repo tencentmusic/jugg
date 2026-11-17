@@ -21,10 +21,10 @@ tags:
 
 推荐使用以下任一入口：
 
-- 在 Android Studio 中双击 `Shift`，搜索并选择 `Report Jugg Issue`。
-- 打开 `Jugg Running Panel`，点击 `Report Issue`。
+- 在 Android Studio 中双击 `Shift`，搜索并选择 `Report Jugg issue`。
+- 打开 `Jugg Running Panel`，点击 `Report issue`。
 
-也可以从 Jugg Run Configuration 打开：
+也可以从 Jugg run configuration 打开：
 
 1. 打开 `Edit Configurations...`。
 2. 选择当前 Jugg 配置。
@@ -34,7 +34,7 @@ tags:
 
 1. 核对并选择诊断文件。Jugg 日志默认选中且不可取消；工程快照默认选中，但可以取消。
 2. 选择 `Upload logs` 上传，或勾选 `Save locally without uploading` 后创建本地诊断包。
-3. 上传完成后复制 Report ID；失败时可以点击 `Retry Upload`，或把保留的 zip 交给维护人员。
+3. 上传完成后复制 Report ID；失败时可以点击 `Retry upload`，或把保留的 zip 交给维护人员。
 
 确认窗口会展示公共上传地址 `https://jugg.sickworm.com/report_issue`。选择本地保存后，系统文件管理器会选中新生成的 zip。
 

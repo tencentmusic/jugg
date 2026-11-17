@@ -44,7 +44,7 @@ class FileChangeManagerDialog(
     private val content = JPanel(BorderLayout(JBUI.scale(8), JBUI.scale(8)))
 
     init {
-        title = "File Change Manager"
+        title = "File change manager"
         isModal = false
         setOKButtonText("Confirm")
         content.preferredSize = JBUI.size(600, 420)

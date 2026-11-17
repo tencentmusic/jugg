@@ -2,6 +2,8 @@
 
 ## Language and coding requirements
 
+- Use sentence case for English UI buttons, menus, dialog titles, labels, checkboxes, and messages. Preserve proper names and acronyms such as Jugg, Gradle, Android Studio, APK, CLI, and AI. Match UI names in user documentation; keep action IDs, configuration keys, and protocol fields unchanged.
+
 - Write code comments in English; Chinese comments are not allowed. Write current maintainer documentation in English in `docs/ai/`, the sole current knowledge base. Respond in Chinese when the user communicates in Chinese.
 - Write new Wiki facts in the English root page first, then synchronize the Chinese `docs/wiki/zh/` mirror in the same task. Keep both routes and structures aligned.
 - Keep code and structure as simple as possible (Occam's razor). Prefer the smallest direct implementation and avoid unnecessary cognitive load.

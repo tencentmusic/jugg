@@ -17,7 +17,7 @@ Jugg CLI 提供了在终端（Terminal）、CI 脚本或 AI Coding Agent 中直�
 CLI 推荐直接通过 Android Studio 界面进行安装与环境配置：
 
 1. 在 Android Studio 中双击 `Shift` 打开 **Search Everywhere**。
-2. 输入并搜索 `Install Jugg Skills`。
+2. 输入并搜索 `Install Jugg skills`。
 3. 在弹出的配置窗口中勾选需要的项：
    - **Install CLI to `$PATH`**：将 `jugg` 可执行脚本链接到系统 PATH（如 `~/.jugg/bin`）。
    - **当前已安装的 Agent**：自动将 `jugg-android-dev-loop` skill 注入到 Claude Code / Antigravity 等 AI 编程助手。

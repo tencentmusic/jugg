@@ -14,13 +14,13 @@ This page covers only cases where compilation and deployment complete, then the 
 
 ## Q: How can I preserve a crash and ask my Agent to investigate?
 
-Before rebuilding or reinstalling, click `Ask AI` in the `Jugg Plugin` group of `Jugg Running Panel`. Choose `Runtime crash`, describe the action that caused the crash and the expected and actual results, select the devices to collect logs from, and click `Save Evidence and Generate Prompt`.
+Before rebuilding or reinstalling, click `Ask AI` in the `Jugg plugin` group of `Jugg Running Panel`. Choose `Runtime crash`, describe the action that caused the crash and the expected and actual results, select the devices to collect logs from, and click `Save evidence and generate prompt`.
 
 Jugg saves the current logs, logcat for each device, and existing APKs and incremental deployment artifacts. Logcat includes the crash buffer but covers only recent logs still retained by the device. If a device disconnects or collection partly fails, other usable evidence is saved and the evidence manifest records missing items for the Agent to read using the path in the prompt.
 
 After collection, select `Copy prompt` and paste it into an Agent that can access the current Android project. The prompt directs the Agent to read the Jugg knowledge base and source code and report root-cause evidence, recommendations, and the next step if the problem persists. When an Issue is recommended, it provides a draft. The prompt explicitly permits cloning Jugg into a separate investigation directory and fetching when necessary; the investigation reads existing evidence only.
 
-Evidence is saved in a separate local directory, survives later builds and Clear Jugg Build, and is retained for 30 days by default. Collect it after the Jugg task finishes. Local deployment records and artifacts alone do not prove that the device loaded the same content.
+Evidence is saved in a separate local directory, survives later builds and Clear Jugg build, and is retained for 30 days by default. Collect it after the Jugg task finishes. Local deployment records and artifacts alone do not prove that the device loaded the same content.
 
 The prompt uses Markdown. It is generated in Chinese when the system language is Chinese, and in English otherwise. The Agent uses the same language for its analysis and Issue content. User descriptions and original logs retain their original text; dialog instructions always use English.
 
@@ -50,7 +50,7 @@ Some Android 11 OEM systems have compatibility problems with resource deployment
 1. Connect the affected device.
 2. Enable compatibility mode for that device in Jugg More Options.
 3. Run the current changes again.
-4. If the app still crashes, run Clean And Reinstall and verify again.
+4. If the app still crashes, run Just clean reinstall APK and verify again.
 
 Compatibility mode uses classic hot-fix deployment and persists the setting for that device.
 

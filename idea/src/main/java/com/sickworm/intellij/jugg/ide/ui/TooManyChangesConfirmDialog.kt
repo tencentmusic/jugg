@@ -94,7 +94,7 @@ class TooManyChangesConfirmDialog(
                     titleArg = "Too many changes for incremental compile",
                     content = buildContent(info),
                     fallbackButtonText = "Fallback to Gradle",
-                    continueButtonText = "Continue Incremental Compile",
+                    continueButtonText = "Continue incremental compile",
                 )
                 dialog.showAndGet()
             }

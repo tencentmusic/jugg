@@ -23,7 +23,7 @@ More Options contains less frequently used settings and tool entry points. This 
 
 | Option | Purpose |
 |---|---|
-| Install Jugg Skills | Install the Jugg CLI, agent skill, and hooks. |
+| Install Jugg skills | Install the Jugg CLI, agent skill, and hooks. |
 | Set custom server URL | Configure a custom Jugg backend URL for internal configuration, updates, or event reporting. |
 | Check updates | Check whether an update is available for the current plugin version. |
 | Clean and reset Jugg | Delete local Jugg caches and reopen the project; use when cache state is clearly abnormal. |

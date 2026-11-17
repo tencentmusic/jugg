@@ -30,7 +30,7 @@ tags:
 
 ## 在 Android Studio 里怎么操作
 
-1. 确认使用的是 Jugg Run Configuration，而不是原生 App configuration。
+1. 确认使用的是 Jugg run configuration，而不是原生 App configuration。
 2. 选择目标设备。普通 Run 可以选择多台设备；Debug 只选择一台。
 3. 保存或等待 Jugg 自动保存当前修改。
 4. 点击 Run，或使用 Android Studio 当前 Keymap 为 Run action 配置的快捷键。

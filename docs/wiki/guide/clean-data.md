@@ -27,7 +27,7 @@ A common entry point is the Gradle fallback confirmation dialog:
 
 ```text
 Confirm fallback
-  -> Clean And Reinstall
+  -> Just clean reinstall APK
 ```
 
 From the CLI, run:

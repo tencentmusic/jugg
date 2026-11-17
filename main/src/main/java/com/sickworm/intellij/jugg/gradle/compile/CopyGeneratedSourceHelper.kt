@@ -18,7 +18,7 @@ class CopyGeneratedSourceHelper(
 
     fun copy(modules: Map<String, ModuleInfo>) {
         logger.info("copyGeneratedSourceToLocal")
-        taskRunnerManager.runTaskSafe("Copy Generated Source to local", {
+        taskRunnerManager.runTaskSafe("Copy generated source to local", {
             calculateSyncToLocalPaths(modules.values).forEach { (fileOrDirInClasspath, fileOrDirInLocal) ->
                 logger.debug("Copy generated source from $fileOrDirInClasspath to $fileOrDirInLocal")
                 if (!fileOrDirInClasspath.exists()) {

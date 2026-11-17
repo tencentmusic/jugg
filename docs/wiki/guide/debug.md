@@ -28,7 +28,7 @@ Current limitations:
 ## How to use it
 
 1. Select only one target device.
-2. Select a Jugg Run Configuration.
+2. Select a Jugg run configuration.
 3. Click Debug.
 4. Wait for Jugg to compile, deploy, and restart the app.
 5. After the Android Studio Debug tool window appears, check whether breakpoints are available.
@@ -75,7 +75,7 @@ If you see only “Debugger is waiting for application to start” but not “Co
 | Symptom | Action |
 |---|---|
 | Multiple devices are selected | Keep one device selected and try again |
-| Debug behaves like a normal Run | Confirm that you are using a Jugg Run Configuration, not a native App configuration |
+| Debug behaves like a normal Run | Confirm that you are using a Jugg run configuration, not a native App configuration |
 | The app does not wait for the debugger | Check whether deployment succeeded and whether the target package name is correct |
 | Run output appears but no Debug window opens | Check whether the Android Studio attach flow succeeded |
 | An older Android Studio version reports that the feature is unsupported | Check compatibility between the current Jugg and Android Studio versions |

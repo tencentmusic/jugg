@@ -57,8 +57,8 @@ class AskAiInvestigation(
 
     /** Collects a user-described problem and preserves existing evidence before exposing an Agent prompt. */
     fun askAi(runner: IJuggConfigurationRunner) {
-        controlPanelController.recordUserAction("ASK AI")
-        taskRunnerManager.runBackgroundSafe("Prepare ASK AI") {
+        controlPanelController.recordUserAction("Ask AI")
+        taskRunnerManager.runBackgroundSafe("Prepare Ask AI") {
             val devices = try {
                 deployTargetManager.getSelectedDevices()
             } catch (e: Exception) {
@@ -205,7 +205,7 @@ class AskAiInvestigation(
         logger.warn("Cannot save ASK AI investigation evidence.", exception)
         SwingUtilities.invokeLater {
             if (!project.isDisposed) Messages.showWarningDialog(project,
-                "Cannot save investigation evidence: ${exception.message}", "ASK AI")
+                "Cannot save investigation evidence: ${exception.message}", "Ask AI")
         }
     }
 
@@ -283,7 +283,7 @@ internal class AskAiCompileUiHandler(
 
     private fun showPrompt(snapshot: InvestigationSnapshotBuilder.Snapshot) {
         if (project.isDisposed) return
-        userActions.recordUserAction("ASK AI", "Compilation failed")
+        userActions.recordUserAction("Ask AI", "Compilation failed")
         AskAiDialog(project, emptyList(), snapshot).show()
     }
 }

@@ -49,7 +49,7 @@ class GitChangesCompileChecker(
 
     fun checkUndetectedFilesAsync(compilingFiles: List<ChangedFile>) {
         val check = AsyncCheck()
-        check.job = taskRunnerManager.runBackgroundSafe("Check Undetected Files") {
+        check.job = taskRunnerManager.runBackgroundSafe("Check undetected files") {
             check.result = checkUndetectedFiles(compilingFiles)
         }
         asyncCheck = check

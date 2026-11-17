@@ -21,7 +21,7 @@ To test with cleared data while keeping the current changes, choose an option in
 
 | Use case | Entry point | Result |
 |---|---|---|
-| Verify cleared data on the current device | `Clean And Reinstall` | Clears data, reinstalls the APK, and restores the current incremental deployment in one operation |
+| Verify cleared data on the current device | `Just clean reinstall APK` | Clears data, reinstalls the APK, and restores the current incremental deployment in one operation |
 | Give testers an APK containing the current changes that remain after clearing data | `Export incremental APK` | Writes the compiled incremental results into the APK and signs it again; after installing the exported APK, clearing app data does not remove the changes written into it |
 
 Compile the current changes before exporting. See [Export an incremental APK](../guide/export-incremental-apk.md) for the steps. Preserving incremental changes does not preserve app data: clearing data still removes login state, local databases, and business caches.

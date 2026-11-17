@@ -221,7 +221,7 @@ open class JuggControlPanelController(
     open fun runRemoteCommand() = manager.runRemoteCommand()
 
     open fun restartApp() {
-        recordUserAction("Restart App")
+        recordUserAction("Restart app")
         val taskId = UUID.randomUUID().toString()
         recordEvent(taskId, JuggEvent.Category.APP, JuggEvent.Phase.LAUNCHING, JuggEvent.Status.STARTED, "Restart app started")
         try {
@@ -235,9 +235,9 @@ open class JuggControlPanelController(
 
     open fun cleanAndReinstall() {
         val confirmed = CommonConfirmDialog.showAndGetResult(
-            title = "Clear App Data",
+            title = "Clear app data",
             content = "<html>This will clear app data, run a full Gradle build, and reinstall the app.<br>Are you sure you want to continue?</html>",
-            okButtonText = "Clear App Data",
+            okButtonText = "Clear app data",
         )
         recordUserAction(
             action = if (confirmed) "confirmed" else "canceled",
@@ -263,7 +263,7 @@ open class JuggControlPanelController(
 
     open fun markAsProjectSyncedAndReInitCompiler() {
         val confirmed = CommonConfirmDialog.showAndGetResult(
-            "Confirm Mark as Project Synced and Re-init Compiler",
+            "Confirm mark as project synced and re-init compiler",
             "<html>This will reload project info and re-init, but dependencies won't update without sync.<br>Are you sure to continue?</html>"
         )
         recordUserAction(
@@ -276,7 +276,7 @@ open class JuggControlPanelController(
 
     open fun markAsGradleCompiledAndReInitCompiler() {
         val confirmed = CommonConfirmDialog.showAndGetResult(
-            "Confirm Mark as Gradle Compiled and Re-init Compiler",
+            "Confirm mark as Gradle compiled and re-init compiler",
             "<html>This will skip gradle compilation and re-init, but the behavior of Jugg may incorrect.<br>Are you sure to continue?</html>"
         )
         recordUserAction(

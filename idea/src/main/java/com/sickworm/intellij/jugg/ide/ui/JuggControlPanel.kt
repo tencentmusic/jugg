@@ -239,16 +239,16 @@ class JuggControlPanel(
         name = "quickActions"
         add(actionGroup("Build",
             actionLink("Fallback to Gradle", controller::fullGradleBuild),
-            actionLink("Clear Jugg Build", controller::resetJuggCache),
+            actionLink("Clear Jugg build", controller::resetJuggCache),
             actionLink("Exec remote CMD", controller::runRemoteCommand)))
         add(actionGroup("Device",
-            actionLink("Restart App", controller::restartApp),
+            actionLink("Restart app", controller::restartApp),
             actionLink("Clear app data", controller::cleanAndReinstall)))
-        add(actionGroup("Jugg Plugin",
+        add(actionGroup("Jugg plugin",
             actionLink("Ask AI", controller::askAi),
-            actionLink("Report Issue", controller::reportIssue),
+            actionLink("Report issue", controller::reportIssue),
             actionLink("Check updates", controller::checkUpdates),
-            actionLink("Install CLI & Skill", controller::installSkills)))
+            actionLink("Install CLI & skill", controller::installSkills)))
     }
 
     private fun lastDeploySection(): JComponent = overviewSection("Last deploy", "lastDeploy") {
@@ -386,7 +386,7 @@ class JuggControlPanel(
                 settingAction("Global storage directory",
                     com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager.rootDir.absolutePath,
                     "Move…", controller::moveGlobalDirectory),
-                settingAction("Clear Jugg Build", "Delete Jugg project build data and reinitialize the project.", "Clear…", controller::resetJuggCache),
+                settingAction("Clear Jugg build", "Delete Jugg project build data and reinitialize the project.", "Clear…", controller::resetJuggCache),
                 settingAction("Mark as project synced and re-init compiler", "Reload project information without running Gradle sync.", "Mark synced…", controller::markAsProjectSyncedAndReInitCompiler),
                 settingAction("Mark as Gradle compiled and re-init compiler", "Reuse the selected Jugg configuration outputs without building.", "Mark compiled…", controller::markAsGradleCompiledAndReInitCompiler)),
         )
@@ -619,7 +619,7 @@ class JuggControlPanel(
                 else -> "Ready for incremental compile"
             }
             currentTaskDetailLabel.text = when {
-                lastRun?.status == JuggEventStatus.FAILED -> lastRun.failureReason ?: "Open Logs for details"
+                lastRun?.status == JuggEventStatus.FAILED -> lastRun.failureReason ?: "Open logs for details"
                 snapshot.context.changedFileCount == 0 -> "No pending changes"
                 else -> changedFileSummary(snapshot.context.changedFiles)
             }

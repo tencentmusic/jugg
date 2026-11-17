@@ -112,7 +112,7 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
     }
 
     private val enableSyncAllProjectsCheckBox = JCheckBox("Enable multiple projects mode (sync and fetch all projects in [Local to remote sync path])")
-    private val enableAndroidTestCheckBox = JCheckBox("Enable incremental Android Test (builds app + test APKs via Gradle)")
+    private val enableAndroidTestCheckBox = JCheckBox("Enable incremental Android test (builds app + test APKs via Gradle)")
 
     private val reportIssueActionLink = ActionLink("Report issues")
 
@@ -167,7 +167,7 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
 
     private val remoteCompilePanel = JPanel().also {
         it.alignmentX = LEFT_ALIGNMENT
-        it.border = IdeBorderFactory.createTitledBorder("Remote Compile Options")
+        it.border = IdeBorderFactory.createTitledBorder("Remote compile options")
         it.layout = BoxLayout(it, BoxLayout.Y_AXIS)
     }
     private val remoteComponentList = listOf<Pair<JComponent, JComponent?>>(

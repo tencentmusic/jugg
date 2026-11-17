@@ -32,7 +32,7 @@ class JuggSettingsEditorTest {
         val failure = assertFailsWith<SettingConfirmationRequired> {
             editor.set("isEnableBackupClasspath", "true")
         }
-        assertEquals("Confirm Switch Backup Classpath", failure.confirmation.title)
+        assertEquals("Confirm switch backup classpath", failure.confirmation.title)
         assertFalse(JuggGlobalPathManager.settingsFile.exists())
         editor.set("isEnableBackupClasspath", "true", confirm = true)
         assertTrue(JuggSettings.isEnableBackupClasspath)

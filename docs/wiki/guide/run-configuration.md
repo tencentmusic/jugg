@@ -1,6 +1,6 @@
 ---
 title: Run configurations and build variants
-description: Learn how Jugg Run Configurations are created, how Build Variant synchronization works, how CLI/MCP selects a configuration, and the limits of custom commands.
+description: Learn how Jugg run configurations are created, how Build Variant synchronization works, how CLI/MCP selects a configuration, and the limits of custom commands.
 status: active
 tags:
   - guide
@@ -10,7 +10,7 @@ tags:
 
 # Run configurations and build variants
 
-A Jugg Run Configuration determines which app, Gradle command, APK output, build target, and remote environment a run uses. In projects with multiple apps, variants, or custom Gradle arguments, selecting the wrong configuration can compile successfully but deploy the wrong artifact.
+A Jugg run configuration determines which app, Gradle command, APK output, build target, and remote environment a run uses. In projects with multiple apps, variants, or custom Gradle arguments, selecting the wrong configuration can compile successfully but deploy the wrong artifact.
 
 ## Identical configuration names do not imply identical build targets
 

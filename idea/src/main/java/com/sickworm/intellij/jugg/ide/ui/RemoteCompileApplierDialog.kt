@@ -24,7 +24,7 @@ class RemoteCompileApplierDialog(username: String, private val logger: Logger) :
     val result: RemoteServerInfo? get() = mainFrame.result
 
     init {
-        title = "Remote Compile Application"
+        title = "Remote compile application"
         init()
 
     }
@@ -119,7 +119,7 @@ private class MainFrame(private val username: String,
     private fun initMainUI(flow: InteractionProcessFlow?) {
         try {
             if (flow == null) {
-                showErrorDialog("Server Error", "Server is unable to start an application.")
+                showErrorDialog("Server error", "Server is unable to start an application.")
                 return
             }
 
@@ -145,7 +145,7 @@ private class MainFrame(private val username: String,
                 errorContentPane.remove(loadingPanel)
             }
             // It's important to show the error dialog on the EDT
-            showErrorDialog("Internal Error", "Failed to load initial setup flow: ${e.message}")
+            showErrorDialog("Internal error", "Failed to load initial setup flow: ${e.message}")
         }
     }
 
@@ -240,7 +240,7 @@ private class MainFrame(private val username: String,
 
                 SwingUtilities.invokeLater {
                     if (nextInteractionStep == null) {
-                        showErrorDialog("Server Error", "Failed to run next step. Step data not found or invalid token.")
+                        showErrorDialog("Server error", "Failed to run next step. Step data not found or invalid token.")
                         return@invokeLater
                     }
                     if (!nextInteractionStep.isSuccess && nextInteractionStep.isCanRetryWhenFailed) {
@@ -262,7 +262,7 @@ private class MainFrame(private val username: String,
                 }
             } catch (e: Exception) {
                 logger.debug("Error while fetching next step: ", e)
-                showErrorDialog("Server Error", "Failed to run next step. Error: ${e.message}")
+                showErrorDialog("Server error", "Failed to run next step. Error: ${e.message}")
             }
         }
     }
@@ -353,7 +353,7 @@ private class MainFrame(private val username: String,
                 logger.debug("${step.stepName} wait finish result: $result")
 
                 if (result == null) {
-                    showErrorDialog("Server Error", "Server Error: Failed to get response.")
+                    showErrorDialog("Server error", "Server error: Failed to get response.")
                     break
                 }
                 if (!result.isSuccess) {

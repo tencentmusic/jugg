@@ -25,7 +25,7 @@ The Control Panel maintains the current IDE session state from structured events
 
 ## Open the panel
 
-Projects with a runnable Jugg configuration show the `Jugg Running Panel` tool window on the right side of Android Studio. You can also open it from `Tools > Open Jugg Control Panel`.
+Projects with a runnable Jugg configuration show the `Jugg Running Panel` tool window on the right side of Android Studio. You can also open it from `Tools > Open Jugg control panel`.
 
 Entry points in the Run Configuration that require settings open the Settings page directly, so you do not need to search through two windows.
 
@@ -45,7 +45,7 @@ Overview combines the following information:
 
 ## Manage pending files manually
 
-Click `Manage...` next to Changed files to open File Change Manager. When the list is empty, you can also click `Manual add...` below `No pending changes`.
+Click `Manage...` next to Changed files to open File change manager. When the list is empty, you can also click `Manual add...` below `No pending changes`.
 
 1. Search by the module or file name shown in the list. Clicking file text selects the row; clicking its checkbox changes the checked state. Current pending files are checked by default.
 2. Click `Refresh` to check Git changes again. Refreshing and searching preserve your checkbox edits.
@@ -87,10 +87,10 @@ The Settings page lets you adjust common runtime behavior:
 
 Settings share their descriptions and confirmations with `jugg settings`. They apply globally across projects. Backup classpath changes invalidate each project’s old baseline before its next operation; device compatibility changes schedule reinstall. See [CLI commands](../reference/cli-commands.md#global-settings).
 
-You can also install the CLI and Agent Skills, check for updates, or run `Clear Jugg Build` to reinitialize the project.
+You can also install the CLI and Agent Skills, check for updates, or run `Clear Jugg build` to reinitialize the project.
 
 > [!WARNING]
-> `Clear Jugg Build` deletes project-level Jugg build data. Use it when the cache is clearly corrupted or the baseline cannot be recovered, not as a routine cleanup action.
+> `Clear Jugg build` deletes project-level Jugg build data. Use it when the cache is clearly corrupted or the baseline cannot be recovered, not as a routine cleanup action.
 
 ## Session boundaries
 

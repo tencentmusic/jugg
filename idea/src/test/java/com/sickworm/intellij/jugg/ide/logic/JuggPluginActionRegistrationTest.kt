@@ -24,8 +24,8 @@ class JuggPluginActionRegistrationTest {
 
         assertNotNull(action)
         assertEquals("com.sickworm.intellij.jugg.ide.ui.CheckJuggUpdateAction", action.getAttribute("class"))
-        assertEquals("Check Jugg Update", action.getAttribute("text"))
-        assertEquals("Check Jugg Update", action.getAttribute("description"))
+        assertEquals("Check Jugg update", action.getAttribute("text"))
+        assertEquals("Check Jugg update", action.getAttribute("description"))
         Class.forName(action.getAttribute("class"))
     }
 

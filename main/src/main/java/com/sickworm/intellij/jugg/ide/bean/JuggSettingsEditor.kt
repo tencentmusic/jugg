@@ -107,8 +107,8 @@ class JuggSettingsEditor(
     }
 
     private fun confirmation(key: String, previous: JsonElement, value: JsonElement, snapshot: JsonObject): SettingConfirmation? = when {
-        key == "isEnableBackupClasspath" -> SettingConfirmation("Confirm Switch Backup Classpath", "This will effects compilation stability. Continue?")
-        key == "isEmbeddedToApk" && !previous.asBoolean && value.asBoolean -> SettingConfirmation("Enable Embedded to APK",
+        key == "isEnableBackupClasspath" -> SettingConfirmation("Confirm switch backup classpath", "This will effects compilation stability. Continue?")
+        key == "isEmbeddedToApk" && !previous.asBoolean && value.asBoolean -> SettingConfirmation("Enable embedded to APK",
             "This will embed incremental changes to APK, let incremental effects for Android RemoteViews, but it will cost more time to deploy.\n\nAre you sure to enable?")
         key == "isEnableNativeSandboxDeploy" && !previous.asBoolean && value.asBoolean -> SettingConfirmation(
             "Enable Native Library Hot Update",

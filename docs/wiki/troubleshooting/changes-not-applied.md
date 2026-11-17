@@ -14,13 +14,13 @@ If Jugg reports a successful run but the UI or code still behaves as before, fir
 
 ## Q: How can my Agent investigate changes that did not take effect?
 
-Before restarting or rebuilding, click `Ask AI` in the `Jugg Plugin` group of `Jugg Running Panel` and choose `Changes not applied`. Describe the changed files and the expected and actual effects, select the affected device, and click `Save Evidence and Generate Prompt`.
+Before restarting or rebuilding, click `Ask AI` in the `Jugg plugin` group of `Jugg Running Panel` and choose `Changes not applied`. Describe the changed files and the expected and actual effects, select the affected device, and click `Save evidence and generate prompt`.
 
 Jugg saves the current logs, logcat for each device, project context, and existing APKs and incremental artifacts, keeping deployed and pending deployment records separate. The evidence manifest records collection failures for the Agent to read using the path in the prompt. A local artifact's existence does not prove that the device loaded it.
 
 Select `Copy prompt` and paste it into an Agent that can access the current Android project. The prompt requires analysis using the Jugg knowledge base, source code, and saved evidence, with a cause, recommendation, and next step if the problem persists. It provides an Issue draft when needed and identifies specific evidence to collect when information is missing.
 
-Evidence is saved in a separate local directory, survives later builds and Clear Jugg Build, and is retained for 30 days by default. Collect it after the Jugg task finishes. The prompt explicitly permits the Agent to clone Jugg into a separate investigation directory and fetch when necessary; the investigation reads existing evidence only.
+Evidence is saved in a separate local directory, survives later builds and Clear Jugg build, and is retained for 30 days by default. Collect it after the Jugg task finishes. The prompt explicitly permits the Agent to clone Jugg into a separate investigation directory and fetch when necessary; the investigation reads existing evidence only.
 
 The prompt uses Markdown. It is generated in Chinese when the system language is Chinese, and in English otherwise. The Agent uses the same language for its analysis and Issue content. User descriptions and original logs retain their original text; dialog instructions always use English.
 

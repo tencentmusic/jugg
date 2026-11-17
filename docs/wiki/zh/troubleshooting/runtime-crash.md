@@ -14,13 +14,13 @@ tags:
 
 ## Q：如何保存崩溃现场并交给自己的 Agent？
 
-在重建或重新安装前，从 `Jugg Running Panel` 的 `Jugg Plugin` 分组点击 `Ask AI`。选择 `Runtime crash`，填写崩溃操作、预期结果和实际结果，选择需要采集日志的设备，然后点击 `Save Evidence and Generate Prompt`。
+在重建或重新安装前，从 `Jugg Running Panel` 的 `Jugg plugin` 分组点击 `Ask AI`。选择 `Runtime crash`，填写崩溃操作、预期结果和实际结果，选择需要采集日志的设备，然后点击 `Save evidence and generate prompt`。
 
 Jugg 保存当前日志、按设备区分的 logcat，以及现存 APK 和增量部署产物。logcat 包含崩溃缓冲区，但只覆盖设备仍保留的最近日志；设备断开或部分采集失败时，其余有效证据仍会保存，现场清单会记录缺失项，Agent 按 prompt 中的路径读取。
 
 采集完成后选择 `Copy prompt`，粘贴到能够访问当前 Android 工程的 Agent。Agent 按 prompt 读取 Jugg 知识库和源码，输出根因证据、建议和未解决时的下一步；需要提交 Issue 时提供草稿。prompt 显式允许在独立调查目录 clone Jugg，必要时 fetch；调查阶段只读取现有证据。
 
-现场保存在本机独立目录，后续构建和 Clear Jugg Build 不会删除这份副本，默认保留 30 天。请在 Jugg 任务结束后采集；本地部署记录和产物本身不能证明设备已加载相同内容。
+现场保存在本机独立目录，后续构建和 Clear Jugg build 不会删除这份副本，默认保留 30 天。请在 Jugg 任务结束后采集；本地部署记录和产物本身不能证明设备已加载相同内容。
 
 prompt 使用 Markdown 格式：系统语言为中文时生成中文，其余语言生成英文；Agent 的分析结果和 Issue 内容使用相同语言。用户填写的描述和原始日志保留原文，弹窗说明始终使用英文。
 
@@ -50,7 +50,7 @@ Agent 建议提交 Issue 时，会提供已预填写的 Bug 反馈链接和按�
 1. 连接问题设备。
 2. 在 Jugg More Options 中为该设备开启兼容模式。
 3. 重新运行本轮修改。
-4. 仍然崩溃时执行 Clean And Reinstall，再重新验证。
+4. 仍然崩溃时执行 Just clean reinstall APK，再重新验证。
 
 兼容模式会使用经典热修复部署，并为该设备持久化设置。
 

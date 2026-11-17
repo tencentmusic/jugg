@@ -48,7 +48,7 @@ Local native Windows symlink permission is required. Upload preserves links them
 
 ## Control synchronization exclusions
 
-`Exclude patterns` in Remote Compile Options shows the currently configurable exclusion list. The default value is:
+`Exclude patterns` in Remote compile options shows the currently configurable exclusion list. The default value is:
 
 ```text
 local.properties; .idea/; *.iml; .git/objects/; .git/modules/; .cxx/
@@ -78,7 +78,7 @@ Remote Gradle does not change Jugg's incremental-compilation decisions. When a f
 
 ## Synchronize multiple projects
 
-With iFT or full `rsync`, enable this option under Remote Compile Options:
+With iFT or full `rsync`, enable this option under Remote compile options:
 
 ```text
 Enable multiple projects mode (sync and fetch all projects in [Local to remote sync path])

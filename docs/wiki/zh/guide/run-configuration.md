@@ -1,6 +1,6 @@
 ---
 title: 运行配置与构建变体
-description: 说明 Jugg Run Configuration 的生成、Build Variant 同步、CLI/MCP 选择规则和自定义命令边界。
+description: 说明 Jugg run configuration 的生成、Build Variant 同步、CLI/MCP 选择规则和自定义命令边界。
 status: active
 tags:
   - guide
@@ -10,7 +10,7 @@ tags:
 
 # 运行配置与构建变体
 
-Jugg Run Configuration 决定本轮使用哪个 App、Gradle 命令、APK 输出、构建目标和远端环境。多 App、多 variant 或自定义 Gradle 参数工程中，选择错误配置会让编译成功却部署到错误产物。
+Jugg run configuration 决定本轮使用哪个 App、Gradle 命令、APK 输出、构建目标和远端环境。多 App、多 variant 或自定义 Gradle 参数工程中，选择错误配置会让编译成功却部署到错误产物。
 
 ## 配置名相同不代表构建目标相同
 

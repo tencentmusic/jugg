@@ -17,7 +17,7 @@ The Jugg CLI provides a unified command-line interface to invoke Jugg's bypass i
 Installing directly through Android Studio's UI is recommended:
 
 1. Press `Shift` twice in Android Studio to open **Search Everywhere**.
-2. Type and select `Install Jugg Skills`.
+2. Type and select `Install Jugg skills`.
 3. In the setup modal, check the components you need:
    - **Install CLI to `$PATH`**: Symlinks the executable `jugg` command into your system PATH (e.g., `~/.jugg/bin`).
    - **Currently installed agents**: Automatically registers the `jugg-android-dev-loop` skill with AI assistants like Claude Code and Antigravity.

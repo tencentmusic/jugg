@@ -14,7 +14,7 @@ System apps, vendor projects, and customized devices may not support installatio
 
 ## Enabling the script
 
-Open the Jugg Run Configuration and select `Enable custom APK install script`. A single-line-height script field appears below the switch. When the switch is not selected, the switch and its help button are shown and the existing installation behavior remains unchanged.
+Open the Jugg run configuration and select `Enable custom APK install script`. A single-line-height script field appears below the switch. When the switch is not selected, the switch and its help button are shown and the existing installation behavior remains unchanged.
 
 The script runs from the local project root. Jugg uses Bash on macOS/Linux and `cmd.exe` on Windows. Even when remote compilation is enabled, the script runs on the local IDE host connected to the Android device.
 

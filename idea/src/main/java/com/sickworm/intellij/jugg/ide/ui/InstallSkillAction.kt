@@ -5,7 +5,7 @@ import com.intellij.openapi.actionSystem.AnActionEvent
 import com.sickworm.intellij.jugg.loader.JuggInitializer
 
 /**
- * Action equivalent to clicking "Install Jugg Skills" in the More Options menu.
+ * Action equivalent to clicking "Install Jugg skills" in the More Options menu.
  */
 class InstallSkillAction : AnAction() {
     override fun actionPerformed(e: AnActionEvent) {

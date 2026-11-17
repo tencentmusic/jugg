@@ -21,10 +21,10 @@ A team backend can also enable automatic failure-log uploads. Automatic uploads 
 
 Use either of these entry points:
 
-- Press `Shift` twice in Android Studio, then search for and select `Report Jugg Issue`.
-- Open `Jugg Running Panel` and click `Report Issue`.
+- Press `Shift` twice in Android Studio, then search for and select `Report Jugg issue`.
+- Open `Jugg Running Panel` and click `Report issue`.
 
-You can also open it from a Jugg Run Configuration:
+You can also open it from a Jugg run configuration:
 
 1. Open `Edit Configurations...`.
 2. Select the current Jugg configuration.
@@ -34,7 +34,7 @@ When no backend service is available, after the report window opens:
 
 1. Review and select the diagnostic files. Jugg logs are selected by default and cannot be cleared. Project snapshots are selected by default but can be cleared.
 2. Select `Upload logs`, or select `Save locally without uploading` to create a local diagnostic bundle.
-3. After the upload finishes, copy the Report ID. If the upload fails, click `Retry Upload`, or give the retained ZIP file to the maintainer.
+3. After the upload finishes, copy the Report ID. If the upload fails, click `Retry upload`, or give the retained ZIP file to the maintainer.
 
 The confirmation window shows the public upload address `https://jugg.sickworm.com/report_issue`. When saving locally, the system file manager selects the newly generated ZIP file.
 

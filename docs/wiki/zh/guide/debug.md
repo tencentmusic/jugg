@@ -28,7 +28,7 @@ Jugg Debug 适合：
 ## 如何使用
 
 1. 只选择一个目标设备。
-2. 选择 Jugg Run Configuration。
+2. 选择 Jugg run configuration。
 3. 点击 Debug 按钮。
 4. 等待 Jugg 编译、部署、重启 App。
 5. Android Studio Debug tool window 出现后，再判断断点是否可用。
@@ -75,7 +75,7 @@ Jugg 不直接接管 Debug tool window，也不直接创建最终的 XDebugSessi
 | 现象 | 处理方式 |
 |---|---|
 | 选择了多个设备 | 只保留一个设备后重试 |
-| 点击 Debug 后仍像普通 Run | 确认使用的是 Jugg Run Configuration，而不是原生 App configuration |
+| 点击 Debug 后仍像普通 Run | 确认使用的是 Jugg run configuration，而不是原生 App configuration |
 | App 没有进入等待 debugger | 看部署是否成功，以及目标包名是否正确 |
 | 有 Run 输出但没有 Debug 窗口 | 看 Android Studio attach flow 是否成功 |
 | 旧 Android Studio 版本提示不支持 | 检查当前 Jugg 与 Android Studio 兼容性 |

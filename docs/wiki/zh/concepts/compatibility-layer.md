@@ -48,8 +48,8 @@ Android Studio 的安装会话、overlay 标识和 deployment cache 条目只在
 |---|---|---|
 | 插件初始化 | `ApplicationInfo` | 读取当前 IDE 产品和版本号，选择优先使用的版本实现。 |
 | Gradle 同步完成或工程信息刷新 | `GradleAndroidModel`、`ProjectBuildModel`、`GradleBuildModel`、`AndroidFacet`、`ModuleManager` | 读取模块目录、构建变体、SDK、Java/Kotlin 编译选项、Manifest 位置、APK 输出目录和 Android Test 包信息。 |
-| 创建或同步 Jugg Run Configuration | `RunManager`、`AndroidRunConfigurationType`、`AndroidRunConfiguration` | 查找现有 Android Run Configuration，并生成对应的 Jugg 编译命令、构建变体和 APK 输出路径。 |
-| 初始化 Jugg Run Configuration | `DeployableToDevice.KEY`、`DeviceAndSnapshotComboBoxAction.DEPLOYS_TO_LOCAL_DEVICE` | 告诉不同版本的 Android Studio，该 Run Configuration 可以使用 IDE 的设备选择器。这个标记发生在项目服务完成初始化之前。 |
+| 创建或同步 Jugg run configuration | `RunManager`、`AndroidRunConfigurationType`、`AndroidRunConfiguration` | 查找现有 Android Run Configuration，并生成对应的 Jugg 编译命令、构建变体和 APK 输出路径。 |
+| 初始化 Jugg run configuration | `DeployableToDevice.KEY`、`DeviceAndSnapshotComboBoxAction.DEPLOYS_TO_LOCAL_DEVICE` | 告诉不同版本的 Android Studio，该 Run Configuration 可以使用 IDE 的设备选择器。这个标记发生在项目服务完成初始化之前。 |
 | Run 前解析设备 | `DeployTargetContext`、`DeployTarget`、`AdbService`、ddmlib `IDevice` | 读取 IDE 当前选中的已启动设备，并通过 ADB 获取已连接设备；Jugg 不会为了读取选择结果主动启动模拟器。 |
 | 安装或更新 APK | `ApkParser`、`AdbInstaller`、`ApkInstaller`、`InstallOptions`、`InstallMode`、`DeploymentPlan` | 解析 APK，创建安装会话，并在 Install 或 APK 更新阶段执行完整安装或增量安装。 |
 | Apply Changes | `ApplicationDumper`、`DexComparator`、`ClassRedefiner`、`OptimisticApkSwapper`、`OverlayId` | 在增量编译完成后校验设备上的 APK，组织 class 与资源 overlay，并执行 Code Swap 或 Full Swap。 |
