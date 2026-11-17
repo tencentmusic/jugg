@@ -98,6 +98,8 @@ class JuggProjectInfoSerialize(
                 dependencyMap[index] = libraryDependency
             }
             val modules: Map<String, ModuleInfo> = projectInfoSerialize.modules.associate { serialize ->
+                // Gson can leave non-null fields null when reading older snapshots.
+                @Suppress("USELESS_ELVIS")
                 val moduleInfo = serialize.moduleInfoExceptLibraries.copy(
                     kotlinCommonSourceDirs = serialize.moduleInfoExceptLibraries.kotlinCommonSourceDirs ?: emptyList(),
                     kotlinFragmentSourceDirs = serialize.moduleInfoExceptLibraries.kotlinFragmentSourceDirs ?: emptyMap(),

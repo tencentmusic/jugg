@@ -43,6 +43,7 @@ class GradleProjectInfoReader(
 
     private var isEnableJetifier: Boolean = false
 
+    @Suppress("UNCHECKED_CAST")
     fun getProjectInfo(includeAndroidTestSourceSet: Boolean): JuggProjectInfo {
         TraceLogger.clear()
         var jetifierReadError: String? = null
@@ -378,6 +379,7 @@ class GradleProjectInfoReader(
     }
 
     /** Reads the selected variant's resolved processor artifacts, including project dependencies. */
+    @Suppress("UNCHECKED_CAST")
     private fun readKspTask(project: Project, module: ModuleInfo): ModuleInfo {
         val suffix = module.buildVariant.camelCompat
         val names = listOf("ksp${suffix}KotlinAndroid", "ksp${suffix}Kotlin") +
