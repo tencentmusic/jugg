@@ -103,13 +103,16 @@ class BuildIncrementalApkCommand(private val params: Params) {
     }
 
     private fun getChangedFiles(): List<ChangedFile> {
-        val changedFiles = params.changedFiles // changed files comes from source project dir
+        val changedFiles = params.changedFiles
+        val roots = (listOf(params.sourceProjectDir) + contextManager.compileContext.modules.values.map {
+            it.moduleRootDir
+        }).map { it.canonicalFile.toPath() }
         changedFiles.forEach {
             if (!it.exists()) {
                 throw IncrementalException("Argument 'changedFiles' file not exists: ${it.path}")
             }
-            if (!it.isChild(params.sourceProjectDir)) {
-                throw IncrementalException("Argument 'changedFiles' file is not in source project dir: ${it.path}, 'sourceProjectDir': ${params.sourceProjectDir}")
+            if (roots.none { root -> it.canonicalFile.toPath().startsWith(root) }) {
+                throw IncrementalException("Argument 'changedFiles' file is outside project modules: ${it.path}, 'sourceProjectDir': ${params.sourceProjectDir}")
             }
         }
 

@@ -139,9 +139,13 @@ CI 命令行把构建拆成两个可审计阶段：
 1. `buildGradleBase` 清理目标 Jugg 目录，执行完整 Gradle 构建，保存 APK、project info、classpath、deploy history、APK database 和 source index，形成由 CI 管理的只读基线。
 2. `buildIncrementalApk` 从该基线恢复上下文，只编译调用方显式传入的 `changedFiles`，合并 dex 后把增量产物写回 APK 输出目录。
 
-这里故意不由 Jugg 自行猜测 CI diff。调用方负责给出将要编译的文件集合，非空列表会校验文件存在、位于 `sourceProjectDir`、能被 `FileChangesHandler` 完整识别且不含 build file。实际编译前写入 `.dirty`；同一份可变基线再次执行会失败，避免前一轮增量已经改写 history/database 后仍被当成干净输入。若流水线需要多组增量结果，应为每组复制独立基线，而不是并发共享同一目录。
+调用方负责给出将要编译的文件集合，非空列表会校验文件存在、位于 `sourceProjectDir` 或项目模型已声明的模块目录、能被 `FileChangesHandler` 完整识别且不含 build file。实际编译前写入 `.dirty`；同一份可变基线再次执行会失败，避免前一轮增量已经改写 history/database 后仍被当成干净输入。若流水线需要多组增量结果，应为每组复制独立基线，而不是并发共享同一目录。
 
 `getChangedFiles` 对 `GitManager` 返回的变更逐项输出，识别出的路径保留 ChangedFile 类型和 module，其余路径输出 `type: "Unknown"`、`module: ""`。Unknown 只用于 CI 报告，不扩充核心 `CompileFile.Type`。`buildIncrementalApk` 必须显式传 `changedFiles`；空字符串代表空列表，直接从基线元数据导出 APK 到 `outputApkDir`，不初始化编译上下文、不执行自定义编译器和编译、不写 `.dirty`。省略参数仍失败；非空输入含无法识别文件时报 `not all files are compilable`，编排层决定明确忽略还是 Gradle 降级。
+
+`getChangedFiles` 同时查询主工程、模块模型及基线 history 中记录的 Git 仓库。每个文件新增绝对路径 `gitRoot`；顶层新增 `repositories: [{gitRoot, baseCommit, targetCommit}]`，包括没有文件变更的仓库，供业务方逐仓库检查注解 diff、删除/重命名等策略。主仓库使用命令传入的提交范围，外部仓库使用 `database/deploy_history.db/deploy_history.json` 的 `subModulesFullCompileGitCommitHash` 到当前 HEAD，输出均解析为完整提交 hash。字段以增量方式加入，保留既有字段及 `schemaVersion: 1`。
+
+`CiProjectInfo` 合并主快照和 `gradle_include_builds.txt` 引用的 included-build 快照；快照从清单同目录读取，支持基线归档移动。同根模块保留主快照中的备份路径，同名不同根模块明确失败。完整基线据此备份所有模块并通过既有 deploy history 记录外部仓库提交，查询和增量恢复复用相同模型。旧单仓库基线继续可用；检测到外部仓库但缺少对应基线提交或仓库不可用时，查询明确失败。查询只比较提交，工作区干净检查由 CI 编排执行。业务方可复用现有 Gradle 入口刷新这份基线，正常的外部源码变更继续保留增量路径。
 
 ---
 
@@ -175,7 +179,7 @@ CI 命令行把构建拆成两个可审计阶段：
   -> 安装、测试或上传 APK
 ```
 
-基线索引和增量资格判断属于 CI 接入方职责；Jugg 只校验调用方传入的 `changedFiles` 是否存在、是否位于 `sourceProjectDir`、是否能被完整识别以及是否包含 build file。
+基线索引和增量资格判断属于 CI 接入方职责；Jugg 校验调用方传入的 `changedFiles` 是否存在、是否位于主工程或模型声明的模块目录、是否能被完整识别以及是否包含 build file。
 
 ---
 ## 5. 隐形约束

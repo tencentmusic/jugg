@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.cmdline.incremental
 
+import com.sickworm.intellij.jugg.cmdline.loadCiProjectInfo
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.CompileResult
@@ -211,18 +212,6 @@ class CmdLineContextManager(
         return baseContext
     }
 
-    private fun getProjectInfo(): JuggProjectInfo {
-        val gradleProjectInfoFile = pathManager.gradleProjectInfoFile
-        if (!gradleProjectInfoFile.exists()) {
-            throw IncrementalException("Gradle project info file not exists: ${gradleProjectInfoFile.absolutePath}")
-        }
-        // skip version check for reusable cache, which actually is compatible with old version
-        val gradleProjectInfo = ProjectInfoSerializer(gradleProjectInfoFile, logger).load(isSkipVersionCheck = true)
-            ?: throw IncrementalException("Gradle project info file invalid: ${gradleProjectInfoFile.absolutePath}")
-        if (gradleProjectInfo.modules.isEmpty()) {
-            throw IncrementalException("Gradle project info file invalid: ${gradleProjectInfoFile.absolutePath}")
-        }
-        return gradleProjectInfo
-    }
+    private fun getProjectInfo(): JuggProjectInfo = loadCiProjectInfo(pathManager, logger, skipVersionCheck = true)
 
 }

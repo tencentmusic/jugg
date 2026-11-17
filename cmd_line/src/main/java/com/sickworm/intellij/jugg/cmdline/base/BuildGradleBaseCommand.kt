@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.cmdline.base
 import com.intellij.openapi.progress.DumbProgressIndicator
 import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.sickworm.intellij.jugg.apk.ApkInfoReader
+import com.sickworm.intellij.jugg.cmdline.loadCiProjectInfo
 import com.sickworm.intellij.jugg.cmdline.logger.CmdLineLogger
 import com.sickworm.intellij.jugg.compiler.ICompileContext
 import com.sickworm.intellij.jugg.compiler.BuildTarget
@@ -251,18 +252,7 @@ class BuildGradleBaseCommand(private val params: Params) {
         logger.info("Init after gradle compile finish. cost: ${costTime}ms")
     }
 
-    private fun getProjectInfo(): JuggProjectInfo {
-        val gradleProjectInfoFile = pathManager.gradleProjectInfoFile
-        if (!gradleProjectInfoFile.exists()) {
-            throw BaseBuildException("Gradle project info file not exists: ${gradleProjectInfoFile.absolutePath}")
-        }
-        val gradleProjectInfo = ProjectInfoSerializer(gradleProjectInfoFile, logger).load()
-            ?: throw BaseBuildException("Gradle project info file invalid: ${gradleProjectInfoFile.absolutePath}")
-        if (gradleProjectInfo.modules.isEmpty()) {
-            throw BaseBuildException("Gradle project info file invalid: ${gradleProjectInfoFile.absolutePath}")
-        }
-        return gradleProjectInfo
-    }
+    private fun getProjectInfo(): JuggProjectInfo = loadCiProjectInfo(pathManager, logger, skipVersionCheck = false)
 
     companion object {
         fun run(args: Array<String>): Boolean {

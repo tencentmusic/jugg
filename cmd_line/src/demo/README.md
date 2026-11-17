@@ -75,6 +75,20 @@ python3 scripts/install_and_launch.py --apk-dir "$(python3 -c 'import json; prin
 
 `getChangedFiles` 保留完整变更清单：能识别的文件返回原有类型，其他文件返回 `type: "Unknown"`、`module: ""`，例如工程根目录的 README。`Unknown` 是 CI 报告类型，不是编译器输入类型。
 
+每个文件还包含 `gitRoot`，指向实际所属 Git 仓库的绝对路径。顶层 `repositories` 列出所有参与查询的仓库及各自的 `baseCommit`、`targetCommit`，包括没有变更的仓库。例如：
+
+```json
+{
+  "files": [{"file": "/workspace/sdk/Library.kt", "type": "Kotlin", "module": ":sdk", "gitRoot": "/workspace/sdk"}],
+  "repositories": [
+    {"gitRoot": "/workspace/app", "baseCommit": "<app-base-hash>", "targetCommit": "<app-target-hash>"},
+    {"gitRoot": "/workspace/sdk", "baseCommit": "<sdk-base-hash>", "targetCommit": "<sdk-head-hash>"}
+  ]
+}
+```
+
+以上只展示新增字段，原有顶层字段及 `schemaVersion: 1` 保留。外部仓库范围由项目模块模型和基线 deploy history 决定，基线提交来自 `subModulesFullCompileGitCommitHash`，目标为外部仓库当前 HEAD；主仓库仍使用命令参数。included-build 模型随完整基线一并合并和备份。业务脚本应遍历 `repositories` 执行自己的 diff 策略，不能只从非空文件列表推断仓库。旧单仓库基线继续可用；外部仓库缺基线提交或不可用时查询失败，编排按已有错误处理路径执行 Gradle。查询只比较提交，CI 编排应自行检查所有仓库的工作区状态和 HEAD。新增外部源码仓库后，先生成一次完整基线。
+
 构建决策集中在 `jugg_build.py`：
 
 - BuildFile 变更：走 Gradle。
