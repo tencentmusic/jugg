@@ -21,6 +21,9 @@ from hook_common import (
     extract_tool_call,
     is_android_source_path,
     mark_session_write_seen,
+    discover_available_projects,
+    project_cwds_for_files,
+    resolve_workspace_roots,
     payload_debug_suffix,
     read_hook_state,
     read_json_payload,
@@ -131,11 +134,38 @@ def _tool_input_file_path(payload: dict[str, Any]) -> str | None:
 
 def _antigravity_file_path(payload: dict[str, Any]) -> str | None:
     _, tool_input = extract_tool_call(payload)
-    for key in ("TargetFile", "file_path", "filePath", "path"):
-        value = tool_input.get(key)
-        if isinstance(value, str) and value.strip():
-            return decode_json_string_argument(value).strip()
-    return None
+
+    def find_path(value: Any) -> str | None:
+        if isinstance(value, str):
+            decoded = decode_json_string_argument(value)
+            if decoded != value:
+                return find_path(decoded)
+            if value.lstrip().startswith(("{", "[")):
+                try:
+                    parsed = json.loads(value)
+                except json.JSONDecodeError:
+                    parsed = None
+                if parsed is not None:
+                    return find_path(parsed)
+            return value.strip() if value.strip() else None
+        if isinstance(value, dict):
+            for key, child in value.items():
+                normalized = "".join(char for char in key.lower() if char.isalnum())
+                if normalized in {"targetfile", "filepath", "filename", "path"}:
+                    result = find_path(child)
+                    if result:
+                        return result
+                result = find_path(child)
+                if result and normalized in {"args", "arguments", "input", "toolinput"}:
+                    return result
+        elif isinstance(value, list):
+            for child in value:
+                result = find_path(child)
+                if result:
+                    return result
+        return None
+
+    return find_path(tool_input) or find_path(payload.get("toolCall"))
 
 
 def _recorded_write_paths(payload: dict[str, Any], client: str) -> list[str]:
@@ -251,6 +281,22 @@ def _main_impl() -> int:
             write_hook_state(state_file, state)
         _emit_antigravity_allow()
         return 0
+    workspace_roots = resolve_workspace_roots(state, payload, cwd)
+    available_projects = discover_available_projects(workspace_roots)
+    matched_projects, unmatched_files = project_cwds_for_files(recorded_paths, available_projects)
+    state["workspaceRoots"] = workspace_roots
+    state["availableProjects"] = available_projects
+    project_cwds = state.get("projectCwds", [])
+    if not isinstance(project_cwds, list):
+        project_cwds = []
+    for project in matched_projects:
+        if project not in project_cwds:
+            project_cwds.append(project)
+    state["projectCwds"] = project_cwds
+    previous_unmatched = state.get("unmatchedFiles")
+    if not isinstance(previous_unmatched, list):
+        previous_unmatched = []
+    state["unmatchedFiles"] = sorted(set(previous_unmatched + unmatched_files))
     mark_session_write_seen(state, recorded_paths)
     write_hook_state(state_file, state)
     debug_log(
