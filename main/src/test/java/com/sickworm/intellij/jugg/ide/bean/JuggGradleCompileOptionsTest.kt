@@ -216,20 +216,27 @@ class JuggGradleCompileOptionsTest {
     }
 
     @Test
-    fun withGradleCacheRefresh_shouldAppendCacheBypassArgumentsOnce() {
+    fun withGradleCacheRefresh_shouldCleanBeforeBuildAndBypassCacheOnce() {
         val parentDir = Files.createTempDirectory("jugg_compile_options_refresh").toFile()
         val projectDir = File(parentDir, "demo").apply { mkdirs() }
         try {
-            val options = makeOptions(projectDir, parentDir).copy(
-                compileCommand = "./gradlew :app:assembleDebug",
+            val commands = listOf(
+                "./gradlew :app:assembleDebug" to "./gradlew clean :app:assembleDebug",
+                "./gradlew clean :app:assembleDebug" to "./gradlew clean :app:assembleDebug",
+                "./gradlew :clean :app:assembleDebug" to "./gradlew :clean :app:assembleDebug",
+                "gradlew.bat :app:assembleDebug" to "gradlew.bat clean :app:assembleDebug",
+                "\"/project with spaces/gradlew\" :app:assembleDebug" to
+                        "\"/project with spaces/gradlew\" clean :app:assembleDebug",
+                "./gradlew :app:assembleDebug --no-build-cache --rerun-tasks" to
+                        "./gradlew clean :app:assembleDebug",
             )
+            commands.forEach { (command, expected) ->
+                val options = makeOptions(projectDir, parentDir).copy(compileCommand = command)
+                val refreshed = options.withGradleCacheRefresh().withGradleCacheRefresh()
 
-            val refreshed = options.withGradleCacheRefresh().withGradleCacheRefresh()
-
-            assertEquals(
-                "./gradlew :app:assembleDebug --no-build-cache --rerun-tasks",
-                refreshed.compileCommand,
-            )
+                assertEquals("$expected --no-build-cache --rerun-tasks", refreshed.compileCommand)
+                assertEquals(command, options.compileCommand)
+            }
         } finally {
             parentDir.deleteRecursively()
         }

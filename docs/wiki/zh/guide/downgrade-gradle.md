@@ -42,6 +42,10 @@ jugg gradle-build
 
 Gradle 成功后，Jugg 会重新读取 APK、classpath、mapping 和资源基线。后续小改动仍然可以继续 Jugg Run。
 
+无文件变化的回退确认框和主动降级确认框中，可以勾选 `clean gradle cache on fallback`。本轮会先执行 Gradle `clean`，再执行原构建任务，并禁用 Gradle build cache、强制重新执行任务。该选择只对本轮生效，不修改保存的运行配置。
+
+清理范围由工程的 `clean` 任务决定；位于该范围之外的生成器缓存需要按工程提供的方式清理。清理后重建的耗时取决于各工具可复用的中间产物。
+
 ## 取消已经开始的 Gradle 编译
 
 如果确认弹窗还没有关闭，选择 `No` 或直接关闭弹窗即可取消本轮运行。

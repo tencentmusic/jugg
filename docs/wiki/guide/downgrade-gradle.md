@@ -42,6 +42,10 @@ Use an explicit fallback when:
 
 After Gradle succeeds, Jugg reloads the APK, classpath, mapping, and resource baseline. Subsequent small changes can still use Jugg Run.
 
+In the fallback confirmation for no file changes and the manual fallback confirmation, you can select `clean gradle cache on fallback`. This run executes Gradle `clean` before the original build tasks, disables the Gradle build cache, and forces tasks to execute again. The selection applies only to this run and does not change the saved run configuration.
+
+The project’s `clean` task determines what is removed. Generator caches outside that scope require the cleanup provided by the project. Rebuild time depends on the intermediate outputs each tool can reuse.
+
 ## Cancel an ongoing Gradle build
 
 If the confirmation dialog is still open, select `No` or close the dialog to cancel the current run.
