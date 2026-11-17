@@ -27,6 +27,8 @@ import com.sickworm.intellij.jugg.deploy.run.DeployProgress
 import com.sickworm.intellij.jugg.deploy.run.DeployTaskResult
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
+import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
+import com.sickworm.intellij.jugg.deploy.run.IdeVersion
 import com.sickworm.intellij.jugg.ide.controlpanel.JuggControlPanelModel
 import com.sickworm.intellij.jugg.ide.controlpanel.JuggEvent
 import com.sickworm.intellij.jugg.ide.bean.IProcessHandler
@@ -55,6 +57,8 @@ private typealias JuggEventLevel = JuggEvent.Level
 private typealias JuggEventPhase = JuggEvent.Phase
 private typealias JuggEventSource = JuggEvent.Source
 private typealias JuggEventStatus = JuggEvent.Status
+
+private val QUAIL_4_VERSION = IdeVersion("Android Studio Quail 4", "AI", "261.26222.65")
 
 /**
  * Implementation of compilation and deployment.
@@ -213,9 +217,11 @@ class JuggRunningTask(
                 compileUiHandler.showRunWindow()
             }
             val toolWindowManager: ToolWindowManager = ToolWindowManager.getInstance(project)
-            toolWindowManager.getToolWindow("Run")?.let {
-                val icon = ExecutionUtil.getLiveIndicator(it.icon)
-                it.setIcon(icon)
+            if (AsDeployerCompat.ideVersion < QUAIL_4_VERSION) {
+                toolWindowManager.getToolWindow("Run")?.let {
+                    val icon = ExecutionUtil.getLiveIndicator(it.icon)
+                    it.setIcon(icon)
+                }
             }
         }
     }
