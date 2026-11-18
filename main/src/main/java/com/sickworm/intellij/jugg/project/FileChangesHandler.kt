@@ -317,11 +317,9 @@ class FileChangesHandler(
     }
 
     private fun checkSource(file: File): ChangedFile? {
+        val sourcePath = file.normalizedPath
         getModules().forEach { module ->
-            val baseSourceDir = module.sourceDirs.find {
-                file.normalize()
-                file.path.startsWith(it.path)
-            }
+            val baseSourceDir = module.sourceDirs.find { sourcePath.startsWith(it.normalizedPath) }
             if (baseSourceDir != null) {
                 val type = when (file.extension) {
                     "java" -> CompileFile.Type.Java
