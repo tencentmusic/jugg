@@ -432,11 +432,16 @@ class GradleProjectInfoReader(
             return emptyList()
         }
 
+        val canSkipRuntimeClasspath = moduleInfo.variants.isEmpty() && taskGraphGroup.isNotEmpty() && project !in taskGraphGroup
         var filterName = "${moduleInfo.buildVariant}RuntimeClasspath"
         if (project.configurations.names.none { filterConfigs(it, filterName) }) {
             filterName = "RuntimeClasspath"
         }
         if (project.configurations.names.none { filterConfigs(it, filterName) }) {
+            if (canSkipRuntimeClasspath) {
+                println("Jugg: skip missing runtime classpath for ${project.standardModuleName}: no variants or tasks")
+                return emptyList()
+            }
             throw GradleException("Jugg: runtime classpath is unavailable for ${project.standardModuleName}")
         }
 
@@ -447,6 +452,10 @@ class GradleProjectInfoReader(
             // artifact graph of the whole APK root and costs seconds per APK owner module.
             getDependenciesByConfig(project, filterName, isAndroidDepend = true, isNeedProjectDependencies = false)
                 .filterIsInstance<LibraryDependency>()
+        } catch (exception: GradleException) {
+            if (!canSkipRuntimeClasspath) throw exception
+            println("Jugg: skip failed runtime classpath for ${project.standardModuleName}: $exception")
+            emptyList()
         } finally {
             TraceLogger.end("getRuntime")
         }
