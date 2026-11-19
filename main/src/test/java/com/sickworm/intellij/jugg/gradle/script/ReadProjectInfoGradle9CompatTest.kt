@@ -81,7 +81,7 @@ class ReadProjectInfoGradle9CompatTest : ReadProjectInfoGradleCompatTestBase() {
     }
 
     @Test
-    fun generatedScript_shouldUseResolvedRuntimeModulesAfterExcludes() {
+    fun generatedScript_shouldUseResolvedCompileAndRuntimeModulesAfterExcludes() {
         val fixtureDir = Files.createTempDirectory("jugg_gradle_fixture_runtime_modules").toFile()
         try {
             File(System.getProperty("user.dir"), "src/test/assets/android-app-agp9")
@@ -92,7 +92,7 @@ class ReadProjectInfoGradle9CompatTest : ReadProjectInfoGradleCompatTestBase() {
                 include ':feature', ':mlive'
                 includeBuild('business_gift') {
                     dependencySubstitution {
-                        substitute module('com.tme.rif:business_gift') using project(':')
+                        substitute module('com.tme.rif:business_gift') using project(':sdk:business_gift')
                     }
                 }
                 """.trimIndent(),
@@ -129,7 +129,7 @@ class ReadProjectInfoGradle9CompatTest : ReadProjectInfoGradleCompatTestBase() {
                     defaultConfig { minSdk 21 }
                 }
                 dependencies {
-                    implementation 'com.tme.rif:business_gift:1.0'
+                    api 'com.tme.rif:business_gift:1.0'
                 }
                 """.trimIndent(),
             )
@@ -159,21 +159,32 @@ class ReadProjectInfoGradle9CompatTest : ReadProjectInfoGradleCompatTestBase() {
                     }
                 }
                 rootProject.name = 'business_gift'
+                include ':sdk:business_gift', ':sdk:entity'
                 """.trimIndent(),
             )
             writeFile(
                 File(fixtureDir, "business_gift/build.gradle"),
                 """
-                plugins { id 'com.android.library' version '8.7.2' }
-                group = 'com.tme.rif'
-                version = '1.0'
-                android {
-                    namespace 'com.tme.rif.business.gift'
-                    compileSdk 35
-                    defaultConfig { minSdk 21 }
+                plugins { id 'com.android.library' version '8.7.2' apply false }
+                subprojects {
+                    if (path.startsWith(':sdk:')) {
+                        apply plugin: 'com.android.library'
+                        group = 'com.tme.rif'
+                        version = '1.0'
+                        android {
+                            namespace 'com.tme.rif.' + project.name
+                            compileSdk 35
+                            defaultConfig { minSdk 21 }
+                        }
+                    }
+                }
+                project(':sdk:business_gift') {
+                    dependencies { api project(':sdk:entity') }
                 }
                 """.trimIndent(),
             )
+            File(fixtureDir, "business_gift/sdk/business_gift").mkdirs()
+            File(fixtureDir, "business_gift/sdk/entity").mkdirs()
             writeSdkLocalProperties(fixtureDir)
             writeWrapper(fixtureDir, gradleVersion)
             val initScript = copyGeneratedInitScript(fixtureDir)
@@ -192,11 +203,15 @@ class ReadProjectInfoGradle9CompatTest : ReadProjectInfoGradleCompatTestBase() {
                 mock(Logger::class.java),
             ).load(isSkipVersionCheck = true)
             assertNotNull(projectInfo)
-            val appRuntimeModules = projectInfo.modules.getValue("app").runtimeModuleDependencies
-            val featureRuntimeModules = projectInfo.modules.getValue("feature").runtimeModuleDependencies
-            assertTrue(appRuntimeModules.orEmpty().any { it.moduleName == "mlive" })
-            assertFalse(appRuntimeModules.orEmpty().any { it.moduleName == "business_gift" })
-            assertTrue(featureRuntimeModules.orEmpty().any { it.moduleName == "business_gift" })
+            val app = projectInfo.modules.getValue("app")
+            val feature = projectInfo.modules.getValue("feature")
+            val sdkModules = setOf("sdk.business_gift", "sdk.entity")
+            assertTrue(app.runtimeModuleDependencies.orEmpty().any { it.moduleName == "mlive" })
+            assertTrue(app.runtimeModuleDependencies.orEmpty().none { it.moduleName in sdkModules })
+            assertTrue(feature.runtimeModuleDependencies.orEmpty().map { it.moduleName }.containsAll(sdkModules))
+            assertTrue(app.moduleDependencies.any { it.moduleName == "mlive" })
+            assertTrue(app.moduleDependencies.none { it.moduleName in sdkModules })
+            assertTrue(feature.moduleDependencies.map { it.moduleName }.containsAll(sdkModules), feature.moduleDependencies.toString())
         } finally {
             fixtureDir.deleteRecursively()
         }

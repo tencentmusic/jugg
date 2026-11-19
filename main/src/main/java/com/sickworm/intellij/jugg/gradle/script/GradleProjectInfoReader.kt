@@ -39,7 +39,6 @@ class GradleProjectInfoReader(
         emptyMap()
     }
 
-    private var modulesNames = setOf<String>()
 
     private var isEnableJetifier: Boolean = false
 
@@ -68,7 +67,6 @@ class GradleProjectInfoReader(
         }
         TraceLogger.end("loadDependencyCrcCache")
 
-        modulesNames = rootProject.subprojects.flatMap { it.path.split(":") }.toSet()
         val modules = mutableMapOf<String, ModuleInfo>()
         rootProject.subprojects.forEach { project: Project ->
             val moduleInfo = getModuleInfo(project)
@@ -447,9 +445,7 @@ class GradleProjectInfoReader(
 
         TraceLogger.start("getRuntime")
         return try {
-            // Only library dependencies are consumed here, and the discarded module dependencies are
-            // what forces the legacy ResolvedConfiguration walk. That walk resolves the runtime
-            // artifact graph of the whole APK root and costs seconds per APK owner module.
+            // Runtime project components are read separately for APK ownership.
             getDependenciesByConfig(project, filterName, isAndroidDepend = true, isNeedProjectDependencies = false)
                 .filterIsInstance<LibraryDependency>()
         } catch (exception: GradleException) {
@@ -480,21 +476,12 @@ class GradleProjectInfoReader(
         }
 
         return try {
-            val result = linkedMapOf<String, ModuleDependency>()
+            val result = linkedSetOf<ModuleDependency>()
             configurations.forEach { configuration ->
                 if (configuration.allDependencies.isEmpty()) return@forEach
-                val resolutionResult = configuration.incoming.resolutionResult
-                resolutionResult.allComponents.forEach componentForEach@{ component ->
-                    val identifier = component.id as? ProjectComponentIdentifier ?: return@componentForEach
-                    if (identifier == resolutionResult.root.id) return@componentForEach
-                    val moduleName = identifier.projectPath.standardModuleNameForProjectPath.ifEmpty {
-                        identifier.projectName
-                    }
-                    if (moduleName.isEmpty()) return@componentForEach
-                    result[moduleName] = ModuleDependency(moduleName)
-                }
+                result.addAll(getProjectDependencies(configuration))
             }
-            result.values.toList()
+            result.toList()
         } catch (e: Throwable) {
             println("Jugg: get runtime module dependencies for ${project.standardModuleName} failed: $e")
             printException(e)
@@ -1876,7 +1863,7 @@ class GradleProjectInfoReader(
         // resolve project dependency here, because project dependency won't return by artifactView
         // if it's build directory is deleted
         if (isNeedProjectDependencies) {
-            getProjectDependencies(result, resolvedConfiguration.resolvedConfiguration.firstLevelModuleDependencies)
+            result.addAll(getProjectDependencies(resolvedConfiguration))
         }
 
         val resolvedArtifacts = mutableSetOf<ResolvedArtifactResult>()
@@ -1991,13 +1978,16 @@ class GradleProjectInfoReader(
         }
     }
 
-    private fun getProjectDependencies(result: MutableSet<Dependency>, dependencies: Set<ResolvedDependency>) {
-        dependencies.forEach { dependency ->
-            val moduleName = dependency.moduleNameIfIsProject
-            if (moduleName != null) {
-                result.add(ModuleDependency(moduleName))
-                getProjectDependencies(result, dependency.children)
+    private fun getProjectDependencies(configuration: Configuration): List<ModuleDependency> {
+        val resolutionResult = configuration.incoming.resolutionResult
+        val rootId = resolutionResult.root.id
+        return resolutionResult.allComponents.mapNotNull { component ->
+            val identifier = component.id as? ProjectComponentIdentifier ?: return@mapNotNull null
+            if (identifier == rootId) return@mapNotNull null
+            val moduleName = identifier.projectPath.standardModuleNameForProjectPath.ifEmpty {
+                identifier.projectName
             }
+            moduleName.takeIf { it.isNotEmpty() }?.let(::ModuleDependency)
         }
     }
 
@@ -2072,23 +2062,6 @@ class GradleProjectInfoReader(
 
     private val String.standardModuleNameForProjectPath: String get() {
         return removePrefix(":").replace(":", ".")
-    }
-
-    private val ResolvedDependency.moduleNameIfIsProject: String? get() {
-        val moduleGroup = moduleGroup.removePrefix(rootProject.name + ".") // handle subproject style
-        val moduleName = moduleName.removePrefix(rootProject.name + ".")
-
-        if (!modulesNames.contains(moduleName)) {
-            return null
-        }
-        if (moduleVersion != "unspecified") {
-            return null
-        }
-        return if (moduleGroup == rootProject.name) {
-            moduleName
-        } else {
-            "$moduleGroup.$moduleName"
-        }
     }
 
     /**
