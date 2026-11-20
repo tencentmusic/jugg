@@ -139,6 +139,8 @@ CI 命令行把构建拆成两个可审计阶段：
 1. `buildGradleBase` 清理目标 Jugg 目录，执行完整 Gradle 构建，保存 APK、project info、classpath、deploy history、APK database 和 source index，形成由 CI 管理的只读基线。
 2. `buildIncrementalApk` 从该基线恢复上下文，只编译调用方显式传入的 `changedFiles`，合并 dex 后把增量产物写回 APK 输出目录。
 
+`buildIncrementalApk` 的 `skipSign` 默认为 `false`；只有调用方明确传入 `skipSign=true` 时，实际改写 APK 跳过签名配置检查、签名和验签，仍在临时副本上改写、对齐并原子替换。调用方必须在安装或分发前重签并验签；空输入导出、Gradle 基线及 IDE 签名流程不变。
+
 调用方负责给出将要编译的文件集合，非空列表会校验文件存在、位于 `sourceProjectDir` 或项目模型已声明的模块目录、能被 `FileChangesHandler` 完整识别且不含 build file。实际编译前写入 `.dirty`；同一份可变基线再次执行会失败，避免前一轮增量已经改写 history/database 后仍被当成干净输入。若流水线需要多组增量结果，应为每组复制独立基线，而不是并发共享同一目录。
 
 `getChangedFiles` 对 `GitManager` 返回的变更逐项输出，识别出的路径保留 ChangedFile 类型和 module，其余路径输出 `type: "Unknown"`、`module: ""`。Unknown 只用于 CI 报告，不扩充核心 `CompileFile.Type`。`buildIncrementalApk` 必须显式传 `changedFiles`；空字符串代表空列表，直接从基线元数据导出 APK 到 `outputApkDir`，不初始化编译上下文、不执行自定义编译器和编译、不写 `.dirty`。省略参数仍失败；非空输入含无法识别文件时报 `not all files are compilable`，编排层决定明确忽略还是 Gradle 降级。

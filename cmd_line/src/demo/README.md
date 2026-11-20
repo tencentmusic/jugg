@@ -112,6 +112,8 @@ python3 scripts/install_and_launch.py --apk-dir "$(python3 -c 'import json; prin
 
 构建只比较基线提交与当前 HEAD，开发修改需先提交。
 
+如果流水线有独立的 APK 重签步骤，可在实际增量构建时传入 `skipSign=true`。Jugg 仍改写和对齐 APK，但不需要 keystore，不执行签名或验签；安装或分发前必须由下游重签并验签。省略参数或传 `skipSign=false` 时，继续使用原有签名流程。空变更导出基线和 Gradle 基线构建不受影响。
+
 ## 产物与基线
 
 每轮诊断文件位于 `<work-dir>/runs/<id>/`，按实际路径生成 `candidates.json`、`base-result.json`、`changed-files.json` 和增量工作副本 `jugg/`。增量 APK 输出到该轮的 `apk/`；Gradle 基线轮直接使用服务归档中已有的 `classpath/apk/`，不额外复制 APK，也不再创建 `baseline/` 子目录。

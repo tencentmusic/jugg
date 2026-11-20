@@ -53,6 +53,9 @@ class BuildIncrementalApkCommand(private val params: Params) {
             logger.info("Compile success.")
             updateApk(contextManager.compileContext, compileResult.incrementalCompileResult!!)
             logger.info("Update apk success.")
+            if (params.skipSign) {
+                logger.info("APK signing skipped; re-sign and verify before use: ${params.outputApkDir.absolutePath}")
+            }
             return true
         } catch (e: IncrementalException) {
             logger.warn("Compile failed", e)
@@ -135,7 +138,7 @@ class BuildIncrementalApkCommand(private val params: Params) {
 
     private fun updateApk(context: ICompileContext, compileResult: CompileResult) {
         val (isSuccess, failedReason) = IncrementalDeployHelper(context, logger)
-            .updateApk(context.apkInfos, compileResult.outputs.map { it.toDeployItem() })
+            .updateApk(context.apkInfos, compileResult.outputs.map { it.toDeployItem() }, skipSign = params.skipSign)
         if (!isSuccess) {
             throw IncrementalException("Update apk failed, reason: $failedReason")
         }

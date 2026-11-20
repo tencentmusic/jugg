@@ -70,6 +70,9 @@ class ParamsParser {
 
         val logLevelValue = keyValueMap["logLevel"] ?: "DEBUG"
         val logLevel = Level.toLevel(logLevelValue)
+        val skipSign = keyValueMap["skipSign"]?.let { value ->
+            value.toBooleanStrictOrNull() ?: throw IncrementalException("Param 'skipSign' must be true or false.")
+        } ?: false
 
         return Params(
             baseBuildJuggRootDir = baseBuildJuggRootDir,
@@ -78,6 +81,7 @@ class ParamsParser {
             changedFiles = changedFiles,
             customCompilerJars = customCompilerJars,
             logLevel = logLevel,
+            skipSign = skipSign,
         )
     }
 }
