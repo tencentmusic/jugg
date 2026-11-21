@@ -53,8 +53,7 @@ class BuildGradleBaseCommand(private val params: Params) {
             logger.info("Start build gradle base.")
             logger.debug("BuildGradleBaseCommand params: $params")
             prepare()
-            val apkInfos = gradleCompile()
-            initAfterGradleCompile(apkInfos)
+            runBlocking { buildBaseline() }
             logger.info("Build gradle base success.")
             return true
         } catch (e: BaseBuildException) {
@@ -68,6 +67,20 @@ class BuildGradleBaseCommand(private val params: Params) {
         } finally {
             coroutineScope.cancel()
             CmdLineLogger.release("BuildGradleBaseCommand")
+        }
+    }
+
+    private suspend fun buildBaseline() {
+        val constRefs = try {
+            if (JuggSettings.isEnableConstRefTasks) CiConstRefBaseline(pathManager, logger) else null
+        } catch (e: java.io.IOException) {
+            logger.warn("Could not prepare ConstRef baseline directory", e)
+            null
+        }
+        try {
+            initAfterGradleCompile(gradleCompile(), constRefs)
+        } finally {
+            constRefs?.close()
         }
     }
 
@@ -141,15 +154,21 @@ class BuildGradleBaseCommand(private val params: Params) {
         return apkInfos
     }
 
-    private fun initAfterGradleCompile(apkInfos: List<ApkInfo>) {
+    private suspend fun initAfterGradleCompile(
+        apkInfos: List<ApkInfo>,
+        constRefs: CiConstRefBaseline?,
+    ) = coroutineScope {
         logger.info("Start init after gradle compile.")
         val startTime = System.currentTimeMillis()
 
-        // backup library dependencies
         val gradleProjectInfo = getProjectInfo()
+        val constRefJob = constRefs?.let {
+            launch(Dispatchers.IO) { it.build(gradleProjectInfo, params.previousBaselineDir) }
+        }
 
+        // backup library dependencies
         var libraryProjectInfo: JuggProjectInfo? = null
-        val backupLibraryJob = coroutineScope.async {
+        val backupLibraryJob = async(Dispatchers.IO) {
             logger.info("Backup library dependencies start.")
             val costTime = measureTimeMillis {
                 try {
@@ -162,7 +181,7 @@ class BuildGradleBaseCommand(private val params: Params) {
         }
 
         var classpathProjectInfo: JuggProjectInfo? = null
-        val backupClasspathJob = coroutineScope.launch {
+        val backupClasspathJob = launch(Dispatchers.IO) {
             logger.info("Backup classpath start.")
             RsyncCompatibleHelper.init(logger)
             JuggSettings.isEnableBackupClasspath = true
@@ -231,23 +250,22 @@ class BuildGradleBaseCommand(private val params: Params) {
             }
         }
 
-        runBlocking {
-            backupLibraryJob.join()
-            backupClasspathJob.join()
-            val isBackupSuccess = libraryProjectInfo != null && classpathProjectInfo != null
-            if (!isBackupSuccess) {
-                throw BaseBuildException("Backup classpath and libraries failed.")
-            }
-            val finalProjectInfo = gradleProjectInfo.copy(
-                modules = libraryProjectInfo!!.modules.mapValues {
-                    it.value.copy(
-                        buildPathInfo = classpathProjectInfo!!.modules[it.key]!!.buildPathInfo
-                    )
-                },
-            )
-            ProjectInfoSerializer(pathManager.gradleProjectInfoFile, logger).save(finalProjectInfo)
+        backupLibraryJob.join()
+        backupClasspathJob.join()
+        val isBackupSuccess = libraryProjectInfo != null && classpathProjectInfo != null
+        if (!isBackupSuccess) {
+            throw BaseBuildException("Backup classpath and libraries failed.")
         }
+        val finalProjectInfo = gradleProjectInfo.copy(
+            modules = libraryProjectInfo!!.modules.mapValues {
+                it.value.copy(
+                    buildPathInfo = classpathProjectInfo!!.modules[it.key]!!.buildPathInfo
+                )
+            },
+        )
+        ProjectInfoSerializer(pathManager.gradleProjectInfoFile, logger).save(finalProjectInfo)
 
+        constRefJob?.join()
         val costTime = System.currentTimeMillis() - startTime
         logger.info("Init after gradle compile finish. cost: ${costTime}ms")
     }

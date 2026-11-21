@@ -13,10 +13,13 @@ import java.util.concurrent.ConcurrentHashMap
 /**
  * Persist and query const-ref analysis snapshots in a repo-relative/global sqlite database.
  */
-class ConstRefCacheDatabase(
+class ConstRefCacheDatabase internal constructor(
     private val dbFile: File,
     private val logger: Logger,
+    private val pathResolver: ConstRefRepoPathResolver,
 ) {
+    constructor(dbFile: File, logger: Logger) : this(dbFile, logger, ConstRefRepoPathResolver())
+
     private val maxDefinitionKeysPerQuery = 400
     private val url = "jdbc:sqlite:${dbFile.absolutePath}"
     private val dbWriteLock = ConstRefDbWriteLockRegistry.lockFor(dbFile)
@@ -640,6 +643,56 @@ class ConstRefCacheDatabase(
                 }
             } finally {
                 interner.close()
+            }
+        }
+    }
+
+    /** Retains the supplied files and their current content versions in a dedicated index. */
+    @Synchronized
+    internal fun retainCurrentAnalyses(filePaths: Set<String>) {
+        val retained = filePaths.mapNotNull { path ->
+            resolveRepoIdentity(path)?.let { it.repoKey to it.relativePath }
+        }.toHashSet()
+        withWriteTransaction { connection ->
+            val staleIds = connection.createStatement().use { statement ->
+                statement.executeQuery(
+                    """
+                    SELECT h.id, r.value, p.value, EXISTS (
+                        SELECT 1 FROM file_checksum_mtime_map m
+                        WHERE m.repo_id = h.repo_id AND m.path_id = h.path_id AND m.checksum = h.checksum
+                    )
+                    FROM file_analysis_head h
+                    JOIN strings r ON r.id = h.repo_id
+                    JOIN strings p ON p.id = h.path_id
+                    """.trimIndent()
+                ).use { rows ->
+                    val stale = mutableListOf<Long>()
+                    while (rows.next()) {
+                        if (!rows.getBoolean(4) || (rows.getString(2) to rows.getString(3)) !in retained) {
+                            stale.add(rows.getLong(1))
+                        }
+                    }
+                    stale
+                }
+            }
+            connection.prepareStatement("DELETE FROM file_analysis_head WHERE id = ?").use { delete ->
+                staleIds.forEach {
+                    delete.setLong(1, it)
+                    delete.addBatch()
+                }
+                delete.executeBatch()
+            }
+            connection.createStatement().use { statement ->
+                statement.executeUpdate(
+                    """
+                    DELETE FROM file_checksum_mtime_map WHERE NOT EXISTS (
+                        SELECT 1 FROM file_analysis_head h
+                        WHERE h.repo_id = file_checksum_mtime_map.repo_id
+                            AND h.path_id = file_checksum_mtime_map.path_id
+                            AND h.checksum = file_checksum_mtime_map.checksum
+                    )
+                    """.trimIndent()
+                )
             }
         }
     }
@@ -1435,7 +1488,7 @@ class ConstRefCacheDatabase(
     }
 
     private fun resolveRepoIdentity(filePath: String): RepoFileIdentity? {
-        val repoIdentity = ConstRefRepoPathResolver.resolve(filePath) ?: return null
+        val repoIdentity = pathResolver.resolve(filePath) ?: return null
         repoRootByKey[repoIdentity.repoKey] = repoIdentity.worktreeRoot.toStdPath()
         worktreeRootByKey[repoIdentity.worktreeKey] = repoIdentity.worktreeRoot.toStdPath()
         return repoIdentity

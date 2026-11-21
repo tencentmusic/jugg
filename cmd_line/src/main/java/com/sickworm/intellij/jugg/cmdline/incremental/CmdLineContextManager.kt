@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.cmdline.incremental
 
+import com.sickworm.intellij.jugg.cmdline.createBaselineConstRefEngine
 import com.sickworm.intellij.jugg.cmdline.loadCiProjectInfo
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.diagnostic.Logger
@@ -42,10 +43,13 @@ class CmdLineContextManager(
         logger,
     )
 
+    private val backgroundTaskRunner = CoroutineBackgroundTaskRunner(coroutineScope)
+
     val deployFileManager = DeployFileManager(
         pathManager,
-        CoroutineBackgroundTaskRunner(coroutineScope),
+        backgroundTaskRunner,
         logger,
+        pathManager.createBaselineConstRefEngine(backgroundTaskRunner, logger),
     )
 
     val deployStateManager = object : IDeployStateManager {

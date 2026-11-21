@@ -136,8 +136,8 @@ main(args)
 
 CI 命令行把构建拆成两个可审计阶段：
 
-1. `buildGradleBase` 清理目标 Jugg 目录，执行完整 Gradle 构建，保存 APK、project info、classpath、deploy history、APK database 和 source index，形成由 CI 管理的只读基线。
-2. `buildIncrementalApk` 从该基线恢复上下文，只编译调用方显式传入的 `changedFiles`，合并 dex 后把增量产物写回 APK 输出目录。
+1. `buildGradleBase` 清理目标 Jugg 目录，执行完整 Gradle 构建，保存 APK、project info、classpath、deploy history、APK database、source index 和 ConstRef 索引 `database/const_ref/const_ref_shared.db`，形成由 CI 管理的只读基线。可选的 `previousBaselineDir` 指向已解压、与本轮输出分开的历史基线目录，Jugg 从中复制 ConstRef 索引作为扫描起点；省略时冷扫。扫描在 Gradle 完成后与 classpath 备份并行，细节见 `03_deploy_const_ref.md` §4.3。
+2. `buildIncrementalApk` 从该基线恢复上下文，以调用方显式传入的 `changedFiles` 启动编译，按基线索引补编受常量变化影响的源码，汇总各轮产物并合并 dex 后把增量产物写回 APK 输出目录。
 
 `buildIncrementalApk` 的 `skipSign` 默认为 `false`；只有调用方明确传入 `skipSign=true` 时，实际改写 APK 跳过签名配置检查、签名和验签，仍在临时副本上改写、对齐并原子替换。调用方必须在安装或分发前重签并验签；空输入导出、Gradle 基线及 IDE 签名流程不变。
 

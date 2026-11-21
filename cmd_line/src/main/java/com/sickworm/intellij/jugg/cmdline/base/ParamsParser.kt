@@ -55,6 +55,7 @@ class ParamsParser {
             gradleOutputApkPath = gradleOutputApkPath,
             outputApkDir = outputApkDir,
             logLevel = logLevel,
+            previousBaselineDir = keyValueMap["previousBaselineDir"]?.takeIf { it.isNotBlank() }?.let(::File),
         )
     }
 }

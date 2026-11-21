@@ -1,6 +1,6 @@
 # Jugg 常量引用影响分析（ConstRefEngine / ConstRefAnalyzer）
 
-> 最后核对：2026-10-15
+> 最后核对：2026-11-21
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -101,7 +101,15 @@ DeployFileManager.getRecompileFiles()
 递归跟编轮次（`isCompilingEffectedSourceFiles=true`）不会再次传入 `constRefChangedSourcePaths`；ConstRef 只消费用户本轮原始源码变更，避免由结构影响跟编出的源码再次触发同一批 const-ref 查询。
 `getEffectedFiles()` 只查询并登记待确认的 definition diff，不在查询阶段清理；只有部署成功 commit 后才 ack 清理，避免“跟编失败后下一次编译漏掉同一批 const-ref 影响”。
 
-### 4.3 缓存命中链路
+### 4.3 CI 基线扫描和复用
+
+`buildGradleBase` 在 Gradle 完成后按本轮项目模型扫描普通源码根，与依赖、classpath 备份等收尾任务并行。基线扫描关闭 IDE 全扫节流，也跳过 mtime 快速命中，按内容 checksum 复用已有分析；模块构建目录和模型声明的外部构建生成源码目录不参与扫描。可选的 `previousBaselineDir` 指向已解压的历史基线目录，与本轮输出目录分开。Jugg 只从中复制 `database/const_ref/const_ref_shared.db` 到临时目录作为扫描起点，索引缺失或复制失败时冷扫。扫描结束后只保留本轮源码文件的当前版本，关闭 SQLite 后原子发布到本轮基线的 `database/const_ref/const_ref_shared.db`，随完整基线归档。扫描或发布失败只告警并丢弃索引，其他基线产物照常交付。
+
+CI 引擎由 `CiConstRef.kt` 组装，使用 `ConstRefRepoPathResolver(projectDir)`，仓库键和工作副本键都取仓库相对主工程的位置（`baseline:<相对路径>`），索引因此能在不同 runner 的 checkout 之间复用。CI 引擎不使用 repo fingerprint store。
+
+`buildIncrementalApk` 由 `CmdLineContextManager` 把使用基线 DB 的引擎注入 `DeployFileManager`，并在编译前通过 `addChangedFile()` 登记调用方传入的变更文件；`compiledFiles` 只来自这里，缺少登记时常量影响查询拿不到变更定义文件。补编产生的多轮产物按 staging 汇总后合并 Dex。缺少索引的旧基线仍会按需分析变更文件，但找不到未变更文件中的引用方。
+
+### 4.4 IDE 缓存命中链路
 
 ```text
 analyzeFiles()
@@ -112,7 +120,7 @@ analyzeFiles()
   -> analysis miss: parser 解析 definitions + reference candidates 后落库
 ```
 
-`ConstRefEngine` 不直接拼 DB 路径；`DeployFileManager` 从 `JuggPathManager.constRefSharedDbFile` 和 `repoFingerprintDbFile` 注入，并可在构造期直接创建 `ConstRefEngine` 对象。SQLite database、repo fingerprint store 与 impact resolver 属于 `ConstRefEngine` 内部 runtime，不能在 `ConstRefEngine` 构造期初始化；它们在 `updateModuleInfos()`、保存/删除事件、on-demand 分析、影响查询或 commit ack 首次需要时懒初始化。runtime 初始化失败后本轮进程熔断为 no-op；初始化成功后的运行期分析、影响查询、full scan、cleanup 或调度异常只降级当前操作，编译/部署主流程继续，后续 ConstRef 调用仍可重试。
+`ConstRefEngine` 不直接拼 DB 路径；IDE 的 `DeployFileManager` 默认使用 `JuggPathManager.constRefSharedDbFile` 和 `repoFingerprintDbFile` 创建引擎，CLI 通过构造参数注入基线引擎。SQLite database、repo fingerprint store 与 impact resolver 属于 `ConstRefEngine` 内部 runtime，不能在 `ConstRefEngine` 构造期初始化；它们在 `updateModuleInfos()`、保存/删除事件、on-demand 分析、影响查询或 commit ack 首次需要时懒初始化。runtime 初始化失败后本轮进程熔断为 no-op；初始化成功后的运行期分析、影响查询、full scan、cleanup 或调度异常只降级当前操作，编译/部署主流程继续，后续 ConstRef 调用仍可重试。
 
 ---
 

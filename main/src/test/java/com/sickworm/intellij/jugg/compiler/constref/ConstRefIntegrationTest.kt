@@ -6,12 +6,98 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 
 class ConstRefIntegrationTest : ConstRefTempDirCleanupSupport() {
+    @Test
+    fun `should drop removed roots and rescan same-mtime content when rebuilding a baseline`() {
+        val checkout = createTempDirectory("const_ref_final_sources")
+        File(checkout, ".git").mkdirs()
+        val earlyDir = File(checkout, "early").apply { mkdir() }
+        val finalDir = File(checkout, "final").apply { mkdir() }
+        val generated = File(finalDir, "Generated.java").apply {
+            writeText("public class Generated { public static final int VALUE = 1; }")
+        }
+        val removed = File(earlyDir, "Removed.java").apply {
+            writeText("public class Removed { public static final int VALUE = 3; }")
+        }
+        val databaseFile = File(checkout, "baseline.db")
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        val engine = ConstRefEngine(
+            analyzer = ConstRefAnalyzer(logger),
+            dbFile = databaseFile,
+            logger = logger,
+            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            pathResolver = ConstRefRepoPathResolver(checkout),
+        )
+        try {
+            runBlocking { engine.scanBaseline(listOf(earlyDir, finalDir)) }
+            val lastModified = generated.lastModified()
+            generated.writeText(generated.readText().replace("VALUE = 1", "VALUE = 2"))
+            assertTrue(generated.setLastModified(lastModified))
+            runBlocking { engine.scanBaseline(listOf(finalDir)) }
+        } finally {
+            engine.dispose()
+            scope.cancel()
+        }
+        val database = ConstRefCacheDatabase(databaseFile, logger, ConstRefRepoPathResolver(checkout))
+        try {
+            database.registerPathHints(listOf(finalDir.toStdPath()))
+            assertEquals(listOf("2"), database.getAllDefinitions().map { it.constValue })
+            assertEquals(null, database.getFileCache(removed.toStdPath()))
+        } finally {
+            database.close()
+        }
+    }
+
+    @Test
+    fun `should reuse caller index and previous definitions after restoring baseline in another checkout`() {
+        val original = createTempDirectory("const_ref_baseline")
+        val restored = createTempDirectory("const_ref_checkout")
+        listOf(original, restored).forEach { checkout ->
+            File(checkout, ".git").mkdirs()
+            File(checkout, "Constants.kt").writeText("package example\nobject Constants { const val VALUE = 1 }")
+            File(checkout, "Caller.kt").writeText("package example\nval result = Constants.VALUE")
+        }
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        fun engine(checkout: File) = ConstRefEngine(
+            analyzer = ConstRefAnalyzer(logger),
+            dbFile = File(checkout, "const_ref.db"),
+            logger = logger,
+            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            pathResolver = ConstRefRepoPathResolver(checkout),
+        )
+        try {
+            val builder = engine(original)
+            try {
+                runBlocking { builder.scanBaseline(listOf(original)) }
+            } finally {
+                builder.dispose()
+            }
+            File(original, "const_ref.db").copyTo(File(restored, "const_ref.db"))
+            val incremental = engine(restored)
+            try {
+                val constants = File(restored, "Constants.kt")
+                val changed = listOf(constants.toStdPath())
+                assertTrue(incremental.analyzeOnDemand(changed).isReady)
+                assertTrue(incremental.getEffectedFiles(changed).isEmpty())
+
+                constants.writeText(constants.readText().replace("VALUE = 1", "VALUE = 2"))
+                assertTrue(incremental.analyzeOnDemand(changed).isReady)
+                assertEquals(listOf(File(restored, "Caller.kt").toStdPath()),
+                    incremental.getEffectedFiles(changed).map { it.refFilePath })
+            } finally {
+                incremental.dispose()
+            }
+        } finally {
+            scope.cancel()
+        }
+    }
+
     @Test
     fun `should detect callers through named kotlin companion and aliases`() {
         assertCompanionCallers(

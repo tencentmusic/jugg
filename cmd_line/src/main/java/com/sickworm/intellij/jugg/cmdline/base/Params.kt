@@ -29,4 +29,7 @@ data class Params(
      * ALL / DEBUG / INFO / WARN / ERROR / FATAL / OFF
      */
     val logLevel: Level,
+
+    /** Optional restored CI baseline directory, separate from the new baseline output. */
+    val previousBaselineDir: File? = null,
 )

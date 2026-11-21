@@ -6,31 +6,36 @@ import java.io.File
  * Resolve stable repository identity for const-ref cache keys.
  *
  * It normalizes Git worktree layout by reading `.git` + `commondir`, so files from different
- * worktrees of one repository share the same `repoKey`.
+ * worktrees of one repository share the same `repoKey`. A baseline resolver keys repositories by their
+ * location relative to [checkoutRoot], so the index stays valid after the checkout moves to another runner.
  */
-internal object ConstRefRepoPathResolver {
+class ConstRefRepoPathResolver(checkoutRoot: File? = null) {
+    private val root = checkoutRoot?.canonicalFile
 
-    fun resolve(path: String): RepoFileIdentity? {
+    internal fun resolve(path: String): RepoFileIdentity? {
         return resolve(File(path))
     }
 
-    fun resolve(file: File): RepoFileIdentity? {
+    internal fun resolve(file: File): RepoFileIdentity? {
         val absoluteFile = file.absoluteFile
         var currentDir = if (absoluteFile.isDirectory) absoluteFile else absoluteFile.parentFile
         while (currentDir != null) {
             val gitRef = File(currentDir, ".git")
             if (gitRef.exists()) {
                 val gitDir = resolveGitDir(currentDir, gitRef) ?: return null
-                val repoKey = resolveRepoKey(gitDir)
                 val worktreeRoot = currentDir.absoluteFile
+                val portableKey = root?.let {
+                    val relativeRoot = worktreeRoot.canonicalFile.relativeToOrNull(it) ?: worktreeRoot.canonicalFile
+                    "baseline:${relativeRoot.invariantSeparatorsPath}"
+                }
                 val relativePath = runCatching {
                     absoluteFile.relativeTo(worktreeRoot).invariantSeparatorsPath
                 }.getOrElse {
                     return null
                 }
                 return RepoFileIdentity(
-                    repoKey = repoKey,
-                    worktreeKey = worktreeRoot.canonicalPath,
+                    repoKey = portableKey ?: resolveRepoKey(gitDir),
+                    worktreeKey = portableKey ?: worktreeRoot.canonicalPath,
                     relativePath = relativePath,
                     worktreeRoot = worktreeRoot,
                 )

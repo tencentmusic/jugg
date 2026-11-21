@@ -34,6 +34,13 @@ class DeployFileManager(
     private val pathManager: JuggPathManager,
     private var backgroundTaskRunner: IBackgroundTaskRunner,
     private val logger: Logger,
+    private val constRefEngine: ConstRefEngine = ConstRefEngine(
+        analyzer = ConstRefAnalyzer(logger.getInstance("ConstRefAnalyzer")),
+        dbFile = pathManager.constRefSharedDbFile,
+        repoFingerprintDbFile = pathManager.repoFingerprintDbFile,
+        logger = logger.getInstance("ConstRefEngine"),
+        backgroundTaskRunner = backgroundTaskRunner,
+    ),
 ) {
     private val isConstRefTasksEnabled: Boolean
         get() = JuggSettings.isEnableConstRefTasks
@@ -44,14 +51,6 @@ class DeployFileManager(
      * get source file by source file name in dex file
      */
     private val sourceFileManager = SourceFileManager(pathManager.projectDir, pathManager.databaseDir, logger.getInstance("SourceFileManager"))
-
-    private val constRefEngine = ConstRefEngine(
-        analyzer = ConstRefAnalyzer(logger.getInstance("ConstRefAnalyzer")),
-        dbFile = pathManager.constRefSharedDbFile,
-        repoFingerprintDbFile = pathManager.repoFingerprintDbFile,
-        logger = logger.getInstance("ConstRefEngine"),
-        backgroundTaskRunner = backgroundTaskRunner,
-    )
 
     private val constRefEffectProvider = object : ConstRefEffectProvider {
         override fun ensureReadyForRecompile(changedSourcePaths: Collection<String>, timeoutMs: Long): ConstRefReadiness {
