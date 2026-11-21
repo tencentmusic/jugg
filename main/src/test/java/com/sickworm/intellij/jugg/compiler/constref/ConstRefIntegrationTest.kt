@@ -584,6 +584,9 @@ class ConstRefIntegrationTest : ConstRefTempDirCleanupSupport() {
                 timeoutMs = 10_000L,
             )
 
+            scheduler.getEffectedFiles(listOf(constantsFile.absolutePath))
+            scheduler.acknowledgeEffectedFilesAfterDeployCommit()
+
             constantsFile.writeText(
                 """
                 package com.example

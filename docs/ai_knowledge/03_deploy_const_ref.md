@@ -100,6 +100,7 @@ DeployFileManager.getRecompileFiles()
 `FULL_SCAN` 不再作为编译前硬门槛；`awaitAnalysis()` 只要求目标变更文件达到本轮分析时间线。查询异常返回空列表，不阻断部署主流程。
 递归跟编轮次（`isCompilingEffectedSourceFiles=true`）不会再次传入 `constRefChangedSourcePaths`；ConstRef 只消费用户本轮原始源码变更，避免由结构影响跟编出的源码再次触发同一批 const-ref 查询。
 `getEffectedFiles()` 只查询并登记待确认的 definition diff，不在查询阶段清理；只有部署成功 commit 后才 ack 清理，避免“跟编失败后下一次编译漏掉同一批 const-ref 影响”。
+后台分析与按需分析可以重叠。如果后完成的分析读到索引中的新定义并算出空差异，tracker 保留该文件已有的待确认差异，使下一轮仍能查到需要跟编的引用方。
 
 ### 4.3 CI 基线扫描和复用
 
