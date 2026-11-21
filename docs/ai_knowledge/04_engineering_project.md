@@ -110,6 +110,8 @@ androidTest variant 的完整 Manifest 可能仅位于 `intermediates/packaged_m
 
 ### 4.1 Gradle project info 读取
 
+`GradleProjectInfoReader` 从当前 Kotlin 编译任务读取模块名，保存为可空的 `ModuleInfo.kotlinModuleName`。兼容旧版 Kotlin Gradle 插件时，任务级 `moduleName` 优先于 `compilerOptions.moduleName`，再尝试旧 `kotlinOptions.moduleName`。合成的 `androidTest` 模型从自己的任务读取。IDE 合并和 CLI 基线恢复都使用 Gradle 快照里的该字段。旧快照缺少字段时仍可读取，重新生成 Gradle 快照后取得实际值。
+
 ```text
 IDE / Gradle compile 触发 project info 更新
   -> GradleProjectInfoLocalFetchManager 或 Gradle compile client 拼装 init script 参数

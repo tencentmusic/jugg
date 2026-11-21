@@ -97,6 +97,9 @@ class GradleProjectInfoReader(
                         libraryDependencies = atDependencies.filterIsInstance<LibraryDependency>(),
                         moduleDependencies = atDependencies.filterIsInstance<ModuleDependency>(),
                         testApplicationId = testAppId,
+                        kotlinModuleName = readKotlinModuleName(
+                            findKotlinTask(project, resolveAndroidTestBuildVariant(moduleInfo.buildVariant).camelCompat)
+                        ),
                     )
                     if (androidTestModuleInfo != null) {
                         modules[androidTestModuleInfo.name] = androidTestModuleInfo
@@ -274,6 +277,7 @@ class GradleProjectInfoReader(
                     buildToolsVersion = buildToolsVersion,
                     minSdkVersion = defaultConfig["minSdkVersion"]["apiLevel"]?.valueString,
                     kotlinJvmTarget = kotlinJvmTarget,
+                    kotlinModuleName = readKotlinModuleName(kotlinTask),
                     kotlinFreeCompilerArgs = kotlinFreeCompilerArgs,
                     kotlinPluginOptions = kotlinPluginOptions,
                     javaSourceCompatibility = compileOptions["sourceCompatibility"]?.valueString,
@@ -309,6 +313,7 @@ class GradleProjectInfoReader(
                 val kotlinJvmOptions = reflector(kotlinTask)["kotlinOptions"]
                 moduleInfo = moduleInfo.copy(
                     kotlinJvmTarget = readKotlinJvmTarget(kotlinTask, kotlinJvmOptions),
+                    kotlinModuleName = readKotlinModuleName(kotlinTask),
                     kotlinFreeCompilerArgs = readKotlinFreeCompilerArgs(kotlinTask, kotlinJvmOptions),
                     kotlinPluginOptions = readKotlinPluginOptions(kotlinTask),
                 )
@@ -1690,6 +1695,19 @@ class GradleProjectInfoReader(
         }
     }
 
+    private fun readKotlinModuleName(task: Any?): String? {
+        task ?: return null
+        return runCatching {
+            // Older Kotlin Gradle plugins let the task property override compilerOptions.moduleName.
+            (readKotlinOptionValue(task, "moduleName") as? String)
+                ?: (readKotlinOptionValue(readProperty(task, "compilerOptions"), "moduleName") as? String)
+                ?: (readKotlinOptionValue(readProperty(task, "kotlinOptions"), "moduleName") as? String)
+        }.getOrElse { error ->
+            println("Jugg: could not read Kotlin module name for ${readProperty(task, "path")}: $error")
+            null
+        }
+    }
+
     /** Reads the effective JVM target from Kotlin 2 compiler options with a legacy fallback. */
     private fun readKotlinJvmTarget(kotlinTask: Any?, legacyOptions: Reflector?): String? {
         val compilerOptions = readProperty(kotlinTask, "compilerOptions")
@@ -2120,6 +2138,7 @@ class GradleProjectInfoReader(
             libraryDependencies: List<LibraryDependency>,
             moduleDependencies: List<ModuleDependency> = emptyList(),
             testApplicationId: String?,
+            kotlinModuleName: String? = null,
         ): ModuleInfo? {
             if (sourceDirs.isEmpty()) return null
             val ownerPackage = appModuleInfo.applicationId ?: appModuleInfo.namespace ?: return null
@@ -2133,6 +2152,7 @@ class GradleProjectInfoReader(
                 name = "${appModuleInfo.name}.androidTest",
                 moduleType = ModuleInfo.Type.Library,
                 buildVariant = androidTestBuildVariant,
+                kotlinModuleName = kotlinModuleName,
                 buildPathInfo = appModuleInfo.buildPathInfo.copy(buildVariant = androidTestBuildVariant),
                 applicationId = resolvedTestAppId,
                 instrumentationTargetPackage = targetPackage,

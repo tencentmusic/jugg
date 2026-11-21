@@ -353,6 +353,7 @@ class JuggProjectInfoMerger(
                 composeResourceInfo = gradleModuleInfo.composeResourceInfo ?: moduleInfo.composeResourceInfo,
                 externalBuildInfos = gradleModuleInfo.externalBuildInfos,
                 gradleModuleName = gradleModuleInfo.gradleModuleName,
+                kotlinModuleName = gradleModuleInfo.kotlinModuleName,
             )
             mergedModules[name] = mergedModuleInfo
         }

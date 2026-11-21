@@ -109,7 +109,7 @@ ARouter 处理器在自身打印原异常 warn，并只向通用编译链交付�
 ```text
 KotlinCompilerInvoker
   -> 优先使用项目 Kotlin compiler；不可用时回退内置 compiler
-  -> module-name = Gradle module name + build variant
+  -> module-name = 对应 Gradle Kotlin 编译任务的模块名
   -> friend path 指向本模块 baseline Kotlin output
   -> Kotlin + 同模块 Java source roots 联合解析
   -> 非 KAPT 编译直接写入模块 Kotlin classpath
@@ -118,7 +118,7 @@ KotlinCompilerInvoker
 
 这组参数共同维护“本轮单文件仍属于原 Gradle 模块”的语义：
 
-- `-module-name` 必须与 Gradle 基线一致，否则 `internal` 方法/属性的 JVM 名称后缀会变化，调用方可能在运行时出现 `NoSuchMethodError`。
+- `-module-name` 优先使用 `ModuleInfo.kotlinModuleName`，直接传入 Gradle 模块名。旧快照或任务未提供该值时，沿用 Gradle 项目名和 variant 推导。模块名与基线不一致会改变 `internal` 方法/属性的 JVM 名称后缀，调用方可能在运行时出现 `NoSuchMethodError`。
 - `-Xfriend-paths` 让本轮源码继续访问同模块 baseline 中的 `internal` 声明；KMP baseline 被隔离时，friend path 必须同步切到隔离视图。androidTest 额外加入直接依赖中与自身 module root 相同、且主 variant 对应当前 test variant 的 owner Kotlin output；其他依赖仍只提供普通 classpath，不开放其 `internal`。
 - 非 KAPT 编译把 `-d` 指向模块 Kotlin classpath，使编译器把 baseline class 与本轮源码视为共同编译结果，避免 `public API property declared in different module` 一类误判和 smart cast 失效。
 - `-Xjava-source-roots` 让 Kotlin 先读取本轮或同模块 Java 源码，解决 Java/Kotlin 相互引用；因此语言阶段固定 Kotlin 在前、Java 在后。

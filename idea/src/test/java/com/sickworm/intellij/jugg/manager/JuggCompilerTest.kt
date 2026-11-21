@@ -104,6 +104,21 @@ class JuggCompilerTest {
     // kotlin class
 
     @Test
+    fun testKotlinMethodBodyChangePreservesGradleModuleName() {
+        val classPath = "com/sickworm/jugg/demo/testcase/kotlinmodule/ModuleNameCase"
+        val source = File(assetsAndroidDir, "app/src/main/java/$classPath.kt")
+        changeAndRevert(source, "\"baseline\"", "\"incremental\"") {
+            jugg.notifyFileChanges(listOf(source))
+            jugg.compileChangedFiles()
+            val dex = File(jugg.pathManager.stagingDir, "classes/$classPath.dex")
+            assertTrue(dex.isFile, "Missing incremental DEX for ModuleNameCase")
+            val methods = ApkParser().parseDexFiles(listOf(dex)).classDeployItems.single()
+                .classNodes.single().methods.map { it.name }
+            assertEquals(listOf("label\$jugg_demo_debug"), methods.filter { it.startsWith("label") })
+        }
+    }
+
+    @Test
     fun testKotlinClassAddSingle() {
         jugg.changeFileAndNotify("TestNewKotlinFile.kt" to "TestNewKotlinFile.kt")
         jugg.checkCompileResult("TestNewKotlinFile.kt", newClassesSize = 1)

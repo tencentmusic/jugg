@@ -223,7 +223,7 @@ data class ModuleInfo(
     val namespace: String? = null,
     val variants: List<Variant> = emptyList(),
     val signingConfigs: List<SigningConfig>? = null,
-    val gradleModuleName: String? = null, // module name in gradle which will be used in kotlin -module-name
+    val gradleModuleName: String? = null, // Gradle project name
     val kotlinPlugins: List<File>? = null,
     val kotlinExtensions: List<File>? = null,
     val coreLibraryDesugaring: List<LibraryDependency>? = null,
@@ -236,6 +236,8 @@ data class ModuleInfo(
     /** Effective options declared by Kotlin compiler subplugins for this module. */
     val kotlinPluginOptions: List<String>,
     val externalBuildInfos: List<ExternalBuildInfo>,
+    /** Kotlin compiler module name resolved for this Gradle compilation. */
+    val kotlinModuleName: String? = null,
 ) {
     // do not add unnecessary content before ") {", for kotlin 1.3 compat: buildReadProjectInfoScript.gradle
     // if adds new fields, also updates:
