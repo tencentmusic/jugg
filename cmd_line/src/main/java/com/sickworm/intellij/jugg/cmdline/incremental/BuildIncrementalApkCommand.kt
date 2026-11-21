@@ -43,6 +43,7 @@ class BuildIncrementalApkCommand(private val params: Params) {
             val changedFiles = getChangedFiles()
             TimeLogger.end("Init compile context", logger)
             checkDirty(consume = true)
+            contextManager.deployFileManager.addChangedFile(changedFiles)
             val compilerHelper = getCompilerHelper()
 
             val compileResult = compile(compilerHelper, changedFiles)
@@ -170,10 +171,12 @@ class BuildIncrementalApkCommand(private val params: Params) {
             return compileTaskResult // return directly
         }
 
-        // merge dex
-        val incrementalCompileResult = compileTaskResult.incrementalCompileResult!! // not null if success
+        // The last compile result only contains outputs from its own round.
+        val stagedResult = compileTaskResult.incrementalCompileResult!!.copy(
+            outputs = contextManager.deployFileManager.getStagingFiles(),
+        )
         val dexOutputDir = File(pathManager.stagingDir, "merged_dex")
-        val mergedIncrementalCompileResult = compilerHelper.mergeDex(incrementalCompileResult, dexOutputDir)
+        val mergedIncrementalCompileResult = compilerHelper.mergeDex(stagedResult, dexOutputDir)
             ?: return CompileTaskResult.incrementalFailed(isCanFallback = false, failedReason = "Merge dex failed")
         return CompileTaskResult.incrementalSuccess(mergedIncrementalCompileResult)
     }
