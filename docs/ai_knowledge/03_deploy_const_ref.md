@@ -105,7 +105,7 @@ DeployFileManager.getRecompileFiles()
 
 `buildGradleBase` 在 Gradle 完成后按本轮项目模型扫描普通源码根，与依赖、classpath 备份等收尾任务并行。基线扫描关闭 IDE 全扫节流，也跳过 mtime 快速命中，按内容 checksum 复用已有分析；模块构建目录和模型声明的外部构建生成源码目录不参与扫描。可选的 `previousBaselineDir` 指向已解压的历史基线目录，与本轮输出目录分开。Jugg 只从中复制 `database/const_ref/const_ref_shared.db` 到临时目录作为扫描起点，索引缺失或复制失败时冷扫。扫描结束后只保留本轮源码文件的当前版本，关闭 SQLite 后原子发布到本轮基线的 `database/const_ref/const_ref_shared.db`，随完整基线归档。扫描或发布失败只告警并丢弃索引，其他基线产物照常交付。
 
-CI 引擎由 `CiConstRef.kt` 组装，使用 `ConstRefRepoPathResolver(projectDir)`，仓库键和工作副本键都取仓库相对主工程的位置（`baseline:<相对路径>`），索引因此能在不同 runner 的 checkout 之间复用。CI 引擎不使用 repo fingerprint store。
+CI 引擎由 `CiConstRef.kt` 组装，使用 `ConstRefRepoPathResolver(projectDir)`：工作副本键取仓库相对主工程的位置（`baseline:<相对路径>`），仓库键与 IDE 一样优先使用 origin（见 §5.1），无可用 origin 时回退到同一相对位置键，索引因此能在不同 runner 的 checkout 之间复用。CI 引擎不使用 repo fingerprint store。
 
 `buildIncrementalApk` 由 `CmdLineContextManager` 把使用基线 DB 的引擎注入 `DeployFileManager`，并在编译前通过 `addChangedFile()` 登记调用方传入的变更文件；`compiledFiles` 只来自这里，缺少登记时常量影响查询拿不到变更定义文件。补编产生的多轮产物按 staging 汇总后合并 Dex。缺少索引的旧基线仍会按需分析变更文件，但找不到未变更文件中的引用方。
 
@@ -143,19 +143,20 @@ analyzeFiles()
 关键行为：
 
 - `file_analysis_head` / `const_definitions` / `const_reference_candidates` 通过 `file_id` 共享分析结果，避免在高频引用索引里重复保存长路径。
-- `file_checksum_mtime_map` 通过 `worktree_id + path_id` 隔离项目本地基线。
+- 仓库键由 `ConstRefRepoPathResolver` 解析：可解析的网络 `remote.origin.url` 规范化为 `origin:<host>[:非默认端口]/<path>`（HTTPS 与 scp 风格 SSH 归一，去掉认证信息、`.git` 后缀和默认端口），同源的独立 clone 与 linked worktree 共享分析记录；无可用 origin 时，IDE 回退到 Git 公共目录的绝对路径。
+- `file_checksum_mtime_map` 通过 `worktree_id + path_id` 隔离项目本地基线。共享仓库键的多个工作副本之间，"当前版本"优先取当前 `worktreeKey` 映射的 checksum，其次才按 `analyzed_at` 取最新，避免另一个 checkout 新分析的版本遮住本 checkout 的定义和引用候选；`removeFile` 只删除没有任何工作副本仍在映射的版本。
 - 写入侧先预热当前批次的字符串 ID，减少 full scan / batch analysis 的逐行 `strings` 查询；进程内 `stringIdCache` 是有上限的 LRU 辅助缓存。
 - 同 IDE 进程内按 DB path 共享写锁，public 写入口和 maintenance 写入串行，降低多 Project 多 connection 写同一全局 DB 的锁竞争；读查询不额外串行。
 - 受影响文件查询先定位 definition key，再匹配 latest candidate rows，最后按当前 worktree 还原绝对路径，仅返回本地存在文件。
 - 支持 `queryClassesBySimpleNames` 通过 `simple_class_id + const_name_id` 索引实现点查，避免全表扫描。
 - 使用共享 SQLite 长连接，避免高频建连；latest 版本选择追加 `checksum` 作为稳定 tie-breaker。
-- `PRAGMA schema_version=9`，不兼容时重建；parser 可见性规则或索引语义变化必须 bump version，避免旧库中的 stale definition/candidate 继续参与影响分析。版本 7 可能漏掉 Java 接口或注解的隐式常量；版本 8 及更早版本还可能漏掉 Kotlin 命名 companion 的 owner 别名和 companion 内的嵌套定义。升级后必须重新解析，不能继续复用对应的 mtime/checksum 分析记录。
+- `PRAGMA schema_version=10`，不兼容时重建；parser 可见性规则或索引语义变化必须 bump version，避免旧库中的 stale definition/candidate 继续参与影响分析。版本 7 可能漏掉 Java 接口或注解的隐式常量；版本 8 及更早版本还可能漏掉 Kotlin 命名 companion 的 owner 别名和 companion 内的嵌套定义。版本 9 及更早版本使用 Git 公共目录作为仓库键，升到 10 时直接重建而不迁移旧键。升级后必须重新解析，不能继续复用对应的 mtime/checksum 分析记录。
 - 初始化识别 `SQLITE_CORRUPT` / `SQLITE_NOTADB` / `database disk image is malformed` 等损坏信号时会删除或旁路旧 DB 后重建；若重建或后续 ConstRef runtime 初始化仍失败，上层降级为 no-op，不阻断正常编译/部署。
 
 ### 5.2 `RepoSharedFingerprintStore`
 
 - key 由 `repo_key + relative_path + file_size + head/tail(+middle)签名` 组成。
-- 支持 Git worktree 共享命中（通过 `commondir` 归一 repo_key）。
+- 网络 origin 相同的独立 clone 和 linked worktree 共享指纹；无可用 origin 时，linked worktree 仍通过 Git 公共目录共享。
 - 中段内容变化可避免“同头同尾误命中”。
 - 支持独立 cleanup（TTL + 每文件版本上限 + checkpoint/vacuum）。
 

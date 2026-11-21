@@ -17,6 +17,54 @@ import kotlin.system.measureTimeMillis
 
 class ConstRefCacheDatabaseTest : ConstRefTempDirCleanupSupport() {
     @Test
+    fun `should share analysis across clone URLs but keep each checkout version`() {
+        val root = createTempDirectory("const_ref_independent_clones")
+        val a = writeCloneSource(root, "a", "https://user:token@example.com/org/repo.git")
+        val b = writeCloneSource(root, "b", "git@EXAMPLE.com:org/repo.git")
+        val file = File(root, "const_ref.db")
+        val first = ConstRefCacheDatabase(file, logger)
+        val second = ConstRefCacheDatabase(file, logger)
+        try {
+            val key = "example.ConstantsKt" to "VALUE"
+            val definition = ConstDefinition(a.toStdPath(), "example", key.first, key.second, "Int", "1")
+            first.upsertFileAnalysis(a.toStdPath(), 100L, 11L, listOf(definition), emptyList())
+            assertTrue(second.hasFileAnalysis(b.toStdPath(), 11L))
+            assertNull(second.getMtimeMapChecksum(b.toStdPath()))
+            val updated = definition.copy(filePath = b.toStdPath(), constValue = "2")
+            second.upsertFileAnalysis(b.toStdPath(), 100L, 22L, listOf(updated), emptyList())
+            assertEquals(11L, first.getMtimeMapChecksum(a.toStdPath()))
+            assertEquals(22L, second.getMtimeMapChecksum(b.toStdPath()))
+            assertEquals(listOf("1"), first.queryDefinitionsByClassConstKeys(setOf(key), listOf(a.toStdPath()))
+                .map { it.constValue })
+            assertEquals(listOf("2"), second.queryDefinitionsByClassConstKeys(setOf(key), listOf(b.toStdPath()))
+                .map { it.constValue })
+            val callerA = File(a.parentFile, "Caller.kt").apply { writeText("val result = VALUE") }.toStdPath()
+            val callerB = File(b.parentFile, "Caller.kt").apply { writeText("val result = 0") }.toStdPath()
+            first.upsertFileAnalysis(callerA, 100L, 33L, emptyList(), emptyList(), listOf(
+                ConstReferenceCandidate(callerA, "example", key.second, null, ConstReferenceOwnerKind.BARE_SAME_PACKAGE)
+            ))
+            second.upsertFileAnalysis(callerB, 100L, 44L, emptyList(), emptyList())
+            assertEquals(listOf(callerA), first.getEffectedFilesByDefinitionKeys(listOf(key), listOf(a.toStdPath()))
+                .map { it.refFilePath })
+            assertTrue(second.getEffectedFilesByDefinitionKeys(listOf(key), listOf(b.toStdPath())).isEmpty())
+            first.removeFile(a.toStdPath())
+            assertTrue(second.hasFileAnalysis(b.toStdPath(), 22L))
+        } finally {
+            second.close()
+            first.close()
+        }
+    }
+
+    private fun writeCloneSource(parent: File, name: String, origin: String?): File {
+        val checkout = File(parent, name)
+        val git = File(checkout, ".git").apply { mkdirs() }
+        if (origin != null) {
+            File(git, "config").writeText("[remote \"origin\"]\nurl = $origin\n")
+        }
+        return File(checkout, "Constants.kt").apply { writeText("const val VALUE = 1") }
+    }
+
+    @Test
     fun `should recreate malformed database during init`() {
         val dbDir = createTempDirectory("const_ref_db_malformed")
         File(dbDir, ".git").mkdirs()
@@ -35,7 +83,7 @@ class ConstRefCacheDatabaseTest : ConstRefTempDirCleanupSupport() {
                 }
                 statement.executeQuery("PRAGMA schema_version").use { resultSet ->
                     assertTrue(resultSet.next())
-                    assertEquals(9, resultSet.getInt(1))
+                    assertEquals(10, resultSet.getInt(1))
                 }
             }
         }
@@ -43,7 +91,7 @@ class ConstRefCacheDatabaseTest : ConstRefTempDirCleanupSupport() {
 
     @Test
     fun `should invalidate stale analysis after constant parser rule changes`() {
-        listOf(7, 8).forEach { oldVersion ->
+        listOf(7, 8, 9).forEach { oldVersion ->
             val dbDir = createTempDirectory("const_ref_db_schema_bump")
             File(dbDir, ".git").mkdirs()
             val dbFile = File(dbDir, "const_ref_test.db")

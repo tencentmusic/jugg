@@ -26,6 +26,7 @@ class ConstRefCacheDatabase internal constructor(
     private var sharedConnection: Connection? = null
     private val repoRootByKey = mutableMapOf<String, String>()
     private val worktreeRootByKey = mutableMapOf<String, String>()
+    private val worktreeKeyByRepo = mutableMapOf<String, String>()
     private val stringIdCache = object : LinkedHashMap<String, Long>(STRING_ID_CACHE_MAX_ENTRIES, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Long>?): Boolean {
             return size > STRING_ID_CACHE_MAX_ENTRIES
@@ -611,7 +612,7 @@ class ConstRefCacheDatabase internal constructor(
         val repoIdentity = resolveRepoIdentity(filePath) ?: return
         val nowMs = System.currentTimeMillis()
         withWriteTransaction(clearStringCacheOnFailure = true) { connection ->
-            val checksum = queryLatestChecksum(connection, repoIdentity.repoKey, repoIdentity.relativePath) ?: return@withWriteTransaction
+            val checksum = queryLatestChecksum(connection, repoIdentity) ?: return@withWriteTransaction
             val interner = StringInterner(connection)
             val repoId = interner.id(repoIdentity.repoKey)
             val pathId = interner.id(repoIdentity.relativePath)
@@ -720,6 +721,7 @@ class ConstRefCacheDatabase internal constructor(
                 DELETE FROM file_analysis_head
                 WHERE repo_id = ?
                   AND path_id = ?
+                  $unmappedAnalysis
                 """.trimIndent()
             ).use { statement ->
                 statement.setLong(1, repoId)
@@ -772,6 +774,7 @@ class ConstRefCacheDatabase internal constructor(
                       AND path_id IN (
                           SELECT id FROM strings WHERE value = ? OR value LIKE ?
                       )
+                      $unmappedAnalysis
                     """.trimIndent()
                 ).use { statement ->
                     statement.setLong(1, repoId)
@@ -796,21 +799,8 @@ class ConstRefCacheDatabase internal constructor(
         }
         val repoKeys = repoRoots.keys.toList()
         return withConnection { connection ->
-            val repoIds = loadStringIds(connection, repoKeys).values.toList()
-            if (repoIds.isEmpty()) {
-                return@withConnection emptyList()
-            }
-            val repoPlaceholders = repoIds.joinToString(",") { "?" }
             val sql = """
-                WITH latest AS (
-                    SELECT id,
-                           ROW_NUMBER() OVER (
-                               PARTITION BY repo_id, path_id
-                               ORDER BY analyzed_at DESC, last_access_at DESC, checksum DESC
-                           ) AS rank_num
-                    FROM file_analysis_head
-                    WHERE repo_id IN ($repoPlaceholders)
-                )
+                WITH latest AS (${currentAnalysisIdsSql(connection, repoKeys)})
                 SELECT repo.value AS repo_key,
                        path.value AS relative_path,
                        pkg.value AS package_name,
@@ -829,12 +819,8 @@ class ConstRefCacheDatabase internal constructor(
                 INNER JOIN strings const_name ON const_name.id = d.const_name_id
                 INNER JOIN strings const_type ON const_type.id = d.const_type_id
                 LEFT JOIN strings const_value ON const_value.id = d.const_value_id
-                WHERE l.rank_num = 1
             """.trimIndent()
             connection.prepareStatement(sql).use { statement ->
-                repoIds.forEachIndexed { index, repoId ->
-                    statement.setLong(index + 1, repoId)
-                }
                 statement.executeQuery().use { resultSet ->
                     buildDefinitions(resultSet, repoRoots, excludedIdentityKeys)
                 }
@@ -1487,9 +1473,18 @@ class ConstRefCacheDatabase internal constructor(
         }
     }
 
+    private val unmappedAnalysis = """
+        AND NOT EXISTS (
+            SELECT 1 FROM file_checksum_mtime_map m
+            WHERE m.repo_id = file_analysis_head.repo_id AND m.path_id = file_analysis_head.path_id
+              AND m.checksum = file_analysis_head.checksum
+        )
+    """.trimIndent()
+
     private fun resolveRepoIdentity(filePath: String): RepoFileIdentity? {
         val repoIdentity = pathResolver.resolve(filePath) ?: return null
         repoRootByKey[repoIdentity.repoKey] = repoIdentity.worktreeRoot.toStdPath()
+        worktreeKeyByRepo[repoIdentity.repoKey] = repoIdentity.worktreeKey
         worktreeRootByKey[repoIdentity.worktreeKey] = repoIdentity.worktreeRoot.toStdPath()
         return repoIdentity
     }
@@ -1506,28 +1501,48 @@ class ConstRefCacheDatabase internal constructor(
         }
     }
 
-    private fun queryLatestChecksum(connection: Connection, repoKey: String, relativePath: String): Long? {
-        val repoId = findStringId(connection, repoKey) ?: return null
-        val pathId = findStringId(connection, relativePath) ?: return null
+    private fun queryLatestChecksum(connection: Connection, identity: RepoFileIdentity): Long? {
+        val repoId = findStringId(connection, identity.repoKey) ?: return null
+        val pathId = findStringId(connection, identity.relativePath) ?: return null
+        val worktreeId = findStringId(connection, identity.worktreeKey) ?: -1L
         connection.prepareStatement(
             """
-            SELECT checksum
-            FROM file_analysis_head
-            WHERE repo_id = ?
-              AND path_id = ?
-            ORDER BY analyzed_at DESC, last_access_at DESC, checksum DESC
+            SELECT h.checksum
+            FROM file_analysis_head h
+            LEFT JOIN file_checksum_mtime_map m ON m.worktree_id = ?
+                AND m.repo_id = h.repo_id AND m.path_id = h.path_id AND m.checksum = h.checksum
+            WHERE h.repo_id = ? AND h.path_id = ?
+            ORDER BY (m.checksum IS NOT NULL) DESC, h.analyzed_at DESC, h.last_access_at DESC, h.checksum DESC
             LIMIT 1
             """.trimIndent()
         ).use { statement ->
-            statement.setLong(1, repoId)
-            statement.setLong(2, pathId)
+            statement.setLong(1, worktreeId)
+            statement.setLong(2, repoId)
+            statement.setLong(3, pathId)
             statement.executeQuery().use { resultSet ->
-                if (!resultSet.next()) {
-                    return null
-                }
-                return resultSet.getLong("checksum")
+                return if (resultSet.next()) resultSet.getLong("checksum") else null
             }
         }
+    }
+
+    private fun currentAnalysisIdsSql(connection: Connection, repoKeys: Collection<String>): String {
+        val repoIds = loadStringIds(connection, repoKeys).values
+        val worktreeKeys = repoKeys.mapNotNull(worktreeKeyByRepo::get)
+        val worktreeIds = loadStringIds(connection, worktreeKeys).values
+        val repos = repoIds.joinToString(",").ifEmpty { "-1" }
+        val worktrees = worktreeIds.joinToString(",").ifEmpty { "-1" }
+        return """
+            SELECT id FROM (
+                SELECT h.id, ROW_NUMBER() OVER (
+                    PARTITION BY h.repo_id, h.path_id
+                    ORDER BY (m.checksum IS NOT NULL) DESC, h.analyzed_at DESC, h.last_access_at DESC, h.checksum DESC
+                ) AS rank_num
+                FROM file_analysis_head h
+                LEFT JOIN file_checksum_mtime_map m ON m.worktree_id IN ($worktrees)
+                    AND m.repo_id = h.repo_id AND m.path_id = h.path_id AND m.checksum = h.checksum
+                WHERE h.repo_id IN ($repos)
+            ) WHERE rank_num = 1
+        """.trimIndent()
     }
 
     private fun queryLatestDefinitionsByWhere(
@@ -1540,17 +1555,9 @@ class ConstRefCacheDatabase internal constructor(
         }
         val repoRoots = repoRootByKey.toMap()
         return withConnection { connection ->
-            val scopeRepoIds = loadStringIds(connection, scopeRepoKeys).values.toSet()
-            if (scopeRepoIds.isEmpty()) {
-                return@withConnection emptyList()
-            }
-            val sql = "${buildLatestDefinitionsSql(scopeRepoIds.size)} WHERE $whereClause"
+            val sql = "${buildLatestDefinitionsSql(currentAnalysisIdsSql(connection, scopeRepoKeys))} WHERE $whereClause"
             connection.prepareStatement(sql).use { statement ->
-                var paramIndex = 1
-                scopeRepoIds.forEach { repoId ->
-                    statement.setLong(paramIndex++, repoId)
-                }
-                bindExtraParams(statement, paramIndex)
+                bindExtraParams(statement, 1)
                 statement.executeQuery().use { resultSet ->
                     buildDefinitions(resultSet, repoRoots, excludedIdentityKeys = emptySet())
                 }
@@ -1558,22 +1565,9 @@ class ConstRefCacheDatabase internal constructor(
         }
     }
 
-    private fun buildLatestDefinitionsSql(scopeRepoIdCount: Int): String {
-        val repoPlaceholders = List(scopeRepoIdCount) { "?" }.joinToString(",")
+    private fun buildLatestDefinitionsSql(currentAnalyses: String): String {
         return """
-            WITH latest AS (
-                SELECT id
-                FROM (
-                    SELECT id,
-                           ROW_NUMBER() OVER (
-                               PARTITION BY repo_id, path_id
-                               ORDER BY analyzed_at DESC, last_access_at DESC, checksum DESC
-                           ) AS rank_num
-                    FROM file_analysis_head
-                    WHERE repo_id IN ($repoPlaceholders)
-                ) ranked
-                WHERE rank_num = 1
-            )
+            WITH latest AS ($currentAnalyses)
             SELECT repo.value AS repo_key,
                    path.value AS relative_path,
                    pkg.value AS package_name,
@@ -1602,7 +1596,7 @@ class ConstRefCacheDatabase internal constructor(
         return withConnection { connection ->
             val definitions = mutableListOf<ConstDefinition>()
             identities.forEach { identity ->
-                val checksum = queryLatestChecksum(connection, identity.repoKey, identity.relativePath) ?: return@forEach
+                val checksum = queryLatestChecksum(connection, identity) ?: return@forEach
                 val fileId = queryAnalysisHeadId(connection, identity, checksum) ?: return@forEach
                 connection.prepareStatement(
                     """
@@ -1680,11 +1674,13 @@ class ConstRefCacheDatabase internal constructor(
                 val sql = buildString {
                     append(
                         """
+                        WITH latest AS (${currentAnalysisIdsSql(connection, scopeRepoKeys.ifEmpty { repoRoots.keys })})
                         SELECT repo.value AS repo_key,
                                path.value AS relative_path,
                                def_fq_class.value AS def_fq_class_name,
                                const_name.value AS const_name
                         FROM const_references r
+                        INNER JOIN latest l ON l.id = r.file_id
                         INNER JOIN file_analysis_head h ON h.id = r.file_id
                         INNER JOIN strings repo ON repo.id = h.repo_id
                         INNER JOIN strings path ON path.id = h.path_id
@@ -1752,18 +1748,7 @@ class ConstRefCacheDatabase internal constructor(
                 val sql = buildString {
                     append(
                         """
-                        WITH latest AS (
-                            SELECT id
-                            FROM (
-                                SELECT id,
-                                       ROW_NUMBER() OVER (
-                                           PARTITION BY repo_id, path_id
-                                           ORDER BY analyzed_at DESC, last_access_at DESC, checksum DESC
-                                       ) AS rank_num
-                                FROM file_analysis_head
-                            ) ranked
-                            WHERE rank_num = 1
-                        )
+                        WITH latest AS (${currentAnalysisIdsSql(connection, scopeRepoKeys.ifEmpty { repoRoots.keys })})
                         SELECT repo.value AS repo_key,
                                path.value AS relative_path,
                                pkg.value AS package_name,
@@ -2491,7 +2476,8 @@ class ConstRefCacheDatabase internal constructor(
     }
 
     companion object {
-        private const val DB_SCHEMA_VERSION = 9
+        // Bumped when repository keys moved to normalized origin URLs; old keys are rebuilt, not migrated.
+        private const val DB_SCHEMA_VERSION = 10
         private const val MAX_MTIME_QUERY_ROWS_PER_BATCH = 250
         private const val MAX_STRING_QUERY_ROWS_PER_BATCH = 500
         private const val STRING_ID_CACHE_MAX_ENTRIES = 8192
