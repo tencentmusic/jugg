@@ -40,6 +40,7 @@ class BuildIncrementalApkCommand(private val params: Params) {
                 return true
             }
             contextManager.init()
+            contextManager.registerConstRefSourceDirs()
             val changedFiles = getChangedFiles()
             TimeLogger.end("Init compile context", logger)
             checkDirty(consume = true)

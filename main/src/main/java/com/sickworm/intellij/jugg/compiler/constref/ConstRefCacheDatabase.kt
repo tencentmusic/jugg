@@ -1121,7 +1121,8 @@ class ConstRefCacheDatabase internal constructor(
         val syntheticDefinitions = (uniqueDefinitionKeys - foundKeys).map { (fqClassName, constName) ->
             syntheticDefinitionForKey(fqClassName, constName)
         }
-        return queryEffectedFilesByDefinitions(definitions + syntheticDefinitions, resolveScopeRepoKeys(scopeFilePaths))
+        // Callers may live in any registered repository of the project, not only next to the changed definitions.
+        return queryEffectedFilesByDefinitions(definitions + syntheticDefinitions, repoRootByKey.keys.toSet())
     }
 
     /**

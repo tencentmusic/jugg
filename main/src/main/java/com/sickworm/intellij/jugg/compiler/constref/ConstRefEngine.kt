@@ -415,6 +415,16 @@ class ConstRefEngine private constructor(
         }
     }
 
+    /** Registers project source roots so impact queries cover every repository of the project. */
+    fun registerSourceDirs(sourceDirs: List<File>) {
+        val paths = sourceDirs.filter { it.exists() }.map { it.toStdPath() }.distinct()
+        runCatching {
+            database.registerPathHints(paths)
+        }.onFailure {
+            logger.debug("ConstRefEngine registerSourceDirs failed, reason=${it.message}")
+        }
+    }
+
     fun initializeFullScan(sourceDirs: List<File>) {
         val normalizedSourceDirs = sourceDirs
             .asSequence()

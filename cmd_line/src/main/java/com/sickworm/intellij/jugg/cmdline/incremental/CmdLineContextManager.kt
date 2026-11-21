@@ -11,6 +11,7 @@ import com.sickworm.intellij.jugg.compiler.changeBaseDir
 import com.sickworm.intellij.jugg.compiler.custom.CustomCompilerManager
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.gradle.compile.isChild
+import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.project.BaseCompileContext
 import com.sickworm.intellij.jugg.project.CoroutineBackgroundTaskRunner
 import com.sickworm.intellij.jugg.project.FileChangesHandler
@@ -45,11 +46,13 @@ class CmdLineContextManager(
 
     private val backgroundTaskRunner = CoroutineBackgroundTaskRunner(coroutineScope)
 
+    private val constRefEngine = pathManager.createBaselineConstRefEngine(backgroundTaskRunner, logger)
+
     val deployFileManager = DeployFileManager(
         pathManager,
         backgroundTaskRunner,
         logger,
-        pathManager.createBaselineConstRefEngine(backgroundTaskRunner, logger),
+        constRefEngine,
     )
 
     val deployStateManager = object : IDeployStateManager {
@@ -71,6 +74,16 @@ class CmdLineContextManager(
     private val deployHistoryManager = DeployHistoryManager(pathManager, fileChangesHandler, logger)
 
     lateinit var compileContext: ICompileContext
+
+    /**
+     * Lets const-ref impact queries cover every repository of the baseline project. It opens the baseline
+     * index, so only commands that compile call it after [init].
+     */
+    fun registerConstRefSourceDirs() {
+        if (JuggSettings.isEnableConstRefTasks) {
+            constRefEngine.registerSourceDirs(compileContext.modules.values.flatMap { it.sourceDirs })
+        }
+    }
 
     fun init(initializeApkData: Boolean = true): ICompileContext {
         compileContext = createCompileContext(initializeApkData)

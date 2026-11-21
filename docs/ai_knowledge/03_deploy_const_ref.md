@@ -107,7 +107,7 @@ DeployFileManager.getRecompileFiles()
 
 CI 引擎由 `CiConstRef.kt` 组装，使用 `ConstRefRepoPathResolver(projectDir)`：工作副本键取仓库相对主工程的位置（`baseline:<相对路径>`），仓库键与 IDE 一样优先使用 origin（见 §5.1），无可用 origin 时回退到同一相对位置键，索引因此能在不同 runner 的 checkout 之间复用。CI 引擎不使用 repo fingerprint store。
 
-`buildIncrementalApk` 由 `CmdLineContextManager` 把使用基线 DB 的引擎注入 `DeployFileManager`，并在编译前通过 `addChangedFile()` 登记调用方传入的变更文件；`compiledFiles` 只来自这里，缺少登记时常量影响查询拿不到变更定义文件。补编产生的多轮产物按 staging 汇总后合并 Dex。缺少索引的旧基线仍会按需分析变更文件，但找不到未变更文件中的引用方。
+`buildIncrementalApk` 由 `CmdLineContextManager` 把使用基线 DB 的引擎注入 `DeployFileManager`，初始化编译上下文后通过 `ConstRefEngine.registerSourceDirs()` 注册基线模型的全部源码根（`getChangedFiles` 只读项目模型，不打开索引），并在编译前通过 `addChangedFile()` 登记调用方传入的变更文件；`compiledFiles` 只来自这里，缺少登记时常量影响查询拿不到变更定义文件。补编产生的多轮产物按 staging 汇总后合并 Dex。常量分析按 best-effort 设计，与 IDE 一致不阻塞编译：基线缺少索引或 schema 不符（升级前的旧基线）时，引擎按空索引继续（schema 不符时告警 `recreate db due to incompatible schema` 并重建），增量照常完成但找不到未变更文件中的引用方，生成新基线后恢复。
 
 ### 4.4 IDE 缓存命中链路
 
@@ -147,7 +147,7 @@ analyzeFiles()
 - `file_checksum_mtime_map` 通过 `worktree_id + path_id` 隔离项目本地基线。共享仓库键的多个工作副本之间，"当前版本"优先取当前 `worktreeKey` 映射的 checksum，其次才按 `analyzed_at` 取最新，避免另一个 checkout 新分析的版本遮住本 checkout 的定义和引用候选；`removeFile` 只删除没有任何工作副本仍在映射的版本。
 - 写入侧先预热当前批次的字符串 ID，减少 full scan / batch analysis 的逐行 `strings` 查询；进程内 `stringIdCache` 是有上限的 LRU 辅助缓存。
 - 同 IDE 进程内按 DB path 共享写锁，public 写入口和 maintenance 写入串行，降低多 Project 多 connection 写同一全局 DB 的锁竞争；读查询不额外串行。
-- 受影响文件查询先定位 definition key，再匹配 latest candidate rows，最后按当前 worktree 还原绝对路径，仅返回本地存在文件。
+- 受影响文件查询先定位 definition key，再匹配 latest candidate rows，最后按当前 worktree 还原绝对路径，仅返回本地存在文件。引用方的查询范围是本项目已注册的全部仓库（IDE 由 full scan 注册源码根，CLI 由 `registerSourceDirs()` 注册），不限于变更文件所在仓库，因此能找到其他 Git 仓库源码根中的调用方。
 - 支持 `queryClassesBySimpleNames` 通过 `simple_class_id + const_name_id` 索引实现点查，避免全表扫描。
 - 使用共享 SQLite 长连接，避免高频建连；latest 版本选择追加 `checksum` 作为稳定 tie-breaker。
 - `PRAGMA schema_version=10`，不兼容时重建；parser 可见性规则或索引语义变化必须 bump version，避免旧库中的 stale definition/candidate 继续参与影响分析。版本 7 可能漏掉 Java 接口或注解的隐式常量；版本 8 及更早版本还可能漏掉 Kotlin 命名 companion 的 owner 别名和 companion 内的嵌套定义。版本 9 及更早版本使用 Git 公共目录作为仓库键，升到 10 时直接重建而不迁移旧键。升级后必须重新解析，不能继续复用对应的 mtime/checksum 分析记录。

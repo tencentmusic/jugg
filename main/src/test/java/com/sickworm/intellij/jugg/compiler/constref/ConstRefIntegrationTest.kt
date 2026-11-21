@@ -99,6 +99,50 @@ class ConstRefIntegrationTest : ConstRefTempDirCleanupSupport() {
     }
 
     @Test
+    fun `should find callers in another repository of the project after restoring a baseline`() {
+        val checkout = createTempDirectory("const_ref_cross_repository")
+        File(checkout, ".git").mkdirs()
+        val appSources = File(checkout, "app/src").apply { mkdirs() }
+        val callerRepository = File(checkout, "caller-repo").apply { File(this, ".git").mkdirs() }
+        val callerSources = File(callerRepository, "src").apply { mkdirs() }
+        val constants = File(appSources, "Constants.java").apply {
+            writeText("package fixture; public final class Constants { public static final int VALUE = 1; }")
+        }
+        val caller = File(callerSources, "Caller.java").apply {
+            writeText("package fixture; public final class Caller { public static int result() { return Constants.VALUE; } }")
+        }
+        val sourceDirs = listOf(appSources, callerSources)
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        fun engine() = ConstRefEngine(
+            analyzer = ConstRefAnalyzer(logger),
+            dbFile = File(checkout, "const_ref.db"),
+            logger = logger,
+            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            pathResolver = ConstRefRepoPathResolver(checkout),
+        )
+        try {
+            val builder = engine()
+            try {
+                runBlocking { builder.scanBaseline(sourceDirs) }
+            } finally {
+                builder.dispose()
+            }
+            val incremental = engine()
+            try {
+                incremental.registerSourceDirs(sourceDirs)
+                constants.writeText(constants.readText().replace("VALUE = 1", "VALUE = 2"))
+                val changed = listOf(constants.toStdPath())
+                assertTrue(incremental.analyzeOnDemand(changed).isReady)
+                assertEquals(listOf(caller.toStdPath()), incremental.getEffectedFiles(changed).map { it.refFilePath })
+            } finally {
+                incremental.dispose()
+            }
+        } finally {
+            scope.cancel()
+        }
+    }
+
+    @Test
     fun `should detect callers through named kotlin companion and aliases`() {
         assertCompanionCallers(
             companionName = "Codes",
