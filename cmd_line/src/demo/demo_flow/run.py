@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
-"""Run all CI scenarios in one checkout, advancing Git commits without resetting between cases."""
+"""在同一工作区顺序运行所有 CI 场景，每轮推进一次 Git 提交。"""
 import json
 import re
 import zipfile
 from pathlib import Path
 
-from _common import arguments, build, commit, install, log, prepare
+from flow_common import arguments, baseline_server, build, commit, install, log, prepare
 
 
 def configure_project(project, quite):
-    # A project-defined Gradle input outside Jugg source roots changes the final APK.
+    # 演示 Jugg 源码目录之外的自定义 Gradle 输入也会影响 APK。
     config = project / 'config.json'
     config.write_text(json.dumps({'message': 'initial config'}, indent=2) + '\n')
     build_file = project / 'app/build.gradle'
     with build_file.open('a') as stream:
         stream.write("""
-// Demo-only custom input: changing root config.json changes assets/config.json in the APK.
+// 将工程根目录的 config.json 打包到 APK 的 assets 目录。
 def demoConfigAssets = layout.buildDirectory.dir('generated/demoConfigAssets')
 android.sourceSets.main.assets.srcDir(demoConfigAssets)
 def generateDemoConfig = tasks.register('generateDemoConfig', Copy) {
@@ -46,7 +46,7 @@ def modify_source(project, quite):
 def modify_build_file(project, quite):
     build_file = project / 'app/build.gradle'
     with build_file.open('a') as stream:
-        stream.write('\n// Added by the CI build-file fallback walkthrough.\n'
+        stream.write('\n// 演示构建脚本变更触发 Gradle 降级。\n'
                      'android.defaultConfig.buildConfigField "String", "JUGG_CI_DEMO", \'"changed"\'\n')
     commit(project, [build_file], 'change Gradle BuildConfig field', quite)
 
@@ -55,7 +55,7 @@ def modify_many_files(project, quite):
     directory = project / 'app/src/main/java/com/example/myapplication/cidemo'
     directory.mkdir(parents=True)
     files = []
-    # Adjust this workload if the CI owner changes MAX_INCREMENTAL_FILES.
+    # 调整构建脚本中的文件数上限时，同步调整此处的演示文件数。
     for index in range(101):
         source = directory / f'CiDemo{index}.java'
         source.write_text('package com.example.myapplication.cidemo;\n'
@@ -77,8 +77,18 @@ def modify_config(project, quite):
     commit(project, [config], 'change custom JSON build input', quite)
 
 
+def modify_route(project, quite):
+    source = project / 'app/src/main/java/com/sickworm/jugg/demo/testcase/annotation/kotlin/KtARouterActivity.kt'
+    text, count = re.subn(r'@Route\(path = "/app/activity_kt"\)', '@Route(path = "/app/activity_ci_demo")',
+                         source.read_text(), count=1)
+    if count != 1:
+        raise RuntimeError('找不到演示路由注解')
+    source.write_text(text)
+    commit(project, [source], 'change an ARouter route', quite)
+
+
 def check_config_apk(result):
-    # This assertion proves the unknown input affects the shipped artifact, not just Git metadata.
+    # 直接读取 APK，验证自定义构建输入已经更新。
     apks = sorted(Path(result['apkDir']).glob('*.apk'))
     with zipfile.ZipFile(apks[0]) as archive:
         actual = json.loads(archive.read('assets/config.json'))
@@ -87,9 +97,7 @@ def check_config_apk(result):
     log('产物验证：APK 的 assets/config.json 已更新。')
 
 
-def main():
-    args = arguments(__doc__)
-    prepare(args, '一次运行五个场景，Git 提交持续向前叠加')
+def run_scenarios(args):
     project = args.work_dir / 'project'
     log('准备项目自定义构建输入：将根目录 config.json 打包到 APK assets。')
     configure_project(project, args.quite)
@@ -98,24 +106,32 @@ def main():
     (args.work_dir / 'flow-results.json').write_text(json.dumps(results, ensure_ascii=False, indent=2))
     cases = [
         ('正常增量编译', modify_source, 'buildIncrementalApk', None),
-        ('修改 build 文件降级', modify_build_file, 'buildGradleBase', 'build file changed'),
-        ('修改文件过多降级', modify_many_files, 'buildGradleBase', '101 changed files exceed limit 100'),
+        ('修改 build 文件降级', modify_build_file, 'buildGradleBase', f'存在需要 Gradle 处理的构建输入：{project / "app/build.gradle"}'),
+        ('修改文件过多降级', modify_many_files, 'buildGradleBase', '变更超过 100 个文件'),
         ('README 主动过滤', modify_readme, 'reuseBaseApk', None),
-        ('自定义 config.json 未识别后降级', modify_config, 'buildGradleBase', 'unrecognized changed files'),
+        ('修改 ARouter 路由后增量构建', modify_route, 'buildIncrementalApk', None),
+        ('自定义 config.json 未识别后降级', modify_config, 'buildGradleBase', f'存在需要 Gradle 处理的构建输入：{project / "config.json"}'),
     ]
     for title, modify, mode, reason in cases:
         log(f'开发修改：{title}；保留前面的提交和构建目录。')
         modify(project, args.quite)
         log(f'再次构建：{title}。')
         result = build(args, mode)
-        recovered = (result['reason'] or '').startswith('Jugg CI failed:')
+        recovered = (result['reason'] or '').startswith('Jugg 基线复用失败:')
         if result['reason'] != reason and not recovered:
             raise RuntimeError(f'Unexpected decision for {title}: {result["reason"]}')
         results.append(result)
-        # Keep all completed steps available even if a later scenario fails.
+        # 每轮完成即保存结果，保留已有的验收记录。
         (args.work_dir / 'flow-results.json').write_text(json.dumps(results, ensure_ascii=False, indent=2))
     check_config_apk(results[-1])
     install(args, results[-1])
+
+
+def main():
+    args = arguments(__doc__)
+    prepare(args, '一次运行六个场景，Git 提交持续向前叠加')
+    with baseline_server(args):
+        run_scenarios(args)
 
 
 if __name__ == '__main__':

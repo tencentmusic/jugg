@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Prepare a disposable demo checkout; real CI supplies its own checkout instead."""
+"""准备独立的演示工作区并创建初始提交。"""
 import argparse
 from pathlib import Path
 import shutil
 import uuid
 import zipfile
 
-from jugg_build import HERE, run
+from flow_common import HERE, run
 
 
 def prepare(work):
@@ -16,7 +16,7 @@ def prepare(work):
             print(f'Reusing prepared demo checkout: {project}')
             return project
         raise RuntimeError(f'Project already exists and is not an untouched demo checkout: {project}')
-    # Distributions ship an archive; source checkouts reuse the repository fixture.
+    # 优先解压发行包携带的工程，直接在源码仓库运行时复制示例工程。
     archive = HERE / 'demo_project.zip'
     if archive.exists():
         with zipfile.ZipFile(archive) as source:
@@ -25,21 +25,24 @@ def prepare(work):
     else:
         source = HERE.parents[2] / 'android_demo_project'
         shutil.copytree(source, project, ignore=shutil.ignore_patterns('build', '.gradle', '.idea', '.git', '__pycache__'))
+    # 发行包可能省略 .gitignore，首次提交前统一忽略各模块的构建产物。
+    with (project / '.gitignore').open('a') as ignore:
+        ignore.write('\nbuild/\n.gradle/\n.kotlin/\n/local.properties\n')
     wrapper = project / 'gradlew'
     if wrapper.exists():
         wrapper.chmod(wrapper.stat().st_mode | 0o100)
-    # Keep demo commits isolated from the user's source repository and Git identity.
+    # 在独立仓库中用演示身份创建提交。
     run(['git', 'init'], project)
     run(['git', 'config', 'user.name', 'Jugg demo'], project)
     run(['git', 'config', 'user.email', 'jugg-demo@localhost'], project)
     commit(project, 'initial demo')
-    # Archives outlive --work-dir; distinguish repeated demos that recreate the same checkout path.
+    # 重跑会复用工作目录路径，使用标识区分服务端保存的旧基线。
     (project / '.git/jugg-demo-id').write_text(uuid.uuid4().hex)
     return project
 
 
 def is_initial_demo_checkout(project):
-    """Resume only a checkout created by this script that has not advanced past setup."""
+    """仅复用本脚本创建且仍停在初始提交的仓库。"""
     if not (project / '.git').is_dir() or not (project / 'settings.gradle').is_file():
         return False
     if not (project / 'app/build.gradle').is_file():

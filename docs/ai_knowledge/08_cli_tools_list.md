@@ -439,4 +439,4 @@ jugg wait-logs --marker <regex> [--tags <t1,t2,...>] [--timeout-ms <ms>]
 
 ## CI 编排样本
 
-`cmd_line` 提供 `findNearestBaseCommit`（沿目标提交 first-parent 查找候选基线）与 `getChangedFiles`（复用 `FileChangesHandler` 输出稳定 ChangedFile JSON）。业务方负责场景 key、基线存储、checkout 和增量资格判断；参考样本位于 `tools/jugg_ci_sample.py`，localhost demo 位于 `cmd_line/src/demo/`。
+`cmd_line` 提供 `findNearestBaseCommit`（沿目标提交 first-parent 查找候选基线）与 `getChangedFiles`（复用 `FileChangesHandler` 输出稳定 ChangedFile JSON）。业务方负责场景 key、基线存储、checkout 和增量资格判断；参考样本位于 `tools/jugg_ci_sample.py`，可交付 demo 位于 `cmd_line/src/demo/`，默认连接本地 ZIP 基线服务，可通过 `--server` 切换兼容后端。

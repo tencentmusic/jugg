@@ -115,4 +115,4 @@
 
 ## CI 编排样本
 
-`cmd_line` 提供 `findNearestBaseCommit`（沿目标提交 first-parent 查找候选基线）与 `getChangedFiles`（复用 `FileChangesHandler` 输出稳定 ChangedFile JSON）。业务方负责场景 key、基线存储、checkout 和增量资格判断；参考样本位于 `tools/jugg_ci_sample.py`，单次构建入口位于 `cmd_line/src/demo/scripts/jugg_build.py`，准备、安装和基线服务同在 `scripts/`；连续演示入口 `cmd_line/src/demo/demo_flow/run.py` 一次准备工程、Git 提交向前叠加，覆盖正常增量、BuildFile/101 文件降级、README 显式过滤导出基线 APK、config.json Unknown 降级。Jugg CI 错误由编排降级至 Gradle，空列表由增量命令导出 APK。
+`cmd_line` 提供 `findNearestBaseCommit`（沿目标提交 first-parent 查找候选基线）与 `getChangedFiles`（复用 `FileChangesHandler` 输出稳定 ChangedFile JSON）。业务方负责场景 key、基线存储、checkout 和增量资格判断；参考样本位于 `tools/jugg_ci_sample.py`，单次构建入口位于 `cmd_line/src/demo/jugg_ci/build.py`，公共命令执行和本地基线服务同在 `jugg_ci/`，准备与安装脚本在 `demo_flow/`；连续演示入口 `cmd_line/src/demo/demo_flow/run.py` 一次准备工程、Git 提交向前叠加，覆盖正常增量、BuildFile/101 文件降级、README 显式过滤导出基线 APK、ARouter 路由增量和 config.json Unknown 降级。Jugg CI 错误由编排降级至 Gradle，空列表由增量命令导出 APK。

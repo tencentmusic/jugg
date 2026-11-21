@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Install one explicitly selected build output and launch the demo application."""
+"""安装指定构建轮次的 APK 并启动演示应用。"""
 import argparse
 from pathlib import Path
 
-from jugg_build import run
+from flow_common import run
 
 
 def main():
@@ -14,7 +14,7 @@ def main():
     apks = sorted(directory.glob('*.apk'))
     if not apks or any(p.stat().st_size == 0 for p in apks):
         parser.error(f'No nonempty APK set found: {directory}')
-    # Pass every split together and keep artifact selection independent of build policy.
+    # 将本轮 APK 一起传给 adb，兼容 split APK。
     run(['adb', 'install-multiple', '-r', *apks], directory)
     run(['adb', 'shell', 'am', 'start', '-n', 'com.example.myapplication/.MainActivity'], directory)
 

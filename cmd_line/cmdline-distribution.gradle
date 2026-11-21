@@ -35,7 +35,8 @@ distributions {
     main {
         contents {
             from("${projectDir}/src/demo") {
-                exclude '**/__pycache__/**', '**/*.pyc', 'scripts/base-builds.json', 'scripts/base_build/**'
+                exclude '**/__pycache__/**', '**/*.pyc', '**/base-builds.json', 'build/**',
+                    'jugg_ci/base_build/**', 'jugg_ci/artifacts/**', 'demo_flow/base_build/**', 'demo_flow/artifacts/**'
                 into('demo')
             }
             from(demoProjectZipTask.flatMap { it.archiveFile }) {
