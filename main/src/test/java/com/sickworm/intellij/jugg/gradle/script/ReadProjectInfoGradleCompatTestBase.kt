@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.gradle.script
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import com.sickworm.intellij.jugg.project.info.ProjectInfoSerializer
+import org.junit.Test
 import org.mockito.Mockito.mock
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -27,14 +28,22 @@ abstract class ReadProjectInfoGradleCompatTestBase {
     /** Writes all project files (settings, build scripts) except the Gradle wrapper. */
     protected abstract fun buildProjectFiles(projectDir: File)
 
+    @Test
+    fun generatedScript_shouldCollectProjectInfoWithWarningsAsErrors() {
+        assertInitScriptRunsAndCollectsProjectInfo(allWarningsAsErrors = true)
+    }
+
     /**
      * Verifies that the init script compiles and runs successfully on [gradleVersion],
      * and that the project info file is written with at least the module list.
      */
-    protected fun assertInitScriptRunsAndCollectsProjectInfo() {
+    protected fun assertInitScriptRunsAndCollectsProjectInfo(allWarningsAsErrors: Boolean = false) {
         val fixtureDir = Files.createTempDirectory("jugg_gradle_fixture_${gradleVersion.replace('.', '_')}").toFile()
         try {
             buildProjectFiles(fixtureDir)
+            if (allWarningsAsErrors) {
+                File(fixtureDir, "gradle.properties").appendText("\norg.gradle.kotlin.dsl.allWarningsAsErrors=true\n")
+            }
             writeWrapper(fixtureDir, gradleVersion)
             val initScript = copyGeneratedInitScript(fixtureDir)
 

@@ -63,3 +63,5 @@ public/robots.txt and public/llms.txt copy unchanged to build root. Root hosting
 llms.txt is a concise Markdown retrieval index with paired English/Chinese public HTML routes, product summary/boundaries and optional external entries. It is not access control, indexing/recommendation proof, or a copy of version/performance tables. rel=describedby follows JUGG_WIKI_BASE; index links align with existing GitHub Pages canonical/sitemap routes. Check paired order/meaning, real targets, root and /jugg builds.
 
 IndexNow main pushes submit changed added/modified/deleted public Markdown URLs, excluding dev-only. New/replaced key or manual Pages run submits all public routes. Unreachable pre-push commit after rewritten history falls back to full submission. HTTP 200/202 means request acceptance, not search indexing. Backend publication uses a separate site/key.
+
+The post-build `scripts/generate-redirects.mjs` emits redirect pages for historical paths from `scripts/redirect-rules.mjs` and preserves existing content. The theme and its NotFound component also resolve legacy paths using the site's deployment base. CI sets `JUGG_WIKI_BASE=/jugg/` for GitHub Pages.

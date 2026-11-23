@@ -350,7 +350,8 @@ class KotlinCompilerInvoker {
             }
         }
 
-        val moduleName = "${module.gradleModuleName ?: module.name}_${module.buildVariant}"
+        val moduleName = module.kotlinModuleName
+            ?: "${module.gradleModuleName ?: module.name}_${module.buildVariant}"
         val isolatedBaseline = createIsolatedKmpBaseline(context, module, options, kotlinClassPath, logger)
         val baselineClasspath = isolatedBaseline ?: kotlinClassPath
         val friendPaths = mutableListOf(baselineClasspath.absolutePath)

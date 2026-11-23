@@ -132,6 +132,7 @@ class GitFileChangesDetectorTest {
     fun rollbackFailureKeepsPendingFilesAndHeadBaselineForNextRefresh() {
         val rootDir = createGitRepository()
         val historyManager = mock<IDeployHistoryManager>()
+        whenever(historyManager.isRecoverFeatureAvailable).thenReturn(true)
         whenever(historyManager.getChangedFilesSinceLastFullCompiled()).thenReturn(emptyList())
         val source = File(rootDir, "Base.kt")
         whenever(historyManager.filterUnchangedFiles(listOf(source)))
@@ -198,6 +199,7 @@ class GitFileChangesDetectorTest {
         val sources = listOf(File(rootDir, "Base.kt"), File(rootDir, "Second.kt").apply { writeText("class Second") })
         GitManager(rootDir).addAllAndCommit("add second source")
         val historyManager = mock<IDeployHistoryManager>()
+        whenever(historyManager.isRecoverFeatureAvailable).thenReturn(true)
         whenever(historyManager.getChangedFilesSinceLastFullCompiled()).thenReturn(emptyList())
         whenever(historyManager.filterUnchangedFiles(sources)).thenReturn(sources)
         val fileManager = createFileManager(rootDir)
@@ -321,6 +323,21 @@ class GitFileChangesDetectorTest {
     }
 
     @Test
+    fun headRefreshIsDisabledWhenDeployHistoryRecoveryIsUnavailable() {
+        val rootDir = createGitRepository()
+        val history = mock<IDeployHistoryManager>()
+        val detector = createDetector(rootDir, history, recoverFeatureAvailable = false)
+
+        GitManager(rootDir).addAllAndCommit("change head")
+
+        assertEquals(
+            GitFileChangesDetector.GitRefreshResult.NO_HEAD_CHANGE,
+            detector.refreshFileChangesIfHeadChanged(),
+        )
+        verify(history, never()).getChangedFilesSinceLastFullCompiled()
+    }
+
+    @Test
     fun updateChangedFiles_notifiesDeletedMissingUndeployedFiles() {
         val deployHistoryManager = mock<IDeployHistoryManager>()
         val deployFileManager = mock<DeployFileManager>()
@@ -369,7 +386,9 @@ class GitFileChangesDetectorTest {
         rootDir: File,
         deployHistoryManager: IDeployHistoryManager,
         deployFileManager: DeployFileManager = mock(),
+        recoverFeatureAvailable: Boolean = true,
     ): GitFileChangesDetector {
+        whenever(deployHistoryManager.isRecoverFeatureAvailable).thenReturn(recoverFeatureAvailable)
         return GitFileChangesDetector(
             deployHistoryManager,
             deployFileManager,

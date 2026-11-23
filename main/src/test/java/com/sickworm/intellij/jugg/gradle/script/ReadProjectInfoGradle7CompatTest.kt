@@ -48,11 +48,29 @@ class ReadProjectInfoGradle7CompatTest : ReadProjectInfoGradleCompatTestBase() {
     }
 
     @Test
-    fun generatedScript_shouldCollectRuntimeOnlyTransitiveLibrary() {
+    fun generatedScript_shouldCollectRuntimeOnlyLibraryWhenAnotherAppHasNoVariants() {
         assertInitScriptRunsOnAndroidFixture(
             assetDir = "android-app-agp7",
+            task = ":app:assembleDebug",
+            extraArgs = listOf("--dry-run"),
             beforeRun = { fixtureDir ->
                 writeRuntimeOnlyMavenFixture(fixtureDir)
+                File(fixtureDir, "settings.gradle").appendText("\ninclude ':inactive_app', ':inactive_broken_app'\n")
+                val inactiveAppBuild = """
+                    apply plugin: 'com.android.application'
+                    android {
+                        compileSdkVersion 33
+                        variantFilter { it.ignore = true }
+                    }
+                """.trimIndent()
+                writeFile(File(fixtureDir, "inactive_app/build.gradle"), inactiveAppBuild)
+                writeFile(File(fixtureDir, "inactive_broken_app/build.gradle"), inactiveAppBuild + "\n" + """
+                    configurations { debugRuntimeClasspath }
+                    dependencies { debugRuntimeClasspath files('fixture.jar') }
+                    configurations.debugRuntimeClasspath.incoming.beforeResolve {
+                        throw new GradleException('Fixture runtime resolution failed')
+                    }
+                """.trimIndent())
             },
             afterRun = { fixtureDir, result ->
                 assertEquals(0, result.exitCode, "Gradle $gradleVersion android fixture failed.\n${result.output}")
@@ -64,7 +82,13 @@ class ReadProjectInfoGradle7CompatTest : ReadProjectInfoGradleCompatTestBase() {
                     JuggPathManager(fixtureDir).gradleProjectInfoFile,
                     mock(Logger::class.java),
                 ).load(isSkipVersionCheck = true)
-                val appModule = projectInfo!!.modules.getValue("app")
+                assertTrue(projectInfo != null, "Project snapshot was not written. output=\n${result.output}")
+                for (name in listOf("inactive_app", "inactive_broken_app")) {
+                    val inactiveApp = projectInfo.modules.getValue(name)
+                    assertTrue(inactiveApp.variants.isEmpty())
+                    assertTrue(inactiveApp.runtimeLibraryDependencies.isEmpty())
+                }
+                val appModule = projectInfo.modules.getValue("app")
                 assertFalse(
                     appModule.libraryDependencies.any { it.name == RUNTIME_LIBRARY },
                     "Runtime-scoped transitive library must not be in compile dependencies.",
@@ -73,6 +97,32 @@ class ReadProjectInfoGradle7CompatTest : ReadProjectInfoGradleCompatTestBase() {
                     appModule.runtimeLibraryDependencies.any { it.name == RUNTIME_LIBRARY },
                     "Runtime-scoped transitive library is missing. output=\n${result.output}",
                 )
+            },
+        )
+    }
+
+    @Test
+    fun generatedScript_shouldNotWriteSnapshotWhenActiveAppRuntimeResolutionFails() {
+        assertInitScriptRunsOnAndroidFixture(
+            assetDir = "android-app-agp7",
+            task = ":app:assembleDebug",
+            extraArgs = listOf("--dry-run"),
+            beforeRun = { fixtureDir ->
+                File(fixtureDir, "app/build.gradle").appendText("\n" + """
+                    dependencies { runtimeOnly files('fixture.jar') }
+                    configurations.configureEach {
+                        if (name == 'debugRuntimeClasspath') {
+                            incoming.beforeResolve {
+                                throw new GradleException('Fixture runtime resolution failed')
+                            }
+                        }
+                    }
+                """.trimIndent())
+            },
+            afterRun = { fixtureDir, result ->
+                assertEquals(0, result.exitCode, result.output)
+                assertTrue(result.output.contains("Fixture runtime resolution failed"), result.output)
+                assertFalse(JuggPathManager(fixtureDir).gradleProjectInfoFile.exists(), result.output)
             },
         )
     }

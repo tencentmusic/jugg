@@ -1,21 +1,20 @@
 package com.sickworm.intellij.jugg.cmdline.standalone
 
+import com.sickworm.intellij.jugg.cmdline.SettingsFileRule
+import org.junit.Rule
 import com.sickworm.intellij.jugg.ide.bean.JuggSettingsEditor
 import com.sickworm.intellij.jugg.project.runtime.*
 import org.junit.Test
 import java.io.File
-import java.nio.file.Files
 import kotlin.test.*
 
 /** Runs global edits through a live host with real Gradle and incremental compiler baselines. */
 class SettingsCompileFlowTest {
+    @get:Rule val settingsFileRule = SettingsFileRule()
     @Test fun `backup edit discards the live baseline and failed rebuild remains required`() {
-        val previousRoot = JuggGlobalPathManager.rootDir
-        val root = Files.createTempDirectory("settings-compile-flow").toFile()
         val project = File("../android_demo_project").canonicalFile
         val source = project.resolve("app/src/main/java/com/sickworm/jugg/demo/testcase/subclass/RootClass.java")
         val original = source.readText()
-        JuggGlobalPathManager.rootDir = root
         val activity = StandaloneDaemonActivity()
         var services: StandaloneProjectServices? = null
         try {
@@ -51,8 +50,6 @@ class SettingsCompileFlowTest {
         } finally {
             services?.close()
             source.writeText(original)
-            JuggGlobalPathManager.rootDir = previousRoot
-            root.deleteRecursively()
         }
     }
 

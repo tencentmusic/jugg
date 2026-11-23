@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.cmdline.standalone
 
+import com.sickworm.intellij.jugg.cmdline.SettingsFileRule
 import com.sickworm.intellij.jugg.JuggException
 import com.sickworm.intellij.jugg.ai.mcp.McpErrorCode
 import com.sickworm.intellij.jugg.ai.mcp.McpJsonRpc
@@ -38,6 +39,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class StandaloneRuntimeTest {
+    @get:Rule val settingsFileRule = SettingsFileRule()
 
     @get:Rule
     val temporaryFolder = TemporaryFolder()
@@ -57,9 +59,6 @@ class StandaloneRuntimeTest {
 
     @Test
     fun `daemon without projects preserves nullable settings over HTTP`() {
-        val previous = com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager.rootDir
-        val root = temporaryFolder.newFolder("http-global")
-        com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager.rootDir = root
         val daemon = JuggDaemon()
         try {
             val port = daemon.start(emptyList())
@@ -74,17 +73,14 @@ class StandaloneRuntimeTest {
             assertTrue(server.has("value"))
             assertTrue(server["value"].isJsonNull)
             assertEquals(setOf("key", "value", "description"), server.keySet())
-            assertFalse(root.resolve("settings.json").exists())
+            assertFalse(com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager.settingsFile.exists())
         } finally {
             daemon.close()
-            com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager.rootDir = previous
         }
     }
 
     @Test
     fun `next standalone status applies global backup invalidation before baseline use`() {
-        val previous = com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager.rootDir
-        com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager.rootDir = temporaryFolder.newFolder("effects-global")
         val project = temporaryFolder.newFolder("effects-project")
         val paths = JuggPathManager(project)
         registry = StandaloneProjectRegistry(RuntimeInfo("standalone", "4.0", "java-17", "build"))
@@ -102,14 +98,11 @@ class StandaloneRuntimeTest {
         } finally {
             registry!!.close()
             registry = null
-            com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager.rootDir = previous
         }
     }
 
     @Test
     fun `global settings work with zero projects and explicit confirmation`() {
-        val previous = com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager.rootDir
-        com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager.rootDir = temporaryFolder.newFolder("global")
         registry = StandaloneProjectRegistry(RuntimeInfo("standalone", "4.0", "java-17", "build"))
         try {
             val failure = call("settings", mapOf("action" to "set", "key" to "isEnableBackupClasspath", "value" to "true"))
@@ -119,7 +112,8 @@ class StandaloneRuntimeTest {
             assertEquals("global", success.data()["scope"])
             assertTrue(registry!!.getInitializedProjectDirs().isEmpty())
         } finally {
-            com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager.rootDir = previous
+            registry?.close()
+            registry = null
         }
     }
 

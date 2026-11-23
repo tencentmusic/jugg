@@ -354,6 +354,9 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
                 timeoutMs = 10_000L,
             )
 
+            scheduler.getEffectedFiles(listOf(constantsFile.absolutePath))
+            scheduler.acknowledgeEffectedFilesAfterDeployCommit()
+
             constantsFile.writeText(
                 """
                 package com.example
@@ -550,7 +553,7 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
     }
 
     @Test
-    fun `should keep unconsumed const changes after analysis reuse`() {
+    fun `should keep unconsumed const changes after analysis reuse and reparse`() {
         val rootDir = createTempDirectory("const_ref_scheduler_reuse_before_consume")
         File(rootDir, ".git").mkdirs()
         val constantsFile = File(rootDir, "Constants.kt").apply {
@@ -584,6 +587,9 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
             scheduler.onFileSaved(userFile.absolutePath)
             scheduler.awaitAnalysis(listOf(constantsFile.absolutePath, userFile.absolutePath), timeoutMs = 10_000L)
 
+            scheduler.getEffectedFiles(listOf(constantsFile.absolutePath))
+            scheduler.acknowledgeEffectedFilesAfterDeployCommit()
+
             constantsFile.writeText(
                 """
                 package com.example
@@ -597,8 +603,16 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
             scheduler.onFileSaved(constantsFile.absolutePath)
             scheduler.awaitAnalysis(listOf(constantsFile.absolutePath), timeoutMs = 10_000L)
 
-            val effected = scheduler.getEffectedFiles(listOf(constantsFile.absolutePath))
-            assertEquals(setOf(userFile.toStdPath()), effected.map { it.refFilePath }.toSet())
+            val paths = listOf(constantsFile.absolutePath)
+            assertEquals(setOf(userFile.toStdPath()), scheduler.getEffectedFiles(paths).map { it.refFilePath }.toSet())
+
+            // Force a new parse with identical constant definitions.
+            constantsFile.appendText("\n// Formatting-only edit")
+            assertTrue(scheduler.analyzeOnDemand(paths).isReady)
+            assertEquals(setOf(userFile.toStdPath()), scheduler.getEffectedFiles(paths).map { it.refFilePath }.toSet())
+
+            scheduler.acknowledgeEffectedFilesAfterDeployCommit()
+            assertTrue(scheduler.getEffectedFiles(paths).isEmpty())
         } finally {
             scheduler.dispose()
             scope.cancel()

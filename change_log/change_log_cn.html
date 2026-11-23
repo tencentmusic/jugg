@@ -7,9 +7,7 @@
     <li>[optimize][deploy] 自动清理超过 30 天的历史 JVMTI agent 缓存文件</li>
     <li>[bugfix][ide] 修复 Android Studio Quail 4 下 Run 工具窗口运行状态指示器重复显示的问题</li>
 </ol>
-<h1>更新日志</h1>
-<h2>3.5.4 (2026.10.13)</h2>
-<h2>3.6.8 (2026.11.13)</h2>
+<h2>3.6.9 (2026.11.23)</h2>
 <ol>
     <li>[feature] 支持 Native .so 增量热更新，仅 .so 变更时跳过 APK 改写与重装耗时（在设置中开启「.so(native library) hot update」）</li>
     <li>[feature] 支持在 C++ 增量构建前执行声明的代码生成任务（如 IDL），并将生成的源码纳入增量编译</li>
@@ -23,6 +21,8 @@
     <li>[feature][ide] 控制面板支持管理编译文件</li>
     <li>[feature][compile] 支持 ButterKnife 注解</li>
     <li>[feature][custom install] 自定义 APK 安装脚本支持直接填写命令</li>
+    <li>[feature][compat] 支持 Android Studio Stingray</li>
+    <li>[feature][ci] 优化 CI 构建编排设计，支持常量分析</li>
     <li>[optimize] 优化超大 Native 动态库热更新耗时，支持差分增量传输，并采用流式处理降低内存占用</li>
     <li>[optimize][compile] ARouter 注解代码生成后自动同步 IDE 源码目录，避免未识别生成类导致代码报错</li>
     <li>[optimize][compile] 检测到 Git HEAD 切换时，自动同步回滚变更源码</li>
@@ -30,6 +30,8 @@
     <li>[optimize][mcp] 精简 CLI compile 与 deploy 输出</li>
     <li>[optimize][compile] （3.6 引入）优化未修改注解源码时的编译耗时，避免多余的注解基线扫描</li>
     <li>[optimize][compile] 优化 Kotlin 编译内部错误重试失败时的日志，保留原始根因诊断</li>
+    <li>[optimize][compile] Clean gradle cache on fallback 会真正 clean 产物，而不是仅 rerun task</li>
+    <li>[optimize][compile] 优化常量引用分析缓存，支持基于 Git remote origin URL 跨独立 clone 与 CI 环境复用</li>
     <li>[bugfix] 修复首次全量编译前获取项目配置失败的问题</li>
     <li>[bugfix] 修复 Android 源码或资源位于 Native 监控目录下时被误识别为外部构建的问题</li>
     <li>[bugfix] 修复 Native 动态库或 APK 大于 2.1 GB（Int.MAX_VALUE）时部署失败的问题</li>
@@ -53,6 +55,15 @@
     <li>[bugfix][system app] 修复 Windows system app 部署失败问题</li>
     <li>[bugfix][compat] 修复 Android Studio Panda 存在名字 main 的模块时目录识别错误导致编译失败的问题</li>
     <li>[bugfix][compat] 修复 Android Studio Quail 与 Rabbit 下 KMP 模块识别失败告警（不影响使用）</li>
+    <li>[bugfix][compile] 修复模块自定义 Kotlin moduleName 时，增量编译生成的 internal 成员名称不一致导致运行时 NoSuchMethodError 的问题</li>
+    <li>[bugfix][compile] 修复多文件同时发生常量变更时，重编译部分丢失的问题</li>
+    <li>[bugfix][compile] 修复多 Git 仓库工程中，一个仓库的常量变更未触发其他仓库中引用方重编译的问题</li>
+    <li>[bugfix][compile] 修复同名前缀同级目录（如 src 和 src_test）的源文件被误识别为主源码目录的问题</li>
+    <li>[bugfix][compile] 修复根目录无 git，子目录有 git 场景（如 repo），commit 后触发降级的问题</li>
+    <li>[bugfix][project] 修复复合构建（Included Builds）中子工程的编译依赖未被正确收集，依赖 IDE 工程数据补齐，导致 CI 构建不正确的问题</li>
+    <li>[bugfix][project] 修复工程中存在未参与构建的非活跃 App 模块且缺少运行时 Classpath 时导致读取项目信息失败的问题</li>
+    <li>[bugfix][project] 修复高版本 Gradle 开启 org.gradle.kotlin.dsl.allWarningsAsErrors 时，Jugg 编译失败的问题</li>
+    <li>[bugfix][compile] 修复 android.nonTransitiveRClass=true 新增资源 id 部分场景出现资源符号缺失的问题</li>
 </ol>
 <h2>3.5.5 (2026.10.22)</h2>
 <ol>

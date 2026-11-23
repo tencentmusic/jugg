@@ -11,7 +11,9 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
@@ -38,10 +40,11 @@ class ConstRefEngine private constructor(
     constructor(
         analyzer: ConstRefAnalyzer,
         dbFile: File,
-        repoFingerprintDbFile: File,
+        repoFingerprintDbFile: File? = null,
         logger: Logger,
         taskRunnerManager: TaskRunnerManager,
         startupStabilizationDelayMs: Long = 10_000L,
+        pathResolver: ConstRefRepoPathResolver = ConstRefRepoPathResolver(),
     ) : this(
         analyzer = analyzer,
         logger = logger,
@@ -50,8 +53,8 @@ class ConstRefEngine private constructor(
         runtimeFactory = {
             var database: ConstRefCacheDatabase? = null
             try {
-                database = ConstRefCacheDatabase(dbFile, logger)
-                val repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, repoFingerprintDbFile)
+                database = ConstRefCacheDatabase(dbFile, logger, pathResolver)
+                val repoSharedFingerprintStore = repoFingerprintDbFile?.let { RepoSharedFingerprintStore(logger, it) }
                 ConstRefRuntime(
                     database = database,
                     repoSharedFingerprintStore = repoSharedFingerprintStore,
@@ -105,7 +108,7 @@ class ConstRefEngine private constructor(
     private var runtimeState = initialRuntimeState
     private val database: ConstRefCacheDatabase
         get() = requireRuntime("database").database
-    private val repoSharedFingerprintStore: RepoSharedFingerprintStore
+    private val repoSharedFingerprintStore: RepoSharedFingerprintStore?
         get() = requireRuntime("repoSharedFingerprintStore").repoSharedFingerprintStore
     private val impactResolver: ConstRefImpactResolver
         get() = requireRuntime("impactResolver").impactResolver
@@ -412,6 +415,16 @@ class ConstRefEngine private constructor(
         }
     }
 
+    /** Registers project source roots so impact queries cover every repository of the project. */
+    fun registerSourceDirs(sourceDirs: List<File>) {
+        val paths = sourceDirs.filter { it.exists() }.map { it.toStdPath() }.distinct()
+        runCatching {
+            database.registerPathHints(paths)
+        }.onFailure {
+            logger.debug("ConstRefEngine registerSourceDirs failed, reason=${it.message}")
+        }
+    }
+
     fun initializeFullScan(sourceDirs: List<File>) {
         val normalizedSourceDirs = sourceDirs
             .asSequence()
@@ -520,43 +533,68 @@ class ConstRefEngine private constructor(
     private fun launchFullScanLocked(normalizedSourceDirs: List<String>) {
         hasLaunchedInitialFullScan = true
         launchSceneTaskLocked(AnalyzeScene.FULL_SCAN) {
-            val progressLogger = FullScanProgressLogger(logger, fullScanLogIntervalMs)
-            normalizedSourceDirs.forEach { sourceDirPath ->
-                val sourceDir = File(sourceDirPath)
-                val sourceFiles = sourceDir
-                    .listFilesRecursively()
-                    .asSequence()
-                    .filter { file -> file.isFile && isSourceFile(file.name) }
-                    .distinctBy { it.toStdPath() }
-                    .toList()
-                if (sourceFiles.isNotEmpty()) {
-                    val reusablePaths = database.findReusablePathsByLastModified(sourceFiles)
-                    reusablePaths.forEach { path ->
-                        markAnalyzed(path)
-                    }
-                    val filesToAnalyze = if (reusablePaths.isEmpty()) {
-                        sourceFiles
-                    } else {
-                        sourceFiles.filter { it.toStdPath() !in reusablePaths }
-                    }
-                    val startTime = System.currentTimeMillis()
-                    analyzeFilesForScene(filesToAnalyze, AnalyzeScene.FULL_SCAN)
-                    val costTime = System.currentTimeMillis() - startTime
-                    progressLogger.onSourceDirFinished(
-                        sourceDirPath = sourceDirPath,
-                        sourceFileCount = sourceFiles.size,
-                        reusedFileCount = reusablePaths.size,
-                        analyzedFileCount = filesToAnalyze.size,
-                        costMs = costTime,
-                    )
-                }
-                synchronized(stateLock) {
-                    fullScanReadySourceDirs += sourceDirPath
-                    notifyStateChangedLocked()
-                }
-            }
-            progressLogger.flush()
+            scanSourceDirs(normalizedSourceDirs)
         }
+    }
+
+    /** Scans CI baseline source roots without IDE throttling and drops analyses of files outside them. */
+    suspend fun scanBaseline(sourceDirs: List<File>, excludedDirs: Set<File> = emptySet()) {
+        val paths = sourceDirs.filter { it.isDirectory && !it.isInside(excludedDirs) }
+            .map { it.toStdPath() }.distinct()
+        val scannedFiles = mutableSetOf<String>()
+        database.registerPathHints(paths)
+        scanSourceDirs(paths, AnalyzeScene.BASELINE_SCAN, scannedFiles, excludedDirs)
+        database.retainCurrentAnalyses(scannedFiles)
+    }
+
+    private fun File.isInside(directories: Set<File>): Boolean {
+        return directories.isNotEmpty() && generateSequence(absoluteFile.normalize()) { it.parentFile }
+            .any { it in directories }
+    }
+
+    private suspend fun scanSourceDirs(
+        normalizedSourceDirs: List<String>,
+        scene: AnalyzeScene = AnalyzeScene.FULL_SCAN,
+        scannedFiles: MutableSet<String>? = null,
+        excludedDirs: Set<File> = emptySet(),
+    ) {
+        val progressLogger = FullScanProgressLogger(logger, fullScanLogIntervalMs)
+        normalizedSourceDirs.forEach { sourceDirPath ->
+            currentCoroutineContext().ensureActive()
+            val sourceDir = File(sourceDirPath)
+            val files = if (excludedDirs.isEmpty()) sourceDir.listFilesRecursively().asSequence()
+                else sourceDir.walkTopDown().onEnter { it.absoluteFile.normalize() !in excludedDirs }
+            val sourceFiles = files.filter { file -> file.isFile && isSourceFile(file.name) }
+                .distinctBy { it.toStdPath() }
+                .toList()
+            scannedFiles?.addAll(sourceFiles.map { it.toStdPath() })
+            if (sourceFiles.isNotEmpty()) {
+                val reusablePaths = if (scene == AnalyzeScene.BASELINE_SCAN) emptySet() else database.findReusablePathsByLastModified(sourceFiles)
+                reusablePaths.forEach { path ->
+                    markAnalyzed(path)
+                }
+                val filesToAnalyze = if (reusablePaths.isEmpty()) {
+                    sourceFiles
+                } else {
+                    sourceFiles.filter { it.toStdPath() !in reusablePaths }
+                }
+                val startTime = System.currentTimeMillis()
+                analyzeFilesForScene(filesToAnalyze, scene)
+                val costTime = System.currentTimeMillis() - startTime
+                progressLogger.onSourceDirFinished(
+                    sourceDirPath = sourceDirPath,
+                    sourceFileCount = sourceFiles.size,
+                    reusedFileCount = reusablePaths.size,
+                    analyzedFileCount = filesToAnalyze.size,
+                    costMs = costTime,
+                )
+            }
+            synchronized(stateLock) {
+                fullScanReadySourceDirs += sourceDirPath
+                notifyStateChangedLocked()
+            }
+        }
+        progressLogger.flush()
     }
 
     fun dispose() {
@@ -581,13 +619,14 @@ class ConstRefEngine private constructor(
     }
 
     private fun scheduleCacheCleanup(runtime: ConstRefRuntime) {
+        val fingerprintStore = runtime.repoSharedFingerprintStore ?: return
         cacheCleanupJob = taskRunnerManager.runBackgroundSafe(
             jobName = "ConstRefEngine#cacheCleanup",
             delayMs = CACHE_CLEANUP_DELAY_MS,
             isNeedLog = false,
         ) {
             runCatching {
-                cacheCleaner.cleanupIfNeeded(runtime.database, runtime.repoSharedFingerprintStore)
+                cacheCleaner.cleanupIfNeeded(runtime.database, fingerprintStore)
             }.onFailure {
                 logger.debug("ConstRefEngine cacheCleanup failed, reason=${it.message}")
             }
@@ -1038,7 +1077,7 @@ class ConstRefEngine private constructor(
 
     private fun queryChecksumFromSharedFingerprint(file: File): Long? {
         return try {
-            repoSharedFingerprintStore.findChecksum(file)
+            repoSharedFingerprintStore?.findChecksum(file)
         } catch (t: Throwable) {
             logger.debug("queryChecksumFromSharedFingerprint failed, file=$file", t)
             null
@@ -1047,7 +1086,7 @@ class ConstRefEngine private constructor(
 
     private fun saveChecksumToSharedFingerprint(file: File, checksum: Long) {
         try {
-            repoSharedFingerprintStore.saveChecksum(file, checksum)
+            repoSharedFingerprintStore?.saveChecksum(file, checksum)
         } catch (t: Throwable) {
             logger.debug("saveChecksumToSharedFingerprint failed, file=$file", t)
         }
@@ -1592,6 +1631,7 @@ class ConstRefEngine private constructor(
     private fun ioThrottleSleepMs(scene: AnalyzeScene): Long {
         return when (scene) {
             AnalyzeScene.FULL_SCAN -> fullScanIoThrottleSleepMs
+            AnalyzeScene.BASELINE_SCAN -> 0L
             AnalyzeScene.FILE_CHANGE -> fileChangeIoThrottleSleepMs
             AnalyzeScene.PRE_COMPILE -> preCompileIoThrottleSleepMs
             AnalyzeScene.ON_DEMAND -> onDemandIoThrottleSleepMs
@@ -1600,7 +1640,7 @@ class ConstRefEngine private constructor(
 
     private fun ioThrottleEveryNFiles(scene: AnalyzeScene): Int {
         return when (scene) {
-            AnalyzeScene.FULL_SCAN -> fullScanIoThrottleEveryNFiles
+            AnalyzeScene.FULL_SCAN, AnalyzeScene.BASELINE_SCAN -> fullScanIoThrottleEveryNFiles
             AnalyzeScene.FILE_CHANGE -> fileChangeIoThrottleEveryNFiles
             AnalyzeScene.PRE_COMPILE -> preCompileIoThrottleEveryNFiles
             AnalyzeScene.ON_DEMAND -> onDemandIoThrottleEveryNFiles
@@ -1851,6 +1891,7 @@ class ConstRefEngine private constructor(
 
     private enum class AnalyzeScene {
         FULL_SCAN,
+        BASELINE_SCAN,
         FILE_CHANGE,
         PRE_COMPILE,
         ON_DEMAND,
@@ -1868,7 +1909,7 @@ class ConstRefEngine private constructor(
 
     private data class ConstRefRuntime(
         val database: ConstRefCacheDatabase,
-        val repoSharedFingerprintStore: RepoSharedFingerprintStore,
+        val repoSharedFingerprintStore: RepoSharedFingerprintStore?,
         val impactResolver: ConstRefImpactResolver,
     )
 

@@ -58,7 +58,11 @@ Step 2: cmd=buildIncrementalApk
 ```
 
 > [!NOTE]
-> The CI pipeline must provide the `changedFiles` diff explicitly. Each baseline directory can only be consumed once; copy independent baseline directories if building multiple concurrent branches.
+> The CI pipeline must provide `changedFiles` explicitly. Passing an empty list as `changedFiles=` exports the baseline APK to `outputApkDir`, skips compilation, and leaves the baseline unconsumed; omitting the argument still returns an error. Actual incremental compilation with a nonempty list consumes the baseline, so each directory can only be consumed once; copy independent baseline directories if building multiple concurrent branches.
+
+By default, `buildIncrementalApk` signs and verifies the modified APK. If CI has a separate re-signing step, pass `skipSign=true`: Jugg still modifies and aligns the APK, but does not require a keystore, sign the APK, or verify its signature. The pipeline must re-sign and verify the APK before installation or distribution. This option does not affect unchanged baseline APK exports or full Gradle builds.
+
+When querying changes with `getChangedFiles`, unrecognized paths are returned as `Unknown`. The pipeline should explicitly filter documentation confirmed to have no effect on the APK. Unhandled Unknown files, such as project-defined build inputs, or a Jugg incremental failure should lead to a Gradle build. Passing unrecognized files directly to the incremental command returns an error instead of silently ignoring them.
 
 ---
 

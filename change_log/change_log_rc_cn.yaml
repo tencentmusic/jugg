@@ -13,6 +13,23 @@
   updates:
     - "[feature] 支持 Standalone Jugg CLI，不依赖 Android Studio 执行编译和部署"
 
+- version: 3.6.9
+  date: 2026.11.23
+  updates:
+    - "[feature][compat] 支持 Android Studio Stingray"
+    - "[feature][ci] 优化 CI 构建编排设计，支持常量分析"
+    - "[optimize][compile] Clean gradle cache on fallback 会真正 clean 产物，而不是仅 rerun task"
+    - "[optimize][compile] 优化常量引用分析缓存，支持基于 Git remote origin URL 跨独立 clone 与 CI 环境复用"
+    - "[bugfix][compile] 修复模块自定义 Kotlin moduleName 时，增量编译生成的 internal 成员名称不一致导致运行时 NoSuchMethodError 的问题"
+    - "[bugfix][compile] 修复多文件同时发生常量变更时，重编译部分丢失的问题"
+    - "[bugfix][compile] 修复多 Git 仓库工程中，一个仓库的常量变更未触发其他仓库中引用方重编译的问题"
+    - "[bugfix][compile] 修复同名前缀同级目录（如 src 和 src_test）的源文件被误识别为主源码目录的问题"
+    - "[bugfix][compile] 修复根目录无 git，子目录有 git 场景（如 repo），commit 后触发降级的问题"
+    - "[bugfix][project] 修复复合构建（Included Builds）中子工程的编译依赖未被正确收集，依赖 IDE 工程数据补齐，导致 CI 构建不正确的问题"
+    - "[bugfix][project] 修复工程中存在未参与构建的非活跃 App 模块且缺少运行时 Classpath 时导致读取项目信息失败的问题"
+    - "[bugfix][project] 修复高版本 Gradle 开启 org.gradle.kotlin.dsl.allWarningsAsErrors 时，Jugg 编译失败的问题"
+    - "[bugfix][compile] 修复 android.nonTransitiveRClass=true 新增资源 id 部分场景出现资源符号缺失的问题"
+
 - version: 3.6.8
   date: 2026.11.13
   updates:

@@ -130,7 +130,7 @@ logger.warn("message bla bla bla" +
 - 二级 tag 标记功能领域，不是 Gradle 模块名或任务状态。优先选择最具体的现有 tag；跨领域提交选主要行为 owner，互不相关的改动分开提交：
   - 编译与项目：`[compile]`、`[native build]`（Flutter/C++）、`[dependency incremental]`、`[kmp opt-in]`、`[hilt]`、`[project]`（Gradle 项目模型）
   - 部署：`[deploy]`、`[system app]`（含 rootless）、`[custom install]`（APK 安装脚本）
-  - IDE 与工具：`[ide]`、`[settings]`、`[compat]`（Android Studio 版本适配）、`[mcp]`、`[cli]`、`[agent]`、`[diagnostics]`（日志与问题报告）
+  - IDE 与工具：`[ide]`、`[settings]`、`[compat]`（Android Studio 版本适配）、`[mcp]`、`[cli]`、`[ci]`（CI 构建编排）、`[agent]`、`[diagnostics]`（日志与问题报告）
   - 工程与内容：`[build]`（仓库构建/CI/打包，不是插件运行时编译）、`[release]`、`[test suite]`、`[wiki]`（用户 Wiki）、`[docs]`（其他文档）、`[repo]`（仓库级规则）
   - 沿用小写英文及空格分词写法，不造同义词；确需新增领域时先确定稳定名称和职责，并同步本规范与 `AGENTS.md`、`CLAUDE.md`。
 - 标题优先描述用户场景和可观察结果，不描述内部实现。

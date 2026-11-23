@@ -17,6 +17,7 @@ class RepoSharedFingerprintStore(
     private val logger: Logger,
     private val dbFile: File,
 ) {
+    private val pathResolver = ConstRefRepoPathResolver()
     private val sampleSize = 4096
     private val url = "jdbc:sqlite:${dbFile.absolutePath}"
 
@@ -26,7 +27,7 @@ class RepoSharedFingerprintStore(
 
     @Synchronized
     fun findChecksum(file: File): Long? {
-        val repoFileKey = ConstRefRepoPathResolver.resolve(file) ?: return null
+        val repoFileKey = pathResolver.resolve(file) ?: return null
         val signature = buildContentSignature(file) ?: return null
         return withConnection { connection ->
             connection.prepareStatement(
@@ -57,7 +58,7 @@ class RepoSharedFingerprintStore(
 
     @Synchronized
     fun saveChecksum(file: File, checksum: Long) {
-        val repoFileKey = ConstRefRepoPathResolver.resolve(file) ?: return
+        val repoFileKey = pathResolver.resolve(file) ?: return
         val signature = buildContentSignature(file) ?: return
         withConnection { connection ->
             connection.prepareStatement(

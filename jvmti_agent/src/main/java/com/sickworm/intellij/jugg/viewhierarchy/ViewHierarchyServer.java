@@ -75,12 +75,7 @@ public class ViewHierarchyServer {
             return;
         }
         running = true;
-        Thread serverThread = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                runServerLoop();
-            }
-        }, "jugg-view-hierarchy-server");
+        Thread serverThread = new Thread(this::runServerLoop, "jugg-view-hierarchy-server");
         serverThread.setDaemon(true);
         serverThread.start();
     }
@@ -140,60 +135,25 @@ public class ViewHierarchyServer {
             switch (action) {
                 case "layout_dump":
                     JSONObject finalParamsDump = params;
-                    return runOnMainThread(new Callable<JSONObject>() {
-                        @Override
-                        public JSONObject call() {
-                            return doLayoutDump(finalParamsDump);
-                        }
-                    });
+                    return runOnMainThread(() -> doLayoutDump(finalParamsDump));
                 case "find_elements":
                     JSONObject finalParamsFind = params;
-                    return runOnMainThread(new Callable<JSONObject>() {
-                        @Override
-                        public JSONObject call() {
-                            return doFindElements(finalParamsFind);
-                        }
-                    });
+                    return runOnMainThread(() -> doFindElements(finalParamsFind));
                 case "find_and_tap":
                     JSONObject finalParamsFindAndTap = params;
-                    return runOnMainThread(new Callable<JSONObject>() {
-                        @Override
-                        public JSONObject call() {
-                            return doFindAndTap(finalParamsFindAndTap);
-                        }
-                    });
+                    return runOnMainThread(() -> doFindAndTap(finalParamsFindAndTap));
                 case "find_and_long_press":
                     JSONObject finalParamsFindAndLongPress = params;
-                    return runOnMainThread(new Callable<JSONObject>() {
-                        @Override
-                        public JSONObject call() {
-                            return doFindAndLongPress(finalParamsFindAndLongPress);
-                        }
-                    });
+                    return runOnMainThread(() -> doFindAndLongPress(finalParamsFindAndLongPress));
                 case "tap_coordinate":
                     JSONObject finalParamsTap = params;
-                    return runOnMainThread(new Callable<JSONObject>() {
-                        @Override
-                        public JSONObject call() {
-                            return doTapCoordinate(finalParamsTap);
-                        }
-                    });
+                    return runOnMainThread(() -> doTapCoordinate(finalParamsTap));
                 case "verify":
                     JSONObject finalParamsVerify = params;
-                    return runOnMainThread(new Callable<JSONObject>() {
-                        @Override
-                        public JSONObject call() {
-                            return doVerify(finalParamsVerify);
-                        }
-                    });
+                    return runOnMainThread(() -> doVerify(finalParamsVerify));
                 case "eval_view":
                     JSONObject finalParamsEval = params;
-                    return runOnMainThread(new Callable<JSONObject>() {
-                        @Override
-                        public JSONObject call() {
-                            return doEvalView(finalParamsEval);
-                        }
-                    });
+                    return runOnMainThread(() -> doEvalView(finalParamsEval));
                 default:
                     return error("Unsupported action: " + action, null);
             }

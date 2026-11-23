@@ -46,7 +46,7 @@ Help AI complete a task with minimal context:
 | Jugg Debug attach / unavailable breakpoints | `98_code_map.md`, `04_engineering_debug_attach.md`, `04_engineering_compat.md` | `JuggDebugProgramRunner.kt`, `JuggDebugSessionManager.kt`, `AndroidStudioDebuggerAttachStarter.kt`, `*AsDeployerCompat.kt` |
 | Gradle project information and dependency reading | `98_code_map.md`, `04_engineering_project.md` | `project/info/ProjectModelSource.kt`, `gradle/script/GradleProjectInfoReader.kt`, `project/dependency/GradleProjectInfoLocalFetchManager.kt` |
 | Standalone / IDEA shared Run Configuration | `98_code_map.md`, `04_engineering_ide.md`, `04_engineering_compat.md`, `05_utilities.md` §3 | `project/runtime/CliRunConfiguration.kt`, `idea/src/main/java/com/sickworm/intellij/jugg/project/runtime/IdeaCliRunConfigurationManager.kt`, `JuggRunConfigurationOptions.kt` |
-| Compatibility layer, Standalone host/locks, Stub artifact checks | `98_code_map.md`, `04_engineering_compat.md` | `deploy_compat/*/AsDeployerCompat.kt`, `StandaloneProjectRegistry.kt`, `ExecutionLockManager.kt`, `deploy_compat/verify_stub_api.sh` |
+| [New Android Studio release workflow](04_engineering_compat.md#supporting-a-new-android-studio-release), compatibility layer, Standalone host/locks, Stub artifact checks | `98_code_map.md`, `04_engineering_compat.md` | `deploy_compat/*/AsDeployerCompat.kt`, `StandaloneProjectRegistry.kt`, `ExecutionLockManager.kt`, `deploy_compat/verify_stub_api.sh` |
 | MCP tool design and invocation | `98_code_map.md`, `08_mcp_tools_list.md`, `08_mcp_design.md` | `ai/mcp/McpToolInvoker.kt`, `ai/mcp/actions/*`, `ai/mcp/util/CrashDetector.kt`, `ai/mcp/util/LastDeployTimestampRegistry.kt` |
 | `jugg` CLI subcommand use / **new or changed CLI parameters** / CLI script or skill version | `08_cli_tools_list.md` | `docs/skills/jugg-android-dev-loop/scripts/jugg.py`, `JuggCliAutoUpdater` |
 | MCP UI layout verification design (public tool boundary / evidence chain) | `98_code_map.md`, `08_mcp_layout_verify_design.md` | `McpToolActionRegistry.kt`, `LayoutDumpHelper.kt`, `UiFindMcpToolAction.kt`, `EvalViewMcpToolAction.kt`, `TapMcpToolAction.kt` |
@@ -134,3 +134,5 @@ Help AI complete a task with minimal context:
 | GitHub release-note aggregation | 98_code_map.md §7, 06_testing.md | tools/generate_release_notes.rb |
 
 02_compile_annotations.md is the annotation integration guide: detection cost, input closure, existing engine reuse, publication lifecycle, failure scope and verification. Changes to jvmti_agent runtime/bundle inputs require agentVersion increments under 03_runtime_jvmti.md.
+
+For CI baseline selection, change classification, APK signing handoff and caller-owned Gradle fallback, start at [IDE-free CI commands](04_engineering_compat.md#5-ide-free-ci-commands).

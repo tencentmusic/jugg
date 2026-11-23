@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.cmdline.incremental
 
 import com.intellij.openapi.util.Disposer
+import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.sickworm.intellij.jugg.cmdline.logger.CmdLineLogger
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.ui.TooManyChangesConfirmResult
@@ -32,11 +33,19 @@ class BuildIncrementalApkCommand(private val params: Params) {
             logger.info("Init compile context...")
             logger.debug("BuildIncrementalApkCommand params: $params")
             TimeLogger.start("Init compile context")
-            checkDirty()
+            checkDirty(consume = false)
+            if (params.changedFiles.isEmpty()) {
+                exportBaseApks()
+                logger.info("No changed files, exported baseline APKs.")
+                return true
+            }
             contextManager.init()
-            val compilerHelper = getCompilerHelper()
+            contextManager.registerConstRefSourceDirs()
             val changedFiles = getChangedFiles()
             TimeLogger.end("Init compile context", logger)
+            checkDirty(consume = true)
+            contextManager.deployFileManager.addChangedFile(changedFiles)
+            val compilerHelper = getCompilerHelper()
 
             val compileResult = compile(compilerHelper, changedFiles)
             if (!compileResult.isSuccess) {
@@ -46,6 +55,9 @@ class BuildIncrementalApkCommand(private val params: Params) {
             logger.info("Compile success.")
             updateApk(contextManager.compileContext, compileResult.incrementalCompileResult!!)
             logger.info("Update apk success.")
+            if (params.skipSign) {
+                logger.info("APK signing skipped; re-sign and verify before use: ${params.outputApkDir.absolutePath}")
+            }
             return true
         } catch (e: IncrementalException) {
             logger.warn("Compile failed", e)
@@ -62,12 +74,21 @@ class BuildIncrementalApkCommand(private val params: Params) {
         }
     }
 
-    private fun checkDirty() {
+    private fun checkDirty(consume: Boolean) {
         if (dirtyFlag.exists()) {
             throw IncrementalException("Argument 'baseBuildJuggRootDir' invalid, $dirtyFlag exists, which means directory was compiled before.")
         }
-        dirtyFlag.parentFile.mkdirs()
-        dirtyFlag.createNewFile()
+        if (consume) {
+            dirtyFlag.parentFile.mkdirs()
+            dirtyFlag.createNewFile()
+        }
+    }
+
+    private fun exportBaseApks() {
+        val baseline = CompileContextDb(pathManager.juggRootDir, pathManager.compileContextDbDir, logger)
+            .getCompileBuildPathInfoFromDb()
+            ?: throw IncrementalException("Base build APK metadata is unavailable.")
+        copyApks(baseline.apkInfos)
     }
 
     private fun getCompilerHelper(): IncrementalCompilerHelper {
@@ -87,16 +108,16 @@ class BuildIncrementalApkCommand(private val params: Params) {
     }
 
     private fun getChangedFiles(): List<ChangedFile> {
-        val changedFiles = params.changedFiles // changed files comes from source project dir
-        if (changedFiles.isEmpty()) {
-            throw IncrementalException("Argument 'changedFiles' is empty.")
-        }
+        val changedFiles = params.changedFiles
+        val roots = (listOf(params.sourceProjectDir) + contextManager.compileContext.modules.values.map {
+            it.moduleRootDir
+        }).map { it.canonicalFile.toPath() }
         changedFiles.forEach {
             if (!it.exists()) {
                 throw IncrementalException("Argument 'changedFiles' file not exists: ${it.path}")
             }
-            if (!it.isChild(params.sourceProjectDir)) {
-                throw IncrementalException("Argument 'changedFiles' file is not in source project dir: ${it.path}, 'sourceProjectDir': ${params.sourceProjectDir}")
+            if (roots.none { root -> it.canonicalFile.toPath().startsWith(root) }) {
+                throw IncrementalException("Argument 'changedFiles' file is outside project modules: ${it.path}, 'sourceProjectDir': ${params.sourceProjectDir}")
             }
         }
 
@@ -119,11 +140,16 @@ class BuildIncrementalApkCommand(private val params: Params) {
 
     private fun updateApk(context: ICompileContext, compileResult: CompileResult) {
         val (isSuccess, failedReason) = IncrementalDeployHelper(context, logger)
-            .updateApk(context.apkInfos, compileResult.outputs.map { it.toDeployItem() })
+            .updateApk(context.apkInfos, compileResult.outputs.map { it.toDeployItem() }, skipSign = params.skipSign)
         if (!isSuccess) {
             throw IncrementalException("Update apk failed, reason: $failedReason")
         }
-        context.apkInfos.forEach { apkInfo ->
+        copyApks(context.apkInfos)
+    }
+
+    private fun copyApks(apkInfos: List<ApkInfo>) {
+        params.outputApkDir.mkdirs()
+        apkInfos.forEach { apkInfo ->
             apkInfo.files.forEach { apkFileUnit ->
                 val apkFile = apkFileUnit.apkFile
                 val outputApkFile = File(params.outputApkDir, apkFile.name)
@@ -145,10 +171,12 @@ class BuildIncrementalApkCommand(private val params: Params) {
             return compileTaskResult // return directly
         }
 
-        // merge dex
-        val incrementalCompileResult = compileTaskResult.incrementalCompileResult!! // not null if success
+        // The last compile result only contains outputs from its own round.
+        val stagedResult = compileTaskResult.incrementalCompileResult!!.copy(
+            outputs = contextManager.deployFileManager.getStagingFiles(),
+        )
         val dexOutputDir = File(pathManager.stagingDir, "merged_dex")
-        val mergedIncrementalCompileResult = compilerHelper.mergeDex(incrementalCompileResult, dexOutputDir)
+        val mergedIncrementalCompileResult = compilerHelper.mergeDex(stagedResult, dexOutputDir)
             ?: return CompileTaskResult.incrementalFailed(isCanFallback = false, failedReason = "Merge dex failed")
         return CompileTaskResult.incrementalSuccess(mergedIncrementalCompileResult)
     }

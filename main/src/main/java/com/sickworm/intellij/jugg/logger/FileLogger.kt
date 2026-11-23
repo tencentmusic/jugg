@@ -15,6 +15,7 @@ import java.util.logging.Level
 import java.util.logging.LogRecord
 import java.util.logging.Logger
 import java.util.logging.SimpleFormatter
+import java.util.stream.Collectors
 
 /**
  * Logger logs to jugg/log.
@@ -197,7 +198,7 @@ class FileLogger(
         val backups = Files.list(legacyPath.parent).use { paths ->
             paths.filter {
                 it.fileName.toString().startsWith(prefix) && Files.isDirectory(it, LinkOption.NOFOLLOW_LINKS)
-            }.toList()
+            }.collect(Collectors.toList())
         }
         if (backups.size > 1) {
             throw IllegalStateException("Multiple legacy log directory backups found: $backups")

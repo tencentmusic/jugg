@@ -44,18 +44,14 @@ class ParamsParser {
         }
         val outputApkDir = File(outputApkDirValue)
 
-        val changedFilesValue = keyValueMap["changedFiles"] ?: ""
-        if (changedFilesValue.isEmpty()) {
-            throw IncrementalException("Param 'changedFiles' not found.")
-        }
+        // An explicitly empty list exports the baseline APK; an omitted argument remains an error.
+        val changedFilesValue = keyValueMap["changedFiles"]
+            ?: throw IncrementalException("Param 'changedFiles' not found.")
         val changedFiles = changedFilesValue.split(File.pathSeparator)
             .filter { it.isNotEmpty() }
             .map { File(it) }
             .map { if(it.isAbsolute) it else it.absoluteFile }
             .map { it.normalize() }
-        if (changedFiles.isEmpty()) {
-            throw IncrementalException("Param 'changedFiles' is empty.")
-        }
         // check file exists
         changedFiles.forEach { file ->
             if (!file.exists()) {
@@ -74,6 +70,9 @@ class ParamsParser {
 
         val logLevelValue = keyValueMap["logLevel"] ?: "DEBUG"
         val logLevel = Level.toLevel(logLevelValue)
+        val skipSign = keyValueMap["skipSign"]?.let { value ->
+            value.toBooleanStrictOrNull() ?: throw IncrementalException("Param 'skipSign' must be true or false.")
+        } ?: false
 
         return Params(
             baseBuildJuggRootDir = baseBuildJuggRootDir,
@@ -82,6 +81,7 @@ class ParamsParser {
             changedFiles = changedFiles,
             customCompilerJars = customCompilerJars,
             logLevel = logLevel,
+            skipSign = skipSign,
         )
     }
 }

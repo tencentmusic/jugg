@@ -13,6 +13,23 @@
   updates:
     - "[feature] Run Jugg compile and deploy workflows from a standalone cross-platform CLI without Android Studio"
 
+- version: 3.6.9
+  date: 2026.11.23
+  updates:
+    - "[feature][compat] Support Android Studio Stingray"
+    - "[feature][ci] Optimize CI build orchestration design to support constant reference analysis"
+    - "[optimize][compile] Clean Gradle cache on fallback now runs a real clean task instead of only rerunning tasks"
+    - "[optimize][compile] Optimize constant reference analysis cache to share across independent clones and CI environments based on Git remote origin URL"
+    - "[bugfix][compile] Fix NoSuchMethodError at runtime caused by inconsistent internal member names when a module configures a custom Kotlin moduleName"
+    - "[bugfix][compile] Fix missing recompilations when constant changes occur simultaneously across multiple files"
+    - "[bugfix][compile] Fix missing recompilations of callers in other repositories when a constant changes in a multi-git repository project"
+    - "[bugfix][compile] Fix source files in sibling directories with shared prefix (such as src and src_test) being misclassified as main source roots"
+    - "[bugfix][compile] Fix fallback triggered after commits in projects where root directory has no git but subdirectories do (such as repo tool)"
+    - "[bugfix][project] Fix missing compile dependencies for subprojects in composite builds (Included Builds) requiring IDE project data backfill and causing incorrect CI builds"
+    - "[bugfix][project] Fix project info reading failure when an inactive App module not participating in the build lacks a runtime classpath"
+    - "[bugfix][project] Fix Jugg compilation failure when org.gradle.kotlin.dsl.allWarningsAsErrors is enabled in modern Gradle versions"
+    - "[bugfix][compile] Fix missing resource symbols in certain scenarios when adding new resource IDs with android.nonTransitiveRClass=true"
+
 - version: 3.6.8
   date: 2026.11.13
   updates:

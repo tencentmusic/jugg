@@ -765,6 +765,10 @@ gtag('config', '${GA_ID}');`
       }
     }
   },
+  async buildEnd() {
+    const { generateRedirects } = await import('../scripts/generate-redirects.mjs')
+    generateRedirects()
+  },
   themeConfig: {
     search: {
       provider: 'local'

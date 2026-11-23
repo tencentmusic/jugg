@@ -39,10 +39,10 @@ class GradleProjectInfoReader(
         emptyMap()
     }
 
-    private var modulesNames = setOf<String>()
 
     private var isEnableJetifier: Boolean = false
 
+    @Suppress("UNCHECKED_CAST")
     fun getProjectInfo(includeAndroidTestSourceSet: Boolean): JuggProjectInfo {
         TraceLogger.clear()
         var jetifierReadError: String? = null
@@ -67,7 +67,6 @@ class GradleProjectInfoReader(
         }
         TraceLogger.end("loadDependencyCrcCache")
 
-        modulesNames = rootProject.subprojects.flatMap { it.path.split(":") }.toSet()
         val modules = mutableMapOf<String, ModuleInfo>()
         rootProject.subprojects.forEach { project: Project ->
             val moduleInfo = getModuleInfo(project)
@@ -98,6 +97,9 @@ class GradleProjectInfoReader(
                         libraryDependencies = atDependencies.filterIsInstance<LibraryDependency>(),
                         moduleDependencies = atDependencies.filterIsInstance<ModuleDependency>(),
                         testApplicationId = testAppId,
+                        kotlinModuleName = readKotlinModuleName(
+                            findKotlinTask(project, resolveAndroidTestBuildVariant(moduleInfo.buildVariant).camelCompat)
+                        ),
                     )
                     if (androidTestModuleInfo != null) {
                         modules[androidTestModuleInfo.name] = androidTestModuleInfo
@@ -274,6 +276,7 @@ class GradleProjectInfoReader(
                     compileVersion = compileSdkVersion?.substringAfter("android-"),
                     buildToolsVersion = buildToolsVersion,
                     kotlinJvmTarget = kotlinJvmTarget,
+                    kotlinModuleName = readKotlinModuleName(kotlinTask),
                     kotlinFreeCompilerArgs = kotlinFreeCompilerArgs,
                     kotlinPluginOptions = kotlinPluginOptions,
                     javaSourceCompatibility = compileOptions["sourceCompatibility"]?.valueString,
@@ -309,6 +312,7 @@ class GradleProjectInfoReader(
                 val kotlinJvmOptions = reflector(kotlinTask)["kotlinOptions"]
                 moduleInfo = moduleInfo.copy(
                     kotlinJvmTarget = readKotlinJvmTarget(kotlinTask, kotlinJvmOptions),
+                    kotlinModuleName = readKotlinModuleName(kotlinTask),
                     kotlinFreeCompilerArgs = readKotlinFreeCompilerArgs(kotlinTask, kotlinJvmOptions),
                     kotlinPluginOptions = readKotlinPluginOptions(kotlinTask),
                 )
@@ -377,6 +381,7 @@ class GradleProjectInfoReader(
     }
 
     /** Reads the selected variant's resolved processor artifacts, including project dependencies. */
+    @Suppress("UNCHECKED_CAST")
     private fun readKspTask(project: Project, module: ModuleInfo): ModuleInfo {
         val suffix = module.buildVariant.camelCompat
         val names = listOf("ksp${suffix}KotlinAndroid", "ksp${suffix}Kotlin") +
@@ -429,21 +434,28 @@ class GradleProjectInfoReader(
             return emptyList()
         }
 
+        val canSkipRuntimeClasspath = moduleInfo.variants.isEmpty() && taskGraphGroup.isNotEmpty() && project !in taskGraphGroup
         var filterName = "${moduleInfo.buildVariant}RuntimeClasspath"
         if (project.configurations.names.none { filterConfigs(it, filterName) }) {
             filterName = "RuntimeClasspath"
         }
         if (project.configurations.names.none { filterConfigs(it, filterName) }) {
+            if (canSkipRuntimeClasspath) {
+                println("Jugg: skip missing runtime classpath for ${project.standardModuleName}: no variants or tasks")
+                return emptyList()
+            }
             throw GradleException("Jugg: runtime classpath is unavailable for ${project.standardModuleName}")
         }
 
         TraceLogger.start("getRuntime")
         return try {
-            // Only library dependencies are consumed here, and the discarded module dependencies are
-            // what forces the legacy ResolvedConfiguration walk. That walk resolves the runtime
-            // artifact graph of the whole APK root and costs seconds per APK owner module.
+            // Runtime project components are read separately for APK ownership.
             getDependenciesByConfig(project, filterName, isAndroidDepend = true, isNeedProjectDependencies = false)
                 .filterIsInstance<LibraryDependency>()
+        } catch (exception: GradleException) {
+            if (!canSkipRuntimeClasspath) throw exception
+            println("Jugg: skip failed runtime classpath for ${project.standardModuleName}: $exception")
+            emptyList()
         } finally {
             TraceLogger.end("getRuntime")
         }
@@ -468,21 +480,12 @@ class GradleProjectInfoReader(
         }
 
         return try {
-            val result = linkedMapOf<String, ModuleDependency>()
+            val result = linkedSetOf<ModuleDependency>()
             configurations.forEach { configuration ->
                 if (configuration.allDependencies.isEmpty()) return@forEach
-                val resolutionResult = configuration.incoming.resolutionResult
-                resolutionResult.allComponents.forEach componentForEach@{ component ->
-                    val identifier = component.id as? ProjectComponentIdentifier ?: return@componentForEach
-                    if (identifier == resolutionResult.root.id) return@componentForEach
-                    val moduleName = identifier.projectPath.standardModuleNameForProjectPath.ifEmpty {
-                        identifier.projectName
-                    }
-                    if (moduleName.isEmpty()) return@componentForEach
-                    result[moduleName] = ModuleDependency(moduleName)
-                }
+                result.addAll(getProjectDependencies(configuration))
             }
-            result.values.toList()
+            result.toList()
         } catch (e: Throwable) {
             println("Jugg: get runtime module dependencies for ${project.standardModuleName} failed: $e")
             printException(e)
@@ -1696,6 +1699,19 @@ class GradleProjectInfoReader(
         }
     }
 
+    private fun readKotlinModuleName(task: Any?): String? {
+        task ?: return null
+        return runCatching {
+            // Older Kotlin Gradle plugins let the task property override compilerOptions.moduleName.
+            (readKotlinOptionValue(task, "moduleName") as? String)
+                ?: (readKotlinOptionValue(readProperty(task, "compilerOptions"), "moduleName") as? String)
+                ?: (readKotlinOptionValue(readProperty(task, "kotlinOptions"), "moduleName") as? String)
+        }.getOrElse { error ->
+            println("Jugg: could not read Kotlin module name for ${readProperty(task, "path")}: $error")
+            null
+        }
+    }
+
     /** Reads the effective JVM target from Kotlin 2 compiler options with a legacy fallback. */
     private fun readKotlinJvmTarget(kotlinTask: Any?, legacyOptions: Reflector?): String? {
         val compilerOptions = readProperty(kotlinTask, "compilerOptions")
@@ -1869,7 +1885,7 @@ class GradleProjectInfoReader(
         // resolve project dependency here, because project dependency won't return by artifactView
         // if it's build directory is deleted
         if (isNeedProjectDependencies) {
-            getProjectDependencies(result, resolvedConfiguration.resolvedConfiguration.firstLevelModuleDependencies)
+            result.addAll(getProjectDependencies(resolvedConfiguration))
         }
 
         val resolvedArtifacts = mutableSetOf<ResolvedArtifactResult>()
@@ -1984,13 +2000,16 @@ class GradleProjectInfoReader(
         }
     }
 
-    private fun getProjectDependencies(result: MutableSet<Dependency>, dependencies: Set<ResolvedDependency>) {
-        dependencies.forEach { dependency ->
-            val moduleName = dependency.moduleNameIfIsProject
-            if (moduleName != null) {
-                result.add(ModuleDependency(moduleName))
-                getProjectDependencies(result, dependency.children)
+    private fun getProjectDependencies(configuration: Configuration): List<ModuleDependency> {
+        val resolutionResult = configuration.incoming.resolutionResult
+        val rootId = resolutionResult.root.id
+        return resolutionResult.allComponents.mapNotNull { component ->
+            val identifier = component.id as? ProjectComponentIdentifier ?: return@mapNotNull null
+            if (identifier == rootId) return@mapNotNull null
+            val moduleName = identifier.projectPath.standardModuleNameForProjectPath.ifEmpty {
+                identifier.projectName
             }
+            moduleName.takeIf { it.isNotEmpty() }?.let(::ModuleDependency)
         }
     }
 
@@ -2067,23 +2086,6 @@ class GradleProjectInfoReader(
         return removePrefix(":").replace(":", ".")
     }
 
-    private val ResolvedDependency.moduleNameIfIsProject: String? get() {
-        val moduleGroup = moduleGroup.removePrefix(rootProject.name + ".") // handle subproject style
-        val moduleName = moduleName.removePrefix(rootProject.name + ".")
-
-        if (!modulesNames.contains(moduleName)) {
-            return null
-        }
-        if (moduleVersion != "unspecified") {
-            return null
-        }
-        return if (moduleGroup == rootProject.name) {
-            moduleName
-        } else {
-            "$moduleGroup.$moduleName"
-        }
-    }
-
     /**
      * filterConfigs("implementation", "implementation) = true
      * filterConfigs("debugImplementation", "implementation) = true
@@ -2140,6 +2142,7 @@ class GradleProjectInfoReader(
             libraryDependencies: List<LibraryDependency>,
             moduleDependencies: List<ModuleDependency> = emptyList(),
             testApplicationId: String?,
+            kotlinModuleName: String? = null,
         ): ModuleInfo? {
             if (sourceDirs.isEmpty()) return null
             val ownerPackage = appModuleInfo.applicationId ?: appModuleInfo.namespace ?: return null
@@ -2153,6 +2156,7 @@ class GradleProjectInfoReader(
                 name = "${appModuleInfo.name}.androidTest",
                 moduleType = ModuleInfo.Type.Library,
                 buildVariant = androidTestBuildVariant,
+                kotlinModuleName = kotlinModuleName,
                 buildPathInfo = appModuleInfo.buildPathInfo.copy(buildVariant = androidTestBuildVariant),
                 applicationId = resolvedTestAppId,
                 instrumentationTargetPackage = targetPackage,

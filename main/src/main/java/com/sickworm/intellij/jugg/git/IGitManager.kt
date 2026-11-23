@@ -3,8 +3,12 @@ package com.sickworm.intellij.jugg.git
 import java.io.File
 
 /**
- * API that used in Jugg
+ * A matched full commit SHA and the number of first-parent edges from the target.
+ * A target that is itself a candidate has distance zero.
  */
+data class FirstParentCommitMatch(val matchedCommit: String, val distance: Int)
+
+/** Repository queries used by Jugg compilation and CI orchestration. */
 interface IGitManager {
 
     /**
@@ -47,6 +51,20 @@ interface IGitManager {
      * git --no-pager diff --name-only [oldCommit] [newCommit]
      */
     fun getChangedFiles(oldCommit: String, newCommit: String): List<File>
+
+    /**
+     * Resolve a revision accepted by JGit to its full object ID.
+     * @throws IllegalArgumentException if the revision cannot be resolved.
+     */
+    fun resolveCommit(commit: String): String
+
+    /**
+     * Find the nearest candidate by walking only parent zero, starting at [targetCommit].
+     * Candidate revisions are resolved before traversal; input order does not affect selection.
+     * Returns null when the first-parent chain contains no candidate.
+     * @throws IllegalArgumentException if the target or a candidate cannot be resolved.
+     */
+    fun findNearestFirstParentCommit(targetCommit: String, candidateCommits: Set<String>): FirstParentCommitMatch?
 
     /**
      * git show -s --format=%H

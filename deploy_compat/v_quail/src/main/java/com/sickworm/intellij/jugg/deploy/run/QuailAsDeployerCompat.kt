@@ -270,7 +270,7 @@ open class QuailAsDeployerCompat : IAsDeployerCompat {
         return deployApiConverter.toStudioByteString(content)
     }
 
-    protected fun toStudioChangedClasses(changes: DexComparator.ChangedClasses): com.android.tools.deployer.DexComparator.ChangedClasses {
+    protected open fun toStudioChangedClasses(changes: DexComparator.ChangedClasses): com.android.tools.deployer.DexComparator.ChangedClasses {
         return deployApiConverter.toStudioChangedClasses(changes)
     }
 

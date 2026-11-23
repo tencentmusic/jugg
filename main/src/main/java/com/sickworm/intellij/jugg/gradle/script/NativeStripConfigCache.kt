@@ -47,7 +47,7 @@ class NativeStripConfigCache(private val rootDir: File) {
         val referencedTools = mutableSetOf<String>()
         val publishedEntries = entries.map { entry ->
             val executables = entry.stripExecutables.mapValues { (_, tool) ->
-                val backupPath = backupTool(toolsDir, tool)
+                val backupPath = backupTool(tool)
                 if (backupPath != null) {
                     referencedTools.add(backupPath)
                 }
@@ -174,7 +174,7 @@ class NativeStripConfigCache(private val rootDir: File) {
     private fun isUsableTool(file: File): Boolean = file.isFile && file.canRead() && file.canExecute()
 
     /** Copies one strip executable into the cache and returns its cache relative path. */
-    private fun backupTool(toolsDir: File, tool: File): String? {
+    private fun backupTool(tool: File): String? {
         val relativePath = "${toolsDirName}/${toolFingerprint(tool)}/${tool.name}"
         val target = File(rootDir, relativePath)
         try {

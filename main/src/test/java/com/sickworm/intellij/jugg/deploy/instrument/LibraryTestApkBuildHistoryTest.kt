@@ -258,6 +258,9 @@ class LibraryTestApkBuildHistoryTest {
         override val userName: String? = null
         override fun getUncommittedFiles(): List<File> = emptyList()
         override fun getChangedFiles(oldCommit: String, newCommit: String): List<File> = emptyList()
+        override fun resolveCommit(commit: String): Nothing = error("Unexpected commit lookup")
+        override fun findNearestFirstParentCommit(targetCommit: String, candidateCommits: Set<String>): Nothing =
+            error("Unexpected first-parent lookup")
         override fun getLastCommitHash(): String? = null
         override fun filterChangedFiles(commitHash: String, files: List<File>): List<File> = emptyList()
         override fun getLastCommitFileContent(commitId: String, file: File, outputFile: File): Boolean = false

@@ -1,5 +1,8 @@
+import { h } from 'vue'
 import { inBrowser, type Theme } from 'vitepress'
 import DefaultTheme from 'vitepress/theme'
+import NotFound from './NotFound.vue'
+import { resolveRedirect } from '../../scripts/redirect-rules.mjs'
 import './style.css'
 import './home.css'
 
@@ -13,8 +16,20 @@ declare global {
 
 export default {
   extends: DefaultTheme,
-  enhanceApp({ router }) {
+  Layout: () => {
+    return h(DefaultTheme.Layout, null, {
+      'not-found': () => h(NotFound)
+    })
+  },
+  enhanceApp({ router, siteData }) {
     if (!inBrowser) return
+
+    // Quick client-side redirect if hitting a legacy or missing route
+    const target = resolveRedirect(window.location.pathname, siteData.value.base)
+    if (target) {
+      window.location.replace(target + window.location.search + window.location.hash)
+      return
+    }
 
     let isInitialRoute = true
     router.onAfterRouteChanged = (to) => {

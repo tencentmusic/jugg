@@ -15,26 +15,26 @@ Jugg capability pages answer whether a type of change or operation is supported,
 
 | Group | When to use it | Typical entry points |
 |---|---|---|
-| [Compilation capabilities](./compile/) | Determine how source code, resources, Manifest, DataBinding, `.so`, Release, constant references, and other changes are handled incrementally | Source compilation, resource compilation, Gradle fallback |
-| [Deployment capabilities](./deploy/) | Determine whether the current artifacts will use install, Code Swap, Full Swap, Hot Reload, Restart, or deployment-state recovery first | Clean Reinstall, Direct Overlay, multiple APKs, multiple devices |
-| [Testing capabilities](./test/) | Determine how Android Tests for app and library modules run, how results are displayed, and how logcat is attributed | Application Android Test, Library Android Test, Test Results UI |
-| [Jugg CLI and Agent Skills](./tools/) | Determine how an Agent or terminal invokes Jugg compilation, deployment, testing, UI inspection, and remote diagnosis | CLI, MCP, UI automation, Agent Skills |
+| [Compilation capabilities](/capabilities/compile/) | Determine how source code, resources, Manifest, DataBinding, `.so`, Release, constant references, and other changes are handled incrementally | Source compilation, resource compilation, Gradle fallback |
+| [Deployment capabilities](/capabilities/deploy/) | Determine whether the current artifacts will use install, Code Swap, Full Swap, Hot Reload, Restart, or deployment-state recovery first | Clean Reinstall, Direct Overlay, multiple APKs, multiple devices |
+| [Testing capabilities](/capabilities/test/) | Determine how Android Tests for app and library modules run, how results are displayed, and how logcat is attributed | Application Android Test, Library Android Test, Test Results UI |
+| [Jugg CLI and Agent Skills](/capabilities/tools/) | Determine how an Agent or terminal invokes Jugg compilation, deployment, testing, UI inspection, and remote diagnosis | CLI, MCP, UI automation, Agent Skills |
 
 ## Choose an entry point by task
 
 | What you want to do | Read first |
 |---|---|
-| Determine whether changes to Java, Kotlin, or class files can be compiled incrementally | [Source compilation](./compile/source-compile.md) |
-| Change resources, layouts, assets, or `R`-related content | [Resource compilation](./compile/resource-compile.md) |
-| Change `AndroidManifest.xml` | [AndroidManifest compilation](./compile/manifest.md) |
-| Update an already generated native `.so` | [Updating .so files](./compile/so-update.md) |
-| Understand why callers, subclasses, or constant consumers must be recompiled | [Recompilation](./compile/recompile-propagation.md) |
-| Determine whether the current deployment can avoid restarting the app | [Code Swap](./deploy/code-swap.md), [Hot Reload](./deploy/hot-reload.md) |
-| Reinstall after clearing data or re-establish a baseline | [Clean Reinstall](./deploy/clean-reinstall.md) |
-| Determine whether deployment automatically recovers or retries after failure | [Recover and Retry](./deploy/recover-and-retry.md) |
-| Run Android instrumentation tests | [Testing capabilities](./test/), [Android Test CLI](./tools/cli-android-test.md) |
-| Let an Agent compile, deploy, or verify through the command line | [Agent Skills](./tools/agent-skills.md), [Jugg CLI](./tools/cli.md) |
-| Inspect the current app UI, locate elements, or perform taps | [UI automation](./tools/ui-automation.md), [UI layout evidence](./tools/layout-verify.md) |
+| Determine whether changes to Java, Kotlin, or class files can be compiled incrementally | [Source compilation](/capabilities/compile/source-compile) |
+| Change resources, layouts, assets, or `R`-related content | [Resource compilation](/capabilities/compile/resource-compile) |
+| Change `AndroidManifest.xml` | [AndroidManifest compilation](/capabilities/compile/manifest) |
+| Update an already generated native `.so` | [Updating .so files](/capabilities/compile/so-update) |
+| Understand why callers, subclasses, or constant consumers must be recompiled | [Recompilation](/capabilities/compile/recompile-propagation) |
+| Determine whether the current deployment can avoid restarting the app | [Code Swap](/capabilities/deploy/code-swap), [Hot Reload](/capabilities/deploy/hot-reload) |
+| Reinstall after clearing data or re-establish a baseline | [Clean Reinstall](/capabilities/deploy/clean-reinstall) |
+| Determine whether deployment automatically recovers or retries after failure | [Recover and Retry](/capabilities/deploy/recover-and-retry) |
+| Run Android instrumentation tests | [Testing capabilities](/capabilities/test/), [Android Test CLI](/capabilities/tools/cli-android-test) |
+| Let an Agent compile, deploy, or verify through the command line | [Agent Skills](/capabilities/tools/agent-skills), [Jugg CLI](/capabilities/tools/cli) |
+| Inspect the current app UI, locate elements, or perform taps | [UI automation](/capabilities/tools/ui-automation), [UI layout evidence](/capabilities/tools/layout-verify) |
 
 ## Core flow
 
@@ -51,15 +51,15 @@ These capabilities share the same Jugg project baseline. Whether compilation is 
 ## Prerequisites and boundaries
 
 - Jugg's incremental capabilities depend on the latest trustworthy Gradle build baseline and do not replace the complete Gradle pipeline.
-- Changes to Gradle scripts, dependencies, variants, source sets, or complex plugin configuration may require [Gradle fallback](./compile/gradle-fallback.md) first.
+- Changes to Gradle scripts, dependencies, variants, source sets, or complex plugin configuration may require [Gradle fallback](/capabilities/compile/gradle-fallback) first.
 - Device-side capabilities require an available target device and consistent deployment history, APK ownership, and overlay checkpoints.
 - Android Test requires enabling the Android Test target and completing one full build baseline for that target.
 - Agent, CLI, and MCP capabilities are tool entry points into Jugg. The corresponding capability pages remain the source for compilation, deployment, and testing behavior.
 
 ## Continue reading
 
-- [Guides](../guide/)
-- [Concepts](../concepts/)
-- [How Jugg works](../concepts/how-jugg-works.md)
-- [FAQ](../troubleshooting/supported-packaging.md)
-- [Reference](../reference/)
+- [Guides](/guide/)
+- [Concepts](/concepts/)
+- [How Jugg works](/concepts/how-jugg-works)
+- [FAQ](/troubleshooting/supported-packaging)
+- [Reference](/reference/)

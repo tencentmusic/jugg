@@ -25,6 +25,7 @@ class IncrementalDeployHelper(private val context: ICompileContext, private val 
         allDeployItems: List<DeployItem>,
         customApkSignScript: String = "",
         compileUiHandler: CompileUiHandler = CompileUiHandler.DEFAULT,
+        skipSign: Boolean = false,
     ): Pair<Boolean, String> {
         val baseApk = apkInfos.firstOrNull { it.baseApk != null }?.baseApk?.apkFile
         val allApks = apkInfos.flatMap { it.files }.map { it.apkFile }
@@ -32,12 +33,29 @@ class IncrementalDeployHelper(private val context: ICompileContext, private val 
             throw JuggException.baseApkNotFound(context.packageName, context.apkInfos)
         }
 
-        val signingConfig = context.signingConfig
-        val signScriptRunner = customApkSignScript.takeIf { it.isNotBlank() }?.let {
+        val signingConfig = if (skipSign) null else context.signingConfig
+        val signScriptRunner = customApkSignScript.takeIf { !skipSign && it.isNotBlank() }?.let {
             CustomApkSignScriptRunner(it, context.projectDir, context.cmdCompileEnv, compileUiHandler, logger)
         }
-        if (signScriptRunner == null && (signingConfig == null || signingConfig.isInvalid)) {
-            return false to "Unable to update APK, signing config not found."
+        if (!skipSign && signScriptRunner == null) {
+            if (signingConfig == null) {
+                return false to "Unable to update APK, signing config not found."
+            }
+            val configuredKeystore = signingConfig.keystore
+            val invalidReason = when {
+                configuredKeystore == null -> "keystore path is missing"
+                !configuredKeystore.exists() -> "keystore does not exist or is not accessible"
+                signingConfig.storePassword == null -> "keystore password is missing"
+                else -> null
+            }
+            if (invalidReason != null) {
+                val keystore = configuredKeystore?.absoluteFile
+                val parent = keystore?.parentFile
+                return false to "Unable to update APK, signing config '${signingConfig.configName}' is invalid: $invalidReason. " +
+                        "Keystore: ${keystore?.path}, readable: ${keystore?.canRead()}, " +
+                        "parent directory visible: ${parent?.isDirectory}, traversable: ${parent?.canExecute()}, " +
+                        "user.name: ${System.getProperty("user.name")}, user.home: ${System.getProperty("user.home")}."
+            }
         }
 
         allApks.forEach { apkFile ->
@@ -68,7 +86,7 @@ class IncrementalDeployHelper(private val context: ICompileContext, private val 
                         modifier.addFile(path, it.content)
                     }
                 }
-                modifier.insertAndResign()
+                modifier.insertAndResign(skipSign)
             } catch (e: Exception) {
                 logger.warn("Update apk failed: ${apkFile.absolutePath}", e)
                 return false to "Update apk failed: ${apkFile.absolutePath}, reason: ${e.message ?: e}"

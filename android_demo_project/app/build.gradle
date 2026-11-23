@@ -24,6 +24,11 @@ if (project.hasProperty('juggHiltFixture')) {
 //apply plugin: 'kotlin-android-extensions'
 apply from: './aabResGuard.gradle'
 
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+    if (name == 'compileDebugKotlin') {
+        compilerOptions.moduleName.set('jugg-demo-debug')
+    }
+}
 
 android {
     namespace 'com.example.myapplication'

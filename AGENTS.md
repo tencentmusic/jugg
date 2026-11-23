@@ -67,7 +67,7 @@
 3. The secondary `[module]` describes a functional domain, not a Gradle module, directory, or task state. Choose the most specific existing tag. For a cross-domain change, use the primary behavior owner; split unrelated changes with no primary owner. Use lowercase English and these stable names:
    - Compilation and projects: `[compile]`, `[native build]`, `[dependency incremental]`, `[kmp opt-in]`, `[hilt]`, `[project]`.
    - Deployment: `[deploy]`, `[system app]`, `[custom install]`.
-   - IDE and tools: `[ide]`, `[settings]`, `[compat]`, `[mcp]`, `[cli]`, `[agent]`, `[diagnostics]`.
+   - IDE and tools: `[ide]`, `[settings]`, `[compat]`, `[mcp]`, `[cli]`, `[ci]` (CI build orchestration), `[agent]`, `[diagnostics]`.
    - Engineering and content: `[build]` (repository build, CI, packaging), `[release]`, `[test suite]`, `[wiki]`, `[docs]`, `[repo]`.
    - Before adding a domain that fits none of these tags, define its stable name and responsibility and update this list and the contribution guide.
 4. Prefer a title describing the user scenario and observable outcome, not internal implementation. If there is no direct user, write from the caller, maintainer, Agent, or operator perspective. A `[bugfix]` title normally follows `[bugfix][module] fix <problem manifestation> when/after/for <scenario>`, not `prevent ... from ...` by default. An `[optimize]` title should describe the improvement for a scenario; wording alone must not disguise a bug fix as optimization.

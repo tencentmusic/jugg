@@ -28,13 +28,13 @@ internal class ConstRefChangeTracker {
         currentDefinitions: List<ConstDefinition>,
     ) {
         val changedChanges = buildChangedDefinitionChanges(previousDefinitions, currentDefinitions)
+        if (changedChanges.isEmpty()) {
+            // Another analysis may have indexed this version without its diff being committed yet.
+            return
+        }
         val removedChanges = changedChanges.filterTo(linkedSetOf()) { it.currentSignatures.isEmpty() }
         synchronized(lock) {
-            if (changedChanges.isEmpty()) {
-                changedDefinitionChanges.remove(filePath)
-            } else {
-                changedDefinitionChanges[filePath] = changedChanges
-            }
+            changedDefinitionChanges[filePath] = changedChanges
             if (removedChanges.isEmpty()) {
                 removedDefinitionChanges.remove(filePath)
             } else {

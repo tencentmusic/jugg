@@ -37,4 +37,5 @@ data class Params(
      * ALL / DEBUG / INFO / WARN / ERROR / FATAL / OFF
      */
     val logLevel: Level,
+    val skipSign: Boolean = false,
 )

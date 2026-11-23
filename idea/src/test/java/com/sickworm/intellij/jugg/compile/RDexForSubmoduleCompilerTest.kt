@@ -25,6 +25,33 @@ import kotlin.test.assertTrue
 class RDexForSubmoduleCompilerTest {
 
     @Test
+    fun `library namespace generates R class and dex without a source manifest`() {
+        val root = Files.createTempDirectory("jugg-r-dex-no-manifest").toFile()
+        try {
+            val library = module(root, "strings", ModuleInfo.Type.Library).copy(
+                namespace = "com.example.strings",
+                manifestFile = File(root, "strings/missing/AndroidManifest.xml"),
+            )
+            val baseContext = tempModuleContext(root)
+            val context = baseContext.copy(modules = baseContext.modules + (library.name to library))
+            val outputDir = File(root, "output")
+            copyMainRDexFiles(outputDir)
+
+            val result = RDexForSubmoduleCompiler(context, mockParentDisposable)
+                .doModuleCompile(CompileTask(emptyList(), outputDir, CompileStatusHolder.DEFAULT), library)
+
+            assertEquals(
+                listOf("com/example/strings/R\$dimen.dex", "com/example/strings/R.dex"),
+                result.outputs.map { it.file.relativeTo(outputDir).invariantSeparatorsPath }.sorted(),
+            )
+            val classpath = context.tempModule.buildPathInfo.javaClassPath
+            assertTrue(File(classpath, "com/example/strings/R\$dimen.class").isFile)
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
     fun `generated module R dex targets only its owning feature apk`() {
         val root = Files.createTempDirectory("jugg-r-dex-feature").toFile()
         try {

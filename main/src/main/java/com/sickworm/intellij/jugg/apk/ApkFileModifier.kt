@@ -42,7 +42,8 @@ internal fun shellCommand(arguments: List<String>): String {
 /**
  * ApkFileModifier applies APK file updates and optional align/sign/replace steps.
  * Collaboration: Used by [ResourceApkModifier.incrementalUpdateResourceApk] and incremental deploy flows, delegating shell execution to [CmdExecutor.invoke].
- * Data Contract: [addFile] appends path-content pairs, and [insertAndResign] publishes changes only after the temporary APK is signed and verified.
+ * Data Contract: [addFile] appends path-content pairs. [insertAndResign] publishes an aligned APK after signing
+ * and verification, unless signing is explicitly deferred to the caller.
  * When [customApkSignScriptRunner] is present it replaces the local keystore signing step, and [signConfig] is only required on the default path.
  */
 class ApkFileModifier(
@@ -87,7 +88,7 @@ class ApkFileModifier(
         return this
     }
 
-    fun insertAndResign() {
+    fun insertAndResign(skipSign: Boolean = false) {
         TimeLogger.start("insertAndResign")
         val tmpApkFiles = mutableSetOf<File>()
         val workingApkFile = Files.createTempFile(apkFile.parentFile.toPath(), ".${apkFile.name}.", ".tmp_working").toFile()
@@ -96,13 +97,15 @@ class ApkFileModifier(
             apkFile.copyTo(workingApkFile, overwrite = true)
             var tmpApkFile = updateFiles(workingApkFile).also(tmpApkFiles::add)
             tmpApkFile = alignApk(tmpApkFile).also(tmpApkFiles::add)
-            val signEnv = if (customApkSignScriptRunner != null) {
-                customApkSignScriptRunner.run(tmpApkFile)
-                envArray
-            } else {
-                resignApk(tmpApkFile)
+            if (!skipSign) {
+                val signEnv = if (customApkSignScriptRunner != null) {
+                    customApkSignScriptRunner.run(tmpApkFile)
+                    envArray
+                } else {
+                    resignApk(tmpApkFile)
+                }
+                verifyApk(tmpApkFile, signEnv)
             }
-            verifyApk(tmpApkFile, signEnv)
             replaceOldApk(tmpApkFile, apkFile)
             TimeLogger.end("insertAndResign", logger)
         } finally {

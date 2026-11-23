@@ -127,7 +127,7 @@ Use English. Title format: `[prefix][module] subject`, with exactly one of each 
   - `[feature]` new user-visible capability
   - `[optimize]` existing behavior is correct, but clearer, more reliable, or easier to use
   - `[refactor]` / `[docs]` / `[test]` / `[other]` for no behavior change, documentation, tests, or other work
-- Choose the most specific existing `[module]` tag for the functional area, such as `[compile]`, `[deploy]`, `[compat]`, `[build]`, or `[repo]`.
+- Choose the most specific existing `[module]` tag for the functional area, such as `[ci]` for CI build orchestration, `[compile]`, `[deploy]`, `[compat]`, `[build]`, or `[repo]`.
 - Describe the user scenario and observable result, not the internal implementation.
 - `[bugfix]` titles usually look like `[bugfix][module] fix <problem> when/after/for <scenario>`.
 - `[optimize]` titles usually look like `[optimize][module] <improvement> when/for <scenario>`.

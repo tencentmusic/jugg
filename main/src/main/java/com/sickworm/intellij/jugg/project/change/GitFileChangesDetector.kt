@@ -49,7 +49,7 @@ class GitFileChangesDetector(
         val allDirectories = modules.map { it.value.moduleRootDir } + listOf(projectRooDir)
         gitManagers = getAllGits(allDirectories)
         gitHeads.set(gitManagers.mapValues { it.value.getLastCommitHash() })
-        isAvailable = gitManagers.any { it.value.hasInitGit }
+        isAvailable = deployHistoryManager.isRecoverFeatureAvailable
         logger.debug("init isAvailable: $isAvailable, gitHeads: ${gitHeads.get()}")
     }
 
@@ -108,6 +108,9 @@ class GitFileChangesDetector(
      * The stored HEAD baseline advances only after both checks succeed.
      */
     fun refreshFileChangesIfHeadChanged(): GitRefreshResult {
+        if (!isAvailable) {
+            return GitRefreshResult.NO_HEAD_CHANGE
+        }
         val checkStart = System.currentTimeMillis()
         val newGitHeads = try {
             gitManagers.mapValues { it.value.getLastCommitHash() }

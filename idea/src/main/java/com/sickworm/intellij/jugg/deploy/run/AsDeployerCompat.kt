@@ -13,6 +13,7 @@ import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.BuildNumber
 import com.intellij.openapi.util.Key
 import java.lang.ref.WeakReference
 import kotlin.math.min
@@ -24,7 +25,14 @@ object AsDeployerCompat : IAsDeployerCompat {
     /**
      * Must order DESC
      */
-    private val compatImplList = listOf(
+    private val compatImplList = listOfNotNull(
+        CompatImpl(
+            IdeVersion("Android Studio Stingray", "AI", "263.7307.200", "263.7307.200.2631.16977666"),
+            lazy { StingrayAsDeployerCompat() }
+        ).takeIf {
+            // Canary 1 has the same API build as Canary 2 but still uses Rabbit's DeviceHolder.
+            ApplicationInfo.getInstance().build >= BuildNumber.fromString(it.ideVersion.fullVersion!!)!!
+        },
         CompatImpl(
             IdeVersion("Android Studio Rabbit", "AI", "262.9437.185", "262.9437.185"),
             lazy { RabbitAsDeployerCompat() }

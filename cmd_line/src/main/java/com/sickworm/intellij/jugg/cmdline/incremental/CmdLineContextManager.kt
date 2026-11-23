@@ -1,6 +1,8 @@
 package com.sickworm.intellij.jugg.cmdline.incremental
 
-import com.sickworm.intellij.jugg.deploy.api.IDevice
+import com.sickworm.intellij.jugg.cmdline.CmdLineTaskRuntime
+import com.sickworm.intellij.jugg.cmdline.createBaselineConstRefEngine
+import com.sickworm.intellij.jugg.cmdline.loadCiProjectInfo
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.CompileResult
@@ -13,14 +15,9 @@ import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.compiler.context.BaseCompileContext
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.project.change.FileChangesHandler
-import com.sickworm.intellij.jugg.project.runtime.IHostTaskExecutor
 import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
-import com.sickworm.intellij.jugg.project.info.ProjectInfoSerializer
-import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
 import com.sickworm.intellij.jugg.project.info.JuggProjectInfo
 import com.sickworm.intellij.jugg.project.info.LibraryDependency
-import com.sickworm.intellij.jugg.server.JuggServer
-import com.sickworm.intellij.jugg.platform.PlatformApi
 import kotlinx.coroutines.CoroutineScope
 import java.io.File
 
@@ -33,53 +30,15 @@ class CmdLineContextManager(
     private val logger: Logger,
 ) {
 
-    val deployStateManager = object : IDeployStateManager {
-        override val deployState: JuggDeployState = JuggDeployState.READY
-        override var isBuildFileChanged: Boolean = false
-        override var whatBuildFileChanged: String = ""
-        override var isInitializingIncrementalCompile: Boolean = false
-
-        override fun updateDeployState(): JuggDeployState {
-            return JuggDeployState.READY
-        }
-
-        override fun getDeployState(device: IDevice): JuggDeployState = JuggDeployState.READY
-
-        override fun beginFileProcessing() = Unit
-
-        override fun endFileProcessing() = Unit
-
-        override fun hasPendingFileProcessing(): Boolean = false
-
-        override fun waitForPendingFileProcessing(timeoutMs: Long): FileProcessingWaitResult {
-            return FileProcessingWaitResult(false, 0, 0L, 0)
-        }
-    }
-
-    val runtimeInfo = PlatformApi.getRuntimeInfo()
-    val juggServer = JuggServer(pathManager.projectDir.name, pathManager, coroutineScope, runtimeInfo, logger)
-
-    val taskRunnerManager = TaskRunnerManager(
-        logger = logger,
-        deployStateManager = deployStateManager,
-        juggServer = juggServer,
-        hostTaskExecutor = object : IHostTaskExecutor {
-            override val isOnEdt: Boolean = false
-
-            override fun submit(title: String, cancelText: String, showIndicator: Boolean, action: Runnable) {
-                action.run()
-            }
-        },
-        pathManager = pathManager,
-        runtimeType = runtimeInfo.runtimeType,
-        runtimeVersion = runtimeInfo.runtimeVersion,
-        coroutineScope = coroutineScope,
-    )
+    private val runtime = CmdLineTaskRuntime(pathManager, coroutineScope, logger)
+    val deployStateManager = runtime.deployStateManager
+    val taskRunnerManager = runtime.taskRunnerManager
+    val juggServer = runtime.juggServer
 
     val disposer = object : Disposable {
         override fun dispose() {
             customCompilerManager.close()
-            taskRunnerManager.dispose()
+            runtime.dispose()
             deployFileManager.dispose()
         }
     }
@@ -90,10 +49,13 @@ class CmdLineContextManager(
         logger,
     )
 
+    private val constRefEngine = pathManager.createBaselineConstRefEngine(taskRunnerManager, logger)
+
     val deployFileManager = DeployFileManager(
         pathManager,
         taskRunnerManager,
         logger,
+        constRefEngine,
     )
 
     val dependencyMissingResolver = object : IIncrementalCompileRetryResolver {
@@ -108,13 +70,23 @@ class CmdLineContextManager(
 
     lateinit var compileContext: ICompileContext
 
-    fun init(): ICompileContext {
+    /**
+     * Lets const-ref impact queries cover every repository of the baseline project. It opens the baseline
+     * index, so only commands that compile call it after [init].
+     */
+    fun registerConstRefSourceDirs() {
+        if (JuggSettings.isEnableConstRefTasks) {
+            constRefEngine.registerSourceDirs(compileContext.modules.values.flatMap { it.sourceDirs })
+        }
+    }
+
+    fun init(initializeApkData: Boolean = true): ICompileContext {
         juggServer.initialize()
-        compileContext = createCompileContext()
+        compileContext = createCompileContext(initializeApkData)
         return compileContext
     }
 
-    private fun createCompileContext(): ICompileContext {
+    private fun createCompileContext(initializeApkData: Boolean): ICompileContext {
         val envValue = System.getenv("ANDROID_HOME")
             ?: throw IncrementalException("Environment variable ANDROID_HOME is not set.")
         val androidHome = File(envValue)
@@ -193,7 +165,7 @@ class CmdLineContextManager(
                 },
                 libraryDependencies = baseModule.libraryDependencies.convertBuildBaseDir(),
                 runtimeLibraryDependencies = baseModule.runtimeLibraryDependencies.convertBuildBaseDir(),
-                annotationProcessorDependencies = baseModule.libraryDependencies.convertBuildBaseDir(),
+                annotationProcessorDependencies = baseModule.annotationProcessorDependencies.convertBuildBaseDir(),
                 kaptDependencies = baseModule.kaptDependencies.convertBuildBaseDir(),
                 kotlinPlugins = baseModule.kotlinPlugins?.convertBuildBaseDir(),
                 kotlinExtensions = baseModule.kotlinExtensions?.convertBuildBaseDir(),
@@ -249,22 +221,12 @@ class CmdLineContextManager(
         )
 
         fileChangesHandler.init(baseContext)
-        deployFileManager.init(baseContext.apkInfos, emptyList(), null)
+        if (initializeApkData) {
+            deployFileManager.init(baseContext.apkInfos, emptyList(), null)
+        }
         return baseContext
     }
 
-    private fun getProjectInfo(): JuggProjectInfo {
-        val gradleProjectInfoFile = pathManager.gradleProjectInfoFile
-        if (!gradleProjectInfoFile.exists()) {
-            throw IncrementalException("Gradle project info file not exists: ${gradleProjectInfoFile.absolutePath}")
-        }
-        // skip version check for reusable cache, which actually is compatible with old version
-        val gradleProjectInfo = ProjectInfoSerializer(gradleProjectInfoFile, logger).load(isSkipVersionCheck = true)
-            ?: throw IncrementalException("Gradle project info file invalid: ${gradleProjectInfoFile.absolutePath}")
-        if (gradleProjectInfo.modules.isEmpty()) {
-            throw IncrementalException("Gradle project info file invalid: ${gradleProjectInfoFile.absolutePath}")
-        }
-        return gradleProjectInfo
-    }
+    private fun getProjectInfo(): JuggProjectInfo = loadCiProjectInfo(pathManager, logger, skipVersionCheck = true)
 
 }
