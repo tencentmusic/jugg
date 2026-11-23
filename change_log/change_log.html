@@ -1,5 +1,5 @@
 <h1>Change Log</h1>
-<h2>3.6.8 (2026.11.13)</h2>
+<h2>3.6.9 (2026.11.23)</h2>
 <ol>
     <li>[feature] Support incremental Native .so hot update: skip APK repackaging and reinstallation when only .so files change (enabled in Settings under '.so(native library) hot update')</li>
     <li>[feature] Support running declared codegen tasks (such as IDL) before C++ incremental native builds and including generated code in incremental compilation</li>
@@ -13,6 +13,8 @@
     <li>[feature][ide] Support managing compiled files in the Control Panel</li>
     <li>[feature][compile] Support ButterKnife annotations</li>
     <li>[feature][custom install] Support direct commands in custom APK install scripts</li>
+    <li>[feature][compat] Support Android Studio Stingray</li>
+    <li>[feature][ci] Optimize CI build orchestration design to support constant reference analysis</li>
     <li>[optimize] Optimize large native library hot update performance with delta transfers and streaming to reduce transfer size and memory usage</li>
     <li>[optimize][compile] Automatically sync generated ARouter sources to IDE source roots to prevent unresolved reference errors</li>
     <li>[optimize][compile] Automatically roll back changed sources when Git HEAD changes</li>
@@ -20,6 +22,8 @@
     <li>[optimize][mcp] Simplify CLI compile and deploy output</li>
     <li>[optimize][compile] (Introduced in 3.6) Optimize compilation time for unannotated source edits by avoiding unnecessary annotation baseline scans</li>
     <li>[optimize][compile] Retain the original root-cause diagnostics when Kotlin compiler internal error recovery fails</li>
+    <li>[optimize][compile] Clean Gradle cache on fallback now runs a real clean task instead of only rerunning tasks</li>
+    <li>[optimize][compile] Optimize constant reference analysis cache to share across independent clones and CI environments based on Git remote origin URL</li>
     <li>[bugfix] Fix project configuration fetch failure before the first full compilation</li>
     <li>[bugfix] Fix Android sources and resources being misclassified as external native build inputs when located under a Native directory</li>
     <li>[bugfix] Fix native library deployment failure when native libraries or APK exceed 2.1 GB (Int.MAX_VALUE)</li>
@@ -43,6 +47,15 @@
     <li>[bugfix][system app] Fix deployment failure for system apps on Windows</li>
     <li>[bugfix][compat] Fix compilation failure in Android Studio Panda caused by incorrect module directory resolution when a module is named main</li>
     <li>[bugfix][compat] Fix KMP module identification failure warnings in Android Studio Quail and Rabbit (non-breaking)</li>
+    <li>[bugfix][compile] Fix NoSuchMethodError at runtime caused by inconsistent internal member names when a module configures a custom Kotlin moduleName</li>
+    <li>[bugfix][compile] Fix missing recompilations when constant changes occur simultaneously across multiple files</li>
+    <li>[bugfix][compile] Fix missing recompilations of callers in other repositories when a constant changes in a multi-git repository project</li>
+    <li>[bugfix][compile] Fix source files in sibling directories with shared prefix (such as src and src_test) being misclassified as main source roots</li>
+    <li>[bugfix][compile] Fix fallback triggered after commits in projects where root directory has no git but subdirectories do (such as repo tool)</li>
+    <li>[bugfix][project] Fix missing compile dependencies for subprojects in composite builds (Included Builds) requiring IDE project data backfill and causing incorrect CI builds</li>
+    <li>[bugfix][project] Fix project info reading failure when an inactive App module not participating in the build lacks a runtime classpath</li>
+    <li>[bugfix][project] Fix Jugg compilation failure when org.gradle.kotlin.dsl.allWarningsAsErrors is enabled in modern Gradle versions</li>
+    <li>[bugfix][compile] Fix missing resource symbols in certain scenarios when adding new resource IDs with android.nonTransitiveRClass=true</li>
 </ol>
 <h2>3.5.5 (2026.10.22)</h2>
 <ol>

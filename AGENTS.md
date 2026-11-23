@@ -62,7 +62,7 @@
 3. 二级 `[module]` 标记改动的**功能领域**，不是 Gradle 模块名、文件目录或任务状态。优先选下面已有的最具体 tag；一个提交横跨多个领域时选主要行为 owner，无主次且互不相关的改动拆成不同提交。tag 使用小写英文，可用空格分词，不新增同义词：
    - 编译与项目：`[compile]`（Jugg 增量编译）、`[native build]`（Flutter/C++ 外部构建）、`[dependency incremental]`（依赖增量）、`[kmp opt-in]`（KMP opt-in）、`[hilt]`（Hilt）、`[project]`（Gradle 项目模型与信息读取）。
    - 部署：`[deploy]`（通用安装与热部署）、`[system app]`（系统应用及 rootless 部署）、`[custom install]`（自定义 APK 安装脚本）。
-   - IDE 与工具：`[ide]`（运行配置、任务编排及 IDE 界面）、`[settings]`（用户设置与控制面板设置）、`[compat]`（Android Studio 版本适配）、`[mcp]`（MCP 工具）、`[cli]`（命令行）、`[agent]`（Agent 集成与安装）、`[diagnostics]`（日志、问题报告与诊断）。
+   - IDE 与工具：`[ide]`（运行配置、任务编排及 IDE 界面）、`[settings]`（用户设置与控制面板设置）、`[compat]`（Android Studio 版本适配）、`[mcp]`（MCP 工具）、`[cli]`（命令行）、`[ci]`（持续集成）、`[agent]`（Agent 集成与安装）、`[diagnostics]`（日志、问题报告与诊断）。
    - 工程与内容：`[build]`（仓库构建、CI 与打包，不用于插件运行时编译）、`[release]`（版本与发布）、`[test suite]`（测试基础设施）、`[wiki]`（用户 Wiki）、`[docs]`（其他文档）、`[repo]`（仓库级规则与维护）。
    - 新增领域确实无法归入现有 tag 时，先确定稳定名称及职责，再更新此列表和贡献指南。
 4. 标题优先描述用户场景和可观察结果，不描述内部实现；没有直接用户时，从调用方、维护者、Agent 或运维人员视角描述。`[bugfix]` 默认使用 `[bugfix][module] fix <problem manifestation> when/after/for <scenario>`，不得默认套用 `prevent ... from ...`；`[optimize]` 推荐使用 `[optimize][module] <improvement outcome> when/for <scenario>`，不得仅通过措辞把实际 bugfix 归类为 optimize。
