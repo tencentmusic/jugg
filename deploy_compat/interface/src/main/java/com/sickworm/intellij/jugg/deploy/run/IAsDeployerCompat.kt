@@ -4,7 +4,6 @@ import com.android.ddmlib.IDevice
 import com.android.tools.deploy.proto.Deploy
 import com.android.tools.deployer.model.Apk
 import com.android.tools.deployer.ClassRedefiner
-import com.android.tools.deployer.DexComparator
 import com.android.tools.idea.run.*
 import com.android.tools.deployer.model.ApkEntry
 import com.android.tools.idea.protobuf.ByteString
@@ -79,7 +78,7 @@ interface IAsDeployerCompat {
 
     fun createOverlayUpdate(
         cachedDump: JuggDeploymentCacheEntry,
-        dexOverlays: DexComparator.ChangedClasses,
+        dexOverlays: JuggDexOverlays,
         fileOverlays: Map<ApkEntry, ByteString>,
     ): JuggOverlayUpdate
 

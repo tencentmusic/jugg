@@ -1,6 +1,5 @@
 package com.sickworm.intellij.jugg.deploy.run
 
-import com.android.tools.deployer.DexComparator
 import com.android.tools.deployer.model.ApkEntry
 import com.android.tools.idea.protobuf.ByteString
 
@@ -9,7 +8,14 @@ import com.android.tools.idea.protobuf.ByteString
  */
 data class JuggOverlayUpdate(
     val cachedDump: JuggDeploymentCacheEntry,
-    val dexOverlays: DexComparator.ChangedClasses,
+    val dexOverlays: JuggDexOverlays,
     val fileOverlays: Map<ApkEntry, ByteString>,
     val raw: Any,
 )
+
+data class JuggDexOverlays(
+    val newClasses: List<JuggDexClass>,
+    val modifiedClasses: List<JuggDexClass>,
+)
+
+data class JuggDexClass(val name: String, val checksum: Long, val code: ByteArray)

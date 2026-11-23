@@ -65,7 +65,7 @@
 
 | 模块 | 目录 | 关键点 |
 |------|------|--------|
-| deploy_compat | `deploy_compat/*/src/main/java/com/sickworm/intellij/jugg/deploy/run/` | `IAsDeployerCompat` + 多版本实现（chipmunk/giraffe/hedgehog/iguana/meerkat/narwhal/narwhal_feature/otter/panda/quail/rabbit）；接口层通过 `JuggInstallSession` / overlay / cache entry wrapper 隔离 Android Studio deployer runtime 类型包迁移，并通过 `attachJavaDebugger()` 隔离 Java debugger API 迁移；持久化 cache 使用 Jugg 自有 snapshot，ADB transport 能力由 `IdeaDeviceAdbClient` 基于 `IDevice` 封装 |
+| deploy_compat | `deploy_compat/*/src/main/java/com/sickworm/intellij/jugg/deploy/run/` | `IAsDeployerCompat` + 多版本实现（chipmunk/giraffe/hedgehog/iguana/meerkat/narwhal/narwhal_feature/otter/panda/quail/rabbit/stingray）；接口层通过 `JuggInstallSession` / overlay / cache entry wrapper 隔离 Android Studio deployer runtime 类型包迁移，并通过 `attachJavaDebugger()` 隔离 Java debugger API 迁移；持久化 cache 使用 Jugg 自有 snapshot，ADB transport 能力由 `IdeaDeviceAdbClient` 基于 `IDevice` 封装 |
 | platform_compat | `platform_compat/base_api/src/main/java/` | IntelliJ/Android API mock，供 `main` 编译与测试 |
 | Stub API 工具 | `tools/stub_api_generator/`, `deploy_compat/*.sh`, `deploy_compat/stub_api/` | 从已编译 compat JAR 的字节码引用闭包生成版本化 compile-only Stub；脚本负责创建模块、显式切换真实 JAR/Stub、生成 Stub，并通过 `verify_stub_api.sh` clean 构建两边产物后验证 AS API 调用一致性 |
 | cmd_line | `cmd_line/src/main/java/com/sickworm/intellij/jugg/cmdline/` | `CmdLine`, `CiProjectInfo`, `BuildGradleBaseCommand`, `GetChangedFilesCommand`, `BuildIncrementalApkCommand` |

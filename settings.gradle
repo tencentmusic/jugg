@@ -20,5 +20,6 @@ include ':deploy_compat:v_otter'
 include ':deploy_compat:v_panda'
 include ':deploy_compat:v_quail'
 include ':deploy_compat:v_rabbit'
+include ':deploy_compat:v_stingray'
 
 include ':platform_compat:base_api'

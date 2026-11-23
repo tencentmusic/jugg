@@ -2,13 +2,13 @@ package com.sickworm.intellij.jugg.deploy.direct
 
 import com.android.tools.deploy.proto.Deploy
 import com.android.tools.deployer.DeploymentCacheDatabase
-import com.android.tools.deployer.DexComparator
 import com.android.tools.deployer.Installer
 import com.android.tools.deployer.OverlayId
 import com.android.tools.deployer.model.Apk
 import com.android.tools.deployer.model.ApkEntry
 import com.android.tools.idea.protobuf.ByteString
 import com.sickworm.intellij.jugg.apk.ApkFileUnit
+import com.sickworm.intellij.jugg.deploy.run.JuggDexOverlays
 import com.sickworm.intellij.jugg.mock.TestGlobal
 import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.sickworm.intellij.jugg.compiler.CompileOutput
@@ -332,7 +332,7 @@ class DirectOverlaySwapTransportTest {
     private inner class DirectOverlayTestCompat : IAsDeployerCompat by AsDeployerCompat {
         override fun createOverlayUpdate(
             cachedDump: JuggDeploymentCacheEntry,
-            dexOverlays: DexComparator.ChangedClasses,
+            dexOverlays: JuggDexOverlays,
             fileOverlays: Map<ApkEntry, ByteString>,
         ): JuggOverlayUpdate {
             return JuggOverlayUpdate(cachedDump, dexOverlays, fileOverlays, Any())

@@ -3,10 +3,12 @@ package com.sickworm.intellij.jugg.deploy.run
 import com.android.ddmlib.Client
 import com.android.ddmlib.IDevice
 import com.android.tools.deploy.proto.Deploy
+import com.android.tools.deployer.DexComparator
 import com.android.tools.deployer.*
 import com.android.tools.deployer.Deployer.InstallMode
 import com.android.tools.deployer.model.Apk
 import com.android.tools.deployer.model.ApkEntry
+import com.android.tools.deployer.model.DexClass
 import com.android.tools.idea.adb.AdbService
 import com.android.tools.idea.protobuf.ByteString
 import com.android.tools.idea.flags.StudioFlags
@@ -301,12 +303,15 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
 
     override fun createOverlayUpdate(
         cachedDump: JuggDeploymentCacheEntry,
-        dexOverlays: DexComparator.ChangedClasses,
+        dexOverlays: JuggDexOverlays,
         fileOverlays: Map<ApkEntry, ByteString>,
     ): JuggOverlayUpdate {
         val raw = OptimisticApkSwapper.OverlayUpdate(
             cachedDump.raw as DeploymentCacheDatabase.Entry,
-            dexOverlays,
+            DexComparator.ChangedClasses(
+                dexOverlays.newClasses.map { DexClass(it.name, it.checksum, it.code, null) },
+                dexOverlays.modifiedClasses.map { DexClass(it.name, it.checksum, it.code, null) },
+            ),
             fileOverlays,
         )
         return JuggOverlayUpdate(cachedDump, dexOverlays, fileOverlays, raw)

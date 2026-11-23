@@ -4,7 +4,6 @@ import com.android.ddmlib.IDevice
 import com.android.sdklib.AndroidVersion
 import com.android.tools.deploy.proto.Deploy
 import com.android.tools.deployer.ClassRedefiner
-import com.android.tools.deployer.DexComparator
 import com.android.tools.deployer.Installer
 import com.android.tools.deployer.model.Apk
 import com.android.tools.deployer.model.ApkEntry
@@ -30,6 +29,7 @@ import com.sickworm.intellij.jugg.deploy.run.IdeDeployState
 import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentCacheEntry
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerException
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
+import com.sickworm.intellij.jugg.deploy.run.JuggDexOverlays
 import com.sickworm.intellij.jugg.deploy.run.JuggInstallSession
 import com.sickworm.intellij.jugg.deploy.run.LaunchContext
 import com.sickworm.intellij.jugg.deploy.run.JuggOverlayFile
@@ -388,7 +388,7 @@ class JuggDeployerInstallTest {
 
         override fun createOverlayUpdate(
             cachedDump: JuggDeploymentCacheEntry,
-            dexOverlays: DexComparator.ChangedClasses,
+            dexOverlays: JuggDexOverlays,
             fileOverlays: Map<ApkEntry, ByteString>,
         ): JuggOverlayUpdate = unsupported()
 

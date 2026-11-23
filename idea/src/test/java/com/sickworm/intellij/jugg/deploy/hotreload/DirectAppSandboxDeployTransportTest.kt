@@ -2,7 +2,6 @@ package com.sickworm.intellij.jugg.deploy.hotreload
 
 import com.android.ddmlib.IDevice
 import com.android.tools.deploy.proto.Deploy
-import com.android.tools.deployer.DexComparator
 import com.android.tools.deployer.model.ApkEntry
 import com.android.tools.idea.protobuf.ByteString
 import com.intellij.openapi.diagnostic.Logger
@@ -24,6 +23,8 @@ import com.sickworm.intellij.jugg.deploy.run.ClassDeployItem
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
+import com.sickworm.intellij.jugg.deploy.run.JuggDexClass
+import com.sickworm.intellij.jugg.deploy.run.JuggDexOverlays
 import com.sickworm.intellij.jugg.deploy.run.JuggInstallSession
 import com.sickworm.intellij.jugg.deploy.run.LaunchContext
 import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentCacheEntry
@@ -323,9 +324,9 @@ class DirectAppSandboxDeployTransportTest {
     ): JuggOverlayUpdate {
         return JuggOverlayUpdate(
             JuggDeploymentCacheEntry(Any(), emptyList(), baseId),
-            DexComparator.ChangedClasses(
-                (data.newClasses + data.hotFixModifiedClasses).map { it.toIncompleteDexClass() },
-                data.hotReloadModifiedClasses.map { it.toIncompleteDexClass() },
+            JuggDexOverlays(
+                (data.newClasses + data.hotFixModifiedClasses).map { it.toJuggDexClass() },
+                data.hotReloadModifiedClasses.map { it.toJuggDexClass() },
             ),
             data.overlays.associate { item ->
                 val entry = Mockito.mock(ApkEntry::class.java)

@@ -46,6 +46,7 @@ Quail/Rabbit 优先读取 `GradleAndroidModel`；纯 KMP JVM 等非 Android 模�
 
 | 目录 | 适配版本 |
 |---|---|
+| `deploy_compat/v_stingray` | Android Studio Stingray 1 Canary 2 |
 | `deploy_compat/v_rabbit` | Android Studio Rabbit |
 | `deploy_compat/v_quail` | Android Studio Quail |
 | `deploy_compat/v_panda` | Android Studio Panda |
@@ -85,6 +86,10 @@ Quail 的 deployer API 已迁移到 `com.android.tools.deployer.common` 与 `com
 Quail 新版 `AdbClient` 的标准/full install 路径强制要求 `AdbSession`，无 session 时不再回退 ddmlib，而是抛出 `AdbSession is required for installation`。`QuailAsDeployerCompat` 创建 `AdbClient` 时必须使用三参数构造并传入 `AdbLibApplicationService` 的 application session；同一 helper 同时供 daemon installer 与 `ApkInstaller` 使用，确保 delta install 回退 full install 时仍可正常安装。
 
 Rabbit 将 `AdbClient` 构造参数从 `IDevice` 改为 `DeviceHolder`。`RabbitAsDeployerCompat` 继承 Quail 的 deployer 行为，只在统一的 `createAdbClient()` 边界用 legacy `IDevice` 构造 `DeviceHolder`，并继续传入 application `AdbSession`，保证 daemon installer 与 full install 使用相同的 Rabbit API 形态。
+
+Stingray 1 Canary 2 删除了 `DeviceHolder(IDevice, Optional)`，改用 adblib 的 `ConnectedDevice`。`StingrayAsDeployerCompat` 复用 Rabbit 的部署实现，用所选设备的序列号在 application `AdbSession` 的 tracker 中同步查找对应设备，最多等待 5 秒。同步查询将协程对象留在 Android Studio 的 classloader 内。匹配成功后用同一 session 创建 `AdbClient`，供安装会话和 APK 安装使用。设备缺失只结束当前部署。Canary 1 和 Canary 2 的 API build 都是 `263.7307.200`，所以分发器从完整 build `263.7307.200.2631.16977666` 起才启用 Stingray 实现，Canary 1 继续使用 Rabbit 实现。
+
+Stingray 1 Canary 2 把 `DexClass` 从 `com.android.tools.deployer.model` 移到 `com.android.tools.deployer`。`JuggOverlayUpdate` 保存 Jugg 自有的新增和重载 DEX 数据，Direct Overlay 直接读取这些数据；仅 compat 在创建 Android Studio overlay update 时转换成该版本的 `DexClass`，保持类名、校验值、字节内容及顺序。
 
 Quail 4 将 `InstallOptions.Builder.setSkipVerification()` 的设备参数从 `IDevice` 改为 `DeviceHolder`，而 Quail 1 不包含 `DeviceHolder`。`deploy_compat/v_quail` 通过两个版本都提供的 `AdbClient.getSkipVerificationOption()` 计算安装参数，再将非空参数写入 `InstallOptions`，避免在兼容实现中静态引用任一版本专属签名；同一个 `AdbClient` 必须同时用于参数计算和 `ApkInstaller`。
 

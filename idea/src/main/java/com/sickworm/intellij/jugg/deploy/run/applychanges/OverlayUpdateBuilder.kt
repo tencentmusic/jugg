@@ -1,6 +1,5 @@
 package com.sickworm.intellij.jugg.deploy.run.applychanges
 
-import com.android.tools.deployer.DexComparator.ChangedClasses
 import com.android.tools.deployer.model.ApkEntry
 import com.android.tools.idea.protobuf.ByteString
 import com.sickworm.intellij.jugg.compiler.CompileOutput
@@ -8,6 +7,7 @@ import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentCacheEntry
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
+import com.sickworm.intellij.jugg.deploy.run.JuggDexOverlays
 import com.sickworm.intellij.jugg.deploy.run.JuggOverlayUpdate
 import java.util.zip.CRC32
 
@@ -20,12 +20,12 @@ class OverlayUpdateBuilder(private val asDeployerCompat: IAsDeployerCompat) {
         }
 
         val newClasses = (data.newClasses + data.hotFixModifiedClasses).map {
-            it.toIncompleteDexClass()
+            it.toJuggDexClass()
         }
         val modifiedClasses = data.hotReloadModifiedClasses.map {
-            it.toIncompleteDexClass()
+            it.toJuggDexClass()
         }
-        val dexOverlays = ChangedClasses(newClasses, modifiedClasses)
+        val dexOverlays = JuggDexOverlays(newClasses, modifiedClasses)
 
         val baseApk = cacheEntry.apks.find { it.name == "base.apk" } ?: cacheEntry.apks.first()
         val cacheEntryMap = cacheEntry.apks.associateBy { it.path }

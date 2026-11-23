@@ -4,9 +4,9 @@ import com.android.ddmlib.Client
 import com.android.ddmlib.IDevice
 import com.android.sdklib.AndroidVersion
 import com.android.tools.deploy.proto.Deploy
+import com.android.tools.deployer.DexComparator
 import com.android.tools.deployer.AdbInstaller
 import com.android.tools.deployer.ClassRedefiner
-import com.android.tools.deployer.DexComparator
 import com.android.tools.deployer.MetricsRecorder
 import com.android.tools.deployer.OptimisticApkSwapper
 import com.android.tools.deployer.common.AdbClient
@@ -25,6 +25,7 @@ import com.android.tools.deployer.model.ApkParser
 import com.android.tools.deployer.model.App
 import com.android.tools.deployer.model.AppState
 import com.android.tools.deployer.model.DeploymentPlan
+import com.android.tools.deployer.model.DexClass
 import com.android.tools.idea.adb.AdbService
 import com.android.tools.idea.adblib.AdbLibApplicationService
 import com.android.tools.idea.execution.common.DeployableToDevice
@@ -210,15 +211,22 @@ open class QuailAsDeployerCompat : IAsDeployerCompat {
 
     override fun createOverlayUpdate(
         cachedDump: JuggDeploymentCacheEntry,
-        dexOverlays: DexComparator.ChangedClasses,
+        dexOverlays: JuggDexOverlays,
         fileOverlays: Map<ApkEntry, ByteString>,
     ): JuggOverlayUpdate {
         val raw = OptimisticApkSwapper.OverlayUpdate(
             cachedDump.raw as com.android.tools.deployer.common.DeploymentCacheDatabase.Entry,
-            dexOverlays,
+            createDexOverlays(dexOverlays),
             fileOverlays,
         )
         return JuggOverlayUpdate(cachedDump, dexOverlays, fileOverlays, raw)
+    }
+
+    protected open fun createDexOverlays(overlays: JuggDexOverlays): DexComparator.ChangedClasses {
+        return DexComparator.ChangedClasses(
+            overlays.newClasses.map { DexClass(it.name, it.checksum, it.code, null) },
+            overlays.modifiedClasses.map { DexClass(it.name, it.checksum, it.code, null) },
+        )
     }
 
     override fun dumpApks(session: JuggInstallSession, apks: List<Apk>): List<Apk> {
