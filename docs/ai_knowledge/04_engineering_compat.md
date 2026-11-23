@@ -1,6 +1,6 @@
 # 工程化：兼容层与命令行模块
 
-> 最后核对：2026-09-08
+> 最后核对：2026-11-23
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -61,13 +61,46 @@ Quail/Rabbit 优先读取 `GradleAndroidModel`；纯 KMP JVM 等非 Android 模�
 
 `AsDeployerCompat.compatImplList` 必须按版本从高到低排列。当前 IDE 版本完全匹配时用对应实现；当前 IDE 高于已知最高版本时用最高版本实现并 warn；低于已知最低版本时退到 Chipmunk。
 
-各版本 compat 默认通过 `compileOnly` 使用 `deploy_compat/stub_api/v_*/stubapi.jar`，仓库不再保存真实 Android Studio JAR。新增版本时依次使用 `create_compat_module.sh` 创建模块、`switch_api.sh real <jar-dir>` 显式切换本地真实 JAR、完成适配和真实 IDE 验证、用 `generate_stub_api.sh` 生成 Stub，最后切回 `switch_api.sh stub`。脚本不自动检测 Android Studio 安装目录，本地选择写入被忽略的 `deploy_compat/local.properties`。
+各版本 compat 默认通过 `compileOnly` 使用 `deploy_compat/stub_api/v_*/stubapi.jar`。真实 Android Studio JAR 只在本地接入。对外支持范围和已验证版本记录在中英文 Wiki 的兼容性页。
+
+#### 3.1.1 确定目标构建并获取 IDE
+
+1. 用户说「兼容 <代号>」即按本节执行完整适配。优先采用用户、Issue 或报告中给出的完整版本。只有代号时，选该代号目前官方提供的最新稳定构建。该代号只有预览版时，选择其中最新公布的构建，并在结果中列出实际采用的版本和渠道。
+2. 先查本机已有的同构建安装包或解包目录，找不到时按宿主平台和架构到 [Android Studio 下载档案](https://developer.android.com/studio/archive) 查找。[预览版下载页](https://developer.android.com/studio/preview) 可用于当前 Canary、Beta 和 RC。档案列表在 iframe 内，命令行可读取页面给出的 iframe 地址再查找目标版本。使用页面公布的下载链接和校验值。curl 下载失败时，用浏览器打开同一官方入口获取安装包。
+3. 解包到独立目录，保留用户日常使用的 IDE。macOS 可把 DMG 以只读方式挂载，再用 `ditto` 复制其中的 app 到验证目录。通过发行包的 `product-info.json` 和 `build.txt` 核对完整 build，启动后用 Jugg 日志里的 `IdeVersion` 核对 API build 和完整 build。记录版名、渠道、两种 build、宿主架构和包来源。同一 API build 可能包含破坏兼容的 Canary 更新，分发门槛以真实 API 变化为准。
+
+macOS 下载和解包示例。将 `studio_url` 设为官方页面列出的目标安装包链接。
+
+```bash
+studio_tmp="$(mktemp -d)"
+curl --fail --location --show-error --output "$studio_tmp/studio.dmg" "$studio_url"
+shasum -a 256 "$studio_tmp/studio.dmg"
+# Compare with the SHA-256 published for this exact download before mounting, when available.
+mkdir "$studio_tmp/mount"
+hdiutil attach -readonly -nobrowse -mountpoint "$studio_tmp/mount" "$studio_tmp/studio.dmg"
+# Use the app name shown on the mounted volume.
+ditto "$studio_tmp/mount/Android Studio Preview.app" "$studio_tmp/Android Studio Test.app"
+cat "$studio_tmp/Android Studio Test.app/Contents/Resources/build.txt"
+hdiutil detach "$studio_tmp/mount"
+```
+
+#### 3.1.2 证据和构建
+
+1. 先用现有插件在目标 IDE 上复现，或保留 Issue 的原始堆栈并用 `javap` 对比目标与上一已支持版本的实际类、成员签名及 owner。检查原有适配器能否直接工作，再决定需要改分发、局部 API 转换还是新增模块。代码与测试入口见本页及 [测试与验证策略](06_testing.md)。
+2. 需要新模块时使用 `create_compat_module.sh`，并接入 `idea/build.gradle` 和按版本倒序的分发列表。真实 JAR 在独立 checkout 中接入，macOS 先查 `Contents/plugins/android/lib` 和 `Contents/lib`。`switch_api.sh real <jar-dir>` 会把同一个目录应用到全部 compat 模块。只为目标新增或调整模块时，可在验证 checkout 用临时 Gradle 配置只给目标模块接入对应真实 JAR，旧模块使用各自的 Stub。真实 JAR 的 class file 超过仓库 JDK 的读取能力时，仅让目标 Java 编译任务使用发行包 JBR 的 `javac`，并保持项目的输出目标版本。临时配置和真实 JAR 留在本地。
+3. 用 `generate_stub_api.sh <version> <compiled-compat.jar> <jar-dir>` 从真实 API 编译的产物生成 Stub。主 checkout 使用 `switch_api.sh stub` 后 clean 构建，运行定向回归和 `./gradlew :idea:buildPlugin`。执行下文的 Stub 字节码对照并确认发布 ZIP 包含目标适配器。
+
+#### 3.1.3 真实 IDE 验收
+
+1. 以目标发行包的自带 JBR 启动 IDE，使用独立的 `idea.config.path`、`idea.system.path`、`idea.plugins.path` 和 `idea.log.path`。从最终 ZIP 完整解包到测试插件目录。每次更换 ZIP 时整目录替换旧插件，避免保留不同版本的同名类。使用独立小型 Android 工程和模拟器。设好与 Gradle wrapper 兼容的 Gradle JDK，确认 IDE 的 SDK 列表已注册 Android SDK，再等待 Gradle sync 完成。部署前核对 IDE 只选中了测试设备。
+2. 先验证插件加载、工程同步、Jugg Run Configuration 和目标适配器分发。用该配置执行一次完整构建，验证 APK 安装和启动。修改测试 App 一个可见的 Java 或 Kotlin 方法体，再用同一配置运行，验证增量编译、部署和 App 启动或重启。通过 Jugg CLI 执行时，使用支持目标 Runtime 的版本并指定测试工程，可依次使用 `gradle-build` 与 `deploy`。确认 `isCompileSuccess`、`isDeploySuccess` 均为 true，且第二次运行没有走 Gradle。保留两轮终态日志。构建成功后仍可能在首次安装或增量 swap 才触发不同的 ABI 或 classloader 问题。
+3. 在最接近的已支持版本上回归受影响的入口。完整 build 分流时，优先检查阈值前后的两个构建。若某个版本缺少可运行环境，记录该版本实际完成的 ABI 或分发检查，并列明未执行的运行场景。调试、资源和其他路径按本次改动范围补测。
 
 Stub helper 保留类、继承、成员 descriptor、泛型、Kotlin metadata、内层类、方法声明及注解和会被内联的常量，只移除普通方法实现。方法注解中的 nullability、`@JvmStatic` 等信息会影响 Kotlin 编译结果，不能在生成 Stub 时丢弃。纯源码信息（例如完全未使用的 import）不会进入编译产物，因此生成后必须切回 Stub clean compile；若失败，优先删除无效 import 或完成最小源码适配，不能无边界扩大 Stub。
 
 Rabbit 的平台 JAR 使用 Java 25 class file。Stub generator 的 ASM 版本必须至少支持 `Opcodes.V25`，否则生成阶段会在读取平台类时以 `Unsupported class file major version 69` 失败。生成的 compile-only Stub 必须将 class file 版本限制为 Java 17，避免仓库的 JDK 17 构建无法读取平台类。
 
-Stub 生成后的最终验收必须从 Stub checkout 执行 `./deploy_compat/verify_stub_api.sh <real-api-jugg-repo>`。参数必须是本地指向真实 Android Studio JAR、具有对应 compat 模块的另一份 Jugg checkout；脚本不自动检测该目录。脚本先报告每个 `v_*` 模块的源码差异供人工确认，但生成文件和无效 import 差异不直接决定结果；随后 clean 构建两边全部 compat JAR，最后比较 class entry 和 `com.android.*`、`com.intellij.*`、`org.jetbrains.android.*` 的规范化字节码引用（包含调用 opcode、owner、成员名和 descriptor）。全部模块必须显示 `MATCH`；任一产物差异均验收失败，详细 manifest 和 diff 保存在 `build/stub-api-verify/`。不得用未 clean 的历史 JAR、仅“编译成功”或忽略 opcode 的目标名比较替代该验收。
+Stub 生成后的最终验收必须从 Stub checkout 执行 `./deploy_compat/verify_stub_api.sh <real-api-jugg-repo>`。参数是另一份含相同 compat 模块源码的本地 checkout。目标模块在该 checkout 使用真实 Android Studio JAR。若其他模块沿用各自的 Stub，结果中应注明真实 JAR 对照的模块范围。脚本不自动检测该目录。脚本先报告每个 `v_*` 模块的源码差异供人工确认，但生成文件和无效 import 差异不直接决定结果；随后 clean 构建两边全部 compat JAR，最后比较 class entry 和 `com.android.*`、`com.intellij.*`、`org.jetbrains.android.*` 的规范化字节码引用（包含调用 opcode、owner、成员名和 descriptor）。全部模块必须显示 `MATCH`；任一产物差异均验收失败，详细 manifest 和 diff 保存在 `build/stub-api-verify/`。不得用未 clean 的历史 JAR、仅“编译成功”或忽略 opcode 的目标名比较替代该验收。
 
 Android Studio Quail（`AI-261.x`）已不再携带旧 `com.android.tools.deployer.*` runtime（例如 `AdbClient`）。`AsDeployerCompat` 因此不能使用 `Proxy.newProxyInstance(IAsDeployerCompat::class.java)` 这类会在启动期反射解析接口全部方法签名的机制，否则项目打开阶段就会因缺失 deployer 类型触发 `NoClassDefFoundError`。门面方法必须用显式 dispatcher，在实际调用某个兼容能力时再捕获 `NoSuchMethodError` / `NoSuchFieldError` / `NoClassDefFoundError` / `IncompatibleClassChangeError` 并尝试其他版本实现。
 

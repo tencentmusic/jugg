@@ -4,6 +4,8 @@
 /Applications/Android Studio.app/Contents/plugins/android/lib 
 ## Compat API workflow
 
+For a new Studio release, follow the [version compatibility workflow](../docs/ai_knowledge/04_engineering_compat.md#311-确定目标构建并获取-ide) to find the official build, verify its APIs, and run install and incremental deployment with the packaged plugin.
+
 Compat modules compile against versioned Stub API JARs by default. Real Android Studio JARs are local-only inputs and are never detected automatically.
 
 ```bash
@@ -11,12 +13,13 @@ Compat modules compile against versioned Stub API JARs by default. Real Android 
 ./deploy_compat/create_compat_module.sh quail_next
 ./deploy_compat/create_compat_module.sh giraffe_next giraffe
 
-# 2. Temporarily compile against an explicitly selected Android Studio JAR directory.
+# 2. In a separate checkout, compile compat against the specified JARs.
+# This switch applies to every compat module. See the workflow for per-module inputs.
 ./deploy_compat/switch_api.sh real /path/to/android-studio/jars
 
-# 3. After the compat module compiles and passes its real-IDE checks, generate its Stub API.
+# 3. Generate the Stub API from the module built against real Android Studio JARs.
 ./deploy_compat/generate_stub_api.sh quail_next \
-  deploy_compat/v_quail_next/build/libs/quail_next.jar \
+  /path/to/compiled-v_quail_next.jar \
   /path/to/android-studio/jars
 
 # 4. Return all compat modules to committed Stub API JARs and compile again.
