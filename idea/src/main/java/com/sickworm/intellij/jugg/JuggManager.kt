@@ -432,8 +432,10 @@ class JuggManager @TestOnly constructor(
         val change = taskRunnerManager.consumeRuntimeOwnerChange()
         val settingsChanged = JuggSettingsProjectEffects(pathManager, deployHistoryManager).apply()
         if (change == null && !settingsChanged) return false
-        if (change != null) logger.debug("Recover IDEA runtime after owner changed: ${change.previousOwner.runtimeType} -> " +
-                change.currentOwner.runtimeType)
+        if (change != null) {
+            logger.info("Recovering project state after runtime ownership changed: ${change.previousOwner.runtimeType} -> " +
+                    change.currentOwner.runtimeType)
+        }
         juggRunningTaskStatusManager.isProjectSwitchedThisRun = true
         deploymentService.invalidateMemoryCache()
         if (!recoverDeployContextFromDisk(reloadProjectModel = true)) {
