@@ -35,7 +35,7 @@ The table follows `McpToolActionRegistry.defaultActions()` order. “Input beyon
 | `view-locate` | IDEA | `serial?`, `target`, `visibleOnly?`, `maxResults?`, `figmaNode?` | Live selector matches and dp coordinates; `figmaNode` is ignored compatibility input. |
 | `view-inspect` | IDEA | `serial?`, `target`, `expressions` | Read-only getter/field values for one node. |
 | `activity-stack` | IDEA | `serial?` | Activity stack, dump path, and source command. |
-| `tap` | IDEA | `serial?`, `action?`, coordinates/percentages or selectors, `duration?` | Tap, long press, or swipe; see §5 for mode rules. |
+| `tap` | IDEA | `serial?`, `action?`, coordinates with `unit`, percentages, or selectors, `duration?` | Tap, long press, or swipe; see §5 for mode rules. |
 | `status` | Both | `serial?`, `refreshChanges?`, `fullInfo?` | Current deployment and pending-file snapshot; see §3. |
 | `settings` | Both | `action=list/get/set/reset`, `key?`, text `value?`, boolean `confirm?` | Global persisted settings; guarded edits require explicit confirmation. |
 | `version` | Both | None; global | `pluginVersion`, `runtimeType`, `runtimeVersion`, and host capability list. |
@@ -69,7 +69,7 @@ The IDEA-only layout tools require a ready, single-device app and use the in-app
 
 `view-locate.target` matches nonempty `text`, `resourceId`, `contentDesc`, and `className` fields together. `visibleOnly` defaults to `true`; `maxResults` defaults to 10 and accepts `1..100`. `matchCount` covers all matches, `returnedCount` covers the bounded list, and `truncated` marks a shortened result. Top-level bounds/position/size appear only for a unique match; multiple matches do not select the first. `view-inspect` accepts one `target` and 1–20 read-only `expressions`; each value carries its own result or error. Android View getters use the original View, while Compose queries depend on getters exposed by the Dragonfly node. Use `view-locate` for position and `view-inspect` for internal properties.
 
-`tap` mode priority is coordinate (`x`,`y`) → percent (`xPercent`,`yPercent`) → element (`text`/`resourceId`/`contentDesc` with optional `className`); `id`, `desc`, and `class` are aliases. `swipe` needs both start and end coordinate or percent pairs and does not support element mode. Element ambiguity is an error. Android nodes prefer `View.performClick()`; Compose dispatches a MotionEvent at the node center, which does not guarantee Semantics behavior or disabled-state handling. Percentage positions are clamped to the screen. The action checks foreground Activity stability before interaction. `screenshot` is not a registered MCP tool.
+`tap` mode priority is coordinate (`x`,`y`) → percent (`xPercent`,`yPercent`) → element (`text`/`resourceId`/`contentDesc` with optional `className`); `id`, `desc`, and `class` are aliases. Absolute coordinates require `unit=dp|px`. For `dp`, the Runtime reads the target device density, preferring an override, and rounds the input to pixels. An unavailable density stops the gesture. Returned gesture coordinates are in px. `swipe` needs both start and end coordinate or percent pairs and does not support element mode. Element ambiguity is an error. Android nodes prefer `View.performClick()`; Compose dispatches a MotionEvent at the node center, which does not guarantee Semantics behavior or disabled-state handling. Percentage positions are clamped to the screen. The action checks foreground Activity stability before interaction. `screenshot` is not a registered MCP tool.
 
 ## 6. Error and Evidence Start Points
 

@@ -103,9 +103,9 @@ jugg tap --content-desc 返回
 Coordinate mode:
 
 ```bash
-jugg tap --x 120 --y 360
-jugg tap --action long-press --x 120 --y 360 --duration 800
-jugg tap --action swipe --x 500 --y 1200 --end-x 500 --end-y 300
+jugg tap --x 120 --y 360 --unit dp
+jugg tap --action long-press --x 120 --y 360 --unit dp --duration 800
+jugg tap --action swipe --unit px --x 500 --y 1200 --end-x 500 --end-y 300
 ```
 
 Percentage mode:
@@ -113,6 +113,8 @@ Percentage mode:
 ```bash
 jugg tap --x-percent 50 --y-percent 90
 ```
+
+Absolute coordinates require `--unit dp|px`. For points from a layout dump, use the unit declared by `units.bounds`. Add `--unit px` to existing pixel-coordinate commands.
 
 `swipe` supports only coordinate or percentage mode, not element mode. If element mode matches multiple candidates, the tool returns an error with summaries to prevent an accidental tap.
 

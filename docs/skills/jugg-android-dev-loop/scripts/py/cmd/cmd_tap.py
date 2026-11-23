@@ -21,12 +21,13 @@ def build_params(args: list[str]) -> dict:
     x = y = end_x = end_y = None
     xp = yp = end_xp = end_yp = None
     text = resource_id = content_desc = class_name = None
-    duration = None
+    duration = unit = None
 
     i = 0
     while i < len(args):
         a = args[i]
         if a == "--action":       action = _require_value(args, i);       i += 2
+        elif a == "--unit":       unit = _require_value(args, i);         i += 2
         elif a == "--x":          x = float(_require_value(args, i));     i += 2
         elif a == "--y":          y = float(_require_value(args, i));     i += 2
         elif a == "--endX":       end_x = float(_require_value(args, i)); i += 2
@@ -61,13 +62,20 @@ def build_params(args: list[str]) -> dict:
 
     # Coordinate mode
     if x is not None and y is not None:
-        result: dict = {"action": mcp_action, "x": x, "y": y}
+        if unit not in ("dp", "px"):
+            print("Absolute coordinates require --unit dp or px", file=sys.stderr)
+            sys.exit(1)
+        result: dict = {"action": mcp_action, "x": x, "y": y, "unit": unit}
         if end_x is not None:
             result["endX"] = end_x
             result["endY"] = end_y
         if duration is not None:
             result["duration"] = duration
         return result
+
+    if unit is not None:
+        print("--unit requires absolute --x and --y coordinates", file=sys.stderr)
+        sys.exit(1)
 
     # Percent mode
     if xp is not None and yp is not None:
@@ -95,7 +103,7 @@ def build_params(args: list[str]) -> dict:
         return result
 
     print("tap requires a selector (--text/--resourceId/--contentDesc), "
-          "coordinates (--x/--y), or percent coords (--xPercent/--yPercent)",
+          "coordinates (--x/--y with --unit), or percent coords (--xPercent/--yPercent)",
           file=sys.stderr)
     sys.exit(1)
 

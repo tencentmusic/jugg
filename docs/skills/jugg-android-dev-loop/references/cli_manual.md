@@ -186,16 +186,17 @@ Output `stopReason`: `marker` → parse `logs`; `crash` → FAIL; `timeout` → 
 
 ### `tap`
 
-Prefer element selectors, then coordinates (px), then percentages:
+Prefer a unique element selector, then absolute coordinates or percentages.
 
 ```
 python3 {SKILL_DIR}/scripts/jugg.py tap --text "Login"
-python3 {SKILL_DIR}/scripts/jugg.py tap --x 540 --y 960
+python3 {SKILL_DIR}/scripts/jugg.py tap --x 365 --y 798 --unit dp
 python3 {SKILL_DIR}/scripts/jugg.py tap --x-percent 50 --y-percent 80 --action swipe --end-x-percent 50 --end-y-percent 20
 ```
 
 - Element selectors: `--text`, `--resource-id`, or `--content-desc`; `--class-name` can narrow the match.
 - `--action <tap|long-press|swipe>` defaults to `tap`; add `--action long-press` for a long press.
+- Absolute coordinates require `--unit dp|px`. For a layout dump, use `units.bounds`. For an absolute swipe, the unit covers both endpoints. Add `--unit px` to existing pixel-coordinate commands.
 - Percent taps use `--x-percent` / `--y-percent`; swipe also requires matching `--end-x` / `--end-y` or `--end-x-percent` / `--end-y-percent`.
 - Elements share the Dragonfly dump node model. Compose taps dispatch a MotionEvent at node center; Semantics action, disabled-state, and stale-node behavior are not guaranteed.
 

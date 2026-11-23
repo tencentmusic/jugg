@@ -57,6 +57,11 @@ object McpToolSchemas {
             enum = listOf("tap", "long-press", "swipe"),
             description = "Touch action type. Default: tap.",
         ),
+        "unit" to McpJsonSchemaProperty(
+            type = "string",
+            enum = listOf("dp", "px"),
+            description = "Required for absolute coordinates. Applies to both swipe endpoints. Use layout-dump units.bounds.",
+        ),
         "x" to McpJsonSchemaProperty(
             type = "number",
             description = "X coordinate (coordinate mode).",

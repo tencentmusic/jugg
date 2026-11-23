@@ -145,7 +145,7 @@ jugg view-inspect --text 登录 getText() isEnabled()
 jugg view-inspect --resource-id bubble_container layoutParams.leftMargin getLayoutParams().getMarginStart()
 jugg tap --resource-id login_button
 jugg tap --x-percent 50 --y-percent 80
-jugg tap --action swipe --x 500 --y 1600 --end-x 500 --end-y 300 --duration 300
+jugg tap --action swipe --unit px --x 500 --y 1600 --end-x 500 --end-y 300 --duration 300
 ```
 
 | 命令 | 常用参数 |
@@ -153,7 +153,7 @@ jugg tap --action swipe --x 500 --y 1600 --end-x 500 --end-y 300 --duration 300
 | `layout-dump` | `--mode`、`--root-layout`、`--include-gone`、`--all-windows` |
 | `view-locate` | `--text`、`--resource-id`、`--content-desc` |
 | `view-inspect` | `--text`、`--resource-id`、`--content-desc`、`--class-name`、只读表达式 |
-| `tap` | `--action`、坐标参数、百分比参数、元素 selector、`--duration` |
+| `tap` | `--action`、坐标参数和 `--unit dp\|px`、百分比参数、元素 selector、`--duration` |
 
 `layout-dump` 默认 interaction，裁剪交互摘要；ui 保留已采集树，用于布局验证及辅助还原。mode 不改变其他筛选参数，精确输出含义见 [MCP 工具](./mcp-tools.md)。
 

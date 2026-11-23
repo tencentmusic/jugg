@@ -56,7 +56,7 @@ class TapMcpToolActionTest {
             }
         )
         val result = action.execute(
-            mapOf("projectDir" to "/tmp/test", "x" to 540, "y" to 960),
+            mapOf("projectDir" to "/tmp/test", "unit" to "px", "x" to 540, "y" to 960),
             runtime()
         )
         Assert.assertEquals(McpToolStatus.OK, result.status)
@@ -87,7 +87,7 @@ class TapMcpToolActionTest {
         )
 
         val result = action.execute(
-            mapOf("projectDir" to "/tmp/test", "x" to 10, "y" to 20),
+            mapOf("projectDir" to "/tmp/test", "unit" to "px", "x" to 10, "y" to 20),
             runtime()
         )
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
@@ -100,7 +100,7 @@ class TapMcpToolActionTest {
     fun testDefaultTapActionCoordinateMode() {
         val (action, adb) = setup()
         val result = action.execute(
-            mapOf("projectDir" to "/tmp/test", "x" to 540, "y" to 960),
+            mapOf("projectDir" to "/tmp/test", "unit" to "px", "x" to 540, "y" to 960),
             runtime()
         )
         Assert.assertEquals(McpToolStatus.OK, result.status)
@@ -111,6 +111,43 @@ class TapMcpToolActionTest {
         Assert.assertEquals(540, data["x"])
         Assert.assertEquals(960, data["y"])
         Assert.assertTrue(adb.executedCommands.contains("input tap 540 960"))
+    }
+
+    @Test
+    fun testAbsoluteCoordinatesRequireUnitBeforeDeviceAccess() {
+        val (action, adb) = setup()
+        for (gesture in listOf("tap", "long-press", "swipe")) {
+            val result = action.execute(
+                mapOf("projectDir" to "/tmp/test", "action" to gesture, "x" to 10, "y" to 20,
+                    "endX" to 30, "endY" to 40),
+                runtime(),
+            )
+            Assert.assertEquals(McpErrorCode.INVALID_PARAMS, result.errorCode)
+        }
+        Assert.assertTrue(adb.executedCommands.isEmpty())
+    }
+
+    @Test
+    fun testDpSwipeUsesOverrideDensityForBothEndpoints() {
+        val (action, adb) = setup(mapOf("wm density" to "Physical density: 480\nOverride density: 560"))
+        val result = action.execute(
+            mapOf("projectDir" to "/tmp/test", "action" to "swipe", "unit" to "dp",
+                "x" to 365.0, "y" to 798.0, "endX" to 100.5, "endY" to 200.0, "duration" to 300),
+            runtime(),
+        )
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        Assert.assertTrue(adb.executedCommands.contains("input swipe 1278 2793 352 700 300"))
+    }
+
+    @Test
+    fun testDpTapFailsWhenDensityIsUnavailable() {
+        val (action, adb) = setup()
+        val result = action.execute(
+            mapOf("projectDir" to "/tmp/test", "unit" to "dp", "x" to 10, "y" to 20),
+            runtime(),
+        )
+        Assert.assertEquals(McpToolStatus.ERROR, result.status)
+        Assert.assertTrue(adb.executedCommands.none { it.startsWith("input ") })
     }
 
     @Test
@@ -177,6 +214,7 @@ class TapMcpToolActionTest {
             mapOf(
                 "projectDir" to "/tmp/test",
                 "action" to "swipe",
+                "unit" to "px",
                 "x" to 540,
                 "y" to 1800,
                 "endX" to 540,
@@ -235,6 +273,7 @@ class TapMcpToolActionTest {
             mapOf(
                 "projectDir" to "/tmp/test",
                 "action" to "swipe",
+                "unit" to "px",
                 "x" to 10,
                 "y" to 20,
             ),
@@ -268,6 +307,7 @@ class TapMcpToolActionTest {
             mapOf(
                 "projectDir" to "/tmp/test",
                 "action" to "long-press",
+                "unit" to "px",
                 "x" to 540,
                 "y" to 960,
             ),
@@ -566,6 +606,7 @@ class TapMcpToolActionTest {
             mapOf(
                 "projectDir" to "/tmp/test",
                 "action" to "long-press",
+                "unit" to "px",
                 "x" to 540,
                 "y" to 960,
             ),
@@ -686,7 +727,7 @@ class TapMcpToolActionTest {
     fun testUnknownActionReturnsError() {
         val (action, _) = setup()
         val result = action.execute(
-            mapOf("projectDir" to "/tmp/test", "action" to "fling", "x" to 1, "y" to 2),
+            mapOf("projectDir" to "/tmp/test", "action" to "fling", "unit" to "px", "x" to 1, "y" to 2),
             runtime(),
         )
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
@@ -703,7 +744,7 @@ class TapMcpToolActionTest {
             packageName = "com.example.app",
         )
         val result = action.execute(
-            mapOf("projectDir" to "/tmp/test", "x" to 100, "y" to 200, "xPercent" to 50.0, "yPercent" to 50.0, "text" to "Login"),
+            mapOf("projectDir" to "/tmp/test", "unit" to "px", "x" to 100, "y" to 200, "xPercent" to 50.0, "yPercent" to 50.0, "text" to "Login"),
             runtime()
         )
         Assert.assertEquals(McpToolStatus.OK, result.status)
@@ -723,7 +764,7 @@ class TapMcpToolActionTest {
 
         val action = TapMcpToolAction()
         val result = action.execute(
-            mapOf("projectDir" to "/tmp/test", "x" to 100, "y" to 200),
+            mapOf("projectDir" to "/tmp/test", "unit" to "px", "x" to 100, "y" to 200),
             runtime(deployTargetManager)
         )
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
@@ -740,7 +781,7 @@ class TapMcpToolActionTest {
         Mockito.`when`(deployTargetManager.getConnectedDevices()).thenReturn(listOf(first, second))
 
         val result = TapMcpToolAction().execute(
-            mapOf("projectDir" to "/tmp/test", "x" to 100, "y" to 200),
+            mapOf("projectDir" to "/tmp/test", "unit" to "px", "x" to 100, "y" to 200),
             runtime(deployTargetManager),
         )
 
@@ -768,6 +809,7 @@ class TapMcpToolActionTest {
             mapOf(
                 "projectDir" to "/tmp/test",
                 "action" to "swipe",
+                "unit" to "px",
                 "x" to 10,
                 "y" to 20,
             ),
@@ -803,7 +845,7 @@ class TapMcpToolActionTest {
         )
         var readyChecks = 0
         val result = action.execute(
-            mapOf("projectDir" to "/tmp/test", "x" to 100, "y" to 200),
+            mapOf("projectDir" to "/tmp/test", "unit" to "px", "x" to 100, "y" to 200),
             runtime(
                 isAppReadyProvider = {
                     readyChecks++

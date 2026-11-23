@@ -145,7 +145,7 @@ jugg view-inspect --text 登录 getText() isEnabled()
 jugg view-inspect --resource-id bubble_container layoutParams.leftMargin getLayoutParams().getMarginStart()
 jugg tap --resource-id login_button
 jugg tap --x-percent 50 --y-percent 80
-jugg tap --action swipe --x 500 --y 1600 --end-x 500 --end-y 300 --duration 300
+jugg tap --action swipe --unit px --x 500 --y 1600 --end-x 500 --end-y 300 --duration 300
 ```
 
 | Command | Common options |
@@ -153,7 +153,7 @@ jugg tap --action swipe --x 500 --y 1600 --end-x 500 --end-y 300 --duration 300
 | `layout-dump` | `--mode`, `--root-layout`, `--include-gone`, `--all-windows` |
 | `view-locate` | `--text`, `--resource-id`, `--content-desc` |
 | `view-inspect` | `--text`, `--resource-id`, `--content-desc`, `--class-name`, read-only expressions |
-| `tap` | `--action`, coordinate options, percentage options, element selector, `--duration` |
+| `tap` | `--action`, coordinate options with `--unit dp\|px`, percentage options, element selector, `--duration` |
 
 `layout-dump` defaults to interaction, which prunes an interaction summary; ui preserves the captured tree for layout validation and reconstruction references. The mode does not change other filters. See [MCP tools](./mcp-tools.md) for exact output meanings.
 

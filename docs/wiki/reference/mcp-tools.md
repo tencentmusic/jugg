@@ -62,7 +62,7 @@ There are currently 20 registered public MCP tools.
 | `view-locate` | `projectDir`, `target` | Finds the location of a UI element. |
 | `view-inspect` | `projectDir`, `target`, `expressions` | Reads read-only View properties through reflection, including getters, Kotlin properties, and public fields. |
 | `activity-stack` | `projectDir` | Reads the Activity stack. |
-| `tap` | `projectDir`, coordinate/percentage/element selector | Performs a tap, long-press, or swipe. |
+| `tap` | `projectDir`, coordinates with `unit` (`dp` or `px`), percentages, or element selector | Performs a tap, long-press, or swipe. |
 | `status` | `projectDir`, `refreshChanges` | Queries deployment status and a summary of uncompiled files. |
 | `wait-logs` | `projectDir`, `marker`, `tags`, `timeoutMs` | Waits for an app log marker, crash, or timeout. |
 

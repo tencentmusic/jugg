@@ -231,10 +231,11 @@ COMMAND_HELP: dict[str, CommandHelp] = {
         "tap",
         "Perform tap, long-press, or swipe on device.",
         "jugg tap [--action tap|long-press|swipe] "
-        "(--x <n> --y <n> | --x-percent <n> --y-percent <n> | --text <text> | "
+        "(--x <n> --y <n> --unit dp|px | --x-percent <n> --y-percent <n> | --text <text> | "
         "--resource-id <id> | --content-desc <desc>) [--duration <ms>]",
         (
             OptionHelp(("--action",), "Gesture action; default is tap.", "<action>", "action"),
+            OptionHelp(("--unit",), "Required for absolute coordinates. Use layout-dump units.bounds.", "dp|px", "unit"),
             OptionHelp(("--x",), "Start x coordinate.", "<n>", "x"),
             OptionHelp(("--y",), "Start y coordinate.", "<n>", "y"),
             OptionHelp(("--end-x", "--endX"), "Swipe end x coordinate.", "<n>", "endX"),

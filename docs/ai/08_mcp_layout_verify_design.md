@@ -35,7 +35,7 @@ The in-app normalized snapshot caps traversal at 60 levels and 5000 nodes. Dump,
 
 Calculate geometric facts from unique dp bounds, for example horizontal gap = right.left − left.right and centerX = (left + right) / 2. Convert design px using its stated DPR, and runtime px using `view-inspect.data.density`. A report may use ≤2 dp absolute or ≤5% relative difference as an explicit Agent convention; no public tool accepts a `tolerance` argument. For colors, record source format and retain alpha when presenting `#AARRGGBB`. When a claim is not observable with public tools, report it as unverified rather than inferring it from a pruned tree or a tap result.
 
-`tap` has coordinate, percent, and element modes. Element mode requires a unique match; several matches fail without a tap. Percent and coordinate input use device pixels, not `view-locate` dp bounds. After interaction, take fresh page evidence. App-ready checks and a transient observe retry do not guarantee that an unavailable ViewHierarchy socket will recover; diagnose app foreground/instrumentation and follow the recovery guidance in `08_mcp_tools_list.md`.
+`tap` has coordinate, percent, and element modes. Element mode requires a unique match; several matches fail without a tap. For absolute coordinates from a dump, pass `units.bounds` as the tap unit. Use `dp` for `view-locate` bounds. A single unit covers both endpoints of an absolute swipe. After interaction, take fresh page evidence. App-ready checks and a transient observe retry do not guarantee that an unavailable ViewHierarchy socket will recover; diagnose app foreground/instrumentation and follow the recovery guidance in `08_mcp_tools_list.md`.
 
 ## Diagnosis
 

@@ -62,7 +62,7 @@ tags:
 | `view-locate` | `projectDir`、`target` | 查找 UI 元素位置。 |
 | `view-inspect` | `projectDir`、`target`、`expressions` | 反射读取 View 只读属性，含 getter、Kotlin property 和 public 字段。 |
 | `activity-stack` | `projectDir` | 读取 Activity 栈。 |
-| `tap` | `projectDir`、坐标/百分比/元素 selector | 执行 tap、long-press 或 swipe。 |
+| `tap` | `projectDir`、带 `unit`（`dp` 或 `px`）的坐标、百分比或元素 selector | 执行 tap、long-press 或 swipe。 |
 | `status` | `projectDir`、`refreshChanges` | 查询部署状态和未编译文件摘要。 |
 | `wait-logs` | `projectDir`、`marker`、`tags`、`timeoutMs` | 等待 App 日志 marker、crash 或 timeout。 |
 

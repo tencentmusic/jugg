@@ -103,9 +103,9 @@ jugg tap --content-desc 返回
 坐标模式：
 
 ```bash
-jugg tap --x 120 --y 360
-jugg tap --action long-press --x 120 --y 360 --duration 800
-jugg tap --action swipe --x 500 --y 1200 --end-x 500 --end-y 300
+jugg tap --x 120 --y 360 --unit dp
+jugg tap --action long-press --x 120 --y 360 --unit dp --duration 800
+jugg tap --action swipe --unit px --x 500 --y 1200 --end-x 500 --end-y 300
 ```
 
 百分比模式：
@@ -113,6 +113,8 @@ jugg tap --action swipe --x 500 --y 1200 --end-x 500 --end-y 300
 ```bash
 jugg tap --x-percent 50 --y-percent 90
 ```
+
+绝对坐标必填 `--unit dp|px`。从布局导出取点时，使用 `units.bounds` 标记的单位。已有像素坐标命令需补上 `--unit px`。
 
 `swipe` 只支持坐标或百分比模式，不支持元素模式。元素模式如果命中多个候选，工具会返回错误并列出摘要，避免误点。
 

@@ -1243,12 +1243,21 @@ class NormalizeArgsRoundTripTest(unittest.TestCase):
         self.assertEqual(result["endXPercent"], 50.0)
         self.assertEqual(result["endYPercent"], 20.0)
 
+    def test_tap_requires_unit_for_absolute_coordinates(self):
+        with self.assertRaises(SystemExit):
+            self.tap(self._norm(["--x", "100", "--y", "200"]))
+
+    def test_tap_rejects_unit_with_percent_coordinates(self):
+        with self.assertRaises(SystemExit):
+            self.tap(self._norm(["--x-percent", "50", "--y-percent", "80", "--unit", "dp"]))
+
     def test_tap_kebab_end_x(self):
         result = self.tap(self._norm([
-            "--x", "100", "--y", "200",
+            "--x", "100", "--y", "200", "--unit", "dp",
             "--end-x", "300", "--end-y", "400",
             "--action", "swipe",
         ]))
+        self.assertEqual(result["unit"], "dp")
         self.assertEqual(result["endX"], 300.0)
         self.assertEqual(result["endY"], 400.0)
 
