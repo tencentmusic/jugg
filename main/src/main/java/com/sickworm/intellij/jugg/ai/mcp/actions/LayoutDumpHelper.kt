@@ -153,7 +153,12 @@ internal object LayoutDumpHelper {
                 val content = if (mode == "ui") uiContent else converter.serialize(outputJson)
                 if (outputFile != localJsonFile) outputFile.writeText(content, StandardCharsets.UTF_8)
 
-                val summary = buildSummaryMessage(outputJson)
+                val capturedNodeCount = if (mode == "interaction") {
+                    countNodes(uiJson.getAsJsonArrayOrEmpty("windows"))
+                } else {
+                    null
+                }
+                val summary = buildSummaryMessage(outputJson, capturedNodeCount)
                 val contentBytes = content.toByteArray(StandardCharsets.UTF_8).size
                 val output = DumpInternalResult.Success(
                     summary = summary,
@@ -215,8 +220,7 @@ internal object LayoutDumpHelper {
     private fun resolvePackageName(runtime: IMcpRuntime): String? =
         runCatching { runtime.deployTargetManager.getPackageName().takeIf { it.isNotBlank() } }.getOrNull()
 
-    private fun buildSummaryMessage(element: JsonElement): String {
-        val root = element.asJsonObjectOrNull() ?: return "0 windows (top: unknown), 0 nodes, not truncated"
+    private fun buildSummaryMessage(root: JsonObject, capturedNodeCount: Int?): String {
         val windows = root.getAsJsonArrayOrEmpty("windows")
         val windowCount = windows.size()
         val topTitle = windows.firstOrNullObject()?.get("title")?.asStringOrNull()?.takeIf { it.isNotBlank() } ?: "unknown"
@@ -226,7 +230,11 @@ internal object LayoutDumpHelper {
         val truncatedText = if (truncated) "truncated" else "not truncated"
         val warnings = root.getAsJsonArrayOrEmpty("warnings").mapNotNull { it.asStringOrNull() }
         val diagnostic = if (warnings.isEmpty()) "" else "; incomplete hierarchy: ${warnings.joinToString("; ")}"
-        return "$windowCount windows (top: $topTitle), $nodeCount nodes, $clickableCount clickable, $truncatedText$diagnostic"
+        val coverage = capturedNodeCount?.let {
+            ". $nodeCount of $it captured nodes shown in interaction mode. Use --mode ui to verify the captured hierarchy."
+        }.orEmpty()
+        return "$windowCount windows (top: $topTitle), $nodeCount nodes, $clickableCount clickable, " +
+            "$truncatedText$diagnostic$coverage"
     }
 
     private fun countNodes(windows: JsonArray): Int {

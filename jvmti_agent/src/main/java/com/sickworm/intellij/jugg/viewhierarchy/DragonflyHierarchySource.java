@@ -13,6 +13,7 @@ import com.sickworm.intellij.jugg.hotfix.LogUtils;
 import com.sickworm.intellij.jugg.internal.dragonfly.Dragonfly;
 import com.sickworm.intellij.jugg.internal.dragonfly.adapter.ComposeAdapterKt;
 import com.sickworm.intellij.jugg.internal.dragonfly.adapter.IComposeAdapter;
+import com.sickworm.intellij.jugg.internal.dragonfly.compose.node.ComposeNode;
 import com.sickworm.intellij.jugg.internal.dragonfly.extractor.ViewExtractorKt;
 import com.sickworm.intellij.jugg.internal.dragonfly.node.HierarchyNode;
 import com.sickworm.intellij.jugg.internal.dragonfly.node.android.WindowNode;
@@ -45,6 +46,7 @@ public class DragonflyHierarchySource {
 
     private boolean composeEnabled;
     private String composeFailure = "";
+    private boolean semanticsUnavailable;
 
     /**
      * Capture the current top window or all windows in top-to-bottom order.
@@ -99,6 +101,7 @@ public class DragonflyHierarchySource {
         List<CapturedWindow> capturedWindows = new ArrayList<>();
         List<MatchedElement> elements = new ArrayList<>();
         Set<String> virtualIds = new HashSet<>();
+        ComposeSemantics semantics = createComposeSemantics();
 
         for (int windowIndex = 0; windowIndex < windows.size(); windowIndex++) {
             HierarchyNode window = windows.get(windowIndex);
@@ -111,7 +114,8 @@ public class DragonflyHierarchySource {
                 0,
                 budget,
                 elements,
-                virtualIds
+                virtualIds,
+                semantics
             );
             capturedWindows.add(new CapturedWindow(
                 resolveWindowType(rootView),
@@ -121,6 +125,17 @@ public class DragonflyHierarchySource {
             ));
         }
         return new Snapshot(capturedWindows, elements, budget.truncated);
+    }
+
+    private ComposeSemantics createComposeSemantics() {
+        if (!composeEnabled || semanticsUnavailable) return null;
+        try {
+            return new ComposeSemantics(getClass().getClassLoader(), MAX_NODE_COUNT);
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError failure) {
+            semanticsUnavailable = true;
+            LogUtils.w(TAG, "Compose semantics unavailable: " + failure);
+            return null;
+        }
     }
 
     private List<WindowNode> extractWindows(boolean topWindowOnly) {
@@ -304,7 +319,8 @@ public class DragonflyHierarchySource {
         int depth,
         NodeBudget budget,
         List<MatchedElement> elements,
-        Set<String> virtualIds
+        Set<String> virtualIds,
+        ComposeSemantics semantics
     ) {
         if (hierarchyNode == null) {
             return null;
@@ -318,6 +334,9 @@ public class DragonflyHierarchySource {
         }
 
         ViewNode node = buildNode(hierarchyNode, properties, path, virtualIds);
+        if (!overNodeLimit && !overDepthLimit && semantics != null && hierarchyNode instanceof ComposeNode) {
+            semantics.enrich((ComposeNode) hierarchyNode, node);
+        }
         if (overNodeLimit || overDepthLimit) {
             node.tag = "truncated:" + (overNodeLimit ? "node_limit" : "depth_limit");
         }
@@ -347,7 +366,8 @@ public class DragonflyHierarchySource {
                     depth + 1,
                     budget,
                     elements,
-                    virtualIds
+                    virtualIds,
+                    semantics
                 );
                 if (child != null) {
                     children.add(child);

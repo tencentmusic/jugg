@@ -261,7 +261,7 @@ Files are nested JSON, not JSONL, with real nodes on separate lines and inline s
 
 In ordinary windows, fully offscreen branches retain their first node's interaction fields but replace descendants with a `jugg_details` placeholder; offscreen leaves remain. Placeholders are not controls or counted nodes/clickables. Partially visible or zero-area nodes, and branches with intersecting descendants, unknown descendant geometry, or descendant diagnostics are not folded. Missing window bounds and rootLayout requests disable viewport folding, retaining semantic pruning. Use `--mode ui --root-layout <id>` for omitted descendants; order/bounds/className guide exploration, then re-query after swiping.
 
-Interaction is a summary: retained nodes are not guaranteed actionable, and missing nodes/hierarchy cannot prove absence or original parentage. Pruning/folding does not set budget `truncated`.
+The interaction summary compares shown and captured node counts from the same request. Use `--mode ui` to check whether a control was captured or inspect the original hierarchy. Pruning and folding leave the collection-budget `truncated` flag unchanged.
 
 **UI mode and limits:** preserves the captured hierarchy, hidden nodes, and visual fields within scope; GONE requires `--include-gone`. Field meanings, window/subtree scope, and collection limits are shared across modes. Incomplete/truncated trees cannot prove absence. Queries/actions use fresh Dragonfly snapshots; re-query after interaction. The 5000-node/60-level boundary also limits selectors, taps, inspections, and verification. Private runtime supports Java-only projects.
 

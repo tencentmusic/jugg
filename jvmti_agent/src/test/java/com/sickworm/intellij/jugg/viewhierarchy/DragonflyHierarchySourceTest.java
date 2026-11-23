@@ -8,6 +8,7 @@ import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import java.util.AbstractMap;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -15,6 +16,36 @@ import java.util.List;
 import java.util.Map;
 
 public class DragonflyHierarchySourceTest {
+
+    @Test
+    public void composeSemantics_shouldExposeMergedDescriptionAndPreserveDisabledState() throws Exception {
+        ViewNode button = new ViewNode();
+        ComposeSemantics.applyProperties(button, Arrays.asList(
+            new AbstractMap.SimpleImmutableEntry<>(new SemanticsKey("OnClick"), new Object()),
+            new AbstractMap.SimpleImmutableEntry<>(new SemanticsKey("ContentDescription"),
+                Arrays.asList("", "Next soundscape"))
+        ).iterator(), SemanticsKey.class.getMethod("getName"));
+        Assert.assertTrue(button.clickable);
+        Assert.assertTrue(button.enabled);
+        Assert.assertEquals("Next soundscape", button.contentDesc);
+
+        ComposeSemantics.applyProperties(button, Collections.singletonList(
+            new AbstractMap.SimpleImmutableEntry<>(new SemanticsKey("Disabled"), new Object())
+        ).iterator(), SemanticsKey.class.getMethod("getName"));
+        Assert.assertFalse(button.enabled);
+    }
+
+    public static final class SemanticsKey {
+        private final String name;
+
+        SemanticsKey(String name) {
+            this.name = name;
+        }
+
+        public String getName() {
+            return name;
+        }
+    }
 
     @Test
     public void dump_shouldLimitWarningsToReturnedSubtreeAndVisibility() throws Exception {

@@ -21,6 +21,7 @@ class LayoutDumpMcpToolAction : McpToolAction {
             "Artifacts up to 16 KiB also return the complete object in data.layout; use it without rereading the file. " +
             "For larger layouts, read relevant file lines or use rootLayout/view-locate instead of loading the whole tree. " +
             "interaction (default) prunes nodes for page browsing; ui preserves the captured tree for UI validation. " +
+            "The interaction summary compares shown and captured node counts. Use ui to check missing controls or hierarchy. " +
             "Interaction keeps the first offscreen node and replaces its descendants with a jugg_details placeholder; " +
             "use ui with rootLayout to expand them. " +
             "Supports rootLayout, includeGone, and allWindows.",

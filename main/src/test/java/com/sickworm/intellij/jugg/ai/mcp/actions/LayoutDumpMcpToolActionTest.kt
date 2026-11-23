@@ -66,6 +66,8 @@ class LayoutDumpMcpToolActionTest {
             Assert.assertEquals(json, output.inlineLayout)
             Assert.assertEquals(output.outputFile.length(), output.contentBytes.toLong())
             Assert.assertTrue(output.summary.contains("2 nodes, 1 clickable"))
+            Assert.assertTrue(output.summary.contains("2 of 3 captured nodes shown in interaction mode"))
+            Assert.assertTrue(output.summary.contains("--mode ui"))
             Assert.assertTrue(output.summary.contains("not truncated"))
             val page = json.getAsJsonArray("windows")[0].asJsonObject.getAsJsonObject("root")
                 .getAsJsonArray("children")[0].asJsonObject
