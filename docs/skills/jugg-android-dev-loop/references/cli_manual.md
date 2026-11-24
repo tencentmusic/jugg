@@ -128,9 +128,13 @@ This command never resolves an MCP port and therefore does not start a missing R
 
 ### `compile`/`deploy`/`gradle-build`/`clean-reinstall`
 
-Invoke the CLI entry with the command above; no subcommand arguments are required.
+Invoke the CLI entry with the command above. Global `--if-compiling wait|interrupt` (default `wait`) controls whether compile-class commands wait for an active build or interrupt it.
 
-In standalone mode, `gradle-build` performs the full compile, refreshes the incremental baseline, and then installs or deploys to the target device. With a remote profile, only the Gradle full build/fallback runs remotely; project-info dry-runs, incremental compilation, and device operations stay on the standalone host. Remote authentication is non-interactive, so configure SSH credentials in the profile or authenticate the external iFT client before running the command. Standalone preserves an explicit `JAVA_HOME`. For deployment, restart, and device listing, request-level `--serial` takes priority, then standalone `ANDROID_SERIAL`; without either value, deployment and restart target all online devices while `devices` lists all online devices. `clean-reinstall`, `instrument`, runtime UI inspection, touch, activity-stack, and wait-logs remain IDEA-only capabilities.
+- **`deploy --always-restart-app <true|false>`**: Defaults to `true` (restart after deploy). Pass `--always-restart-app false` to allow hot reload (Apply Changes) when class structure changes permit.
+- **Terminal result checks**: Inspect both `isCompileSuccess` and `isDeploySuccess` (and terminal `data.status`). A top-level MCP `status=OK` alone does not override a failed/canceled/unknown job, and a 0-compiled-files message means only that no source was compiled — it does not prove no APK or deployment action ran.
+- **Version-code downgrade**: When default APK installation fails because the device has a higher `versionCode`, CLI/MCP automatically authorizes uninstall and reinstall, which **clears app data** (there is no CLI flag for `adb install -d`). Manual IDE Run/Debug offers a separate **Allow downgrade** option.
+
+In standalone mode, `gradle-build` performs the full compile, refreshes the incremental baseline, and then installs or deploys to the target device (if no online device is connected, compilation can finish while deployment fails). With a remote profile, only the Gradle full build/fallback runs remotely; project-info dry-runs, incremental compilation, and device operations stay on the standalone host. Remote authentication is non-interactive, so configure SSH credentials in the profile or authenticate the external iFT client before running the command. Standalone preserves an explicit `JAVA_HOME`. For deployment, restart, and device listing, request-level `--serial` takes priority, then standalone `ANDROID_SERIAL`; without either value, deployment and restart target all online devices while `devices` lists all online devices. `clean-reinstall`, `instrument`, runtime UI inspection, touch, activity-stack, and wait-logs remain IDEA-only capabilities.
 
 ### `instrument`
 
@@ -282,6 +286,7 @@ python3 {SKILL_DIR}/scripts/jugg.py status [--refresh-changes <true|false>] [--f
 ```
 
 - Refreshes git-tracked changed files by default; `--refresh-changes false` skips it.
+- While a compile or project write holds the lock, `status` returns an immediate read-only snapshot without refreshing Git or deploy state; do not treat a busy snapshot as proof that a build finished or pending files disappeared.
 - Returns at most 20 pending paths by default; `--full-info true` returns full status and all pending paths.
 - `data.executionType=remote`: remote Gradle fallback is configured; hooks block the first raw Gradle attempt even without a source write in this agent session.
 - Before choosing androidTest / `instrument`, reuse credible existing status (e.g. a hook block's `Jugg status` output), or run `--console=json status`.
@@ -294,6 +299,12 @@ python3 {SKILL_DIR}/scripts/jugg.py ssh-info --reason "deploy fails after 3 retr
 ```
 
 `--reason` is required; use only after all other fallback steps are exhausted and with user consent.
+
+### Logs & State Paths
+
+- `{projectDir}/build/jugg/log/compile_latest.log`: Full compile/deploy log for the latest Run. **Overwritten by the next Run** — do not use a later Run's log to diagnose an earlier failure.
+- `{projectDir}/build/jugg/log/standlone_cli/standalone_startup.log` and `compile_latest.log`: Standalone daemon startup and runtime logs.
+- `~/.jugg/settings.json` (or the directory redirected by `~/.juggdir`): Global persisted settings. Always use `jugg settings`; do not edit the JSON file directly.
 
 ### Non-CLI: `adb logcat`
 

@@ -76,7 +76,7 @@ print('NEEDS_GRADLE_BUILD' if data.get('needFallback', False) else 'OK')
      b. Load `error_patterns.md`, apply Error Reviewer to diagnose and fix.
      c. Re-run `deploy`. Retry budget: max 3 attempts.
      d. If compile still fails after retries with unexpected/unresolvable errors → **fall back to `gradle-build`** (see [Gradle-Build Fallback](#gradle-build-fallback) below).
-3. **Done** — Output report. Verification steps default to `skip`. If optional light-weight check ran, use `light-check` status (see [Light-Weight On-Device Check](##Light-Weight On-Device Check)).
+3. **Done** — Output report. Verification steps default to `skip`. If optional light-weight check ran, use `light-check` status (see [Light-Weight On-Device Check](#light-weight-on-device-check)).
 
 ---
 

@@ -95,3 +95,4 @@ Explain the exact changed processor input or instrumentation dependency; merely 
 ## Symptom Linkage
 
 For signature-based matching and concrete fixes, load `references/error_patterns.md`.
+For Flutter/C++(NDK), minified/release variants, non-debuggable APKs, system apps, or custom install/sign scripts, load `references/special_build_environments.md`.

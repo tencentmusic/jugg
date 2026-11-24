@@ -48,7 +48,7 @@ Each step: **entry gate → action → exit checkpoint**. No advance until check
   | Method | Tool | When to Use |
   |--------|------|-------------|
   | UI verification | `view-locate`, `view-inspect`, `layout-dump` | UI changes visible on screen |
-  | Log verification | `adb logcat` with regex filter | Logic changes, data validation, auto-run output |
+  | Log verification | `wait-logs` (fallback: `adb logcat`) | Logic changes, data validation, auto-run output |
 
   **UI Verification Sub-flow**:
   1. Run `activity-stack` → confirm target page.
@@ -82,7 +82,7 @@ Each step: **entry gate → action → exit checkpoint**. No advance until check
 | Change Type | Primary Method | Secondary Method |
 |-------------|----------------|------------------|
 | Pure UI change | UI verification (`view-locate` etc.) | Log (auto-run confirms rendering) |
-| Pure logic change | Log verification (`adb logcat`) | UI (if logic affects display) |
+| Pure logic change | Log verification (`wait-logs`) | UI (if logic affects display) |
 | UI + logic change | Both UI and Log | — |
 
 ---

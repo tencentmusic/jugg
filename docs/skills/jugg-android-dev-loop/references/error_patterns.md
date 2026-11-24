@@ -111,4 +111,49 @@ Schema: `id, stage(compile|deploy|runtime|observe), signature{includes,regex}, d
   confidence_hint: 0.90
   auto_apply: true
 
+- id: obfuscated_incremental_linkage_error
+  stage: runtime
+  signature: {includes: ["NoClassDefFoundError", "NoSuchMethodError", "IllegalAccessError", "AbstractMethodError"]}
+  diagnosis: on minified/release incremental deploy, linkage or reflection failures may reflect DEX remapping, R8 removal, or _jugg_fix bridge boundaries rather than a source error; see special_build_environments.md
+  fix_strategy: confirm_minified_variant_then_use_jugg_gradle_build
+  fix_scope: low
+  confidence_hint: 0.80
+  auto_apply: false
+
+- id: install_signature_mismatch
+  stage: deploy
+  signature: {includes: ["INSTALL_FAILED_UPDATE_INCOMPATIBLE"]}
+  diagnosis: APK signing certificate differs from the installed package (including system-app baseline); not a compile failure
+  fix_strategy: align_signing_config_or_reinstall_cleanly
+  fix_scope: low
+  confidence_hint: 0.95
+  auto_apply: false
+
+- id: custom_install_or_sign_script_failed
+  stage: deploy
+  signature: {includes: ["custom install script", "custom sign script", "CustomApkInstallScriptRunner", "CustomApkSignScriptRunner"]}
+  diagnosis: configured project install or APK sign script failed; Jugg does not fall back to default installer, local keystore, or Gradle
+  fix_strategy: fix_script_or_signing_environment_without_gradle_fallback
+  fix_scope: medium
+  confidence_hint: 0.92
+  auto_apply: false
+
+- id: flutter_debug_stale_dart_code
+  stage: runtime
+  signature: {includes: ["app_flutter", "res_timestamp", "flutter_assets"]}
+  diagnosis: Flutter Debug overlay may coexist with previously extracted app_flutter assets if timestamp invalidation or process restart did not complete
+  fix_strategy: inspect_deploy_restart_and_timestamp_invalidation_before_blaming_compile
+  fix_scope: low
+  confidence_hint: 0.78
+  auto_apply: false
+
+- id: NO_DEPLOY_BASELINE
+  stage: observe
+  signature: {includes: ["NO_DEPLOY_BASELINE"]}
+  diagnosis: wait-logs has no recorded deploy or restart timestamp baseline for this project and device
+  fix_strategy: run_deploy_or_restart_then_retry_wait_logs
+  fix_scope: low
+  confidence_hint: 0.98
+  auto_apply: true
+
 ```
