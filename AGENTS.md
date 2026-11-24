@@ -58,20 +58,22 @@
 
 ## Commit conventions
 
-1. After completing a task, commit only its changes. Write the message in English with title `[prefix][module] subject`; the tags are adjacent and each appears once, and the subject starts with a lowercase letter and has no trailing period.
-2. Choose the prefix by user-observable behavior:
+1. When code or documentation changes pass the required verification, commit only the current task's changes by default unless the user asks not to commit; do not commit unverified or failing changes.
+2. Stage only the exact files changed for the task (`git add -- <paths>`); never use `git add -A` or `git add .`. If the index already has unrelated staged changes, or a touched file already contained unrelated uncommitted edits, skip committing and explain why.
+3. Write the commit message in English with title `[prefix][module] subject`; the tags are adjacent and each appears once, and the subject starts with a lowercase letter and has no trailing period.
+4. Choose the prefix by user-observable behavior:
    - `[bugfix]`: an existing capability has a defect, unexpected behavior, or a result contrary to expectations.
    - `[feature]`: a new user-visible capability.
    - `[optimize]`: an observable gain in readability, fault tolerance, reliability, convenience, performance, or time for behavior that was already correct and usable; not for build-system optimization.
    - `[refactor]`, `[docs]`, `[test]`, and `[other]`: no-behavior refactoring, documentation only, tests only, and other changes respectively.
-3. The secondary `[module]` describes a functional domain, not a Gradle module, directory, or task state. Choose the most specific existing tag. For a cross-domain change, use the primary behavior owner; split unrelated changes with no primary owner. Use lowercase English and these stable names:
+5. The secondary `[module]` describes a functional domain, not a Gradle module, directory, or task state. Choose the most specific existing tag. For a cross-domain change, use the primary behavior owner; split unrelated changes with no primary owner. Use lowercase English and these stable names:
    - Compilation and projects: `[compile]`, `[native build]`, `[dependency incremental]`, `[kmp opt-in]`, `[hilt]`, `[project]`.
    - Deployment: `[deploy]`, `[system app]`, `[custom install]`.
    - IDE and tools: `[ide]`, `[settings]`, `[compat]`, `[mcp]`, `[cli]`, `[ci]` (CI build orchestration), `[agent]`, `[diagnostics]`.
    - Engineering and content: `[build]` (repository build, CI, packaging), `[release]`, `[test suite]`, `[wiki]`, `[docs]`, `[repo]`.
    - Before adding a domain that fits none of these tags, define its stable name and responsibility and update this list and the contribution guide.
-4. Prefer a title describing the user scenario and observable outcome, not internal implementation. If there is no direct user, write from the caller, maintainer, Agent, or operator perspective. A `[bugfix]` title normally follows `[bugfix][module] fix <problem manifestation> when/after/for <scenario>`, not `prevent ... from ...` by default. An `[optimize]` title should describe the improvement for a scenario; wording alone must not disguise a bug fix as optimization.
-5. If the title cannot explain both cause and implementation, add a natural-language body after a blank line. Use `Problem:`, `Cause:`, or `Solution:` headings only for longer bodies.
+6. Prefer a title describing the user scenario and observable outcome, not internal implementation. If there is no direct user, write from the caller, maintainer, Agent, or operator perspective. A `[bugfix]` title normally follows `[bugfix][module] fix <problem manifestation> when/after/for <scenario>`, not `prevent ... from ...` by default. An `[optimize]` title should describe the improvement for a scenario; wording alone must not disguise a bug fix as optimization.
+7. If the title cannot explain both cause and implementation, add a natural-language body after a blank line. Use `Problem:`, `Cause:`, or `Solution:` headings only for longer bodies.
 
 ## Pull request collaboration
 
