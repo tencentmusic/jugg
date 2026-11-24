@@ -28,10 +28,12 @@ from hook_common import (
     has_session_write_seen,
     has_pending_files,
     payload_debug_suffix,
+    PROJECT_CWDS_KEY,
     read_hook_state,
     read_json_payload,
     read_status_snapshot,
     remember_project_cwd,
+    resolve_project_cwd,
     session_write_needs_verification,
     state_file_path,
     status_execution_type,
@@ -168,14 +170,10 @@ def main() -> int:
     state = read_hook_state(state_file)
     project_cwd = cwd
     project_cwd_changed = False
-    if args.client in {"cursor", "antigravity"}:
+    if args.client == "cursor":
         project_cwd, project_cwd_changed = remember_project_cwd(state, payload, cwd)
     if args.client == "antigravity":
-        project_state_file = state_file_path(home, project_cwd, session_id)
-        if project_state_file != state_file:
-            state_file = project_state_file
-            state = read_hook_state(state_file)
-            project_cwd, project_cwd_changed = remember_project_cwd(state, payload, cwd)
+        project_cwd = resolve_project_cwd({}, payload, cwd)
     shell_commands = _collect_shell_command_texts(payload)
     commands = collect_command_strings(payload, decode_json_strings=args.client == "antigravity")
     debug_log(
@@ -200,7 +198,11 @@ def main() -> int:
         return 0
 
     is_remote_compile = status_is_remote_compile(structured)
-    if not is_remote_compile and not has_session_write_seen(state):
+    session_write_seen = has_session_write_seen(state)
+    project_cwds = state.get(PROJECT_CWDS_KEY)
+    if args.client == "antigravity" and isinstance(project_cwds, list) and project_cwds:
+        session_write_seen = session_write_seen and project_cwd in project_cwds
+    if not is_remote_compile and not session_write_seen:
         debug_log("JUGG-COMMAND", "exit: allow raw gradle command because no session write was recorded")
         emit_allow(args.client)
         return 0
@@ -220,7 +222,8 @@ def main() -> int:
         emit_allow(args.client)
         return 0
 
-    if not is_remote_compile and not session_write_needs_verification(state, structured):
+    verification_project = project_cwd if args.client == "antigravity" else None
+    if not is_remote_compile and not session_write_needs_verification(state, structured, verification_project):
         if block_count > 0:
             state["gradleBlockCount"] = 0
             state.pop("gradleBlockedFingerprint", None)

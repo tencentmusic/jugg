@@ -222,14 +222,8 @@ def _main_impl() -> int:
     state = read_hook_state(state_file)
     project_cwd = cwd
     project_cwd_changed = False
-    if args.client in {"cursor", "antigravity"}:
+    if args.client == "cursor":
         project_cwd, project_cwd_changed = remember_project_cwd(state, payload, cwd)
-    if args.client == "antigravity":
-        project_state_file = state_file_path(home, project_cwd, session_id)
-        if project_state_file != state_file:
-            state_file = project_state_file
-            state = read_hook_state(state_file)
-            project_cwd, project_cwd_changed = remember_project_cwd(state, payload, cwd)
 
     recorded_paths = _recorded_write_paths(payload, args.client)
 
@@ -277,8 +271,6 @@ def _main_impl() -> int:
             f"hook triggered cwd={cwd} projectCwd={project_cwd} client={args.client}{payload_suffix}; "
             "ignored antigravity edit payload outside Android source",
         )
-        if project_cwd_changed:
-            write_hook_state(state_file, state)
         _emit_antigravity_allow()
         return 0
     workspace_roots = resolve_workspace_roots(state, payload, cwd)

@@ -234,6 +234,17 @@ def resolve_hook_client(client: str, payload: dict[str, Any], script: str) -> st
 def hook_state_cwd(client: str, payload: dict[str, Any]) -> str:
     if client == "cursor" and payload.get("cursor_version"):
         return str((Path.home() / ".cursor").resolve())
+    if client == "antigravity":
+        # Prefer the workspace shared by all events over the current tool's Gradle project.
+        fallback_cwd = str(Path.cwd())
+        for value in collect_strings(payload.get("workspacePaths")):
+            workspace = _directory_from_path_value(value, fallback_cwd)
+            if workspace:
+                return _find_project_root_from_path(workspace) or workspace
+        workspace_payload = {
+            key: value for key, value in payload.items() if _normalized_payload_key(key) in PROJECT_CWD_KEYS
+        }
+        return resolve_project_cwd({}, workspace_payload, fallback_cwd)
     return str(Path.cwd())
 
 

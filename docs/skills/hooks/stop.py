@@ -96,16 +96,10 @@ def _main_impl() -> int:
     state_file = state_file_path(home, cwd, session_id)
     state = read_hook_state(state_file)
     project_cwd = cwd
-    if args.client in {"cursor", "antigravity"}:
+    if args.client == "cursor":
         project_cwd, project_cwd_changed = remember_project_cwd(state, payload, cwd)
-    if args.client == "antigravity":
-        project_state_file = state_file_path(home, project_cwd, session_id)
-        if project_state_file != state_file:
-            state_file = project_state_file
-            state = read_hook_state(state_file)
-            project_cwd, project_cwd_changed = remember_project_cwd(state, payload, cwd)
-    if args.client in {"cursor", "antigravity"} and project_cwd_changed:
-        write_hook_state(state_file, state)
+        if project_cwd_changed:
+            write_hook_state(state_file, state)
     try:
         block_count = int(state.get("stopBlockCount", 0) or 0)
     except (TypeError, ValueError):
@@ -143,11 +137,11 @@ def _main_impl() -> int:
             state["stopBlockCount"] = 0
             write_hook_state(state_file, state)
         reason = (
-            "pendingModifiedFiles show no pending changes"
-            if statuses
-            else "session writes were already covered by Jugg verification"
-            if session_write_seen
+            "no Jugg project status was available"
+            if all(item[1] is None for item in statuses)
             else "no session write was recorded"
+            if not session_write_seen
+            else "session writes have no pending changes requiring verification"
         )
         debug_log("JUGG-STOP", f"exit: allow stop because {reason}")
         if args.client in {"cursor", "antigravity"}:

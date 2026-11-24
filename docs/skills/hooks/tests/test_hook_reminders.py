@@ -899,6 +899,55 @@ class HookReminderDecisionTest(unittest.TestCase):
         self.assertEqual("continue", response.get("decision"))
         self.assertIn("STOP GATE", response.get("reason", ""))
 
+    def test_antigravity_stop_checks_android_project_edited_from_parent_workspace(self):
+        hooks = Path(__file__).resolve().parent.parent
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as workspace:
+            project = Path(workspace).resolve() / "android"
+            baseline = project / "build/jugg/database/compile_context.db/complete_flag"
+            baseline.parent.mkdir(parents=True)
+            baseline.touch()
+            (project / "settings.gradle.kts").touch()
+            source = project / "src/main/java/HookEdit.kt"
+            source.parent.mkdir(parents=True)
+            source.touch()
+            _write_fake_jugg_cli(home, total=1, files=[str(source)], expected_cwd=str(project))
+            payload = {
+                "conversationId": "agy-nested-project",
+                "cwd": workspace,
+                "workspacePaths": [workspace],
+            }
+            events = [
+                ("start.py", {"invocationNum": 1}),
+                ("edit.py", {
+                    "cwd": str(project),
+                    "toolCall": {"name": "write_to_file", "args": {"filePath": str(source)}},
+                }),
+                ("command.py", {
+                    "cwd": str(project),
+                    "toolCall": {"name": "run_command", "args": {"CommandLine": "./gradlew :app:compileDebugKotlin"}},
+                }),
+                ("stop.py", {"terminationReason": "model_stop"}),
+                ("stop.py", {"terminationReason": "model_stop"}),
+            ]
+            responses = []
+            for script, event in events:
+                result = subprocess.run(
+                    [sys.executable, str(hooks / script), "--client", "antigravity"],
+                    input=json.dumps({**payload, **event}),
+                    capture_output=True,
+                    text=True,
+                    cwd=home,
+                    env=_hook_env(home),
+                    check=True,
+                )
+                responses.append(json.loads(result.stdout))
+
+        self.assertEqual("allow", responses[1].get("decision"))
+        self.assertEqual("deny", responses[2].get("decision"))
+        self.assertEqual("continue", responses[3].get("decision"))
+        self.assertIn("STOP GATE", responses[3].get("reason", ""))
+        self.assertEqual({}, responses[4])
+
     def test_command_hook_is_raw_gradle_detection(self):
         mod = _load_hook_module("command.py")
         self.assertTrue(mod.is_raw_gradle_command("./gradlew :app:assembleDebug"))
