@@ -52,7 +52,10 @@ open class QuailAsDeployerCompat : IAsDeployerCompat {
 
     private val deployApiConverter = QuailDeployApiConverter()
 
-    private val deployOptions = DeployerOption.Builder().build()
+    private val deployOptions = DeployerOption.Builder()
+        .setUseStructuralRedefinition(true)
+        .setUseVariableReinitialization(true)
+        .build()
 
     private val metrics = MetricsRecorder()
 

@@ -39,7 +39,10 @@ import kotlin.jvm.functions.Function1;
 public final class StandaloneApplyChangesExecutor implements IApplyChangesExecutor {
    private static final String MEMORY_DEVICE_SERIAL = "memory";
    private static final String MEMORY_PACKAGE_NAME = "entry";
-   private final DeployerOption deployOptions = new DeployerOption.Builder().build();
+   private final DeployerOption deployOptions = new DeployerOption.Builder()
+         .setUseStructuralRedefinition(true)
+         .setUseVariableReinitialization(true)
+         .build();
    private final MetricsRecorder metrics = new MetricsRecorder();
    private final StandaloneDeployApiConverter deployApiConverter = new StandaloneDeployApiConverter();
 
