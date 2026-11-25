@@ -56,7 +56,10 @@ import java.nio.file.Path
  */
 open class QuailAsDeployerCompat : IAsDeployerCompat {
 
-    private val deployOptions = DeployerOption.Builder().build()
+    private val deployOptions = DeployerOption.Builder()
+        .setUseStructuralRedefinition(true)
+        .setUseVariableReinitialization(true)
+        .build()
 
     private val metrics = MetricsRecorder()
 
