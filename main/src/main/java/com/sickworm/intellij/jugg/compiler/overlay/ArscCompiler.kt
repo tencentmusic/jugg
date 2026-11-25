@@ -225,6 +225,9 @@ class ArscCompiler(
             "-o",
             overlayDir.absolutePath,
             "--output-to-dir",
+            // Replace existing style entries per config instead of merging into binary APK styles,
+            // whose attribute keys lack matching names and would otherwise leave duplicate or stale items/parents.
+            "--override-styles-instead-of-overlaying",
             "--java",
             rFileDir.absolutePath,
             "--manifest",

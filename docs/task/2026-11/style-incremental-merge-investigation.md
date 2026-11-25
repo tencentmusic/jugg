@@ -105,3 +105,21 @@ adb logcat -s StyleMergeProbe:I '*:S'
 - `main/src/main/java/com/sickworm/intellij/jugg/compiler/overlay/ArscCompiler.kt`：工具调用、基线选择、失败后 daemon 释放。
 - `aapt2-inclink/scripts/test_retained_resources.py`：已有真实 daemon 回归的组织方式；它尚未覆盖本交接的 style 改值问题。
 - [引用校验修复记录](./issue-77-retained-resource-linking.md)、[native 构建指南](../../ai/02_compile_aapt2_build.md)。
+
+## 10. 现场取证结论与修复（2026-11-25）
+
+### 根因确认
+- 在 `android_demo_project` 修改 `values-v31/style_probe_configuration.xml`（`#FFAA0000` -> `#FFAA00AA`）的保留现场中，增量编译和 `overlayswap` 均成功，`.flat` 仅含单条新值，但增量 `resources.arsc` 的 `style/StyleProbeConfiguration (v31)` 变成 `size=2`，同时存在 `0x01010098=#ffaa0000`（旧值在前）与 `0x01010098=#ffaa00aa`（新值在后），导致运行时命中旧值。
+- 源码核实：基线二进制 `Style` 的 framework 属性 `key.name` 为空，本 APK 自定义属性被 `ReferenceIdToNameVisitor` 补成带包名引用，而增量 `.flat` 的属性 `key.name` 为无包名/有名称引用；`Style::MergeWith()` 仅按 `key.name` 严格相等去重，导致 framework 与 local 属性改值均无法覆盖旧条目，且删 item / 删 parent 也会残留旧值。
+
+### 修复方案
+- 采用方案 A：在 `ArscCompiler.incLinkCompile()` 调用 `inclink` 时传入 `--override-styles-instead-of-overlaying`（三端预编译 `aapt2-inclink` 均已内置该开关，无需重编 native 工具），使增量 `<style>` 按 `(config, product)` 整块替换基线 style，与 AGP 资源合并语义一致。
+- 同步更新 `docs/ai/02_compile_resource.md` 说明该约束。
+
+### 验证结果
+- TDD 失败基线：在 `ResourceCompileTest.compileOverrideExistingStyleItemsAndParent` 中覆盖 5 类场景（Framework 改值、Local 改值、删 item、删 parent、`values-v31` 多配置隔离），修复前按预期在 `StyleProbeFramework` `size=1` 断言失败。
+- 修复后回归：
+  - `./gradlew :main:test --tests 'com.sickworm.intellij.jugg.compiler.overlay.ResourceCompileTest.compileOverrideExistingStyleItemsAndParent'` 通过；
+  - `./gradlew :idea:compileKotlin` 编译通过；
+  - 完整 `ResourceCompileTest` 中其余 14 项通过，仅 `compileResourceDirOverlay` 因仓库既有 demo `res` 文件数变化（expected 33 vs actual 36）存在既有差异，未混入本次修复。
+- 设备端 E2E 验证留待用户执行。
