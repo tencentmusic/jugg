@@ -948,6 +948,158 @@ class HookReminderDecisionTest(unittest.TestCase):
         self.assertIn("STOP GATE", responses[3].get("reason", ""))
         self.assertEqual({}, responses[4])
 
+    def test_command_hook_blocks_nested_project_from_parent_workspace_for_all_clients(self):
+        hooks = Path(__file__).resolve().parent.parent
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as workspace:
+            project = Path(workspace).resolve() / "android"
+            baseline = project / "build/jugg/database/compile_context.db/complete_flag"
+            baseline.parent.mkdir(parents=True)
+            baseline.touch()
+            (project / "settings.gradle.kts").touch()
+            source = project / "src/main/java/HookEdit.kt"
+            source.parent.mkdir(parents=True)
+            source.touch()
+            _write_fake_jugg_cli(home, total=1, files=[str(source)], expected_cwd=str(project))
+
+            # Antigravity: edit from parent workspace, then run `cd android && ./gradlew ...` with parent cwd.
+            agy_payload = {"conversationId": "agy-parent-cmd", "cwd": workspace, "workspacePaths": [workspace]}
+            subprocess.run(
+                [sys.executable, str(hooks / "edit.py"), "--client", "antigravity"],
+                input=json.dumps({
+                    **agy_payload,
+                    "toolCall": {"name": "write_to_file", "args": {"filePath": str(source)}},
+                }),
+                capture_output=True,
+                text=True,
+                cwd=home,
+                env=_hook_env(home),
+                check=True,
+            )
+            agy_cmd = subprocess.run(
+                [sys.executable, str(hooks / "command.py"), "--client", "antigravity"],
+                input=json.dumps({
+                    **agy_payload,
+                    "toolCall": {"name": "run_command", "args": {"CommandLine": "cd android && ./gradlew :app:compileDebugKotlin"}},
+                }),
+                capture_output=True,
+                text=True,
+                cwd=home,
+                env=_hook_env(home),
+                check=True,
+            )
+            agy_response = json.loads(agy_cmd.stdout)
+
+            # Claude: edit from parent workspace, then run `cd android && ./gradlew ...` with parent cwd.
+            claude_payload = {"session_id": "claude-parent-cmd", "cwd": workspace}
+            subprocess.run(
+                [sys.executable, str(hooks / "edit.py"), "--client", "claude"],
+                input=json.dumps({
+                    **claude_payload,
+                    "tool_name": "Edit",
+                    "tool_input": {"file_path": str(source)},
+                }),
+                capture_output=True,
+                text=True,
+                cwd=workspace,
+                env=_hook_env(home),
+                check=True,
+            )
+            claude_cmd = subprocess.run(
+                [sys.executable, str(hooks / "command.py"), "--client", "claude"],
+                input=json.dumps({
+                    **claude_payload,
+                    "tool_name": "Bash",
+                    "tool_input": {"command": "cd android && ./gradlew :app:compileDebugKotlin"},
+                }),
+                capture_output=True,
+                text=True,
+                cwd=workspace,
+                env=_hook_env(home),
+                check=False,
+            )
+
+        self.assertEqual("deny", agy_response.get("decision"))
+        self.assertIn("COMMAND GATE", agy_response.get("reason", ""))
+        self.assertEqual(2, claude_cmd.returncode)
+        self.assertIn("COMMAND GATE", claude_cmd.stderr)
+
+    def test_command_hook_filters_to_mentioned_nested_project(self):
+        script = Path(__file__).resolve().parent.parent / "command.py"
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as workspace:
+            workspace_path = Path(workspace).resolve()
+            android_a = workspace_path / "android"
+            android_b = workspace_path / "TMEHealing" / "Android"
+            android_a.mkdir(parents=True)
+            android_b.mkdir(parents=True)
+            source_a = android_a / "src/HookA.kt"
+            source_b = android_b / "src/HookB.kt"
+            _write_fake_jugg_cli(home, total=0, files=[], expected_cwd=str(android_a))
+            state_file = _state_file(home, str(workspace_path), "agy-multi-nested")
+            state_file.parent.mkdir(parents=True, exist_ok=True)
+            state_file.write_text(
+                json.dumps({
+                    "sessionWriteSeen": True,
+                    "projectCwds": [str(android_a), str(android_b)],
+                    "sessionWriteFiles": [str(source_a), str(source_b)],
+                }),
+                encoding="utf-8",
+            )
+            result = subprocess.run(
+                [sys.executable, str(script), "--client", "antigravity"],
+                input=json.dumps({
+                    "conversationId": "agy-multi-nested",
+                    "cwd": str(workspace_path),
+                    "workspacePaths": [str(workspace_path)],
+                    "toolCall": {"name": "run_command", "args": {"CommandLine": "cd android && ./gradlew :app:compileDebugKotlin"}},
+                }),
+                capture_output=True,
+                text=True,
+                cwd=home,
+                env=_hook_env(home),
+                check=True,
+            )
+            response = json.loads(result.stdout)
+
+        self.assertEqual("allow", response.get("decision"))
+
+    def test_stop_hook_skips_status_and_logs_resolved_cwd_without_session_write(self):
+        script = Path(__file__).resolve().parent.parent / "stop.py"
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as workspace:
+            debug_log = Path(home) / "debug.log"
+            status_marker = Path(home) / "status-called"
+            jugg_bin = Path(home) / ".jugg" / "bin"
+            jugg_bin.mkdir(parents=True, exist_ok=True)
+            jugg_cli = jugg_bin / "jugg.py"
+            jugg_cli.write_text(
+                "#!/usr/bin/env python3\n"
+                "from pathlib import Path\n"
+                f"Path({str(status_marker)!r}).write_text('called', encoding='utf-8')\n"
+                "print('{\"status\":\"OK\",\"data\":{\"hasBeenFullCompiled\":true}}')\n",
+                encoding="utf-8",
+            )
+            jugg_cli.chmod(0o755)
+            result = subprocess.run(
+                [sys.executable, str(script), "--client", "antigravity"],
+                input=json.dumps({
+                    "conversationId": "agy-stop-no-write",
+                    "cwd": home,
+                    "workspacePaths": [workspace],
+                    "terminationReason": "model_stop",
+                }),
+                capture_output=True,
+                text=True,
+                cwd=home,
+                env=_hook_env(home, JUGG_HOOK_DEBUG_LOG=str(debug_log)),
+                check=True,
+            )
+            status_called = status_marker.exists()
+            log_text = debug_log.read_text(encoding="utf-8")
+
+        self.assertEqual({}, json.loads(result.stdout))
+        self.assertFalse(status_called)
+        self.assertIn(f"cwd={Path(workspace).resolve()}", log_text)
+        self.assertIn("exit: allow stop because no session write was recorded", log_text)
+
     def test_command_hook_is_raw_gradle_detection(self):
         mod = _load_hook_module("command.py")
         self.assertTrue(mod.is_raw_gradle_command("./gradlew :app:assembleDebug"))

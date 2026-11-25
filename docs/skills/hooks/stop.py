@@ -87,11 +87,11 @@ def _main_impl() -> int:
     args.client = resolve_hook_client(args.client, payload, "stop.py")
     if args.client is None:
         return 0
-    client_part = f" client={args.client}" if args.client else ""
-    debug_log("JUGG-STOP", f"hook triggered cwd={Path.cwd()}{client_part}")
-
     home = Path.home()
     cwd = hook_state_cwd(args.client, payload)
+    client_part = f" client={args.client}" if args.client else ""
+    debug_log("JUGG-STOP", f"hook triggered cwd={cwd}{client_part}")
+
     session_id = extract_session_id(payload)
     state_file = state_file_path(home, cwd, session_id)
     state = read_hook_state(state_file)
@@ -104,6 +104,23 @@ def _main_impl() -> int:
         block_count = int(state.get("stopBlockCount", 0) or 0)
     except (TypeError, ValueError):
         block_count = 0
+
+    session_write_seen = has_session_write_seen(state)
+    if not session_write_seen:
+        if block_count > 0:
+            state["stopBlockCount"] = 0
+            write_hook_state(state_file, state)
+        debug_log(
+            "JUGG-STOP",
+            "decision computed "
+            f"projects=0 pendingProjects=0 "
+            f"sessionWriteSeen=False needsVerification=False "
+            f"stopBlockCount={block_count}",
+        )
+        debug_log("JUGG-STOP", "exit: allow stop because no session write was recorded")
+        if args.client in {"cursor", "antigravity"}:
+            print(json.dumps({}, ensure_ascii=False))
+        return 0
 
     project_cwds = state.get("projectCwds")
     if not isinstance(project_cwds, list) or not project_cwds:
@@ -118,8 +135,7 @@ def _main_impl() -> int:
             continue
         statuses.append((candidate, structured, has_pending_files(extract_file_counts(structured))))
     pending_statuses = [item for item in statuses if item[2]]
-    session_write_seen = has_session_write_seen(state)
-    needs_verification = session_write_seen and any(
+    needs_verification = any(
         session_write_needs_verification(state, item[1], item[0])
         for item in pending_statuses
         if item[1] is not None
