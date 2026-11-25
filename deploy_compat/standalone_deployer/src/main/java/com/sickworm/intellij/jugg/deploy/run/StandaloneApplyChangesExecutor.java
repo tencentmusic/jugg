@@ -24,12 +24,15 @@ import com.sickworm.intellij.jugg.deploy.api.Apk;
 import com.sickworm.intellij.jugg.deploy.api.ApkEntry;
 import com.sickworm.intellij.jugg.deploy.api.ByteString;
 import com.sickworm.intellij.jugg.deploy.api.Deploy;
+import com.sickworm.intellij.jugg.deploy.api.DexClass;
 import com.sickworm.intellij.jugg.deploy.api.DexComparator;
 import com.sickworm.intellij.jugg.deploy.api.IDevice;
 import com.sickworm.intellij.jugg.deploy.api.ILogger;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 import kotlin.Unit;
@@ -129,14 +132,92 @@ public final class StandaloneApplyChangesExecutor implements IApplyChangesExecut
                                        String packageName, boolean restartActivity, List<Integer> pids,
                                        Deploy.Arch arch, JuggOverlayUpdate overlayUpdate, IDevice device,
                                        ILogger logger, boolean isPushOverlayOnly) throws DeployerException {
+      Installer rawInstaller = (Installer)session.getRawInstaller();
+      if (isPushOverlayOnly) {
+         return pushOverlays(rawInstaller, redefiners, packageName, pids,
+               this.deployApiConverter.toStudioArch(arch), overlayUpdate);
+      }
       Map<Integer, ClassRedefiner> rawRedefiners = new HashMap<>();
       redefiners.forEach((pid, redefiner) -> rawRedefiners.put(pid, (ClassRedefiner)redefiner.getRaw()));
-      OptimisticApkSwapper swapper = new OptimisticApkSwapper((Installer)session.getRawInstaller(), rawRedefiners,
+      OptimisticApkSwapper swapper = new OptimisticApkSwapper(rawInstaller, rawRedefiners,
             restartActivity, this.deployOptions, this.metrics);
       OptimisticApkSwapper.SwapResult result = swapper.optimisticSwap(packageName, pids,
             this.deployApiConverter.toStudioArch(arch),
             (OptimisticApkSwapper.OverlayUpdate)overlayUpdate.getRaw());
       return toJuggOverlayId(result.overlayId);
+   }
+
+   private JuggOverlayId pushOverlays(Installer installer, Map<Integer, JuggClassRedefiner> redefiners,
+                                      String packageName, List<Integer> pids,
+                                      com.android.tools.deploy.proto.Deploy.Arch arch,
+                                      JuggOverlayUpdate overlayUpdate) throws DeployerException {
+      JuggOverlayId expectedOverlayId = overlayUpdate.getCachedDump().getOverlayId();
+      OverlayId.Builder overlayIdBuilder = OverlayId.builder((OverlayId)expectedOverlayId.getRaw());
+      com.android.tools.deploy.proto.Deploy.OverlayInstallRequest.Builder request =
+            com.android.tools.deploy.proto.Deploy.OverlayInstallRequest.newBuilder()
+                  .setPackageName(packageName)
+                  .setArch(arch)
+                  .setExpectedOverlayId(expectedOverlayId.isBaseInstall() ? "" : expectedOverlayId.getSha());
+
+      addDexOverlayFiles(overlayUpdate.getDexOverlays().getNewClasses(), overlayIdBuilder, request);
+      addDexOverlayFiles(overlayUpdate.getDexOverlays().getModifiedClasses(), overlayIdBuilder, request);
+      for (Map.Entry<ApkEntry, ByteString> entry : overlayUpdate.getFileOverlays().entrySet()) {
+         String path = entry.getKey().getQualifiedPath();
+         overlayIdBuilder.addOverlayFile(path, entry.getKey().getChecksum());
+         request.addOverlayFiles(com.android.tools.deploy.proto.Deploy.OverlayFile.newBuilder()
+               .setPath(path)
+               .setContent(this.deployApiConverter.toStudioByteString(entry.getValue()))
+               .build());
+      }
+
+      OverlayId overlayId = overlayIdBuilder.build();
+      request.setOverlayId(overlayId.getSha());
+      verifyOverlayIdIfDebugging(installer, redefiners, pids, request);
+
+      com.android.tools.deploy.proto.Deploy.OverlayInstallResponse response;
+      try {
+         response = installer.overlayInstall(request.build());
+      } catch (IOException e) {
+         throw DeployerException.installerIoException(e);
+      }
+      if (response.getStatus() != com.android.tools.deploy.proto.Deploy.OverlayInstallResponse.Status.OK) {
+         throw new IllegalStateException("OptimisticApkUpdater failed, status: " + response.getStatus());
+      }
+      return toJuggOverlayId(overlayId);
+   }
+
+   private static void addDexOverlayFiles(
+         List<DexClass> classes,
+         OverlayId.Builder overlayIdBuilder,
+         com.android.tools.deploy.proto.Deploy.OverlayInstallRequest.Builder request) {
+      for (DexClass clazz : classes) {
+         String path = String.format(Locale.US, "%s.dex", clazz.getName());
+         overlayIdBuilder.addOverlayFile(path, clazz.getChecksum());
+         request.addOverlayFiles(com.android.tools.deploy.proto.Deploy.OverlayFile.newBuilder()
+               .setPath(path)
+               .setContent(com.android.tools.idea.protobuf.ByteString.copyFrom(clazz.getCode()))
+               .build());
+      }
+   }
+
+   private static void verifyOverlayIdIfDebugging(
+         Installer installer,
+         Map<Integer, JuggClassRedefiner> redefiners,
+         List<Integer> pids,
+         com.android.tools.deploy.proto.Deploy.OverlayInstallRequest.Builder request) throws DeployerException {
+      boolean hasDebuggerAttached = pids.stream().anyMatch(redefiners::containsKey);
+      if (!hasDebuggerAttached) {
+         return;
+      }
+      com.android.tools.deploy.proto.Deploy.OverlayIdPushResponse response;
+      try {
+         response = installer.verifyOverlayId(request.getPackageName(), request.getExpectedOverlayId());
+      } catch (IOException e) {
+         throw DeployerException.installerIoException(e);
+      }
+      if (response.getStatus() != com.android.tools.deploy.proto.Deploy.OverlayIdPushResponse.Status.OK) {
+         throw DeployerException.overlayIdMismatch();
+      }
    }
 
    @Override

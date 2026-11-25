@@ -43,7 +43,9 @@ import com.intellij.openapi.project.Project
 import org.jetbrains.android.facet.AndroidFacet
 import org.jetbrains.android.sdk.AndroidSdkUtils
 import java.io.File
+import java.io.IOException
 import java.nio.file.Path
+import java.util.Locale
 
 /**
  * Android Studio Quail compatibility layer.
@@ -159,8 +161,12 @@ open class QuailAsDeployerCompat : IAsDeployerCompat {
         logger: ILogger,
         isPushOverlayOnly: Boolean,
     ): JuggOverlayId {
+        val rawInstaller = session.rawInstaller as Installer
+        if (isPushOverlayOnly) {
+            return pushOverlays(rawInstaller, redefiners, packageName, pids, toStudioArch(arch), overlayUpdate)
+        }
         val swapper = OptimisticApkSwapper(
-            session.rawInstaller as Installer,
+            rawInstaller,
             redefiners.mapValues { it.value.raw as ClassRedefiner },
             argRestart,
             deployOptions,
@@ -168,6 +174,65 @@ open class QuailAsDeployerCompat : IAsDeployerCompat {
         )
         val swapResult = swapper.optimisticSwap(packageName, pids, toStudioArch(arch), overlayUpdate.raw as OptimisticApkSwapper.OverlayUpdate)
         return swapResult.overlayId.toJuggOverlayId()
+    }
+
+    private fun pushOverlays(
+        installer: Installer,
+        redefiners: Map<Int, JuggClassRedefiner>,
+        packageName: String,
+        pids: List<Int>,
+        arch: com.android.tools.deploy.proto.Deploy.Arch,
+        overlayUpdate: JuggOverlayUpdate,
+    ): JuggOverlayId {
+        val expectedOverlayId = overlayUpdate.cachedDump.overlayId
+        val overlayIdBuilder = OverlayId.builder(expectedOverlayId.raw as OverlayId)
+        val request = com.android.tools.deploy.proto.Deploy.OverlayInstallRequest.newBuilder()
+            .setPackageName(packageName)
+            .setArch(arch)
+            .setExpectedOverlayId(if (expectedOverlayId.isBaseInstall) "" else expectedOverlayId.sha)
+
+        (overlayUpdate.dexOverlays.newClasses + overlayUpdate.dexOverlays.modifiedClasses).forEach { clazz ->
+            val path = String.format(Locale.US, "%s.dex", clazz.name)
+            overlayIdBuilder.addOverlayFile(path, clazz.checksum)
+            request.addOverlayFiles(
+                com.android.tools.deploy.proto.Deploy.OverlayFile.newBuilder()
+                    .setPath(path)
+                    .setContent(com.android.tools.idea.protobuf.ByteString.copyFrom(clazz.code))
+                    .build(),
+            )
+        }
+        overlayUpdate.fileOverlays.forEach { (entry, content) ->
+            overlayIdBuilder.addOverlayFile(entry.qualifiedPath, entry.checksum)
+            request.addOverlayFiles(
+                com.android.tools.deploy.proto.Deploy.OverlayFile.newBuilder()
+                    .setPath(entry.qualifiedPath)
+                    .setContent(toStudioByteString(content))
+                    .build(),
+            )
+        }
+
+        val overlayId = overlayIdBuilder.build()
+        request.setOverlayId(overlayId.sha)
+        if (pids.any { redefiners.containsKey(it) }) {
+            val verifyResponse = try {
+                installer.verifyOverlayId(request.packageName, request.expectedOverlayId)
+            } catch (e: IOException) {
+                throw DeployerException.installerIoException(e)
+            }
+            if (verifyResponse.status != com.android.tools.deploy.proto.Deploy.OverlayIdPushResponse.Status.OK) {
+                throw DeployerException.overlayIdMismatch()
+            }
+        }
+
+        val response = try {
+            installer.overlayInstall(request.build())
+        } catch (e: IOException) {
+            throw DeployerException.installerIoException(e)
+        }
+        if (response.status != com.android.tools.deploy.proto.Deploy.OverlayInstallResponse.Status.OK) {
+            throw IllegalStateException("OptimisticApkUpdater failed, status: ${response.status}")
+        }
+        return overlayId.toJuggOverlayId()
     }
 
     override fun getIdeDeployStateResult(project: Project, device: IDevice?, packageName: String?): IdeDeployState {
