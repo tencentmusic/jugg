@@ -500,7 +500,7 @@ class JuggDeployer(
                         "cost=${(System.nanoTime() - start) / 1_000_000}ms")
                 return result
             } catch (e: Exception) {
-                logger.logger.warn("Installer phase=$phase failed, device=${adb.serial}, " +
+                logger.logger.debug("Installer phase=$phase failed, device=${adb.serial}, " +
                         "cost=${(System.nanoTime() - start) / 1_000_000}ms, reason=$e")
                 throw e
             }
