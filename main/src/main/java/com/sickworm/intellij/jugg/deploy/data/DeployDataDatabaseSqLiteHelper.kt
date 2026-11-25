@@ -504,6 +504,30 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
         return results
     }
 
+    /**
+     * Checks in the current process whether all [apkFiles] match the stored `apk_info` keys and modification times
+     * so unchanged APKs can skip launching the isolated parser process.
+     */
+    @Synchronized
+    fun isApksUnchanged(apkFiles: List<File>): Boolean {
+        if (apkFiles.isEmpty()) return false
+        val dbApkModifiedTimes = mutableMapOf<String, Long>()
+        DriverManager.getConnection(url).use { connection ->
+            val sql = "SELECT key, last_modified FROM apk_info;"
+            connection.createStatement().use { statement ->
+                val rs = statement.executeQuery(sql)
+                while (rs.next()) {
+                    dbApkModifiedTimes[rs.getString(1)] = rs.getLong(2)
+                }
+            }
+        }
+        val expectedKeys = apkFiles.map { it.apkFileKey }.toSet()
+        if (dbApkModifiedTimes.keys != expectedKeys) return false
+        return apkFiles.all { apkFile ->
+            apkFile.exists() && dbApkModifiedTimes[apkFile.apkFileKey] == apkFile.lastModified()
+        }
+    }
+
     @Synchronized
     fun diffApk(apkEntries: ApkEntries): ParsedApkDiffResult {
         logger.debug("diffApk apkEntries: dexFiles ${apkEntries.dexFiles.size}")

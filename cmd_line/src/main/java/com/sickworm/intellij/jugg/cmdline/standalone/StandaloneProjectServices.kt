@@ -281,8 +281,8 @@ internal class StandaloneProjectServices(
             deployTargetManagerInside.setApks(emptyList())
             deployFileManager.init(emptyList(), emptyList(), null)
             runningTaskStatusManager.resetHasRun()
+            refreshChangedFiles()
         }
-        refreshChangedFiles()
     }
 
     private fun initCompile(

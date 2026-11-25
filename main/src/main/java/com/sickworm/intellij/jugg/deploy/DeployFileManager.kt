@@ -116,7 +116,11 @@ class DeployFileManager(
         logger.debug("add changed files, size: ${files.size}, paths: $files")
         val newFiles = stateTracker.addChangedFiles(files)
 
-        taskRunnerManager.runBackgroundSafe("DeployFileManager#updateSourceFiles", isProjectWrite = true) {
+        taskRunnerManager.runBackgroundSafe(
+            "DeployFileManager#updateSourceFiles",
+            isProjectWrite = true,
+            claimRuntimeOwner = false,
+        ) {
             sourceFileManager.updateFiles(newFiles, emptyList())
         }
         files.filter {
@@ -154,7 +158,11 @@ class DeployFileManager(
     fun removeChangedFile(files: List<File>) {
         stateTracker.removeChangedFiles(files)
 
-        taskRunnerManager.runBackgroundSafe("DeployFileManager#removeSourceFiles", isProjectWrite = true) {
+        taskRunnerManager.runBackgroundSafe(
+            "DeployFileManager#removeSourceFiles",
+            isProjectWrite = true,
+            claimRuntimeOwner = false,
+        ) {
             sourceFileManager.updateFiles(emptyList(), files.filter { !it.exists() })
         }
         files.forEach {

@@ -443,8 +443,8 @@ class JuggManager @TestOnly constructor(
             deployTargetManager.setApks(emptyList())
             deployFileManager.init(emptyList(), emptyList(), null)
             juggRunningTaskStatusManager.resetHasRun()
+            gitFileChangesDetector.updateChangedFiles()
         }
-        gitFileChangesDetector.updateChangedFiles()
         return true
     }
 

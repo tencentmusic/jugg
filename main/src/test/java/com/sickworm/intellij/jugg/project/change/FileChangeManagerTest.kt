@@ -133,7 +133,7 @@ class FileChangeManagerTest {
         val monitor = RecordingFileChangeMonitor()
         val taskRunnerManager = mock<com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager>()
         val job = Job()
-        whenever(taskRunnerManager.runBackgroundSafe(any(), any(), any(), any(), any())).thenReturn(job)
+        whenever(taskRunnerManager.runBackgroundSafe(any(), any(), any(), any(), any(), any())).thenReturn(job)
         val manager = FileChangeManager(
             fileChangesHandler,
             deployFileManager,

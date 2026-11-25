@@ -40,9 +40,10 @@ internal fun createImmediateTestTaskRunnerManager(): TaskRunnerManager {
     val manager = Mockito.mock(TaskRunnerManager::class.java)
     doReturn(Dispatchers.Unconfined).whenever(manager).dispatcher
     doAnswer { invocation ->
-        invocation.getArgument<Runnable>(4).run()
+        invocation.getArgument<Runnable>(5).run()
         Job()
     }.whenever(manager).runBackgroundSafe(
+        any(),
         any(),
         any(),
         any(),

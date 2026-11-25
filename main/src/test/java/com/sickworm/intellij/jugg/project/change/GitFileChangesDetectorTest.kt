@@ -204,7 +204,7 @@ class GitFileChangesDetectorTest {
         whenever(historyManager.filterUnchangedFiles(sources)).thenReturn(sources)
         val fileManager = createFileManager(rootDir)
         val taskRunner = mock<TaskRunnerManager>()
-        whenever(taskRunner.runBackgroundSafe(any(), any<Long>(), any(), any(), any())).thenReturn(Job())
+        whenever(taskRunner.runBackgroundSafe(any(), any<Long>(), any(), any(), any(), any())).thenReturn(Job())
         doAnswer {
             it.getArgument<Runnable>(1).run()
             null
@@ -217,7 +217,7 @@ class GitFileChangesDetectorTest {
 
         detector.onSourceFileChanged(sources.map { changedFile(it) })
         val delayedRefresh = argumentCaptor<Runnable>()
-        verify(taskRunner).runBackgroundSafe(eq("checkGitFileChanges"), eq(1_000L), eq(true), eq(false), delayedRefresh.capture())
+        verify(taskRunner).runBackgroundSafe(eq("checkGitFileChanges"), eq(1_000L), eq(true), eq(false), eq(false), delayedRefresh.capture())
         assertEquals(sources, fileManager.getUncompiledFiles().map { it.file })
         delayedRefresh.firstValue.run()
 

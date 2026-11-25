@@ -79,6 +79,7 @@ class TaskRunnerManager internal constructor(
         delayMs: Long = 0L,
         isNeedLog: Boolean = true,
         isProjectWrite: Boolean = false,
+        claimRuntimeOwner: Boolean = isProjectWrite,
         action: Runnable,
     ): Job {
         val inheritedOwner = runtimeTaskCoordinator.captureOwner()
@@ -89,7 +90,7 @@ class TaskRunnerManager internal constructor(
                 runtimeTaskCoordinator.withOwnerContext(inheritedOwner) {
                     if (isNeedLog) logger.debug("background job <$jobName> start")
                     val costTime = measureTimeMillis {
-                        runBackgroundWriteLocked(jobName, isProjectWrite, action::run)
+                        runBackgroundWriteLocked(jobName, isProjectWrite, claimRuntimeOwner, action::run)
                     }
                     if (isNeedLog) logger.debug("background job <$jobName> finished, cost ${costTime}ms")
                 }
@@ -138,7 +139,7 @@ class TaskRunnerManager internal constructor(
     }
 
     fun <T> runProjectWriteLocked(jobName: String, action: () -> T): T {
-        return runCoordinatedProjectWriteTransaction(jobName, action)
+        return runCoordinatedProjectWriteTransaction(jobName, action = action)
     }
 
     /** Runs a project transaction only when no unrelated local owner or other runtime owns the project. */
@@ -250,29 +251,42 @@ class TaskRunnerManager internal constructor(
     private fun <T> runBackgroundWriteLocked(
         jobName: String,
         isProjectWrite: Boolean,
+        claimRuntimeOwner: Boolean,
         action: () -> T,
     ): T {
         return when {
-            isProjectWrite -> runCoordinatedProjectWriteTransaction(jobName, action)
+            isProjectWrite -> runCoordinatedProjectWriteTransaction(jobName, claimRuntimeOwner, action)
             else -> action()
         }
     }
 
-    private fun <T> runCoordinatedProjectWriteTransaction(jobName: String, action: () -> T): T {
+    private fun <T> runCoordinatedProjectWriteTransaction(
+        jobName: String,
+        claimRuntimeOwner: Boolean = true,
+        action: () -> T,
+    ): T {
         return runtimeTaskCoordinator.withLock {
-            runProjectWriteTransaction(jobName, action)
+            runProjectWriteTransaction(jobName, claimRuntimeOwner, action)
         }
     }
 
     private fun <T> runInheritedProjectWriteTransaction(jobName: String, action: () -> T): T {
         return runtimeTaskCoordinator.withInheritedLock {
-            runProjectWriteTransaction(jobName, action)
+            runProjectWriteTransaction(jobName, action = action)
         }
     }
 
-    private fun <T> runProjectWriteTransaction(jobName: String, action: () -> T): T {
+    private fun <T> runProjectWriteTransaction(
+        jobName: String,
+        claimRuntimeOwner: Boolean = true,
+        action: () -> T,
+    ): T {
         return executionLockManager.withProjectLock(jobName) {
-            runClaimedProjectAction(action)
+            if (claimRuntimeOwner) {
+                runClaimedProjectAction(action)
+            } else {
+                action()
+            }
         }
     }
 

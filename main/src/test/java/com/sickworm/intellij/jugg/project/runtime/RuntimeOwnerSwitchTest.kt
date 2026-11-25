@@ -8,6 +8,7 @@ import com.sickworm.intellij.jugg.server.JuggServer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -69,6 +70,30 @@ class RuntimeOwnerSwitchTest {
         standaloneManager.runProjectWriteLocked("initialize standalone") {}
 
         assertTrue(JuggSettings.compileOnSave)
+    }
+
+    @Test
+    fun `background project write without owner claim preserves existing runtime owner`() = runBlocking {
+        val pathManager = JuggPathManager(temporaryFolder.newFolder("project"))
+        val ideaManager = createManager(pathManager, "idea", "4.0")
+        val standaloneManager = createManager(pathManager, "standalone", "4.0")
+
+        ideaManager.runProjectWriteLocked("initialize idea") {}
+        var executed = false
+        standaloneManager.runBackgroundSafe(
+            jobName = "DeployFileManager#updateSourceFiles",
+            isProjectWrite = true,
+            claimRuntimeOwner = false,
+        ) {
+            executed = true
+        }.join()
+
+        assertTrue(executed)
+        assertEquals("idea", RuntimeOwnerStore(pathManager.runtimeOwnerFile).read()?.runtimeType)
+        assertNull(standaloneManager.consumeRuntimeOwnerChange())
+
+        ideaManager.runProjectWriteLocked("next idea run") {}
+        assertNull(ideaManager.consumeRuntimeOwnerChange())
     }
 
     private fun createManager(pathManager: JuggPathManager, runtimeType: String, runtimeVersion: String): TaskRunnerManager {
