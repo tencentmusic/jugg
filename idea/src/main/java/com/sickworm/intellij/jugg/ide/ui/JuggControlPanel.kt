@@ -242,13 +242,13 @@ class JuggControlPanel(
             actionLink("Clear Jugg build", controller::resetJuggCache),
             actionLink("Exec remote CMD", controller::runRemoteCommand)))
         add(actionGroup("Device",
-            actionLink("Restart app", controller::restartApp),
+            actionLink("Restart app", controller::restartApp, disableWhileRunning = false),
             actionLink("Clear app data", controller::cleanAndReinstall)))
         add(actionGroup("Jugg plugin",
-            actionLink("Ask AI", controller::askAi),
-            actionLink("Report issue", controller::reportIssue),
-            actionLink("Check updates", controller::checkUpdates),
-            actionLink("Install CLI & skill", controller::installSkills)))
+            actionLink("Ask AI", controller::askAi, disableWhileRunning = false),
+            actionLink("Report issue", controller::reportIssue, disableWhileRunning = false),
+            actionLink("Check updates", controller::checkUpdates, disableWhileRunning = false),
+            actionLink("Install CLI & skill", controller::installSkills, disableWhileRunning = false)))
     }
 
     private fun lastDeploySection(): JComponent = overviewSection("Last deploy", "lastDeploy") {
@@ -538,8 +538,15 @@ class JuggControlPanel(
         actions.forEach(::add)
     }
 
-    private fun actionLink(text: String, action: () -> Unit): ActionLink = ActionLink(text) { action() }
-        .also(quickActions::add)
+    private fun actionLink(
+        text: String,
+        action: () -> Unit,
+        disableWhileRunning: Boolean = true,
+    ): ActionLink = ActionLink(text) { action() }.apply {
+        autoHideOnDisable = false
+    }.also {
+        if (disableWhileRunning) quickActions.add(it)
+    }
 
     private fun verticalGap(size: Int): Component = Box.createVerticalStrut(JBUI.scale(size))
 

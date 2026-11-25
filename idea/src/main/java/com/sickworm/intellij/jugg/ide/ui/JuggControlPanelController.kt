@@ -236,7 +236,7 @@ open class JuggControlPanelController(
     open fun cleanAndReinstall() {
         val confirmed = CommonConfirmDialog.showAndGetResult(
             title = "Clear app data",
-            content = "<html>This will clear app data, run a full Gradle build, and reinstall the app.<br>Are you sure you want to continue?</html>",
+            content = "<html>This will clear app data, compile any pending changes, and reinstall the app.<br>Are you sure you want to continue?</html>",
             okButtonText = "Clear app data",
         )
         recordUserAction(

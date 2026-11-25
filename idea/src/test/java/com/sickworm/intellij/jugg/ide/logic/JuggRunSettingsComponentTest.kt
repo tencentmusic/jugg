@@ -178,6 +178,40 @@ class JuggRunSettingsComponentTest {
     }
 
     @Test
+    fun `running task disables build and clear data actions while keeping restart and jugg plugin enabled`() {
+        TestGlobal.init()
+        val mockModel = MockJuggControlPanelModel().apply {
+            load(MockJuggControlPanelModel.Scenario.RUNNING)
+        }
+        val panel = createPanel(model = mockModel.model)
+        javax.swing.SwingUtilities.invokeAndWait {}
+        val quickActions = findNamedComponent<JPanel>(panel, "quickActions")!!
+        val enabledByGroup = quickActions.components.associate { group ->
+            val title = descendants(group).filterIsInstance<JLabel>().first().text
+            val states = descendants(group).filterIsInstance<ActionLink>().associate {
+                assertTrue("${it.text} should remain visible while disabled", it.isVisible)
+                it.text to it.isEnabled
+            }
+            title to states
+        }
+        assertEquals(mapOf(
+            "Fallback to Gradle" to false,
+            "Clear Jugg build" to false,
+            "Exec remote CMD" to false,
+        ), enabledByGroup["Build"])
+        assertEquals(mapOf(
+            "Restart app" to true,
+            "Clear app data" to false,
+        ), enabledByGroup["Device"])
+        assertEquals(mapOf(
+            "Ask AI" to true,
+            "Report issue" to true,
+            "Check updates" to true,
+            "Install CLI & skill" to true,
+        ), enabledByGroup["Jugg plugin"])
+    }
+
+    @Test
     fun `more options should apply and close run configuration before opening settings`() {
         TestGlobal.init()
         val project = mockProject()

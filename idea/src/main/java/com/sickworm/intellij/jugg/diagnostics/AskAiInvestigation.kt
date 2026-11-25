@@ -56,7 +56,7 @@ class AskAiInvestigation(
         controlPanelController, startedAt)
 
     /** Collects a user-described problem and preserves existing evidence before exposing an Agent prompt. */
-    fun askAi(runner: IJuggConfigurationRunner) {
+    fun askAi(@Suppress("UNUSED_PARAMETER") runner: IJuggConfigurationRunner) {
         controlPanelController.recordUserAction("Ask AI")
         taskRunnerManager.runBackgroundSafe("Prepare Ask AI") {
             val devices = try {
@@ -69,15 +69,14 @@ class AskAiInvestigation(
                 if (project.isDisposed) return@invokeLater
                 val dialog = AskAiDialog(project, devices.map { it.serialNumber to it.name })
                 if (!dialog.showAndGet()) return@invokeLater
-                saveInvestigation(runner, dialog.problemType, dialog.problemDescription, dialog.deviceSerials)
+                saveInvestigation(dialog.problemType, dialog.problemDescription, dialog.deviceSerials)
             }
         }
     }
 
-    private fun saveInvestigation(runner: IJuggConfigurationRunner, problemType: String, description: String, deviceSerials: Set<String>) {
+    private fun saveInvestigation(problemType: String, description: String, deviceSerials: Set<String>) {
         taskRunnerManager.runTaskSafe("Save investigation evidence", {
             try {
-                check(!runner.isCompiling) { "A Jugg task is running. Wait for it to finish and try ASK AI again." }
                 val failures = mutableMapOf<String, String>()
                 if (deviceSerials.isEmpty()) failures["logcat"] = "No device was selected; logcat was not collected."
                 val deviceLogs = collectInvestigationLogcat(deviceSerials, failures)
@@ -90,7 +89,7 @@ class AskAiInvestigation(
             } catch (e: Exception) {
                 showInvestigationFailure(e)
             }
-        })
+        }, isProjectWrite = false, isBlockIncrementalCompile = false)
     }
 
     /** Called synchronously at the failed task boundary so a later Run cannot replace its local evidence. */
