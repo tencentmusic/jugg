@@ -91,6 +91,7 @@ class GradleProjectInfoReader(
                         "${moduleInfo.buildVariant}AndroidTestCompileClasspath",
                         isAndroidDepend = true,
                     )
+                    val testVariants = readTestVariants(androidExt)
                     val androidTestModuleInfo = buildAndroidTestModuleInfo(
                         appModuleInfo = moduleInfo,
                         sourceDirs = sourceDirs.filter { it.exists() },
@@ -100,6 +101,8 @@ class GradleProjectInfoReader(
                         kotlinModuleName = readKotlinModuleName(
                             findKotlinTask(project, resolveAndroidTestBuildVariant(moduleInfo.buildVariant).camelCompat)
                         ),
+                        variants = testVariants,
+                        signingConfigs = moduleInfo.signingConfigs
                     )
                     if (androidTestModuleInfo != null) {
                         modules[androidTestModuleInfo.name] = androidTestModuleInfo
@@ -701,7 +704,6 @@ class GradleProjectInfoReader(
         val isApplication = moduleInfo.moduleType == ModuleInfo.Type.Application
         val isDynamicFeature = moduleInfo.moduleType == ModuleInfo.Type.DynamicFeature
         if (isApplication) {
-            signingConfigs = mutableListOf()
             // com.android.build.gradle.internal.dsl.BaseAppModuleExtension -> AppExtension ->
             // com.android.build.gradle.AbstractAppExtension.applicationVariants
             (androidExt["applicationVariants"]?.value as? Collection<*>)?.mapNotNull { obj ->
@@ -715,25 +717,7 @@ class GradleProjectInfoReader(
                 ))
             }
 
-            // com.android.build.gradle.internal.dsl.BaseAppModuleExtension.signingConfigs
-            (androidExt["signingConfigs"]?.value as? Collection<*>)?.mapNotNull { obj ->
-                // com.android.builder.model.SigningConfig
-                // com.android.build.gradle.internal.api.ReadOnlySigningConfig
-                val signingConfig = reflector(obj)
-                signingConfigs.add(SigningConfig(
-                    signingConfig["name"]?.valueString ?: return@mapNotNull null,
-                    signingConfig["storeFile"]?.value as? File,
-                    signingConfig["storePassword"]?.valueString,
-                    signingConfig["keyAlias"]?.valueString,
-                    signingConfig["keyPassword"]?.valueString,
-                    signingConfig["storeType"]?.valueString,
-                    (signingConfig["isV1SigningEnabled"]?.value == true) || (signingConfig["enableV1Signing"]?.value == true),
-                    (signingConfig["isV2SigningEnabled"]?.value == true) || (signingConfig["enableV2Signing"]?.value == true),
-                    signingConfig["enableV3Signing"]?.value == true,
-                    signingConfig["enableV4Signing"]?.value == true,
-                    signingConfig["isSigningReady"]?.value == true,
-                ))
-            }
+            signingConfigs = readSigningConfigs(androidExt)
         } else if (isDynamicFeature) {
             // com.android.build.gradle.internal.dsl.DynamicFeatureExtension -> AppExtension ->
             // com.android.build.gradle.AbstractAppExtension.applicationVariants
@@ -749,6 +733,7 @@ class GradleProjectInfoReader(
                     )
                 )
             }
+            signingConfigs = readSigningConfigs(androidExt)
         } else {
             // com.android.build.gradle.api.LibraryVariant
             (androidExt["libraryVariants"]?.value as? Collection<*>)?.forEach { obj ->
@@ -760,6 +745,7 @@ class GradleProjectInfoReader(
                     minifyEnabled = readVariantMinifyEnabled(variant),
                 ))
             }
+            signingConfigs = readSigningConfigs(androidExt)
         }
 
         if (variants.isEmpty()) {
@@ -781,6 +767,44 @@ class GradleProjectInfoReader(
                 buildDirRelativePath = project.layout.buildDirectory.get().asFile.relativeTo(ideProjectDir).path
             ),
         )
+    }
+
+    private fun readSigningConfigs(androidExt: Reflector): List<SigningConfig> {
+        val signingConfigs = mutableListOf<SigningConfig>()
+        // com.android.build.gradle.internal.dsl.BaseAppModuleExtension.signingConfigs
+        (androidExt["signingConfigs"]?.value as? Collection<*>)?.mapNotNull { obj ->
+            // com.android.builder.model.SigningConfig
+            // com.android.build.gradle.internal.api.ReadOnlySigningConfig
+            val signingConfig = reflector(obj)
+            signingConfigs.add(SigningConfig(
+                signingConfig["name"]?.valueString ?: return@mapNotNull null,
+                signingConfig["storeFile"]?.value as? File,
+                signingConfig["storePassword"]?.valueString,
+                signingConfig["keyAlias"]?.valueString,
+                signingConfig["keyPassword"]?.valueString,
+                signingConfig["storeType"]?.valueString,
+                (signingConfig["isV1SigningEnabled"]?.value == true) || (signingConfig["enableV1Signing"]?.value == true),
+                (signingConfig["isV2SigningEnabled"]?.value == true) || (signingConfig["enableV2Signing"]?.value == true),
+                signingConfig["enableV3Signing"]?.value == true,
+                signingConfig["enableV4Signing"]?.value == true,
+                signingConfig["isSigningReady"]?.value == true
+            ))
+        }
+        return signingConfigs
+    }
+
+    private fun readTestVariants(androidExt: Reflector): List<Variant> {
+        val variants = mutableListOf<Variant>()
+        (androidExt["testVariants"]?.value as? Collection<*>)?.mapNotNull { obj ->
+            val variant = reflector(obj)
+            variants.add(Variant(
+                name = variant["name"]?.valueString ?: return@mapNotNull null,
+                signingConfigName = variant["signingConfig"]["name"]?.valueString,
+                minSdkVersion = variant["mergedFlavor"]["minSdkVersion"]["apiLevel"]?.valueString,
+                minifyEnabled = readVariantMinifyEnabled(variant)
+            ))
+        }
+        return variants
     }
 
     /**
@@ -2143,6 +2167,8 @@ class GradleProjectInfoReader(
             moduleDependencies: List<ModuleDependency> = emptyList(),
             testApplicationId: String?,
             kotlinModuleName: String? = null,
+            variants: List<Variant> = emptyList(),
+            signingConfigs: List<SigningConfig>? = null
         ): ModuleInfo? {
             if (sourceDirs.isEmpty()) return null
             val ownerPackage = appModuleInfo.applicationId ?: appModuleInfo.namespace ?: return null
@@ -2171,8 +2197,8 @@ class GradleProjectInfoReader(
                 kaptDependencies = emptyList(),
                 moduleDependencies = (listOf(ModuleDependency(appModuleInfo.name)) + moduleDependencies)
                     .distinctBy { it.moduleName },
-                variants = emptyList(),
-                signingConfigs = null,
+                variants = variants,
+                signingConfigs = signingConfigs
             )
         }
 

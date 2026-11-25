@@ -260,29 +260,89 @@ class BaseCompileContext(
             return null
         }
 
-        logger.debug("available signing variants: ${applicationModule.variants}, " +
-                "target buildVariant: ${applicationModule.buildVariant}")
-        logger.debug("available signingConfigList: ${applicationModule.signingConfigs?.map { it.configName }}")
+        return resolveModuleSigningConfig(applicationModule, logDetails = true)
+    }
 
-        val variant = applicationModule.variants.find {
-            it.name == applicationModule.buildVariant
+    override fun getSigningConfig(apkInfo: ApkInfo): SigningConfig? {
+        if (!apkInfo.isTestApk) {
+            return signingConfig
+        }
+
+        val testModule = modules.values.find {
+            it.isAndroidTestModule && it.applicationId == apkInfo.applicationId
+        }
+        if (testModule != null) {
+            resolveModuleSigningConfig(testModule, logDetails = false)?.let { return it }
+            // Library test APKs in AGP default to the module's debug signing config even if testVariant.signingConfigName is unset.
+            if (!apkInfo.isOtherTargetingTestApk) {
+                testModule.signingConfigs?.find { it.configName == "debug" }?.let { return it }
+            }
+        }
+
+        if (apkInfo.isOtherTargetingTestApk) {
+            return signingConfig
+        }
+
+        // Self-targeting library test APKs are signed with AGP's default debug keystore when no library signingConfig is present.
+        return resolveDefaultDebugSigningConfig() ?: signingConfig
+    }
+
+    private fun resolveModuleSigningConfig(module: ModuleInfo, logDetails: Boolean): SigningConfig? {
+        if (logDetails) {
+            logger.debug("available signing variants: ${module.variants}, " +
+                    "target buildVariant: ${module.buildVariant}")
+            logger.debug("available signingConfigList: ${module.signingConfigs?.map { it.configName }}")
+        }
+
+        val variant = module.variants.find {
+            it.name == module.buildVariant
         }
         if (variant == null) {
-            logger.debug("get signing config failed, no variant found.")
+            if (logDetails) {
+                logger.debug("get signing config failed, no variant found.")
+            }
             return null
         }
-        val relativeSigningConfig = applicationModule.signingConfigs?.find {
+        val relativeSigningConfig = module.signingConfigs?.find {
             it.configName == variant.signingConfigName
         }
         if (relativeSigningConfig == null) {
-            logger.debug("get signing config failed, no relativeSigningConfig found.")
+            if (logDetails) {
+                logger.debug("get signing config failed, no relativeSigningConfig found.")
+            }
             return null
         }
 
-        logger.debug("get signing config success, use " +
-                "${relativeSigningConfig.configName} -> ${relativeSigningConfig.keystore?.path} " +
-                "(don't print all for security)")
+        if (logDetails) {
+            logger.debug("get signing config success, use " +
+                    "${relativeSigningConfig.configName} -> ${relativeSigningConfig.keystore?.path} " +
+                    "(don't print all for security)")
+        }
         return relativeSigningConfig
+    }
+
+    private fun resolveDefaultDebugSigningConfig(): SigningConfig? {
+        val androidUserHome = System.getenv("ANDROID_USER_HOME")?.takeIf { it.isNotBlank() }?.let(::File)
+            ?: System.getenv("ANDROID_SDK_HOME")?.takeIf { it.isNotBlank() }?.let { File(it, ".android") }
+            ?: File(System.getProperty("user.home"), ".android")
+        val debugKeystore = File(androidUserHome, "debug.keystore")
+        if (!debugKeystore.exists()) {
+            return null
+        }
+        logger.debug("get signing config fallback to default debug keystore -> ${debugKeystore.path}")
+        return SigningConfig(
+            configName = "debug",
+            keystore = debugKeystore,
+            storePassword = "android",
+            keyAlias = "androiddebugkey",
+            keyPassword = "android",
+            storeType = null,
+            enableV1Signing = true,
+            enableV2Signing = true,
+            enableV3Signing = false,
+            enableV4Signing = false,
+            isSigningReady = true,
+        )
     }
 
     override val isEnableDesugared: Boolean by lazy {

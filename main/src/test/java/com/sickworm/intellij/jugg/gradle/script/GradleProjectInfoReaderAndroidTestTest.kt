@@ -318,4 +318,36 @@ class GradleProjectInfoReaderAndroidTestTest {
         assertEquals(module, result.module)
         assertEquals(testApk, result.testApk)
     }
+
+    @Test
+    fun `buildAndroidTestModuleInfo preserves testVariants and signingConfigs`() {
+        val signing = com.sickworm.intellij.jugg.project.info.SigningConfig(
+            configName = "debug",
+            keystore = File("/tmp/debug.keystore"),
+            storePassword = "android",
+            keyAlias = "androiddebugkey",
+            keyPassword = "android",
+            storeType = "PKCS12",
+            enableV1Signing = true,
+            enableV2Signing = true,
+            enableV3Signing = false,
+            enableV4Signing = false,
+            isSigningReady = true,
+        )
+        val testVariant = com.sickworm.intellij.jugg.project.info.Variant(
+            name = "debugAndroidTest",
+            signingConfigName = "debug",
+        )
+        val result = GradleProjectInfoReader.buildAndroidTestModuleInfo(
+            appModuleInfo = libraryModule("com.example.library1").copy(signingConfigs = listOf(signing)),
+            sourceDirs = listOf(File("/project/library1/src/androidTest/java")),
+            libraryDependencies = emptyList(),
+            testApplicationId = null,
+            variants = listOf(testVariant),
+            signingConfigs = listOf(signing),
+        )
+
+        assertEquals(listOf(testVariant), result?.variants)
+        assertEquals(listOf(signing), result?.signingConfigs)
+    }
 }

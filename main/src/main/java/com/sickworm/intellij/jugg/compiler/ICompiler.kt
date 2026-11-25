@@ -358,6 +358,12 @@ interface ICompileContext {
     /** APK singing config */
     val signingConfig: SigningConfig?
 
+    /**
+     * Resolves the signing config for [apkInfo].
+     * Defaults to [signingConfig] for regular app APKs and fallback cases.
+     */
+    fun getSigningConfig(apkInfo: ApkInfo): SigningConfig? = signingConfig
+
     /** compile temporary incremental storage directory */
     val incrementalDataDir: File
 

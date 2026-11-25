@@ -8,6 +8,7 @@ import com.sickworm.intellij.jugg.apk.CustomApkSignScriptRunner
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.deploy.toDeployItem
 import com.sickworm.intellij.jugg.JuggException
+import com.sickworm.intellij.jugg.project.info.SigningConfig
 import java.io.File
 
 /**
@@ -28,72 +29,87 @@ class IncrementalDeployHelper(private val context: ICompileContext, private val 
         skipSign: Boolean = false,
     ): Pair<Boolean, String> {
         val baseApk = apkInfos.firstOrNull { it.baseApk != null }?.baseApk?.apkFile
-        val allApks = apkInfos.flatMap { it.files }.map { it.apkFile }
         if (baseApk == null) {
             throw JuggException.baseApkNotFound(context.packageName, context.apkInfos)
         }
 
-        val signingConfig = if (skipSign) null else context.signingConfig
         val signScriptRunner = customApkSignScript.takeIf { !skipSign && it.isNotBlank() }?.let {
             CustomApkSignScriptRunner(it, context.projectDir, context.cmdCompileEnv, compileUiHandler, logger)
         }
-        if (!skipSign && signScriptRunner == null) {
-            if (signingConfig == null) {
-                return false to "Unable to update APK, signing config not found."
-            }
-            val configuredKeystore = signingConfig.keystore
-            val invalidReason = when {
-                configuredKeystore == null -> "keystore path is missing"
-                !configuredKeystore.exists() -> "keystore does not exist or is not accessible"
-                signingConfig.storePassword == null -> "keystore password is missing"
-                else -> null
-            }
-            if (invalidReason != null) {
-                val keystore = configuredKeystore?.absoluteFile
-                val parent = keystore?.parentFile
-                return false to "Unable to update APK, signing config '${signingConfig.configName}' is invalid: $invalidReason. " +
-                        "Keystore: ${keystore?.path}, readable: ${keystore?.canRead()}, " +
-                        "parent directory visible: ${parent?.isDirectory}, traversable: ${parent?.canExecute()}, " +
-                        "user.name: ${System.getProperty("user.name")}, user.home: ${System.getProperty("user.home")}."
+        val apkSigningConfigs = if (skipSign) {
+            emptyMap()
+        } else {
+            apkInfos.associateWith { apkInfo ->
+                val signingConfig = context.getSigningConfig(apkInfo)
+                if (signScriptRunner == null) {
+                    validateSigningConfig(signingConfig)?.let { return false to it }
+                }
+                signingConfig
             }
         }
 
-        allApks.forEach { apkFile ->
-            val isBaseApk = apkFile == baseApk
-            val modifier = ApkFileModifier(
-                apkFile, signingConfig, context.androidHome, logger, context.cmdCompileEnv, signScriptRunner,
-            )
-            val deployItems = mutableListOf<DeployItem>()
-            allDeployItems.forEach {
-                if (it.belongsTo(apkFile.path) || (isBaseApk && it.apkPath == DeployItem.FLAG_BASE_APK)) {
-                    deployItems.add(it)
-                }
-            }
-            logger.debug("Update apk: $apkFile\nDeploy items:\n${deployItems.joinToString("\n") { "    " + it.name }}\n")
-            try {
-                deployItems.forEach {
-                    val path = if (it.type == CompileOutput.Type.Dex) {
-                        // put in INCREMENTAL_DATA_PATH
-                        INCREMENTAL_DATA_PATH + it.name + ".dex"
-                    } else {
-                        // override
-                        it.name
-                    }
-                    val sourceFile = it.sourceFileOrNull()
-                    if (sourceFile != null) {
-                        modifier.addFile(path, sourceFile, it.size, it.checksum)
-                    } else {
-                        modifier.addFile(path, it.content)
+        apkInfos.forEach { apkInfo ->
+            val signingConfig = apkSigningConfigs[apkInfo]
+            apkInfo.files.forEach { apkUnit ->
+                val apkFile = apkUnit.apkFile
+                val isBaseApk = apkFile == baseApk
+                val modifier = ApkFileModifier(
+                    apkFile, signingConfig, context.androidHome, logger, context.cmdCompileEnv, signScriptRunner,
+                )
+                val deployItems = mutableListOf<DeployItem>()
+                allDeployItems.forEach {
+                    if (it.belongsTo(apkFile.path) || (isBaseApk && it.apkPath == DeployItem.FLAG_BASE_APK)) {
+                        deployItems.add(it)
                     }
                 }
-                modifier.insertAndResign(skipSign)
-            } catch (e: Exception) {
-                logger.warn("Update apk failed: ${apkFile.absolutePath}", e)
-                return false to "Update apk failed: ${apkFile.absolutePath}, reason: ${e.message ?: e}"
+                logger.debug("Update apk: $apkFile\nDeploy items:\n${deployItems.joinToString("\n") { "    " + it.name }}\n")
+                try {
+                    deployItems.forEach {
+                        val path = if (it.type == CompileOutput.Type.Dex) {
+                            // put in INCREMENTAL_DATA_PATH
+                            INCREMENTAL_DATA_PATH + it.name + ".dex"
+                        } else {
+                            // override
+                            it.name
+                        }
+                        val sourceFile = it.sourceFileOrNull()
+                        if (sourceFile != null) {
+                            modifier.addFile(path, sourceFile, it.size, it.checksum)
+                        } else {
+                            modifier.addFile(path, it.content)
+                        }
+                    }
+                    modifier.insertAndResign(skipSign)
+                } catch (e: Exception) {
+                    logger.warn("Update apk failed: ${apkFile.absolutePath}", e)
+                    return false to "Update apk failed: ${apkFile.absolutePath}, reason: ${e.message ?: e}"
+                }
+                logger.info("Update apk success, output: ${apkFile.absolutePath}")
             }
-            logger.info("Update apk success, output: ${apkFile.absolutePath}")
         }
         return true to ""
+    }
+
+    private fun validateSigningConfig(signingConfig: SigningConfig?): String? {
+        if (signingConfig == null) {
+            return "Unable to update APK, signing config not found."
+        }
+        val configuredKeystore = signingConfig.keystore
+        val invalidReason = when {
+            configuredKeystore == null -> "keystore path is missing"
+            !configuredKeystore.exists() -> "keystore does not exist or is not accessible"
+            signingConfig.storePassword == null -> "keystore password is missing"
+            else -> null
+        }
+        if (invalidReason == null) {
+            return null
+        }
+        val keystore = configuredKeystore?.absoluteFile
+        val parent = keystore?.parentFile
+        return "Unable to update APK, signing config '${signingConfig.configName}' is invalid: $invalidReason. " +
+                "Keystore: ${keystore?.path}, readable: ${keystore?.canRead()}, " +
+                "parent directory visible: ${parent?.isDirectory}, traversable: ${parent?.canExecute()}, " +
+                "user.name: ${System.getProperty("user.name")}, user.home: ${System.getProperty("user.home")}."
     }
 
     fun exportIncrementalApk(outputDir: File, deployItems : List<DeployItem>): ExportIncrementalApkResult {
