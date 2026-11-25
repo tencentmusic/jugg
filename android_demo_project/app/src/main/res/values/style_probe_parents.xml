@@ -1,0 +1,8 @@
+<resources>
+    <attr name="styleProbeToken" format="integer" />
+    <style name="StyleProbeBase" parent="@android:style/Widget.TextView">
+        <item name="android:textColor">#FF008800</item>
+        <item name="android:textSize">18sp</item>
+        <item name="styleProbeToken">10</item>
+    </style>
+</resources>

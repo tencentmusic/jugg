@@ -1,0 +1,7 @@
+<resources>
+    <style name="StyleProbeDelete" parent="StyleProbeBase">
+        <!-- Case 3: remove the textColor item; a full build should inherit green. -->
+        <item name="android:textColor">#FFFF0000</item>
+        <item name="android:textSize">22sp</item>
+    </style>
+</resources>

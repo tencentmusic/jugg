@@ -1,0 +1,6 @@
+<resources>
+    <style name="StyleProbeFramework" parent="StyleProbeBase">
+        <!-- Case 1: change only this value to #FF0000FF. -->
+        <item name="android:textColor">#FFFF0000</item>
+    </style>
+</resources>
