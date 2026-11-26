@@ -6,9 +6,6 @@ import com.sickworm.intellij.jugg.compiler.ui.RunResult
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
 import com.sickworm.intellij.jugg.ide.logic.JuggRunInvocationResult
 import com.sickworm.intellij.jugg.ai.mcp.IMcpRuntime
-import com.sickworm.intellij.jugg.logger.JuggLogger
-import com.sickworm.intellij.jugg.project.JuggPathManager
-import java.io.File
 import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -39,13 +36,15 @@ object CompileJobManager {
     fun triggerForceGradleCompile(
         runtime: IMcpRuntime,
         waitAppReadyAfterSuccess: Boolean = false,
+        targetDeviceSerial: String? = null,
     ): CompileJobTriggerResult {
         return trigger(
             executionType = runtime.forceGradleCompileHelper.resolveExecutionType(),
-            logPath = compileLogPath(runtime),
+            logPath = runtime.compileLatestLogPath,
             runTask = {
-                val result: GradleCompileExecutionResult = runtime.forceGradleCompileHelper.executeGradleCompileBlocking(
+                val result: GradleCompileExecutionResult = runtime.forceGradleCompileHelper.executeGradleCompileBlockingForDevice(
                     autoConfirm = true,
+                    targetDeviceSerial = targetDeviceSerial,
                 )
                 val status = resolveGradleBuildStatus(result)
                 val initialResult = CompileJobExecutionResult(
@@ -55,8 +54,8 @@ object CompileJobManager {
                     isDeploySuccess = result.isDeploySuccess,
                     detail = result.detail,
                 )
-                if (runtime.deployTargetManager.hasDevice && waitAppReadyAfterSuccess) {
-                    waitAppReadyIfSuccess(runtime, "gradle-build", initialResult)
+                if (waitAppReadyAfterSuccess) {
+                    waitAppReadyIfSuccess(runtime, "gradle-build", initialResult, targetDeviceSerial)
                 } else {
                     initialResult
                 }
@@ -67,15 +66,16 @@ object CompileJobManager {
     fun triggerJuggCompile(
         runtime: IMcpRuntime,
         isSkipDeploy: Boolean,
-        successToolName: String?,
+        successMessageProvider: (RunResult) -> String?,
         isAlwaysRestartApp: Boolean = false,
         androidTestRunSpec: AndroidTestRunSpec? = null,
         buildTargetOverride: BuildTarget? = null,
         waitAppReadyAfterSuccess: Boolean = false,
+        targetDeviceSerial: String? = null,
     ): CompileJobTriggerResult {
         return trigger(
             executionType = runtime.forceGradleCompileHelper.resolveExecutionType(),
-            logPath = compileLogPath(runtime),
+            logPath = runtime.compileLatestLogPath,
             runTask = {
                 val runResponse = runtime.juggConfigurationRunner.runFirstConfigurationWithSpec(
                     isRpcMode = true,
@@ -83,6 +83,7 @@ object CompileJobManager {
                     isAlwaysRestartApp = isAlwaysRestartApp,
                     androidTestRunSpec = androidTestRunSpec,
                     buildTargetOverride = buildTargetOverride,
+                    targetDeviceSerial = targetDeviceSerial,
                 )
                 val runResult = runResponse.runResult
                 val compileOk = runResult?.isCompileSuccess
@@ -109,9 +110,7 @@ object CompileJobManager {
                 }
                 val finalStatus = resolveRunResultStatus(runResult, isSkipDeploy)
                 val finalMessage = if (finalStatus == "success") {
-                    successToolName?.let {
-                        CompileAndDeployMcpToolAction.buildSuccessMessage(it, runtime.project.basePath, runResult)
-                    } ?: "Jugg compile finished successfully."
+                    successMessageProvider(runResult) ?: "Jugg compile finished successfully."
                 } else {
                     "Jugg compile finished with status=$finalStatus."
                 }
@@ -127,7 +126,7 @@ object CompileJobManager {
                 if (isSkipDeploy || !waitAppReadyAfterSuccess) {
                     initialResult
                 } else {
-                    waitAppReadyIfSuccess(runtime, "deploy", initialResult)
+                    waitAppReadyIfSuccess(runtime, "deploy", initialResult, targetDeviceSerial)
                 }
             },
         )
@@ -160,12 +159,6 @@ object CompileJobManager {
     internal fun resetForTest() {
         jobs.clear()
         softTimeoutMillisOverrideForTest = null
-    }
-
-    internal fun compileLogPath(runtime: IMcpRuntime): String {
-        JuggLogger.getLogDir(runtime.project)?.let { return File(it, "compile_latest.log").absolutePath }
-        val projectDir = File(checkNotNull(runtime.project.basePath) { "MCP project base path is unavailable" })
-        return File(JuggPathManager(projectDir).logDir, "compile_latest.log").absolutePath
     }
 
     private fun trigger(
@@ -304,11 +297,12 @@ object CompileJobManager {
         runtime: IMcpRuntime,
         toolName: String,
         result: CompileJobExecutionResult,
+        targetDeviceSerial: String?,
     ): CompileJobExecutionResult {
         if (result.status != "success") {
             return result
         }
-        val waitResult = McpAppReadyGuard.waitAfterMutating(runtime, toolName)
+        val waitResult = McpAppReadyGuard.waitAfterMutating(runtime, toolName, targetDeviceSerial)
         if (waitResult.isReady) {
             return result
         }

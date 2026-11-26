@@ -1,12 +1,18 @@
 package com.sickworm.intellij.jugg
 
+import com.sickworm.intellij.jugg.ide.ui.DirectorySelector
+import com.sickworm.intellij.jugg.project.runtime.JuggGlobalDirectoryMigration
+import com.sickworm.intellij.jugg.project.change.ChangedFile
+import com.sickworm.intellij.jugg.project.runtime.JuggProcessLease
+import com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager
 import com.intellij.ide.actions.RevealFileAction
 import com.intellij.execution.Executor
 import com.intellij.execution.ExecutionResult
 import com.intellij.execution.configurations.RunProfile
 import com.intellij.execution.RunManager
+import com.intellij.execution.RunManagerListener
 import com.intellij.execution.RunnerAndConfigurationSettings
-import com.intellij.execution.configurations.ConfigurationFactory
+import com.intellij.ide.util.PropertiesComponent
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.actionSystem.ActionGroup
 import com.intellij.openapi.actionSystem.DefaultActionGroup
@@ -21,24 +27,32 @@ import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.wm.ToolWindowManager
 import com.sickworm.intellij.jugg.compiler.*
+import com.sickworm.intellij.jugg.compiler.context.CompileContextManager
+import com.sickworm.intellij.jugg.compiler.context.IdeaCompileEnvironmentSource
+import com.sickworm.intellij.jugg.compiler.context.IdeaProjectModelSource
 import com.sickworm.intellij.jugg.compiler.custom.CustomCompilerManager
 import com.sickworm.intellij.jugg.deploy.*
+import com.sickworm.intellij.jugg.deploy.cache.JuggDeploymentCacheStore
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
 import com.sickworm.intellij.jugg.deploy.run.*
+import com.sickworm.intellij.jugg.deploy.run.instrument.LibraryTestApkBackfillHelper
 import com.sickworm.intellij.jugg.ide.*
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
+import com.sickworm.intellij.jugg.project.runtime.JuggSettingsProjectEffects
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.ai.skills.JuggCliAutoUpdater
+import com.sickworm.intellij.jugg.ide.controlpanel.JuggEvent
 import com.sickworm.intellij.jugg.ide.logic.*
 import com.sickworm.intellij.jugg.ide.ui.CheckUpdateHandler
 import com.sickworm.intellij.jugg.ide.ui.CheckUpdatesProgressDialog
 import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
 import com.sickworm.intellij.jugg.ide.ui.InstallJuggSkillsDialog
 import com.sickworm.intellij.jugg.ide.ui.JuggControlPanelController
-import com.sickworm.intellij.jugg.ide.controlpanel.JuggEvent
 import com.sickworm.intellij.jugg.ide.ui.ReportIssueDialog
 import com.sickworm.intellij.jugg.ide.ui.ReportIssueProgressDialog
 import com.sickworm.intellij.jugg.ide.ui.ReportIssueResultDialog
+import com.sickworm.intellij.jugg.gradle.compile.CopyGeneratedSourceHelper
+import com.sickworm.intellij.jugg.gradle.compile.LocalGradleCompileClient
 import com.sickworm.intellij.jugg.ide.ui.RemoteCommandDialog
 import com.sickworm.intellij.jugg.loader.JuggInitializer
 import com.sickworm.intellij.jugg.logger.JuggLogger
@@ -53,11 +67,28 @@ import com.sickworm.intellij.jugg.git.GitManager
 import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.*
+import com.sickworm.intellij.jugg.project.change.FileChangeManager
+import com.sickworm.intellij.jugg.project.change.FileChangeResult
+import com.sickworm.intellij.jugg.project.change.FileChangeSource
+import com.sickworm.intellij.jugg.project.change.FileChangesHandler
+import com.sickworm.intellij.jugg.project.change.GitFileChangesDetector
+import com.sickworm.intellij.jugg.project.change.IFileChangeMonitor
+import com.sickworm.intellij.jugg.project.change.IFileChangesHandler
+import com.sickworm.intellij.jugg.project.change.IdeaFileChangeMonitor
 import com.sickworm.intellij.jugg.project.dependency.GradleProjectInfoLocalFetchManager
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import com.sickworm.intellij.jugg.project.dependency.create
-import com.sickworm.intellij.jugg.server.JuggHotUpdateDownloader
+import com.sickworm.intellij.jugg.project.info.ProjectInfoReader
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
+import com.sickworm.intellij.jugg.project.runtime.CliRunConfigurationStore
+import com.sickworm.intellij.jugg.project.runtime.IdeaCliRunConfigurationManager
+import com.sickworm.intellij.jugg.project.runtime.ProjectCustomConfigManager
+import com.sickworm.intellij.jugg.project.runtime.RuntimeInfo
+import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
+import com.sickworm.intellij.jugg.project.runtime.migrateLegacyJuggSettings
+import com.sickworm.intellij.jugg.server.IdeaHotUpdateCoordinator
 import com.sickworm.intellij.jugg.server.JuggServer
+import com.sickworm.intellij.jugg.runtime.HostTaskExecutor
 import com.sickworm.intellij.jugg.server.PublicUpdateChecker
 import com.sickworm.intellij.jugg.server.PublicUpdateInstaller
 import kotlinx.coroutines.*
@@ -74,37 +105,66 @@ class JuggManager @TestOnly constructor(
     private val pathManager: JuggPathManager,
     private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.IO),
     private val logger: Logger = JuggLogger.getInstance(project, "JuggManager"),
-    private val juggServer: JuggServer = JuggServer(project.name, pathManager, coroutineScope, logger),
-    private val juggHotUpdateDownloader: JuggHotUpdateDownloader = JuggHotUpdateDownloader(juggServer, logger),
+    private val runtimeInfo: RuntimeInfo = PlatformApi.getRuntimeInfo(),
+    private val juggServer: JuggServer = JuggServer(project.name, pathManager, coroutineScope, runtimeInfo, logger),
     private val fileChangesHandler: IFileChangesHandler = FileChangesHandler(pathManager.projectDir, pathManager.juggRootDir, JuggLogger.getInstance(project, "FileChangesHandler")),
-    private val fileChangesDetector: IFileChangesDetector = FileChangesDetector(project, pathManager.projectDir),
+    private val fileChangesDetector: IFileChangeMonitor = IdeaFileChangeMonitor(project, pathManager.projectDir),
     private val deployHistoryManager: IDeployHistoryManager = DeployHistoryManager(pathManager, fileChangesHandler, JuggLogger.getInstance(project, "DeployHistoryManager")),
     private val deployTargetManager: IDeployTargetManager = DeployTargetManager(project),
-    private val deployStateManager: DeployStateManager = DeployStateManager(project, deployTargetManager, deployHistoryManager),
-    private val taskRunnerManager: TaskRunnerManager = TaskRunnerManager(project, logger, deployStateManager, juggServer, coroutineScope),
+    private val deployStateManager: IDeployStateManager = DeployStateManager(deployTargetManager, deployHistoryManager, IdeaHostDeployStateResolver(project), JuggLogger.getInstance(project, "DeployStateManager")),
+    private val hostTaskExecutor: HostTaskExecutor = HostTaskExecutor(project),
+    private val taskRunnerManager: TaskRunnerManager = TaskRunnerManager(logger, deployStateManager, juggServer, hostTaskExecutor, pathManager, runtimeInfo.runtimeType, runtimeInfo.runtimeVersion, coroutineScope),
+    private val ideaHotUpdateCoordinator: IdeaHotUpdateCoordinator = IdeaHotUpdateCoordinator(juggServer, logger),
+    private val deploymentService: JuggDeploymentService = JuggDeploymentService(
+        pathManager, JuggDeploymentCacheStore(pathManager.deploymentCacheDbFile, taskRunnerManager), AsDeployerCompat),
     private val customCompilerManager: CustomCompilerManager = CustomCompilerManager(pathManager.projectDir, pathManager.customCompilerDir, juggServer, logger),
-    private val deployFileManager: DeployFileManager = DeployFileManager(pathManager,taskRunnerManager, JuggLogger.getInstance(project, "DeployFileManager")),
-    private val compileContextManager: CompileContextManager = CompileContextManager(project, pathManager, deployFileManager, deployHistoryManager, customCompilerManager),
+    private val deployFileManager: DeployFileManager = DeployFileManager(pathManager, taskRunnerManager, JuggLogger.getInstance(project, "DeployFileManager")),
+    private val compileEnvironmentSource: IdeaCompileEnvironmentSource = IdeaCompileEnvironmentSource(project),
+    private val projectModelSource: IdeaProjectModelSource = IdeaProjectModelSource(project, pathManager, logger = JuggLogger.getInstance(project, "IdeaProjectModelSource")),
+    private val compileContextManager: CompileContextManager = CompileContextManager(pathManager, projectModelSource, deployFileManager, deployHistoryManager, customCompilerManager, compileEnvironmentSource, ICompileContext.Scene.IDE, JuggLogger.getInstance(project, "CompileContextManager")),
     private val juggRunningTaskStatusManager: IJuggRunningTaskStatusManager = JuggRunningTaskStatusManager(),
     private val dependencyChangeManager: IDependencyChangeManager = IDependencyChangeManager.create(JuggLogger.getInstance(project, "DependencyChangeManager")),
-    private val gradleProjectInfoLocalFetchManager: GradleProjectInfoLocalFetchManager = GradleProjectInfoLocalFetchManager(project, pathManager, compileContextManager, taskRunnerManager, dependencyChangeManager, deployHistoryManager, logger),
+    private val gradleProjectInfoLocalFetchManager: GradleProjectInfoLocalFetchManager = GradleProjectInfoLocalFetchManager(pathManager, compileContextManager, taskRunnerManager, dependencyChangeManager, deployHistoryManager, compileEnvironmentSource, logger),
     private val gitFileChangesDetector: GitFileChangesDetector = GitFileChangesDetector(deployHistoryManager, deployFileManager, taskRunnerManager, logger),
+    private val fileChangeManager: FileChangeManager = FileChangeManager(fileChangesHandler, deployFileManager, dependencyChangeManager, gitFileChangesDetector, deployStateManager, taskRunnerManager, JuggLogger.getInstance(project, "FileChangeManager")),
     private val juggDeployerHelper: JuggDeployerHelper = JuggDeployerHelper(
-        project,
-        deployTargetManager,
-        deployFileManager,
-        deployHistoryManager,
-        deployStateManager,
-        dependencyChangeManager,
-        juggRunningTaskStatusManager,
-        compileContextManager,
-        juggServer,
-        taskRunnerManager,
+        deployTargetManager = deployTargetManager,
+        deployFileManager = deployFileManager,
+        deployHistoryManager = deployHistoryManager,
+        deployStateManager = deployStateManager,
+        dependencyChangeManager = dependencyChangeManager,
+        juggRunningTaskStatusManager = juggRunningTaskStatusManager,
+        compileContextManager = compileContextManager,
+        juggServer = juggServer,
+        taskRunnerManager = taskRunnerManager,
+        logger = JuggLogger.getInstance(project, "JuggDeployerHelper"),
+        libraryTestApkBackfillHelper = LibraryTestApkBackfillHelper(
+            project = project,
+            pathManager = pathManager,
+            deployHistoryManager = deployHistoryManager,
+            compileContextManager = compileContextManager,
+            compileClientFactory = {
+                LocalGradleCompileClient(
+                    pathManager.projectDir,
+                    pathManager.localClasspathStoragePathManager.classpathDir,
+                    compileEnvironmentSource.buildCompileEnv(logger),
+                    logger,
+                )
+            },
+            logger = logger,
+            onApksBackfilled = { apks ->
+                deployTargetManager.setApks(apks)
+                deployFileManager.updateApks(apks)
+            },
+        ),
+        deploymentService = deploymentService,
+        environment = IdeaDeployEnvironment(project, AsDeployerCompat, compileContextManager),
     ),
-    private val juggCompilerHelper: JuggCompilerHelper = JuggCompilerHelper(project, pathManager, juggServer, deployTargetManager, deployStateManager, deployFileManager, deployHistoryManager, juggRunningTaskStatusManager, compileContextManager, fileChangesHandler, dependencyChangeManager, gradleProjectInfoLocalFetchManager, gitFileChangesDetector, taskRunnerManager),
-    private val customConfigManager: CustomConfigManager = CustomConfigManager(pathManager.configDir, JuggLogger.getInstance(project, "CustomConfigManager")),
+    private val juggCompilerHelper: JuggCompilerHelper = JuggCompilerHelper(pathManager, juggServer, deployTargetManager, deployStateManager, deployFileManager, deployHistoryManager, juggRunningTaskStatusManager, compileContextManager, fileChangesHandler, dependencyChangeManager, gradleProjectInfoLocalFetchManager, compileEnvironmentSource, gitFileChangesDetector, taskRunnerManager, JuggLogger.getInstance(project, "JuggCompilerHelper")),
+    private val projectCustomConfigManager: ProjectCustomConfigManager = ProjectCustomConfigManager(pathManager.configDir, JuggLogger.getInstance(project, "ProjectCustomConfigManager"), juggServer, fileChangesHandler, deployHistoryManager, compileContextManager, customCompilerManager),
     private val ideSyncProblemResolver: IdeSyncProblemResolver = IdeSyncProblemResolver(project),
-    ): IJuggManagerCaller, Disposable, CoroutineScope by coroutineScope {
+    private val runManager: RunManager = RunManager.getInstance(project),
+) : IJuggManagerCaller, Disposable, CoroutineScope by coroutineScope {
 
     companion object {
         private const val MAX_RUN_CONFIG_RETRIES = 7
@@ -130,89 +190,70 @@ class JuggManager @TestOnly constructor(
         deployFileManager, taskRunnerManager,
         compileContextManager, logger, controlPanelController)
     private val mcpInvoker: McpToolInvoker = McpToolInvoker(pathManager.projectDir.absolutePath,
-        IdeaMcpRuntime(logger.getInstance("McpRuntime"), project, deployTargetManager, deployStateManager, forceGradleCompileHelper, juggConfigurationRunner, deployFileManager, juggCompilerHelper, gitFileChangesDetector),
+        IdeaMcpRuntime(logger.getInstance("McpRuntime"), pathManager.projectDir.absolutePath, deployTargetManager, deployStateManager, forceGradleCompileHelper, juggConfigurationRunner, deployFileManager, juggCompilerHelper, gitFileChangesDetector, taskRunnerManager, ::recoverAfterRuntimeOwnerChange),
         eventModel = controlPanelController.model,
     )
     private val copyGeneratedSourceHelper = CopyGeneratedSourceHelper(taskRunnerManager, logger)
-    private val fileChangeLock = Any()
-    private val runConfigurationLock = Any()
-
+    private val cliRunConfigurationStore = CliRunConfigurationStore(pathManager)
+    private val ideaCliRunConfigurationManager = IdeaCliRunConfigurationManager(
+        runManager,
+        compileContextManager,
+        cliRunConfigurationStore,
+        logger.getInstance("IdeaCliRunConfigurationManager"),
+    )
     constructor(
         project2: Project,
         pathManager: JuggPathManager,
     ): this(project = project2, pathManager)
 
     override fun init() {
-        Disposer.register(this, juggCompilerHelper)
-        Disposer.register(this, gradleProjectInfoLocalFetchManager)
+        observeRunConfigurationSelection()
         runTaskSafe("Init Jugg", {
-            AsDeployerCompat.init(JuggLogger.getInstance(project, "AsDeployerCompat"))
-            loadCustomConfig()
+            try {
+                JuggGlobalDirectoryMigration().cleanupPreviousRoot()
+            } catch (e: Exception) {
+                logger.warn("Previous Jugg directory cleanup failed; will retry on next startup", e)
+            }
+            JuggSettings.migrateLegacyJuggSettings(PropertiesComponent.getInstance())
+            juggServer.initialize()
+            initializeRuntime()
             tryCreateRunConfigurations(isSyncFinished = false)
-            IAsDeployerCompat.updateMinApi(JuggSettings.finalIsEnableCompatibleDeploymentMode)
-            ProjectInfoReader(project, logger.getInstance("ProjectInfoReader")).printInfo()
-            deployHistoryManager.checkProjectDirChanged()
-            clearLegacySystemJuggDir()
-            logger.info("Start jugg finished.")
             controlPanelController.onManagerReady()
 
             // init project info async
             runTaskSafe("Init project info", ::recoverDeployContext)
             // init deployment service async
-            JuggDeploymentService.preInit(logger)
+            deploymentService.preInit(logger)
 
             logger.debug("Checking updates...")
             juggServer.checkUpdate {
-                val checkUpdateHandler = CheckUpdateHandler(
-                    project, juggServer.version, customConfigManager,
-                    JuggLogger.getInstance(project, "CheckUpdateHandler"),
-                    controlPanelController::refreshSettings,
-                )
-                checkUpdateHandler.handle(it)
-                loadCustomConfig()
-                juggHotUpdateDownloader.init(project)
+                val checkUpdateHandler = CheckUpdateHandler(project, juggServer.version, projectCustomConfigManager, JuggLogger.getInstance(project, "CheckUpdateHandler"), controlPanelController::refreshSettings)
+                taskRunnerManager.runProjectWriteLocked("Apply server custom config") {
+                    checkUpdateHandler.handle(it)
+                }
+                ideaHotUpdateCoordinator.init(project)
             }
 
-            taskRunnerManager.runBackgroundSafe("Auto update Jugg CLI", delayMs = 10_000) {
+            taskRunnerManager.runBackgroundSafe("Auto update Jugg standalone and CLI", delayMs = 10_000) {
+                runCatching { StandaloneBundleInstallService.installIfNeeded() }
+                    .onSuccess { if (it) logger.info("Jugg standalone runtime updated from embedded Bundle") }
+                    .onFailure { logger.warn("Auto update Jugg standalone failed", it) }
                 JuggCliAutoUpdater.checkAndUpdate(logger.getInstance("JuggCliAutoUpdater"))
             }
-            taskRunnerManager.runBackgroundSafe("Cleanup mcp fetch cache", delayMs = 120_000) {
-                ExpiredArtifactCleaner.cleanupExpiredFiles(
-                    pathManager.mcpFetchDir,
-                    logger.getInstance("McpArtifactCleaner"),
-                    retentionDays = 30,
-                )
-            }
-            taskRunnerManager.runBackgroundSafe("Cleanup diagnostics cache", delayMs = 120_000) {
-                ExpiredArtifactCleaner.cleanupExpiredFiles(
-                    pathManager.diagnosticsDir,
-                    logger.getInstance("DiagnosticsCleaner"),
-                    retentionDays = 7,
-                )
-            }
-            taskRunnerManager.runBackgroundSafe("Cleanup investigation snapshots", delayMs = 120_000) {
-                ExpiredArtifactCleaner.cleanupExpiredFiles(pathManager.investigationDir,
-                    logger.getInstance("InvestigationCleaner"), retentionDays = 30)
+            taskRunnerManager.runBackgroundSafe("Cleanup Jugg artifacts", delayMs = 120_000) {
+                JuggArtifactCleanupManager(pathManager, logger.getInstance("JuggArtifactCleaner")).cleanup()
             }
         })
     }
 
-    private fun loadCustomConfig() {
-        try {
-            if (!customConfigManager.isConfigChanged()) {
-                return
-            }
-            customConfigManager.config?.let { config ->
-                juggServer.updateServer(config.servers)
-                fileChangesHandler.updateBuildFileRules(config.buildFileRules, config.moduleCustomConfigs?.map { it.moduleStdPath } ?: emptyList())
-                deployHistoryManager.updateDontFilterIgnoredFileRules(config.dontFilterIgnoredFileRules)
-                compileContextManager.updateCustomClasspath(config.moduleCustomConfigs ?: emptyList())
-                customCompilerManager.updateCustomCompilers(config.customCompilers)
-            }
-        } catch (e: Exception) {
-            // maybe structure is updated
-            logger.info("loadCustomConfig failed", e)
-        }
+    private fun initializeRuntime() {
+        projectCustomConfigManager.refresh()
+        AsDeployerCompat.init(logger)
+        IAsDeployerCompat.updateMinApi(JuggSettings.finalIsEnableCompatibleDeploymentMode)
+        ProjectInfoReader(project, logger).printInfo()
+        deployHistoryManager.checkProjectDirChanged()
+        clearLegacySystemJuggDir()
+        logger.info("Start jugg finished.")
     }
 
     private fun updateProjectInfo(
@@ -240,20 +281,16 @@ class JuggManager @TestOnly constructor(
 
         // reinit compiler after update compile context
         if (isUpdated) {
-            reInitOnCompileContextUpdate()
+            rebindCompileContext()
             dependencyChangeManager.onEndSyncing(isFromIde = true, true, compileContextManager.compileContext)
             if (!juggConfigurationRunner.isCompiling) {
                 warmUpCompile()
-                launch {
-                    // do it async to let warmUpCompile run
-                    dependencyChangeManager.tryShowChangeConfirmDialog(isRunCompileLater = true)
-                }
             }
         }
 
         // check dependency again to avoid missing dependency(in ide little chance)
         if (isAfterSync) {
-            taskRunnerManager.runBackgroundSafe("Check Project Info Delay", delayMs = 5000L) {
+            taskRunnerManager.runBackgroundSafe("Check project info delay", delayMs = 5000L, isProjectWrite = true) {
                 updateProjectInfo(isAfterSync = false)
             }
         }
@@ -266,12 +303,10 @@ class JuggManager @TestOnly constructor(
             when (syncEvent) {
                 SyncEvent.SUCCEEDED -> {
                     ideSyncProblemResolver.onIdeSyncSucceeded()
-                    tryCreateRunConfigurations(isSyncFinished = true)
-                    runTaskSafe("Update project info", { updateProjectInfo(isAfterSync = true) })
+                    runTaskSafe("Update project info", { updateProjectInfoAndRunConfigurations(isAfterSync = true) })
                 }
                 SyncEvent.SKIPPED -> {
-                    tryCreateRunConfigurations(isSyncFinished = true)
-                    runTaskSafe("Update project info", { updateProjectInfo(isAfterSync = false) })
+                    runTaskSafe("Update project info", { updateProjectInfoAndRunConfigurations(isAfterSync = false) })
                 }
                 SyncEvent.STARTED -> {
                     dependencyChangeManager.onStartSyncing(isFromIde = true)
@@ -285,71 +320,54 @@ class JuggManager @TestOnly constructor(
         }
     }
 
+    private fun updateProjectInfoAndRunConfigurations(isAfterSync: Boolean) {
+        try {
+            updateProjectInfo(isAfterSync)
+        } catch (e: Throwable) {
+            logger.warn("Update project info before run configuration reconciliation failed", e)
+        }
+        tryCreateRunConfigurations(isSyncFinished = true)
+    }
+
+    /** Reads the fresh Android model after Sync without changing the shared compile context. */
+    private fun getRunConfigurationSuggestions(): List<SuggestRunConfiguration> {
+        val currentNames = runManager.getConfigurationSettingsList(JuggConfigurationType::class.java).map { it.name }
+        return try {
+            AsDeployerCompat.getSuggestRunConfigurations(
+                currentNames,
+                project,
+                logger.getInstance("GetSuggestRunConfigurations"),
+                isNeedDefaultRunConfig = false,
+            ).also { logger.debug("Active Build Variant suggestions: $it") }
+        } catch (e: Throwable) {
+            logger.warn("Get Active Build Variant suggestions failed", e)
+            emptyList()
+        }
+    }
+
     private fun tryCreateRunConfigurations(
         isSyncFinished: Boolean,
         maxRetryCount: Int = MAX_RUN_CONFIG_RETRIES,
-    ): Unit = synchronized(runConfigurationLock) {
-        TimeLogger.start("tryCreateDefaultRunConfiguration")
-        val currentList = RunManager.getInstance(project).getConfigurationSettingsList(JuggConfigurationType::class.java)
-        val currentListNames = currentList.map { it.name }
-        logger.debug("JuggConfigurationType currentList: $currentListNames")
-
-        val currentListNamesExceptDefault = currentList.filterNot {
-            SuggestRunConfiguration.isDefaultRunConfigName(it.name)
-        }
-        if (currentListNamesExceptDefault.isNotEmpty() && !isSyncFinished) {
-            logger.debug("Not sync finished and exits non-default configs is not empty, skip create default run configuration")
-            return@synchronized
-        }
-
-        val suggestRunConfiguration =
-            try {
-                AsDeployerCompat.getSuggestRunConfigurations(
-                    currentListNames, project,
-                    logger.getInstance("GetSuggestRunConfigurations"),
-                    isNeedDefaultRunConfig = false,
-                )
-            } catch (e: Throwable) {
-                logger.warn("Get suggest run configuration failed ", e)
-                if (TestModeManager.isTestMode) {
-                    throw e
-                }
-                emptyList()
-            }
-        logger.debug("Suggest run configurations: $suggestRunConfiguration")
-        if (suggestRunConfiguration.isEmpty()) {
-            logger.debug("No suggest run configuration")
-            if (isSyncFinished && maxRetryCount <= 0) {
-                logger.debug("Could not create a run configuration after retries")
-            }
-            if (currentListNamesExceptDefault.isEmpty() && isSyncFinished && maxRetryCount > 0) {
-                val attempt = MAX_RUN_CONFIG_RETRIES - maxRetryCount
-                val delayMs = RUN_CONFIG_RETRY_BASE_DELAY_MS * (1L shl attempt)
-                logger.debug("No current run configuration, retry #${attempt + 1} after ${delayMs}ms")
-                launch {
-                    delay(delayMs)
-                    tryCreateRunConfigurations(isSyncFinished = true, maxRetryCount = maxRetryCount - 1)
+    ) {
+        val isReady = try {
+            val suggestions = getRunConfigurationSuggestions()
+            taskRunnerManager.runProjectWriteLocked("Initialize CLI run configuration") {
+                if (isSyncFinished) {
+                    ideaCliRunConfigurationManager.reconcileActiveBuildVariants(suggestions)
+                    ideaCliRunConfigurationManager.ensureFallbackConfiguration()
+                } else {
+                    ideaCliRunConfigurationManager.ensureConfiguration(suggestions)
                 }
             }
-            return@synchronized
+            hasUsableRunConfiguration()
+        } catch (e: Throwable) {
+            logger.warn("Initialize CLI run configuration failed", e)
+            if (TestModeManager.isTestMode) {
+                throw e
+            }
+            false
         }
-
-        val runManager = RunManager.getInstance(project)
-        val settingsList = createRunConfigurations(runManager, currentList, suggestRunConfiguration)
-
-        val settingsListExceptDefault = settingsList.filterNot {
-            SuggestRunConfiguration.isDefaultRunConfigName(it.name)
-        }
-        if (currentListNamesExceptDefault.isEmpty() && settingsListExceptDefault.isNotEmpty()) {
-            runManager.selectedConfiguration = settingsListExceptDefault[0]
-        } else if (isSyncFinished) {
-            trySelectActiveBuildVariantConfiguration(
-                runManager,
-                currentList + settingsList,
-                suggestRunConfiguration,
-            )
-        }
-        if (currentListNamesExceptDefault.isNotEmpty() || settingsListExceptDefault.isNotEmpty()) {
+        if (isReady) {
             SwingUtilities.invokeLater {
                 if (!project.isDisposed) {
                     ToolWindowManager.getInstance(project)
@@ -358,147 +376,78 @@ class JuggManager @TestOnly constructor(
                 }
             }
         }
-        TimeLogger.end("tryCreateDefaultRunConfiguration", logger)
-    }
-
-    /** Creates missing Jugg configurations while preserving existing configurations with the same compile command. */
-    private fun createRunConfigurations(
-        runManager: RunManager,
-        currentList: List<RunnerAndConfigurationSettings>,
-        suggestions: List<SuggestRunConfiguration>,
-    ): List<RunnerAndConfigurationSettings> {
-        val distinctSuggestions = suggestions.distinctBy { suggestionTargetIdentity(it.compileCommand) }
-        val existingCommands = currentList.mapNotNull {
-            (it.configuration as? JuggRunConfiguration)?.state?.compileCommand
-        }
-        val usedNames = currentList.map { it.name }.toMutableList()
-        val settingsList = distinctSuggestions
-            .filterNot { suggestion ->
-                existingCommands.any { matchesCompileTarget(it, suggestion.compileCommand) }
+        if (!isReady && isSyncFinished && maxRetryCount > 0) {
+            val attempt = MAX_RUN_CONFIG_RETRIES - maxRetryCount
+            val delayMs = RUN_CONFIG_RETRY_BASE_DELAY_MS * (1L shl attempt)
+            logger.debug("CLI run configuration is not ready, retry #${attempt + 1} after ${delayMs}ms")
+            launch {
+                delay(delayMs)
+                tryCreateRunConfigurations(isSyncFinished = true, maxRetryCount = maxRetryCount - 1)
             }
-            .map { suggest ->
-                val factory: ConfigurationFactory = JuggConfigurationType.getInstance().configurationFactories[0]
-                val preferredName = if (SuggestRunConfiguration.isDefaultRunConfigName(suggest.runConfigName) ||
-                    suggest.baseRunConfigName in usedNames
-                ) {
-                    suggest.runConfigName
-                } else {
-                    suggest.baseRunConfigName
-                }
-                val name = RunManager.suggestUniqueName(preferredName, usedNames)
-                usedNames.add(name)
-                runManager.createConfiguration(name, factory).also { settings ->
-                    (settings.configuration as JuggRunConfiguration).state?.let {
-                        it.compileCommand = suggest.compileCommand
-                        it.outputApkName = suggest.outputApkPath
-                        it.setDefaultRemoteOption(JuggSettings.defaultCompileSettings)
-                    }
-                    settings.isActivateToolWindowBeforeRun = false
-                }
-            }
-        settingsList.forEach(runManager::addConfiguration)
-        return settingsList
-    }
-
-    /** Selects the active variant only when both profiles are exact generated configurations. */
-    private fun trySelectActiveBuildVariantConfiguration(
-        runManager: RunManager,
-        availableSettings: List<RunnerAndConfigurationSettings>,
-        suggestions: List<SuggestRunConfiguration>,
-    ) {
-        val selectedSettings = runManager.selectedConfiguration ?: return
-        val selectedState = (selectedSettings.configuration as? JuggRunConfiguration)?.state ?: return
-        val selectedModuleName = SuggestRunConfiguration.getModuleNameByRunConfigName(selectedSettings.name)
-        val selectedCompileCommand = selectedState.compileCommand ?: return
-        val activeSuggestion = suggestions.firstOrNull { it.moduleName == selectedModuleName } ?: return
-        val selectedTarget = generatedTarget(selectedCompileCommand) ?: return
-        val activeTarget = generatedTarget(activeSuggestion.compileCommand) ?: return
-        if (selectedTarget.first != activeTarget.first) {
-            return
-        }
-        val activeVariantName = activeSuggestion.variantName?.let(::normalizeVariantName) ?: return
-        if (selectedTarget.second == activeVariantName) {
-            return
-        }
-        if (activeTarget.second != activeVariantName) {
-            return
-        }
-        val activeSettings = availableSettings.filter {
-            val state = (it.configuration as? JuggRunConfiguration)?.state ?: return@filter false
-            state.compileCommand?.trim() == activeSuggestion.compileCommand.trim() &&
-                state.outputApkName == activeSuggestion.outputApkPath
-        }.singleOrNull() ?: return
-        logger.info("Active Build Variant changed, select ${activeSettings.name} configuration.")
-        runManager.selectedConfiguration = activeSettings
-    }
-
-    private fun generatedTarget(compileCommand: String): Pair<String, String>? {
-        val match = Regex("^\\./gradlew\\s+(:[^\\s:]+(?::[^\\s:]+)*):assemble([A-Z][A-Za-z0-9]*)$")
-            .matchEntire(compileCommand.trim())
-            ?: return null
-        return match.groupValues[1] to normalizeVariantName(match.groupValues[2])
-    }
-
-    private fun normalizeVariantName(variantName: String): String {
-        return variantName.replaceFirstChar {
-            if (it.isUpperCase()) it.lowercase() else it.toString()
         }
     }
 
-    private fun suggestionTargetIdentity(compileCommand: String): String {
-        return suggestionGradleTask(compileCommand)?.let { "task:$it" }
-            ?: "command:${compileCommand.trim()}"
-    }
-
-    private fun matchesCompileTarget(existingCommand: String, suggestionCommand: String): Boolean {
-        val suggestedTask = suggestionGradleTask(suggestionCommand)
-            ?: return existingCommand.trim() == suggestionCommand.trim()
-        return suggestedTask in gradleTaskTokens(existingCommand)
-    }
-
-    private fun suggestionGradleTask(compileCommand: String): String? {
-        return gradleTaskTokens(compileCommand).singleOrNull()
-    }
-
-    private fun gradleTaskTokens(compileCommand: String): Set<String> {
-        val executableNames = setOf("gradle", "gradlew", "gradle.bat", "gradlew.bat")
-        return compileCommand.split(Regex("\\s+"))
-            .asSequence()
-            .map { it.trim().trim('\'', '"') }
-            .filter {
-                it.isNotEmpty() &&
-                    it.substringAfterLast('/').substringAfterLast('\\') !in executableNames &&
-                    !it.startsWith("-") &&
-                    !it.contains("=")
-            }
-            .map { it.trimStart(':') }
-            .toSet()
+    /** True when RunManager already exposes a Jugg configuration the user can run. */
+    private fun hasUsableRunConfiguration(): Boolean {
+        return runManager.getConfigurationSettingsList(JuggConfigurationType::class.java)
+            .any { !SuggestRunConfiguration.isDefaultRunConfigName(it.name) }
     }
 
     @TestOnly
     fun recoverDeployContext() {
+        // Startup disk recovery already synchronizes memory state with the current runtime owner.
+        taskRunnerManager.consumeRuntimeOwnerChange()
+        JuggSettingsProjectEffects(pathManager, deployHistoryManager).apply()
+        recoverDeployContextFromDisk()
+    }
+
+    private fun recoverDeployContextFromDisk(reloadProjectModel: Boolean = false): Boolean {
         logger.debug("Start recover deploy context")
 
         val deployContextRecoverInfo = deployHistoryManager.tryGetContextRecoverInfoFromDb(isOnInit = true)
         if (deployContextRecoverInfo == null) {
             logger.debug("Can not recover from deploy history, please run gradle compile first")
-            return
+            return false
         } else {
             logger.debug("Recover deploy context from history successfully:")
             logger.debug("$deployContextRecoverInfo")
         }
 
         // step 1: recover compile context
-        initCompile(deployContextRecoverInfo.compileContextInfo, deployContextRecoverInfo.deployedFiles,
-            startCompileTime = null
+        initCompile(
+            deployContextRecoverInfo.compileContextInfo,
+            deployContextRecoverInfo.deployedFiles,
+            startCompileTime = null,
+            reloadProjectModel = reloadProjectModel,
         )
         // step 2: recover deploy files
         logger.debug("Start recover deploy history...")
         deployTargetManager.setApks(deployContextRecoverInfo.compileContextInfo.apkInfos)
         // step 3: recover changed files
-        processFileChanged(deployContextRecoverInfo.changedFiles, emptyList(), from = "recover")
+        handleFileChangeResult(fileChangeManager.processFileChanges(deployContextRecoverInfo.changedFiles, emptyList(), FileChangeSource.RECOVER))
 
         logger.debug("Deploy history recover successfully, no need full compile.")
+        return true
+    }
+
+    private fun recoverAfterRuntimeOwnerChange(): Boolean {
+        val change = taskRunnerManager.consumeRuntimeOwnerChange()
+        val settingsChanged = JuggSettingsProjectEffects(pathManager, deployHistoryManager).apply()
+        if (change == null && !settingsChanged) return false
+        if (change != null) {
+            logger.info("Recovering project state after runtime ownership changed: ${change.previousOwner.runtimeType} -> " +
+                    change.currentOwner.runtimeType)
+        }
+        juggRunningTaskStatusManager.isProjectSwitchedThisRun = true
+        deploymentService.invalidateMemoryCache()
+        if (!recoverDeployContextFromDisk(reloadProjectModel = true)) {
+            juggCompilerHelper.juggCompiler = null
+            deployTargetManager.setApks(emptyList())
+            deployFileManager.init(emptyList(), emptyList(), null)
+            juggRunningTaskStatusManager.resetHasRun()
+            gitFileChangesDetector.updateChangedFiles()
+        }
+        return true
     }
 
     fun updateDeployState(): JuggDeployState {
@@ -511,69 +460,6 @@ class JuggManager @TestOnly constructor(
 
         return deployState
     }
-
-    private fun processFileChanged(
-        changedFiles: List<File>,
-        deletedFiles: List<File>,
-        from: String, // recover / ide / git
-    ) = synchronized(fileChangeLock) {
-        logger.trace("[PERF] JuggManager.processFileChanged from=$from, changedSize=${changedFiles.size}, deletedSize=${deletedFiles.size}")
-        // prints file changed info
-        if (deletedFiles.isNotEmpty()) {
-            // not strict rules, just print it out for debug
-            val simpleFilterFiles = changedFiles.filter {
-                !it.path.contains("build") &&
-                        !it.path.contains(".idea") &&
-                        !it.path.contains(".git") &&
-                        it.name != ".DS_Store"
-            }
-            if (simpleFilterFiles.isNotEmpty()) {
-                logger.debug("Detect file deleted: ${simpleFilterFiles.map { it.name }}")
-            }
-            deployFileManager.removeChangedFile(deletedFiles)
-        }
-        if (changedFiles.isNotEmpty()) {
-            // not strict rules, just print it out for debug
-            val simpleFilterFiles = changedFiles.filter {
-                !it.isChild(JuggGlobalPathManager.rootDir) &&
-                    !it.path.contains("build") &&
-                    !it.path.contains(".idea") &&
-                    !it.path.contains(".git") &&
-                    !it.path.contains(".gradle") &&
-                    it.name != ".DS_Store"
-            }
-            if (simpleFilterFiles.isNotEmpty()) {
-                logger.debug("Detect file changed (before filter): ${simpleFilterFiles.map { it.path }}")
-            }
-        }
-
-        val realChangedFiles = fileChangesHandler.filter(changedFiles)
-        if (realChangedFiles.isEmpty()) {
-            controlPanelController.refresh()
-            return
-        }
-        logger.debug("Detect file changed (size=${realChangedFiles.size}): ${realChangedFiles.map { it.file.name }}")
-
-        deployFileManager.addChangedFile(realChangedFiles)
-
-        val isBuildFileChanged = realChangedFiles.any { it.type == CompileFile.Type.BuildFile }
-        if (isBuildFileChanged || from == "recover") {
-            val allBuildFiles = deployFileManager.getUndeployedFiles()
-                .filter { it.type == CompileFile.Type.BuildFile }
-                .map { it.file }
-            dependencyChangeManager.onUpdateChangedBuildFiles(allBuildFiles)
-        }
-
-        if (from == "ide") {
-            gitFileChangesDetector.onSourceFileChanged(realChangedFiles)
-        }
-
-        if (JuggSettings.compileOnSave) {
-            runTaskSafe("Compile Changes", ::compileChanges)
-        }
-        controlPanelController.refresh()
-    }
-
     override fun runTask(options: JuggRunConfigurationOptions): ExecutionResult {
         return runTask(options, null, null, null)
     }
@@ -602,10 +488,10 @@ class JuggManager @TestOnly constructor(
             isAlwaysRestartApp = isJuggDebugRun,
             isDebugRun = isJuggDebugRun,
             isGradleCacheRefreshRequested = ForceGradleCompileHelper.isGradleCacheRefreshNextTime,
+            userActions = controlPanelController,
             onEndListener = { runResult ->
                 debugSessionManager?.attachAfterSuccessfulRun(runResult, compileUiHandler)
             },
-            userActions = controlPanelController,
         )
         return juggConfigurationRunner.runTask(options.toCompileOptions(pathManager), compileUiHandler, executor, runProfile, androidTestRunSpec)
     }
@@ -627,7 +513,10 @@ class JuggManager @TestOnly constructor(
         if (!isRemoteCompile) {
             compileContextManager.updateCompileContextAfterLocalFetch(options.buildTarget)
         } else {
-            gradleProjectInfoLocalFetchManager.waitForRemoteInitUpdate()
+            if (!gradleProjectInfoLocalFetchManager.waitForRemoteInitUpdate()) {
+                logger.debug("Skip incremental compile initialization after project info manager closed")
+                return
+            }
         }
 
         var projectInfo = compileContextManager.getProjectInfo()
@@ -635,7 +524,7 @@ class JuggManager @TestOnly constructor(
         if (isRemoteCompile || JuggSettings.isEnableBackupClasspath) {
             logger.info("Fetching classpath...")
             val backupProjectInfo = juggCompilerHelper.fetchClasspath(
-                isRemoteCompile, projectInfo, taskRunnerManager.currentIndicator, coroutineScope)
+                isRemoteCompile, projectInfo, hostTaskExecutor.currentIndicator, coroutineScope)
             if (backupProjectInfo == null) {
                 if (isRemoteCompile) {
                     logger.warn("Fetch classpath failed, unable to init incremental compile. Please check log for details.")
@@ -656,6 +545,13 @@ class JuggManager @TestOnly constructor(
         if (apkInfos.isEmpty()) {
             logger.warn("Init compile failed for no apk found")
             return
+        }
+        try {
+            taskRunnerManager.runProjectWriteLocked("Update CLI run configuration after Gradle build") {
+                ideaCliRunConfigurationManager.updateAfterSuccessfulGradleBuild(options)
+            }
+        } catch (e: Throwable) {
+            logger.warn("Update CLI run configuration after Gradle build failed", e)
         }
         val compileContextInfo = deployHistoryManager.reInitAfterFullCompiled(
             FullBuildInfo(options.compileCommand, options.buildTarget, System.currentTimeMillis()),
@@ -723,7 +619,7 @@ class JuggManager @TestOnly constructor(
     }
 
     private fun showRemoteCommandWarning(message: String) {
-        Messages.showWarningDialog(project, message, "Run Remote Command")
+        Messages.showWarningDialog(project, message, "Run remote command")
     }
 
     override fun restartApp() {
@@ -739,12 +635,12 @@ class JuggManager @TestOnly constructor(
     override fun resetJuggCache() {
         logger.info("[options] cleanAndResetJugg")
         val confirmed = CommonConfirmDialog.showAndGetResult(
-            "Confirm Clean and Reset Jugg",
+            "Confirm clean and reset Jugg",
             "<html>This will delete all cache files and reopen project.<br>Are you sure to continue?</html>"
         )
         controlPanelController.recordUserAction(
             action = if (confirmed) "confirmed" else "canceled",
-            title = "Clear Jugg Build",
+            title = "Clear Jugg build",
             status = if (confirmed) JuggEvent.Status.SUCCEEDED else JuggEvent.Status.CANCELED,
         )
         if (!confirmed) return
@@ -771,7 +667,7 @@ class JuggManager @TestOnly constructor(
     }
 
     override fun installSkills() {
-        controlPanelController.recordUserAction("Install CLI & Skill")
+        controlPanelController.recordUserAction("Install CLI & skill")
         InstallJuggSkillsDialog.installJuggMcpAndSkills(project, pathManager.projectDir, taskRunnerManager, logger)
     }
 
@@ -780,7 +676,7 @@ class JuggManager @TestOnly constructor(
         val dialog = CheckUpdatesProgressDialog()
         taskRunnerManager.runBackgroundSafe("Check updates") {
             val hotUpdateData = if (juggServer.hasAvailableServer) {
-                juggHotUpdateDownloader.checkHotUpdate(isPositiveCheck = true)
+                ideaHotUpdateCoordinator.checkHotUpdate(isPositiveCheck = true)
             } else {
                 null
             }
@@ -789,7 +685,7 @@ class JuggManager @TestOnly constructor(
                 dialog.setHotUpdateData(hotUpdateData) {
                     taskRunnerManager.runBackgroundSafe("Download updates") {
                         try {
-                            juggHotUpdateDownloader.downloadAndInstallUpdate(hotUpdateData)
+                            ideaHotUpdateCoordinator.downloadAndInstallUpdate(hotUpdateData)
                             dialog.setResult(hotUpdateData.targetVersion, true, hotUpdateData.isNeedReinstall, null) {
                                 if (hotUpdateData.isNeedReinstall) {
                                     CoroutineScope(Dispatchers.IO).launch {
@@ -841,12 +737,12 @@ class JuggManager @TestOnly constructor(
             Messages.showWarningDialog(
                 project,
                 "Select a Jugg run configuration first.",
-                "Mark as Gradle Compiled"
+                "Mark as Gradle compiled"
             )
             return
         }
         logger.info("[test options] markAsGradleCompiledAndReInitCompiler")
-        taskRunnerManager.runTaskSafe("Mark as Gradle Compiled", {
+        taskRunnerManager.runTaskSafe("Mark as Gradle compiled", {
             dependencyChangeManager.onStartBuilding()
             val compileOptions = options.toCompileOptions(pathManager)
             val result = juggCompilerHelper.gradleCompile(
@@ -854,7 +750,7 @@ class JuggManager @TestOnly constructor(
                 JuggCompileUiHandler(project,
                     isForceGradleCompile = true, isRpcMode = false,
                     compileOptions, logger,
-                    progressIndicator = taskRunnerManager.currentIndicator ?: DumbProgressIndicator.INSTANCE,
+                    progressIndicator = hostTaskExecutor.currentIndicator ?: DumbProgressIndicator.INSTANCE,
                     userActions = controlPanelController,
                 ),
                 isOnlyFetchResult = true,
@@ -880,9 +776,9 @@ class JuggManager @TestOnly constructor(
     }
 
     fun applyFileSelection(candidates: List<ChangedFile>, selectedPaths: Set<String>): Boolean =
-        synchronized(fileChangeLock) {
+        taskRunnerManager.runProjectWriteLocked("Update selected files") {
             if (juggConfigurationRunner.isCompiling || deployStateManager.isInitializingIncrementalCompile) {
-                return@synchronized false
+                return@runProjectWriteLocked false
             }
             val managedPaths = candidates.map { it.file.absolutePath }.toSet()
             val discardedCompiledInput = deployFileManager.getCompiledFiles().any {
@@ -893,14 +789,14 @@ class JuggManager @TestOnly constructor(
                 // Stateful resource tables must reload the deployed baseline after discarding compiled inputs.
                 val compiler = JuggCompiler(compileContextManager.compileContext, this)
                 juggCompilerHelper.juggCompiler = compiler
-                customCompilerManager.init(compileContextManager.compileContext, compiler)
+                customCompilerManager.init(compileContextManager.compileContext)
             }
             dependencyChangeManager.onUpdateChangedBuildFiles(deployFileManager.getUndeployedFiles()
                 .filter { it.type == CompileFile.Type.BuildFile }.map { it.file })
             true
         }
 
-    fun refreshFileChanges(): Boolean = synchronized(fileChangeLock) {
+    fun refreshFileChanges(): Boolean = taskRunnerManager.runProjectWriteLocked("Update selected files") {
         val success = gitFileChangesDetector.refreshFileChanges()
         dependencyChangeManager.onUpdateChangedBuildFiles(deployFileManager.getUndeployedFiles()
             .filter { it.type == CompileFile.Type.BuildFile }.map { it.file })
@@ -912,7 +808,7 @@ class JuggManager @TestOnly constructor(
     }
 
     override fun reportIssue() {
-        controlPanelController.recordUserAction("Report Issue")
+        controlPanelController.recordUserAction("Report issue")
         val destination = juggServer.issueReportDestination
         val progressDialog = ReportIssueProgressDialog("Preparing diagnostics...")
         taskRunnerManager.runBackgroundSafe("Prepare issue report") {
@@ -934,10 +830,9 @@ class JuggManager @TestOnly constructor(
                     logger.getInstance("IssueReportBundleBuilder"),
                     destination,
                 )
-                val logFiles = pathManager.logDir.listFiles().orEmpty()
-                    .filter { it.isFile && !it.name.startsWith("compile_latest") && !it.name.endsWith(".lck") }
-                    .sortedByDescending { it.lastModified() }
-                    .take(10)
+                val logFiles = IssueReportBundleBuilder.selectRecentLogFiles(
+                    pathManager.logDir, pathManager.standaloneCliLogDir,
+                )
                 val candidates = builder.prepare(
                     environment = mapOf(
                         "pluginVersion" to juggServer.version,
@@ -950,6 +845,7 @@ class JuggManager @TestOnly constructor(
                     ),
                     projectInfoDir = pathManager.projectInfosDir,
                     logFiles = logFiles,
+                    standaloneLogDir = pathManager.standaloneCliLogDir,
                     logFileLimit = 10,
                     logcat = logcatErrorLog,
                     hookDebugLog = File(JuggGlobalPathManager.rootDir, "skills/hooks/jugg-hook-debug.log"),
@@ -1028,61 +924,47 @@ class JuggManager @TestOnly constructor(
         return mcpInvoker.invokeMcp(request)
     }
 
-    private fun reInitOnCompileContextUpdate() {
-        deployFileManager.updateModuleInfos(compileContextManager.compileContext.modules, compileContextManager.compileContext.mappingFile)
-        val juggCompiler = JuggCompiler(compileContextManager.compileContext, this)
+    private fun rebindCompileContext() {
+        val context = compileContextManager.compileContext
+        deployFileManager.updateModuleInfos(context.modules, context.mappingFile)
+        val juggCompiler = JuggCompiler(context, this)
         juggCompilerHelper.juggCompiler = juggCompiler
-        fileChangesHandler.init(compileContextManager.compileContext)
-        gitFileChangesDetector.init(pathManager.projectDir, compileContextManager.compileContext.modules)
-        customCompilerManager.init(compileContextManager.compileContext, juggCompiler)
+        fileChangesHandler.init(context)
+        fileChangeManager.init(pathManager.projectDir, context.modules)
+        customCompilerManager.init(context)
     }
 
     private fun initCompile(
         compileContextInfo: CompileContextInfo,
         deployedFiles: List<CompileOutput>,
         startCompileTime: Long?,
+        reloadProjectModel: Boolean = false,
     ) {
         logger.info("Init compile...")
 
         deployStateManager.isBuildFileChanged = false
 
         var finalApkInfos = compileContextInfo.apkInfos
-        logger.debug("hasEmbeddedApks: ${customConfigManager.hasEmbeddedApks()}")
-        if (customConfigManager.hasEmbeddedApks()) {
-            finalApkInfos = customConfigManager.fillApkInfosWithEmbeddedApks(finalApkInfos, pathManager.localClasspathStoragePathManager.embeddedApkDir)
+        logger.debug("hasEmbeddedApks: ${projectCustomConfigManager.hasEmbeddedApks()}")
+        if (projectCustomConfigManager.hasEmbeddedApks()) {
+            finalApkInfos = projectCustomConfigManager.fillApkInfosWithEmbeddedApks(
+                finalApkInfos,
+                pathManager.localClasspathStoragePathManager.embeddedApkDir,
+            )
         }
 
         val costTime = measureTimeMillis {
-            compileContextManager.setCompileContext(compileContextInfo)
+            compileContextManager.setCompileContext(compileContextInfo, reloadProjectModel)
             deployFileManager.init(finalApkInfos, deployedFiles, startCompileTime)
             dependencyChangeManager.init(pathManager.projectInfosDir, compileContextManager.compileContext)
-            reInitOnCompileContextUpdate()
+            rebindCompileContext()
         }
         logger.debug("Init compile cost ${costTime}ms")
+        startFileMonitoring()
+    }
 
-        fileChangesDetector.startListen(object: FileChangesListener {
-            override fun onFileChanges(changedFiles: List<File>, deletedFiles: List<File>) {
-                // is on EDT thread, will be stuck when using lock
-                logger.trace("[PERF] fileChangesDetector.onFileChanges callback, thread=${Thread.currentThread().name}, changedSize=${changedFiles.size}")
-                // beginFileProcessing() must be called synchronously here to prevent compile
-                // from starting before the async task below has a chance to run
-                deployStateManager.beginFileProcessing()
-                taskRunnerManager.runBackgroundSafe("Process file changed", isNeedLog = false) {
-                    try {
-                        processFileChanged(changedFiles, deletedFiles, from = "ide")
-                    } finally {
-                        deployStateManager.endFileProcessing()
-                    }
-                }
-            }
-        })
-        gitFileChangesDetector.startListen(object: FileChangesListener {
-            override fun onFileChanges(changedFiles: List<File>, deletedFiles: List<File>) {
-                logger.trace("[PERF] gitFileChangesDetector.onFileChanges callback, thread=${Thread.currentThread().name}, changedSize=${changedFiles.size}")
-                processFileChanged(changedFiles, deletedFiles, from = "git")
-            }
-        })
-
+    private fun startFileMonitoring() {
+        fileChangeManager.start(fileChangesDetector, ::handleFileChangeResult)
         logger.info("Jugg init complete, start listening file changes.")
         controlPanelController.refresh()
 
@@ -1091,8 +973,53 @@ class JuggManager @TestOnly constructor(
         }
     }
 
+    private fun handleFileChangeResult(result: FileChangeResult) {
+        if (result.hasChanges && JuggSettings.compileOnSave) {
+            runTaskSafe("Compile changes", ::compileChanges)
+        }
+        controlPanelController.refresh()
+    }
+
+    fun moveGlobalDirectory() {
+        val root = JuggGlobalPathManager.rootDir
+        val processes = JuggProcessLease.liveProcesses("idea", root)
+        if (processes.size > 1) {
+            Messages.showInfoMessage(project, "Close other Android Studio instances before moving Jugg storage.", "Move Jugg storage")
+            return
+        }
+        if (System.getProperty("jugg.root.dir") != null) {
+            Messages.showInfoMessage(project, "Remove the jugg.root.dir JVM override before moving Jugg storage.", "Move Jugg storage")
+            return
+        }
+        if (JuggGlobalPathManager.configuredRootDir.canonicalFile != root.canonicalFile) {
+            restartAfterDirectoryMigration(root)
+            return
+        }
+        val target = DirectorySelector(project, "Move Jugg storage",
+            "Choose an empty directory. Android Studio must restart after copying.", root.parentFile).selectDirectory() ?: return
+        taskRunnerManager.runTaskSafe("Move Jugg storage", Runnable {
+            JuggGlobalDirectoryMigration().prepare(target)
+            logger.info("Jugg storage copied to ${target.absolutePath}; restart Android Studio to finish migration")
+            ApplicationManager.getApplication().invokeLater { restartAfterDirectoryMigration(root) }
+        })
+    }
+
+    private fun restartAfterDirectoryMigration(root: File) {
+        val answer = Messages.showYesNoDialog(project,
+            "Jugg storage is ready. Restart Android Studio now? Standalone Jugg runtimes will stop and the old directory will be removed on next startup. New logs and events since copying may remain only in the old directory.",
+            "Move Jugg storage", "Restart", "Later", Messages.getQuestionIcon())
+        if (answer != Messages.YES) return
+        taskRunnerManager.runTaskSafe("Restart after Jugg storage migration", Runnable {
+            check(JuggProcessLease.liveProcesses("idea", root).size <= 1) {
+                "Close other Android Studio instances before restarting."
+            }
+            JuggProcessLease.stopStandaloneProcesses(root)
+            ApplicationManager.getApplication().invokeLater { ApplicationManager.getApplication().restart() }
+        })
+    }
+
     private fun warmUpCompile() {
-        runTaskSafe("Warm Up Compile", {
+        runTaskSafe("Warm up compile", {
             juggCompilerHelper.warmUp()
         })
     }
@@ -1101,10 +1028,50 @@ class JuggManager @TestOnly constructor(
         taskRunnerManager.runTaskSafe(jobName, action, isNeedShowIndicator)
     }
 
+    @Suppress("OVERRIDE_DEPRECATION")
+    private fun observeRunConfigurationSelection() {
+        project.messageBus.connect(this).subscribe(RunManagerListener.TOPIC, object : RunManagerListener {
+            @Suppress("OVERRIDE_DEPRECATION")
+            override fun runConfigurationSelected(settings: RunnerAndConfigurationSettings?) {
+                taskRunnerManager.runBackgroundSafe("Select CLI run configuration", isProjectWrite = true) {
+                    try {
+                        ideaCliRunConfigurationManager.onRunConfigurationSelected(settings)
+                    } catch (e: Throwable) {
+                        logger.warn("Update current CLI run configuration failed", e)
+                    }
+                }
+            }
+
+            @Suppress("OVERRIDE_DEPRECATION")
+            override fun runConfigurationAdded(settings: RunnerAndConfigurationSettings) {
+                updateConfiguration(settings)
+            }
+
+            @Suppress("OVERRIDE_DEPRECATION")
+            override fun runConfigurationChanged(settings: RunnerAndConfigurationSettings) {
+                updateConfiguration(settings)
+            }
+
+            private fun updateConfiguration(settings: RunnerAndConfigurationSettings) {
+                taskRunnerManager.runBackgroundSafe("Update CLI run configuration", isProjectWrite = true) {
+                    try {
+                        ideaCliRunConfigurationManager.onRunConfigurationChanged(settings)
+                    } catch (e: Throwable) {
+                        logger.warn("Update CLI run configuration failed", e)
+                    }
+                }
+            }
+        })
+    }
+
     override fun dispose() {
         logger.debug("project ${pathManager.projectDir} dispose")
         controlPanelController.clear()
+        gradleProjectInfoLocalFetchManager.close()
+        customCompilerManager.close()
+        juggCompilerHelper.close()
         deployFileManager.dispose()
+        taskRunnerManager.dispose()
         coroutineScope.cancel()
     }
 
@@ -1130,8 +1097,8 @@ class JuggManager @TestOnly constructor(
         ): IJuggRunningTask {
             logger.debug("Create running task: ${options.toSafeString()}")
 
-            loadCustomConfig()
-            val customConfig = customConfigManager.config
+            projectCustomConfigManager.refresh()
+            val customConfig = projectCustomConfigManager.config
 
             val startCompileTime = System.currentTimeMillis()
             val initIncrementalCompileTask = task@{
@@ -1139,11 +1106,13 @@ class JuggManager @TestOnly constructor(
                 fun action() {
                     initIncrementalCompileAfterFullBuild(startCompileTime, options)
                 }
-                runTaskSafe("Init Incremental Compile", ::action)
+                runTaskSafe("Init incremental compile", ::action)
             }
             val task = JuggRunningTask(options, project, juggServer, deployTargetManager, dependencyChangeManager,
                 juggRunningTaskStatusManager, deployHistoryManager, juggCompilerHelper, juggDeployerHelper, initIncrementalCompileTask,
-                compileUiHandler, controlPanelController.model, androidTestRunSpec,
+                compileUiHandler, controlPanelController.model, taskRunnerManager, projectCustomConfigManager,
+                ::recoverAfterRuntimeOwnerChange,
+                androidTestRunSpec,
                 controlPanelController = controlPanelController,
                 autoUploadFailureLogs = customConfig?.autoUploadFailureLogs == true,
                 autoUploadFailureLogsExcludeRegex = customConfig?.autoUploadFailureLogsExcludeRegex,

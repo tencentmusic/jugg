@@ -1157,7 +1157,7 @@ class DexObfuscatorTest {
         assertNull("catch-all type should remain null", types[0])
     }
 
-    // ==================== Access flag widening tests (方案 E) ====================
+    // ==================== Access flag widening tests (approach E) ====================
 
     /**
      * P0: Private method should be widened to public after obfuscation.
@@ -1549,7 +1549,7 @@ class DexObfuscatorTest {
         )
     }
 
-    // ==================== invoke-direct → invoke-virtual tests (方案 E') ====================
+    // ==================== invoke-direct → invoke-virtual tests (approach E') ====================
 
     /**
      * P0: When a private non-static method is widened to public, invoke-direct

@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.cmdline.incremental
 
+import com.sickworm.intellij.jugg.cmdline.CmdLineTaskRuntime
 import com.sickworm.intellij.jugg.cmdline.createBaselineConstRefEngine
 import com.sickworm.intellij.jugg.cmdline.loadCiProjectInfo
 import com.intellij.openapi.Disposable
@@ -11,15 +12,12 @@ import com.sickworm.intellij.jugg.compiler.changeBaseDir
 import com.sickworm.intellij.jugg.compiler.custom.CustomCompilerManager
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.gradle.compile.isChild
+import com.sickworm.intellij.jugg.compiler.context.BaseCompileContext
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
-import com.sickworm.intellij.jugg.project.BaseCompileContext
-import com.sickworm.intellij.jugg.project.CoroutineBackgroundTaskRunner
-import com.sickworm.intellij.jugg.project.FileChangesHandler
-import com.sickworm.intellij.jugg.project.JuggPathManager
-import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
-import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
-import com.sickworm.intellij.jugg.project.data.LibraryDependency
-import com.sickworm.intellij.jugg.server.JuggServer
+import com.sickworm.intellij.jugg.project.change.FileChangesHandler
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
+import com.sickworm.intellij.jugg.project.info.JuggProjectInfo
+import com.sickworm.intellij.jugg.project.info.LibraryDependency
 import kotlinx.coroutines.CoroutineScope
 import java.io.File
 
@@ -32,8 +30,15 @@ class CmdLineContextManager(
     private val logger: Logger,
 ) {
 
+    private val runtime = CmdLineTaskRuntime(pathManager, coroutineScope, logger)
+    val deployStateManager = runtime.deployStateManager
+    val taskRunnerManager = runtime.taskRunnerManager
+    val juggServer = runtime.juggServer
+
     val disposer = object : Disposable {
         override fun dispose() {
+            customCompilerManager.close()
+            runtime.dispose()
             deployFileManager.dispose()
         }
     }
@@ -44,30 +49,20 @@ class CmdLineContextManager(
         logger,
     )
 
-    private val backgroundTaskRunner = CoroutineBackgroundTaskRunner(coroutineScope)
-
-    private val constRefEngine = pathManager.createBaselineConstRefEngine(backgroundTaskRunner, logger)
+    private val constRefEngine = pathManager.createBaselineConstRefEngine(taskRunnerManager, logger)
 
     val deployFileManager = DeployFileManager(
         pathManager,
-        backgroundTaskRunner,
+        taskRunnerManager,
         logger,
         constRefEngine,
     )
-
-    val deployStateManager = object : IDeployStateManager {
-        override fun updateDeployState(): JuggDeployState {
-            return JuggDeployState.READY
-        }
-    }
 
     val dependencyMissingResolver = object : IIncrementalCompileRetryResolver {
         override fun resolve(compileResult: CompileResult): Boolean {
             return false
         }
     }
-
-    val juggServer = JuggServer(pathManager.projectDir.name, pathManager, coroutineScope, logger)
 
     val customCompilerManager = CustomCompilerManager(pathManager.projectDir, pathManager.customCompilerDir, juggServer, logger)
 
@@ -86,6 +81,7 @@ class CmdLineContextManager(
     }
 
     fun init(initializeApkData: Boolean = true): ICompileContext {
+        juggServer.initialize()
         compileContext = createCompileContext(initializeApkData)
         return compileContext
     }
@@ -169,7 +165,7 @@ class CmdLineContextManager(
                 },
                 libraryDependencies = baseModule.libraryDependencies.convertBuildBaseDir(),
                 runtimeLibraryDependencies = baseModule.runtimeLibraryDependencies.convertBuildBaseDir(),
-                annotationProcessorDependencies = baseModule.libraryDependencies.convertBuildBaseDir(),
+                annotationProcessorDependencies = baseModule.annotationProcessorDependencies.convertBuildBaseDir(),
                 kaptDependencies = baseModule.kaptDependencies.convertBuildBaseDir(),
                 kotlinPlugins = baseModule.kotlinPlugins?.convertBuildBaseDir(),
                 kotlinExtensions = baseModule.kotlinExtensions?.convertBuildBaseDir(),

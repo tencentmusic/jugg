@@ -22,6 +22,7 @@ def _write_fake_jugg_cli(
     enabled_android_test: bool = False,
     expected_cwd: str | None = None,
     expected_args: list[str] | None = None,
+    expected_caller: str | None = None,
 ) -> None:
     jugg_bin = Path(home) / ".jugg" / "bin"
     jugg_bin.mkdir(parents=True, exist_ok=True)
@@ -44,11 +45,20 @@ def _write_fake_jugg_cli(
             "    print('wrong args: ' + repr(sys.argv[1:]), file=sys.stderr)\n"
             "    sys.exit(8)\n"
         )
+    caller_assertion = ""
+    if expected_caller is not None:
+        caller_assertion = (
+            "import os, sys\n"
+            f"if os.environ.get('JUGG_CALLER') != {expected_caller!r}:\n"
+            "    print('wrong caller: ' + repr(os.environ.get('JUGG_CALLER')), file=sys.stderr)\n"
+            "    sys.exit(9)\n"
+        )
     jugg_cli.write_text(
         "#!/usr/bin/env python3\n"
         "import json\n"
         f"{cwd_assertion}"
         f"{args_assertion}"
+        f"{caller_assertion}"
         "payload = {\n"
         "    'status': 'OK',\n"
         "    'data': {\n"
@@ -98,6 +108,7 @@ class StopHookGuardTest(unittest.TestCase):
                     "--full-info",
                     "true",
                 ],
+                expected_caller="hook",
             )
 
             result = subprocess.run(

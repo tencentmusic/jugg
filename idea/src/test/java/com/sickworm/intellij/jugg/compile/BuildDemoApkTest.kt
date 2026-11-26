@@ -116,10 +116,10 @@ object JVMemorySize {
     private var startUseHeapMb = 0L
 
     fun printMemory(isStart: Boolean = true) {
-        // 获取MemoryMXBean实例
+        // Get the MemoryMXBean instance.
         val memoryMXBean = ManagementFactory.getMemoryMXBean()
 
-        // 获取堆内存使用情况
+        // Get heap memory usage.
         val heapMemoryUsage = memoryMXBean.heapMemoryUsage
         println("Heap Memory:")
         println("   - Initial: " + heapMemoryUsage.init / 1024 / 1024 + "MB")
@@ -128,7 +128,7 @@ object JVMemorySize {
         println("   - Max: " + heapMemoryUsage.max / 1024 / 1024 + "MB")
         val useHeapMb = heapMemoryUsage.used / 1024 / 1024
 
-        // 获取非堆内存使用情况
+        // Get non-heap memory usage.
         val nonHeapMemoryUsage = memoryMXBean.nonHeapMemoryUsage
         println("Non-Heap Memory:")
         println("   - Initial: " + nonHeapMemoryUsage.init / 1024 / 1024 + "MB")

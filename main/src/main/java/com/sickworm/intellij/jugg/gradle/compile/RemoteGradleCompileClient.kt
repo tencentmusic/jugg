@@ -5,13 +5,13 @@ import com.jcraft.jsch.*
 import com.sickworm.intellij.jugg.compiler.BuildTarget
 import com.sickworm.intellij.jugg.compiler.isWindows
 import com.sickworm.intellij.jugg.gradle.compile.LocalGradleCompileClient.Companion.parseDiffSet
-import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
+import com.sickworm.intellij.jugg.project.info.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.platform.PlatformApi
-import com.sickworm.intellij.jugg.project.JuggException
-import com.sickworm.intellij.jugg.project.JuggInternalException
-import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.JuggException
+import com.sickworm.intellij.jugg.JuggInternalException
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResultSet
 import java.io.BufferedInputStream
 import java.io.File
@@ -19,16 +19,51 @@ import java.io.InputStream
 import java.io.PrintStream
 import java.util.concurrent.atomic.AtomicLong
 
+private val REMOTE_ENV_VALUE_LOG_ALLOWLIST = listOf(
+    "JAVA_HOME",
+    "ANDROID_HOME",
+    "ANDROID_SDK_ROOT",
+    "GRADLE_USER_HOME",
+)
+
+/** Builds a credential-safe summary without changing the environment sent to the remote shell. */
+internal fun summarizeRemoteEnvironmentVariables(environmentVariables: String): String {
+    val variables = environmentVariables.split(';')
+        .map { it.trim() }
+        .filter { it.isNotEmpty() && it.contains('=') }
+        .associate { it.substringBefore('=').trim() to it.substringAfter('=') }
+    val parts = REMOTE_ENV_VALUE_LOG_ALLOWLIST.mapNotNull { name ->
+        variables[name]?.let { "$name=$it" }
+    }.toMutableList()
+    if (variables.containsKey("PATH")) {
+        parts += "PATH=(configured)"
+    }
+    val otherNames = variables.keys
+        .filterNot { it in REMOTE_ENV_VALUE_LOG_ALLOWLIST || it == "PATH" }
+        .sorted()
+    if (otherNames.isNotEmpty()) {
+        parts += "otherVariables=$otherNames"
+        parts += "otherCount=${otherNames.size}"
+    }
+    return "Remote environment: ${parts.joinToString(", ")}"
+}
+
 /**
  * RemoteGradleCompileClient manages SSH-based Gradle compilation and synchronizes build outputs/dependency changes back to local.
  * Collaboration: Establishes SSH sessions via JSch, executes remote commands through [CmdExecutor]/[SshCommand], and synchronizes artifacts with [RsyncCommand] plus local deserialization helpers in [LocalGradleCompileClient].
  * Data Contract: [login] initializes/refreshes SSH channel state before build commands; authentication falls back across password and discovered key paths; login failures reset session fields and throw [JuggException.loginToRemoteFailed].
  */
 class RemoteGradleCompileClient(
-    private val project: Project,
+    private val projectDir: File,
     private val isRemoteWindows: Boolean = false,
-    private val logger: com.intellij.openapi.diagnostic.Logger = JuggLogger.getInstance(project, "RemoteGradleCompileClient"),
+    private val logger: com.intellij.openapi.diagnostic.Logger,
 ) : IGradleCompileClient {
+
+    constructor(
+        project: Project,
+        isRemoteWindows: Boolean = false,
+        logger: com.intellij.openapi.diagnostic.Logger = JuggLogger.getInstance(project, "RemoteGradleCompileClient"),
+    ) : this(File(project.basePath!!), isRemoteWindows, logger)
 
     @Volatile
     private var session: Session? = null
@@ -148,11 +183,7 @@ class RemoteGradleCompileClient(
     }
 
     private fun onLoginFailed(e: Exception) {
-        shellInputStream = null
-        inputStream = null
-        channel = null
-        session = null
-        remoteEnvironmentPrefix = ""
+        closeRemoteConnection()
         printToStreamError("RemoteClient login failed", e)
         throw JuggException.loginToRemoteFailed("Please check your login info.")
     }
@@ -173,7 +204,7 @@ class RemoteGradleCompileClient(
             return
         }
         remoteEnvironmentPrefix = envVars.joinToString(" ; ") { "export $it" } + " ; "
-        logger.info("Prepared ${envVars.size} remote environment variables for shell commands")
+        logger.debug(summarizeRemoteEnvironmentVariables(environmentVariables))
     }
 
     private fun showDialogAndGetPasswordOrKey(extraTips: String): String {
@@ -215,19 +246,30 @@ class RemoteGradleCompileClient(
         val algorithms = session.getConfig("PubkeyAcceptedAlgorithms").split(',') + "ssh-rsa"
         session.setConfig("PubkeyAcceptedAlgorithms", algorithms.joinToString(","))
         throwIfCanceled()
-        this.session = session
-        if (connectTimeoutMs == null) {
-            session.connect()
-        } else {
-            session.connect(connectTimeoutMs)
-        }
-        throwIfCanceled()
-
-        this.juggGradleCompileOptions = juggGradleCompileOptions
-        updateRemoteEnvironmentPrefix(juggGradleCompileOptions.environmentVariables)
-        openShellChannel()
-        if (!waitShellReady()) {
-            throw JuggException.loginToRemoteFailed("Remote shell is not ready, terminal handshake may have failed.")
+        try {
+            this.session = session
+            if (connectTimeoutMs == null) {
+                session.connect()
+            } else {
+                session.connect(connectTimeoutMs)
+            }
+            throwIfCanceled()
+            this.juggGradleCompileOptions = juggGradleCompileOptions
+            updateRemoteEnvironmentPrefix(juggGradleCompileOptions.environmentVariables)
+            openShellChannel()
+            if (!waitShellReady()) {
+                throw JuggException.loginToRemoteFailed("Remote shell is not ready, terminal handshake may have failed.")
+            }
+            if (!disableShellEcho()) {
+                throw JuggException.loginToRemoteFailed("Remote shell echo could not be disabled safely.")
+            }
+        } catch (e: Throwable) {
+            if (this.session === session) {
+                closeRemoteConnection()
+            } else {
+                session.disconnect()
+            }
+            throw e
         }
         logger.debug("login success, isUseKey: $isUseKey")
     }
@@ -315,6 +357,26 @@ class RemoteGradleCompileClient(
         }
         logger.warn("[Jugg] remote shell ready probe timeout, tail: ${JschShellTerminalHelper.stripAnsi(rawBuffer.toString()).trim()}")
         return false
+    }
+
+    private fun disableShellEcho(): Boolean {
+        val channel = channel ?: return false
+        val input = shellInputStream ?: return false
+        val commander = PrintStream(channel.outputStream, false)
+        val rawBuffer = StringBuilder()
+        commander.printlnCompat(JschShellTerminalHelper.DISABLE_SHELL_ECHO_COMMAND)
+        commander.flush()
+        val result = pollShellInput(
+            input = input,
+            commander = commander,
+            rawBuffer = rawBuffer,
+            deadlineMs = System.currentTimeMillis() + 5_000,
+            command = null,
+        ) { line -> JschShellTerminalHelper.parseShellEchoDisabledResult(line) == 0 }
+        if (!result.isMatched) {
+            logger.warn("[Jugg] failed to disable remote shell echo")
+        }
+        return result.isMatched
     }
 
     private fun respondTerminalQueries(rawBuffer: StringBuilder, commander: PrintStream) {
@@ -546,7 +608,7 @@ class RemoteGradleCompileClient(
                 gradleCompileSettings.compileCommand,
                 gradleCompileSettings.remoteProjectPath,
                 gradleCompileSettings.remoteInitGradleFilePath,
-                localProjectPath = project.basePath,
+                localProjectPath = projectDir.path,
                 logger = logger,
                 buildTarget = gradleCompileSettings.buildTarget,
                 libraryTestApkGradleTasks = gradleCompileSettings.libraryTestApkGradleTasks,
@@ -582,7 +644,7 @@ class RemoteGradleCompileClient(
         findApks.addAll(findOptionalLibraryTestApks(findApks.size, lookupPlan.optionalLibraryTestPatterns, gradleCompileSettings))
 
         if (failedApkPaths.isNotEmpty()) {
-            printToStreamError("Can't find apks in $failedApkPaths in ${project.basePath}, " +
+            printToStreamError("Can't find apks in $failedApkPaths in ${projectDir.path}, " +
                     "total: \"${gradleCompileSettings.outputApkName}\"")
             return GradleCompileResult.failed(isCanceled, "Can't find apk in $failedApkPaths")
         } else {
@@ -869,7 +931,7 @@ class RemoteGradleCompileClient(
             gradleCompileSettings.remoteProjectPath,
             gradleCompileSettings.remoteInitGradleFilePath,
             incDeployTimes,
-            localProjectPath = project.basePath,
+            localProjectPath = projectDir.path,
             buildTarget = gradleCompileSettings.buildTarget,
         )
         val compileProjectResult = invoke(diffLibraryChangesCommand)
@@ -1241,16 +1303,31 @@ class RemoteGradleCompileClient(
 
     override fun dispose() {
         JSch.setLogger(null)
+        closeRemoteConnection()
+        cmdExecutor.release()
+    }
+
+    private fun closeRemoteConnection() {
         shellInputStream = null
-        inputStream?.close()
-        channel?.disconnect()
-        session?.disconnect()
+        try {
+            inputStream?.close()
+        } catch (e: Exception) {
+            logger.debug("Close remote input stream failed", e)
+        }
+        try {
+            channel?.disconnect()
+        } catch (e: Exception) {
+            logger.debug("Disconnect remote channel failed", e)
+        }
+        try {
+            session?.disconnect()
+        } catch (e: Exception) {
+            logger.debug("Disconnect remote session failed", e)
+        }
         inputStream = null
         channel = null
         session = null
         remoteEnvironmentPrefix = ""
-
-        cmdExecutor.release()
     }
 
     inner class JschLogger : Logger {

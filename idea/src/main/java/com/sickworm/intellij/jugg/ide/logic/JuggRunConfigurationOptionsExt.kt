@@ -5,7 +5,7 @@ import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.bean.SyncMode
 import com.sickworm.intellij.jugg.ide.bean.parseRemoteSyncExcludePatterns
-import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import com.sickworm.intellij.jugg.server.protocols.RunConfigurationTemplate
 
 fun JuggRunConfigurationOptions.toCompileOptions(

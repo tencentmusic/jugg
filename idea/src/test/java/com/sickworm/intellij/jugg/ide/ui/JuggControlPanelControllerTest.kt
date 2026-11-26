@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.ide.ui
 
 import com.android.ddmlib.IDevice
+import com.sickworm.intellij.jugg.deploy.run.LegacyDeviceAdapter
 import com.intellij.execution.RunManager
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.JuggManager
@@ -53,7 +54,7 @@ class JuggControlPanelControllerTest {
         Mockito.`when`(device.getProperty("ro.product.manufacturer")).thenReturn("Google")
         Mockito.`when`(device.getProperty("ro.product.model")).thenReturn("Pixel 8")
         Mockito.`when`(targetManager.getDeviceNameList()).thenReturn("Pixel 8")
-        Mockito.`when`(targetManager.getConnectedDevices()).thenReturn(listOf(device))
+        Mockito.`when`(targetManager.getConnectedDevices()).thenReturn(listOf(LegacyDeviceAdapter(device)))
         controller = JuggControlPanelController(
             project = project,
             manager = manager,
@@ -81,9 +82,9 @@ class JuggControlPanelControllerTest {
         val first = java.io.File(root, "First.kt").apply { writeText("class First") }
         val second = java.io.File(root, "Second.kt").apply { writeText("class Second") }
         val third = java.io.File(root, "Third.kt").apply { writeText("class Third") }
-        fun changed(file: java.io.File) = com.sickworm.intellij.jugg.project.ChangedFile(
+        fun changed(file: java.io.File) = com.sickworm.intellij.jugg.project.change.ChangedFile(
             com.sickworm.intellij.jugg.compiler.CompileFile.Type.Kotlin, file, root,
-            com.sickworm.intellij.jugg.project.data.ModuleInfo.virtualModule)
+            com.sickworm.intellij.jugg.project.info.ModuleInfo.virtualModule)
         val initial = listOf(changed(first), changed(second))
         Mockito.`when`(dialogController.fileChangeCandidates()).thenReturn(initial)
         Mockito.`when`(dialogController.selectedFilePaths()).thenReturn(setOf(first.absolutePath))
@@ -108,9 +109,9 @@ class JuggControlPanelControllerTest {
     fun `double clicking a file keeps the dialog and checkbox edits open until confirmation`() {
         val controller = Mockito.mock(JuggControlPanelController::class.java)
         val source = temporaryFolder.newFile("Open.kt")
-        val changed = com.sickworm.intellij.jugg.project.ChangedFile(
+        val changed = com.sickworm.intellij.jugg.project.change.ChangedFile(
             com.sickworm.intellij.jugg.compiler.CompileFile.Type.Kotlin, source, temporaryFolder.root,
-            com.sickworm.intellij.jugg.project.data.ModuleInfo.virtualModule)
+            com.sickworm.intellij.jugg.project.info.ModuleInfo.virtualModule)
         Mockito.`when`(controller.fileChangeCandidates()).thenReturn(listOf(changed))
         Mockito.`when`(controller.selectedFilePaths()).thenReturn(emptySet())
         Mockito.`when`(controller.applyFileSelection(Mockito.anyList(), Mockito.anySet())).thenReturn(true)

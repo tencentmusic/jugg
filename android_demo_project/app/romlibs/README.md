@@ -1,49 +1,49 @@
-# ROM API 编译复现
+# ROM API compilation reproduction
 
-本目录用最小 Java 桩模拟设备 framework，依赖通过 `compileOnly` 引入，不应打包进 APK。桩只模拟编译接口，不代表设备具备这些 API；不要在普通设备上实例化或调用复现类。
+Minimal Java stubs model a device framework through `compileOnly` dependencies and must not enter the APK. They model compiler interfaces only; do not instantiate or invoke the reproduction classes on ordinary devices.
 
-## 场景与入口
+## Scenarios
 
-- `src/main/.../romhiddenapi/RomHiddenApiChild.kt`：间接继承 ROM SDK 的隐藏嵌套父类型，保留原场景。
-- `src/romApi/.../AccessoriesFragmentCase.java`：报告 `261e2001` 中的 `BluetoothProfile.HID_HOST`。
-- `src/romApi/.../WirelessNetworkManagerCase.kt`：报告 `752724a0` 中六个 Wi-Fi 方法的 `unresolved reference`。
+- `src/main/.../romhiddenapi/RomHiddenApiChild.kt`: indirect inheritance from a hidden nested ROM SDK parent, preserving the original case.
+- `src/romApi/.../AccessoriesFragmentCase.java`: `BluetoothProfile.HID_HOST` from report `261e2001`.
+- `src/romApi/.../WirelessNetworkManagerCase.kt`: six unresolved Wi-Fi methods from report `752724a0`.
 
-后两项通过 `-PjuggRomApiFixture=true` 开启，默认不加入 app source set。各版本 app 构建模板均引用同一 `fixture.gradle`；本次实际验证 Kotlin 1.9.22 / AGP 7.3.1 配置，其他版本未验证。
+The latter two require `-PjuggRomApiFixture=true` and are excluded from the default app source set. All app build templates share `fixture.gradle`. The recorded verification used Kotlin 1.9.22 / AGP 7.3.1; other versions were not verified.
 
-## 重新生成桩
+## Regenerate stubs
 
-在工程根目录执行（需要 JDK 9+）：
+From the demo project root, using JDK 9+:
 
 ```bash
 python3 app/romlibs/build_fixtures.py
 ```
 
-脚本将 `src/android` 打入 `rom_framework.jar`，将 `src/com` 打入 `rom_sdk.jar`，不把辅助 SDK 类混入 framework jar。
+The script packages `src/android` into `rom_framework.jar` and `src/com` into `rom_sdk.jar`, keeping auxiliary SDK classes out of the framework JAR.
 
-## 建立全量基线
+## Full-build baseline
 
 ```bash
 ./gradlew :app:assembleDebug -PjuggRomApiFixture=true
 ```
 
-`fixture.gradle` 为 Gradle 的 Kotlin 编译依赖和 javac 引导类路径前置 framework 桩，使公开 SDK 缺失的方法也可建立全量基线。该顺序适配仅在复现开关开启时生效；依赖仍为 compile-only。
+With the fixture enabled, `fixture.gradle` prepends framework stubs to Gradle Kotlin compiler dependencies and the javac bootstrap classpath so APIs absent from the public SDK can establish a baseline. Dependencies remain compile-only.
 
-## 在 Android Studio 验证 Jugg
+## Verify Jugg in Android Studio
 
-1. 使用包含 framework 初始化探测修复的插件打开本 demo。
-2. 将 Jugg 全量编译命令设置为 `:app:assembleDebug -PjuggRomApiFixture=true`，建立基线并刷新项目模型。需要 IDE 索引包含复现源码时，同步为 Gradle 设置该项目属性。
-3. 修改上述复现类的方法体，再运行 Jugg 增量编译。
-4. 检查 `Framework classpath detection`：应命中 `rom_framework.jar`；实际 javac/kotlinc classpath 应在 SDK 前包含该 jar，不应出现旧的 SDK 后置重试。
-5. 编译产物应包含复现类；APK DEX 不应定义桩中的 `android.bluetooth.BluetoothProfile`、`android.net.wifi.WifiManager`、`WifiInfo`、`WifiConfiguration` 或 `com.rom.RomSoftApCallback`。
+1. Open the demo with a plugin containing the framework initialization detection fix.
+2. Set the full-build command to `:app:assembleDebug -PjuggRomApiFixture=true`, establish the baseline, and refresh the project model. Set the same Gradle project property during Sync if IDE indexing needs the fixture sources.
+3. Edit a reproduction method body and run Jugg incremental compilation.
+4. Check `Framework classpath detection`: it should select `rom_framework.jar`. The actual javac/kotlinc classpath must place it before the SDK, without the old SDK-last retry.
+5. Outputs must contain the reproduction classes. APK DEX must not define the stub classes `android.bluetooth.BluetoothProfile`, `android.net.wifi.WifiManager`, `WifiInfo`, `WifiConfiguration`, or `com.rom.RomSoftApCallback`.
 
-本次没有 demo 专属有效 Jugg Run Configuration，CLI 未完成 IDE 内的增量编译；该步骤需在配置好的环境补验。
+The original investigation had no valid demo-specific Jugg Run Configuration, so the CLI did not complete IDE incremental compilation; verify this in a configured environment.
 
-## 自动化矩阵
+## Automated matrix
 
-仓库根目录：
+From the repository root:
 
 ```bash
 ANDROID_HOME=/path/to/sdk ./gradlew :main:test --tests '*RomApiCompileTest'
 ```
 
-矩阵覆盖 Java/Kotlin 的字段、方法、嵌套类型、重载、构造函数、间接父类型，共 24 项。使用真实 SDK 35、javac 和 Kotlin compiler；先保留 SDK-first 失败基线，再通过真实 `BaseCompileContext` 验证 compile-only 探测及前置后成功，禁止依赖编译器自动重试。两份报告对应的 Java/Kotlin 源码直接读取 demo 文件；其余场景使用临时源码，Activity 重载桩只存在于临时 jar，不覆盖 demo 的正常 Activity API。
+The 24-case matrix covers Java/Kotlin fields, methods, nested types, overloads, constructors, and indirect parents using real SDK 35, javac, and Kotlin compiler. It first retains SDK-first failures, then verifies compile-only detection and successful prepending through the real `BaseCompileContext`, without automatic compiler retry. The two reported cases read demo sources directly; other cases use temporary sources. Activity overload stubs exist only in a temporary JAR and do not replace the demo's normal Activity API.

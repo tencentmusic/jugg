@@ -34,6 +34,7 @@ class CompileAndDeployMcpToolAction : McpToolAction {
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,
+                "serial" to McpToolSchemas.serialProperty,
                 "alwaysRestartApp" to McpJsonSchemaProperty(
                     type = "boolean",
                     description = "When true (default), always restart the app after deployment (HOT_FIX behavior). " +
@@ -55,6 +56,7 @@ class CompileAndDeployMcpToolAction : McpToolAction {
             toolName = toolName,
             isAlwaysRestartApp = isAlwaysRestartApp,
             waitAppReadyAfterSuccess = waitAppReadyAfterSuccess,
+            targetDeviceSerial = arguments.deviceSerial(),
         )
     }
 
@@ -73,19 +75,24 @@ class CompileAndDeployMcpToolAction : McpToolAction {
             androidTestRunSpec: AndroidTestRunSpec? = null,
             buildTargetOverride: BuildTarget? = null,
             waitAppReadyAfterSuccess: Boolean = false,
+            compiledFiles: List<String> = emptyList(),
+            targetDeviceSerial: String? = null,
         ): McpToolResult {
-            val projectDir = runCatching { runtime.project.basePath }.getOrNull()
+            val projectDir = runtime.projectDir.takeIf { it.isNotBlank() }
             val trigger = CompileJobManager.triggerJuggCompile(
                 runtime = runtime,
                 isSkipDeploy = isSkipDeploy,
-                successToolName = toolName.takeIf {
-                    toolName == McpToolActionRegistry.ToolNames.COMPILE ||
-                            toolName == McpToolActionRegistry.ToolNames.DEPLOY
+                successMessageProvider = { runResult ->
+                    buildSuccessMessage(toolName, projectDir, compiledFiles, runResult).takeIf {
+                        toolName == McpToolActionRegistry.ToolNames.COMPILE ||
+                                toolName == McpToolActionRegistry.ToolNames.DEPLOY
+                    }
                 },
                 isAlwaysRestartApp = isAlwaysRestartApp,
                 androidTestRunSpec = androidTestRunSpec,
                 buildTargetOverride = buildTargetOverride,
                 waitAppReadyAfterSuccess = waitAppReadyAfterSuccess,
+                targetDeviceSerial = targetDeviceSerial,
             )
             val jobMetaData = buildJobMetaData(trigger)
             if (!trigger.isFinal) {
@@ -124,7 +131,7 @@ class CompileAndDeployMcpToolAction : McpToolAction {
             )
             // Record deploy completion timestamp so wait-logs can use it as the log start point.
             if (result.status == McpToolStatus.OK && projectDir != null) {
-                LastDeployTimestampRegistry.INSTANCE.recordNow(projectDir)
+                LastDeployTimestampRegistry.INSTANCE.recordNow(projectDir, targetDeviceSerial)
             }
             return result
         }
@@ -132,9 +139,10 @@ class CompileAndDeployMcpToolAction : McpToolAction {
         internal fun buildSuccessMessage(
             toolName: String,
             projectDir: String?,
+            compiledFiles: List<String>,
             runResult: RunResult,
         ): String {
-            val compiledFiles = runResult.compiledFiles
+            val actualCompiledFiles = runResult.compiledFiles.ifEmpty { compiledFiles }
             val successMessage = "$toolName executed successfully."
             return when {
                 runResult.isGradleCompile -> "$successMessage Gradle build completed; compiled files are not enumerated."
@@ -145,11 +153,15 @@ class CompileAndDeployMcpToolAction : McpToolAction {
                     if (projectDir == null) "$successMessage Deployed files (total: 0)."
                     else buildNoPendingDeployMessage(projectDir)
                 }
-                compiledFiles.isNotEmpty() -> {
-                    "$successMessage Compiled files (total: ${compiledFiles.size}): ${compiledFiles.joinToString(", ") { it.replace('\\', '/').substringAfterLast('/') }}"
+                actualCompiledFiles.isNotEmpty() -> {
+                    "$successMessage Compiled files (total: ${actualCompiledFiles.size}): ${actualCompiledFiles.joinToString(", ") { it.replace('\\', '/').substringAfterLast('/') }}"
                 }
                 toolName == McpToolActionRegistry.ToolNames.COMPILE -> {
                     "$successMessage No pending file changes."
+                }
+                toolName == McpToolActionRegistry.ToolNames.DEPLOY &&
+                        runResult.isDeploySuccess && projectDir != null -> {
+                    buildNoPendingDeployMessage(projectDir)
                 }
                 else -> "$successMessage  Compiled files (total: 0)"
             }

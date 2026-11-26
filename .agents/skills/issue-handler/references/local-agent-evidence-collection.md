@@ -2,11 +2,13 @@
 
 Use this companion to the [investigation guide](https://raw.githubusercontent.com/tencentmusic/jugg/main/.agents/skills/issue-handler/references/local-agent-investigation-guide.md) when no preserved snapshot is supplied, or when analysis identifies a specific evidence gap. Collection here means locating and reading existing incident material. Start analysis as soon as the relevant logs and context are available; no archive or complete artifact inventory is required.
 
+The current knowledge-base root is `docs/ai/`. Older releases used `docs/ai_knowledge/`; if the selected revision lacks a `docs/ai/` file, retry that file once under `docs/ai_knowledge/` at the same revision. Keep the captured version boundary explicit.
+
 ## 1. Find the Incident and Its Logs
 
 Establish the Android project, reported behavior, approximate failure time, and last relevant change from the user's description and supplied material. Read supplied logs, extracted diagnostics, or screenshots first. Ask only for information that cannot be recovered from the available evidence and would change the investigation.
 
-Use section 1 of [09_plugin_runtime_debug.md](https://raw.githubusercontent.com/tencentmusic/jugg/main/docs/ai_knowledge/09_plugin_runtime_debug.md) for log locations and fallback paths. For an Android project, `build/jugg/log/compile_latest.log` is a convenient starting point when it still covers the incident; the real rolling logs live in the project's directory under the global Jugg log root. Follow the existing link or establish the matching project directory rather than selecting another project's newest log.
+Use section 1 of [09_plugin_runtime_debug.md](https://raw.githubusercontent.com/tencentmusic/jugg/main/docs/ai/09_plugin_runtime_debug.md) for log locations and fallback paths. For an Android project, `build/jugg/log/compile_latest.log` is a convenient starting point when it still covers the incident; the real rolling logs live in the project's directory under the global Jugg log root. Follow the existing link or establish the matching project directory rather than selecting another project's newest log.
 
 Locate the reported time window in the real `compile_*.log` files and read the complete diagnostic plus surrounding task start, stage, retry, and completion messages. Expand into adjacent files if the run crossed a rotation. For an older incident, use its logs rather than the latest run. Record paths and timestamps so later source or artifact comparisons refer to the same incident.
 

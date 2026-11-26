@@ -27,7 +27,7 @@ tags:
 
 ```text
 Confirm fallback
-  -> Clean And Reinstall
+  -> Just clean reinstall APK
 ```
 
 CLI 场景可以执行：

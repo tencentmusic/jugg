@@ -2,16 +2,15 @@ package com.sickworm.intellij.jugg.compiler
 
 import com.intellij.openapi.progress.DumbProgressIndicator
 import com.intellij.openapi.progress.ProgressIndicator
-import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.compiler.ui.BuildChangesConfirmResult
 import com.sickworm.intellij.jugg.compiler.ui.RunResult
 import com.sickworm.intellij.jugg.compiler.ui.TooManyChangesConfirmResult
 import com.sickworm.intellij.jugg.deploy.instrument.InstrumentationEvent
+import com.sickworm.intellij.jugg.deploy.run.JuggInstallSession
 import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
 import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
 import com.sickworm.intellij.jugg.ide.bean.IProcessHandler
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResultSet
-import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import java.io.File
 
 /**
@@ -26,6 +25,8 @@ interface CompileUiHandler {
     val isDebugRun: Boolean get() = false
     /** When true, the compile flow was triggered by MCP/RPC instead of an IDE Run action. */
     val isRpcMode: Boolean get() = false
+    /** Optional request-scoped adb serial. Null preserves the Host's default device selection. */
+    val targetDeviceSerial: String? get() = null
     val isGradleCacheRefreshRequested: Boolean get() = false
     val isCanceled: Boolean
     var processHandler: IProcessHandler // injected
@@ -36,8 +37,8 @@ interface CompileUiHandler {
     fun createOutputParser(): IGradleCompileClient.TerminalOutputListener
 
     fun confirmFallbackWhenNoFileChanges(): ConfirmResult
-    fun confirmBuildChanges(project: Project, changedBuildFiles: List<Pair<File, File?>>): BuildChangesConfirmResult
-    fun confirmDependencyChanges(dependencyChangeManager: IDependencyChangeManager, runResult: DependencyDiffResultSet?): ConfirmResult
+    fun confirmBuildChanges(changedBuildFiles: List<Pair<File, File?>>): BuildChangesConfirmResult
+    fun confirmDependencyChanges(runResult: DependencyDiffResultSet?): ConfirmResult
     fun confirmEmbeddedToApk(): ConfirmResult
     fun confirmTooManyChanges(info: TooManyChangesInfo): TooManyChangesConfirmResult =
         TooManyChangesConfirmResult.FALLBACK
@@ -45,11 +46,14 @@ interface CompileUiHandler {
     fun updateIndicatorText(text: String)
     fun listenCancelAction(listener: (() -> Unit)?)
     fun notifyByBalloon(text: String)
+    fun notifyFallbackByBalloon(reason: String) {
+        notifyByBalloon("Fallback to gradle compile. Reason: $reason")
+    }
     /** Ensures the Run tool window infrastructure exists without requesting focus. */
     fun ensureRunWindowCreated()
     fun showRunWindow()
 
-    fun shouldAutoConfirmDeployPrompt(message: String): Boolean = false
+    fun confirmDeployPrompt(message: String): JuggInstallSession.PromptAction = JuggInstallSession.PromptAction.CANCEL
     /** Notifies consumers immediately before an incremental or Gradle compile path starts. */
     fun onCompileStarted(isGradleCompile: Boolean, fallbackReason: String?) = Unit
     fun onDeployUiMessage(message: String) = Unit
@@ -72,8 +76,8 @@ interface CompileUiHandler {
             override fun createOutputParser(): IGradleCompileClient.TerminalOutputListener = IGradleCompileClient.TerminalOutputListener.DEFAULT
 
             override fun confirmFallbackWhenNoFileChanges() = ConfirmResult.NEGATIVE
-            override fun confirmBuildChanges(project: Project, changedBuildFiles: List<Pair<File, File?>>) = BuildChangesConfirmResult.FALLBACK
-            override fun confirmDependencyChanges(dependencyChangeManager: IDependencyChangeManager, runResult: DependencyDiffResultSet?) = ConfirmResult.POSITIVE
+            override fun confirmBuildChanges(changedBuildFiles: List<Pair<File, File?>>) = BuildChangesConfirmResult.FALLBACK
+            override fun confirmDependencyChanges(runResult: DependencyDiffResultSet?) = ConfirmResult.POSITIVE
             override fun confirmEmbeddedToApk(): ConfirmResult = ConfirmResult.POSITIVE
             override fun confirmTooManyChanges(info: TooManyChangesInfo) = TooManyChangesConfirmResult.FALLBACK
 

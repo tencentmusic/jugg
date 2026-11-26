@@ -2,7 +2,7 @@ package com.sickworm.intellij.jugg.aapt2
 
 import com.sickworm.intellij.jugg.compiler.isMac
 import com.sickworm.intellij.jugg.compiler.isWindows
-import com.sickworm.intellij.jugg.project.JuggGlobalPathManager
+import com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager
 import org.junit.Test
 import java.io.File
 import java.net.URLClassLoader

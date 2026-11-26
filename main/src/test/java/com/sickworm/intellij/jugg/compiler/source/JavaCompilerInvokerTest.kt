@@ -6,8 +6,8 @@ import com.sickworm.intellij.jugg.compiler.CompileStatusHolder
 import com.sickworm.intellij.jugg.compiler.CompileTask
 import com.sickworm.intellij.jugg.compiler.ICompileContext
 import com.sickworm.intellij.jugg.mock.StdLogger
-import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ModuleBuildPathInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import org.junit.Assume.assumeTrue
 import org.junit.Rule
 import org.junit.Test

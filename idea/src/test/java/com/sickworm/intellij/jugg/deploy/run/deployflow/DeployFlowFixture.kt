@@ -1,6 +1,6 @@
 package com.sickworm.intellij.jugg.deploy.run.deployflow
 
-import com.android.ddmlib.IDevice
+import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager

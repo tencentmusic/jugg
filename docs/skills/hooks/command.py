@@ -28,10 +28,12 @@ from hook_common import (
     has_session_write_seen,
     has_pending_files,
     payload_debug_suffix,
+    PROJECT_CWDS_KEY,
     read_hook_state,
     read_json_payload,
     read_status_snapshot,
     remember_project_cwd,
+    resolve_project_cwd,
     session_write_needs_verification,
     state_file_path,
     status_execution_type,
@@ -93,6 +95,80 @@ def _collect_shell_command_texts(value: Any) -> list[str]:
 
 def _single_line_command(command: str) -> str:
     return command.replace("\\", "\\\\").replace("\n", "\\n").replace("\r", "\\r")
+
+
+def _command_mentions_project(commands: list[str], project_dir: str, base_cwd: str) -> bool:
+    """Return True when a command references project_dir by absolute or relative path."""
+    try:
+        resolved_project = Path(project_dir).resolve()
+        resolved_base = Path(base_cwd).resolve()
+    except OSError:
+        return False
+    tokens = [str(resolved_project).replace("\\", "/")]
+    try:
+        rel = resolved_project.relative_to(resolved_base)
+        rel_text = str(rel).replace("\\", "/")
+        if rel_text and rel_text != ".":
+            tokens.append(rel_text)
+    except ValueError:
+        pass
+    for command in commands:
+        normalized = command.replace("\\", "/")
+        for token in tokens:
+            pattern = rf"(?<![A-Za-z0-9_.-]){re.escape(token)}(?![A-Za-z0-9_.-])"
+            if re.search(pattern, normalized):
+                return True
+    return False
+
+
+def _candidate_project_cwds(
+    state: dict[str, Any],
+    project_cwd: str,
+    cwd: str,
+    commands: list[str],
+) -> list[str]:
+    """Select recorded session projects to check when cwd is not itself a Jugg project."""
+    project_cwds = state.get(PROJECT_CWDS_KEY)
+    if not isinstance(project_cwds, list) or not project_cwds:
+        return []
+    candidates: list[str] = []
+    for candidate in project_cwds:
+        if isinstance(candidate, str) and candidate and candidate != project_cwd and candidate not in candidates:
+            candidates.append(candidate)
+    if len(candidates) <= 1:
+        return candidates
+    matched = [candidate for candidate in candidates if _command_mentions_project(commands, candidate, cwd)]
+    return matched if matched else candidates
+
+
+def _evaluate_gradle_target(
+    client: str,
+    state: dict[str, Any],
+    target_project_cwd: str,
+    structured: dict[str, Any],
+    used_fallback: bool,
+) -> tuple[bool, bool, str]:
+    """Evaluate whether a raw Gradle command should be blocked for target_project_cwd."""
+    is_remote_compile = status_is_remote_compile(structured)
+    session_write_seen = has_session_write_seen(state)
+    project_cwds = state.get(PROJECT_CWDS_KEY)
+    if client == "antigravity" and isinstance(project_cwds, list) and project_cwds:
+        session_write_seen = session_write_seen and target_project_cwd in project_cwds
+    if not is_remote_compile and not session_write_seen:
+        return False, False, "exit: allow raw gradle command because no session write was recorded"
+
+    has_pending = has_pending_files(extract_file_counts(structured))
+    if not is_remote_compile and not has_pending:
+        return False, True, "exit: allow raw gradle command because pendingModifiedFiles show no pending changes"
+
+    verification_project = target_project_cwd if (client == "antigravity" or used_fallback) else None
+    if not is_remote_compile and not session_write_needs_verification(state, structured, verification_project):
+        return (
+            False,
+            True,
+            "exit: allow raw gradle command because session writes were already covered by Jugg verification",
+        )
+    return True, False, ""
 
 
 def pending_fingerprint(structured: dict[str, Any]) -> str:
@@ -168,14 +244,10 @@ def main() -> int:
     state = read_hook_state(state_file)
     project_cwd = cwd
     project_cwd_changed = False
-    if args.client in {"cursor", "antigravity"}:
+    if args.client == "cursor":
         project_cwd, project_cwd_changed = remember_project_cwd(state, payload, cwd)
     if args.client == "antigravity":
-        project_state_file = state_file_path(home, project_cwd, session_id)
-        if project_state_file != state_file:
-            state_file = project_state_file
-            state = read_hook_state(state_file)
-            project_cwd, project_cwd_changed = remember_project_cwd(state, payload, cwd)
+        project_cwd = resolve_project_cwd({}, payload, cwd)
     shell_commands = _collect_shell_command_texts(payload)
     commands = collect_command_strings(payload, decode_json_strings=args.client == "antigravity")
     debug_log(
@@ -194,43 +266,50 @@ def main() -> int:
         return 0
 
     structured = read_status_snapshot(home, project_cwd)
-    if structured is None:
-        debug_log("JUGG-COMMAND", "exit: project is not available to jugg")
-        emit_allow(args.client)
-        return 0
+    if structured is not None:
+        targets = [(project_cwd, structured, False)]
+    else:
+        targets = []
+        for candidate in _candidate_project_cwds(state, project_cwd, cwd, commands):
+            candidate_structured = read_status_snapshot(home, candidate)
+            if candidate_structured is not None:
+                targets.append((candidate, candidate_structured, True))
+        if not targets:
+            debug_log("JUGG-COMMAND", "exit: project is not available to jugg")
+            emit_allow(args.client)
+            return 0
 
-    is_remote_compile = status_is_remote_compile(structured)
-    if not is_remote_compile and not has_session_write_seen(state):
-        debug_log("JUGG-COMMAND", "exit: allow raw gradle command because no session write was recorded")
-        emit_allow(args.client)
-        return 0
-
-    has_pending = has_pending_files(extract_file_counts(structured))
     try:
         block_count = int(state.get("gradleBlockCount", 0) or 0)
     except (TypeError, ValueError):
         block_count = 0
 
-    if not is_remote_compile and not has_pending:
-        if block_count > 0:
-            state["gradleBlockCount"] = 0
-            state.pop("gradleBlockedFingerprint", None)
-            write_hook_state(state_file, state)
-        debug_log("JUGG-COMMAND", "exit: allow raw gradle command because pendingModifiedFiles show no pending changes")
-        emit_allow(args.client)
-        return 0
-
-    if not is_remote_compile and not session_write_needs_verification(state, structured):
-        if block_count > 0:
-            state["gradleBlockCount"] = 0
-            state.pop("gradleBlockedFingerprint", None)
-            write_hook_state(state_file, state)
-        debug_log(
-            "JUGG-COMMAND",
-            "exit: allow raw gradle command because session writes were already covered by Jugg verification",
+    blocked_structured: dict[str, Any] | None = None
+    should_clear_block = False
+    allow_reason = ""
+    for target_project_cwd, target_structured, used_fallback in targets:
+        should_block, clear_block, reason = _evaluate_gradle_target(
+            args.client,
+            state,
+            target_project_cwd,
+            target_structured,
+            used_fallback,
         )
+        if should_block:
+            blocked_structured = target_structured
+            break
+        should_clear_block = should_clear_block or clear_block
+        allow_reason = reason
+
+    if blocked_structured is None:
+        if should_clear_block and block_count > 0:
+            state["gradleBlockCount"] = 0
+            state.pop("gradleBlockedFingerprint", None)
+            write_hook_state(state_file, state)
+        debug_log("JUGG-COMMAND", allow_reason)
         emit_allow(args.client)
         return 0
+    structured = blocked_structured
 
     if is_hook_block_disabled(home):
         debug_log("JUGG-COMMAND", "exit: allow raw gradle command because DISABLE_BLOCK flag is set")

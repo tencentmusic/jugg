@@ -2,7 +2,7 @@
 
 package com.sickworm.intellij.jugg.gradle.script
 
-import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.provider.Property

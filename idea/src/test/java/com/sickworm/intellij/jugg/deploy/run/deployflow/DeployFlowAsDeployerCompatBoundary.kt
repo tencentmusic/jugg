@@ -1,15 +1,15 @@
 package com.sickworm.intellij.jugg.deploy.run.deployflow
 
-import com.android.ddmlib.IDevice
-import com.android.tools.deploy.proto.Deploy
+import com.sickworm.intellij.jugg.deploy.api.IDevice
+import com.sickworm.intellij.jugg.deploy.api.Deploy
 import com.android.tools.deployer.Installer
 import com.android.tools.deployer.OverlayId
 import com.sickworm.intellij.jugg.deploy.run.JuggOverlayUpdate
-import com.android.tools.deployer.ClassRedefiner
-import com.android.utils.ILogger
+import com.sickworm.intellij.jugg.deploy.api.ILogger
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.JuggInstallSession
+import com.sickworm.intellij.jugg.deploy.run.JuggClassRedefiner
 import com.sickworm.intellij.jugg.deploy.run.JuggOverlayId
 import org.mockito.Mockito
 
@@ -42,7 +42,7 @@ class DeployFlowAsDeployerCompatBoundary(
         installersFolder: String,
         device: IDevice,
         logger: ILogger,
-        onPrompt: (String) -> Boolean,
+        onPrompt: (String) -> JuggInstallSession.PromptAction,
         onMessage: (String) -> Unit,
     ): JuggInstallSession {
         createInstallSessionInvokeCount++
@@ -50,7 +50,7 @@ class DeployFlowAsDeployerCompatBoundary(
         if (installerVersion != null) {
             Mockito.`when`(installer.version).thenReturn(installerVersion)
         }
-        return JuggInstallSession(installer, installerVersion, onPrompt, onMessage)
+        return JuggInstallSession(this, installer, installerVersion, onPrompt, onMessage)
     }
 
     override fun install(
@@ -67,7 +67,7 @@ class DeployFlowAsDeployerCompatBoundary(
 
     override fun optimisticSwap(
         session: JuggInstallSession,
-        redefiners: Map<Int, ClassRedefiner>,
+        redefiners: Map<Int, JuggClassRedefiner>,
         packageName: String,
         argRestart: Boolean,
         pids: List<Int>,
@@ -106,7 +106,7 @@ class DeployFlowAsDeployerCompatBoundary(
         project: com.intellij.openapi.project.Project,
         device: IDevice,
         fallback: Boolean,
-    ): Map<Int, ClassRedefiner> {
+    ): Map<Int, JuggClassRedefiner> {
         makeDebuggerRedefinersInvokeCount++
         return emptyMap()
     }

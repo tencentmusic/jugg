@@ -3,7 +3,7 @@ package com.sickworm.intellij.jugg.compiler.source.apt
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.source.JavaCompilerInvoker
 import com.sickworm.intellij.jugg.compiler.source.kotlin.KotlinCompilerInvoker
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import java.io.File
 
 /** Uses native KAPT for mixed-language aggregation and javac for Java-only modules. */

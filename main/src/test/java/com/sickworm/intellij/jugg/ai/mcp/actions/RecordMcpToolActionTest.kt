@@ -1,6 +1,6 @@
 package com.sickworm.intellij.jugg.ai.mcp.actions
 
-import com.android.ddmlib.IDevice
+import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
@@ -9,7 +9,6 @@ import com.sickworm.intellij.jugg.compiler.GradleCompileExecutionResult
 import com.sickworm.intellij.jugg.compiler.RemoteSshInfoResult
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
-import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.logic.IJuggConfigurationRunner
 import com.sickworm.intellij.jugg.ide.logic.JuggRunInvocationResult
@@ -18,7 +17,6 @@ import com.sickworm.intellij.jugg.ai.mcp.McpErrorCode
 import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
 import com.sickworm.intellij.jugg.platform.IPlatformApi
 import com.sickworm.intellij.jugg.platform.PlatformApi
-import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
 import org.junit.Assert
 import org.junit.Test
 import org.mockito.Mockito
@@ -116,11 +114,12 @@ class RecordMcpToolActionTest {
         val device = Mockito.mock(IDevice::class.java)
         Mockito.`when`(device.serialNumber).thenReturn("emulator-5554")
         val adb = FakeDeviceAdb(serial = "emulator-5554")
-        PlatformApi.impl = FakePlatformApi(mapOf(device to adb))
+        PlatformApi.impl = FakePlatformApi()
 
         val deployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
         Mockito.`when`(deployTargetManager.getSelectedDevices()).thenReturn(listOf(device))
         Mockito.`when`(deployTargetManager.getConnectedDevices()).thenReturn(listOf(device))
+        Mockito.`when`(deployTargetManager.createDeviceAdb(device)).thenReturn(adb)
         return SetupResult(
             runtime = buildRuntime(projectDir, deployTargetManager, isAppReadyProvider),
             adb = adb,
@@ -132,12 +131,10 @@ class RecordMcpToolActionTest {
         deployTargetManager: IDeployTargetManager,
         isAppReadyProvider: () -> Boolean,
     ): IMcpRuntime {
-        val project = Mockito.mock(Project::class.java)
-        Mockito.`when`(project.basePath).thenReturn(projectDir.absolutePath)
-        return object : IMcpRuntime {
+        return object : com.sickworm.intellij.jugg.ai.mcp.TestMcpRuntime() {
             override val logger: com.intellij.openapi.diagnostic.Logger
                 get() = com.intellij.openapi.diagnostic.Logger.getInstance("RecordMcpToolActionTest")
-            override val project: Project = project
+            override val projectDir: String = projectDir.absolutePath
             override val deployTargetManager: IDeployTargetManager = deployTargetManager
             override val forceGradleCompileHelper: ForceGradleCompileHelper = object : ForceGradleCompileHelper() {
                 override fun executeGradleCompile(autoConfirm: Boolean, useCleanAndReinstall: Boolean) {
@@ -185,9 +182,7 @@ class RecordMcpToolActionTest {
         override fun getProperty(name: String): String? = null
     }
 
-    private class FakePlatformApi(
-        private val adbByDevice: Map<IDevice, IDeviceAdb>,
-    ) : IPlatformApi {
+    private class FakePlatformApi : IPlatformApi {
         override fun showDialog(
             title: String,
             content: String,
@@ -195,14 +190,6 @@ class RecordMcpToolActionTest {
             cancelButtonText: String?,
             isShowCancelButton: Boolean,
         ): Boolean = false
-
-        override fun showChangeConfirmDialog(
-            diffResult: DependencyDiffResult?,
-            isRunLater: Boolean,
-            logger: Logger,
-        ): ConfirmResult {
-            throw UnsupportedOperationException("not used")
-        }
 
         override fun showUserAndPasswordInputDialog(
             content: String,
@@ -216,7 +203,7 @@ class RecordMcpToolActionTest {
         override fun getGradleJdkPath(project: Project, logger: Logger): String? = null
         override fun getAndroidHomePath(logger: Logger): String? = null
         override fun getIdeVersion(): String = "test"
-        override fun toDeviceAdb(device: IDevice): IDeviceAdb? = adbByDevice[device]
+        override fun getRuntimeInfo() = com.sickworm.intellij.jugg.project.runtime.RuntimeInfo("test", "test", "test", "")
         override fun isHasRelaunchActivityIssues(device: IDeviceAdb, logger: Logger): Boolean = false
         override fun invokeMcp(request: com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcRequest): com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcResponse {
             throw UnsupportedOperationException("not used")

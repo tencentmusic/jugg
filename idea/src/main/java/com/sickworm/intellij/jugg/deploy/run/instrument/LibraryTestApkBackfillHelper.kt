@@ -16,12 +16,13 @@ import com.sickworm.intellij.jugg.deploy.instrument.LibraryTestApkBuildRecord
 import com.sickworm.intellij.jugg.deploy.instrument.LibraryTestApkBackfillPlan
 import com.sickworm.intellij.jugg.deploy.instrument.LibraryTestApkBackfillPlanner
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
+import com.sickworm.intellij.jugg.deploy.run.ILibraryTestApkBackfillHelper
 import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.bean.SyncMode
-import com.sickworm.intellij.jugg.project.CompileContextManager
-import com.sickworm.intellij.jugg.project.JuggPathManager
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.compiler.context.CompileContextManager
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import java.io.File
 
 /**
@@ -50,13 +51,13 @@ class LibraryTestApkBackfillHelper(
             )
         )
     },
-) {
+) : ILibraryTestApkBackfillHelper {
 
-    fun backfillIfNeeded(
+    override fun backfillIfNeeded(
         spec: AndroidTestRunSpec?,
         data: JuggDeployData,
         uiHandler: CompileUiHandler,
-        installBackfilledApks: (List<ApkInfo>) -> Unit = {},
+        installBackfilledApks: (List<ApkInfo>) -> Unit,
     ): JuggDeployData {
         val sourcePath = spec?.sourcePath?.takeIf { it.isNotBlank() } ?: return data
         val projectInfo = compileContextManager.getProjectInfo()
@@ -76,7 +77,6 @@ class LibraryTestApkBackfillHelper(
         logger.info("Library Test APK missing, building ${plan.gradleTask}")
         uiHandler.notifyByBalloon("Library Test APK missing. Run Gradle compile once to build the test APK.")
         val result = JuggGradleCompileTask(
-            project = project,
             compileClient = compileClientFactory(),
             juggGradleCompileOptions = backfillOptions,
             uiHandler = uiHandler,

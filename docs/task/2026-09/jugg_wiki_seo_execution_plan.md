@@ -1,6 +1,12 @@
+**Purpose:** Track Wiki search and publication changes.
+
+**Decision:** Preserve mirrored routes, metadata, and bounded IndexNow notification.
+
+**Impact:** Improves discoverability without changing plugin runtime behavior.
+
 # Jugg Wiki 30 天 SEO 执行计划
 
-> 创建时间：2026-09-18  
+> 创建时间：2026-09-18\
 > 状态：进行中（阶段一执行中）
 
 ---

@@ -13,7 +13,10 @@ from hook_common import (
     resolve_hook_client,
     hook_state_cwd,
     LAST_WRITE_TIME_MS_KEY,
-    SESSION_WRITE_FILE_NAMES_KEY,
+    SESSION_WRITE_FILES_KEY,
+    PROJECT_CWDS_KEY,
+    WORKSPACE_ROOTS_KEY,
+    AVAILABLE_PROJECTS_KEY,
     SESSION_WRITE_SEEN_KEY,
     debug_log,
     extract_session_id,
@@ -28,7 +31,11 @@ from hook_common import (
 TURN_STATE_KEYS = (
     SESSION_WRITE_SEEN_KEY,
     LAST_WRITE_TIME_MS_KEY,
-    SESSION_WRITE_FILE_NAMES_KEY,
+    SESSION_WRITE_FILES_KEY,
+    PROJECT_CWDS_KEY,
+    WORKSPACE_ROOTS_KEY,
+    AVAILABLE_PROJECTS_KEY,
+    "unmatchedFiles",
     "stopBlockCount",
     "gradleBlockCount",
     "gradleBlockedFingerprint",
@@ -54,14 +61,10 @@ def main() -> int:
     client_part = f" client={args.client}" if args.client else ""
     cwd = hook_state_cwd(args.client, payload)
     session_id = extract_session_id(payload)
-    state = {}
-    project_cwd = cwd
-    if args.client == "antigravity":
-        project_cwd, _ = remember_project_cwd(state, payload, cwd)
-    state_file = state_file_path(Path.home(), project_cwd, session_id)
+    state_file = state_file_path(Path.home(), cwd, session_id)
     state = read_hook_state(state_file)
     if args.client == "antigravity":
-        project_cwd, project_cwd_changed = remember_project_cwd(state, payload, cwd)
+        project_cwd, project_cwd_changed = remember_project_cwd(state, {}, cwd)
         if project_cwd_changed:
             write_hook_state(state_file, state)
         _debug_log(
@@ -76,7 +79,7 @@ def main() -> int:
     if removed_keys:
         write_hook_state(state_file, state)
     _debug_log(
-        f"hook triggered cwd={cwd} projectCwd={project_cwd}{client_part}; "
+        f"hook triggered cwd={cwd} projectCwd={cwd}{client_part}; "
         f"clearedTurnStateKeys={removed_keys!r}"
     )
     emit_cursor_empty_response(args.client)

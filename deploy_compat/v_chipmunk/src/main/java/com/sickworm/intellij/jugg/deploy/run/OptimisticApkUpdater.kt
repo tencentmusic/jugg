@@ -20,11 +20,10 @@ class OptimisticApkUpdater(
         packageId: String?,
         pids: List<Int?>,
         arch: Deploy.Arch?,
-        overlayUpdate: JuggOverlayUpdate
+        cachedDump: JuggDeploymentCacheEntry,
+        dexOverlays: DexComparator.ChangedClasses,
+        fileOverlays: Map<ApkEntry, ByteString>,
     ): UpdateResult {
-        val cachedDump = overlayUpdate.cachedDump
-        val dexOverlays = overlayUpdate.dexOverlays
-        val fileOverlays: Map<ApkEntry, ByteString> = overlayUpdate.fileOverlays
         val overlayIdBuilder = OverlayId.builder(cachedDump.overlayId.raw as OverlayId)
         val expectedOverlayId = cachedDump.overlayId
         val request = Deploy.OverlayInstallRequest.newBuilder()

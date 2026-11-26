@@ -1,6 +1,5 @@
 package com.sickworm.intellij.jugg.ide.logic
 
-import com.android.ddmlib.IDevice
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.externalSystem.service.execution.ExternalSystemJdkUtil
 import com.intellij.openapi.project.Project
@@ -10,24 +9,30 @@ import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.util.EnvironmentUtil
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
-import com.sickworm.intellij.jugg.deploy.IdeaDeviceAdb
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.IdeVersion
-import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
 import com.sickworm.intellij.jugg.ide.ui.UserAndPasswordInputDialog
 import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
 import com.sickworm.intellij.jugg.loader.JuggInitializer
 import com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcRequest
 import com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcResponse
 import com.sickworm.intellij.jugg.platform.IPlatformApi
-import com.sickworm.intellij.jugg.project.CompileContextManager
-import com.sickworm.intellij.jugg.project.dependency.DependencyChangeDialogHelper
-import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
+import com.sickworm.intellij.jugg.compiler.context.IdeaProjectModelSource
 import com.sickworm.intellij.jugg.ai.mcp.IdeaMcpRuntime
+import com.sickworm.intellij.jugg.project.runtime.RuntimeInfo
+import com.sickworm.intellij.jugg.runtime.PluginInfoReader
 import org.jetbrains.plugins.gradle.settings.GradleSettings
 import java.io.File
 
 class IdeaPlatformApi : IPlatformApi {
+    private val runtimeInfoValue: RuntimeInfo by lazy {
+        RuntimeInfo(
+            runtimeType = "idea",
+            runtimeVersion = PluginInfoReader.getPluginVersion(),
+            hostVersion = getIdeVersion(),
+            buildTime = PluginInfoReader.getPluginCompileTimestamp(),
+        )
+    }
 
     override fun showDialog(
         title: String,
@@ -37,10 +42,6 @@ class IdeaPlatformApi : IPlatformApi {
         isShowCancelButton: Boolean
     ): Boolean {
         return CommonConfirmDialog.showAndGetResult(title, content, okButtonText, cancelButtonText, isShowCancelButton)
-    }
-
-    override fun showChangeConfirmDialog(diffResult: DependencyDiffResult?, isRunLater: Boolean, logger: Logger): ConfirmResult {
-        return DependencyChangeDialogHelper(logger).showChangeConfirmDialog(diffResult, isRunLater)
     }
 
     override fun showUserAndPasswordInputDialog(content: String, subTitle: String?, isPassword: Boolean, defaultInputText: String?, title: String?): String? {
@@ -134,7 +135,7 @@ class IdeaPlatformApi : IPlatformApi {
         val androidHome = System.getenv("ANDROID_HOME")
         logger.debug("ANDROID_HOME: $androidHome")
 
-        var androidHomePath = CompileContextManager.getAndroidSdkRootDir(logger)?.absolutePath
+        var androidHomePath = IdeaProjectModelSource.getAndroidSdkRootDir(logger)?.absolutePath
         if (androidHomePath == null) {
             logger.debug("can't find androidHomePath in modules, use ANDROID_HOME $androidHome instead")
             androidHomePath = androidHome
@@ -148,8 +149,8 @@ class IdeaPlatformApi : IPlatformApi {
         return AsDeployerCompat.ideVersion.toString()
     }
 
-    override fun toDeviceAdb(device: IDevice): IDeviceAdb? {
-        return IdeaDeviceAdb(device, Logger.getInstance("IdeaDeviceAdb"))
+    override fun getRuntimeInfo(): RuntimeInfo {
+        return runtimeInfoValue
     }
 
     override fun isHasRelaunchActivityIssues(device: IDeviceAdb, logger: Logger): Boolean {

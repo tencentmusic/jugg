@@ -51,7 +51,7 @@ If the change cannot be asserted automatically without binding private implement
 ## Documentation
 
 - [ ] No user-facing or architecture change
-- [ ] Updated user Wiki (`docs/wiki/zh/` source, English pages in sync)
+- [ ] Updated user Wiki (English root source, `docs/wiki/zh/` in sync)
 - [ ] Updated maintainer notes (`docs/ai_knowledge`)
 
 ## Checklist

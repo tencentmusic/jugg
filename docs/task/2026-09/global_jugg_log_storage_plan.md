@@ -1,3 +1,9 @@
+**Purpose:** Track preservation of project logs across clean.
+
+**Decision:** Use global project-specific logs and a best-effort legacy link.
+
+**Impact:** Keeps compile caches local while retaining incident logs.
+
 # Jugg 日志迁移到全局目录方案
 
 ## 背景

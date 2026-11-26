@@ -9,23 +9,26 @@ import com.intellij.openapi.progress.DumbProgressIndicator
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindowManager
+import com.android.tools.idea.run.IdeService
 import com.sickworm.intellij.jugg.compiler.ui.BuildChangesConfirmResult
 import com.sickworm.intellij.jugg.compiler.ui.RunResult
 import com.sickworm.intellij.jugg.compiler.ui.TooManyChangesConfirmResult
 import com.sickworm.intellij.jugg.deploy.instrument.InstrumentationEvent
+import com.sickworm.intellij.jugg.deploy.run.JuggInstallSession
 import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
+import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
 import com.sickworm.intellij.jugg.ide.bean.IProcessHandler
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
-import com.sickworm.intellij.jugg.ide.logic.JuggRunningTask
 import com.sickworm.intellij.jugg.ide.controlpanel.JuggEvent
+import com.sickworm.intellij.jugg.ide.logic.JuggRunningTask
 import com.sickworm.intellij.jugg.ide.ui.BuildChangesConfirmDialog
 import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
 import com.sickworm.intellij.jugg.ide.ui.JuggControlPanelController
 import com.sickworm.intellij.jugg.ide.ui.TooManyChangesConfirmDialog
 import com.sickworm.intellij.jugg.logger.getInstance
+import com.sickworm.intellij.jugg.project.dependency.DependencyChangeDialogHelper
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResultSet
-import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import java.io.File
 import javax.swing.SwingUtilities
 
@@ -41,6 +44,7 @@ open class JuggCompileUiHandler(
     override val isSkipDeploy: Boolean = false,
     override val isAlwaysRestartApp: Boolean = false,
     override val isDebugRun: Boolean = false,
+    override val targetDeviceSerial: String? = null,
     isGradleCacheRefreshRequested: Boolean = false,
     private val onEndListener: ((RunResult) -> Unit)? = null,
     private val userActions: JuggControlPanelController? = null,
@@ -70,34 +74,34 @@ open class JuggCompileUiHandler(
             return ConfirmResult.NEGATIVE
         }
         return recordConfirm(
-            "Confirm Fallback to Gradle",
+            "Confirm fallback to Gradle",
             CommonConfirmDialog.showAndGetOrCancel(
-                title = "Confirm Fallback to Gradle",
+                title = "Confirm fallback to Gradle",
                 content = "No file changes, do you want to fallback to gradle?",
                 okButtonText = "Fallback to Gradle",
                 negativeButtonText = "Don't fallback",
                 leftButtonText = "Cancel",
-                checkBoxText = "clean gradle cache on fallback",
+                checkBoxText = "Clean Gradle cache on fallback",
                 checkBoxSelectionAction = { isGradleCacheRefreshRequested = it },
             ),
         )
     }
 
-    override fun confirmBuildChanges(
-        project: Project,
-        changedBuildFiles: List<Pair<File, File?>>
-    ): BuildChangesConfirmResult {
+    override fun confirmBuildChanges(changedBuildFiles: List<Pair<File, File?>>): BuildChangesConfirmResult {
         if (isRpcMode) {
             return BuildChangesConfirmResult.FALLBACK
         }
         return recordConfirm("Build file changes", BuildChangesConfirmDialog.showAndGetResult(project, changedBuildFiles))
     }
 
-    override fun confirmDependencyChanges(dependencyChangeManager: IDependencyChangeManager, runResult: DependencyDiffResultSet?): ConfirmResult {
+    override fun confirmDependencyChanges(runResult: DependencyDiffResultSet?): ConfirmResult {
         if (isRpcMode) {
             return ConfirmResult.POSITIVE
         }
-        return recordConfirm("Dependency changes", dependencyChangeManager.tryShowChangeConfirmDialog(runResult))
+        return recordConfirm(
+            "Dependency changes",
+            DependencyChangeDialogHelper(logger).showChangeConfirmDialog(runResult?.diffResult, false),
+        )
     }
 
     override fun confirmEmbeddedToApk(): ConfirmResult {
@@ -105,9 +109,9 @@ open class JuggCompileUiHandler(
             return ConfirmResult.POSITIVE
         }
         return recordConfirm(
-            "Embedded to APK is Enabled",
+            "Embedded to APK is enabled",
             CommonConfirmDialog.showAndGetOrCancel(
-                "Embedded to APK is Enabled",
+                "Embedded to APK is enabled",
                 "<html>Embedded to APK is enabled, which will cost more time to deploy.<br>Do you still need it?</html>",
                 okButtonText = "Yes, embed to APK",
                 negativeButtonText = "No, disable embedded mode",
@@ -116,7 +120,7 @@ open class JuggCompileUiHandler(
     }
 
     override fun confirmTooManyChanges(info: TooManyChangesInfo): TooManyChangesConfirmResult {
-        if (isRpcMode) {
+        if (isRpcMode || !JuggSettings.isConfirmFallbackWhenTooManyChanges) {
             return TooManyChangesConfirmResult.FALLBACK
         }
         return recordConfirm("Too many changes", TooManyChangesConfirmDialog.showAndGetResult(info))
@@ -132,6 +136,10 @@ open class JuggCompileUiHandler(
 
     override fun notifyByBalloon(text: String) {
         JuggRunningTask.notifyByBalloon(project, text)
+    }
+
+    override fun notifyFallbackByBalloon(reason: String) {
+        JuggRunningTask.notifyFallback(project, reason, logger)
     }
 
     override fun ensureRunWindowCreated() {
@@ -169,13 +177,34 @@ open class JuggCompileUiHandler(
         }
     }
 
-    override fun shouldAutoConfirmDeployPrompt(message: String): Boolean {
+    override fun confirmDeployPrompt(message: String): JuggInstallSession.PromptAction {
         if (isRpcMode) {
-            logger.warn("The device already has an application with the same package but a different signature.")
-            logger.warn("Uninstall and reinstall directly for in MCP mode.")
-            return true
+            logger.warn("Deploy prompt: $message")
+            logger.warn("Uninstall and reinstall automatically in MCP mode; application data will be removed.")
+            return JuggInstallSession.PromptAction.UNINSTALL
         }
-        return false
+        if (JuggInstallSession.isVersionDowngrade(message)) {
+            val result = CommonConfirmDialog.showAndGetOrCancel(
+                title = "Install older APK",
+                content = "<html>The device already has a newer version of this application.<br><br>" +
+                    "Allow downgrade installs the older APK while keeping application data.<br>" +
+                    "Android permits this for debuggable applications.<br><br>" +
+                    "WARNING: Uninstall and reinstall will remove all application data!</html>",
+                okButtonText = "Allow downgrade",
+                negativeButtonText = "Cancel",
+                leftButtonText = "Uninstall and reinstall",
+            )
+            return when (result) {
+                ConfirmResult.POSITIVE -> JuggInstallSession.PromptAction.ALLOW_DOWNGRADE
+                ConfirmResult.LEFT -> JuggInstallSession.PromptAction.UNINSTALL
+                else -> JuggInstallSession.PromptAction.CANCEL
+            }
+        }
+        return if (IdeService(project).prompt(message)) {
+            JuggInstallSession.PromptAction.UNINSTALL
+        } else {
+            JuggInstallSession.PromptAction.CANCEL
+        }
     }
 
     override fun onDeployUiMessage(message: String) {

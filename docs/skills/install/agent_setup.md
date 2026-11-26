@@ -63,7 +63,7 @@ Tool matcher recommendations:
 - CodeBuddy `Stop` hooks must use `"matcher": ""` (empty string), not `"*"`. With `*`, the hook may run but `stopReason` is not delivered to the agent.
 - Gemini CLI: tool hooks should use matcher `write_file|replace` for `AfterTool`, and `run_shell_command` for `BeforeTool`.
 - anti-gravity: selecting Gemini also installs into an existing `~/.gemini/config/`; edit tools use `replace_file_content|write_to_file|write_file|edit_file`, commands use `run_command`, and hook payloads use the anti-gravity camelCase contract, including JSON-encoded string arguments. Every `PreToolUse` edit result explicitly returns `{"decision":"allow"}` after recording or ignoring the write.
-- anti-gravity may emit multiple `PreInvocation` events with `invocationNum=1` in one conversation. Its start hook preserves conversation write/block state across those events; command and Stop hooks clear or supersede state through their normal verification lifecycle.
+- anti-gravity may emit multiple `PreInvocation` events with `invocationNum=1` in one conversation. Its start hook preserves conversation write/block state across those events. Hooks share state by workspace and conversation ID, and Stop checks the Gradle projects matched to the edited files, including projects nested under the workspace root.
 - Cursor: use matcher `Write` for `afterFileEdit` (agent file writes, excludes Tab completions) and keep `beforeShellExecution` with matcher `*`.
 
 Command hook behavior:

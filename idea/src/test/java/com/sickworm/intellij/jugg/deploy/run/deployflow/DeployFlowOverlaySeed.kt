@@ -1,6 +1,6 @@
 package com.sickworm.intellij.jugg.deploy.run.deployflow
 
-import com.android.tools.deployer.model.Apk
+import com.sickworm.intellij.jugg.deploy.api.Apk
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.IJuggDeploymentService
@@ -31,6 +31,7 @@ object DeployFlowOverlaySeed {
             packageName = packageName,
             newFiles = parsedApks,
             overlayId = overlay,
+            applyChangesExecutor = AsDeployerCompat,
             logger = AdbLogWrapper(logger),
         )
         deployHistoryManager.lastDeployOverlayIds = mapOf(packageName to overlay.sha)
@@ -51,6 +52,7 @@ object DeployFlowOverlaySeed {
             packageName = packageName,
             newFiles = parsedApks,
             overlayId = overlay,
+            applyChangesExecutor = AsDeployerCompat,
             logger = AdbLogWrapper(logger),
         )
         deployHistoryManager.lastDeployOverlayIds = mapOf(packageName to overlay.sha)
@@ -92,6 +94,7 @@ object DeployFlowOverlaySeed {
             packageName = packageName,
             newFiles = parsedApks,
             overlayId = overlay,
+            applyChangesExecutor = AsDeployerCompat,
             logger = AdbLogWrapper(logger),
         )
         deployHistoryManager.lastDeployOverlayIds = mapOf(packageName to overlay.sha)

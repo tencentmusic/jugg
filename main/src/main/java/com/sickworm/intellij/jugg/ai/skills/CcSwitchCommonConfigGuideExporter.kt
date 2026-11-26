@@ -4,7 +4,7 @@ import com.google.gson.GsonBuilder
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
-import com.sickworm.intellij.jugg.project.JuggGlobalPathManager
+import com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager
 import java.io.File
 import java.nio.file.Files
 
@@ -26,7 +26,7 @@ object CcSwitchCommonConfigGuideExporter {
         val hooks = root.getAsJsonObject("hooks") ?: throw IllegalStateException("Claude hooks not found")
         val copiedHooks = copyJuggHooks(hooks, userHome)
         val commonConfig = JsonObject().apply { add("hooks", copiedHooks) }
-        val outputFile = File(JuggGlobalPathManager.ccSwitchDir(userHome), GUIDE_FILE_NAME)
+        val outputFile = File(JuggGlobalPathManager.ccSwitchDir, GUIDE_FILE_NAME)
         outputFile.parentFile.mkdirs()
         Files.writeString(outputFile.toPath(), gson.toJson(commonConfig))
         return outputFile
@@ -67,7 +67,7 @@ object CcSwitchCommonConfigGuideExporter {
         if (hook.get("type")?.asString != "command") {
             return false
         }
-        val hooksPath = JuggGlobalPathManager.hooksDir(userHome).absolutePath.replace('\\', '/')
+        val hooksPath = JuggGlobalPathManager.hooksDir.absolutePath.replace('\\', '/')
         return command.contains(hooksPath) || command.contains(JUGG_HOOK_PATH)
     }
 }

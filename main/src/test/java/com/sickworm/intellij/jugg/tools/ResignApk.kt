@@ -3,7 +3,7 @@ package com.sickworm.intellij.jugg.tools
 import com.sickworm.intellij.jugg.apk.ApkFileModifier
 import com.sickworm.intellij.jugg.mock.AssembleAndroidProjectOnce
 import com.sickworm.intellij.jugg.mock.TestGlobal
-import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
+import com.sickworm.intellij.jugg.project.info.ProjectInfoSerializer
 import org.junit.Test
 import java.io.File
 import kotlin.test.assertNotNull

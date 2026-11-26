@@ -7,7 +7,12 @@ import com.sickworm.intellij.jugg.compiler.source.apt.BaseKotlinJuggAptProcessor
 import com.sickworm.intellij.jugg.compiler.source.apt.AptSourceAnalysis
 import com.sickworm.intellij.jugg.compiler.source.apt.AptSemanticResolver
 import com.sickworm.intellij.jugg.logger.getInstance
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
+import org.jetbrains.kotlin.psi.KtAnnotationEntry
+import org.jetbrains.kotlin.psi.KtClassOrObject
+import org.jetbrains.kotlin.psi.KtFile
+import org.jetbrains.kotlin.psi.KtTreeVisitorVoid
+import org.jetbrains.kotlin.psi.psiUtil.getStrictParentOfType
 import java.io.File
 import java.util.LinkedHashMap
 

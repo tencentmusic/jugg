@@ -50,7 +50,7 @@ jobs:
         if: steps.check.outputs.should_build == 'true'
         uses: android-actions/setup-android@v4
         with:
-          # Default still includes the obsolete `tools` package, which Google no longer serves.
+          # The default package list still includes the removed tools package.
           packages: platform-tools
 
       - name: Install Android build tools

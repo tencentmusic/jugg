@@ -17,7 +17,7 @@ Jugg CLI 提供了在终端（Terminal）、CI 脚本或 AI Coding Agent 中直�
 CLI 推荐直接通过 Android Studio 界面进行安装与环境配置：
 
 1. 在 Android Studio 中双击 `Shift` 打开 **Search Everywhere**。
-2. 输入并搜索 `Install Jugg Skills`。
+2. 输入并搜索 `Install Jugg skills`。
 3. 在弹出的配置窗口中勾选需要的项：
    - **Install CLI to `$PATH`**：将 `jugg` 可执行脚本链接到系统 PATH（如 `~/.jugg/bin`）。
    - **当前已安装的 Agent**：自动将 `jugg-android-dev-loop` skill 注入到 Claude Code / Antigravity 等 AI 编程助手。
@@ -91,6 +91,17 @@ jugg gradle-build
 # 清除 App 内部数据并重装 APK
 jugg clean-reinstall
 ```
+
+如果因 APK 的 `versionCode` 低于已安装应用而导致安装失败，CLI 会自动卸载重装应用，并删除其数据。这适用于 IDEA 和 standalone runtime。CLI 默认不启用 `adb install -d`，也没有选择降级策略的命令行参数。如需选择 **Allow downgrade** 保留应用数据，请手动执行 IDE Run 或 Debug。`clean-reinstall` 仍会显式清除数据。IDE 的降级选项和自定义脚本的处理边界见 [APK 更新与安装](../concepts/apk-update-and-install.md#安装较低版本)。
+
+### 场景 E：修改全局设置
+
+```bash
+jugg settings list
+jugg settings set maxCompileSourceModules 30
+```
+
+需确认的修改应先阅读返回的提示，再通过 `--confirm true` 重试。无需项目或设备。见[全局设置](../reference/cli-commands.md#全局设置)。
 
 ## 4. 多工程与跨目录调用 (--project-dir)
 

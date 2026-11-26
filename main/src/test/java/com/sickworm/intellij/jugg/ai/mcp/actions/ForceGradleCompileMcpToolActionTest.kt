@@ -1,6 +1,6 @@
 package com.sickworm.intellij.jugg.ai.mcp.actions
 
-import com.android.ddmlib.IDevice
+import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.intellij.execution.ExecutionResult
 import com.intellij.execution.Executor
 import com.intellij.execution.configurations.RunProfile
@@ -10,6 +10,7 @@ import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
 import com.sickworm.intellij.jugg.ai.mcp.util.LastCompileTimestampRegistry
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
+import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
 import com.sickworm.intellij.jugg.compiler.ForceGradleCompileHelper
 import com.sickworm.intellij.jugg.compiler.GradleCompileExecutionResult
@@ -256,14 +257,10 @@ class ForceGradleCompileMcpToolActionTest {
         isAppReady: Boolean = true,
         delayMs: Long = 0L,
     ): IMcpRuntime {
-        val project = org.mockito.Mockito.mock(Project::class.java)
-        org.mockito.Mockito.`when`(project.basePath).thenReturn("/fake/project")
-        return object : IMcpRuntime {
+        return object : com.sickworm.intellij.jugg.ai.mcp.TestMcpRuntime() {
             override val logger: com.intellij.openapi.diagnostic.Logger
                 get() = com.intellij.openapi.diagnostic.Logger.getInstance("TestForceGradleRuntime")
 
-            override val project: Project
-                get() = project
 
             override val deployTargetManager: IDeployTargetManager = object : IDeployTargetManager {
                 override val hasDevice: Boolean = hasDevice
@@ -275,9 +272,12 @@ class ForceGradleCompileMcpToolActionTest {
                 override fun getApks(): List<com.sickworm.intellij.jugg.apk.ApkInfo> =
                     throw UnsupportedOperationException("not used in this test")
 
-                override fun getSelectedDevices(): List<com.android.ddmlib.IDevice> = emptyList()
+                override fun getSelectedDevices(): List<IDevice> = emptyList()
 
                 override fun getConnectedDevices(): List<IDevice> =
+                    throw UnsupportedOperationException("not used in this test")
+
+                override fun createDeviceAdb(device: IDevice): IDeviceAdb =
                     throw UnsupportedOperationException("not used in this test")
 
                 override fun startApp(device: IDevice): Boolean =

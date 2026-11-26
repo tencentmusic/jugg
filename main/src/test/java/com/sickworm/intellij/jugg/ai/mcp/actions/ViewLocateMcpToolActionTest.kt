@@ -1,6 +1,6 @@
 package com.sickworm.intellij.jugg.ai.mcp.actions
 
-import com.android.ddmlib.IDevice
+import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.ai.mcp.IMcpRuntime
@@ -15,7 +15,6 @@ import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.ide.logic.IJuggConfigurationRunner
 import com.sickworm.intellij.jugg.platform.IPlatformApi
 import com.sickworm.intellij.jugg.platform.PlatformApi
-import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
 import org.junit.After
 import org.junit.Assert
 import org.junit.Before
@@ -217,6 +216,73 @@ class ViewLocateMcpToolActionTest {
         }
     }
 
+    @Test
+    fun executeUsesExplicitSerialForViewLookup() {
+        val projectDir = createTempDir(prefix = "jugg_view_locate_serial_")
+        val selectedDevice = Mockito.mock(IDevice::class.java)
+        val targetDevice = Mockito.mock(IDevice::class.java)
+        val selectedAdb = FakeDeviceAdb("device-1")
+        val targetAdb = FakeDeviceAdb("device-2")
+        PlatformApi.impl = FakePlatformApi()
+        val deployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
+        Mockito.`when`(deployTargetManager.getSelectedDevices()).thenReturn(listOf(selectedDevice))
+        Mockito.`when`(deployTargetManager.getTargetDevices("device-2")).thenReturn(listOf(targetDevice))
+        Mockito.`when`(deployTargetManager.createDeviceAdb(selectedDevice)).thenReturn(selectedAdb)
+        Mockito.`when`(deployTargetManager.createDeviceAdb(targetDevice)).thenReturn(targetAdb)
+        Mockito.`when`(deployTargetManager.getPackageName()).thenReturn("com.example.app")
+        val deployStateManager = Mockito.mock(com.sickworm.intellij.jugg.deploy.IDeployStateManager::class.java)
+        Mockito.`when`(deployStateManager.updateDeployState(targetDevice))
+            .thenReturn(com.sickworm.intellij.jugg.deploy.JuggDeployState.READY)
+        val runtime = object : com.sickworm.intellij.jugg.ai.mcp.TestMcpRuntime() {
+            override val logger: Logger = Logger.getInstance("ViewLocateSerialTest")
+            override val projectDir: String = projectDir.absolutePath
+            override val deployTargetManager: IDeployTargetManager = deployTargetManager
+            override val deployStateManager = deployStateManager
+            override val forceGradleCompileHelper = FakeForceGradleCompileHelper()
+            override val juggConfigurationRunner: IJuggConfigurationRunner = FakeJuggConfigurationRunner()
+        }
+        var constructedAdb: Any? = null
+
+        Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, context ->
+            constructedAdb = context.arguments().firstOrNull()
+            Mockito.`when`(
+                mock.findElements(anyOrNull(), anyOrNull(), anyOrNull(), anyOrNull(), any(), any())
+            ).thenReturn(
+                FindElementsResult(
+                    matchCount = 1,
+                    returnedCount = 1,
+                    truncated = false,
+                    density = 1.0,
+                    matches = listOf(
+                        MatchCandidate(
+                            text = "Target",
+                            resourceId = "target",
+                            contentDesc = "",
+                            className = "Button",
+                            bounds = listOf(0, 0, 10, 10),
+                            centerX = 5,
+                            centerY = 5,
+                            source = null,
+                        )
+                    ),
+                )
+            )
+        }.use {
+            val result = action.execute(
+                mapOf(
+                    "projectDir" to projectDir.absolutePath,
+                    "serial" to "device-2",
+                    "target" to mapOf("text" to "Target"),
+                ),
+                runtime,
+            )
+
+            Assert.assertEquals(McpToolStatus.OK, result.status)
+            Assert.assertSame(targetAdb, constructedAdb)
+            Mockito.verify(deployStateManager).updateDeployState(targetDevice)
+        }
+    }
+
     private fun candidate(resourceId: String, top: Int): MatchCandidate {
         return MatchCandidate(
             text = "Repeat Tap Target",
@@ -233,19 +299,17 @@ class ViewLocateMcpToolActionTest {
     private fun buildRuntime(projectDir: File): IMcpRuntime {
         val device = Mockito.mock(IDevice::class.java)
         val adb = FakeDeviceAdb()
-        PlatformApi.impl = FakePlatformApi(mapOf(device to adb))
+        PlatformApi.impl = FakePlatformApi()
 
         val deployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
         Mockito.`when`(deployTargetManager.getSelectedDevices()).thenReturn(listOf(device))
         Mockito.`when`(deployTargetManager.getConnectedDevices()).thenReturn(listOf(device))
+        Mockito.`when`(deployTargetManager.createDeviceAdb(device)).thenReturn(adb)
         Mockito.`when`(deployTargetManager.getPackageName()).thenReturn("com.example.app")
 
-        val project = Mockito.mock(Project::class.java)
-        Mockito.`when`(project.basePath).thenReturn(projectDir.absolutePath)
-
-        return object : IMcpRuntime {
+        return object : com.sickworm.intellij.jugg.ai.mcp.TestMcpRuntime() {
             override val logger: Logger = Logger.getInstance("ViewLocateTest")
-            override val project: Project = project
+            override val projectDir: String = projectDir.absolutePath
             override val deployTargetManager: IDeployTargetManager = deployTargetManager
             override val forceGradleCompileHelper = FakeForceGradleCompileHelper()
             override val juggConfigurationRunner: IJuggConfigurationRunner = FakeJuggConfigurationRunner()
@@ -253,10 +317,11 @@ class ViewLocateMcpToolActionTest {
         }
     }
 
-    private class FakeDeviceAdb : IDeviceAdb {
+    private class FakeDeviceAdb(
+        override val serial: String = "emulator-5554",
+    ) : IDeviceAdb {
         override val displayName: String? = "fake_device"
         override val api: Int = 34
-        override val serial: String = "emulator-5554"
         override val isOnline: Boolean = true
 
         override fun execAdbShellCmd(cmd: String): String = ""
@@ -267,9 +332,7 @@ class ViewLocateMcpToolActionTest {
         override fun getProperty(name: String): String? = null
     }
 
-    private class FakePlatformApi(
-        private val adbByDevice: Map<IDevice, IDeviceAdb>,
-    ) : IPlatformApi {
+    private class FakePlatformApi : IPlatformApi {
         override fun showDialog(
             title: String,
             content: String,
@@ -277,12 +340,6 @@ class ViewLocateMcpToolActionTest {
             cancelButtonText: String?,
             isShowCancelButton: Boolean,
         ): Boolean = false
-
-        override fun showChangeConfirmDialog(
-            diffResult: DependencyDiffResult?,
-            isRunLater: Boolean,
-            logger: Logger,
-        ) = throw UnsupportedOperationException("not used")
 
         override fun showUserAndPasswordInputDialog(
             content: String,
@@ -296,7 +353,7 @@ class ViewLocateMcpToolActionTest {
         override fun getGradleJdkPath(project: Project, logger: Logger): String? = null
         override fun getAndroidHomePath(logger: Logger): String? = null
         override fun getIdeVersion(): String = "test"
-        override fun toDeviceAdb(device: IDevice): IDeviceAdb? = adbByDevice[device]
+        override fun getRuntimeInfo() = com.sickworm.intellij.jugg.project.runtime.RuntimeInfo("test", "test", "test", "")
         override fun isHasRelaunchActivityIssues(device: IDeviceAdb, logger: Logger): Boolean = false
         override fun invokeMcp(request: com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcRequest) =
             throw UnsupportedOperationException("not used")

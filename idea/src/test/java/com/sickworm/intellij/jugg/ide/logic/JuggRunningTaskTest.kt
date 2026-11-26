@@ -20,8 +20,10 @@ import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.controlpanel.JuggControlPanelModel
 import com.sickworm.intellij.jugg.logger.JuggLogger
-import com.sickworm.intellij.jugg.project.ILastCompileProjectRegistry
+import com.sickworm.intellij.jugg.project.runtime.ILastCompileProjectRegistry
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
+import com.sickworm.intellij.jugg.server.shouldAutoUploadFailureLogs
+import com.sickworm.intellij.jugg.server.isFailureLogUploadEligible
 import com.sickworm.intellij.jugg.server.JuggServer
 import org.junit.Rule
 import org.junit.Assert.assertEquals
@@ -36,7 +38,7 @@ import org.mockito.kotlin.whenever
 import org.mockito.kotlin.any
 import com.intellij.openapi.wm.ToolWindowManager
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
-import com.android.ddmlib.IDevice
+import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.sickworm.intellij.jugg.ide.bean.IProcessHandler
 import com.sickworm.intellij.jugg.mock.TestGlobal
 import java.io.File
@@ -68,10 +70,10 @@ class JuggRunningTaskTest {
             val device = mock<IDevice>()
             whenever(device.name).thenReturn("test device")
             whenever(device.serialNumber).thenReturn("test-serial")
-            whenever(device.version).thenReturn(com.android.sdklib.AndroidVersion(30))
-            whenever(device.clients).thenReturn(emptyArray())
+            whenever(device.version).thenReturn(com.sickworm.intellij.jugg.deploy.api.AndroidVersion(30))
+            whenever(device.clientCount).thenReturn(0)
             val targets = mock<IDeployTargetManager>()
-            whenever(targets.getSelectedDevices()).thenReturn(listOf(device))
+            whenever(targets.getTargetDevices(null)).thenReturn(listOf(device))
             val deployer = mock<JuggDeployerHelper>()
             whenever(deployer.deploy(any())).thenAnswer {
                 if (hasChanges && deploySuccess) {
@@ -86,7 +88,7 @@ class JuggRunningTaskTest {
                 listOf(File("/external/OldDeployment.kt")))
             val result = runFailureFlow(compiler, targets, deployer, projectPath)
 
-            assertTrue(result.isCompileSuccess)
+            assertTrue(result.toString(), result.isCompileSuccess)
             assertEquals(deploySuccess, result.isDeploySuccess)
             assertEquals(if (hasChanges) listOf("Source.kt") else emptyList(), result.compiledFiles.map { File(it).name })
             assertEquals(if (hasChanges && deploySuccess) listOf("Source.kt", "PreviouslyCompiled.kt") else emptyList(),
@@ -100,11 +102,11 @@ class JuggRunningTaskTest {
             val compiler = mock<JuggCompilerHelper>()
             whenever(compiler.compile(any(), any(), any())).thenReturn(CompileTaskResult(true, gradle, false, 0))
             val targets = mock<IDeployTargetManager>()
-            whenever(targets.getSelectedDevices()).thenThrow(IllegalStateException("device lookup failed"))
+            whenever(targets.getTargetDevices(null)).thenThrow(IllegalStateException("device lookup failed"))
 
             val result = runFailureFlow(compiler, targets)
 
-            assertTrue(result.isCompileSuccess)
+            assertTrue(result.toString(), result.isCompileSuccess)
             assertFalse(result.isDeploySuccess)
             assertEquals(gradle, result.isGradleCompile)
             assertEquals("device lookup failed", result.failedReason)
@@ -131,10 +133,10 @@ class JuggRunningTaskTest {
         val device = mock<IDevice>()
         whenever(device.name).thenReturn("test device")
         whenever(device.serialNumber).thenReturn("test-serial")
-        whenever(device.version).thenReturn(com.android.sdklib.AndroidVersion(30))
-        whenever(device.clients).thenReturn(emptyArray())
+        whenever(device.version).thenReturn(com.sickworm.intellij.jugg.deploy.api.AndroidVersion(30))
+        whenever(device.clientCount).thenReturn(0)
         val targets = mock<IDeployTargetManager>()
-        whenever(targets.getSelectedDevices()).thenReturn(listOf(device))
+        whenever(targets.getTargetDevices(null)).thenReturn(listOf(device))
         val deployer = mock<JuggDeployerHelper>()
         whenever(deployer.deploy(any())).thenReturn(DeployTaskResult(false, 0, true,
             JuggDeployData.DeployType.HOT_RELOAD, "deploy failed"))
@@ -157,7 +159,7 @@ class JuggRunningTaskTest {
         val compiler = mock<JuggCompilerHelper>()
         whenever(compiler.compile(any(), any(), any())).thenReturn(CompileTaskResult(true, true, false, 0))
         val targets = mock<IDeployTargetManager>()
-        whenever(targets.getSelectedDevices()).thenReturn(emptyList())
+        whenever(targets.getTargetDevices(null)).thenReturn(emptyList())
 
         val result = runFailureFlow(compiler, targets)
 
@@ -182,7 +184,10 @@ class JuggRunningTaskTest {
         whenever(options.projectRootPath).thenReturn(projectPath)
         val task = JuggRunningTask(options, project, mock(), targets, mock(), mock(), mock(), compiler,
             deployer, {}, handler, JuggControlPanelModel(),
-            lastCompileProjectRegistry = mock(), logger = mock(), projectModuleCount = 0)
+            lastCompileProjectRegistry = mock(), logger = mock(),
+            taskRunnerManager = com.sickworm.intellij.jugg.createTestTaskRunnerManager(
+                com.sickworm.intellij.jugg.project.runtime.JuggPathManager(File(projectPath))),
+            projectCustomConfigManager = mock(), recoverAfterRuntimeOwnerChange = { false }, projectModuleCount = 0)
         try {
             task.run(mock<ProgressIndicator>())
             SwingUtilities.invokeAndWait { }
@@ -346,7 +351,10 @@ class JuggRunningTaskTest {
         Mockito.`when`(project.basePath).thenReturn(temporaryFolder.root.absolutePath)
         JuggLogger.register(project, temporaryFolder.newFolder("logs"))
         try {
-            val server = Mockito.mock(JuggServer::class.java)
+            val server = Mockito.mock(JuggServer::class.java) { call ->
+                if (call.method.name == "reportRunFailure") call.callRealMethod()
+                else org.mockito.Answers.RETURNS_DEFAULTS.answer(call)
+            }
             val compileHelper = Mockito.mock(JuggCompilerHelper::class.java)
             whenever(compileHelper.compile(any(), any(), any())).thenReturn(
                 CompileTaskResult.incrementalFailed(false, "compile failed"),
@@ -372,6 +380,9 @@ class JuggRunningTaskTest {
                 eventModel = JuggControlPanelModel(),
                 lastCompileProjectRegistry = lastCompileProjectRegistry,
                 logger = JuggLogger.getInstance(project, "JuggRunningTaskTest"),
+                taskRunnerManager = com.sickworm.intellij.jugg.createTestTaskRunnerManager(
+                    com.sickworm.intellij.jugg.project.runtime.JuggPathManager(temporaryFolder.root)),
+                projectCustomConfigManager = mock(), recoverAfterRuntimeOwnerChange = { false },
                 autoUploadFailureLogs = true,
                 projectModuleCount = 0,
             )
@@ -385,6 +396,68 @@ class JuggRunningTaskTest {
             task.run(Mockito.mock(ProgressIndicator::class.java))
 
             Mockito.verify(server).uploadFailureLogs("java.lang.IllegalStateException: project state invalid", null, 0)
+        } finally {
+            JuggLogger.unregister(project)
+        }
+    }
+
+    @Test
+    fun `owner switch info log during recovery is forwarded to run console`() {
+        val projectPath = temporaryFolder.newFolder().absolutePath
+        val project = mock<Project>()
+        whenever(project.basePath).thenReturn(projectPath)
+        val toolWindowManager = mock<ToolWindowManager>()
+        whenever(project.getService(ToolWindowManager::class.java)).thenReturn(toolWindowManager)
+        JuggLogger.register(project, File(projectPath, "logs"))
+        try {
+            val compiler = mock<JuggCompilerHelper>()
+            whenever(compiler.compile(any(), any(), any())).thenReturn(CompileTaskResult(true, true, false, 0))
+            val targets = mock<IDeployTargetManager>()
+            whenever(targets.getTargetDevices(null)).thenReturn(emptyList())
+            val handler = mock<CompileUiHandler>()
+            val consoleLines = mutableListOf<String>()
+            val processHandler = mock<IProcessHandler>()
+            Mockito.doAnswer { invocation ->
+                consoleLines.add(invocation.getArgument<String>(0))
+                null
+            }.whenever(processHandler).notifyTextAvailable(any(), any())
+            whenever(handler.processHandler).thenReturn(processHandler)
+            whenever(handler.progressIndicator).thenReturn(mock())
+            val options = mock<JuggGradleCompileOptions>()
+            whenever(options.projectRootPath).thenReturn(projectPath)
+            val taskLogger = JuggLogger.getInstance(project, "JuggManager")
+            val task = JuggRunningTask(
+                options = options,
+                project = project,
+                juggServer = mock(),
+                deployTargetManager = targets,
+                dependencyChangeManager = mock(),
+                statusManager = mock(),
+                deployHistoryManager = mock(),
+                juggCompileHelper = compiler,
+                juggDeployHelper = mock(),
+                initIncrementalCompileTask = {},
+                baseCompileUiHandler = handler,
+                eventModel = JuggControlPanelModel(),
+                lastCompileProjectRegistry = mock(),
+                logger = JuggLogger.getInstance(project, "JuggRunningTask"),
+                taskRunnerManager = com.sickworm.intellij.jugg.createTestTaskRunnerManager(
+                    com.sickworm.intellij.jugg.project.runtime.JuggPathManager(File(projectPath))),
+                projectCustomConfigManager = mock(),
+                recoverAfterRuntimeOwnerChange = {
+                    taskLogger.info("Recovering project state after runtime ownership changed: idea -> idea")
+                    true
+                },
+                projectModuleCount = 0,
+            )
+
+            task.run(mock())
+            SwingUtilities.invokeAndWait { }
+
+            assertTrue(
+                "Expected ownership recovery info in console, got: $consoleLines",
+                consoleLines.any { it.contains("Recovering project state after runtime ownership changed: idea -> idea") },
+            )
         } finally {
             JuggLogger.unregister(project)
         }

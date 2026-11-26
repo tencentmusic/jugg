@@ -37,7 +37,7 @@ tags:
 
 ```text
 修改代码或资源
-  -> 在 Android Studio 选择设备和 Jugg Run Configuration
+  -> 在 Android Studio 选择设备和 Jugg run configuration
   -> 点击 Run 或 Debug
   -> Jugg 自动保存文件，并判断走增量还是 Gradle
   -> 编译成功后自动部署到设备

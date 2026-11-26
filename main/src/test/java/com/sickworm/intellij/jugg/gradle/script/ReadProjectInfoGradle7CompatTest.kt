@@ -1,8 +1,8 @@
 package com.sickworm.intellij.jugg.gradle.script
 
 import com.intellij.openapi.diagnostic.Logger
-import com.sickworm.intellij.jugg.project.JuggPathManager
-import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
+import com.sickworm.intellij.jugg.project.info.ProjectInfoSerializer
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import org.junit.Test
 import org.mockito.Mockito.mock
 import java.io.File
@@ -21,6 +21,11 @@ import kotlin.test.assertTrue
 class ReadProjectInfoGradle7CompatTest : ReadProjectInfoGradleCompatTestBase() {
 
     override val gradleVersion = "7.3.3"
+
+    @Test
+    fun generatedScript_shouldUseSelectedVariantMinSdk() {
+        assertSelectedVariantMinSdk("android-app-agp7")
+    }
 
     @Test
     fun generatedScript_shouldRunOnGradle733AndCollectFileDependencies() {

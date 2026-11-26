@@ -37,8 +37,8 @@ import com.sickworm.intellij.jugg.ide.ui.JuggControlPanelController
 import com.sickworm.intellij.jugg.ide.ui.SimpleProcessHandler
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.ai.mcp.RunLogCollector
-import com.sickworm.intellij.jugg.project.GitFileChangesDetector
-import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.project.change.GitFileChangesDetector
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import java.util.concurrent.FutureTask
 import javax.swing.SwingUtilities
 
@@ -53,7 +53,7 @@ class JuggConfigurationRunner(
     private val juggRunningTaskCreator: IJuggRunningTaskCreator,
     private val gitFileChangesDetector: GitFileChangesDetector,
     private val logger: Logger,
-    private val userActions: JuggControlPanelController,
+    private val userActions: JuggControlPanelController?,
     private val askAiInvestigation: AskAiInvestigation,
 ) : IJuggConfigurationRunner {
 
@@ -152,6 +152,7 @@ class JuggConfigurationRunner(
             isAlwaysRestartApp = isAlwaysRestartApp,
             androidTestRunSpec = null,
             buildTargetOverride = null,
+            targetDeviceSerial = null,
         )
     }
 
@@ -161,6 +162,7 @@ class JuggConfigurationRunner(
         isAlwaysRestartApp: Boolean,
         androidTestRunSpec: AndroidTestRunSpec?,
         buildTargetOverride: BuildTarget?,
+        targetDeviceSerial: String?,
     ): JuggRunInvocationResult {
         val fullBuildInfo = deployHistoryManager.getFullBuildInfo()
         val resolved = try {
@@ -217,6 +219,7 @@ class JuggConfigurationRunner(
             logger = logger,
             isSkipDeploy = isSkipDeploy,
             isAlwaysRestartApp = isAlwaysRestartApp,
+            targetDeviceSerial = targetDeviceSerial,
             userActions = userActions,
         ) {
             override fun onEnd(runResult: RunResult) {

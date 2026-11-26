@@ -11,9 +11,9 @@ import com.sickworm.intellij.jugg.compiler.JuggCompiler
 import com.sickworm.intellij.jugg.compiler.overlay.ResourceOverlayCompiler
 import com.sickworm.intellij.jugg.compiler.withOldManifest
 import com.sickworm.intellij.jugg.mock.*
-import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
-import com.sickworm.intellij.jugg.project.data.ModuleDependency
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ModuleBuildPathInfo
+import com.sickworm.intellij.jugg.project.info.ModuleDependency
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import org.junit.Before
 import org.junit.Test
 import org.w3c.dom.Element

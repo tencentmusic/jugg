@@ -4,7 +4,7 @@
 /Applications/Android Studio.app/Contents/plugins/android/lib 
 ## Compat API workflow
 
-For a new Studio release, follow the [version compatibility workflow](../docs/ai_knowledge/04_engineering_compat.md#311-确定目标构建并获取-ide) to find the official build, verify its APIs, and run install and incremental deployment with the packaged plugin.
+For a new Studio release, follow the [version compatibility workflow](../docs/ai/04_engineering_compat.md#supporting-a-new-android-studio-release) to find the official build, verify its APIs, and run install and incremental deployment with the packaged plugin.
 
 Compat modules compile against versioned Stub API JARs by default. Real Android Studio JARs are local-only inputs and are never detected automatically.
 

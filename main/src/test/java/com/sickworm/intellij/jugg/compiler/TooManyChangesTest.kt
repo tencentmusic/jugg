@@ -1,14 +1,20 @@
 package com.sickworm.intellij.jugg.compiler
 
+import com.sickworm.intellij.jugg.mock.SettingsFileRule
+import org.junit.Rule
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
-import com.sickworm.intellij.jugg.project.ChangedFile
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.change.ChangedFile
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Test
 import java.io.File
 
 class TooManyChangesTest {
+    @get:Rule
+    val settingsFileRule = SettingsFileRule()
+
+    @get:Rule val temporary = org.junit.rules.TemporaryFolder()
 
     @Test
     fun evaluate_sameModuleJavaAndKotlin_showsOneModule() {

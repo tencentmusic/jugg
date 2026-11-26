@@ -3,7 +3,7 @@ package com.sickworm.intellij.jugg.compiler.source.apt.processors
 import com.sickworm.intellij.jugg.compiler.ICompileContext
 import com.sickworm.intellij.jugg.compiler.source.apt.AptSemanticResolver
 import com.sickworm.intellij.jugg.compiler.source.apt.AptSourceAnalysis
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import java.io.File
 
 /** Extends only referenced R2 namespaces with compile-time placeholders; runtime code uses R. */

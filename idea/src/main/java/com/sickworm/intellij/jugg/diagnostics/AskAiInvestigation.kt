@@ -15,6 +15,7 @@ import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.compiler.ui.RunResult
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
+import com.sickworm.intellij.jugg.deploy.toStudioDevice
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.diagnostics.InvestigationSnapshotBuilder.Source
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
@@ -24,9 +25,9 @@ import com.sickworm.intellij.jugg.ide.ui.JuggControlPanelController
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.platform.PlatformApi
-import com.sickworm.intellij.jugg.project.CompileContextManager
-import com.sickworm.intellij.jugg.project.JuggPathManager
-import com.sickworm.intellij.jugg.project.TaskRunnerManager
+import com.sickworm.intellij.jugg.compiler.context.CompileContextManager
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
+import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
 import com.sickworm.intellij.jugg.server.JuggServer
 import java.io.File
 import java.util.concurrent.TimeUnit
@@ -55,9 +56,9 @@ class AskAiInvestigation(
         controlPanelController, startedAt)
 
     /** Collects a user-described problem and preserves existing evidence before exposing an Agent prompt. */
-    fun askAi(runner: IJuggConfigurationRunner) {
-        controlPanelController.recordUserAction("ASK AI")
-        taskRunnerManager.runBackgroundSafe("Prepare ASK AI") {
+    fun askAi(@Suppress("UNUSED_PARAMETER") runner: IJuggConfigurationRunner) {
+        controlPanelController.recordUserAction("Ask AI")
+        taskRunnerManager.runBackgroundSafe("Prepare Ask AI") {
             val devices = try {
                 deployTargetManager.getSelectedDevices()
             } catch (e: Exception) {
@@ -68,15 +69,14 @@ class AskAiInvestigation(
                 if (project.isDisposed) return@invokeLater
                 val dialog = AskAiDialog(project, devices.map { it.serialNumber to it.name })
                 if (!dialog.showAndGet()) return@invokeLater
-                saveInvestigation(runner, dialog.problemType, dialog.problemDescription, dialog.deviceSerials)
+                saveInvestigation(dialog.problemType, dialog.problemDescription, dialog.deviceSerials)
             }
         }
     }
 
-    private fun saveInvestigation(runner: IJuggConfigurationRunner, problemType: String, description: String, deviceSerials: Set<String>) {
+    private fun saveInvestigation(problemType: String, description: String, deviceSerials: Set<String>) {
         taskRunnerManager.runTaskSafe("Save investigation evidence", {
             try {
-                check(!runner.isCompiling) { "A Jugg task is running. Wait for it to finish and try ASK AI again." }
                 val failures = mutableMapOf<String, String>()
                 if (deviceSerials.isEmpty()) failures["logcat"] = "No device was selected; logcat was not collected."
                 val deviceLogs = collectInvestigationLogcat(deviceSerials, failures)
@@ -89,7 +89,7 @@ class AskAiInvestigation(
             } catch (e: Exception) {
                 showInvestigationFailure(e)
             }
-        })
+        }, isProjectWrite = false, isBlockIncrementalCompile = false)
     }
 
     /** Called synchronously at the failed task boundary so a later Run cannot replace its local evidence. */
@@ -139,7 +139,7 @@ class AskAiInvestigation(
                 check(device != null && device.isOnline) { "Device is offline or disconnected: $serial" }
                 val command = "logcat -b all -d -v threadtime -t 20000"
                 val receiver = CollectingOutputReceiver()
-                device.executeShellCommand(command, receiver, 5L, TimeUnit.SECONDS)
+                device.toStudioDevice().executeShellCommand(command, receiver, 5L, TimeUnit.SECONDS)
                 val content = receiver.output
                 check(content.isNotBlank()) { "No logcat output was collected from $serial" }
                 "device-$index" to "Device serial: $serial\nDevice: ${device.name}\nAndroid API: ${device.version.apiLevel}\n" +
@@ -204,7 +204,7 @@ class AskAiInvestigation(
         logger.warn("Cannot save ASK AI investigation evidence.", exception)
         SwingUtilities.invokeLater {
             if (!project.isDisposed) Messages.showWarningDialog(project,
-                "Cannot save investigation evidence: ${exception.message}", "ASK AI")
+                "Cannot save investigation evidence: ${exception.message}", "Ask AI")
         }
     }
 
@@ -282,7 +282,7 @@ internal class AskAiCompileUiHandler(
 
     private fun showPrompt(snapshot: InvestigationSnapshotBuilder.Snapshot) {
         if (project.isDisposed) return
-        userActions.recordUserAction("ASK AI", "Compilation failed")
+        userActions.recordUserAction("Ask AI", "Compilation failed")
         AskAiDialog(project, emptyList(), snapshot).show()
     }
 }

@@ -129,14 +129,10 @@ class CompileOnlyMcpToolActionTest {
         invocationResult: JuggRunInvocationResult,
         isAppReadyProvider: () -> Boolean = { true },
     ): IMcpRuntime {
-        val project = org.mockito.Mockito.mock(Project::class.java)
-        org.mockito.Mockito.`when`(project.basePath).thenReturn("/fake/project")
-        return object : IMcpRuntime {
+        return object : com.sickworm.intellij.jugg.ai.mcp.TestMcpRuntime() {
             override val logger: com.intellij.openapi.diagnostic.Logger
                 get() = com.intellij.openapi.diagnostic.Logger.getInstance("TestCompileOnlyRuntime")
 
-            override val project: Project
-                get() = project
 
             override val deployTargetManager: IDeployTargetManager
                 get() = throw UnsupportedOperationException("not used in this test")

@@ -1,9 +1,9 @@
 # Jugg SO 热更新实现技术方案
 
-> 创建：2026-09-17  
-> 最后核对：2026-09-17  
-> 状态：已实现（与当前代码对齐）  
-> 性质：实现技术方案。产品决策、Freeline/Tinker 对齐口径与互斥/回退规则以调研稿为准；正文记录已落地的类、方法和验证。  
+> 创建：2026-09-17
+> 最后核对：2026-09-17
+> 状态：已实现（与当前代码对齐）
+> 性质：实现技术方案。产品决策、Freeline/Tinker 对齐口径与互斥/回退规则以调研稿为准；正文记录已落地的类、方法和验证。
 > 调研基线：Agent Store `bc-27622ac3-2dfb-42ad-ada4-96ac66275f8f` 的 SO 热更新调研稿（2026-09-17 修订）
 
 ---
@@ -374,13 +374,13 @@ Flutter AOT `libapp.so` 若出现在 `changedLibs`，Planner 不特殊识别文�
 
 ## 8. 落地顺序（已完成）
 
-1. L1 Planner 测试与实现  
-2. L1 Writer 测试与实现  
-3. L1 `JuggDeployData`  
-4. L2 Flow：native-only 不 resign；Writer 失败仍 updateApk  
-5. Helper 分流 + install 清理  
-6. Runtime installer + hook；`agentVersion` 保持 `1.0.77`  
-7. 定向测试 + 能力页 / 知识库同步  
+1. L1 Planner 测试与实现
+2. L1 Writer 测试与实现
+3. L1 `JuggDeployData`
+4. L2 Flow：native-only 不 resign；Writer 失败仍 updateApk
+5. Helper 分流 + install 清理
+6. Runtime installer + hook；`agentVersion` 保持 `1.0.77`
+7. 定向测试 + 能力页 / 知识库同步
 
 ---
 

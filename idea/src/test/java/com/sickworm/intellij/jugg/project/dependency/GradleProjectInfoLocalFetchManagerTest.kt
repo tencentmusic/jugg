@@ -1,15 +1,15 @@
 package com.sickworm.intellij.jugg.project.dependency
 
 import com.intellij.openapi.diagnostic.Logger
-import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.compiler.BuildTarget
+import com.sickworm.intellij.jugg.compiler.context.CompileContextManager
+import com.sickworm.intellij.jugg.compiler.context.ICompileEnvironmentSource
 import com.sickworm.intellij.jugg.deploy.FullBuildInfo
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.gradle.compile.BaseSshCommand
 import com.sickworm.intellij.jugg.gradle.compile.CmdExecutor
-import com.sickworm.intellij.jugg.project.CompileContextManager
-import com.sickworm.intellij.jugg.project.JuggPathManager
-import com.sickworm.intellij.jugg.project.TaskRunnerManager
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
+import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -24,6 +24,7 @@ import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.concurrent.thread
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
@@ -38,12 +39,12 @@ class GradleProjectInfoLocalFetchManagerTest {
     fun `background Gradle stderr is logged as debug`() {
         val logger = mock<Logger>()
         val manager = GradleProjectInfoLocalFetchManager(
-            mock<Project>(),
             mock<JuggPathManager>(),
             mock<CompileContextManager>(),
             mock<TaskRunnerManager>(),
             mock<IDependencyChangeManager>(),
             mock<IDeployHistoryManager>(),
+            mock<ICompileEnvironmentSource>(),
             logger,
         )
         val command = object : BaseSshCommand() {
@@ -61,7 +62,7 @@ class GradleProjectInfoLocalFetchManagerTest {
             verify(logger, timeout(1_000)).debug(eq("background-gradle-error"))
             verify(logger, after(200).never()).warn(any<String>(), any())
         } finally {
-            manager.dispose()
+            manager.close()
         }
     }
 
@@ -80,14 +81,14 @@ class GradleProjectInfoLocalFetchManagerTest {
         doAnswer {
             updateAction = it.getArgument(1)
             null
-        }.whenever(taskRunnerManager).runTaskSafe(any(), any(), any(), any())
+        }.whenever(taskRunnerManager).runTaskSafe(any(), any(), any(), any(), any())
         val manager = GradleProjectInfoLocalFetchManager(
-            mock<Project>(),
             pathManager,
             mock<CompileContextManager>(),
             taskRunnerManager,
             mock<IDependencyChangeManager>(),
             deployHistoryManager,
+            mock<ICompileEnvironmentSource>(),
             logger,
         )
 
@@ -108,9 +109,10 @@ class GradleProjectInfoLocalFetchManagerTest {
 
         val waitStarted = CountDownLatch(1)
         val waitFinished = CountDownLatch(1)
+        val waitResult = AtomicReference<Boolean>()
         val waiter = thread(isDaemon = true) {
             waitStarted.countDown()
-            manager.waitForRemoteInitUpdate()
+            waitResult.set(manager.waitForRemoteInitUpdate())
             waitFinished.countDown()
         }
         try {
@@ -119,7 +121,8 @@ class GradleProjectInfoLocalFetchManagerTest {
 
             updateAction!!.run()
             assertTrue(waitFinished.await(1, TimeUnit.SECONDS))
-            verify(taskRunnerManager).runTaskSafe(any(), any(), any(), eq(false))
+            assertTrue(waitResult.get())
+            verify(taskRunnerManager).runTaskSafe(any(), any(), any(), any(), eq(false))
             verify(logger, never()).debug("finalCompileCommand: regular-invalid-command is not normal gradle command, can not update")
             verify(logger).debug("finalCompileCommand: remote-invalid-command is not normal gradle command, can not update")
         } finally {
@@ -127,8 +130,49 @@ class GradleProjectInfoLocalFetchManagerTest {
                 updateAction?.run()
             }
             waiter.join(1_000)
-            manager.dispose()
+            manager.close()
         }
+    }
+
+    @Test
+    fun `close releases remote init waiter when queued refresh never starts`() {
+        val taskRunnerManager = mock<TaskRunnerManager>()
+        val pathManager = JuggPathManager(temporaryFolder.root)
+        val deployHistoryManager = mock<IDeployHistoryManager>()
+        whenever(deployHistoryManager.getFullBuildInfo()).thenReturn(
+            FullBuildInfo("./gradlew assembleDebug", BuildTarget.APP, 1L),
+        )
+        val manager = GradleProjectInfoLocalFetchManager(
+            pathManager,
+            mock<CompileContextManager>(),
+            taskRunnerManager,
+            mock<IDependencyChangeManager>(),
+            deployHistoryManager,
+            mock<ICompileEnvironmentSource>(),
+            mock<Logger>(),
+        )
+        manager.runUpdateIfNeeded(
+            isForce = true,
+            specificCompileCommand = "remote-invalid-command",
+            shouldWaitForRemoteInit = true,
+        )
+        val waitStarted = CountDownLatch(1)
+        val waitFinished = CountDownLatch(1)
+        val waitResult = AtomicReference<Boolean>()
+        val waiter = thread(isDaemon = true) {
+            waitStarted.countDown()
+            waitResult.set(manager.waitForRemoteInitUpdate())
+            waitFinished.countDown()
+        }
+
+        assertTrue(waitStarted.await(1, TimeUnit.SECONDS))
+        assertFalse(waitFinished.await(100, TimeUnit.MILLISECONDS))
+
+        manager.close()
+
+        assertTrue(waitFinished.await(1, TimeUnit.SECONDS))
+        assertFalse(waitResult.get())
+        waiter.join(1_000)
     }
 
     @Test
@@ -145,14 +189,14 @@ class GradleProjectInfoLocalFetchManagerTest {
         doAnswer {
             updateAction = it.getArgument(1)
             null
-        }.whenever(taskRunnerManager).runTaskSafe(any(), any(), any(), any())
+        }.whenever(taskRunnerManager).runTaskSafe(any(), any(), any(), any(), any())
         val manager = GradleProjectInfoLocalFetchManager(
-            mock<Project>(),
             pathManager,
             mock<CompileContextManager>(),
             taskRunnerManager,
             mock<IDependencyChangeManager>(),
             deployHistoryManager,
+            mock<ICompileEnvironmentSource>(),
             mock<Logger>(),
         )
 
@@ -172,7 +216,7 @@ class GradleProjectInfoLocalFetchManagerTest {
             waiter.join(1_000)
         } finally {
             updateAction?.run()
-            manager.dispose()
+            manager.close()
         }
     }
 
@@ -188,14 +232,14 @@ class GradleProjectInfoLocalFetchManagerTest {
         doAnswer {
             updateAction = it.getArgument(1)
             null
-        }.whenever(taskRunnerManager).runTaskSafe(any(), any(), any(), any())
+        }.whenever(taskRunnerManager).runTaskSafe(any(), any(), any(), any(), any())
         val manager = GradleProjectInfoLocalFetchManager(
-            mock<Project>(),
             pathManager,
             mock<CompileContextManager>(),
             taskRunnerManager,
             mock<IDependencyChangeManager>(),
             deployHistoryManager,
+            mock<ICompileEnvironmentSource>(),
             mock<Logger>(),
         )
 
@@ -211,6 +255,7 @@ class GradleProjectInfoLocalFetchManagerTest {
                 eq("Update project info from gradle"),
                 any(),
                 eq(true),
+                eq(true),
                 eq(false),
             )
 
@@ -219,7 +264,7 @@ class GradleProjectInfoLocalFetchManagerTest {
             assertFalse(manager.isRebuildingMissingProjectInfo)
             assertTrue(manager.isIncrementalCompileAvailable)
         } finally {
-            manager.dispose()
+            manager.close()
         }
     }
 
@@ -232,12 +277,12 @@ class GradleProjectInfoLocalFetchManagerTest {
         val deployHistoryManager = mock<IDeployHistoryManager>()
         whenever(deployHistoryManager.getFullBuildInfo()).thenReturn(null)
         val manager = GradleProjectInfoLocalFetchManager(
-            mock<Project>(),
             pathManager,
             mock<CompileContextManager>(),
             taskRunnerManager,
             mock<IDependencyChangeManager>(),
             deployHistoryManager,
+            mock<ICompileEnvironmentSource>(),
             mock<Logger>(),
         )
 
@@ -248,7 +293,7 @@ class GradleProjectInfoLocalFetchManagerTest {
             assertFalse(manager.isRebuildingMissingProjectInfo)
             assertFalse(manager.isIncrementalCompileAvailable)
         } finally {
-            manager.dispose()
+            manager.close()
         }
     }
 }

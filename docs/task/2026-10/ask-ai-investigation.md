@@ -1,3 +1,9 @@
+**Purpose:** Track local ASK AI evidence preservation.
+
+**Decision:** Save independent incident files before presenting a localized prompt.
+
+**Impact:** Adds Panel and compile-failure investigation entries without automatic upload.
+
 # ASK AI 自助调查与现场保全
 
 ## 调查指南收敛与现场采集拆分

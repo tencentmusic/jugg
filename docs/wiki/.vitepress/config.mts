@@ -766,12 +766,8 @@ gtag('config', '${GA_ID}');`
     }
   },
   async buildEnd() {
-    try {
-      const { generateRedirects } = await import('../scripts/generate-redirects.mjs')
-      generateRedirects()
-    } catch (e) {
-      console.warn('Failed to generate redirects during buildEnd:', e)
-    }
+    const { generateRedirects } = await import('../scripts/generate-redirects.mjs')
+    generateRedirects()
   },
   themeConfig: {
     search: {

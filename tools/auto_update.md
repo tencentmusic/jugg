@@ -41,8 +41,8 @@ Execution steps:
 4. Classify changes by type:
    - Keep only: feature / optimize / bugfix.
    - Exclude all other types from changelog generation.
-5. Generate release notes in both languages:
-   - English: concise, publish-ready, natural wording.
+5. Draft English release notes first, then translate them to Chinese:
+   - English: content baseline; concise, publish-ready, natural wording.
    - Chinese: semantically equivalent to English, not literal machine translation.
    - Keep product/technical names in original form (for example: Android Studio Narwhal, R8, AabResGuard, KSP).
 6. Update HTML changelogs:

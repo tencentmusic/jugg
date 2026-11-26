@@ -18,6 +18,8 @@ import org.junit.Assert.fail
 import org.mockito.Mockito
 
 class ProjectDefaultSettingsApplierTest {
+    @get:org.junit.Rule
+    val settingsFileRule = com.sickworm.intellij.jugg.mock.SettingsFileRule()
     private val globalProperties by lazy { PropertiesComponent.getInstance() }
     private val savedValues = mutableMapOf<String, String?>()
 
@@ -225,6 +227,41 @@ class ProjectDefaultSettingsApplierTest {
         Mockito.verify(logger).debug(
             "Failed to apply project default setting unknownSetting: writable property not found",
         )
+    }
+
+    @Test
+    fun `server defaults preserve explicit URL and expiry regardless of entry order`() {
+        listOf(42L, -1L).forEach { expiry ->
+            listOf(false, true).forEach { urlFirst ->
+                JuggSettings.serverUrl = null
+                JuggSettings.serverExpireTimeMill = 0L
+                val entries = listOf("serverUrl" to "https://example.com", "serverExpireTimeMill" to expiry)
+                val defaults = (if (urlFirst) entries else entries.reversed()).toMap()
+
+                assertTrue(ProjectDefaultSettingsApplier(project(), TestGlobal.getLogger()).apply(config(1, defaults)))
+
+                assertEquals("https://example.com", JuggSettings.serverUrl)
+                assertEquals(expiry, JuggSettings.serverExpireTimeMill)
+            }
+        }
+    }
+
+    @Test
+    fun `server defaults publish native and backup invalidation revisions only for changed values`() {
+        JuggSettings.isEnableNativeSandboxDeploy = false
+        JuggSettings.isEnableBackupClasspath = false
+        val applier = ProjectDefaultSettingsApplier(project(), TestGlobal.getLogger())
+        val defaults = mapOf("isEnableNativeSandboxDeploy" to true, "isEnableBackupClasspath" to true)
+
+        assertTrue(applier.apply(config(1, defaults)))
+        assertTrue(JuggSettings.isEnableNativeSandboxDeploy)
+        assertTrue(JuggSettings.isEnableBackupClasspath)
+        assertEquals(1L, JuggSettings.snapshot().get("nativeSandboxRevision")?.asLong)
+        assertEquals(1L, JuggSettings.snapshot().get("backupClasspathRevision")?.asLong)
+
+        assertTrue(applier.apply(config(2, defaults)))
+        assertEquals(1L, JuggSettings.snapshot().get("nativeSandboxRevision")?.asLong)
+        assertEquals(1L, JuggSettings.snapshot().get("backupClasspathRevision")?.asLong)
     }
 
     private fun project() = object : MockProject(null, {}) {

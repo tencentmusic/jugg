@@ -9,7 +9,7 @@ import com.sickworm.intellij.jugg.compiler.copyResource
 import com.sickworm.intellij.jugg.compiler.isWindows
 import java.io.File
 import java.nio.file.Files
-import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
+import com.sickworm.intellij.jugg.project.info.ModuleBuildPathInfo
 
 class WindowsRsyncRuntimeTest {
     @get:Rule val folder = TemporaryFolder()

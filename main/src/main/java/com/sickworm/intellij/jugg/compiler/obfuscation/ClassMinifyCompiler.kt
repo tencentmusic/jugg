@@ -3,7 +3,7 @@ package com.sickworm.intellij.jugg.compiler.obfuscation
 import com.intellij.openapi.Disposable
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.logger.TimeLogger
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import java.io.File
 
 /**

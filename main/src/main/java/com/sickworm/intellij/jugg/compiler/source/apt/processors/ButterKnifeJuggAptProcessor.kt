@@ -3,7 +3,7 @@ package com.sickworm.intellij.jugg.compiler.source.apt.processors
 import com.github.javaparser.ast.expr.AnnotationExpr
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.source.apt.*
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import org.jetbrains.kotlin.com.intellij.psi.util.PsiTreeUtil
 import org.jetbrains.kotlin.psi.KtAnnotationEntry
 import java.io.File

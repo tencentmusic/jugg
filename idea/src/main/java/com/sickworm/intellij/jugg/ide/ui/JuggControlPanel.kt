@@ -239,16 +239,16 @@ class JuggControlPanel(
         name = "quickActions"
         add(actionGroup("Build",
             actionLink("Fallback to Gradle", controller::fullGradleBuild),
-            actionLink("Clear Jugg Build", controller::resetJuggCache),
+            actionLink("Clear Jugg build", controller::resetJuggCache),
             actionLink("Exec remote CMD", controller::runRemoteCommand)))
         add(actionGroup("Device",
-            actionLink("Restart App", controller::restartApp),
+            actionLink("Restart app", controller::restartApp, disableWhileRunning = false),
             actionLink("Clear app data", controller::cleanAndReinstall)))
-        add(actionGroup("Jugg Plugin",
-            actionLink("Ask AI", controller::askAi),
-            actionLink("Report Issue", controller::reportIssue),
-            actionLink("Check updates", controller::checkUpdates),
-            actionLink("Install CLI & Skill", controller::installSkills)))
+        add(actionGroup("Jugg plugin",
+            actionLink("Ask AI", controller::askAi, disableWhileRunning = false),
+            actionLink("Report issue", controller::reportIssue, disableWhileRunning = false),
+            actionLink("Check updates", controller::checkUpdates, disableWhileRunning = false),
+            actionLink("Install CLI & skill", controller::installSkills, disableWhileRunning = false)))
     }
 
     private fun lastDeploySection(): JComponent = overviewSection("Last deploy", "lastDeploy") {
@@ -365,25 +365,28 @@ class JuggControlPanel(
     private fun createSettings(): JComponent {
         val groups = listOf(
             settingGroup("Run behavior", "runBehavior",
-                settingToggle("Confirm fallback when no files changed", "Ask before running a full Gradle build.", JuggControlPanelController.Setting.CONFIRM_FALLBACK),
-                settingToggle("Confirm fallback when too many changes", "Ask before running a full Gradle build.", JuggControlPanelController.Setting.CONFIRM_FALLBACK_WHEN_TOO_MANY_CHANGES),
-                settingToggle("Always restart app after deployment", "Disables hot reload to ensure global state is reinitialized.", JuggControlPanelController.Setting.ALWAYS_RESTART)),
+                settingToggle(JuggControlPanelController.Setting.CONFIRM_FALLBACK),
+                settingToggle(JuggControlPanelController.Setting.CONFIRM_FALLBACK_WHEN_TOO_MANY_CHANGES),
+                settingToggle(JuggControlPanelController.Setting.ALWAYS_RESTART)),
             settingGroup("Deployment", "deployment",
-                settingToggle("Quick deploy", "Skip app startup when direct overlay is available.", JuggControlPanelController.Setting.QUICK_DEPLOY),
-                settingToggle(".so(native library) hot update", "Fast hot update .so libraries instead of updating APK.", JuggControlPanelController.Setting.SO_HOT_UPDATE),
-                settingToggle("Auto fallback after deploy failure", "Recover with a full Gradle build.", JuggControlPanelController.Setting.AUTO_FALLBACK),
-                settingToggle("Embed changes into APK", "Supports Android RemoteViews with a slower deploy.", JuggControlPanelController.Setting.EMBED_APK),
+                settingToggle(JuggControlPanelController.Setting.QUICK_DEPLOY),
+                settingToggle(JuggControlPanelController.Setting.SO_HOT_UPDATE),
+                settingToggle(JuggControlPanelController.Setting.AUTO_FALLBACK),
+                settingToggle(JuggControlPanelController.Setting.EMBED_APK),
                 forceCompatDevicesPanel),
             settingGroup("Compiler", "compiler",
-                settingToggle("Use project Kotlin compiler", "Matches the compiler configured by the project.", JuggControlPanelController.Setting.PROJECT_KOTLIN),
-                settingToggle("Backup classpath", "May improve recovery at the cost of extra storage.", JuggControlPanelController.Setting.BACKUP_CLASSPATH),
-                settingToggle("Gradle fallback compile no daemon", "Adds --no-daemon to Gradle fallback compile commands.", JuggControlPanelController.Setting.GRADLE_COMPILE_NO_DAEMON)),
+                settingToggle(JuggControlPanelController.Setting.PROJECT_KOTLIN),
+                settingToggle(JuggControlPanelController.Setting.BACKUP_CLASSPATH),
+                settingToggle(JuggControlPanelController.Setting.GRADLE_COMPILE_NO_DAEMON)),
             settingGroup("Integrations", "integrations",
                 settingAction("Install CLI and agent skills", "Install the Jugg CLI, agent skills, hooks, and required permissions.", "Install…", controller::installSkills),
                 settingAction("Check Jugg updates", "Check whether a newer Jugg plugin is available.", "Check now", controller::checkUpdates),
                 settingAction("Set custom server URL", "Configure the server used by Jugg services.", "Set…", controller::setCustomServerUrl)),
             settingGroup("Advanced", "advanced",
-                settingAction("Clear Jugg Build", "Delete Jugg project build data and reinitialize the project.", "Clear…", controller::resetJuggCache),
+                settingAction("Global storage directory",
+                    com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager.rootDir.absolutePath,
+                    "Move…", controller::moveGlobalDirectory),
+                settingAction("Clear Jugg build", "Delete Jugg project build data and reinitialize the project.", "Clear…", controller::resetJuggCache),
                 settingAction("Mark as project synced and re-init compiler", "Reload project information without running Gradle sync.", "Mark synced…", controller::markAsProjectSyncedAndReInitCompiler),
                 settingAction("Mark as Gradle compiled and re-init compiler", "Reuse the selected Jugg configuration outputs without building.", "Mark compiled…", controller::markAsGradleCompiledAndReInitCompiler)),
         )
@@ -412,10 +415,10 @@ class JuggControlPanel(
     }
 
     private fun settingToggle(
-        label: String,
-        help: String,
         setting: JuggControlPanelController.Setting,
     ): JComponent {
+        val label = setting.definition.label
+        val help = setting.definition.description
         val toggle = JBCheckBox(label).apply {
             addActionListener {
                 if (!isRenderingSettings) {
@@ -535,8 +538,15 @@ class JuggControlPanel(
         actions.forEach(::add)
     }
 
-    private fun actionLink(text: String, action: () -> Unit): ActionLink = ActionLink(text) { action() }
-        .also(quickActions::add)
+    private fun actionLink(
+        text: String,
+        action: () -> Unit,
+        disableWhileRunning: Boolean = true,
+    ): ActionLink = ActionLink(text) { action() }.apply {
+        autoHideOnDisable = false
+    }.also {
+        if (disableWhileRunning) quickActions.add(it)
+    }
 
     private fun verticalGap(size: Int): Component = Box.createVerticalStrut(JBUI.scale(size))
 
@@ -616,7 +626,7 @@ class JuggControlPanel(
                 else -> "Ready for incremental compile"
             }
             currentTaskDetailLabel.text = when {
-                lastRun?.status == JuggEventStatus.FAILED -> lastRun.failureReason ?: "Open Logs for details"
+                lastRun?.status == JuggEventStatus.FAILED -> lastRun.failureReason ?: "Open logs for details"
                 snapshot.context.changedFileCount == 0 -> "No pending changes"
                 else -> changedFileSummary(snapshot.context.changedFiles)
             }

@@ -1,0 +1,27 @@
+package com.sickworm.intellij.jugg.deploy.run.flow
+
+import com.sickworm.intellij.jugg.deploy.api.IDevice
+import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.deploy.run.IDeployHost
+import com.sickworm.intellij.jugg.deploy.run.utils.AdbTransientOffline
+
+/**
+ * Waits until ADB transport is ready again after transient offline.
+ */
+interface IAdbTransportRecovery {
+    fun waitUntilRecovered(device: IDevice, phase: String, logWait: (String) -> Unit): Boolean
+}
+
+class AdbTransportRecovery(
+    private val environment: IDeployHost,
+    private val logger: Logger,
+) : IAdbTransportRecovery {
+
+    override fun waitUntilRecovered(device: IDevice, phase: String, logWait: (String) -> Unit): Boolean {
+        return AdbTransientOffline.waitForAdbTransport(
+            phase = phase,
+            adb = environment.createDeviceAdb(device, logger),
+            logWait = logWait,
+        )
+    }
+}

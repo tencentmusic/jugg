@@ -1,7 +1,7 @@
 # 增量 D8 minApi 与 core-library desugar 导致 descriptor 漂移
 
-> 关联 Issue：[tencentmusic/jugg#26](https://github.com/tencentmusic/jugg/issues/26)  
-> 修复提交：`ece0338cf`（amend 后 hash 可能变化）  
+> 关联 Issue：[tencentmusic/jugg#26](https://github.com/tencentmusic/jugg/issues/26)<br>
+> 修复提交：`ece0338cf`（amend 后 hash 可能变化）<br>
 > 最小复现工程：`/Users/wormchen/IdeaProjects/demo/jugg-issue-26-minapi-desugar`
 
 ---

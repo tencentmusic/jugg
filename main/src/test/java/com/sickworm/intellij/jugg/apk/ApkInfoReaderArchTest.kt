@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.apk
 
-import com.android.tools.deployer.model.Apk
+import com.sickworm.intellij.jugg.deploy.api.Apk
+import com.sickworm.intellij.jugg.deploy.api.ApkEntry
 import com.intellij.openapi.diagnostic.Logger
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -39,22 +40,16 @@ class ApkInfoReaderArchTest {
     }
 
     private fun apk(path: String, vararg entries: String): Apk {
-        val apkEntry = Mockito.mock(com.android.tools.deployer.model.ApkEntry::class.java)
-        val constructor = Apk::class.java.declaredConstructors.maxByOrNull { it.parameterCount }!!
-        constructor.isAccessible = true
-        var stringIndex = 0
-        val args = constructor.parameterTypes.map { type ->
-            when {
-                type == String::class.java -> listOf(path, "checksum", path, "com.example.app")
-                    .getOrElse(stringIndex++) { "" }
-                java.util.List::class.java.isAssignableFrom(type) -> emptyList<Any>()
-                java.util.Map::class.java.isAssignableFrom(type) -> entries.associateWith { apkEntry }
-                type == Boolean::class.javaPrimitiveType -> false
-                type == Int::class.javaPrimitiveType -> 0
-                type == Long::class.javaPrimitiveType -> 0L
-                else -> null
-            }
-        }
-        return constructor.newInstance(*args.toTypedArray()) as Apk
+        val placeholder = Apk(path, "", path, "com.example.app", emptyList(), emptyList(), emptyList(), emptyMap())
+        return Apk(
+            path,
+            "checksum",
+            path,
+            "com.example.app",
+            emptyList(),
+            emptyList(),
+            emptyList(),
+            entries.associateWith { ApkEntry(it, 0L, placeholder) },
+        )
     }
 }

@@ -1,18 +1,22 @@
 package com.sickworm.intellij.jugg.cmdline
 
+import org.junit.Rule
 import com.sickworm.intellij.jugg.gradle.compile.CmdExecutor
 import com.sickworm.intellij.jugg.gradle.compile.SimpleSshCommand
-import com.sickworm.intellij.jugg.project.JuggPathManager
-import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
-import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
+import com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager
+import com.sickworm.intellij.jugg.project.info.ModuleBuildPathInfo
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
+import com.sickworm.intellij.jugg.project.info.ProjectInfoSerializer
 import java.io.File
 import java.nio.file.Files
 import java.util.zip.ZipFile
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class CmdLineTest {
+    @get:Rule val settingsFileRule = SettingsFileRule()
 
     private val demoProjectDir = File("../android_demo_project").absoluteFile.normalize()
 
@@ -46,6 +50,8 @@ class CmdLineTest {
 
         val apks = outputDir.listFiles { file -> file.name.endsWith(".apk") } ?: emptyArray()
         assertEquals(1, apks.size)
+        val settingsFile = JuggGlobalPathManager.settingsFile
+        assertFalse(settingsFile.exists() && settingsFile.readText().contains("\"isEnableBackupClasspath\""))
     }
 
     @Test
@@ -111,6 +117,7 @@ class CmdLineTest {
         prepareBaseline: (File) -> Unit = {},
         verify: (File) -> Unit = {},
     ) {
+        Global.buildOutputDir.deleteRecursively()
         buildBase()
 
         // backup juggRootDir and delete origin for test
@@ -143,6 +150,56 @@ class CmdLineTest {
         }
     }
 
+
+    @Test
+    fun buildIncrementalApkAcceptsLargeChangesWithoutOverwritingSettings() {
+        val baseline = Files.createTempDirectory("ci-policy-baseline").toFile()
+        val source = File(demoProjectDir, "app/src/main/java/com/sickworm/jugg/demo/testcase/subclass/RootClass.java")
+        val original = source.readText()
+        try {
+            buildBase()
+            File(demoProjectDir, "build/jugg").copyRecursively(baseline, overwrite = true)
+            val editor = com.sickworm.intellij.jugg.ide.bean.JuggSettingsEditor()
+            editor.set("maxCompileSourceModules", "1")
+            editor.set("maxCompileSourceFilePoints", "1")
+            source.writeText(original.replace("public void func1", "protected void func1"))
+            for (confirm in listOf(true, false)) {
+                editor.set("isConfirmFallbackWhenTooManyChanges", confirm.toString())
+                runCiPolicyCase(baseline, source, expectedSuccess = true)
+            }
+            source.writeText("this is invalid Java source")
+            runCiPolicyCase(baseline, source, expectedSuccess = false)
+            runCiPolicyCase(baseline, File(source.parentFile, "Missing.java"), expectedSuccess = false)
+        } finally {
+            source.writeText(original)
+            baseline.deleteRecursively()
+        }
+    }
+
+    private fun runCiPolicyCase(baseline: File, source: File, expectedSuccess: Boolean) {
+        val copy = Files.createTempDirectory("ci-policy-run").toFile()
+        val output = Files.createTempDirectory("ci-policy-output").toFile()
+        try {
+            baseline.copyRecursively(copy, overwrite = true)
+            val before = JuggGlobalPathManager.settingsFile.readText()
+            val result = CmdLine().run(arrayOf("cmd=buildIncrementalApk", "baseBuildJuggRootDir=$copy",
+                "sourceProjectDir=$demoProjectDir", "outputApkDir=$output", "changedFiles=$source", "logLevel=debug"))
+            assertEquals(expectedSuccess, result)
+            assertEquals(1, com.sickworm.intellij.jugg.ide.bean.JuggSettings.maxCompileSourceModules)
+            assertEquals(1, com.sickworm.intellij.jugg.ide.bean.JuggSettings.maxCompileSourceFilePoints)
+            assertEquals(before, JuggGlobalPathManager.settingsFile.readText())
+            if (expectedSuccess) {
+                assertTrue(File(copy, "build/staging/merged_dex").listFiles().orEmpty().any { it.extension == "dex" && it.length() > 0 })
+                val apk = output.listFiles().orEmpty().single { it.extension == "apk" }
+                java.util.zip.ZipFile(apk).use { zip -> assertTrue(zip.entries().asSequence().any { it.name.endsWith(".dex") }) }
+            } else {
+                assertFalse(output.listFiles().orEmpty().any { it.extension == "apk" })
+            }
+        } finally {
+            copy.deleteRecursively()
+            output.deleteRecursively()
+        }
+    }
 
     @Test
     fun buildIncrementalApkEffects() {

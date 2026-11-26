@@ -1,12 +1,13 @@
 package com.sickworm.intellij.jugg.cmdline.ci
 
+import com.google.gson.Gson
 import com.intellij.openapi.util.Disposer
 import com.sickworm.intellij.jugg.cmdline.incremental.CmdLineContextManager
 import com.sickworm.intellij.jugg.cmdline.logger.CmdLineLogger
 import com.sickworm.intellij.jugg.deploy.DeployHistoryData
 import com.sickworm.intellij.jugg.git.GitManager
-import com.sickworm.intellij.jugg.project.IFileChangesHandler
-import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.project.change.IFileChangesHandler
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
@@ -37,7 +38,7 @@ object GetChangedFilesCommand {
             val context = manager.init(initializeApkData = false)
             val result = collect(source, baseRoot, params.req("baseCommit"), params.req("targetCommit"),
                 context.modules.values.map { it.moduleRootDir }, manager.fileChangesHandler)
-            write(File(params.req("output")), result)
+            CiJsonWriter.write(File(params.req("output")), Gson().toJson(result))
         } finally {
             scope.cancel()
             Disposer.dispose(manager.disposer)
@@ -88,21 +89,6 @@ object GetChangedFilesCommand {
             GitRepositoryEntry(root.absolutePath, git.resolveCommit(baseRevision), git.resolveCommit(targetRevision))
         }
     }
-
-    private fun write(output: File, result: ChangedFilesDocument) {
-        val files = result.files.joinToString(",") {
-            "{\"file\":${q(it.file)},\"type\":${q(it.type)},\"module\":${q(it.module)},\"gitRoot\":${q(it.gitRoot)}}"
-        }
-        val repositories = result.repositories.joinToString(",") {
-            "{\"gitRoot\":${q(it.gitRoot)},\"baseCommit\":${q(it.baseCommit)},\"targetCommit\":${q(it.targetCommit)}}"
-        }
-        CiJsonWriter.write(output,
-            "{\"schemaVersion\":1,\"baseCommit\":${q(result.baseCommit)},\"resolvedBaseCommit\":${q(result.resolvedBaseCommit)}," +
-                    "\"targetCommit\":${q(result.targetCommit)},\"resolvedTargetCommit\":${q(result.resolvedTargetCommit)}," +
-                    "\"sourceProjectDir\":${q(result.sourceProjectDir)},\"files\":[$files],\"repositories\":[$repositories]}")
-    }
-
-    private fun q(value: String) = "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 
     private fun Map<String, String>.req(key: String) =
         get(key)?.takeIf { it.isNotEmpty() } ?: error("Param '$key' not found")

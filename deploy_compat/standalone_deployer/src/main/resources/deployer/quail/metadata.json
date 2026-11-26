@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "protocolVersion": "c52d6b25",
+  "androidStudio": {
+    "product": "Android Studio Quail 1",
+    "build": "AI-261.23567.138.2611.15503007",
+    "sourcePath": "/Applications/Android Studio Quail 1.app"
+  },
+  "files": [
+    {
+      "path": "installer/arm64-v8a/installer",
+      "executable": true
+    },
+    {
+      "path": "installer/armeabi-v7a/installer",
+      "executable": true
+    },
+    {
+      "path": "installer/x86/installer",
+      "executable": true
+    },
+    {
+      "path": "installer/x86_64/installer",
+      "executable": true
+    },
+    {
+      "path": "NOTICE.txt",
+      "executable": false
+    },
+    {
+      "path": "LICENSE-APACHE-2.0.txt",
+      "executable": false
+    },
+    {
+      "path": "SOURCE_CLASSES.sha256",
+      "executable": false
+    }
+  ]
+}

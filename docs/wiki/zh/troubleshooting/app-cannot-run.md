@@ -31,7 +31,7 @@ tags:
 
 这表示设备上的 App 安装或数据仍在，但 Jugg 没能恢复一套可继续增量部署的状态。
 
-1. 确认设备连接正常，且 applicationId、variant 和当前 Jugg Run Configuration 一致。
+1. 确认设备连接正常，且 applicationId、variant 和当前 Jugg run configuration 一致。
 2. 如果刚手动清过 App 数据、替换过 APK 或切换过 variant，使用 [Clean Reinstall](../guide/clean-data.md)。
 3. 未做过这些操作时，重新执行一次 Jugg Run，让 Jugg 进行有限恢复重试。
 4. 仍能稳定复现时，保留当前现场并[报告问题](../guide/report-issue.md)。

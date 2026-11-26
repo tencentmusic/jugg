@@ -102,5 +102,3 @@ class CustomApkInstallScriptRunner(
         }
     }
 }
-
-internal class CustomApkInstallScriptException(message: String, cause: Throwable) : RuntimeException(message, cause)

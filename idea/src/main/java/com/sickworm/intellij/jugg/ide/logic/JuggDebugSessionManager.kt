@@ -5,6 +5,7 @@ import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.compiler.ui.RunResult
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
+import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import com.sickworm.intellij.jugg.logger.JuggLogger
@@ -42,7 +43,7 @@ class JuggDebugSessionManager(
         }
     }
 
-    private fun attachJavaDebuggerWithRetry(device: com.android.ddmlib.IDevice, packageName: String): Throwable? {
+    private fun attachJavaDebuggerWithRetry(device: IDevice, packageName: String): Throwable? {
         var attempt = 1
         logger.info("")
         while (true) {

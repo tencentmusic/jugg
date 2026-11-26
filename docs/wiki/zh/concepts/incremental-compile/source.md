@@ -101,14 +101,16 @@ Java 和 Kotlin 先生成 class，随后由 D8 转换成 DEX。D8 还可能执�
 
 增量编译不能只根据当前模块的 `minSdk` 决定是否脱糖。设备中运行的是最近一次 Gradle 构建生成的 APK；如果基线 APK 已经脱糖，而本轮 DEX 没有脱糖，一个重新编译的子类可能不再包含脱糖阶段生成的方法，旧接口中也没有原始 default method，运行时便会出现 `AbstractMethodError`。反过来，基线没有脱糖时，本轮也不应凭空引入另一套结构。
 
-Jugg 会从基线 APK 的类结构判断当前应用是否启用了脱糖，再让本轮 D8 使用相同策略。启用脱糖时，D8 还需要读取 default method 相关接口。把整个模块 classpath 重新交给 D8 会扩大处理范围，因此 Jugg 先通过引用索引找出相关接口、子类和调用方，只把需要的 class 放入本轮临时 classpath：
+Jugg 使用当前类归属 APK 的构建变体 `minSdk` 作为 D8 的最低 API 级别，包含 product flavor 对默认配置的覆盖，而不是用 library 自身的 `minSdk` 或 APK 中是否存在脱糖类来替代。例如默认配置为 29、当前 flavor 为 21 时，本轮 D8 必须使用 21，否则 core library 脱糖后的 `j$.time` 与未重写的 `java.time` 会产生不同的方法签名。
+
+基线 APK 的类结构用于补齐 default method 相关接口；基线包含 core library 脱糖类时，还需传入项目的 core library 重写配置。把整个模块 classpath 重新交给 D8 会扩大处理范围，因此 Jugg 先通过引用索引找出相关接口、子类和调用方，只把需要的 class 放入本轮临时 classpath：
 
 ```text
 新的 class
-  -> 查询基线 APK 的脱糖状态
+  -> 读取归属 APK 当前变体的有效 minSdk
   -> 找出 default method 相关接口和 core library 重写信息
   -> 组装本轮需要的最小 classpath
-  -> 用相同脱糖策略生成单类粒度 DEX
+  -> 用相同最低 API 级别和重写配置生成单类粒度 DEX
 ```
 
 Jugg 还会优先使用当前项目 Android Gradle Plugin 配套的 D8，减少工具版本不同造成的字节码差异。项目工具无法安全加载或执行失败时，才回退到 Jugg 内置版本，并保留原始失败信息用于排查。

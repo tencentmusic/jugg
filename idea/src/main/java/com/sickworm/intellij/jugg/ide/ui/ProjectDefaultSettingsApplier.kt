@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.ide.ui
 import com.intellij.ide.util.PropertiesComponent
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
+import com.sickworm.intellij.jugg.ide.bean.JuggSettingsEditor
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.server.protocols.ProjectCustomConfig
 import kotlin.reflect.KMutableProperty1
@@ -39,7 +40,11 @@ class ProjectDefaultSettingsApplier(private val project: Project, private val lo
                 return@forEach
             }
             try {
-                property.setter.call(JuggSettings, converted)
+                if (key in setOf("isEnableBackupClasspath", "deviceCompatRecordJson", "isEnableNativeSandboxDeploy")) {
+                    JuggSettingsEditor().set(key, converted.toString(), confirm = true)
+                } else {
+                    property.setter.call(JuggSettings, converted)
+                }
                 logger.debug("Applied project default setting $key")
             } catch (e: Exception) {
                 logger.debug("Failed to apply project default setting $key", e)

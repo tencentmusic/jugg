@@ -17,8 +17,8 @@ import com.sickworm.intellij.jugg.ide.controlpanel.JuggEvent
 import com.sickworm.intellij.jugg.ide.logic.IJuggConfigurationRunner
 import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
 import com.sickworm.intellij.jugg.ide.ui.JuggControlPanelController
-import com.sickworm.intellij.jugg.project.CompileContextManager
-import com.sickworm.intellij.jugg.project.TaskRunnerManager
+import com.sickworm.intellij.jugg.compiler.context.CompileContextManager
+import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -89,14 +89,14 @@ class IdeaForceGradleCompileHelper(
             content,
             okButtonText = "Yes",
             negativeButtonText = "No",
-            leftButtonText = "Clean And Reinstall",
+            leftButtonText = "Just clean reinstall APK",
             linkActions = listOf(
                 CommonConfirmDialog.CustomLinkAction("Export incremental APK") {
                     ExportIncrementalApkHelper(project, taskRunnerManager, deployFileManager, logger)
                         .exportIncrementalApk(it, compileContextManager.compileContext)
                 }
             ),
-            checkBoxText = "clean gradle cache on fallback",
+            checkBoxText = "Clean Gradle cache on fallback",
             checkBoxSelectionAction = { isGradleCacheRefreshRequested = it },
         )
         recordFallbackConfirm(confirmResult)
@@ -128,6 +128,14 @@ class IdeaForceGradleCompileHelper(
         autoConfirm: Boolean,
         useCleanAndReinstall: Boolean,
     ): GradleCompileExecutionResult {
+        return executeGradleCompileBlockingForDevice(autoConfirm, useCleanAndReinstall, null)
+    }
+
+    override fun executeGradleCompileBlockingForDevice(
+        autoConfirm: Boolean,
+        useCleanAndReinstall: Boolean,
+        targetDeviceSerial: String?,
+    ): GradleCompileExecutionResult {
         ForceGradleCompileHelper.isGradleCacheRefreshNextTime = false
         if (!autoConfirm) {
             return GradleCompileExecutionResult(
@@ -142,7 +150,14 @@ class IdeaForceGradleCompileHelper(
         } else {
             ForceGradleCompileHelper.isForceGradleCompileNextTime = true
         }
-        val result = juggConfigurationRunner.runFirstConfiguration(isRpcMode = true)
+        val result = if (targetDeviceSerial == null) {
+            juggConfigurationRunner.runFirstConfiguration(isRpcMode = true)
+        } else {
+            juggConfigurationRunner.runFirstConfigurationWithSpec(
+                isRpcMode = true,
+                targetDeviceSerial = targetDeviceSerial,
+            )
+        }
         if (!result.isSuccess) {
             return GradleCompileExecutionResult(
                 status = "failed",
@@ -195,14 +210,14 @@ class IdeaForceGradleCompileHelper(
                 .append(":").append(options.remoteSshPort).append("</html>")
         }
         val confirmed = CommonConfirmDialog.showAndGetResult(
-            title = "Confirm Remote SSH Info Access",
+            title = "Confirm remote SSH info access",
             content = confirmContent,
             okButtonText = "Allow",
             cancelButtonText = "Deny",
         )
         userActions?.recordUserAction(
             action = if (confirmed) "confirmed" else "canceled",
-            title = "Confirm Remote SSH Info Access",
+            title = "Confirm remote SSH info access",
             status = if (confirmed) JuggEvent.Status.SUCCEEDED else JuggEvent.Status.CANCELED,
         )
         if (!confirmed) {
@@ -267,6 +282,13 @@ class IdeaForceGradleCompileHelper(
         }
     }
 
+    private fun resolveFailureMessage(status: String, detail: String): String {
+        return detail.lines()
+            .map { it.trim() }
+            .firstOrNull { it.startsWith("No device found.") }
+            ?: "Gradle compile finished with status=$status."
+    }
+
     private fun recordFallbackConfirm(result: ConfirmResult) {
         val detail = when (result) {
             ConfirmResult.POSITIVE -> "confirmed"
@@ -281,13 +303,6 @@ class IdeaForceGradleCompileHelper(
             JuggEvent.Status.CANCELED
         }
         userActions?.recordUserAction(detail, "Confirm fallback", status)
-    }
-
-    private fun resolveFailureMessage(status: String, detail: String): String {
-        return detail.lines()
-            .map { it.trim() }
-            .firstOrNull { it.startsWith("No device found.") }
-            ?: "Gradle compile finished with status=$status."
     }
 
 }

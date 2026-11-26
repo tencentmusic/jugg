@@ -2,7 +2,7 @@ package com.sickworm.intellij.jugg.gradle.compile
 
 import com.sickworm.intellij.jugg.compiler.isMac
 import com.sickworm.intellij.jugg.mock.logger
-import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
+import com.sickworm.intellij.jugg.project.info.ModuleBuildPathInfo
 import org.junit.Assume.assumeTrue
 import org.junit.Test
 import java.io.File

@@ -34,7 +34,8 @@ class IssueReportBundleBuilder(
         projectSummary: Map<String, Any?>,
         projectInfoDir: File? = null,
         logFiles: List<File>,
-        logFileLimit: Int,
+        standaloneLogDir: File? = null,
+        logFileLimit: Int = 10,
         logcat: String,
         hookDebugLog: File? = null,
         knownSecrets: Set<String> = emptySet(),
@@ -54,7 +55,7 @@ class IssueReportBundleBuilder(
         candidates += writeJsonCandidate("diagnostics/project-summary.json", projectSummary, IssueReportSensitivity.MEDIUM)
         logFiles.filter { it.isFile }.take(logFileLimit).forEach { logFile ->
             candidates += writeTextCandidate(
-                "diagnostics/logs/${logFile.name}",
+                logEntryPath(logFile, standaloneLogDir),
                 logFile.readText().let { if (destination.redactLogs) redact(it, knownSecrets) else it },
                 IssueReportSensitivity.MEDIUM,
                 true,
@@ -81,6 +82,13 @@ class IssueReportBundleBuilder(
         }
         preparedCandidates = candidates
         return candidates
+    }
+
+    private fun logEntryPath(logFile: File, standaloneLogDir: File?): String {
+        val directory = standaloneLogDir?.canonicalFile
+        val isStandaloneLog = directory != null && logFile.canonicalFile.parentFile == directory
+        val relativePath = if (isStandaloneLog) "standlone_cli/${logFile.name}" else logFile.name
+        return "diagnostics/logs/$relativePath"
     }
 
     private fun startReport() {
@@ -143,7 +151,6 @@ class IssueReportBundleBuilder(
         element.isJsonArray -> JsonArray().apply { element.asJsonArray.forEach { add(redactJsonValues(it)) } }
         else -> JsonPrimitive(REDACTED)
     }
-
     fun build(selectedPaths: Set<String>): IssueReportBundle {
         check(::reportDir.isInitialized) { "prepare must be called before build" }
         val selected = preparedCandidates.filter { it.path in selectedPaths }
@@ -224,8 +231,8 @@ class IssueReportBundleBuilder(
                 "\$1=[REDACTED]",
             )
     }
-
     companion object {
+        private const val MAX_REPORT_LOG_FILES = 10
         private const val REDACTED = "[REDACTED]"
         private val INCLUDED_BUILD_PROJECT_INFO_PATTERN =
             Regex("include_build_\\d+_gradle_project_infos\\.json")
@@ -245,5 +252,14 @@ class IssueReportBundleBuilder(
             "credential",
             "cookie",
         )
+
+        fun selectRecentLogFiles(logDir: File, standaloneLogDir: File): List<File> {
+            return listOf(logDir, standaloneLogDir).flatMap { directory ->
+                directory.listFiles().orEmpty().filter { file ->
+                    file.isFile && !file.name.startsWith("compile_latest") && !file.name.endsWith(".lck")
+                }
+            }.sortedWith(compareByDescending<File> { it.lastModified() }.thenBy(File::getAbsolutePath))
+                .take(MAX_REPORT_LOG_FILES)
+        }
     }
 }

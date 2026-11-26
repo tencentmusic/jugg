@@ -8,19 +8,19 @@ class PluginVersionComparatorTest {
     @Test
     fun testVersionCompare() {
         // Test basic version number comparison
-        assertTrue("3.1.0 should be less than 3.2.0", 
+        assertTrue("3.1.0 should be less than 3.2.0",
             PluginVersionComparator.compare("3.1.0", "3.2.0") < 0)
-        assertTrue("3.2.0 should be greater than 3.1.0", 
+        assertTrue("3.2.0 should be greater than 3.1.0",
             PluginVersionComparator.compare("3.2.0", "3.1.0") > 0)
-        assertEquals("3.1.0 should equal 3.1.0", 
+        assertEquals("3.1.0 should equal 3.1.0",
             0, PluginVersionComparator.compare("3.1.0", "3.1.0"))
-        
+
         // Test version numbers with different lengths
-        assertTrue("3.1 should be less than 3.1.1", 
+        assertTrue("3.1 should be less than 3.1.1",
             PluginVersionComparator.compare("3.1", "3.1.1") < 0)
-        assertTrue("3.1.1 should be greater than 3.1", 
+        assertTrue("3.1.1 should be greater than 3.1",
             PluginVersionComparator.compare("3.1.1", "3.1") > 0)
-        
+
         // Test stripping '-' and following suffixes
         assertEquals("3.1.0-release should equal 3.1.0",
             0, PluginVersionComparator.compare("3.1.0-release", "3.1.0"))
@@ -32,7 +32,7 @@ class PluginVersionComparatorTest {
             0, PluginVersionComparator.compare("3.1.0-rc1", "3.1.0"))
         assertEquals("3.1.0-rc1 should equal 3.1.0-rc2",
             0, PluginVersionComparator.compare("3.1.0-rc1", "3.1.0-rc2"))
-        assertEquals("SNAPSHOT versions should be treated as same as non-SNAPSHOT", 
+        assertEquals("SNAPSHOT versions should be treated as same as non-SNAPSHOT",
             0, PluginVersionComparator.compare("3.1.0-SNAPSHOT", "3.1.0"))
         assertEquals("3.1.0-feature-abc should equal 3.1.0",
             0, PluginVersionComparator.compare("3.1.0-feature-abc", "3.1.0"))
@@ -52,9 +52,9 @@ class PluginVersionComparatorTest {
             PluginVersionComparator.compare("3.2.0-SNAPSHOT", "3.1.0-release") > 0)
 
         // Test different major version numbers
-        assertTrue("3.14.0 should be less than 4.0.0", 
+        assertTrue("3.14.0 should be less than 4.0.0",
             PluginVersionComparator.compare("3.14.0", "4.0.0") < 0)
-        assertTrue("3.1.20 should be greater than 3.1.0", 
+        assertTrue("3.1.20 should be greater than 3.1.0",
             PluginVersionComparator.compare("3.1.20", "3.1.0") > 0)
     }
 }

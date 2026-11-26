@@ -55,6 +55,7 @@ Deployment of a regular resource or asset overlay normally restarts the Activity
 
 ## Boundaries
 
+- Incremental resource linking reuses compiled baseline values that the current input does not provide. An unresolved reference in such a value does not block unrelated resource updates; its original ID is preserved. Values supplied again in the current input still undergo reference checks, even when their content is unchanged. For a values XML file, other declarations compiled from the same file also count as current input. Reconstructed styleables keep their existing processing. This preserves baseline references rather than repairing their runtime behavior.
 - When a `res/` or asset file is deleted, Jugg does not produce deployment data that removes the device-side file or resource entry. The old resource remains readable through `Resources` or `AssetManager`, and its resource ID remains unchanged. Run a full Gradle build only when the deletion must actually take effect.
 - Manifest node deletion, attribute deletion, or `tools:*` operations that depend on a complete merge do not produce corresponding removal or merge results. The device continues using the previous merged manifest content. See [AndroidManifest compilation](./manifest.md) for details.
 - After changing a source set, variant, resource directory, resource generation logic, or resource obfuscation configuration, complete Gradle Sync when the project model changes, then run a full Gradle build for the target variant to establish a new APK and resource-table baseline.

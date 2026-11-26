@@ -31,7 +31,7 @@ This means that Jugg could not find an attachable target app process, or deploym
 
 This means that the app installation or data still exists on the device, but Jugg could not restore a state that can continue incremental deployment.
 
-1. Confirm that the device is connected and that the application ID, variant, and current Jugg Run Configuration match.
+1. Confirm that the device is connected and that the application ID, variant, and current Jugg run configuration match.
 2. If you recently cleared app data manually, replaced the APK, or switched variants, use [Clean Reinstall](../guide/clean-data.md).
 3. Otherwise, run Jugg once more so that it can perform its limited recovery retry.
 4. If the problem remains reproducible, keep the current state and [report the issue](../guide/report-issue.md).

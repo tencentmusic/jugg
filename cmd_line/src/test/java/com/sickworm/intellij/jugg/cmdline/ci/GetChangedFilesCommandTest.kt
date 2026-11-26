@@ -3,11 +3,11 @@ package com.sickworm.intellij.jugg.cmdline.ci
 import com.sickworm.intellij.jugg.compiler.ICompileContext
 import com.sickworm.intellij.jugg.cmdline.StdLogger
 import com.sickworm.intellij.jugg.deploy.DeployHistoryDb
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import com.sickworm.intellij.jugg.deploy.DeployHistoryData
 import com.sickworm.intellij.jugg.git.GitManager
-import com.sickworm.intellij.jugg.project.ChangedFile
-import com.sickworm.intellij.jugg.project.IFileChangesHandler
+import com.sickworm.intellij.jugg.project.change.ChangedFile
+import com.sickworm.intellij.jugg.project.change.IFileChangesHandler
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -35,6 +35,21 @@ class GetChangedFilesCommandTest {
         val git = GitManager(root)
         git.addAllAndCommit("change")
         return git.getLastCommitHash()!!
+    }
+
+    @Test fun `nearest baseline accepts candidate objects and arrays`() {
+        val source = repository("source")
+        val commit = GitManager(source).getLastCommitHash()!!
+        val input = temporary.newFile("candidates.json")
+        val output = temporary.newFile("result.json")
+        for (json in listOf("""{"commits":["$commit"],"label":"ignored"}""", """["$commit"]""")) {
+            input.writeText(json)
+            assertTrue(FindNearestBaseCommitCommand.run(arrayOf("projectDir=$source", "targetCommit=HEAD",
+                "candidateCommitsFile=$input", "output=$output")))
+            val result = com.google.gson.Gson().fromJson(output.readText(), com.google.gson.JsonObject::class.java)
+            assertEquals(commit, result.get("matchedCommit").asString)
+            assertEquals(1, result.getAsJsonArray("candidateCommits").size())
+        }
     }
 
     @Test fun `external-only changes preserve git root and every repository revision`() {

@@ -1,6 +1,6 @@
 package com.sickworm.intellij.jugg.ai.mcp.actions
 
-import com.android.ddmlib.IDevice
+import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.compiler.ForceGradleCompileHelper
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
@@ -12,7 +12,6 @@ import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
 import com.sickworm.intellij.jugg.ai.mcp.util.LastDeployTimestampRegistry
 import com.sickworm.intellij.jugg.platform.IPlatformApi
 import com.sickworm.intellij.jugg.platform.PlatformApi
-import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -76,6 +75,26 @@ class WaitLogsMcpToolActionTest {
         assertEquals("marker", data["stopReason"])
         val logs = data["logs"] as String
         assertTrue(logs.contains("[JUGG_AR] DONE"))
+    }
+
+    @Test
+    fun testExplicitSerialUsesDeviceDeployBaseline() {
+        registry.setTimestamp(projectDir.absolutePath, "04-19 09:00:00.000")
+        registry.setTimestamp(projectDir.absolutePath, "04-19 10:00:00.000", adb.serial)
+        adb.mainPids = setOf(1234)
+        adb.enqueueLine("04-19 10:00:01.000  1234  1234 I MyTag: DONE")
+
+        val result = WaitLogsMcpToolAction(registry).execute(
+            mapOf(
+                "projectDir" to projectDir.absolutePath,
+                "serial" to adb.serial,
+                "marker" to "DONE",
+            ),
+            runtime,
+        )
+
+        assertEquals(McpToolStatus.OK, result.status)
+        assertEquals("04-19 10:00:00.000", adb.lastSinceTime)
     }
 
     @Test
@@ -507,12 +526,6 @@ class WaitLogsMcpToolActionTest {
                 isShowCancelButton: Boolean,
             ) = false
 
-            override fun showChangeConfirmDialog(
-                diffResult: DependencyDiffResult?,
-                isRunLater: Boolean,
-                logger: com.intellij.openapi.diagnostic.Logger,
-            ) = throw UnsupportedOperationException()
-
             override fun showUserAndPasswordInputDialog(
                 content: String,
                 subTitle: String?,
@@ -525,7 +538,7 @@ class WaitLogsMcpToolActionTest {
             override fun getGradleJdkPath(project: Project, logger: com.intellij.openapi.diagnostic.Logger) = null
             override fun getAndroidHomePath(logger: com.intellij.openapi.diagnostic.Logger) = null
             override fun getIdeVersion() = "test"
-            override fun toDeviceAdb(device: IDevice): IDeviceAdb = fakeAdb
+            override fun getRuntimeInfo() = com.sickworm.intellij.jugg.project.runtime.RuntimeInfo("test", "test", "test", "")
             override fun isHasRelaunchActivityIssues(device: IDeviceAdb, logger: com.intellij.openapi.diagnostic.Logger) = false
             override fun invokeMcp(request: com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcRequest) =
                 throw UnsupportedOperationException()
@@ -538,15 +551,14 @@ class WaitLogsMcpToolActionTest {
         val deployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
         Mockito.`when`(deployTargetManager.getSelectedDevices()).thenReturn(listOf(device))
         Mockito.`when`(deployTargetManager.getConnectedDevices()).thenReturn(listOf(device))
+        Mockito.`when`(deployTargetManager.getTargetDevices(fakeAdb.serial)).thenReturn(listOf(device))
+        Mockito.`when`(deployTargetManager.createDeviceAdb(device)).thenReturn(fakeAdb)
         Mockito.`when`(deployTargetManager.getPackageName()).thenAnswer { resolvePackageName(fakeAdb) }
         Mockito.`when`(deployTargetManager.getPackageNameOrNull()).thenAnswer { resolvePackageName(fakeAdb) }
 
-        val project = Mockito.mock(Project::class.java)
-        Mockito.`when`(project.basePath).thenReturn(dir.absolutePath)
-
-        return object : IMcpRuntime {
+        return object : com.sickworm.intellij.jugg.ai.mcp.TestMcpRuntime() {
             override val logger = com.intellij.openapi.diagnostic.Logger.getInstance("WaitLogsTest")
-            override val project: Project = project
+            override val projectDir: String = dir.absolutePath
             override val deployTargetManager: IDeployTargetManager = deployTargetManager
             override val forceGradleCompileHelper: ForceGradleCompileHelper = FakeForceGradleCompileHelper()
             override val juggConfigurationRunner: IJuggConfigurationRunner = FakeJuggConfigurationRunner()
@@ -577,12 +589,14 @@ class WaitLogsMcpToolActionTest {
         private var pidofCallCount = 0
 
         private val logLines = java.util.concurrent.LinkedBlockingQueue<String>()
+        var lastSinceTime: String? = null
 
         fun enqueueLine(line: String) {
             logLines.offer(line)
         }
 
         override fun createLogcatSource(sinceTime: String): AdbLogcatSource {
+            lastSinceTime = sinceTime
             return object : AdbLogcatSource {
                 override fun nextLine(pollTimeoutMs: Long): String? =
                     logLines.poll(pollTimeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS)

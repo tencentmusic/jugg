@@ -1,7 +1,7 @@
 package com.sickworm.intellij.jugg.ai.mcp
 
 import com.sickworm.intellij.jugg.ai.mcp.actions.McpToolActionRegistry
-import com.sickworm.intellij.jugg.project.ProjectDirNormalizer
+import com.sickworm.intellij.jugg.project.runtime.ProjectDirNormalizer
 
 /**
  * McpRequestValidator validates incoming MCP JSON-RPC requests:

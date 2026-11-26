@@ -10,13 +10,22 @@ import javax.xml.parsers.DocumentBuilderFactory
 class JuggPluginActionRegistrationTest {
 
     @Test
+    fun pluginXml_shouldMatchRuntimePluginIdentity() {
+        val resource = javaClass.classLoader.getResource("META-INF/plugin.xml")
+        assertNotNull("plugin.xml should be available as a test resource", resource)
+        val document = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(resource!!.openStream())
+
+        assertEquals(JuggPluginIdentity.ID, document.getElementsByTagName("id").item(0).textContent.trim())
+    }
+
+    @Test
     fun pluginXml_shouldRegisterCheckJuggUpdateAction() {
         val action = pluginAction("jugg.CheckJuggUpdateAction")
 
         assertNotNull(action)
         assertEquals("com.sickworm.intellij.jugg.ide.ui.CheckJuggUpdateAction", action.getAttribute("class"))
-        assertEquals("Check Jugg Update", action.getAttribute("text"))
-        assertEquals("Check Jugg Update", action.getAttribute("description"))
+        assertEquals("Check Jugg update", action.getAttribute("text"))
+        assertEquals("Check Jugg update", action.getAttribute("description"))
         Class.forName(action.getAttribute("class"))
     }
 

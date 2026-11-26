@@ -1,3 +1,9 @@
+**Purpose:** Track plain-layout hot-deploy crashes in DataBinding modules.
+
+**Decision:** Require an actual layout declaration before generating a DataBinding trigger.
+
+**Impact:** Preserves normal ViewBinding and mapper behavior.
+
 # DataBinding 模块普通布局增量部署崩溃修复
 
 ## 用户场景与证据边界

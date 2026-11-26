@@ -139,9 +139,9 @@ class JuggRunSettingsComponentTest {
         assertEquals(3, quickActionsLayout.columns)
         assertEquals(3, quickActions.componentCount)
         assertEquals(listOf(
-            "Build" to listOf("Fallback to Gradle", "Clear Jugg Build", "Exec remote CMD"),
-            "Device" to listOf("Restart App", "Clear app data"),
-            "Jugg Plugin" to listOf("Ask AI", "Report Issue", "Check updates", "Install CLI & Skill"),
+            "Build" to listOf("Fallback to Gradle", "Clear Jugg build", "Exec remote CMD"),
+            "Device" to listOf("Restart app", "Clear app data"),
+            "Jugg plugin" to listOf("Ask AI", "Report issue", "Check updates", "Install CLI & skill"),
         ), quickActionGroups)
         assertEquals(listOf(
             "settings.group.runBehavior",
@@ -171,10 +171,44 @@ class JuggRunSettingsComponentTest {
         assertNotNull(findNamedComponent<JBList<*>>(panel, "overview.changedFilesList"))
         assertNotNull(findNamedComponent<JBList<*>>(panel, "overview.recentRunsList"))
         assertTrue(actionTexts.containsAll(listOf(
-            "Fallback to Gradle", "Clear Jugg Build", "Exec remote CMD", "Restart App", "Clear app data",
-            "Report Issue", "Check updates", "Install CLI & Skill", "Install…", "Check now", "Clear…",
+            "Fallback to Gradle", "Clear Jugg build", "Exec remote CMD", "Restart app", "Clear app data",
+            "Report issue", "Check updates", "Install CLI & skill", "Install…", "Check now", "Clear…",
         )))
         assertTrue("More…" !in actionTexts)
+    }
+
+    @Test
+    fun `running task disables build and clear data actions while keeping restart and jugg plugin enabled`() {
+        TestGlobal.init()
+        val mockModel = MockJuggControlPanelModel().apply {
+            load(MockJuggControlPanelModel.Scenario.RUNNING)
+        }
+        val panel = createPanel(model = mockModel.model)
+        javax.swing.SwingUtilities.invokeAndWait {}
+        val quickActions = findNamedComponent<JPanel>(panel, "quickActions")!!
+        val enabledByGroup = quickActions.components.associate { group ->
+            val title = descendants(group).filterIsInstance<JLabel>().first().text
+            val states = descendants(group).filterIsInstance<ActionLink>().associate {
+                assertTrue("${it.text} should remain visible while disabled", it.isVisible)
+                it.text to it.isEnabled
+            }
+            title to states
+        }
+        assertEquals(mapOf(
+            "Fallback to Gradle" to false,
+            "Clear Jugg build" to false,
+            "Exec remote CMD" to false,
+        ), enabledByGroup["Build"])
+        assertEquals(mapOf(
+            "Restart app" to true,
+            "Clear app data" to false,
+        ), enabledByGroup["Device"])
+        assertEquals(mapOf(
+            "Ask AI" to true,
+            "Report issue" to true,
+            "Check updates" to true,
+            "Install CLI & skill" to true,
+        ), enabledByGroup["Jugg plugin"])
     }
 
     @Test

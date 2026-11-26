@@ -1,48 +1,48 @@
 # L1 Smoke
 
-目标：用最少用例确认 Agent 会使用当前公开 UI CLI，而不是旧内部工具名。
+Goal: Check with a few cases that the agent uses the current public UI CLI instead of old internal tool names.
 
-## SMOKE-1: 当前页面门禁
+## SMOKE-1: Current Page Gate
 
-Prompt：确认当前前台页面是否是 McpTestActivity。
+Prompt: Confirm whether McpTestActivity is the foreground page.
 
-期望：
-- 选择 `activity-stack`。
-- 结论明确写当前 Activity。
-- 如果不是 McpTestActivity，后续依赖页面的用例应 `SKIP`。
+Expected:
+- Select `activity-stack`.
+- State the current Activity explicitly.
+- If it is not McpTestActivity, `SKIP` later cases that depend on that page.
 
-## SMOKE-2: 导出布局
+## SMOKE-2: Export Layout
 
-Prompt：导出当前页面布局，作为 UI 验证证据。
+Prompt: Export the current page layout as UI verification evidence.
 
-期望：
-- 选择 `layout-dump`。
-- 可加 `--include-gone`，但不强制。
-- 记录输出文件或结构化摘要。
+Expected:
+- Select `layout-dump`.
+- `--include-gone` is optional.
+- Record the output file or a structured summary.
 
-## SMOKE-3: 文本定位
+## SMOKE-3: Locate by Text
 
-Prompt：找到文本为 `Unique MCP Target` 的按钮，告诉我它的位置和大小。
+Prompt: Find the button labeled `Unique MCP Target` and tell me its position and size.
 
-期望：
-- 选择 `view-locate --text "Unique MCP Target"`。
-- 返回 bounds/坐标类信息。
-- 使用当前公开 CLI 名称。
+Expected:
+- Select `view-locate --text "Unique MCP Target"`.
+- Return bounds or coordinate information.
+- Use the current public CLI name.
 
-## SMOKE-4: 属性读取
+## SMOKE-4: Inspect a Property
 
-Prompt：读取 resource id 为 `tv_mcp_style_title` 的文本内容。
+Prompt: Read the text of resource ID `tv_mcp_style_title`.
 
-期望：
-- 选择 `view-inspect --resource-id tv_mcp_style_title getText().toString()`。
-- 结论包含实际文本。
-- 使用当前公开 CLI 名称。
+Expected:
+- Select `view-inspect --resource-id tv_mcp_style_title getText().toString()`.
+- Include the actual text in the conclusion.
+- Use the current public CLI name.
 
-## SMOKE-5: 安全点击
+## SMOKE-5: Safe Tap
 
-Prompt：测试页面已确认安全，请点击文本为 `Unique MCP Target` 的按钮。
+Prompt: This test page is confirmed safe. Tap the button labeled `Unique MCP Target`.
 
-期望：
-- 先确认页面 gate，或使用已有 gate 证据。
-- 选择 `tap --text "Unique MCP Target"`。
-- 没有安全声明时应跳过点击。
+Expected:
+- Confirm the page gate or reuse existing gate evidence first.
+- Select `tap --text "Unique MCP Target"`.
+- Skip the tap if no safety statement is present.

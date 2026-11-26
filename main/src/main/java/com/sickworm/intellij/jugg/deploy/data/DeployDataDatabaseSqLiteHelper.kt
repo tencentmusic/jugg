@@ -6,7 +6,7 @@ import com.googlecode.d2j.DexConstants
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.deploy.*
-import com.sickworm.intellij.jugg.project.JuggException
+import com.sickworm.intellij.jugg.JuggException
 import org.jetbrains.annotations.TestOnly
 import java.io.File
 import java.sql.Connection
@@ -502,6 +502,30 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
             ))
         }
         return results
+    }
+
+    /**
+     * Checks in the current process whether all [apkFiles] match the stored `apk_info` keys and modification times
+     * so unchanged APKs can skip launching the isolated parser process.
+     */
+    @Synchronized
+    fun isApksUnchanged(apkFiles: List<File>): Boolean {
+        if (apkFiles.isEmpty()) return false
+        val dbApkModifiedTimes = mutableMapOf<String, Long>()
+        DriverManager.getConnection(url).use { connection ->
+            val sql = "SELECT key, last_modified FROM apk_info;"
+            connection.createStatement().use { statement ->
+                val rs = statement.executeQuery(sql)
+                while (rs.next()) {
+                    dbApkModifiedTimes[rs.getString(1)] = rs.getLong(2)
+                }
+            }
+        }
+        val expectedKeys = apkFiles.map { it.apkFileKey }.toSet()
+        if (dbApkModifiedTimes.keys != expectedKeys) return false
+        return apkFiles.all { apkFile ->
+            apkFile.exists() && dbApkModifiedTimes[apkFile.apkFileKey] == apkFile.lastModified()
+        }
     }
 
     @Synchronized

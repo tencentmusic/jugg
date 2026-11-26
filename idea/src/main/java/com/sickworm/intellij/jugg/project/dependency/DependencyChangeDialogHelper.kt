@@ -16,13 +16,13 @@ class DependencyChangeDialogHelper(loggerArg: Logger) {
         if (diffResult == null) {
             logger.debug("show failed dialog")
             val confirmResult = CommonConfirmDialog.showAndGetOrCancel(
-                title = "Jugg: Oops, Something Went Wrong",
+                title = "Jugg: Oops, something went wrong",
                 content = """<html>
-                |<p>${"Oops, Something went wrong.".htmlWarning}</p>
+                |<p>${"Oops, something went wrong.".htmlWarning}</p>
                 |<p>Jugg failed to find out changed libraries. Please report issues.</p>
                 |</html>
                 |""".trimMargin(),
-                okButtonText = "Fallback to Gradle${if (isRunLater) " Later" else ""}",
+                okButtonText = "Fallback to Gradle${if (isRunLater) " later" else ""}",
                 isShowCancelButton = false,
             )
             return if (confirmResult.isCanceled) {
@@ -35,7 +35,7 @@ class DependencyChangeDialogHelper(loggerArg: Logger) {
                     "removedLibraries: ${diffResult.removedLibraryDependencies}")
             val changeList = diffResult.toHtmlChangeList()
             val confirmResult = CommonConfirmDialog.showAndGetOrCancel(
-                title = "Jugg: Hey! Found ${changeList.size} Libraries Changed",
+                title = "Jugg: Hey! Found ${changeList.size} libraries changed",
                 content = """<html>
                     |<p>Do you want to <b>incremental compile</b> these changed libraries?
                     |<ul>
@@ -46,22 +46,22 @@ class DependencyChangeDialogHelper(loggerArg: Logger) {
                     |</p>
                     |</html>
                     |""".trimMargin(),
-                okButtonText = "Yes, Incremental Compile!",
-                negativeButtonText = "Fallback to Gradle${if (isRunLater) " Later" else ""}",
+                okButtonText = "Yes, incremental compile!",
+                negativeButtonText = "Fallback to Gradle${if (isRunLater) " later" else ""}",
             )
             return confirmResult
         } else {
             logger.debug("show no change confirm dialog")
             val confirmResult = CommonConfirmDialog.showAndGetOrCancel(
-                title = "Jugg: Oops, No Library Changes Found",
+                title = "Jugg: Oops, no library changes found",
                 content = """<html>
                 |<p>${"It seems no library changed.".htmlWarning}</p>
                 |<p>Do you want to <b>ignore</b> build files changed?<br>
                 |<b>Caution: This may cause unexpected build result.</b></p>
                 |</html>
                 |""".trimMargin(),
-                okButtonText = "Ignore Build File Changes",
-                negativeButtonText = "Fallback to Gradle${if (isRunLater) " Later" else ""}",
+                okButtonText = "Ignore build file changes",
+                negativeButtonText = "Fallback to Gradle${if (isRunLater) " later" else ""}",
             )
             return confirmResult
         }

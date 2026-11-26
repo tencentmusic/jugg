@@ -18,8 +18,8 @@ Before installing, ensure your development environment meets the following requi
 | Item | Minimum Requirement | Supported / Recommended Versions |
 |---|---|---|
 | **Operating System** | macOS / Linux / Windows | macOS (Apple Silicon / Intel), Linux, Windows 10/11 |
-| **Android Studio** | Android Studio Chipmunk (2021.2.1)+ | Hedgehog, Iguana, Jellyfish, Koala, Ladybug, Meerkat, Narwhal |
-| **Gradle / AGP** | AGP 7.0+ | AGP 7.x, 8.x |
+| **Android Studio** | Android Studio Bumblebee (2021.1.1)+ | Bumblebee through Rabbit |
+| **Gradle / AGP** | AGP 3.4+ | AGP 3.4–9.1; Gradle 5.4.1–9.2.1 |
 | **Java Development Kit** | JDK 11+ | JDK 17 / JDK 21 |
 | **Target Test Device** | Android 8.0 (API 26)+ | Physical devices or emulators with USB debugging enabled |
 

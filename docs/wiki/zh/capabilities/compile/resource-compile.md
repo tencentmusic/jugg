@@ -55,6 +55,7 @@ assets 变化
 
 ## 使用边界
 
+- 资源增量链接复用本轮输入未提供的基线编译值。其中无法解析的引用不会阻断无关资源更新，原始 ID 会被保留。本轮输入重新提供的值仍会接受引用检查，即使内容没有变化。对于 values XML 文件，同一文件中一起编译的其他声明也属于本轮输入。重建的 styleable 保持现有处理。这项复用保留基线引用，不会修复其运行时行为。
 - 删除 `res/` 或 assets 文件时，Jugg 不会生成移除设备端文件或资源 entry 的部署数据。原有资源仍可通过 `Resources` 或 `AssetManager` 读取，资源 ID 也保持不变；只有需要让删除真正生效时，才执行完整 Gradle 构建。
 - Manifest 删除节点、删除属性或依赖完整 merge 的 `tools:*` 操作不会产生对应的移除或合并结果，设备仍使用原有 merged manifest 内容。具体表现见 [AndroidManifest 编译](./manifest.md)。
 - 修改 source set、variant、资源目录、资源生成逻辑或资源混淆配置时，工程模型变化应先完成 Gradle Sync，再为目标变体执行完整 Gradle 构建，建立新的 APK 和资源表基线。

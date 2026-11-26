@@ -1,21 +1,19 @@
 package com.sickworm.intellij.jugg.platform
 
-import com.android.ddmlib.IDevice
-import com.android.tools.deployer.model.Apk
+import com.sickworm.intellij.jugg.deploy.api.Apk
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.apk.manifest.ManifestActivityInfo
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.git.IFileMatcher
 import com.sickworm.intellij.jugg.git.IGitManager
-import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
 import com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcRequest
 import com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcResponse
-import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
+import com.sickworm.intellij.jugg.project.runtime.RuntimeInfo
 import java.io.File
 
 /**
- * IPlatformApi abstraction boundary for UI, device, environment, and gradle integration calls.
+ * IPlatformApi abstraction boundary for process-level UI, environment, and gradle integration calls.
  * Collaboration: Implemented by host-layer adapters and consumed through [PlatformApi] delegation in core modules.
  */
 interface IPlatformApi {
@@ -27,12 +25,6 @@ interface IPlatformApi {
         cancelButtonText: String? = null,
         isShowCancelButton: Boolean = true,
     ): Boolean
-
-    fun showChangeConfirmDialog(
-        diffResult: DependencyDiffResult?,
-        isRunLater: Boolean,
-        logger: Logger,
-    ): ConfirmResult
 
     fun showUserAndPasswordInputDialog(
         content: String,
@@ -52,7 +44,7 @@ interface IPlatformApi {
 
     fun getIdeVersion(): String
 
-    fun toDeviceAdb(device: IDevice): IDeviceAdb?
+    fun getRuntimeInfo(): RuntimeInfo
 
     fun isHasRelaunchActivityIssues(device: IDeviceAdb, logger: Logger): Boolean
 

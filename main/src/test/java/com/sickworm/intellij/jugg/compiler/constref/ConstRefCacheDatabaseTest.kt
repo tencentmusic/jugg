@@ -90,6 +90,31 @@ class ConstRefCacheDatabaseTest : ConstRefTempDirCleanupSupport() {
     }
 
     @Test
+    fun `should recreate malformed database during runtime operation`() {
+        val dbDir = createTempDirectory("const_ref_db_runtime_malformed")
+        File(dbDir, ".git").mkdirs()
+        val dbFile = File(dbDir, "const_ref_test.db")
+        val database = ConstRefCacheDatabase(dbFile, logger)
+        database.close()
+        File("${dbFile.absolutePath}-wal").delete()
+        File("${dbFile.absolutePath}-shm").delete()
+        dbFile.writeText("not a sqlite database")
+
+        val sourceFile = File(dbDir, "Source.java").apply { writeText("class Source {}") }
+        assertFalse(database.hasFileAnalysis(sourceFile.absolutePath, 1L))
+        database.close()
+
+        DriverManager.getConnection("jdbc:sqlite:${dbFile.absolutePath}").use { connection ->
+            connection.createStatement().use { statement ->
+                statement.executeQuery("PRAGMA integrity_check").use { resultSet ->
+                    assertTrue(resultSet.next())
+                    assertEquals("ok", resultSet.getString(1))
+                }
+            }
+        }
+    }
+
+    @Test
     fun `should invalidate stale analysis after constant parser rule changes`() {
         listOf(7, 8, 9).forEach { oldVersion ->
             val dbDir = createTempDirectory("const_ref_db_schema_bump")

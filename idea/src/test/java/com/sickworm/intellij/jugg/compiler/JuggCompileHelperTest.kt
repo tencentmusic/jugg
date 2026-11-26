@@ -1,7 +1,9 @@
 package com.sickworm.intellij.jugg.compiler
 
+import com.intellij.openapi.Disposable
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.Disposer
 import com.sickworm.intellij.jugg.compiler.JuggCompiler
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.FullBuildInfo
@@ -14,23 +16,25 @@ import com.sickworm.intellij.jugg.deploy.JuggDeployState
 import com.sickworm.intellij.jugg.deploy.JuggRunningTaskStatusManager
 import com.sickworm.intellij.jugg.deploy.IJuggRunningTaskStatusManager
 import com.sickworm.intellij.jugg.compiler.ui.BuildChangesConfirmResult
+import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.sickworm.intellij.jugg.compiler.ui.TooManyChangesConfirmResult
 import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.mock.TestGlobal
-import com.sickworm.intellij.jugg.project.CompileContextManager
-import com.sickworm.intellij.jugg.project.ChangedFile
-import com.sickworm.intellij.jugg.project.GitFileChangesDetector
-import com.sickworm.intellij.jugg.project.IFileChangesHandler
-import com.sickworm.intellij.jugg.project.JuggPathManager
-import com.sickworm.intellij.jugg.project.TaskRunnerManager
-import com.sickworm.intellij.jugg.project.data.ExternalBuildInfo
-import com.sickworm.intellij.jugg.project.data.ExternalBuildInputDir
-import com.sickworm.intellij.jugg.project.data.ExternalBuildInputFilterRule
-import com.sickworm.intellij.jugg.project.data.ExternalBuildType
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.compiler.context.CompileContextManager
+import com.sickworm.intellij.jugg.compiler.context.CompileEnvironmentSource
+import com.sickworm.intellij.jugg.project.change.ChangedFile
+import com.sickworm.intellij.jugg.project.change.GitFileChangesDetector
+import com.sickworm.intellij.jugg.project.change.IFileChangesHandler
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
+import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
+import com.sickworm.intellij.jugg.project.info.ExternalBuildInfo
+import com.sickworm.intellij.jugg.project.info.ExternalBuildInputDir
+import com.sickworm.intellij.jugg.project.info.ExternalBuildInputFilterRule
+import com.sickworm.intellij.jugg.project.info.ExternalBuildType
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import com.sickworm.intellij.jugg.project.dependency.GradleProjectInfoLocalFetchManager
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import com.sickworm.intellij.jugg.server.JuggServer
@@ -59,13 +63,15 @@ import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 
 class JuggCompileHelperTest {
+    @get:Rule
+    val settingsFileRule = com.sickworm.intellij.jugg.mock.SettingsFileRule()
 
     @Rule
     @JvmField
     val temporaryFolder = TemporaryFolder()
 
     companion object {
-        private const val DIRECT_RUN_FALLBACK_HINT = "Run again directly will fall back to gradle compile."
+        private const val DIRECT_RUN_FALLBACK_HINT = "Running again without changing any files will fall back to a Gradle build."
         private const val EMPTY_COMPILE_NOTIFICATION = "Compiling 0 files..."
         private const val NO_FILE_CHANGES_FALLBACK = "No file changes. will fallback to gradle compile."
         private const val NO_FILE_CHANGES_DRY_DEPLOY = "No file changes, dry deploy once."
@@ -80,6 +86,66 @@ class JuggCompileHelperTest {
     }
 
     @Test
+    fun replacingCompilerDisposesRegisteredChildren() {
+        val fixture = createFixture()
+        val oldCompiler = mock<JuggCompiler>()
+        val replacement = mock<JuggCompiler>()
+        val childDisposed = AtomicBoolean()
+        Disposer.register(oldCompiler, Disposable { childDisposed.set(true) })
+
+        try {
+            fixture.helper.juggCompiler = oldCompiler
+            fixture.helper.juggCompiler = replacement
+
+            assertTrue(childDisposed.get())
+        } finally {
+            Disposer.dispose(oldCompiler)
+            fixture.helper.close()
+        }
+    }
+
+    @Test
+    fun closingHelperDisposesRegisteredCompilerChildren() {
+        val fixture = createFixture()
+        val compiler = mock<JuggCompiler>()
+        val childDisposed = AtomicBoolean()
+        Disposer.register(compiler, Disposable { childDisposed.set(true) })
+
+        try {
+            fixture.helper.juggCompiler = compiler
+            fixture.helper.close()
+
+            assertTrue(childDisposed.get())
+        } finally {
+            Disposer.dispose(compiler)
+        }
+    }
+
+    @Test
+    fun checkingFallbackAgainstSnapshotDoesNotRefreshDeployState() {
+        val fixture = createFixture()
+
+        assertEquals(null, fixture.helper.checkFallback(JuggDeployState.READY))
+
+        verify(fixture.deployStateManager, never()).updateDeployState()
+    }
+
+    @Test
+    fun checkingFallbackAgainstSnapshotPrefersMissingGradleBaseline() {
+        val fixture = createFixture()
+        whenever(fixture.deployHistoryManager.hasBeenFullCompiled).thenReturn(false)
+        whenever(fixture.gradleProjectInfoLocalFetchManager.isIncrementalCompileAvailable).thenReturn(false)
+        val deployState = JuggDeployState.READY.copy(
+            state = JuggDeployState.State.READY_FULL_COMPILE,
+            msg = "not gradle compile yet",
+        )
+
+        assertEquals("not gradle compile yet", fixture.helper.checkFallback(deployState))
+
+        verify(fixture.deployStateManager, never()).updateDeployState()
+    }
+
+    @Test
     fun preprocessIncrementalCompile_noFileChanges_checksGitHeadBeforeAsyncGitCheck() {
         val fixture = createFixture()
         whenever(fixture.deployFileManager.isNoFileChanges()).thenReturn(true)
@@ -89,6 +155,82 @@ class JuggCompileHelperTest {
         verify(fixture.gitFileChangesDetector).refreshFileChangesIfHeadChanged()
         verify(fixture.gitChangeChecker).checkUndetectedFilesAsync(any())
         verify(fixture.gitChangeChecker, never()).checkUndetectedFiles(any())
+    }
+
+    @Test
+    fun preprocessIncrementalCompile_explicitSerial_usesTargetDeviceState() {
+        val fixture = createFixture()
+        val targetDevice: IDevice = mock()
+        whenever(fixture.uiHandler.targetDeviceSerial).thenReturn("serial-b")
+        whenever(fixture.deployTargetManager.getTargetDevices("serial-b")).thenReturn(listOf(targetDevice))
+        whenever(fixture.deployStateManager.updateDeployState(targetDevice)).thenReturn(JuggDeployState.READY)
+        whenever(fixture.deployFileManager.isNoFileChanges()).thenReturn(true)
+
+        assertEquals(null, invokePreprocessIncrementalCompile(fixture.helper, fixture.options, fixture.uiHandler))
+
+        verify(fixture.deployStateManager, org.mockito.Mockito.times(2)).updateDeployState(targetDevice)
+        verify(fixture.deployStateManager, never()).updateDeployState()
+    }
+
+    @Test
+    fun preprocessIncrementalCompile_compileOnlyUpdatesDeployState() {
+        val fixture = createFixture()
+        whenever(fixture.uiHandler.isSkipDeploy).thenReturn(true)
+
+        val result = invokePreprocessIncrementalCompile(fixture.helper, fixture.options, fixture.uiHandler)
+
+        assertEquals(null, result)
+        verify(fixture.deployStateManager, org.mockito.Mockito.times(2)).updateDeployState()
+    }
+
+    @Test
+    fun preprocessIncrementalCompile_compileOnlyBuildFileChanged_forcesGradleFallback() {
+        val fixture = createFixture()
+        val buildFile = temporaryFolder.newFile("build.gradle")
+        val changedFile = ChangedFile(
+            CompileFile.Type.BuildFile,
+            buildFile,
+            buildFile.parentFile,
+            ModuleInfo.virtualModule,
+        )
+        whenever(fixture.uiHandler.isSkipDeploy).thenReturn(true)
+        whenever(fixture.deployFileManager.isNoFileChanges()).thenReturn(false)
+        whenever(fixture.deployFileManager.getUncompiledFiles()).thenReturn(listOf(changedFile))
+        whenever(fixture.dependencyChangeManager.changeStatus).thenReturn(
+            IDependencyChangeManager.ChangeStatus.REBUILD,
+        )
+        whenever(fixture.deployStateManager.updateDeployState()).thenReturn(
+            JuggDeployState.READY,
+            JuggDeployState.READY.copy(
+                state = JuggDeployState.State.READY_FULL_COMPILE,
+                msg = "build.gradle changed",
+            ),
+        )
+
+        val result = invokePreprocessIncrementalCompile(fixture.helper, fixture.options, fixture.uiHandler)
+
+        assertTrue(result!!.isCanFallback)
+        assertEquals("build.gradle changed", result.failedReason)
+        verify(fixture.deployStateManager, org.mockito.Mockito.times(2)).updateDeployState()
+    }
+
+    @Test
+    fun preprocessIncrementalCompile_compileOnlyLastGradleFailure_forcesGradleFallback() {
+        val fixture = createFixture()
+        whenever(fixture.uiHandler.isSkipDeploy).thenReturn(true)
+        whenever(fixture.deployHistoryManager.isLastFullCompileFailed).thenReturn(true)
+        whenever(fixture.deployStateManager.updateDeployState()).thenReturn(
+            JuggDeployState.READY.copy(
+                state = JuggDeployState.State.READY_FULL_COMPILE,
+                msg = "last gradle compile not success",
+            ),
+        )
+
+        val result = invokePreprocessIncrementalCompile(fixture.helper, fixture.options, fixture.uiHandler)
+
+        assertTrue(result!!.isCanFallback)
+        assertEquals("last gradle compile not success", result.failedReason)
+        verify(fixture.deployStateManager, org.mockito.Mockito.times(2)).updateDeployState()
     }
 
     @Test
@@ -389,7 +531,7 @@ class JuggCompileHelperTest {
         val module = ModuleInfo.virtualModule.copy(externalBuildInfos = listOf(
             ExternalBuildInfo(
                 type = ExternalBuildType.Flutter,
-                inputDirs = listOf(flutterInputDir(flutterRoot)),
+                inputDirs = listOf(ExternalBuildInputDir(flutterRoot, setOf(ExternalBuildInputFilterRule.Dart))),
                 taskPath = null,
                 assetsOutputDir = null,
                 nativeOutput = null,
@@ -416,7 +558,10 @@ class JuggCompileHelperTest {
             moduleRootDir = File(sharedRoot, "supported"),
             externalBuildInfos = listOf(ExternalBuildInfo(
                 type = ExternalBuildType.Cpp,
-                inputDirs = listOf(cppInputDir(sharedRoot)),
+                inputDirs = listOf(ExternalBuildInputDir(
+                    sharedRoot,
+                    setOf(ExternalBuildInputFilterRule.CppSource, ExternalBuildInputFilterRule.CppHeader),
+                )),
                 taskPath = ":supported:mergeDebugNativeLibs",
                 assetsOutputDir = null,
                 nativeOutput = File(sharedRoot, "build/supported"),
@@ -427,7 +572,10 @@ class JuggCompileHelperTest {
             moduleRootDir = File(sharedRoot, "unsupported"),
             externalBuildInfos = listOf(ExternalBuildInfo(
                 type = ExternalBuildType.Cpp,
-                inputDirs = listOf(cppInputDir(sharedRoot)),
+                inputDirs = listOf(ExternalBuildInputDir(
+                    sharedRoot,
+                    setOf(ExternalBuildInputFilterRule.CppSource, ExternalBuildInputFilterRule.CppHeader),
+                )),
                 taskPath = null,
                 assetsOutputDir = null,
                 nativeOutput = null,
@@ -466,7 +614,10 @@ class JuggCompileHelperTest {
             externalBuildInfos = listOf(
                 ExternalBuildInfo(
                     type = ExternalBuildType.Flutter,
-                    inputDirs = listOf(flutterInputDir(File(flutterRoot, "lib"))),
+                    inputDirs = listOf(ExternalBuildInputDir(
+                        File(flutterRoot, "lib"),
+                        setOf(ExternalBuildInputFilterRule.Dart),
+                    )),
                     taskPath = ":flutter:copyJniLibsflutterBuildDebug",
                     assetsOutputDir = File(flutterRoot, "build/flutter"),
                     nativeOutput = File(flutterRoot, "build/jniLibs"),
@@ -503,7 +654,10 @@ class JuggCompileHelperTest {
             externalBuildInfos = listOf(
                 ExternalBuildInfo(
                     type = ExternalBuildType.Flutter,
-                    inputDirs = listOf(flutterInputDir(flutterRoot)),
+                    inputDirs = listOf(ExternalBuildInputDir(
+                        flutterRoot,
+                        setOf(ExternalBuildInputFilterRule.Dart),
+                    )),
                     taskPath = ":flutter:copyJniLibsflutterBuildDebug",
                     assetsOutputDir = File(flutterRoot, "build/flutter"),
                     nativeOutput = File(flutterRoot, "build/jniLibs"),
@@ -537,7 +691,10 @@ class JuggCompileHelperTest {
             externalBuildInfos = listOf(
                 ExternalBuildInfo(
                     type = ExternalBuildType.Cpp,
-                    inputDirs = listOf(cppInputDir(nativeRoot)),
+                    inputDirs = listOf(ExternalBuildInputDir(
+                        nativeRoot,
+                        setOf(ExternalBuildInputFilterRule.CppSource, ExternalBuildInputFilterRule.CppHeader),
+                    )),
                     taskPath = ":app:mergeDebugNativeLibs",
                     assetsOutputDir = null,
                     nativeOutput = File(nativeRoot, "build/merged"),
@@ -574,7 +731,7 @@ class JuggCompileHelperTest {
             name = "app",
             externalBuildInfos = listOf(ExternalBuildInfo(
                 type = ExternalBuildType.Flutter,
-                inputDirs = listOf(flutterInputDir(flutterRoot)),
+                inputDirs = listOf(ExternalBuildInputDir(flutterRoot, setOf(ExternalBuildInputFilterRule.Dart))),
                 taskPath = ":app:compileFlutterBuildDebug",
                 assetsOutputDir = File(flutterRoot, "build/flutter"),
                 nativeOutput = null,
@@ -610,7 +767,7 @@ class JuggCompileHelperTest {
             name = "app",
             externalBuildInfos = listOf(ExternalBuildInfo(
                 type = ExternalBuildType.Flutter,
-                inputDirs = listOf(flutterInputDir(flutterRoot)),
+                inputDirs = listOf(ExternalBuildInputDir(flutterRoot, setOf(ExternalBuildInputFilterRule.Dart))),
                 taskPath = ":flutter:copyJniLibsflutterBuildDebug",
                 assetsOutputDir = File(flutterRoot, "build/flutter"),
                 nativeOutput = File(flutterRoot, "build/jniLibs"),
@@ -899,17 +1056,18 @@ class JuggCompileHelperTest {
         assertTrue(result!!.isCanFallback)
         assertTrue(logger.messages.any { it.contains(TOO_MANY_FILES_FALLBACK) })
         verify(fixture.uiHandler).confirmTooManyChanges(any())
-        verify(fixture.uiHandler, never()).confirmBuildChanges(any(), any())
+        verify(fixture.uiHandler, never()).confirmBuildChanges(any())
     }
 
     @Test
-    fun preprocessIncrementalCompile_tooManySourceFiles_autoFallbackWithoutConfirmWhenDisabled() {
+    fun preprocessIncrementalCompile_tooManySourceFiles_delegatesToHandlerWhenIdeaConfirmationPreferenceDisabled() {
         val logger = CapturingLogger()
         val fixture = createFixture(logger)
         whenever(fixture.deployFileManager.isNoFileChanges()).thenReturn(false)
         whenever(fixture.deployFileManager.getUncompiledFiles()).thenReturn(
             listOf(kotlinChangedFile(), buildChangedFile())
         )
+        whenever(fixture.uiHandler.confirmTooManyChanges(any())).thenReturn(TooManyChangesConfirmResult.FALLBACK)
         val old = JuggSettings.isConfirmFallbackWhenTooManyChanges
         try {
             JuggSettings.isConfirmFallbackWhenTooManyChanges = false
@@ -920,8 +1078,8 @@ class JuggCompileHelperTest {
             assertEquals("Too many changes", result?.failedReason)
             assertTrue(result!!.isCanFallback)
             assertTrue(logger.messages.any { it.contains(TOO_MANY_FILES_FALLBACK) })
-            verify(fixture.uiHandler, never()).confirmTooManyChanges(any())
-            verify(fixture.uiHandler, never()).confirmBuildChanges(any(), any())
+            verify(fixture.uiHandler).confirmTooManyChanges(any())
+            verify(fixture.uiHandler, never()).confirmBuildChanges(any())
         } finally {
             JuggSettings.isConfirmFallbackWhenTooManyChanges = old
         }
@@ -936,7 +1094,7 @@ class JuggCompileHelperTest {
         whenever(fixture.deployFileManager.getUncompiledFiles()).thenReturn(listOf(sourceFile, buildFile))
         whenever(fixture.deployHistoryManager.getLastBuildFiles(any())).thenReturn(listOf(buildFile to null))
         whenever(fixture.uiHandler.confirmTooManyChanges(any())).thenReturn(TooManyChangesConfirmResult.CONTINUE)
-        whenever(fixture.uiHandler.confirmBuildChanges(any(), any())).thenReturn(BuildChangesConfirmResult.FALLBACK)
+        whenever(fixture.uiHandler.confirmBuildChanges(any())).thenReturn(BuildChangesConfirmResult.FALLBACK)
         whenever(fixture.deployStateManager.updateDeployState()).thenReturn(
             JuggDeployState.READY,
             JuggDeployState.READY.copy(
@@ -952,7 +1110,7 @@ class JuggCompileHelperTest {
         assertEquals("build.gradle changed", result?.failedReason)
         inOrder(fixture.uiHandler) {
             verify(fixture.uiHandler).confirmTooManyChanges(any())
-            verify(fixture.uiHandler).confirmBuildChanges(any(), any())
+            verify(fixture.uiHandler).confirmBuildChanges(any())
         }
     }
 
@@ -977,7 +1135,7 @@ class JuggCompileHelperTest {
 
         assertEquals("last gradle compile not success", result?.failedReason)
         verify(fixture.uiHandler, never()).confirmTooManyChanges(any())
-        verify(fixture.uiHandler, never()).confirmBuildChanges(any(), any())
+        verify(fixture.uiHandler, never()).confirmBuildChanges(any())
     }
 
     @Test
@@ -1069,8 +1227,7 @@ class JuggCompileHelperTest {
 
     @Test
     fun compile_automaticFallback_reportsGradleModeBeforeExecution() {
-        val logger = CapturingLogger()
-        val fixture = createFixture(logger = logger)
+        val fixture = createFixture()
         whenever(fixture.pathManager.projectDir).thenReturn(temporaryFolder.root)
         whenever(fixture.options.compileCommand).thenReturn("./gradlew :app:assembleRelease")
         whenever(fixture.deployHistoryManager.getFullBuildInfo()).thenReturn(
@@ -1097,10 +1254,6 @@ class JuggCompileHelperTest {
 
         assertEquals(true, selectedMode)
         assertEquals("Compile command changed", selectedFallbackReason)
-        assertTrue(
-            "fallback reason should be printed as a user-visible info log",
-            logger.messages.contains("Fallback to gradle compile. Reason: Compile command changed"),
-        )
     }
 
     private fun prepareIncrementalCompileFailure(fixture: Fixture) {
@@ -1132,6 +1285,7 @@ class JuggCompileHelperTest {
         val project = mock<Project>()
         whenever(project.basePath).thenReturn("/tmp/jugg-test")
         val pathManager = mock<JuggPathManager>()
+        whenever(pathManager.projectDir).thenReturn(temporaryFolder.root)
         val juggServer = mock<JuggServer>()
         val deployTargetManager = mock<IDeployTargetManager>()
         val deployStateManager = mock<DeployStateManager>()
@@ -1160,7 +1314,6 @@ class JuggCompileHelperTest {
             .thenReturn(GitFileChangesDetector.GitRefreshResult.NO_HEAD_CHANGE)
 
         val helper = JuggCompilerHelper(
-            project = project,
             pathManager = pathManager,
             juggServer = juggServer,
             deployTargetManager = deployTargetManager,
@@ -1172,6 +1325,7 @@ class JuggCompileHelperTest {
             fileChangesHandler = fileChangesHandler,
             dependencyChangeManager = dependencyChangeManager,
             gradleProjectInfoLocalFetchManager = gradleProjectInfoLocalFetchManager,
+            compileEnvironmentSource = CompileEnvironmentSource(null, emptyList()),
             gitFileChangesDetector = gitFileChangesDetector,
             taskRunnerManager = taskRunnerManager,
             logger = logger,
@@ -1295,12 +1449,4 @@ class JuggCompileHelperTest {
         val options: JuggGradleCompileOptions,
         val juggRunningTaskStatusManager: JuggRunningTaskStatusManager,
     )
-    private fun flutterInputDir(directory: File) =
-        ExternalBuildInputDir(directory, setOf(ExternalBuildInputFilterRule.Dart))
-
-    private fun cppInputDir(directory: File) = ExternalBuildInputDir(
-        directory,
-        setOf(ExternalBuildInputFilterRule.CppSource, ExternalBuildInputFilterRule.CppHeader),
-    )
-
 }

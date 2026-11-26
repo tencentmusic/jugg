@@ -3,8 +3,8 @@ package com.sickworm.intellij.jugg.deploy
 import com.sickworm.intellij.jugg.compiler.ICompileContext
 import com.sickworm.intellij.jugg.git.GitManager
 import com.sickworm.intellij.jugg.mock.StdLogger
-import com.sickworm.intellij.jugg.project.ChangedFile
-import com.sickworm.intellij.jugg.project.IFileChangesHandler
+import com.sickworm.intellij.jugg.project.change.ChangedFile
+import com.sickworm.intellij.jugg.project.change.IFileChangesHandler
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.attribute.FileTime

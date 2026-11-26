@@ -28,10 +28,27 @@ class CommandHelp:
 
 
 COMMAND_HELP: dict[str, CommandHelp] = {
+    "settings": CommandHelp(
+        "settings", "List, read, set, or reset global Jugg settings.",
+        "jugg settings list|get <key>|set <key> <value>|reset <key>",
+        (OptionHelp(("--confirm",), "Accept the shared IDE confirmation; required for guarded settings.", "true|false", "confirm"),),
+        ("jugg settings list", "jugg settings set maxCompileSourceModules 30",
+         "jugg settings set isEmbeddedToApk true --confirm true"),
+    ),
     "version": CommandHelp(
         "version",
         "Show CLI version and plugin version from all initialized projects.",
         "jugg version",
+    ),
+    "stop": CommandHelp(
+        "stop",
+        "Stop all standalone Runtimes and hosted projects.",
+        "jugg stop",
+    ),
+    "report": CommandHelp(
+        "report",
+        "Prepare diagnostics, show the exact archive contents, and upload only after confirmation.",
+        "jugg report",
     ),
     "compile": CommandHelp(
         "compile",
@@ -214,10 +231,11 @@ COMMAND_HELP: dict[str, CommandHelp] = {
         "tap",
         "Perform tap, long-press, or swipe on device.",
         "jugg tap [--action tap|long-press|swipe] "
-        "(--x <n> --y <n> | --x-percent <n> --y-percent <n> | --text <text> | "
+        "(--x <n> --y <n> --unit dp|px | --x-percent <n> --y-percent <n> | --text <text> | "
         "--resource-id <id> | --content-desc <desc>) [--duration <ms>]",
         (
             OptionHelp(("--action",), "Gesture action; default is tap.", "<action>", "action"),
+            OptionHelp(("--unit",), "Required for absolute coordinates. Use layout-dump units.bounds.", "dp|px", "unit"),
             OptionHelp(("--x",), "Start x coordinate.", "<n>", "x"),
             OptionHelp(("--y",), "Start y coordinate.", "<n>", "y"),
             OptionHelp(("--end-x", "--endX"), "Swipe end x coordinate.", "<n>", "endX"),
@@ -266,6 +284,22 @@ COMMAND_HELP: dict[str, CommandHelp] = {
     ),
 }
 
+DEVICE_TARGET_COMMANDS = {
+    "deploy",
+    "gradle-build",
+    "clean-reinstall",
+    "restart",
+    "instrument",
+    "status",
+    "devices",
+    "layout-dump",
+    "view-locate",
+    "view-inspect",
+    "tap",
+    "activity-stack",
+    "wait-logs",
+}
+
 
 def format_command_help(command: CommandHelp) -> str:
     lines = [
@@ -273,6 +307,12 @@ def format_command_help(command: CommandHelp) -> str:
         "",
         f"Usage: {command.usage}",
     ]
+    if command.name in DEVICE_TARGET_COMMANDS:
+        lines.extend([
+            "",
+            "Global device option:",
+            "  --serial <adbSerial>                       Target one online adb device for this command.",
+        ])
     if command.options:
         lines.extend(["", "Options:"])
         for option in command.options:

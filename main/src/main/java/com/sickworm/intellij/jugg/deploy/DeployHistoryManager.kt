@@ -4,11 +4,11 @@ import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.gradle.compile.pathEquals
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
-import com.sickworm.intellij.jugg.project.ChangedFile
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
+import com.sickworm.intellij.jugg.project.change.ChangedFile
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
-import com.sickworm.intellij.jugg.project.IFileChangesHandler
-import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.project.change.IFileChangesHandler
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import java.io.File
 
 /**

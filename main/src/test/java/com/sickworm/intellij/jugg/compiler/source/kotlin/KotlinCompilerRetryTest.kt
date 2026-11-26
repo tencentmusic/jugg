@@ -2,8 +2,8 @@ package com.sickworm.intellij.jugg.compiler.source.kotlin
 
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.*
-import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ModuleBuildPathInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import org.jetbrains.kotlin.cli.common.ExitCode
 import org.junit.Rule
 import org.junit.Test

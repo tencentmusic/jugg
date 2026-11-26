@@ -7,8 +7,7 @@ import com.sickworm.intellij.jugg.ai.mcp.IMcpRuntime
 import com.sickworm.intellij.jugg.ai.mcp.McpErrorCode
 import com.sickworm.intellij.jugg.ai.mcp.McpToolResult
 import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
-import com.sickworm.intellij.jugg.platform.PlatformApi
-import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import java.io.File
 
 /**
@@ -27,7 +26,7 @@ object RecordToolSupport {
             val matched = runtime.deployTargetManager.getConnectedDevices().firstOrNull {
                 it.serialNumber == preferredSerial
             } ?: return null
-            val adb = PlatformApi.toDeviceAdb(matched) ?: return null
+            val adb = runtime.deployTargetManager.createDeviceAdb(matched)
             if (!adb.isOnline) {
                 return null
             }
@@ -38,7 +37,7 @@ object RecordToolSupport {
         if (selectionResult !is DeviceSelectionResult.Selected) {
             return null
         }
-        val adb = PlatformApi.toDeviceAdb(selectionResult.device) ?: return null
+        val adb = runtime.deployTargetManager.createDeviceAdb(selectionResult.device)
         if (!adb.isOnline) {
             return null
         }
@@ -46,7 +45,7 @@ object RecordToolSupport {
     }
 
     fun ensureToolDir(runtime: IMcpRuntime, toolName: String): File? {
-        val projectDir = runtime.project.basePath ?: return null
+        val projectDir = runtime.projectDir.takeIf { it.isNotBlank() } ?: return null
         val dir = File(JuggPathManager(File(projectDir)).mcpFetchDir, toolName)
         if (!dir.exists()) {
             dir.mkdirs()

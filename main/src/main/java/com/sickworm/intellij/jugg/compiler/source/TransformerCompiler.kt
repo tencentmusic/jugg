@@ -8,7 +8,7 @@ import com.sickworm.intellij.jugg.compiler.CompileTask
 import com.sickworm.intellij.jugg.compiler.ICompileContext
 import com.sickworm.intellij.jugg.deploy.data.ClassAnalysis
 import com.sickworm.intellij.jugg.deploy.data.ClassAnalysisBatch
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import java.io.File
 import java.util.zip.ZipFile
 

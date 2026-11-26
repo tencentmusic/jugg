@@ -2,6 +2,9 @@ package com.sickworm.intellij.jugg.loader
 
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.ide.*
+import com.sickworm.intellij.jugg.ide.logic.IdeaPlatformApi
+import com.sickworm.intellij.jugg.platform.IPlatformApi
+import com.sickworm.intellij.jugg.platform.PlatformApi
 import java.io.File
 import java.lang.reflect.Proxy
 
@@ -35,12 +38,9 @@ class JuggLoader(val project: Project, val projectDir: File) {
     private fun createInstance(project: Project, projectDir: File) {
         val classLoader: ClassLoader
         val creatorName: String
-        if (JuggHotUpdateManager.isEmbeddedUpdated) {
-            JuggHotUpdateManager.clearHotUpdate()
-            classLoader = getOriginClassLoader()
-            creatorName = "embedded_updated"
-        } else if (JuggHotUpdateManager.isHotUpdateAvailable) {
-            classLoader = getHotUpdateClassLoader()
+        val jarFileNames = JuggHotUpdateBootstrap.activeJarFileNames
+        if (jarFileNames.isNotEmpty()) {
+            classLoader = getHotUpdateClassLoader(jarFileNames)
             creatorName = "hot_update"
         } else {
             classLoader = getOriginClassLoader()
@@ -71,26 +71,26 @@ class JuggLoader(val project: Project, val projectDir: File) {
         } as IJuggManagerCaller
     }
 
-    private fun getHotUpdateClassLoader(): ClassLoader {
+    private fun getHotUpdateClassLoader(jarFileNames: Array<String>): ClassLoader {
+        val currentCacheKey = getCacheKey(jarFileNames)
         if (cacheHotUpdateClassLoader != null) {
-            if (cacheKey == getCacheKey()) {
+            if (cacheKey == currentCacheKey) {
                 return cacheHotUpdateClassLoader!!
             }
         }
 
-        cacheHotUpdateClassLoader = createHotUpdateClassLoader()
-        cacheKey = getCacheKey()
+        cacheHotUpdateClassLoader = createHotUpdateClassLoader(jarFileNames)
+        cacheKey = currentCacheKey
         return cacheHotUpdateClassLoader!!
     }
 
-    private fun createHotUpdateClassLoader(): ClassLoader {
-        val jarFileNames = JuggHotUpdateManager.loadListFile.readLines().filter { it.isNotEmpty() }.toSet()
-        clearOutdatedJarBeforeFirstTimeLoad(jarFileNames)
+    private fun createHotUpdateClassLoader(jarFileNames: Array<String>): ClassLoader {
         val jarFiles = jarFileNames.map { jarFileName ->
-            val jarFile = JuggHotUpdateManager.storageDir.resolve(jarFileName)
+            val jarFile = JuggHotUpdateBootstrap.storageDir.resolve(jarFileName)
             if (!jarFile.exists()) {
                 throw IllegalStateException("Jugg hot update jar file not found: $jarFile")
             }
+            jarFile.setLastModified(System.currentTimeMillis())
             return@map jarFile
         }
 
@@ -103,7 +103,7 @@ class JuggLoader(val project: Project, val projectDir: File) {
             if (className == JuggManagerCreator::class.java.name) {
                 return@isUseOriginClassLoader false
             }
-            if (canNotHotUpdateClass.contains(className)) {
+            if (canNotHotUpdateClass.any { className.startsWith(it) }) {
                 return@isUseOriginClassLoader true
             }
             val packageName = className.substring(0, className.lastIndexOf('.'))
@@ -125,36 +125,45 @@ class JuggLoader(val project: Project, val projectDir: File) {
             "com.sickworm.intellij.jugg.ide",
             "com.intellij",
             )
+
+        // The host implementation and every direct Jugg type in its interface descriptor must use one classloader.
+        private val hostPlatformBridgeClassNames = buildSet {
+            add(PlatformApi::class.java.name)
+            add(IPlatformApi::class.java.name)
+            add(IdeaPlatformApi::class.java.name)
+            IPlatformApi::class.java.methods.forEach { method ->
+                addHostPlatformBridgeClass(this, method.returnType)
+                method.parameterTypes.forEach { addHostPlatformBridgeClass(this, it) }
+            }
+        }
+
         val canNotHotUpdateClass = setOf(
+            "com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager",
+            "com.sickworm.intellij.jugg.project.runtime.JuggProcessLease",
             // com.intellij.ui.components.DropDownLink.<init>(java.lang.Object, java.util.List, java.util.function.Consumer, int, kotlin.jvm.internal.DefaultConstructorMarker)
             // com.intellij.ui.components.DropDownLink.<init>(java.lang.Object, kotlin.jvm.functions.Function1)
             "kotlin.jvm.internal.DefaultConstructorMarker",
             "kotlin.jvm.functions.Function1",
-            "com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcRequest",
-            "com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcResponse",
             "com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec",
-        )
-
-        private var isFirstTimeLoad = true
-
-        @Synchronized
-        private fun clearOutdatedJarBeforeFirstTimeLoad(jarFileNames: Set<String>) {
-            if (!isFirstTimeLoad) {
-                return
-            }
-            isFirstTimeLoad = false
-            JuggHotUpdateManager.storageDir.listFiles()?.forEach {
-                if (!jarFileNames.contains(it.name)) {
-                    it.delete()
-                }
-            }
-        }
+        ) + hostPlatformBridgeClassNames
 
         private var cacheKey: String? = null
         private var cacheHotUpdateClassLoader: ClassLoader? = null
 
-        private fun getCacheKey(): String {
-            return JuggHotUpdateManager.loadListFile.lastModified().toString()
+        private fun getCacheKey(jarFileNames: Array<String>): String {
+            return "${JuggHotUpdateBootstrap.currentEmbeddedBuildTime}:${jarFileNames.joinToString(",")}"
         }
+
+        private fun addHostPlatformBridgeClass(classNames: MutableSet<String>, type: Class<*>) {
+            var componentType = type
+            while (componentType.isArray) {
+                componentType = componentType.componentType
+            }
+            if (!componentType.isPrimitive && componentType.name.startsWith(JUGG_PACKAGE_PREFIX)) {
+                classNames.add(componentType.name)
+            }
+        }
+
+        private const val JUGG_PACKAGE_PREFIX = "com.sickworm.intellij.jugg."
     }
 }

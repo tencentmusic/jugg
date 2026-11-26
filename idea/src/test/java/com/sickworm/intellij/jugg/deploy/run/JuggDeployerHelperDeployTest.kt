@@ -1,7 +1,7 @@
 package com.sickworm.intellij.jugg.deploy.run
 
-import com.android.ddmlib.IDevice
-import com.android.sdklib.AndroidVersion
+import com.sickworm.intellij.jugg.deploy.api.IDevice
+import com.sickworm.intellij.jugg.deploy.api.AndroidVersion
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.apk.ApkFileUnit
@@ -13,7 +13,6 @@ import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.DeployStateManager
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
-import com.sickworm.intellij.jugg.deploy.IdeaDeviceAdbClient
 import com.sickworm.intellij.jugg.deploy.data.ParsedDex
 import com.sickworm.intellij.jugg.deploy.IJuggRunningTaskStatusManager
 import com.sickworm.intellij.jugg.deploy.JuggDeployState
@@ -27,9 +26,9 @@ import com.sickworm.intellij.jugg.deploy.run.instrument.LibraryTestApkBackfillHe
 import com.sickworm.intellij.jugg.ide.bean.IProcessHandler
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.mock.TestGlobal
-import com.sickworm.intellij.jugg.project.CompileContextManager
-import com.sickworm.intellij.jugg.project.JuggException
-import com.sickworm.intellij.jugg.project.TaskRunnerManager
+import com.sickworm.intellij.jugg.compiler.context.CompileContextManager
+import com.sickworm.intellij.jugg.JuggException
+import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import com.sickworm.intellij.jugg.server.JuggServer
 import org.junit.Assert.assertEquals
@@ -43,6 +42,7 @@ import org.mockito.Mockito
 import org.mockito.kotlin.any
 import org.mockito.kotlin.anyOrNull
 import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.eq
 import org.mockito.kotlin.whenever
 import java.io.File
 
@@ -239,25 +239,25 @@ class JuggDeployerHelperDeployTest {
                 return LaunchResult(true, 0, null, mapOf(apk.applicationId to "installed-overlay"))
             }
         }
+        val environment = Mockito.mock(IDeployHost::class.java)
         val helper = createHelper(
             deployTargetManager = readyTargetManager(apk),
             deployStateManager = readyStateManager(device),
             deployRunTaskExecutor = executor,
+            environment = environment,
         )
 
-        Mockito.mockConstruction(IdeaDeviceAdbClient::class.java).use { clients ->
-            val result = helper.deploy(DeployOptions(
-                device = device,
-                isLastDevice = true,
-                isInstall = true,
-                customApkInstallScript = "./install-system-app.sh",
-            ))
+        val result = helper.deploy(DeployOptions(
+            device = device,
+            isLastDevice = true,
+            isInstall = true,
+            customApkInstallScript = "./install-system-app.sh",
+        ))
 
-            assertTrue(result.isSuccess)
-            assertEquals(2, requests.size)
-            assertTrue(requests.all { it.customApkInstallScript == "./install-system-app.sh" })
-            Mockito.verify(clients.constructed().single()).uninstall(apk.applicationId)
-        }
+        assertTrue(result.isSuccess)
+        assertEquals(2, requests.size)
+        assertTrue(requests.all { it.customApkInstallScript == "./install-system-app.sh" })
+        Mockito.verify(environment).uninstall(eq(device), eq(apk.applicationId), any())
     }
 
     @Test
@@ -436,19 +436,18 @@ class JuggDeployerHelperDeployTest {
         }
         val recoverInvokeCount = intArrayOf(0)
         val deployStateRecover = object : DeployStateRecover(
-            project = Mockito.mock(Project::class.java),
             deployTargetManager = deployTargetManager,
             deployFileManager = deployFileManager,
             deployHistoryManager = Mockito.mock(IDeployHistoryManager::class.java),
             deployStateManager = deployStateManager,
             deployRunHost = Mockito.mock(com.sickworm.intellij.jugg.deploy.run.flow.IJuggDeployHelperRunHost::class.java),
             deploymentService = Mockito.mock(com.sickworm.intellij.jugg.deploy.IJuggDeploymentService::class.java),
-            deviceAdbFactory = { _, _ -> Mockito.mock(com.sickworm.intellij.jugg.deploy.IDeviceAdb::class.java) },
+            environment = TestDeployEnvironment(),
             logger = TestGlobal.getLogger(),
         ) {
             override fun recoverDeployState(
                 device: IDevice,
-                indicator: com.intellij.openapi.progress.ProgressIndicator?,
+                progress: DeployProgress?,
                 isNeedDryDeployFirst: Boolean,
                 isSkipExceptOverlayCheck: Boolean,
                 isInstallUpdateApk: Boolean,
@@ -794,6 +793,7 @@ class JuggDeployerHelperDeployTest {
         deployStateRecover: DeployStateRecover? = null,
         deployRunTaskExecutor: IJuggDeployRunTaskExecutor? = null,
         libraryTestApkBackfillHelper: LibraryTestApkBackfillHelper? = null,
+        environment: IDeployHost = TestDeployEnvironment(),
         logger: Logger = TestGlobal.getLogger(),
         compileContext: ICompileContext? = null,
     ): JuggDeployerHelper {
@@ -819,7 +819,6 @@ class JuggDeployerHelperDeployTest {
             }
 
         return JuggDeployerHelper(
-            project = project,
             deployTargetManager = deployTargetManager,
             deployFileManager = deployFileManager,
             deployHistoryManager = deployHistoryManager,
@@ -829,6 +828,8 @@ class JuggDeployerHelperDeployTest {
             compileContextManager = compileContextManager,
             juggServer = Mockito.mock(JuggServer::class.java),
             taskRunnerManager = Mockito.mock(TaskRunnerManager::class.java),
+            deploymentService = Mockito.mock(IJuggDeployerDeploymentService::class.java),
+            environment = environment,
             logger = logger,
             stateRecover = deployStateRecover,
             retryHandler = deployRetryHandler,

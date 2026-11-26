@@ -2,68 +2,58 @@
   <strong>English</strong> | <a href="./README.zh-CN.md">简体中文</a>
 </p>
 
-# Jugg: Instant Hot Reload & Fast Incremental Compilation for Android Studio
-
-<p align="left">
-  <a href="https://plugins.jetbrains.com/plugin/34099-jugg"><img src="https://img.shields.io/jetbrains/plugin/v/34099?label=JetBrains%20Marketplace&color=blue" alt="JetBrains Marketplace"></a>
-  <a href="https://github.com/tencentmusic/jugg/releases/latest"><img src="https://img.shields.io/github/v/release/tencentmusic/jugg?label=Release&color=blue" alt="Latest Release"></a>
-  <a href="https://github.com/tencentmusic/jugg/stargazers"><img src="https://img.shields.io/github/stars/tencentmusic/jugg?style=flat&color=yellow" alt="GitHub Stars"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License: MIT"></a>
-  <a href="#proven-at-scale"><img src="https://img.shields.io/badge/Production-800k%2B_Builds-brightgreen.svg" alt="Production Tested"></a>
-  <a href="#privacy"><img src="https://img.shields.io/badge/Privacy-100%25_Offline_%2F_No_Telemetry-orange.svg" alt="Privacy"></a>
-  <a href="#key-features"><img src="https://img.shields.io/badge/Config-Zero_Intrusion-blue.svg" alt="Configuration"></a>
-</p>
+# Jugg
 
 > See changes in 3 seconds—even in large Android codebases.
 
 **Life is short, Jugg it!**
 
-**Jugg** is an open-source **Android Studio plugin** developed by the Tencent Music engineering team designed for **fast incremental compilation** and **instant hot reload**. By reusing the latest Gradle build baseline and compiling only the current changes and their transitive impact, Jugg deploys updates to devices and emulators in **under 3 seconds**—freeing developers from lengthy Gradle build waits during daily iterations.
+Jugg is an open-source incremental build and deployment tool from the Tencent Music engineering team, designed to bring changes in large Android codebases on screen within seconds. Delivered as an Android Studio / IntelliJ IDEA plugin, it reuses trusted outputs from the latest Gradle build, compiles only the current changes and the code affected by them, and quickly deploys code and resources to a device. Small day-to-day changes can typically become visible within 3 seconds.
 
-Jugg only requires an IDE plugin; it does **not** modify Gradle scripts or require SDK integration. A Jugg Run Configuration coexists seamlessly with your native App Run Configuration: select Jugg for high-speed incremental compilation and deployment, or switch back to the native App configuration at any time for the standard Android Studio build flow. The two run completely independently. When a project change falls outside the incremental path, Jugg automatically falls back to Gradle and establishes a new baseline.
+Jugg only requires an IDE plugin. It does not modify Gradle scripts or require an SDK integration. A Jugg Run Configuration coexists with the native App Run Configuration: select Jugg for incremental compilation and deployment, or switch back to the native App configuration at any time to use the original Android Studio / Gradle build, installation, and launch flow. Jugg does not take over that native Run. Select the Jugg configuration again to resume the incremental flow; when a project change falls outside the incremental path, Jugg itself can also fall back to Gradle and establish a new baseline.
 
 - [JetBrains Marketplace](https://plugins.jetbrains.com/plugin/34099-jugg)
-- [Download latest release (.zip)](https://github.com/tencentmusic/jugg/releases/latest)
+- [Download the latest stable release](https://github.com/tencentmusic/jugg/releases/latest)
 - [Technical overview](https://juejin.cn/post/7680996030843125796)
 - [Watch the demo](https://www.bilibili.com/video/BV1W3411C7PU/)
-- [Jugg Documentation (Wiki)](https://tencentmusic.github.io/jugg/)
-- [Troubleshooting & FAQ](https://tencentmusic.github.io/jugg/troubleshooting/compile-failed)
-
-## Key features
-
-- ⚡ **3-Second Incremental Deployment**: Experience "Code Change -> Device Refresh" in seconds for daily changes, without waiting for repetitive Gradle configuration and task execution.
-- 🔥 **Apply Changes (JVMTI) Hot Reload**: Zero-restart hot reloading via JVMTI that updates modified code and resources directly in the running process—gracefully falling back to Hot Fix (app restart without reinstallation) when code swap is inapplicable.
-- 🛡️ **Battle-Tested & Safe Fallback**: Validated over 800,000+ builds in production at Tencent Music. If complex code or dependency changes exceed safe side-channel boundaries, Jugg gracefully falls back to standard Gradle builds automatically.
-- 🔌 **Zero Intrusion & Seamless Coexistence**: No Gradle script modifications and no SDK dependencies required. Jugg Run Configurations coexist with native Android configurations, allowing one-click toggling at any time.
-- 🧩 **Broad Tech-Stack Compatibility**: Out-of-the-box support for Kotlin, Java, Jetpack Compose, KMP (Compose Multiplatform), DataBinding, ViewBinding, Res/Assets, AndroidManifest, and native `.so` libraries.
-- 🤖 **AI Agent & CLI Integration**: Built-in MCP server, CLI, and Agent Skills (`jugg-android-dev-loop`) to automate full "Edit -> Compile -> Deploy -> Verify" agentic development loops.
+- [Jugg Wiki](https://tencentmusic.github.io/jugg/)
 
 ## Community
 
-Ask questions, suggest features, or share feedback on [GitHub Discussions](https://github.com/tencentmusic/jugg/discussions).
+Join the Jugg WeChat group to discuss usage and troubleshooting.
 
-## Quick start
-
-1. **Install plugin (Marketplace recommended)**: In Android Studio, go to **Settings/Preferences -> Plugins -> Marketplace**, search for `Jugg` and click **Install**, or get it from [JetBrains Marketplace](https://plugins.jetbrains.com/plugin/34099-jugg).<br>Alternatively, download the offline package from [GitHub Releases (.zip)](https://github.com/tencentmusic/jugg/releases/latest) and install via **Plugins -> ⚙️ -> Install Plugin from Disk...**.
-2. Open an Android project and wait for the Jugg Run Configuration to be created automatically.
-3. Select the Jugg Run Configuration and click Run. The first Run establishes the Gradle baseline; after that, edit source or resources and Run again for second-level bypass incremental compilation.
-
-> You can switch between Jugg and Android Run Configuration at any time—they run completely independently and do not interfere with each other.
-
-See the Jugg Wiki [Getting started guide](https://tencentmusic.github.io/jugg/onboarding/) for step-by-step instructions.
+<p align="center">
+  <img src="./docs/images/wechat-group.jpg" alt="Jugg WeChat group QR code" width="360">
+</p>
 
 ## How Jugg works
 
-Jugg keeps Gradle as the source of trusted build outputs while skipping unrelated Gradle work for day-to-day changes:
+Gradle and AGP produce complete, trusted Android build outputs, but the fixed cost of Gradle startup, configuration, and task orchestration does not shrink with the size of a change. In a large codebase, changing a single line of code or one resource file can still require a long wait before the result becomes visible.
 
-1. **Establish a baseline** from the latest full Gradle build.
-2. **Detect changes and impact** across source, resources, dependencies, and class relationships ([deep dive into impact analysis](https://tencentmusic.github.io/jugg/concepts/deploy-data-and-impact)).
-3. **Compile only what is needed** with Java, Kotlin, D8, and Jugg's incremental resource toolchain ([incremental compilation architecture](https://tencentmusic.github.io/jugg/concepts/incremental-compile/)).
-4. **Deploy safely** through hot reload, hot fix, incremental APK update, or reinstallation ([deployment strategies](https://tencentmusic.github.io/jugg/concepts/deploy-strategy)); fall back to Gradle when required ([Gradle fallback details](https://tencentmusic.github.io/jugg/concepts/gradle-fallback-baseline)).
+Jugg does not replace Gradle. After a full build, it reuses the generated APKs, classes, dependencies, and generated sources to establish an incremental compilation baseline. Subsequent runs skip Gradle work unrelated to the current change and directly perform change detection, impact analysis, incremental compilation, and device deployment. Changes to build scripts, dependencies, or other baseline inputs cause Jugg to return to the Gradle path when necessary.
 
-## Capabilities and compatibility
+Development of Jugg began in 2021, and it was released internally at Tencent Music in 2023. Before becoming open source, it was used in large Android codebases including WeSing, QQ Music, JOOX, Kugou Music, Kugou Live, QQ Browser, and Yangshipin. Every project used the same general-purpose implementation without business-specific customization.
 
-### Supported capabilities
+Validation data collected before the open-source release:
+
+- **10+** large Android codebases
+- **800,000+** incremental compilations
+- **36,000+** hours of build waiting time saved
+
+> Jugg no longer collects project usage statistics after becoming open source.
+
+## What happens during a Jugg Run
+
+1. **Reuse the baseline**: Read the APKs, classes, dependencies, and project information produced by the latest full Gradle build.
+2. **Detect changes**: Combine IDE file events with Git status to identify the source, resource, and project files that actually changed.
+3. **Compile incrementally**: Invoke Java, Kotlin, D8, and Jugg's customized AAPT2 directly to produce only the required incremental outputs.
+4. **Propagate impact**: Analyze calls, inheritance, inlined constants, and method signatures to automatically recompile affected source files.
+5. **Deploy changes**: Select hot reload, hot fix, incremental APK update, or reinstallation according to the change type and device state.
+6. **Save state**: After a successful deployment, save incremental outputs and change records as the starting point for the next Run.
+
+Jugg is fast because it processes only the necessary inputs. Impact propagation, Gradle fallback, and deployment state recovery keep the result reliable.
+
+## Capabilities
 
 | Area | Supported capabilities |
 |---|---|
@@ -73,7 +63,9 @@ Jugg keeps Gradle as the source of trusted build outputs while skipping unrelate
 | Android Test | Application / Library Android Test, Test Results UI, and Logcat attribution |
 | Automation | Jugg CLI, MCP, Agent Skills, build and deployment, device and runtime queries, UI automation, and remote diagnostics |
 
-### Verified compatibility
+See the [compatibility reference](https://tencentmusic.github.io/jugg/reference/compatibility) for detailed requirements and behavior boundaries.
+
+## Verified compatibility
 
 | Environment | Supported range |
 |---|---|
@@ -84,54 +76,62 @@ Jugg keeps Gradle as the source of trusted build outputs while skipping unrelate
 | Kotlin | 1.3 to 2.2 |
 | Android | 8 to 16 |
 
-See the Jugg Wiki [capabilities overview](https://tencentmusic.github.io/jugg/capabilities/) and [compatibility reference](https://tencentmusic.github.io/jugg/reference/compatibility) for detailed requirements and behavior boundaries. Other versions that have not been fully verified may have minor functional issues—please file an issue if you encounter any.
+Versions outside these ranges may still work, but they can contain compatibility differences that have not yet been covered. Please open an [Issue](https://github.com/tencentmusic/jugg/issues) when you encounter a reproducible problem.
+
+## Quick start
+
+1. In Android Studio, open **Settings/Preferences -> Plugins -> Marketplace**, search for `Jugg`, and install it. Alternatively, download a ZIP from [Releases](https://github.com/tencentmusic/jugg/releases/latest) and use **Install Plugin from Disk...**.
+2. Open an existing Android project and create or select a Jugg Run Configuration.
+3. The first Run uses Gradle to establish a trusted baseline. After that, modify source code or resources and click Run again to see the incremental result.
+
+See [Getting started](https://tencentmusic.github.io/jugg/onboarding/) for the complete setup guide.
 
 ## AI Agent Skill and CLI
 
-The `jugg-android-dev-loop` Skill guides AI agents through **edit -> compile -> deploy -> verify**, while the `jugg` CLI exposes the same plugin runtime to terminals and scripts.
+Jugg provides the `jugg-android-dev-loop` Agent Skill and the `jugg` CLI so AI coding assistants, terminal users, and scripts can use the same build, deployment, testing, runtime inspection, and UI automation capabilities as the IDE plugin. The Skill guides an agent through the complete **edit -> incremental compile -> deploy -> verify -> iterate** workflow, while the CLI wraps the local Jugg MCP service with project discovery, asynchronous task polling, and stable terminal output.
 
-Installation: open any project, search for `Install Jugg Skills` in Search Everywhere to install.
+The installer currently supports Codex, Claude Code, Gemini (including Anti-gravity when its configuration directory exists), CodeBuddy, and Cursor:
+
+1. Open the Android project in Android Studio and initialize Jugg.
+2. Open Search Everywhere and run `Install Jugg Skills`, or select **Jugg panel -> More Options -> Tools -> Install Jugg Skills**.
+3. Select the Agent Skills, CLI, and optional hooks to install.
+
+Common commands:
 
 ```shell
 jugg status
 jugg compile
 jugg deploy
+jugg instrument --source-path app/src/androidTest/java/com/example/FooTest.kt
+jugg layout-dump
 ```
 
-See the [CLI guide](https://tencentmusic.github.io/jugg/guide/cli) and [Agent Skills](https://tencentmusic.github.io/jugg/capabilities/tools/agent-skills) for supported clients, commands, and workflow boundaries.
+The CLI uses the initialized IDEA runtime while the project is open; the standalone runtime can also compile and deploy without Android Studio. See the [CLI guide](https://tencentmusic.github.io/jugg/guide/cli) and [Agent Skills](https://tencentmusic.github.io/jugg/capabilities/tools/agent-skills) for installation details, command modes, and workflow boundaries.
 
-## Proven at scale
+## Network and diagnostic privacy
 
-Developed since 2021 and released internally in 2023, the same general-purpose implementation was used across WeSing (全民 K 歌), QQ Music, JOOX, WeSing, Kugou Music, Kugou Live, QQ Browser, Yangshipin, and other large Android codebases before becoming open source.
+The standard `buildPlugin` artifact contains no predefined Jugg backend configuration and does not automatically contact a Jugg backend. The explicit **Check updates** action can query JetBrains Marketplace and GitHub. Users can still configure a Custom Server.
 
-- **10+** large Android codebases
-- **800,000+** incremental compilations
-- **36,000+** hours of build waiting time saved
+Issue reports collect only privacy-redacted diagnostic files from an explicit allowlist. Before upload, Jugg shows the exact destination and file list. Reports can also be saved locally without sending a network request.
 
-## Star history
+## Project structure
 
-If Jugg saves your compilation time, please give this repository a ⭐️ to support us and help more Android developers discover it!
+| Module | Responsibility |
+|---|---|
+| `idea` | IDE plugin entry points, Run Configurations, task orchestration, and UI |
+| `main` | Core incremental compilation, deployment, project model, Gradle, and MCP logic |
+| `deploy_compat` | Deployment API compatibility across Android Studio versions |
+| `platform_compat` | Platform API compatibility stubs used to compile the core logic |
+| `jvmti_agent` | JVMTI Agent and app runtime capabilities |
+| `aapt2-inclink` | AAPT2 incremental linking tool resources |
+| `custom_compilers` | Custom compiler examples |
 
-<p align="center">
-  <a href="https://star-history.com/#tencentmusic/jugg&Date">
-    <img src="https://api.star-history.com/svg?repos=tencentmusic/jugg&type=Date" alt="Jugg Star History Chart" width="700">
-  </a>
-</p>
+## Build the project
 
-## Privacy
-
-### 1. Data Collection
-By default, this plugin does not collect, track, or transmit any personal data, usage metrics, or source code information.
-
-### 2. Optional Features & Data Transmission
-- **Custom Backend Services**: Users can optionally configure custom backend services for remote build caching or management (see [Jugg Backend Guide](https://tencentmusic.github.io/jugg/en/guide/jugg-backend/)). Data transmitted during this process is directed solely to user-defined servers and managed according to the user's infrastructure policies.
-- **Manual Log Reporting**: If you encounter issues, you may voluntarily report them and manually upload diagnostic logs (see [Report an Issue](https://tencentmusic.github.io/jugg/en/guide/report-issue)).
-  - Logs are uploaded **only** when explicitly triggered by the user.
-  - Uploaded diagnostic logs are used exclusively for troubleshooting and debugging purposes.
-  - All uploaded log data is automatically deleted after **7 days**.
-
-### 3. Contact & Support
-If you have any questions or concerns regarding privacy, please submit an issue on our [GitHub repository](https://github.com/tencentmusic/jugg/issues).
+```shell
+# Build the plugin. Output: idea/build/distributions
+./gradlew buildPlugin
+```
 
 ## Security
 
@@ -139,8 +139,10 @@ To report a vulnerability in Jugg, see [SECURITY.md](SECURITY.md). Do not open a
 
 ## Development
 
-- `./gradlew buildPlugin` builds the plugin into `idea/build/distributions`.
-- `./gradlew runIde` starts an IDE instance for development and debugging.
+```shell
+# Start an IDE instance for development and debugging
+./gradlew runIde
+```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for how to report issues, set up the project, and send pull requests.
 

@@ -14,7 +14,7 @@ tags:
 ## 命令格式
 
 ```bash
-jugg [--console=plain|rich|json] [--project-dir <path>] [--if-compiling wait|interrupt] <subcommand> [options]
+jugg [--console=plain|rich|json] [--project-dir <path>] [--serial <adbSerial>] [--if-compiling wait|interrupt] <subcommand> [options]
 jugg help <subcommand>
 ```
 
@@ -26,6 +26,7 @@ jugg help <subcommand>
 | `--console=rich` | 面向人工终端的 spinner 输出。shell wrapper 默认使用。 |
 | `--console=json` | 输出 MCP `structuredContent` JSON，适合脚本和 Agent。 |
 | `--project-dir <path>` | 直接指定 MCP `projectDir`，跳过当前目录自动匹配。 |
+| `--serial <adbSerial>` | 为支持定向的设备命令指定在线设备。问题报告兼容该参数但忽略其值。 |
 | `--if-compiling wait` | compile 类命令触发前等待已有编译结束，默认值。 |
 | `--if-compiling interrupt` | 不等待旧任务，直接触发新任务并沿用服务端中断语义。 |
 
@@ -35,10 +36,11 @@ jugg help <subcommand>
 
 | 子命令 | 用途 |
 |---|---|
+| `settings` | 列出、读取、设置或重置全局设置。 |
 | `version` | 显示 CLI 版本和插件版本。 |
 | `compile` | 仅执行 Jugg 编译，不部署。 |
 | `deploy` | 编译并部署。 |
-| `gradle-build` | 强制 Gradle 构建，并走后续安装/启动链路。 |
+| `gradle-build` | 强制 Gradle 构建，并继续安装/启动。 |
 | `clean-reinstall` | 清数据并重装 APK。 |
 | `restart` | 重启目标 App。 |
 | `instrument` | 从 androidTest 源文件锚点运行测试。 |
@@ -50,7 +52,34 @@ jugg help <subcommand>
 | `devices` | 列出已连接设备。 |
 | `activity-stack` | 查看 Activity 栈。 |
 | `ssh-info` | 申请远端 SSH 排障信息。 |
+| `report` | 生成诊断包，确认后上传并返回 Report ID。 |
 | `wait-logs` | 等待 App 日志 marker、crash 或 timeout。 |
+
+## 全局设置
+
+```bash
+jugg settings list
+jugg settings get maxCompileSourceModules
+jugg settings set maxCompileSourceModules 30
+jugg settings set isEmbeddedToApk true --confirm true
+jugg settings reset isEnableBackupClasspath --confirm true
+```
+
+`jugg settings` 也会列出设置。key 使用 list 显示的原始 camelCase 名称。value 按各设置的实际类型解析：严格布尔值、整数、字符串、记录 JSON 数组或编译模板 JSON 对象。非法值报错且不保存。标为只读的运行能力不能修改。
+
+设置是全局的，持久化在 `~/.jugg/settings.json`；使用相同设置根目录的 Android Studio 与 standalone 共用它。Runtime 自动选择；`--runtime` 仅选择处理请求的进程。这些命令无需打开项目或连接设备。`--project-dir` 仅作为路由提示；`--serial` 和 `--if-compiling` 会被拒绝。
+
+list 包含 key、value 和 description。get 包含 key/value；set/reset 包含 key、previousValue、value 和 changed。需确认的修改返回 `CONFIRMATION_REQUIRED`，提示与 Android Studio 相同。阅读后，显式传入 `--confirm true` 重试；缺失或为 false 时不保存。JSON 模式下失败退出码非零。模板密码和环境变量值在输出中脱敏，脱敏占位符不能保存。
+
+修改 Backup classpath 会在各项目下一次操作前使旧基线失效。显式修改设备兼容设置会安排重新安装。配置含义与存储位置见[配置参考](./configuration.md)。
+
+## 多设备行为
+
+- `compile`、`status`、`devices` 不要求唯一设备。
+- `deploy`、`clean-reinstall`、`instrument` 未传 `--serial` 时处理全部目标设备。
+- `restart` 未传 `--serial` 时重启全部目标设备。
+- UI、Activity 栈和日志等待等单设备操作发现多个目标设备时返回 `MULTIPLE_DEVICE`，需要通过 `--serial` 指定设备。
+- `report` 兼容但忽略 `--serial`，诊断包会尽力收集全部目标设备的错误日志。
 
 ## 编译和部署
 
@@ -68,7 +97,7 @@ jugg restart
 | `deploy` | `--always-restart-app <true|false>` | `false` 允许满足条件时走 HOT RELOAD。 |
 | `gradle-build` | 无 | 强制 Gradle 构建，失败时会输出日志摘要。 |
 | `clean-reinstall` | 无 | 用于本地历史、设备安装状态不一致时恢复。 |
-| `restart` | 无 | 只重启 App。 |
+| `restart` | 无 | 重启 App；未指定 serial 时处理全部目标设备。 |
 
 > [!IMPORTANT]
 > `deploy`、`gradle-build` 的终态需要同时看 `isCompileSuccess` 和 `isDeploySuccess`。编译成功不等于部署成功。
@@ -116,7 +145,7 @@ jugg view-inspect --text 登录 getText() isEnabled()
 jugg view-inspect --resource-id bubble_container layoutParams.leftMargin getLayoutParams().getMarginStart()
 jugg tap --resource-id login_button
 jugg tap --x-percent 50 --y-percent 80
-jugg tap --action swipe --x 500 --y 1600 --end-x 500 --end-y 300 --duration 300
+jugg tap --action swipe --unit px --x 500 --y 1600 --end-x 500 --end-y 300 --duration 300
 ```
 
 | 命令 | 常用参数 |
@@ -124,7 +153,7 @@ jugg tap --action swipe --x 500 --y 1600 --end-x 500 --end-y 300 --duration 300
 | `layout-dump` | `--mode`、`--root-layout`、`--include-gone`、`--all-windows` |
 | `view-locate` | `--text`、`--resource-id`、`--content-desc` |
 | `view-inspect` | `--text`、`--resource-id`、`--content-desc`、`--class-name`、只读表达式 |
-| `tap` | `--action`、坐标参数、百分比参数、元素 selector、`--duration` |
+| `tap` | `--action`、坐标参数和 `--unit dp\|px`、百分比参数、元素 selector、`--duration` |
 
 `layout-dump` 默认 interaction，裁剪交互摘要；ui 保留已采集树，用于布局验证及辅助还原。mode 不改变其他筛选参数，精确输出含义见 [MCP 工具](./mcp-tools.md)。
 
@@ -135,12 +164,14 @@ jugg tap --action swipe --x 500 --y 1600 --end-x 500 --end-y 300 --duration 300
 ```bash
 jugg wait-logs --marker "LoginSuccess" --tags Activity,Repository --timeout-ms 30000
 jugg ssh-info --reason "Need to inspect remote Gradle build output"
+jugg report
 ```
 
 | 命令 | 参数 | 说明 |
 |---|---|---|
 | `wait-logs` | `--marker`、`--tags`、`--timeout-ms` | 等待日志 marker、crash 或 timeout。 |
 | `ssh-info` | `--reason` | 需要用户显式同意的远端排障入口。 |
+| `report` | 无 | 展示诊断包内容，确认后上传；设备 serial 不会过滤报告日志。 |
 
 ## 相关页面
 

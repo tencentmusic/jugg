@@ -1,7 +1,13 @@
+**Purpose:** Track public-channel plugin update checks.
+
+**Decision:** Query Marketplace and GitHub when a backend update is unavailable.
+
+**Impact:** Affects explicit IDE update checks and installation handoff.
+
 # 无后台服务器时公网检查更新方案（Marketplace & GitHub）
 
-> 创建日期：2026-09-19  
-> 状态：讨论通过，待实施  
+> 创建日期：2026-09-19\
+> 状态：讨论通过，待实施\
 > 决策：版本检测下沉 main 层、双渠道 5s 并发超时、Marketplace 优先、平台调用统一反射。
 
 ---

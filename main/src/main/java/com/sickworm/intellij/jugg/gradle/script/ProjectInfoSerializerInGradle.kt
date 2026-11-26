@@ -1,6 +1,6 @@
 package com.sickworm.intellij.jugg.gradle.script
 
-import com.sickworm.intellij.jugg.project.data.*
+import com.sickworm.intellij.jugg.project.info.*
 import groovy.json.JsonBuilder
 import groovy.json.JsonGenerator
 import groovy.json.JsonSlurper

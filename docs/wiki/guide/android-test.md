@@ -15,7 +15,7 @@ Jugg supports running `src/androidTest` through incremental compilation. The exp
 
 Complete one AndroidTest baseline build before the first run:
 
-1. Open the Jugg Run Configuration for the corresponding app.
+1. Open the Jugg run configuration for the corresponding app.
 2. Enable Android Test / `enableAndroidTest`.
 3. Run Jugg Android Test once or run `jugg gradle-build` once so Jugg can generate the app APK and test APK baseline.
 4. After that, changes to app source code or `src/androidTest` source code can use incremental compilation.

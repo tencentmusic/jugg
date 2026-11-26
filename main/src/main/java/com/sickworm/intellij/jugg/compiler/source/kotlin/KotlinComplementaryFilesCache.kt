@@ -2,7 +2,7 @@ package com.sickworm.intellij.jugg.compiler.source.kotlin
 
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.gradle.script.camelCompat
-import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
+import com.sickworm.intellij.jugg.project.info.ModuleBuildPathInfo
 import java.io.File
 
 /** Reads expect/actual complementary files from the selected Kotlin Gradle incremental cache. */

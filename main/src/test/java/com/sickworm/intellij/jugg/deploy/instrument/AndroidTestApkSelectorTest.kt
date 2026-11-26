@@ -2,8 +2,8 @@ package com.sickworm.intellij.jugg.deploy.instrument
 
 import com.sickworm.intellij.jugg.apk.ApkFileUnit
 import com.sickworm.intellij.jugg.apk.ApkInfo
-import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ModuleBuildPathInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.rules.TemporaryFolder

@@ -1,9 +1,9 @@
 package com.sickworm.intellij.jugg.cmdline
 
 import com.intellij.openapi.diagnostic.Logger
-import com.sickworm.intellij.jugg.project.JuggPathManager
-import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
-import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
+import com.sickworm.intellij.jugg.project.info.ProjectInfoSerializer
+import com.sickworm.intellij.jugg.project.info.JuggProjectInfo
 import java.io.File
 
 /** Loads the primary and included-build snapshots, preserving backed-up primary modules. */

@@ -12,8 +12,8 @@ import java.io.File
 
 class DirectorySelector(
     private val project: Project,
-    private val title: String = "Select Directory",
-    private val description: String = "Select Directory",
+    private val title: String = "Select directory",
+    private val description: String = "Select directory",
     private val initialDirectory: File? = null
 ) {
 
@@ -64,6 +64,6 @@ class DirectorySelector(
     }
 
     private fun showErrorDialog(message: String) {
-        CommonErrorDialog.show(project, "Open directory Failed", message)
+        CommonErrorDialog.show(project, "Open directory failed", message)
     }
 }

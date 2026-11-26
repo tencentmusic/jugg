@@ -40,30 +40,41 @@ Compilation tools may return `isFinal=false` and a `jobId`. In that case, contin
 
 ## Public tools
 
-There are currently 18 registered public MCP tools.
+There are currently 20 registered public MCP tools.
 
 | Tool | Main parameters | Purpose |
 |---|---|---|
+| `settings` | `action`, `key?`, text `value?`, boolean `confirm?` | Global typed settings; guarded edits require explicit confirmation. |
 | `version` | None | Returns the Jugg plugin version. |
 | `list-projects` | None | Lists projects initialized in the current IDE. |
 | `restart` | `projectDir`, `waitAppReadyAfterSuccess` | Restarts the target app; when no launch or HOME Activity exists it only runs `am force-stop`. |
 | `compile` | `projectDir` | Compiles without deployment. |
 | `deploy` | `projectDir`, `alwaysRestartApp`, `waitAppReadyAfterSuccess` | Compiles and deploys. |
 | `clean-reinstall` | `projectDir`, `waitAppReadyAfterSuccess` | Clears app data and reinstalls the APK. |
-| `gradle-build` | `projectDir`, `waitAppReadyAfterSuccess` | Forces a Gradle build, followed by the installation and launch flow. |
+| `gradle-build` | `projectDir`, `waitAppReadyAfterSuccess` | Forces a Gradle build, then continues with installation/startup. |
 | `instrument` | `projectDir`, `sourcePath`, `class`, `method`, `runner`, `extras` | Runs tests from an androidTest source file anchor. |
 | `get-compile-status` | `projectDir`, `jobId`, `waitTimeoutMs` | Queries the status of an asynchronous compilation task. |
 | `ssh-info` | `projectDir`, `reason`, `requestedBy` | Requests remote SSH troubleshooting information. |
+| `report-prepare` | `projectDir`, compatibility parameter `serial` | Prepares a diagnostic bundle, ignores the serial, and collects logs from all target devices. |
+| `report-upload` | `projectDir`, `reportId`, `sha256` | Uploads a confirmed diagnostic bundle after verifying it has not changed. |
 | `devices` | `projectDir` | Lists devices and marks the selected device. |
 | `layout-dump` | `projectDir`, `mode`, `rootLayout`, `includeGone`, `allWindows` | Exports interaction/ui sparse JSON. |
 | `view-locate` | `projectDir`, `target` | Finds the location of a UI element. |
 | `view-inspect` | `projectDir`, `target`, `expressions` | Reads read-only View properties through reflection, including getters, Kotlin properties, and public fields. |
 | `activity-stack` | `projectDir` | Reads the Activity stack. |
-| `tap` | `projectDir`, coordinate/percentage/element selector | Performs a tap, long-press, or swipe. |
+| `tap` | `projectDir`, coordinates with `unit` (`dp` or `px`), percentages, or element selector | Performs a tap, long-press, or swipe. |
 | `status` | `projectDir`, `refreshChanges` | Queries deployment status and a summary of uncompiled files. |
 | `wait-logs` | `projectDir`, `marker`, `tags`, `timeoutMs` | Waits for an app log marker, crash, or timeout. |
 
-`version` and `list-projects` do not require `projectDir`. All other tools require an absolute project path.
+`version`, `list-projects`, and `settings` do not require `projectDir`. Project tools require an absolute project path. `settings` returns `CONFIRMATION_REQUIRED` with the Android Studio prompt until `confirm=true` is explicitly supplied.
+
+## Multiple-device behavior
+
+- `compile`, `status`, and `devices` do not require a unique device.
+- `deploy`, `clean-reinstall`, and `instrument` target all selected devices when no serial is provided.
+- `restart` restarts all selected devices when no serial is provided.
+- Single-device UI, Activity stack, and log-wait tools return `MULTIPLE_DEVICE` when several target devices are available instead of producing HTTP 500.
+- `report-prepare` accepts the serial for compatibility but ignores it and collects error logs from all target devices on a best-effort basis.
 
 ## Asynchronous behavior of compilation tools
 
@@ -89,6 +100,8 @@ The client should call `get-compile-status` with:
 ```
 
 Continue until `data.status` is `success`, `failed`, `canceled`, or `unknown`. The final state returns `isCompileSuccess` and `isDeploySuccess`. Failures may also include `detail`, `detailLength`, and `detailTruncated`.
+
+When `deploy` succeeds without compiling source files, the message only states that there were no source changes. It does not mean that installation, recovery, or another deployment action was skipped. Details of the latest deployment containing changed files are available only within the current Runtime session.
 
 ## UI tool behavior
 
@@ -126,6 +139,7 @@ If part of the UI hierarchy cannot be extracted, `layout-dump` preserves valid J
 | `PROJECT_NOT_INITIALIZED` | The project has not completed Jugg initialization. The error message includes the requested path and the currently initialized projects. |
 | `NO_DEPLOY_BASELINE` | No deployment or full build baseline. |
 | `NO_DEVICE` | No available device. |
+| `MULTIPLE_DEVICE` | A single-device operation found several target devices and requires an explicit serial. |
 | `DEVICE_NOT_INTERACTIVE` | The device screen is off or the device is not interactive. |
 | `APP_NOT_FOREGROUND` | The target app is not in the foreground. |
 | `UI_HIERARCHY_INCOMPLETE` | The current window's UI hierarchy is incomplete; the target element cannot be assumed to be absent. |

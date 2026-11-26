@@ -1,5 +1,9 @@
 # Gradle 回退时清理构建输出
 
+**Purpose** — Remove stale outputs when requesting a clean Gradle fallback.
+**Decision** — Run clean before the original tasks with cache bypass and task reruns.
+**Impact** — Cleanup follows the project clean task.
+
 ## 问题与范围
 
 报告 `395c9a28` 的 14:44 构建已带 `--no-build-cache --rerun-tasks`，但 `compileMidl` 内部仍输出 `MIDL: All files are up to date`，随后编译异常的旧生成源码。用户选择在现有清缓存回退选项中增加 Gradle `clean`。

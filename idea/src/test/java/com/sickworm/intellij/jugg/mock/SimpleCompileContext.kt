@@ -10,9 +10,9 @@ import com.sickworm.intellij.jugg.compiler.manifest.get
 import com.sickworm.intellij.jugg.compiler.obfuscation.MinifyInfo
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.gradle.compile.isChild
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
-import com.sickworm.intellij.jugg.project.data.SigningConfig
-import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.SigningConfig
+import com.sickworm.intellij.jugg.project.info.ModuleBuildPathInfo
 import java.io.File
 
 data class SimpleCompileContext(

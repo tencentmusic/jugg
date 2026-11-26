@@ -4,10 +4,10 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.CompileStatusHolder
 import com.sickworm.intellij.jugg.compiler.CompileTask
 import com.sickworm.intellij.jugg.compiler.isWindows
-import com.sickworm.intellij.jugg.project.data.ExternalBuildInfo
-import com.sickworm.intellij.jugg.project.data.ExternalBuildInfoRequestItem
-import com.sickworm.intellij.jugg.project.data.ExternalBuildInputFilterRule
-import com.sickworm.intellij.jugg.project.data.ExternalBuildType
+import com.sickworm.intellij.jugg.project.info.ExternalBuildInfo
+import com.sickworm.intellij.jugg.project.info.ExternalBuildInfoRequestItem
+import com.sickworm.intellij.jugg.project.info.ExternalBuildInputFilterRule
+import com.sickworm.intellij.jugg.project.info.ExternalBuildType
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder

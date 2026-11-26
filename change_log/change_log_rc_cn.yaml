@@ -1,3 +1,18 @@
+- version: 4.0.6
+  date: 2026.11.17
+  isNeedReinstall: true
+  updates:
+    - "[feature][settings] 支持迁移全局存储目录并自动同步历史数据"
+    - "[feature][deploy] 支持在安装旧版本 APK 时保留应用数据"
+    - "[optimize][deploy] 自动清理超过 30 天的历史 JVMTI agent 缓存文件"
+    - "[bugfix][ide] 修复 Android Studio Quail 4 下 Run 工具窗口运行状态指示器重复显示的问题"
+
+- version: 4.0.0
+  date: 2026.08.11
+  isNeedReinstall: true
+  updates:
+    - "[feature] 支持 Standalone Jugg CLI，不依赖 Android Studio 执行编译和部署"
+
 - version: 3.6.9
   date: 2026.11.23
   updates:

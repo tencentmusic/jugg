@@ -252,6 +252,8 @@ public final class FlutterAssetRefresh {
     /** Loads an overlay directory through Android's native directory assets provider. */
     @TargetApi(Build.VERSION_CODES.R)
     private static ApkAssets loadOverlayAssets(String overlayPath) throws Exception {
+        // Flutter opens raw assets on a native worker thread that may not have a JNIEnv.
+        // A Java AssetsProvider can abort there; the native directory provider remains usable.
         ResourcesProvider provider = ResourcesProvider.loadFromDirectory(overlayPath, null);
         Object apkAssets = ReflectUtil.findMethod(provider, "getApkAssets").invoke(provider);
         if (apkAssets instanceof ApkAssets) {

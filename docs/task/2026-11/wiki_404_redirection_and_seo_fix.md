@@ -1,6 +1,10 @@
 # Wiki 404 访问归因分析与重定向治理方案
 
-> 创建时间：2026-11-17  
+**Purpose** — Recover historical Wiki routes.
+**Decision** — Add static redirects and client-side resolution.
+**Impact** — Published links can reach current content.
+
+> 创建时间：2026-11-17
 > 状态：进行中
 
 ---

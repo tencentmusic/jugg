@@ -1,8 +1,9 @@
 package com.sickworm.intellij.jugg.gradle.script
 
-import com.sickworm.intellij.jugg.project.JuggPathManager
-import com.sickworm.intellij.jugg.project.data.ExternalBuildInfoRequestItem
-import com.sickworm.intellij.jugg.project.data.ExternalBuildType
+import com.sickworm.intellij.jugg.compiler.isWindows
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
+import com.sickworm.intellij.jugg.project.info.ExternalBuildInfoRequestItem
+import com.sickworm.intellij.jugg.project.info.ExternalBuildType
 import org.gradle.api.DefaultTask
 import org.gradle.api.Project
 import org.gradle.testfixtures.ProjectBuilder

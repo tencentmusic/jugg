@@ -1,3 +1,9 @@
+**Purpose:** Track Agent investigation and Issue handoff guidance.
+
+**Decision:** Use version-matched existing evidence and concise conclusions.
+
+**Impact:** Keeps external Android investigations read-only.
+
 # ASK AI 调查分流与支持边界
 
 ## 问题与失败证据

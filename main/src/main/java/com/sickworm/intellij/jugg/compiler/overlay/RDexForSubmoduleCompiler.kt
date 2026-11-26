@@ -2,9 +2,9 @@ package com.sickworm.intellij.jugg.compiler.overlay
 
 import com.intellij.openapi.Disposable
 import com.sickworm.intellij.jugg.compiler.*
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import com.sickworm.intellij.jugg.deploy.packageNameToPath
-import com.sickworm.intellij.jugg.project.JuggException
+import com.sickworm.intellij.jugg.JuggException
 import java.io.File
 
 /**

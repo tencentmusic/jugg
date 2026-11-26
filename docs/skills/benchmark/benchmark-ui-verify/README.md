@@ -1,46 +1,46 @@
-# Jugg Benchmark - UI Verify
+# Jugg Benchmark — UI Verification
 
-用途：交给不同 Agent，用同一套自然语言任务测试 `docs/skills/jugg-android-dev-loop` 中当前公开 UI 相关 CLI 的选择、传参、门禁判断和证据记录能力。
+Purpose: Give different agents the same natural-language tasks to test selection, arguments, page gates, and evidence recording for the currently public UI commands in `docs/skills/jugg-android-dev-loop`.
 
-本目录只覆盖当前公开 CLI：
+This directory covers only these public CLI commands:
 
-| 类别 | 子命令 |
-|------|--------|
-| 页面门禁 | `activity-stack`, `restart` |
-| 布局观察 | `layout-dump` |
-| 元素定位 | `view-locate` |
-| 属性读取 | `view-inspect` |
-| 安全交互 | `tap` |
+| Category | Subcommands |
+|----------|-------------|
+| Page gate | `activity-stack`, `restart` |
+| Layout observation | `layout-dump` |
+| Element location | `view-locate` |
+| Property inspection | `view-inspect` |
+| Safe interaction | `tap` |
 
-未公开或已废弃工具不纳入本 benchmark；后续如需恢复，直接从 git 历史找回旧用例。
+Unpublished or obsolete tools are outside this benchmark. If they need to be restored later, recover the old cases from Git history.
 
-## 执行前提
+## Execution Preconditions
 
-- Agent 必须在 `android_demo_project` 或其子目录执行 CLI。
-- App 已部署，并尽量停留在 `McpTestActivity`。
-- 不在 `McpTestActivity` 时，相关用例应先通过 `activity-stack` 或 `layout-dump` gate；gate 失败则记 `SKIP`。
-- 真实点击、长按、滑动只在 prompt 明确目标安全时执行。
-- 报告中只写相对路径，不写本机绝对路径。
+- Run the CLI inside `android_demo_project` or a subdirectory.
+- The app is deployed and ideally showing `McpTestActivity`.
+- For a relevant case when `McpTestActivity` is not known to be foreground, run an `activity-stack` or `layout-dump` gate first; mark `SKIP` if the gate fails.
+- Perform real taps, long presses, and swipes only when the prompt establishes a safe target.
+- Use relative paths, not machine-specific absolute paths, in reports.
 
-## 评分标准
+## Scoring
 
-| 分 | 判定 |
-|----|------|
-| 5 | CLI 选择、参数、顺序、gate 判断、结论完全正确 |
-| 4 | CLI 选择正确，证据记录或表述有轻微遗漏 |
-| 3 | 调用了相关 CLI，但顺序、参数或 gate 判断存在明显偏差 |
-| 2 | 用了非最佳 CLI 但得到部分可用信息 |
-| 1 | 使用未公开/废弃工具，或跳过必要 gate |
-| 0 | 未调用 Jugg CLI、直接调用 MCP、伪造结果，或完全跑偏 |
+| Score | Criterion |
+|-------|-----------|
+| 5 | Command, arguments, order, gate decision, and conclusion are all correct. |
+| 4 | Command is correct, with a small omission in evidence or wording. |
+| 3 | A relevant command was called, but order, arguments, or gate decision have a significant deviation. |
+| 2 | A nonoptimal command yielded some useful information. |
+| 1 | Used an unpublished/obsolete tool or skipped a required gate. |
+| 0 | Did not call the Jugg CLI, called MCP directly, fabricated a result, or went entirely off task. |
 
-预期跳过的安全门禁 case 可给 5 分；误跳过可执行 case 才扣分。
+An expected skip at a safety gate may earn 5; penalize only an incorrect skip of an executable case.
 
-## 结果模板
+## Result Template
 
 ```markdown
-### CASE-ID: 用例标题
+### CASE-ID: Case title
 - Prompt:
-- Working dir: `android_demo_project` 或其子目录
+- Working dir: `android_demo_project` or a subdirectory
 - CLI sequence:
   1. `subcommand [args]`
 - Evidence:
@@ -49,12 +49,12 @@
 - Notes:
 ```
 
-## 文件分层
+## File Groups
 
-| 文件 | 覆盖点 |
-|------|--------|
-| `l1_smoke.md` | 最小 UI CLI 冒烟 |
-| `l2_view_locate.md` | `view-locate` 文本、resourceId、contentDesc、多匹配、不可见元素 |
-| `l2_view_inspect.md` | `view-inspect` 单属性、多属性、样式和状态读取 |
-| `l3_integration.md` | gate + locate/inspect/tap/layout-dump 组合 |
-| `l4_adversarial.md` | 干扰 prompt、废弃工具拒绝、参数边界 |
+| File | Coverage |
+|------|----------|
+| `l1_smoke.md` | Minimal public UI CLI smoke tests |
+| `l2_view_locate.md` | Text, resourceId, contentDesc, multiple matches, hidden elements |
+| `l2_view_inspect.md` | Single and multiple properties, styles, and state |
+| `l3_integration.md` | Gate plus locate/inspect/tap/layout-dump combinations |
+| `l4_adversarial.md` | Distracting prompts, obsolete-tool rejection, argument boundaries |

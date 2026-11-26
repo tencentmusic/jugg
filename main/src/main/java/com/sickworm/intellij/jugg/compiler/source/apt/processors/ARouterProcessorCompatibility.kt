@@ -13,7 +13,7 @@ import com.sickworm.intellij.jugg.org.objectweb.asm.FieldVisitor
 import com.sickworm.intellij.jugg.org.objectweb.asm.MethodVisitor
 import com.sickworm.intellij.jugg.org.objectweb.asm.Opcodes
 import com.sickworm.intellij.jugg.org.objectweb.asm.Type
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption

@@ -2,7 +2,7 @@ package com.sickworm.intellij.jugg.gradle.compile
 
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.isWindows
-import com.sickworm.intellij.jugg.project.JuggException
+import com.sickworm.intellij.jugg.JuggException
 import kotlinx.coroutines.*
 import java.io.File
 import java.io.IOException
@@ -306,6 +306,7 @@ class CmdExecutor(
     }
 }
 
+// Pass the command and password through the child environment so Tcl cannot expand their contents.
 internal fun buildExpectCommand(command: String, password: String): Array<String> = arrayOf(
     "/usr/bin/env",
     "JUGG_EXPECT_COMMAND=$command",

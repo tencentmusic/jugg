@@ -4,7 +4,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.gradle.compile.isChild
-import com.sickworm.intellij.jugg.project.ChangedFile
+import com.sickworm.intellij.jugg.project.change.ChangedFile
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date

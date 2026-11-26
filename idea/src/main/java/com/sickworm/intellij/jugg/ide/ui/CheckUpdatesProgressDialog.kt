@@ -23,6 +23,7 @@ private fun closeOwnerAndRun(ownerRootPane: JRootPane?, action: () -> Unit) {
     }
 }
 
+/** Displays public update-check progress and the resulting update or failure action. */
 class CheckUpdatesProgressDialog : DialogWrapper(true) {
 
     private val mainPanel: JPanel = JPanel(GridBagLayout())
@@ -34,7 +35,7 @@ class CheckUpdatesProgressDialog : DialogWrapper(true) {
     private var onOkAction: (() -> Unit)? = null
 
     init {
-        title = "Check Updates"
+        title = "Check updates"
 
         mainPanel.preferredSize = JBUI.size(440, 85)
 
@@ -74,7 +75,7 @@ class CheckUpdatesProgressDialog : DialogWrapper(true) {
         SwingUtilities.invokeLater {
             if (hotUpdateData == null) {
                 onOkAction = null
-                textLabel.text = "Jugg backend server is unavailable. Configure a Custom Server in Jugg Settings."
+                textLabel.text = "Jugg backend server is unavailable. Configure a custom server in Jugg settings."
                 getButton(okAction)?.isVisible = false
                 getButton(cancelAction)?.isVisible = true
                 setCancelButtonText("Close")
@@ -109,9 +110,9 @@ class CheckUpdatesProgressDialog : DialogWrapper(true) {
                 }
                 textLabel.text = "<html>New version available: <b>${updateInfo.targetVersion}</b> (from ${updateInfo.channel.displayName}).<br>$actionPrompt</html>"
                 val buttonText = if (updateInfo.channel == com.sickworm.intellij.jugg.server.UpdateChannel.MARKETPLACE) {
-                    "Open Plugins"
+                    "Open plugins"
                 } else {
-                    "Open in Browser"
+                    "Open in browser"
                 }
                 setOKButtonText(buttonText)
                 okAction.isEnabled = true

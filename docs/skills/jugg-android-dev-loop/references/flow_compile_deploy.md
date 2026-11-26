@@ -21,7 +21,9 @@ compile/deploy failed after source fixes and 3 retries, or status/policy require
 
 - `compile`: default for source edits without device-side verification.
 - `deploy`: compile + device deploy/start when runtime state matters.
-- `gradle-build`: full Gradle build + install/start, fallback only.
+- `gradle-build`: full Gradle build fallback followed by installation/startup in both IDEA and standalone.
+
+Standalone build commands create the current build profile on demand before compiling; no separate initialization command is required.
 
 ---
 
@@ -74,7 +76,7 @@ print('NEEDS_GRADLE_BUILD' if data.get('needFallback', False) else 'OK')
      b. Load `error_patterns.md`, apply Error Reviewer to diagnose and fix.
      c. Re-run `deploy`. Retry budget: max 3 attempts.
      d. If compile still fails after retries with unexpected/unresolvable errors → **fall back to `gradle-build`** (see [Gradle-Build Fallback](#gradle-build-fallback) below).
-3. **Done** — Output report. Verification steps default to `skip`. If optional light-weight check ran, use `light-check` status (see [Light-Weight On-Device Check](##Light-Weight On-Device Check)).
+3. **Done** — Output report. Verification steps default to `skip`. If optional light-weight check ran, use `light-check` status (see [Light-Weight On-Device Check](#light-weight-on-device-check)).
 
 ---
 
@@ -84,17 +86,17 @@ print('NEEDS_GRADLE_BUILD' if data.get('needFallback', False) else 'OK')
 
 **Trigger conditions** (any one)**:**
 - `compile` retries exhausted (3×) and still failing with unexpected errors that cannot be attributed to source changes.
-- The pre-flight policy identifies unsupported annotation changes or confirmed unsupported instrumentation affecting recompiled files (→ see `policy_incremental_compile_limits.md` for boundaries).
+- The decision rule in `policy_incremental_compile_limits.md` requires a full baseline (unsupported generation/instrumentation, missing artifacts, cross-process resources, or removal of old content). These confirmed limitations do not require failed incremental retries.
 
 **For failure-driven fallback, self-check** (direct policy fallback skips these retry checks):
-- Is the failure in the compile phase (not deploy transport)? 
+- Is there a confirmed policy limitation, or is the unresolved failure in the compile phase rather than deploy transport?
 - Did you retry with different fixes, not just re-run? 
 - Is there a concrete reason incremental can't work? 
 
 If unsure on any → stop and ask user first.
 
 **Steps**:
-1. Run `gradle-build`.
+1. Run `gradle-build`. In standalone mode it deploys to all online devices unless `--serial` selects one device.
 2. On error → inspect `${projectDir}/build/jugg/log/compile_latest.log` for root cause.
 3. If still unclear → stop and ask user.
 
@@ -140,7 +142,7 @@ scenario=`{{compile_only|compile_deploy}}`, command=`{{jugg compile|jugg deploy|
 Result: `{{pass|fail|inconclusive}}`. compile=`{{true|false|unknown}}`, deploy=`{{true|false|skip|unknown}}`, verify=`{{skip|light-check|inconclusive}}`. {{short reason}}
 ```
 
-中文模板：
+Chinese output template:
 
 ```
 # Jugg 编译结果

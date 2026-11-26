@@ -42,8 +42,8 @@ class AskAiDialog(
     private val copyStatus = JBLabel()
 
     init {
-        title = "ASK AI"
-        setOKButtonText(if (snapshot == null) "Save Evidence and Generate Prompt" else "Copy prompt")
+        title = "Ask AI"
+        setOKButtonText(if (snapshot == null) "Save evidence and generate prompt" else "Copy prompt")
         setCancelButtonText("Close")
         isOKActionEnabled = snapshot != null
         description.document.addDocumentListener(object : DocumentAdapter() {
@@ -112,7 +112,7 @@ class AskAiDialog(
             Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(saved.prompt), null)
             copyStatus.text = "Copied. Paste the prompt into your Agent in this Android project."
         } catch (e: IllegalStateException) {
-            Messages.showWarningDialog("Cannot copy the prompt: ${e.message}", "ASK AI")
+            Messages.showWarningDialog("Cannot copy the prompt: ${e.message}", "Ask AI")
         }
     }
 

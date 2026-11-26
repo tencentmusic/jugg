@@ -18,8 +18,8 @@ Jugg 以 Android Studio 插件形式提供，无需修改工程现有代码或 `
 | 项目 | 最低要求 | 推荐与支持版本 |
 |---|---|---|
 | **操作系统** | macOS / Linux / Windows | macOS (Apple Silicon / Intel), Linux, Windows 10/11 |
-| **Android Studio** | Android Studio Chipmunk (2021.2.1)+ | Hedgehog, Iguana, Jellyfish, Koala, Ladybug, Meerkat, Narwhal |
-| **Gradle / AGP** | AGP 7.0+ | AGP 7.x, 8.x |
+| **Android Studio** | Android Studio Bumblebee (2021.1.1)+ | Bumblebee 至 Rabbit |
+| **Gradle / AGP** | AGP 3.4+ | AGP 3.4–9.1; Gradle 5.4.1–9.2.1 |
 | **Java 开发环境** | JDK 11+ | JDK 17 / JDK 21 |
 | **目标测试设备** | Android 8.0 (API 26)+ | 物理机或模拟器均可，开启 USB 调试 |
 

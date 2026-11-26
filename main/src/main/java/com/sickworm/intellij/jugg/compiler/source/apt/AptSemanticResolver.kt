@@ -11,7 +11,7 @@ import com.sickworm.intellij.jugg.compiler.CompileTask
 import com.sickworm.intellij.jugg.compiler.ICompileContext
 import com.sickworm.intellij.jugg.org.objectweb.asm.ClassReader
 import com.sickworm.intellij.jugg.org.objectweb.asm.tree.ClassNode
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import java.io.File
 import java.util.jar.JarFile
 

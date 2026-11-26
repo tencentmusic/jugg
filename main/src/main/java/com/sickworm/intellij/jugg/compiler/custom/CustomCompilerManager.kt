@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.compiler.custom
 
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.util.Disposer
 import com.sickworm.intellij.jugg.compiler.ICompileContext
 import com.sickworm.intellij.jugg.compiler.ICompiler
 import com.sickworm.intellij.jugg.logger.getInstance
@@ -12,29 +13,36 @@ import java.net.URLClassLoader
 import java.security.MessageDigest
 import java.util.*
 
-/**
- * CustomCompilerManager coordinates custom workflows.
- */
+/** Loads custom compiler SPI implementations and owns their classloader and disposable compatibility scope. */
 class CustomCompilerManager(
     private val projectDir: File,
     private val customCompilerDir: File,
     private val juggServer: JuggServer,
     logger: Logger,
-) {
+) : AutoCloseable {
 
     private val logger = logger.getInstance("CustomCompilerManager")
 
     private var customCompilerJars = listOf<File>()
+    private var customCompilerConfigs = listOf<CustomCompilerInfo>()
 
+    @Synchronized
     fun updateCustomCompilers(customCompilers: List<CustomCompilerInfo>?) {
         logger.debug("updateCustomCompilers $customCompilers")
         if (customCompilers == null) {
             logger.debug("updateCustomCompilers with null config, exit.")
             return
         }
-        customCompilerJars = customCompilers.mapNotNull {
+        val configChanged = customCompilerConfigs != customCompilers
+        customCompilerConfigs = customCompilers
+        if (configChanged) clearLoadedCompilers()
+        val updatedJars = customCompilers.mapNotNull {
             updateCustomCompiler(it)
         }
+        if (customCompilerJars != updatedJars) {
+            clearLoadedCompilers()
+        }
+        customCompilerJars = updatedJars
         // clear deprecated jars
         customCompilerDir.listFiles()?.forEach { file ->
             if (!customCompilerJars.contains(file)) {
@@ -50,7 +58,9 @@ class CustomCompilerManager(
         }
     }
 
+    @Synchronized
     fun setCustomCompilerJars(jars: List<File>) {
+        if (customCompilerJars != jars) clearLoadedCompilers()
         customCompilerJars = jars
     }
 
@@ -133,28 +143,33 @@ class CustomCompilerManager(
     }
 
     private var customCompilers: List<ICompiler> = listOf()
+    private var compilersInitialized = false
+    private var classLoader: URLClassLoader? = null
+    private var compilerScope: Disposable? = null
 
     private var compileContext: ICompileContext? = null
-    private var compileParentDisposable: Disposable? = null
 
     @Synchronized
-    fun init(context: ICompileContext, parent: Disposable) {
+    fun init(context: ICompileContext) {
         logger.debug("init")
+        clearLoadedCompilers()
         this.compileContext = context
-        this.compileParentDisposable = parent
-        this.customCompilers = emptyList()
     }
 
     private fun initCompilers(): List<ICompiler> {
         logger.debug("initCompilers")
         val context = compileContext ?: return emptyList()
-        val parent = compileParentDisposable ?: return emptyList()
+        val compilerScope = CompilerDisposableScope().also { this.compilerScope = it }
         val urls = customCompilerJars.map { it.toURI().toURL() }.toTypedArray()
-        val classLoader = URLClassLoader(urls, this::class.java.classLoader)
+        val classLoader = URLClassLoader(urls, this::class.java.classLoader).also { this.classLoader = it }
         val customCompilers = mutableListOf<ICompiler>()
-        ServiceLoader.load(ICompilerCreator::class.java, classLoader).forEach {
-            val compiler = it.create(context, parent)
-            customCompilers.add(compiler)
+        try {
+            ServiceLoader.load(ICompilerCreator::class.java, classLoader).forEach {
+                customCompilers.add(it.create(context, compilerScope))
+            }
+        } catch (throwable: Throwable) {
+            clearLoadedCompilers()
+            throw throwable
         }
         logger.debug("initCompilers finished: $customCompilers")
         return customCompilers
@@ -162,15 +177,17 @@ class CustomCompilerManager(
 
     @Synchronized
     fun getCustomCompilers(): List<ICompiler> {
-        if (customCompilerJars.isNotEmpty() && customCompilers.isEmpty()) {
+        if (customCompilerJars.isNotEmpty() && !compilersInitialized) {
             customCompilers = initCompilers()
+            compilersInitialized = true
         }
         return customCompilers
     }
 
+    @Synchronized
     private fun resetCompilerJars() {
+        clearLoadedCompilers()
         customCompilerJars = customCompilerDir.listFiles()?.filter { it.name.endsWith(".jar") } ?: emptyList()
-        this.customCompilers = emptyList() // recreate next time
         logger.debug("resetCompilerJars: $customCompilerJars")
     }
 
@@ -178,6 +195,31 @@ class CustomCompilerManager(
         val md = MessageDigest.getInstance("MD5")
         md.update(readBytes())
         return md.digest().joinToString("") { "%02x".format(it) }
+    }
+
+    @Synchronized
+    override fun close() {
+        clearLoadedCompilers()
+        customCompilerJars = emptyList()
+        customCompilerConfigs = emptyList()
+        compileContext = null
+    }
+
+    private fun closeClassLoader() {
+        classLoader?.close()
+        classLoader = null
+    }
+
+    private fun clearLoadedCompilers() {
+        compilerScope?.let(Disposer::dispose)
+        compilerScope = null
+        customCompilers = emptyList()
+        compilersInitialized = false
+        closeClassLoader()
+    }
+
+    private class CompilerDisposableScope : Disposable {
+        override fun dispose() = Unit
     }
 
 }

@@ -1,0 +1,87 @@
+# Engineering: IDE Plugin Layer
+
+> Last checked: 2026-10-27
+> If this page conflicts with implementation, follow the code.
+
+## Scope and entry points
+
+English UI text uses sentence case across buttons, menus, dialog titles, labels, checkboxes, and messages. Preserve proper names and acronyms, and use the same display names in user documentation. Action, tool-window, and notification-group IDs and configuration/protocol fields retain their existing values.
+
+The stable IDE layer owns project and Android Studio extension lifecycles. `JuggInitializer.init()` registers one `JuggLoader` per project and stops the local MCP server after the last project closes. `JuggLoader` isolates the replaceable implementation; `JuggManagerCreator.create()` constructs `JuggManager`. Its `init()` sets up project state, and `recoverDeployContext()` restores a usable baseline from history when available. Start with `idea/src/ide_entry/java/com/sickworm/intellij/jugg/loader/` and `idea/src/main/java/com/sickworm/intellij/jugg/JuggManager.kt`.
+
+Shared compile, deploy, project-model, and test contracts live in `02_compile_core.md`, `03_deploy_complete.md`, `04_engineering_project.md`, and `06_testing.md`. The Debug executor's attach lifecycle is in `04_engineering_debug_attach.md`. MCP and standalone entry points are in `08_mcp_design.md` and `08_cli_tools_list.md`.
+
+## Project lifecycle and recovery
+
+`project open → JuggInitializer / JuggLoader → JuggManager.init() → settings and host initialization → Run Configuration import/creation → deploy-history recovery → file monitoring and background work`.
+
+`JuggManager.recoverDeployContextFromDisk()` needs recoverable deployment history. Without it, incremental compilation remains uninitialized and a full Gradle build is required. After an IDEA/standalone Runtime owner change, Jugg reloads the source project model and history, invalidates the deployment cache, refreshes Git changes, and clears stale compiler/APK state when recovery fails. Rebinding a Compile Context updates deploy files, compiler, file handlers/monitor, and custom compilers together. `ConstRefEngine` initializes SQLite and impact-analysis resources lazily; failure there degrades ConstRef without blocking manager creation.
+
+The hot-update ClassLoader boundary keeps IDE extensions and bridge DTOs stable while loading `JuggManagerCreator` and business logic from selected JARs. Failed hot load falls back to embedded JARs. Publishing a verified load manifest affects subsequent project opens/reopens, never an already-created manager. Standard plugin installation remains a restart path. `JuggControlPanelHost` holds only a `JComponent` and fetches the current implementation from `JuggInitializer`, avoiding implementation types in the stable layer.
+
+## Sync, host environment, and file changes
+
+`JuggProjectManagerListener` registers one reflective, three-argument `GradleSyncState.subscribe` listener per project, bound to disposal. This preserves the 211 entry point when newer Android Studio forwards it to root-aware topics; subscribing to both duplicates events. `JuggManager.onSyncEvent()` handles `SUCCEEDED` by refreshing project info, resetting `hasRun`, and reconciling Run Configurations; `SKIPPED` reconciles without treating Sync as successful. `STARTED` and `FAILED` update dependency-sync state. `CompileContextManager.updateCompileContext()` merges the `IdeaProjectModelSource` host model with distinct Gradle snapshots before `JuggManager.rebindCompileContext()` reconnects consumers.
+
+`IdeaCompileEnvironmentSource` reads the current Android SDK and compile environment when a context or local Gradle fetch needs them. `IdeaPlatformApi` loads IntelliJ's shell environment, including `PATH` for GUI launches, and falls back to the IDE process environment on failure. `JAVA_HOME` prefers the linked project's configured Gradle JVM resolved to a real path, then a Java SDK from the root or another module, then process `JAVA_HOME`; an Android SDK is not a Java SDK. `ANDROID_HOME` prefers the IDE Android SDK. The same host environment is used for the local project-info dry run before remote compilation. Final assembly is in `LocalGradleCompileClient.buildCompileEnv()`; wrapper repair is a shared compile preflight described in `02_compile_core.md`.
+
+`IdeaFileChangeMonitor` converts VFS events into shared `FileChangeManager` batches. The manager serializes deployment-file and dependency updates per Runtime; `DeployStateManager` blocks compilation while a batch is persisted. Background `source_files.db` writes must enter the Project Runtime Lock so a displaced Runtime cannot continue writing project state. Directory events are pruned against the project and participating module roots before recursion, including modules outside the IDE project directory. Local build directories are excluded using module paths, not remote Compile Context build paths. Git checkout/pull compensation lives in the shared manager; IDE still selects compile-on-save and makes the final compile call.
+
+## Run Configuration reconciliation
+
+`IdeaCliRunConfigurationManager` bridges IDEA Jugg run configurations and shared `CliRunConfigurationStore`. Startup imports existing non-default IDEA configurations by stable UUID and can create Android-model suggestions; it does not create a ProjectInfo fallback before Sync. After `SUCCEEDED` or `SKIPPED`, it refreshes project info, imports each configuration independently, creates missing suggestion targets, and may create one deterministic ProjectInfo fallback. If no runnable configuration exists, `JuggManager` retries with bounded exponential backoff. Selection/edit listeners save current IDEA settings and pointer, so rename or remote-field changes do not leave an old shared snapshot.
+
+Successful full Gradle builds save a cross-project remote-settings template in `JuggSettings.defaultCompileSettings`; legacy IDEA settings migration preserves that template. `IdeaCliRunConfigurationManager.createConfiguration()` applies it only to newly generated IDEA configurations, including the ProjectInfo fallback, while retaining the new target's command, APK pattern, identity, and provenance. The shared profile stores the same effective remote settings as IDEA. Existing configurations retain their own settings.
+
+A suggestion is usable only when a nonempty variant matches one unambiguous generated `./gradlew :modulePath:assembleVariant` task. Full module paths preserve dotted names and included-build identity. Deduplication uses a normalized task only when both commands identify one; ambiguous or custom commands require exact equality. A stable ID occupied by another command is never overwritten. New APK patterns use the Android model's actual build folder, including centralized project-root outputs; Sync does not rewrite existing command, APK, or remote settings.
+
+Changing IDEA's active variant can change Jugg selection only when current and suggested commands have exact generated identities for the same full module path, the suggestion is unique, and the target is not customized. Otherwise user selection stays. A successful Gradle build writes actual task, APK pattern, remote options, and current pointer back to the shared profile. When no confirming identity exists, the IDEA configuration remains runnable but shared import/writeback is skipped. Ordinary Android Run Configurations are suggestion inputs, not shared profiles. Store paths and profile safety are in `05_utilities.md` §3.
+
+## Run and UI boundaries
+
+`JuggManager.runTask()` creates `JuggCompileUiHandler`, then `JuggConfigurationRunner` schedules `JuggRunningTask` in the background. Its project write transaction joins compile, per-device deploy, fallback, cancellation, and terminal events under one task ID; the Run entry does not wait for the Project Runtime Lock on EDT. androidTest must pass run spec, executor, and run profile together to retain Test Results, source navigation, and rerun-failed behavior. `HostTaskExecutor` adapts shared tasks to IDEA progress and EDT state.
+
+The stable Tool Window hosts the replaceable Control Panel. Its model retains one task timeline, bounded Recent Runs, and structured events; Sync, MCP, and App events add history without replacing the running task. Logs render structured events, not a tail of `compile_latest.log`. Compile start is emitted after preprocessing chooses the actual path; a run enters Recent Runs only at terminal state. MCP event details remove `projectDir`, redact sensitive fields, and bound output length. Actions and Settings reuse the project manager. The panel can open during IDE indexing.
+
+Settings expose compile/deploy switches only when their underlying capability is available. Panel labels/descriptions and user edits share `JuggSettingDefinition` / `JuggSettingsEditor` with CLI. In particular, Backup classpath requires the shared confirmation and records a global revision. Each project invalidates its baseline under its next write lock, before recovering or using the old history; explicit compatibility changes similarly schedule reinstall. See `05_utilities.md` for acknowledgments and Host memory refresh.
+
+The `Clear app data` action confirms with the user, then triggers a run that compiles any pending changes (falling back to Gradle only when needed), clears app data, and reinstalls the selected app. `Clear Jugg build` deletes project `build/jugg` state and reopens projects so the manager rebuilds its context; these actions are not ordinary incremental redeploys.
+
+IDE Runtime CLI/MCP calls prefer the selected Jugg configuration. If absent, they resolve latest successful full-build command and target, then command alone, then the first configuration; final fallback logs a warning. `Exec remote CMD` is stricter: it requires the selected remote Jugg configuration, opens separate Run Content and SSH process, and does not enter ordinary compile/deploy. `JuggSettings` scopes recent commands to user, host, port, and remote path. Credential and log-redaction boundaries belong in `05_utilities.md`.
+
+Update checks and Control Panel use the same manager. Invalid update responses prompt for a custom server; “already latest” requires an explicit response. A nondefault server URL requires capability-trust confirmation. Installed IDEA-managed standalone runtime refreshes on tooling build changes; externally managed runtime is untouched. Diagnostics reporting presents redacted candidate files and the exact upload destination before upload or local bundle creation; its data contract belongs in `05_utilities.md`.
+
+`Install Jugg skills` joins an IDEA dialog with shared skill, CLI, and hook installers. CLI/hooks installation requires Python 3.7+ before writing their configuration. Codex selection installs the bundled CLI permission rule; Claude hook installation may offer a CC Switch Common Config export after success, without editing CC Switch directly. The installed setup guide is exported under `~/.jugg/skills/install/agent_setup.md`. Startup CLI/skill auto-refresh is gated by an installed CLI and compares the bundled skill's `version:` with the installed `SKILL.md`, not `CLI_VERSION`; see `08_cli_tools_list.md` for the version contract.
+
+The IDE diagnostics dialog merges the ten newest Jugg logs from IDE and standalone locations, pins those logs, and lets users remove higher-sensitivity IDE/Gradle/project-info candidates after redaction. It displays the exact fixed upload URL and supports saving a local ZIP instead. This UI selection and the shared bundle allowlist are separate checks; the latter is specified in `05_utilities.md`.
+
+IDE `AskAiInvestigation` owns the Panel form and the failed-compilation console entry. Runner wraps the current handler; final uncanceled non-RPC compilation failure saves a Snapshot synchronously before delegating `onEnd` in `finally`, then prints its captured hyperlink after deferred console output. Success, deployment-only failure, and successful fallback produce no compilation prompt. `JuggRunningTask.lastCompileResult` preserves compile success when device/deployment subsequently throws and resets before recursive fallback.
+
+Panel collection runs through `TaskRunnerManager.runTaskSafe` without taking the project write lock (`isProjectWrite = false`), and copies staging/deployed records under the `DeployFileManager` monitor. It reads selected-device logcat once via DDMLib (`logcat -b all -d -v threadtime -t 20000`, five-second no-output timeout), avoiding ADB restart/retry; a failed device loses only its own evidence. See `05_utilities.md` for snapshot/flush contracts.
+
+The Running Panel Host initially shows an initializing placeholder. `JuggManager.init()` calls `controlPanelController.onManagerReady()` after shared runtime initialization to mount the real Panel; Controller clear removes it on disposal. On the first Run per project in the IDE session, `JuggRunningTask.checkAndMarkFirstRun()` actively opens the Run window; Sync/retry first-run state does not reopen it.
+
+## Investigation guide
+
+| Symptom | Inspect |
+|---|---|
+| Manager missing or stale after update | `JuggInitializer.instanceSet`, `JuggLoader` load list/fallback, and whether project reopened. |
+| Configuration absent or wrong variant | Sync event, Android suggestions, `IdeaCliRunConfigurationManager` identity/selection guards, shared current pointer. |
+| IDE sees no file changes | VFS batch, scope pruning, file-processing barrier, Runtime owner recovery. |
+| Local Gradle works in shell but not GUI IDE | `IdeaPlatformApi` shell environment, resolved `JAVA_HOME`, `ANDROID_HOME`, and `PATH`. |
+| Panel and Run disagree | Structured task ID and terminal event; inspect `compile_latest.log` separately for raw compiler detail. |
+| Debug output exists but breakpoints fail | `04_engineering_debug_attach.md`; Run Content and Java Debug session are separate. |
+
+For plugin-runtime logs and root-cause procedure, use `09_plugin_runtime_debug.md`.
+
+## 8. Backend defaults, manual file selection and native settings
+
+/check_update triggers server selection without requiring compile/history: an empty URL waits for forced selection, an existing URL serves this request while refresh runs asynchronously. ProjectDefaultSettingsApplier compares per-project jugg.defaultSettingsVersion only when both version/map exist, applies public writable primitive settings individually, skips unknown/wrong types with debug, then records the version; setter failure does not record it. Same version preserves user edits and a changed/backward version reapplies defaults. Settings remain globally stored, so projects do not own isolated values. Refresh Control Panel after success.
+
+Changed files Manage/Manual add opens nonmodal FileChangeManagerDialog. Candidates are received, existing, valid-module session files, newest first; visible filename/module search preserves selection. Only checkbox hit toggles, single row selection highlights, double-click navigates without closing or losing edits; modified-age updates on open/manual refresh only. Default check state is undeployed files, applied only on confirmation; initialization/compile/deploy rejects confirmation and leaves the dialog open. Refresh discovers Git changes/missing inputs and rolls back content-identical uncompiled items regardless of HEAD, retaining manual marks/candidate history; untouched rows track latest state and edited rows keep user selection. Manager updates build-file dependency state under the file-change lock.
+
+ChangedFile.isManuallySelected bypasses snapshot deduplication and survives automatic events until successful commit. Deselecting an already compiled file discards mixed staging, requeues retained compiled inputs and recreates JuggCompiler to release aapt2 retained tables; it does not undo device changes. Candidate history is session-only. Full-build asynchronous initCompile refreshes Panel again after state reset/listener registration while retaining changes observed since build start.
+
+SO hot update is always visible and defaults off. Enabling first confirms loading scope while the checkbox retains old state; cancel leaves off. Both toggles force next reinstall to invalidate old native patches; disabling needs no confirmation. Shared confirmation text wraps/scrolls on window resizing. RemoteUserCommand reuses withPlainConsole for detected Gradle commands missing --console; explicit console/non-Gradle commands remain unchanged.
+
+Manual reports with an available backend bypass candidate confirmation, upload default diagnostics to that backend /report_issue and never fail over publicly. Result success/failure offers Save to local via RevealFileAction, retaining the dialog for copy/retry. Without backend, retain public HTTPS confirmation/local-save flow. Target-specific redaction and auto-failure upload are in `05_utilities.md`.

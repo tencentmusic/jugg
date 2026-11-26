@@ -1,0 +1,27 @@
+plugins {
+    id 'java'
+    id 'org.jetbrains.kotlin.jvm'
+}
+
+sourceCompatibility = 11
+targetCompatibility = 11
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'com.google.code.gson:gson:2.10.1'
+    testImplementation 'junit:junit:4.12'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 11
+}
+
+// Compile the same portable path resolver used by the Runtime before loading Runtime JARs.
+sourceSets.main.kotlin {
+    srcDir rootProject.file('main/src/main/java')
+    include '**/JuggGlobalPathManager.kt'
+}
+compileKotlin { kotlinOptions.jvmTarget = "11" }

@@ -17,7 +17,7 @@ The Jugg CLI provides a unified command-line interface to invoke Jugg's bypass i
 Installing directly through Android Studio's UI is recommended:
 
 1. Press `Shift` twice in Android Studio to open **Search Everywhere**.
-2. Type and select `Install Jugg Skills`.
+2. Type and select `Install Jugg skills`.
 3. In the setup modal, check the components you need:
    - **Install CLI to `$PATH`**: Symlinks the executable `jugg` command into your system PATH (e.g., `~/.jugg/bin`).
    - **Currently installed agents**: Automatically registers the `jugg-android-dev-loop` skill with AI assistants like Claude Code and Antigravity.
@@ -91,6 +91,17 @@ jugg gradle-build
 # Clear app internal sandbox data and reinstall APK
 jugg clean-reinstall
 ```
+
+When installation fails because the APK has a lower `versionCode` than the installed app, the CLI automatically uninstalls and reinstalls the app, deleting its data. This applies to both IDEA and standalone runtimes. The CLI does not enable `adb install -d` by default and has no command-line option to select a downgrade policy. To choose **Allow downgrade** and keep app data, use a manual IDE Run or Debug. `clean-reinstall` continues to clear data explicitly. For the IDE's downgrade choices and custom-script boundary, see [APK update and installation](../concepts/apk-update-and-install.md#installing-an-older-version).
+
+### Recipe E: Change global settings
+
+```bash
+jugg settings list
+jugg settings set maxCompileSourceModules 30
+```
+
+Review the returned prompt before retrying a guarded edit with `--confirm true`. No project or device is required. See [Global settings](../reference/cli-commands.md#global-settings).
 
 ## 4. Multi-project and cross-directory calls (--project-dir)
 

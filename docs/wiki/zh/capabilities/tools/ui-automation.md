@@ -82,7 +82,7 @@ jugg view-inspect --resource-id bubble_container "layoutParams.leftMargin" "getL
 jugg tap --text "Login"
 jugg tap --resource-id btn_submit
 jugg tap --content-desc "Close"
-jugg tap --x 540 --y 960
+jugg tap --x 365 --y 798 --unit dp
 jugg tap --x-percent 50 --y-percent 80
 jugg tap --action swipe --x-percent 50 --y-percent 80 --end-x-percent 50 --end-y-percent 20
 ```

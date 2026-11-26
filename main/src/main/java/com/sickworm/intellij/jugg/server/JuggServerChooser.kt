@@ -3,6 +3,13 @@ package com.sickworm.intellij.jugg.server
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.intellij.openapi.diagnostic.Logger
+import com.google.gson.JsonPrimitive
+import com.google.gson.JsonElement
+import com.google.gson.JsonNull
+import com.google.gson.JsonObject
+import com.sickworm.intellij.jugg.ide.bean.JuggSettingDefinition
+import com.sickworm.intellij.jugg.ide.bean.JuggSettingsEditor
+import com.sickworm.intellij.jugg.project.runtime.SettingsChangedException
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.diagnostics.IssueReportDestination
 import com.sickworm.intellij.jugg.logger.getInstance
@@ -30,15 +37,10 @@ class JuggServerChooser(logger: Logger) {
 
     private val forbidUrls = mutableSetOf<String>()
 
-    private var isSetCustomServer
-        get() = JuggSettings.serverExpireTimeMill == SERVER_WILL_NOT_EXPIRE
-        set(value) {
-            if (value) {
-                JuggSettings.serverExpireTimeMill = SERVER_WILL_NOT_EXPIRE
-            } else {
-                JuggSettings.serverExpireTimeMill = 0
-            }
-        }
+    private val isSetCustomServer get() = JuggSettings.serverExpireTimeMill == SERVER_WILL_NOT_EXPIRE
+
+    val customServerUrl: String
+        get() = if (isSetCustomServer) JuggSettings.serverUrl.orEmpty() else ""
 
     val issueReportDestination: IssueReportDestination
         get() {
@@ -67,6 +69,8 @@ class JuggServerChooser(logger: Logger) {
             return
         }
 
+        val snapshot = JuggSettings.snapshot()
+        if (snapshot["serverExpireTimeMill"]?.asLong == SERVER_WILL_NOT_EXPIRE) return
         selectedServerUrl = null
         val oldServerUrl = JuggSettings.serverUrl
         val newServerUrl = selectServer(this.serverRules)?.url
@@ -78,10 +82,8 @@ class JuggServerChooser(logger: Logger) {
             logger.debug("No need update server, still use $oldServerUrl")
         } else {
             logger.debug("Update server from $oldServerUrl to $newServerUrl")
-            JuggSettings.serverUrl = newServerUrl
         }
-        selectedServerUrl = newServerUrl
-        JuggSettings.serverExpireTimeMill = System.currentTimeMillis() + SERVER_EXPIRE_AFTER_TIME
+        if (commitAutomaticServer(newServerUrl, snapshot)) selectedServerUrl = newServerUrl
     }
 
     /**
@@ -133,6 +135,8 @@ class JuggServerChooser(logger: Logger) {
             return false
         }
 
+        val snapshot = JuggSettings.snapshot()
+        if (snapshot["serverExpireTimeMill"]?.asLong == SERVER_WILL_NOT_EXPIRE) return false
         val nextServerUrl = selectServer(serverRules, forbidUrls + forbidUrl)?.url
         if (nextServerUrl.isNullOrBlank() || nextServerUrl == forbidUrl) {
             logger.debug("No available alternative server for $forbidUrl, keep current server.")
@@ -143,9 +147,7 @@ class JuggServerChooser(logger: Logger) {
         selectedServerUrl = nextServerUrl
         logger.debug("Update server with forbid url: $forbidUrl")
         logger.debug("Update server from $forbidUrl to $nextServerUrl")
-        JuggSettings.serverUrl = nextServerUrl
-        JuggSettings.serverExpireTimeMill = System.currentTimeMillis() + SERVER_EXPIRE_AFTER_TIME
-        return true
+        return commitAutomaticServer(nextServerUrl, snapshot)
     }
 
     private fun selectServer(serverRules: List<ServerRule>?, forbiddenUrls: Set<String> = forbidUrls): ServerRule? {
@@ -179,7 +181,7 @@ class JuggServerChooser(logger: Logger) {
     private fun isReachable(host: String): Boolean {
         try {
             val address = InetAddress.getByName(host)
-            val reachable = address.isReachable(5000) // 5000毫秒超时时间
+            val reachable = address.isReachable(5000) // 5-second timeout
 
             if (reachable) {
                 logger.debug("$host is reachable")
@@ -197,42 +199,40 @@ class JuggServerChooser(logger: Logger) {
     fun setCustomServer() {
         val newServerUrl = PlatformApi.showUserAndPasswordInputDialog(
             title = "Set Custom Server",
-            content = "Custom server URL",
-            subTitle = "This server can be used for remote compilation, issue reporting, Jugg update checks, " +
-                    "and custom compiler downloads.",
+            content = JuggSettingDefinition.find("serverUrl").label,
+            subTitle = JuggSettingDefinition.find("serverUrl").description,
             defaultInputText = if (isSetCustomServer) JuggSettings.serverUrl else "",
         )
         logger.debug("New server url: $newServerUrl")
         if (newServerUrl == null) {
             logger.debug("User not input server url, skip update.")
             return
-        } else if (newServerUrl.isEmpty()) {
-            logger.debug("User input empty server url, set to default.")
-            isSetCustomServer = false
-            updateServerIfExpired()
-            return
-        } else {
-            val displayUrl = newServerUrl.replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;")
-            val confirmed = PlatformApi.showDialog(
-                title = "Trust Custom Server?",
-                content = "<html>Jugg will connect to:<br><b>$displayUrl</b><br><br>" +
-                        "This server can check for Jugg updates, download and install Jugg update JARs, " +
-                        "and download and load custom compiler JARs. " +
-                        "Manual and automatic issue reports will send unredacted logs to this server, " +
-                        "including project paths, usernames, and possible secrets. " +
-                        "HTTP connections are not encrypted. Continue only if you control or trust it.</html>",
-                okButtonText = "Trust Server",
-                cancelButtonText = "Cancel",
-            )
-            if (!confirmed) {
-                logger.debug("User cancelled custom server confirmation.")
-                return
-            }
-            logger.debug("User input server url, set to custom.")
-            JuggSettings.serverUrl = newServerUrl
-            isSetCustomServer = true
+        }
+        JuggSettingsEditor(this).setFromUi("serverUrl", newServerUrl)
+    }
+
+    /** Programmatic callers already own the trust decision. Interactive callers use the shared prompt above. */
+    fun setCustomServer(newServerUrl: String) {
+        JuggSettingsEditor(this).set("serverUrl", newServerUrl, confirm = true)
+    }
+
+    /** Resolves a user's return to automatic selection before acquiring the settings write lock. */
+    internal fun automaticSettings(snapshot: JsonObject): Map<String, JsonElement> {
+        val selected = selectServer(serverRules ?: getEmbeddedServers())?.url?.takeIf { it.isNotBlank() }
+        return mapOf(
+            "serverUrl" to (selected?.let(::JsonPrimitive) ?: snapshot["serverUrl"] ?: JsonNull.INSTANCE),
+            "serverExpireTimeMill" to JsonPrimitive(if (selected == null) 0L else System.currentTimeMillis() + SERVER_EXPIRE_AFTER_TIME),
+        )
+    }
+
+    private fun commitAutomaticServer(url: String, snapshot: com.google.gson.JsonObject): Boolean {
+        return try {
+            JuggSettings.commit(mapOf("serverUrl" to JsonPrimitive(url),
+                "serverExpireTimeMill" to JsonPrimitive(System.currentTimeMillis() + SERVER_EXPIRE_AFTER_TIME)), snapshot)
+            true
+        } catch (_: SettingsChangedException) {
+            logger.debug("Settings changed during automatic server selection; keep the newer settings.")
+            false
         }
     }
 

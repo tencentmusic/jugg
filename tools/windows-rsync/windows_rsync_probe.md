@@ -1,45 +1,45 @@
-# Windows rsync 独立传输准备
+# Windows rsync standalone transport preparation
 
-此底层脚本保留原始诊断，生产接入及验收应以 [测试准备](../../docs/task/2026-10/windows_rsync_test_setup.md) 为准。Python 3.9+，无第三方 Python 依赖。没有自动换引擎。
+This low-level script preserves raw diagnostics. Use [test setup](../../docs/task/2026-10/windows_rsync_test_setup.md) for production integration and acceptance. It requires Python 3.9+, no third-party Python packages, and never switches engines automatically.
 
-使用现有 `JUGG_REMOTE_CONFIG_FILE` 时，运行 `windows_rsync_acceptance.py`，密码配置也使用此入口。它复用本脚本夹具，在进程内部读取连接配置，报告不保存账号、密码、key、原始 argv/stdout/stderr，覆盖小产物拉取、错误 key、host key 改变与链接；`--benchmark-rounds 5` 增加 257 文件约 3 MiB 的五轮 SHA-256 校验计时。执行方法和实测结论见 [验收记录](../../docs/task/2026-10/windows_rsync_acceptance.md)。下述原始 PoC 会保存完整命令和诊断，只适合脱敏的专用测试配置，不应公开其报告。
+With an existing `JUGG_REMOTE_CONFIG_FILE`, run `windows_rsync_acceptance.py`, including for password configurations. It reuses these fixtures, reads connection settings in-process, and excludes accounts, passwords, keys and raw argv/stdout/stderr from reports. Coverage includes small artifact fetch, an unauthorized key, changed host keys and links; `--benchmark-rounds 5` adds five SHA-256-checked rounds of 257 files/about 3 MiB. See [acceptance evidence](../../docs/task/2026-10/windows_rsync_acceptance.md). The raw PoC below stores complete commands and diagnostics: use a dedicated sanitized test configuration and do not publish its reports.
 
-## 环境就绪后运行
+## Run after preparing the environment
 
-1. 复制 `windows_rsync_probe.example.json` 到仓库外，准备 Cygwin 配置。所有 executable、key 和 known_hosts 使用绝对路径；配置中的 target 必须为受信任的测试服务器 `user@host`。私钥不需要交互解密；不要将凭据提交到仓库。
-2. rsync、ssh、cygpath 均指定同一 Cygwin 安装的 `bin` 下的 exe。脚本不下载工具、不修改系统 SSH/Cygwin 配置。
-3. Linux 服务器需要 Python 3、上游 rsync、mktemp 和 stat。使用专用测试账户，错误 key 应是存在但未授权的独立私钥。known_hosts 的父目录必须已存在；首次连接会按 accept-new 写入指定文件。
-4. 在仓库根目录执行：
+1. Copy `windows_rsync_probe.example.json` outside the repository and prepare Cygwin configuration. Executables, keys and known_hosts require absolute paths; target must be a trusted test server in `user@host` form. The private key must not require interactive decryption. Keep credentials out of the repository.
+2. Select rsync, ssh and cygpath executables from the same Cygwin `bin`. The script downloads no tools and does not change system SSH/Cygwin configuration.
+3. The Linux server needs Python 3, upstream rsync, mktemp and stat. Use a dedicated account and a separate existing unauthorized key for the bad-key case. The known_hosts parent directory must exist; first connection uses accept-new to update that file.
+4. Run from repository root:
 
 ```powershell
 python tools/windows-rsync/windows_rsync_probe.py --config D:/private/cygwin.json
 python tools/windows-rsync/windows_rsync_probe.py --config D:/private/cygwin-rsync.json
 ```
 
-链接测试单独启用，要求当前 Windows 账户有原生 symlink 创建权限。权限不足会失败，不自动提权或跳过：
+Enable link tests separately. The current Windows account must have native symlink creation permission; missing permission fails without automatic elevation or skipping:
 
 ```powershell
 python tools/windows-rsync/windows_rsync_probe.py --config D:/private/cygwin.json --links
 python tools/windows-rsync/windows_rsync_probe.py --config D:/private/cygwin-rsync.json --links
 ```
 
-输出默认在被 Git 忽略的 `verification/windows-rsync/<engine>-<随机标识>/`。每轮独立夹具不复用，不删除已有文件。远端通过 mktemp 创建 `/tmp/jugg-rsync-probe-*`；报告记录准确路径，保留现场，检查后由测试者清理该单个目录。
+Default output is Git-ignored `verification/windows-rsync/<engine>-<random-id>/`. Each round creates an independent fixture without reusing or deleting existing files. Remote mktemp creates `/tmp/jugg-rsync-probe-*`; reports retain its exact path and evidence. After inspection, the tester cleans up that one directory.
 
-报告包含逐次 argv、stdout/stderr、真实退出码、耗时和三个入口 exe 的 SHA-256。可能包含用户名、路径、主机地址和输出内容，对外提供前人工脱敏；不记录私钥内容。每次命令后落盘，失败保留已取得的证据；超时作为失败处理。SSH 预检与传输分别执行。
+Reports contain each argv, stdout/stderr, actual exit code, elapsed time and SHA-256 of the three executable entry points. They may contain usernames, paths, hosts and output; sanitize manually before sharing. Private-key contents are not recorded. Results are saved after each command, preserving evidence on failure; timeout is failure. SSH preflight and transfer execute separately.
 
-## 已准备的判定
+## Prepared assertions
 
-- 以当前 `SyncFileCommand.getRsyncArguments()` 和 `JuggPathManager.RSYNC_PUSH_CONFIG_DIR_ARGUMENTS` 为来源的独立 argv 快照，包括必需配置放行、默认排除和上传删除。上传不再使用 `--copy-unsafe-links`，保留链接本身。后续生产规则变化时需复核快照。
-- 中文、空格、`&`、括号工程路径；内容更新、重复同步 mtime、本地源文件哈希不变。
-- classpath 形式的 include 目录、prune、删除/不删除分支，下载哈希和 mtime。使用固定 `src/**` 代表性过滤集，不声称覆盖真实 module 的全部动态规则。
-- 远端 rsync 路径不存在必须非零；配置 bad_key 时未授权私钥必须非零，否则记录 not_run。
-- 可选内部相对 symlink 保留、外部相对和绝对文件链接展开、下载原生 symlink 的 Windows Python 可读性。
-- 两个引擎使用相同夹具和预期结果；Cygwin 仅在子进程设置 `winsymlinks:nativestrict`，本地路径通过指定 cygpath 转换。远端路径和过滤 pattern 不转换。
+- Independent argv snapshots derive from `SyncFileCommand.getRsyncArguments()` and `JuggPathManager.RSYNC_PUSH_CONFIG_DIR_ARGUMENTS`: required configuration includes, default exclusions and upload deletion. Upload omits `--copy-unsafe-links` and preserves links. Recheck snapshots when production rules change.
+- Chinese/space/`&`/parenthesized project paths, content updates, repeated-sync mtimes and unchanged local source hashes.
+- Classpath-style include directories, pruning, delete/no-delete branches, download hashes and mtimes. Fixed representative `src/**` filters do not cover every real module's dynamic rules.
+- Missing remote rsync path must fail. A configured bad_key must be unauthorized and fail; otherwise record not_run.
+- Optional internal relative symlink preservation, external relative/absolute file-link expansion, and Windows Python readability of downloaded native links.
+- Both engines use the same fixtures/expectations. Cygwin sets `winsymlinks:nativestrict` only for children and converts local paths with configured cygpath; remote paths/filter patterns are unchanged.
 
-## 尚需补充的验收
+## Remaining acceptance
 
-通过脚本只代表已选用例通过。JVM/Android 工具消费下载链接、目录链接/junction、缺失/不可读链接、脚本执行权限、host key 改变、取消及进程树存活、断网/部分传输、无输出异常退出、长路径/跨盘/大型真实 classpath、JSch、干净机器依赖闭包、完整 Jugg Flow 均未由此脚本验证。原始计划中的这些项目仍是发布门槛。不要将 Python 可读性算作 JVM 证据。
+Passing proves only the selected cases. JVM/Android consumption of downloaded links, directory links/junctions, missing/unreadable links, script executable permissions, host-key changes, cancellation/process descendants, network interruption/partial transfer, silent abnormal exit, long/cross-drive/large real classpaths, JSch, clean-machine dependency closure and full Jugg Flow are not verified by this script. Those original-plan items remain release gates. Python readability is not JVM evidence.
 
-脚本剔除了 PATH 中 Git/MSYS2，仅保留 rsync 所在目录和 System32，但这不能证明干净机器无系统依赖；它记录入口 exe 哈希，也不能代替 DLL 闭包和来源/许可证审核。工具/key/runtime 本身含中文或空格时应另配置对应真实路径重跑。
+The script removes Git/MSYS2 from PATH, retaining the rsync directory and System32, but this does not establish a clean-machine dependency closure. Entry-executable hashes do not replace DLL/source/license review. Configure actual Unicode/space-containing tool/key/runtime paths separately to verify them.
 
-超时由 Python 终止直接子进程，尚不保证 SSH 后代全部退出；不要将超时测试视作取消验收。当前无需启动插件、Gradle 或 Android 设备。
+Python terminates only the direct child on timeout; SSH descendants are not guaranteed to exit. Timeout evidence is not cancellation acceptance. No plugin, Gradle build or Android device is required for this script.

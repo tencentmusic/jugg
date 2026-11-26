@@ -11,7 +11,7 @@ import com.sickworm.intellij.jugg.deploy.data.ClassFileParser
 import com.sickworm.intellij.jugg.org.objectweb.asm.ClassReader
 import com.sickworm.intellij.jugg.org.objectweb.asm.ClassWriter
 import com.sickworm.intellij.jugg.org.objectweb.asm.Opcodes
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder

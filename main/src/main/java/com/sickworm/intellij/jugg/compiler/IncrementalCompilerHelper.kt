@@ -6,13 +6,14 @@ import com.sickworm.intellij.jugg.compiler.source.DexFileMerger
 import com.sickworm.intellij.jugg.compiler.ui.TooManyChangesConfirmResult
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.IDeployStateManager
+import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.sickworm.intellij.jugg.deploy.run.IdeDeployState
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.logger.getInstance
-import com.sickworm.intellij.jugg.project.ChangedFile
-import com.sickworm.intellij.jugg.project.IFileChangesHandler
-import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.project.change.ChangedFile
+import com.sickworm.intellij.jugg.project.change.IFileChangesHandler
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -31,6 +32,7 @@ class IncrementalCompilerHelper(
     private val fileChangesHandler: IFileChangesHandler,
     private val retryResolver: IIncrementalCompileRetryResolver,
     loggerArg: Logger,
+    private val targetDevice: IDevice? = null,
     private var skipTooManyChangesCheck: Boolean = false,
 ) {
     private val logger = loggerArg.getInstance("JuggCompilerHelper")
@@ -47,8 +49,11 @@ class IncrementalCompilerHelper(
             return CompileTaskResult.incrementalFailed(false, "Compile canceled")
         }
 
+        val retryModules = if (compileLoopStatus.isRetry) compiler.context.modules else emptyMap()
         val compileFiles = undeployedFiles.map {
-            CompileFile(it.type, it.file, it.baseDir, it.module, it.extraInfo)
+            // A project-model repair must take effect before the retry compile starts.
+            val module = retryModules[it.module.name] ?: it.module
+            CompileFile(it.type, it.file, it.baseDir, module, it.extraInfo)
         }
 
         // do compile
@@ -261,11 +266,7 @@ class IncrementalCompilerHelper(
                     "kotlinSourceFiles ${tooManyChanges.kotlinFileCount}")
         }
         if (tooManyChanges != null && !skipTooManyChangesCheck) {
-            val confirm = if (!JuggSettings.isConfirmFallbackWhenTooManyChanges) {
-                TooManyChangesConfirmResult.FALLBACK
-            } else {
-                uiHandler.confirmTooManyChanges(tooManyChanges)
-            }
+            val confirm = uiHandler.confirmTooManyChanges(tooManyChanges)
             TooManyChanges.applyUserChoice(
                 info = tooManyChanges,
                 confirm = confirm,
@@ -276,7 +277,8 @@ class IncrementalCompilerHelper(
         }
 
         // deploy state fallback
-        val deployState = deployStateManager.updateDeployState()
+        val deployState = targetDevice?.let { deployStateManager.updateDeployState(it) }
+            ?: deployStateManager.updateDeployState()
         if (!deployState.isReadyDeploy) {
             if (deployState.ideDeployState.state == IdeDeployState.State.INVALID_DEVICE) {
                 logger.info("Device not ready for incremental compile(${deployState.ideDeployState.message}). Return.")

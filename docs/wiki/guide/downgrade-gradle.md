@@ -20,14 +20,14 @@ When you click Jugg Run again without any newly saved changes, Jugg may ask whet
 |---|---|
 | Yes | Use Gradle compilation for this run, then install and launch the app |
 | No | Cancel this run |
-| Clean And Reinstall | Clear app data and reinstall the APK |
+| Just clean reinstall APK | Clear app data and reinstall the APK |
 | Export incremental APK | Export the incremental APK that has already been compiled |
 
 This usually means either that you intentionally want to refresh the baseline or that you clicked Run by mistake. Select No if it was accidental.
 
 ## Use the fallback button
 
-When you know you need a full Gradle build, click `(Jugg) Fallback to Gradle Compile` in the IDE. From a terminal or an agent, run:
+When you know you need a full Gradle build, click `(Jugg) Fallback to Gradle compile` in the IDE. From a terminal or an agent, run:
 
 ```bash
 jugg gradle-build
@@ -42,7 +42,7 @@ Use an explicit fallback when:
 
 After Gradle succeeds, Jugg reloads the APK, classpath, mapping, and resource baseline. Subsequent small changes can still use Jugg Run.
 
-In the fallback confirmation for no file changes and the manual fallback confirmation, you can select `clean gradle cache on fallback`. This run executes Gradle `clean` before the original build tasks, disables the Gradle build cache, and forces tasks to execute again. The selection applies only to this run and does not change the saved run configuration.
+In the fallback confirmation for no file changes and the manual fallback confirmation, you can select `Clean Gradle cache on fallback`. This run executes Gradle `clean` before the original build tasks, disables the Gradle build cache, and forces tasks to execute again. The selection applies only to this run and does not change the saved run configuration.
 
 The project’s `clean` task determines what is removed. Generator caches outside that scope require the cleanup provided by the project. Rebuild time depends on the intermediate outputs each tool can reuse.
 
@@ -54,7 +54,7 @@ If Gradle has already started, click Stop in the Run tool window. Stopping affec
 
 ## The build-file change dialog
 
-After you modify `build.gradle`, `settings.gradle`, or dependency declarations, Jugg may display a dependency-change dialog. If the same run also contains too many source changes, Jugg first asks whether to continue the large incremental compilation. The build-file changes appear only after you select `Continue Incremental Compile`.
+After you modify `build.gradle`, `settings.gradle`, or dependency declarations, Jugg may display a dependency-change dialog. If the same run also contains too many source changes, Jugg first asks whether to continue the large incremental compilation. The build-file changes appear only after you select `Continue incremental compile`.
 
 | Choice | When to choose it |
 |---|---|
@@ -72,7 +72,7 @@ When one change covers too many source files or modules, or when the current cha
 | Choice | Result |
 |---|---|
 | Fallback to Gradle | Use a full build for this run. The button is available immediately |
-| Continue Incremental Compile | Keep incremental compilation for this run only. The button waits for a 2-second countdown |
+| Continue incremental compile | Keep incremental compilation for this run only. The button waits for a 2-second countdown |
 | Close the dialog | Cancel this run |
 
 MCP, CLI, and status queries do not show this dialog and fall back to Gradle directly.

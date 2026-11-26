@@ -87,60 +87,77 @@ def _main_impl() -> int:
     args.client = resolve_hook_client(args.client, payload, "stop.py")
     if args.client is None:
         return 0
-    client_part = f" client={args.client}" if args.client else ""
-    debug_log("JUGG-STOP", f"hook triggered cwd={Path.cwd()}{client_part}")
-
     home = Path.home()
     cwd = hook_state_cwd(args.client, payload)
+    client_part = f" client={args.client}" if args.client else ""
+    debug_log("JUGG-STOP", f"hook triggered cwd={cwd}{client_part}")
+
     session_id = extract_session_id(payload)
     state_file = state_file_path(home, cwd, session_id)
     state = read_hook_state(state_file)
     project_cwd = cwd
-    if args.client in {"cursor", "antigravity"}:
+    if args.client == "cursor":
         project_cwd, project_cwd_changed = remember_project_cwd(state, payload, cwd)
-    if args.client == "antigravity":
-        project_state_file = state_file_path(home, project_cwd, session_id)
-        if project_state_file != state_file:
-            state_file = project_state_file
-            state = read_hook_state(state_file)
-            project_cwd, project_cwd_changed = remember_project_cwd(state, payload, cwd)
-    if args.client in {"cursor", "antigravity"} and project_cwd_changed:
-        write_hook_state(state_file, state)
+        if project_cwd_changed:
+            write_hook_state(state_file, state)
     try:
         block_count = int(state.get("stopBlockCount", 0) or 0)
     except (TypeError, ValueError):
         block_count = 0
 
-    debug_log("JUGG-STOP", f"resolved projectCwd={project_cwd}")
-    structured = read_status_snapshot(home, project_cwd, timeout_seconds=10)
-    if structured is None:
-        debug_log("JUGG-STOP", "exit: project is not available to jugg")
+    session_write_seen = has_session_write_seen(state)
+    if not session_write_seen:
+        if block_count > 0:
+            state["stopBlockCount"] = 0
+            write_hook_state(state_file, state)
+        debug_log(
+            "JUGG-STOP",
+            "decision computed "
+            f"projects=0 pendingProjects=0 "
+            f"sessionWriteSeen=False needsVerification=False "
+            f"stopBlockCount={block_count}",
+        )
+        debug_log("JUGG-STOP", "exit: allow stop because no session write was recorded")
         if args.client in {"cursor", "antigravity"}:
             print(json.dumps({}, ensure_ascii=False))
         return 0
 
-    file_counts = extract_file_counts(structured)
-    has_pending = has_pending_files(file_counts)
-    session_write_seen = has_session_write_seen(state)
-    needs_verification = session_write_needs_verification(state, structured)
+    project_cwds = state.get("projectCwds")
+    if not isinstance(project_cwds, list) or not project_cwds:
+        project_cwds = [project_cwd]
+    statuses = []
+    for candidate in project_cwds:
+        if not isinstance(candidate, str) or not candidate:
+            continue
+        structured = read_status_snapshot(home, candidate, timeout_seconds=10)
+        if structured is None:
+            statuses.append((candidate, None, False))
+            continue
+        statuses.append((candidate, structured, has_pending_files(extract_file_counts(structured))))
+    pending_statuses = [item for item in statuses if item[2]]
+    needs_verification = any(
+        session_write_needs_verification(state, item[1], item[0])
+        for item in pending_statuses
+        if item[1] is not None
+    )
     debug_log(
         "JUGG-STOP",
         "decision computed "
-        f"hasPending={has_pending} sessionWriteSeen={session_write_seen} "
-        f"needsVerification={needs_verification} "
-        f"stopBlockCount={block_count} pendingModifiedFiles={file_counts!r}",
+        f"projects={len(statuses)} pendingProjects={len(pending_statuses)} "
+        f"sessionWriteSeen={session_write_seen} needsVerification={needs_verification} "
+        f"stopBlockCount={block_count}",
     )
 
-    if not has_pending or not needs_verification:
+    if not needs_verification:
         if block_count > 0:
             state["stopBlockCount"] = 0
             write_hook_state(state_file, state)
         reason = (
-            "pendingModifiedFiles show no pending changes"
-            if not has_pending
-            else "session writes were already covered by Jugg verification"
-            if session_write_seen
+            "no Jugg project status was available"
+            if all(item[1] is None for item in statuses)
             else "no session write was recorded"
+            if not session_write_seen
+            else "session writes have no pending changes requiring verification"
         )
         debug_log("JUGG-STOP", f"exit: allow stop because {reason}")
         if args.client in {"cursor", "antigravity"}:
@@ -163,7 +180,11 @@ def _main_impl() -> int:
             if args.client in {"cursor", "antigravity"}:
                 print(json.dumps({}, ensure_ascii=False))
             return 0
-        status_summary = format_status_summary(structured)
+        summary_lines = []
+        for candidate, structured, _ in pending_statuses:
+            summary = format_status_summary(structured or {})
+            summary_lines.append(f"{candidate}:\n{summary}" if summary else f"{candidate}: pending changes")
+        status_summary = "\n".join(summary_lines)
         block_message = (
             f"{STOP_BLOCK_MESSAGE}\n{status_summary}"
             if status_summary

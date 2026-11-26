@@ -4,6 +4,8 @@ Investigate the user's Jugg problem with the same project knowledge available wh
 
 Jugg is an Android incremental build solution. Start with the project reading below to understand its Gradle baseline, incremental compilation, and deployment model before interpreting the error. An error label alone is not enough to classify the problem or end the investigation.
 
+The current knowledge-base root is `docs/ai/`. Older releases used `docs/ai_knowledge/`; if the selected revision lacks a `docs/ai/` file, retry that file once under `docs/ai_knowledge/` at the same revision. Keep the captured version boundary explicit.
+
 ## 1. Establish the Jugg Context
 
 Read the following in order before inspecting implementation code or attributing the cause. Reuse material already read in this investigation. Follow the knowledge-base workflow in AGENTS.md; complete the overview and navigation reading, then expand relevant sections of the runtime guide and selected topics.
@@ -11,10 +13,10 @@ Read the following in order before inspecting implementation code or attributing
 | Read | What it provides |
 | --- | --- |
 | [AGENTS.md](https://raw.githubusercontent.com/tencentmusic/jugg/main/AGENTS.md) | Repository investigation and evidence requirements. |
-| [00_overview.md](https://raw.githubusercontent.com/tencentmusic/jugg/main/docs/ai_knowledge/00_overview.md) | What Jugg does, the main compilation/deployment chain, and baseline boundaries. |
-| [99_index.md](https://raw.githubusercontent.com/tencentmusic/jugg/main/docs/ai_knowledge/99_index.md) | Topic selection and the minimum relevant reading. |
-| [98_code_map.md](https://raw.githubusercontent.com/tencentmusic/jugg/main/docs/ai_knowledge/98_code_map.md) | Implementation locations and component responsibilities. |
-| [09_plugin_runtime_debug.md](https://raw.githubusercontent.com/tencentmusic/jugg/main/docs/ai_knowledge/09_plugin_runtime_debug.md) | Log interpretation and evidence boundaries in sections 1–3, then the applicable symptom entry in section 4. |
+| [00_overview.md](https://raw.githubusercontent.com/tencentmusic/jugg/main/docs/ai/00_overview.md) | What Jugg does, the main compilation/deployment chain, and baseline boundaries. |
+| [99_index.md](https://raw.githubusercontent.com/tencentmusic/jugg/main/docs/ai/99_index.md) | Topic selection and the minimum relevant reading. |
+| [98_code_map.md](https://raw.githubusercontent.com/tencentmusic/jugg/main/docs/ai/98_code_map.md) | Implementation locations and component responsibilities. |
+| [09_plugin_runtime_debug.md](https://raw.githubusercontent.com/tencentmusic/jugg/main/docs/ai/09_plugin_runtime_debug.md) | Log interpretation and evidence boundaries in sections 1–3, then the applicable symptom entry in section 4. |
 
 Use the latest guide for investigation methods. Match implementation and support claims to the captured plugin version, tag, or commit; current main and current capability pages do not establish older behavior. Explain a version mismatch only where it limits the conclusion.
 
@@ -41,7 +43,7 @@ Use the complete diagnostic and task timeline to identify the actual failing sta
 | Why did the app crash after deployment? | Existing crash stack aligned with deployment time; relevant APK/incremental DEX and mapping when they distinguish explanations; section 4 of `09_plugin_runtime_debug.md` and the topic it selects. |
 | Is this an expected support boundary? | The capability page selected by the index/topic, the actual operation and plugin version, and the implementation guard when needed. Distinguish unsupported processing, missing prerequisites, ignored changes, and an unexpected failure of supported behavior. |
 
-Resolve topic paths under `docs/ai_knowledge/` using the repository or Raw base above. For a missing symbol, inspect how its source, generated output, or classpath should reach the compiler before deciding it is an application error. For runtime discrepancies, compare the particular affected class or resource before expanding into unrelated artifacts.
+Resolve topic paths under `docs/ai/` using the repository or Raw base above. For a missing symbol, inspect how its source, generated output, or classpath should reach the compiler before deciding it is an application error. For runtime discrepancies, compare the particular affected class or resource before expanding into unrelated artifacts.
 
 Trace from the component reporting the result to the input, branch, state transition, or output that actually determines it. Use existing Gradle/Jugg comparisons and history where they help distinguish explanations. Before concluding, look for evidence that could contradict the leading explanation and resolve observed conflicts. These are investigation checks, not mandatory report sections.
 

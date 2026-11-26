@@ -13,11 +13,11 @@ import com.sickworm.intellij.jugg.compiler.ICompiler
 import com.sickworm.intellij.jugg.compiler.file
 import com.sickworm.intellij.jugg.compiler.source.SourceCompiler
 import com.sickworm.intellij.jugg.mock.StdLogger
-import com.sickworm.intellij.jugg.project.data.KspInfo
-import com.sickworm.intellij.jugg.project.data.LibraryDependency
-import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
-import com.sickworm.intellij.jugg.project.ChangedFile
+import com.sickworm.intellij.jugg.project.info.KspInfo
+import com.sickworm.intellij.jugg.project.info.LibraryDependency
+import com.sickworm.intellij.jugg.project.info.ModuleBuildPathInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
+import com.sickworm.intellij.jugg.project.change.ChangedFile
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -782,7 +782,7 @@ class ARouterJuggAptProcessorTest {
             analyzer = com.sickworm.intellij.jugg.compiler.constref.ConstRefAnalyzer(context.logger),
             database = com.sickworm.intellij.jugg.compiler.constref.ConstRefCacheDatabase(File(temporary.root, "constref.db"), context.logger),
             logger = context.logger,
-            backgroundTaskRunner = com.sickworm.intellij.jugg.project.CoroutineBackgroundTaskRunner(scope),
+            taskRunnerManager = com.sickworm.intellij.jugg.project.runtime.createTestTaskRunnerManager(scope),
             repoSharedFingerprintStore = com.sickworm.intellij.jugg.compiler.constref.RepoSharedFingerprintStore(context.logger, File(temporary.root, "fingerprints.db")),
         )
         try {

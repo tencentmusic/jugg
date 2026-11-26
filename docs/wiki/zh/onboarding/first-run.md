@@ -1,6 +1,6 @@
 ---
 title: 首次运行
-description: 掌握 Jugg 首次运行建立 Gradle 基线流程、验证控制台增量标志与日常 3 秒热更机制。
+description: 建立 Gradle 基线、验证首次 Run 的结果，并理解后续增量运行。
 status: active
 tags:
   - onboarding
@@ -31,35 +31,33 @@ tags:
   -> 检测到尚无增量基线，自动调用 Gradle 编译完整 APK
   -> 安装并启动目标 App
   -> 后台收集 Class 关系、资源映射与 R 文件等后续增量所需基线产物
-  -> 基线建立完毕，后续代码与资源修改进入 3 秒旁路增量通道
+  -> 基线建立完毕，后续受支持的代码与资源修改可走增量编译
 ```
 
 > [!NOTE]
-> 仅首次运行需要完整 Gradle 编译。基线建立后，日常微调代码即可体验秒级极速反馈。
+> 没有可用基线时，首次 Run 需要完整 Gradle 构建。后续 Run 可在基线有效时增量编译；构建配置或依赖变化、不受支持的处理，以及主动回退，都可能需要再次完整构建。
 
 ## 3. 验证成功标志：控制台日志特征
 
 首次运行成功后，Android Studio 底部的 **Run** 工具窗口会输出 Jugg 的编排进度：
 
 ```text
-[Jugg] Starting Jugg Run for app...
-[Jugg] Baseline not found, falling back to full Gradle build...
-[Jugg] Gradle build succeeded. Installing APK...
-[Jugg] Jugg baseline established successfully. Ready for incremental builds!
+Gradle BUILD_AND_INSTALL SUCCESSFUL in <elapsed>s.
+App launched.
 ```
 
-看到上述基线就绪提示后，说明 Jugg 已经接管该工程的增量编译。
+这些日志确认 Gradle 构建、安装和启动成功。基线准备还会在后台继续；仅凭这些日志不能确认增量编译已经就绪。后续 Run 的结果见[运行 App](../guide/run.md)。
 
 ## 4. 日常开发：3 秒增量热更与生效路径
 
 在基线建立后，日常对 Java、Kotlin、XML 布局或 Assets 的小范围修改，直接继续点击 **Jugg Run**（或快捷键 `Ctrl + R` / `Shift + F10`）：
 
-| 修改场景 | Jugg 决策路径 | 预期反馈耗时 |
+| 修改场景 | Jugg 决策路径 | 预期结果 |
 |---|---|---|
-| **修改方法体 / 新增私有方法** | 增量编译类文件并执行热更 (Hot Swap) | **约 1 ~ 3 秒**（无需重启 App） |
-| **修改 XML Layout / 图片资源** | 增量生成资源表并推送到应用沙盒 | **约 2 ~ 3 秒**（即时刷新生效） |
-| **修改类签名 / 新增 Activity** | 增量重打包 APK 并自动重启目标 Activity | **约 3 ~ 5 秒** |
-| **修改 `build.gradle` / 依赖库** | 自动安全回退至完整 Gradle 构建，刷新基线 | 依工程完整构建耗时而定 |
+| **修改方法体** | 增量编译变化的 class；受支持时走 Hot Reload | 可避免重启 App；设备兼容性或其它变化仍可能要求重启 |
+| **修改 XML Layout / 图片资源** | 编译并部署变化的资源 | 受支持时刷新 Activity，否则重启 App |
+| **新增方法 / 修改类签名 / 新增 Activity** | 受支持时走 Hot Fix 并重启 App；必要时回退 Gradle | 重启后进程状态重置；Activity 声明还可能需要处理 Manifest |
+| **修改 `build.gradle` / 依赖库** | 判断是否需要完整 Gradle 构建，并刷新基线 | 准备好完整构建；总耗时取决于工程 |
 
 ## 5. 什么时候需要主动回退 Gradle
 

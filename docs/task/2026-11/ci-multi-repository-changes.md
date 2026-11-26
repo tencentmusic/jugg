@@ -1,5 +1,9 @@
 # CI 多仓库变更查询
 
+**Purpose** — Compare a build against all modeled repositories.
+**Decision** — Use recorded full-build commits for external repositories.
+**Impact** — CI can classify changes beyond the primary checkout.
+
 ## 场景与范围
 
 Android_Demo 使用外部源码仓库时，仅对主仓库做 Git diff 会漏掉 SDK 源码及其注解变更。调用方需要知道每个文件所属的 Git 根目录，也需要完整仓库列表以分析没有文件变更的仓库。本次包含 Jugg CLI 与 Android_Demo CI 脚本的配套改动，分别提交到各自仓库。

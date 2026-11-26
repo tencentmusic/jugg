@@ -13,7 +13,7 @@ import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestSourceParseException
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestSourceParser
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestSourceSelection
-import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import java.io.File
 
 /**
@@ -32,6 +32,7 @@ class InstrumentMcpToolAction : McpToolAction {
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,
+                "serial" to McpToolSchemas.serialProperty,
                 "sourcePath" to McpJsonSchemaProperty(
                     type = "string",
                     description = "Test source file path under src/androidTest. Relative paths are resolved against projectDir.",
@@ -81,6 +82,7 @@ class InstrumentMcpToolAction : McpToolAction {
             androidTestRunSpec = spec,
             buildTargetOverride = BuildTarget.ANDROID_TEST,
             waitAppReadyAfterSuccess = false,
+            targetDeviceSerial = arguments.deviceSerial(),
         )
     }
 

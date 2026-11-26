@@ -142,10 +142,10 @@ class BuildChangesConfirmDialog(
         fun showAndGetResult(
             project: Project,
             changedBuildFiles: List<Pair<File, File?>>,
-            title: String = "Build Files Changed Confirm",
+            title: String = "Build files changed confirm",
             fallbackButtonText: String = "Fallback to Gradle",
-            findChangeButtonText: String = "Incremental Compile Changed Libraries",
-            ignoreButtonText: String = "Ignore Gradle Changes",
+            findChangeButtonText: String = "Incremental compile changed libraries",
+            ignoreButtonText: String = "Ignore Gradle changes",
         ): BuildChangesConfirmResult {
             val sortedChangedBuildFiles = changedBuildFiles.sortedBy {
                 it.first.relativeTo(File(project.basePath!!)).path

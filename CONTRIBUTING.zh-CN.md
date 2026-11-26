@@ -19,7 +19,7 @@
 
 ## 反馈缺陷
 
-请使用 [Bug 反馈](https://github.com/tencentmusic/jugg/issues/new?template=01_bug_report_zh.yml) 模板。
+请使用 [Bug 反馈](https://github.com/tencentmusic/jugg/issues/new?template=04_bug_report_zh.yml) 模板。
 
 1. 说明非预期行为、期望结果，以及最短复现步骤。
 2. 按优先级提供你能给出的最高优先级诊断材料：
@@ -40,7 +40,7 @@
 
 ## 提出功能建议
 
-请使用 [功能建议](https://github.com/tencentmusic/jugg/issues/new?template=02_feature_request_zh.yml) 模板。
+请使用 [功能建议](https://github.com/tencentmusic/jugg/issues/new?template=05_feature_request_zh.yml) 模板。
 
 描述真实使用场景和期望的用户可观察结果即可，不必设计内部实现。
 
@@ -68,6 +68,8 @@ git lfs pull
 - `buildPlugin` 会把插件 zip 输出到 `idea/build/distributions`。
 - `runIde` 会启动一个用于开发调试的 IDE。
 
+运行 Gradle 时，通过 `JAVA_HOME` 选择 JDK 17（例如 `JAVA_HOME=/path/to/jdk-17 ./gradlew :idea:buildPlugin`）。JDK 21 编译器会在 JVMTI agent 类中生成未命名的合成构造函数参数，插件内置的 D8 无法处理，导致 `:jvmti_agent:buildInstrumentJar` 失败。切换 JDK 后，先让 Gradle 重新编译 agent 类，再打包插件。
+
 只有需要在真实 Android 工程和设备上验证时，才把构建出的插件安装到本机 Android Studio。
 
 ## 仓库结构
@@ -79,7 +81,7 @@ git lfs pull
 | `deploy_compat/` | Android Studio 版本兼容 |
 | `cmd_line/` | 命令行入口 |
 | `docs/wiki/` | 用户 Wiki |
-| `docs/ai_knowledge/` | 维护者 / AI 架构说明 |
+| `docs/ai/` | 维护者 / AI 架构说明 |
 
 只改行为所属模块。优先用能解决问题的最小补丁。
 
@@ -128,7 +130,7 @@ logger.warn("message bla bla bla" +
 - 二级 tag 标记功能领域，不是 Gradle 模块名或任务状态。优先选择最具体的现有 tag；跨领域提交选主要行为 owner，互不相关的改动分开提交：
   - 编译与项目：`[compile]`、`[native build]`（Flutter/C++）、`[dependency incremental]`、`[kmp opt-in]`、`[hilt]`、`[project]`（Gradle 项目模型）
   - 部署：`[deploy]`、`[system app]`（含 rootless）、`[custom install]`（APK 安装脚本）
-  - IDE 与工具：`[ide]`、`[settings]`、`[compat]`（Android Studio 版本适配）、`[mcp]`、`[cli]`、`[agent]`、`[diagnostics]`（日志与问题报告）
+  - IDE 与工具：`[ide]`、`[settings]`、`[compat]`（Android Studio 版本适配）、`[mcp]`、`[cli]`、`[ci]`（CI 构建编排）、`[agent]`、`[diagnostics]`（日志与问题报告）
   - 工程与内容：`[build]`（仓库构建/CI/打包，不是插件运行时编译）、`[release]`、`[test suite]`、`[wiki]`（用户 Wiki）、`[docs]`（其他文档）、`[repo]`（仓库级规则）
   - 沿用小写英文及空格分词写法，不造同义词；确需新增领域时先确定稳定名称和职责，并同步本规范与 `AGENTS.md`、`CLAUDE.md`。
 - 标题优先描述用户场景和可观察结果，不描述内部实现。
@@ -166,8 +168,8 @@ logger.warn("message bla bla bla" +
 
 ## 文档
 
-- **用户 Wiki** 位于 `docs/wiki`。`docs/wiki/zh/` 下的中文页面是内容基准，英文页面需要保持同步。
-- **维护者说明** 位于 `docs/ai_knowledge`。改动影响插件内部、编译/部署行为或 AI 任务路由时，请同步更新。
+- **用户 Wiki** 位于 `docs/wiki`。英文根路径页面是内容基准，`docs/wiki/zh/` 下的中文页面需要保持同步。
+- **维护者说明** 位于 `docs/ai`。改动影响插件内部、编译/部署行为或 AI 任务路由时，请同步更新。
 - 不要把内部类名写进面向普通用户的 Wiki，除非该名称本身对用户可见。
 
 ## 社区

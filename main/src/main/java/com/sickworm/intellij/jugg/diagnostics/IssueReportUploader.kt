@@ -6,6 +6,7 @@ import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.asRequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import java.net.URI
 
 /**
@@ -21,6 +22,7 @@ class IssueReportUploader(
         autoUpload: IssueReportAutoUpload? = null,
         projectName: String? = null,
         username: String? = null,
+        verifiedContent: ByteArray? = null,
     ): IssueReportUploadResult {
         return try {
             val destination = bundle.destination
@@ -30,7 +32,8 @@ class IssueReportUploader(
             val endpoint = validateUrl(destination.uploadUrl, destination.backendServerUrl != null)
             val body = MultipartBody.Builder()
                 .setType(MultipartBody.FORM)
-                .addFormDataPart("file", bundle.file.name, bundle.file.asRequestBody("application/zip".toMediaType()))
+                .addFormDataPart("file", bundle.file.name, verifiedContent?.toRequestBody("application/zip".toMediaType())
+                    ?: bundle.file.asRequestBody("application/zip".toMediaType()))
                 .apply {
                     if (autoUpload != null) {
                         addFormDataPart("is_auto_upload", "true")

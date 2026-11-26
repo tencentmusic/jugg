@@ -11,8 +11,8 @@ import com.sickworm.intellij.jugg.compiler.getDexMinApi
 import com.sickworm.intellij.jugg.mock.SimpleCompileContext
 import com.sickworm.intellij.jugg.mock.StdLogger
 import com.sickworm.intellij.jugg.mock.TestGlobal
-import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ModuleBuildPathInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test

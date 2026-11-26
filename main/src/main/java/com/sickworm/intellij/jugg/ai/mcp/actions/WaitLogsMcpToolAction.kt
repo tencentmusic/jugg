@@ -1,8 +1,6 @@
 package com.sickworm.intellij.jugg.ai.mcp.actions
 
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
-import com.sickworm.intellij.jugg.ai.mcp.DeviceSelectionResolver
-import com.sickworm.intellij.jugg.ai.mcp.DeviceSelectionResult
 import com.sickworm.intellij.jugg.ai.mcp.IMcpRuntime
 import com.sickworm.intellij.jugg.ai.mcp.McpArtifact
 import com.sickworm.intellij.jugg.ai.mcp.McpErrorCode
@@ -14,8 +12,7 @@ import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
 import com.sickworm.intellij.jugg.ai.mcp.util.CrashDetector
 import com.sickworm.intellij.jugg.ai.mcp.util.CrashSignal
 import com.sickworm.intellij.jugg.ai.mcp.util.LastDeployTimestampRegistry
-import com.sickworm.intellij.jugg.platform.PlatformApi
-import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import java.io.File
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
@@ -43,6 +40,7 @@ class WaitLogsMcpToolAction(
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,
+                "serial" to McpToolSchemas.serialProperty,
                 "marker" to McpJsonSchemaProperty(
                     type = "string",
                     description = "Stop-condition regex (Java Pattern dialect) matched against log message part.",
@@ -92,13 +90,15 @@ class WaitLogsMcpToolAction(
             return errorResult(McpErrorCode.INVALID_REGEX, "Invalid marker regex at index ${e.index}: ${e.description}")
         }
 
-        // --- deploy baseline ---
-        val sinceTime = timestampRegistry.getTimestamp(projectDir)
-            ?: return errorResult(McpErrorCode.NO_DEPLOY_BASELINE, "No deploy baseline found for project. Run deploy or restart first.")
+        val targetDeviceSerial = arguments.deviceSerial()
+        val adb = when (val result = resolveMcpSingleDevice(runtime, toolName, targetDeviceSerial)) {
+            is McpSingleDeviceResult.Selected -> result.adb
+            is McpSingleDeviceResult.Failure -> return result.result
+        }
 
-        // --- device ---
-        val adb = resolveAdb(runtime)
-            ?: return errorResult(McpErrorCode.NO_DEVICE, "No connected device is available.")
+        // --- deploy baseline ---
+        val sinceTime = timestampRegistry.getTimestamp(projectDir, targetDeviceSerial)
+            ?: return errorResult(McpErrorCode.NO_DEPLOY_BASELINE, "No deploy baseline found for project. Run deploy or restart first.")
 
         val packageName = runtime.deployTargetManager.getPackageNameOrNull() ?: ""
 
@@ -280,14 +280,6 @@ class WaitLogsMcpToolAction(
         if (packageName.isBlank()) return emptySet()
         val raw = runCatching { adb.execAdbShellCmd("pidof $packageName") }.getOrDefault("")
         return PID_REGEX.findAll(raw).mapNotNull { it.value.toIntOrNull() }.toSet()
-    }
-
-    private fun resolveAdb(runtime: IMcpRuntime): IDeviceAdb? {
-        val selectionResult = DeviceSelectionResolver().resolve(runtime.deployTargetManager)
-        if (selectionResult !is DeviceSelectionResult.Selected) return null
-        val adb = PlatformApi.toDeviceAdb(selectionResult.device) ?: return null
-        if (!adb.isOnline) return null
-        return adb
     }
 
     private fun prepareAllLogsFile(projectDir: String): File? {

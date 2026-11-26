@@ -3,7 +3,7 @@ package com.sickworm.intellij.jugg.gradle.compile
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.jvmti_agent.BuildConfig
 import com.sickworm.intellij.jugg.logger.TimeLogger
-import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 
 /**
  * GradleScriptWriter writes gradle script output.

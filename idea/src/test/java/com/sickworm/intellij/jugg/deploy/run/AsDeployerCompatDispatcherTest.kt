@@ -140,10 +140,28 @@ class AsDeployerCompatDispatcherTest {
         throw AssertionError("Expected business error")
     }
 
+    @Test
+    fun `fallback session remains bound to the implementation that created it`() {
+        val priority = FakeCompatImpl("priority", error = NoSuchMethodError("priority deployer API"))
+        val fallback = FakeCompatImpl("fallback")
+        val dispatcher = AsDeployerCompatDispatcher(
+            implementations = listOf(priority, fallback),
+            priorityImplementation = priority,
+            nameOf = { it.name },
+            logDebug = {},
+            logWarn = {},
+        )
+
+        val session = dispatcher.invoke { it.createSession() }
+
+        assertSame(fallback, session.applyChangesExecutor)
+        assertEquals(1, fallback.callCount)
+    }
+
     private class FakeCompatImpl(
         val name: String,
         private val error: Throwable? = null,
-    ) {
+    ) : IApplyChangesExecutor by mock() {
         var callCount = 0
             private set
 
@@ -151,6 +169,11 @@ class AsDeployerCompatDispatcherTest {
             callCount++
             error?.let { throw it }
             return name
+        }
+
+        fun createSession(): JuggInstallSession {
+            call()
+            return JuggInstallSession(this, mock(), name, { JuggInstallSession.PromptAction.UNINSTALL }, {})
         }
     }
 }

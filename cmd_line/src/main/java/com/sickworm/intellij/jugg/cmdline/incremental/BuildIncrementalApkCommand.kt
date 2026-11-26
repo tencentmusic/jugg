@@ -4,12 +4,12 @@ import com.intellij.openapi.util.Disposer
 import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.sickworm.intellij.jugg.cmdline.logger.CmdLineLogger
 import com.sickworm.intellij.jugg.compiler.*
+import com.sickworm.intellij.jugg.compiler.ui.TooManyChangesConfirmResult
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.gradle.compile.isChild
-import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.logger.TimeLogger
-import com.sickworm.intellij.jugg.project.ChangedFile
-import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.project.change.ChangedFile
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
@@ -94,7 +94,7 @@ class BuildIncrementalApkCommand(private val params: Params) {
     private fun getCompilerHelper(): IncrementalCompilerHelper {
         val juggCompiler = JuggCompiler(contextManager.compileContext, contextManager.disposer)
         contextManager.customCompilerManager.setCustomCompilerJars(params.customCompilerJars)
-        contextManager.customCompilerManager.init(contextManager.compileContext, juggCompiler)
+        contextManager.customCompilerManager.init(contextManager.compileContext)
 
         return IncrementalCompilerHelper(
             juggCompiler,
@@ -162,12 +162,11 @@ class BuildIncrementalApkCommand(private val params: Params) {
     }
 
     private fun compile(compilerHelper: IncrementalCompilerHelper, changedFiles: List<ChangedFile>): CompileTaskResult {
-        // no limit to compile failed because we will merge dex at the last
-        JuggSettings.maxCompileSourceFilePoints = Int.MAX_VALUE
-        JuggSettings.maxCompileSourceModules = Int.MAX_VALUE
-
-        val compileTaskResult = compilerHelper.compile(changedFiles,
-            CompileUiHandler.DEFAULT, CompileUiHandler.DEFAULT.createCompileStatusHolder())
+        // CI merges the DEX output itself and accepts large change sets without changing user settings.
+        val uiHandler = object : CompileUiHandler by CompileUiHandler.DEFAULT {
+            override fun confirmTooManyChanges(info: TooManyChangesInfo) = TooManyChangesConfirmResult.CONTINUE
+        }
+        val compileTaskResult = compilerHelper.compile(changedFiles, uiHandler, uiHandler.createCompileStatusHolder())
         if (!compileTaskResult.isSuccess) {
             return compileTaskResult // return directly
         }

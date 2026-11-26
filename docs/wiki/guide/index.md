@@ -37,7 +37,7 @@ These pages are for everyday Jugg users who have already installed the plugin an
 
 ```text
 Change code or resources
-  -> Select a device and Jugg Run Configuration in Android Studio
+  -> Select a device and Jugg run configuration in Android Studio
   -> Click Run or Debug
   -> Jugg saves files and chooses incremental compilation or Gradle
   -> Jugg deploys automatically after compilation succeeds

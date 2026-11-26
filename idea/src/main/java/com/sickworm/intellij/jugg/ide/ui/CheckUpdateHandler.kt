@@ -2,8 +2,8 @@ package com.sickworm.intellij.jugg.ide.ui
 
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
+import com.sickworm.intellij.jugg.project.runtime.ProjectCustomConfigManager
 import com.sickworm.intellij.jugg.logger.getInstance
-import com.sickworm.intellij.jugg.project.CustomConfigManager
 import com.sickworm.intellij.jugg.server.protocols.VersionData
 
 /**
@@ -12,7 +12,7 @@ import com.sickworm.intellij.jugg.server.protocols.VersionData
 class CheckUpdateHandler(
     private val project: Project,
     private val currentVersion: String,
-    private val customConfigManager: CustomConfigManager,
+    private val projectCustomConfigManager: ProjectCustomConfigManager,
     private val logger: Logger,
     private val refreshSettings: () -> Unit,
 ) {
@@ -35,7 +35,7 @@ class CheckUpdateHandler(
 
         if (versionData.customConfigJson != null) {
             versionData.customConfigJson?.let { config ->
-                customConfigManager.updateDefaultConfig(config)
+                projectCustomConfigManager.updateDefaultConfig(config)
                 try {
                     if (ProjectDefaultSettingsApplier(project, logger.getInstance("ProjectDefaultSettingsApplier")).apply(config)) {
                         try {

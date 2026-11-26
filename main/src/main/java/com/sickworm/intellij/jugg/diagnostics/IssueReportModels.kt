@@ -50,7 +50,7 @@ data class IssueReportBundle(
     val reportId: String,
     val file: File,
     val entries: List<IssueReportEntry>,
-    val destination: IssueReportDestination,
+    val destination: IssueReportDestination = IssueReportDestination.Public,
 )
 
 data class IssueReportUploadResult(

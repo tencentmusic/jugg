@@ -13,6 +13,7 @@ import org.junit.Assert
 import org.junit.Before
 import org.junit.Test
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
 class McpLocalServerTest {
 
@@ -63,6 +64,20 @@ class McpLocalServerTest {
         McpLocalServer.start()
         Assert.assertTrue(McpLocalServer.isRunning())
         Assert.assertTrue(McpLocalServer.getPort() in 12320..12329)
+    }
+
+    @Test
+    fun testAnyHttpRequestRefreshesExternalActivity() {
+        val activityCount = AtomicInteger()
+        McpLocalServer.start { activityCount.incrementAndGet() }
+
+        val request = Request.Builder()
+            .url("http://localhost:${McpLocalServer.getPort()}/jugg-mcp")
+            .get()
+            .build()
+        client.newCall(request).execute().close()
+
+        Assert.assertEquals(1, activityCount.get())
     }
 
     @Test

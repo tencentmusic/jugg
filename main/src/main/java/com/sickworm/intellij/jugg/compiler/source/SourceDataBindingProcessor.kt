@@ -13,7 +13,7 @@ import com.sickworm.intellij.jugg.compiler.databinding.hasDataBindingAdapterDecl
 import com.sickworm.intellij.jugg.compiler.source.kotlin.KotlinCompiler
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.logger.getInstance
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import java.io.File
 
 /**

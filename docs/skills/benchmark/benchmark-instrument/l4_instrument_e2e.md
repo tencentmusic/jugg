@@ -1,89 +1,83 @@
-# L4 instrument 端到端组合
+# L4 End-to-End instrument Combinations
 
-目标：验证 Agent 在端到端流程中能正确组合前置检查、编译部署、instrument 执行和结果判断。
+Goal: Check whether the agent correctly combines prerequisite checks, compilation/deployment, instrument execution, and result assessment.
 
-## INST-E2E-1: 完整 instrument 闭环（app 模块）
+## INST-E2E-1: Complete App-Module Loop
 
-Prompt：帮我用 jugg instrument 完成一次 app 模块的 androidTest 验证。运行 `AppLogicInstrumentedTest` 全部方法，记录测试结果。
+Prompt: Use jugg instrument to verify app-module androidTest. Run all methods in `AppLogicInstrumentedTest` and record their results.
 
-期望：
-- 先检查前置：`jugg status` → 确认 `enabledAndroidTest=true`，`jugg devices` → 确认设备在线。
-- 前置未满足时记 `SKIP` 并说明原因。
-- 执行 `jugg instrument --source-path app/src/androidTest/java/com/example/myapplication/AppLogicInstrumentedTest.kt`。
-- 等待终态（自动轮询到 `isFinal=true`）。
-- 记录 `isCompileSuccess`、`isDeploySuccess`、每个测试方法的结果（pass/fail/error）。
-- 不使用 `adb shell am instrument` 替代。
+Expected:
+- Check prerequisites first: `jugg status` confirms `enabledAndroidTest=true` and `jugg devices` confirms an online device.
+- On an unmet prerequisite, record `SKIP` and explain why.
+- Run `jugg instrument --source-path app/src/androidTest/java/com/example/myapplication/AppLogicInstrumentedTest.kt`.
+- Wait for a terminal result (automatic polling until `isFinal=true`).
+- Record `isCompileSuccess`, `isDeploySuccess`, and each method's pass/fail/error result.
+- Do not substitute `adb shell am instrument`.
 
-## INST-E2E-2: 完整 instrument 闭环（library 模块）
+## INST-E2E-2: Complete Library-Module Loop
 
-Prompt：运行 `library1` 模块的 `Library1LogicInstrumentedTest`，并记录结果。
+Prompt: Run `Library1LogicInstrumentedTest` in the `library1` module and record the result.
 
-期望：
-- 先检查前置。
-- 执行 `jugg instrument --source-path library1/src/androidTest/java/com/example/library1/Library1LogicInstrumentedTest.kt`。
-- 正确识别这是 library-style self-targeting Test APK。
-- 记录编译、部署和测试执行结果。
+Expected:
+- Check prerequisites first.
+- Run `jugg instrument --source-path library1/src/androidTest/java/com/example/library1/Library1LogicInstrumentedTest.kt`.
+- Recognize its library-style self-targeting Test APK.
+- Record compile, deploy, and test results.
 
-## INST-E2E-3: 单方法 instrument 闭环
+## INST-E2E-3: Single-Method Loop
 
-Prompt：只运行 `AppUiInstrumentedTest` 的 `mainActivityShowsTitle` 方法，这个方法会启动 MainActivity 并验证页面标题。
+Prompt: Run only `mainActivityShowsTitle` in `AppUiInstrumentedTest`. It starts MainActivity and checks the page title.
 
-期望：
-- 先检查前置。
-- 执行 `jugg instrument --source-path app/src/androidTest/java/com/example/myapplication/AppUiInstrumentedTest.kt --class com.example.myapplication.AppUiInstrumentedTest --method mainActivityShowsTitle`。
-- 记录该方法的 pass/fail 结果。
-- 只验证该方法执行，不跑其他 UI test 方法。
+Expected:
+- Check prerequisites first.
+- Run `jugg instrument --source-path app/src/androidTest/java/com/example/myapplication/AppUiInstrumentedTest.kt --class com.example.myapplication.AppUiInstrumentedTest --method mainActivityShowsTitle`.
+- Record the method's pass/fail result.
+- Verify only that method ran, not the other UI test methods.
 
-## INST-E2E-4: 前置检查失败时的完整拒绝流程
+## INST-E2E-4: Refuse When Prerequisites Fail
 
-Prompt：帮我运行 instrument 测试。
+Prompt: Run an instrument test for me.
 
-期望：
-- Agent 应先执行 `jugg status` 和 `jugg devices` 检查前置。
-- 如果 `enabledAndroidTest=false`：
-  - 停止执行 instrument。
-  - 清晰提示：需要打开 Jugg App Run Configuration → 开启 Android Test → 执行 `gradle-build` 建立 baseline → 再试。
-  - 记 `SKIP: enabledAndroidTest=false` 并描述所需操作。
-- 如果无设备：
-  - 记 `SKIP: no device`。
-- 不得跳过前置检查直接执行 instrument。
+Expected:
+- Check `jugg status` and `jugg devices` first.
+- If `enabledAndroidTest=false`, stop before instrument, explain how to open the Jugg App Run Configuration → enable Android Test → run `gradle-build` to establish the baseline → retry, and record `SKIP: enabledAndroidTest=false`.
+- If there is no device, record `SKIP: no device`.
+- Do not run instrument before checking prerequisites.
 
-## INST-E2E-5: 先通过 instrument 建立基线再 adb 大范围回归
+## INST-E2E-5: Instrument First, Then Broad adb Regression
 
-Prompt：用 `jugg instrument` 把 app 源码和 test 源码变更部署到位，然后我想用 adb 跑更大范围的回归测试。
+Prompt: Use `jugg instrument` to deploy the app and test source changes; then I want to run a broader regression with adb.
 
-期望：
-- 先用一次 `jugg instrument --source-path app/src/androidTest/java/com/example/myapplication/AppLogicInstrumentedTest.kt` 完成编译部署。
-- instrument 成功后，提示可以使用普通 `adb shell am instrument` 做 class/package/suite 级回归。
-- 不得一开始就用 adb 跳过 jugg instrument 的编译部署环节。
+Expected:
+- First run `jugg instrument --source-path app/src/androidTest/java/com/example/myapplication/AppLogicInstrumentedTest.kt` to complete compilation and deployment.
+- After instrument succeeds, explain that ordinary `adb shell am instrument` can run class/package/suite-level regression.
+- Do not start with adb and skip jugg instrument's build/deploy stage.
 
-## INST-E2E-6: 参数全局位置正确
+## INST-E2E-6: Correct Global Argument Placement
 
-Prompt：用 JSON 模式运行 instrument，执行 `AppLogicInstrumentedTest`。
+Prompt: Run `AppLogicInstrumentedTest` with instrument in JSON mode.
 
-期望：
-- 选择 `jugg --console=json instrument --source-path app/src/androidTest/java/com/example/myapplication/AppLogicInstrumentedTest.kt`。
-- `--console=json` 必须放在 `instrument` 前。
-- `jugg instrument --console=json --source-path ...` 判为参数位置错误。
+Expected:
+- Select `jugg --console=json instrument --source-path app/src/androidTest/java/com/example/myapplication/AppLogicInstrumentedTest.kt`.
+- Place `--console=json` before `instrument`.
+- Treat `jugg instrument --console=json --source-path ...` as incorrect argument placement.
 
-## INST-E2E-7: 执行后定位日志中的测试方法
+## INST-E2E-7: Identify Method Logs After Execution
 
-Prompt：运行 `AppLogicInstrumentedTest`，确认 `targetContextUsesAppPackage` 方法的结果和对应日志。
+Prompt: Run `AppLogicInstrumentedTest` and confirm the result and corresponding logs for `targetContextUsesAppPackage`.
 
-期望：
-- 执行完整的 instrument 闭环。
-- 从 instrument 输出中提取以下信息：
-  - `targetContextUsesAppPackage` 方法的 pass/fail 状态。
-  - 该方法对应的 logcat 日志（如有）。
-- 不把其他方法的日志或设备级日志错误归入该方法。
+Expected:
+- Complete the full instrument loop.
+- Extract `targetContextUsesAppPackage` pass/fail status and its logcat messages, if any, from instrument output.
+- Do not attribute another method's or device-level log errors to this method.
 
-## INST-E2E-8: 两个模块连续 instrument
+## INST-E2E-8: Instrument Two Modules in Sequence
 
-Prompt：依次运行 app 模块的 `AppLogicInstrumentedTest` 和 library1 模块的 `Library1LogicInstrumentedTest`，记录两次结果。
+Prompt: Run `AppLogicInstrumentedTest` in app, then `Library1LogicInstrumentedTest` in library1, and record both results.
 
-期望：
-- 每次 instrument 前确认前置仍然满足。
-- 第一条：`jugg instrument --source-path app/src/androidTest/java/com/example/myapplication/AppLogicInstrumentedTest.kt`。
-- 第二条：`jugg instrument --source-path library1/src/androidTest/java/com/example/library1/Library1LogicInstrumentedTest.kt`。
-- 两次 instrument 各自记录结果，不混淆。
-- 不在第一条 instrument 执行期间并发第二条。
+Expected:
+- Recheck prerequisites before each instrument call.
+- First: `jugg instrument --source-path app/src/androidTest/java/com/example/myapplication/AppLogicInstrumentedTest.kt`.
+- Second: `jugg instrument --source-path library1/src/androidTest/java/com/example/library1/Library1LogicInstrumentedTest.kt`.
+- Record the results separately.
+- Do not start the second while the first is still running.

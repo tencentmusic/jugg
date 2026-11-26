@@ -16,7 +16,7 @@ Before editing anything, confirm the current working tree is a Jugg repository. 
 - `build.gradle`
 - `change_log/change_log_rc.yaml`
 - `change_log/change_log_rc_cn.yaml`
-- `docs/ai_knowledge/00_overview.md`
+- `docs/ai/00_overview.md`
 
 If those markers are missing, stop and tell the user this skill is only for Jugg projects.
 
@@ -34,7 +34,7 @@ Never treat a changelog-only request as a version bump. Never create a second `[
 
 Apply these rules to RC YAML and HTML in every workflow. A hash range, an uncommitted draft, or “only continue later commits” does not freeze existing lines or create a second inclusion policy.
 
-Draft `change_log/change_log_rc_cn.yaml` first. Mirror meaning into `change_log_rc.yaml` and both HTML pages. Do not write four independent summaries. Within one patch version, YAML and HTML include the same capability points. HTML still aggregates across patches inside one `X.Y` `<ol>`.
+Draft `change_log/change_log_rc.yaml` first. Mirror meaning into `change_log_rc_cn.yaml` and both HTML pages. Do not write four independent summaries. Within one patch version, YAML and HTML include the same capability points. HTML still aggregates across patches inside one `X.Y` `<ol>`.
 
 ### What to list
 
@@ -46,10 +46,10 @@ Every changelog entry in both YAML and HTML must use two tags: a primary categor
 
 - Primary tag: `[feature]`, `[optimize]`, or `[bugfix]`.
 - Secondary module tag: selected from the functional domains defined in `AGENTS.md`:
-  - 编译与项目：`[compile]`、`[native build]`、`[dependency incremental]`、`[kmp opt-in]`、`[hilt]`、`[project]`
-  - 部署：`[deploy]`、`[system app]`、`[custom install]`
-  - IDE 与工具：`[ide]`、`[settings]`、`[compat]`、`[mcp]`、`[cli]`、`[agent]`、`[diagnostics]`
-  - 工程与内容：`[build]`、`[release]`、`[test suite]`、`[wiki]`、`[docs]`、`[repo]`
+  - Compilation and project:`[compile]`, `[native build]`, `[dependency incremental]`, `[kmp opt-in]`, `[hilt]`, `[project]`
+  - Deployment:`[deploy]`, `[system app]`, `[custom install]`
+  - IDE and tools:`[ide]`, `[settings]`, `[compat]`, `[mcp]`, `[cli]`, `[agent]`, `[diagnostics]`
+  - Engineering and content:`[build]`, `[release]`, `[test suite]`, `[wiki]`, `[docs]`, `[repo]`
 - Historical versions: Earlier entries before the introduction of secondary tags may have only had a single tag; do not rewrite historical releases retroactively, but apply `[prefix][module]` consistently to the active version being authored or refreshed.
 
 Skip `[docs]`, `[test]`, `[refactor]`, and `[other]` unless they have user-visible product impact. Also skip skill, wiki, and repo-meta files (`.agents/skills`, `docs/skills`, `docs/wiki`, contributing/security templates).
@@ -71,7 +71,7 @@ Examples:
 
 ### Write for users
 
-Rewrite; do not transcribe git. Chinese RC is the content baseline.
+Rewrite; do not transcribe git. English RC is the content baseline.
 
 - Feature: `支持` / `兼容` + object, then the scene. Do not lead with pipeline steps.
 - Optimize: the user-perceived result (`耗时`, `更简洁的警告`). Not heartbeat, D8, JVMTI, or similar internals.
@@ -89,15 +89,27 @@ Rewrite; do not transcribe git. Chinese RC is the content baseline.
    - Otherwise increment the patch version from the existing Jugg plugin version.
    - Use the local date in `YYYY.MM.DD` format for changelog entries.
 
-3. Update version metadata:
+3. Determine whether the release needs a plugin reinstall:
+   - Resolve the same source commit range used for release notes, then run:
+     ```bash
+     python3 .agents/skills/jugg-update-version-changelog/scripts/detect_reinstall.py --range <commit-range>
+     ```
+   - The script reports `isNeedReinstall`, every checked file, and the files that require a reinstall. Use its boolean in both RC YAML files.
+   - Do not downgrade a `true` result. A `false` result only means that no known host-loaded or plugin-packaging path changed; still use `true` when the release changes another known host-loaded boundary.
+   - For a target version that already has an RC entry, run the script against the complete release range, not only the newest commit. Remove an existing `isNeedReinstall` field when the final result is `false`.
+
+4. Update version metadata:
    - Update the root `build.gradle` `versionName` value.
    - Keep formatting consistent with the existing file.
 
-4. Update RC changelog YAML with Changelog Entry Rules:
-   - Draft `change_log/change_log_rc_cn.yaml` first, then mirror meaning into `change_log/change_log_rc.yaml`.
+5. Update RC changelog YAML with Changelog Entry Rules:
+   - Update `change_log/change_log_rc.yaml`.
+   - Update `change_log/change_log_rc_cn.yaml`.
+   - Draft `change_log/change_log_rc.yaml` first, then mirror meaning into `change_log/change_log_rc_cn.yaml`.
    - Keep exactly one top-level `- version: X.Y.Z` declaration per patch version.
    - If the target version does not exist, prepend a new top-level entry.
    - If the target version already exists, amend that entry's `date`, `isNeedReinstall`, and `updates` as needed. Never create a second entry for the same patch version.
+   - Set `isNeedReinstall: true` exactly when the detection result is true; otherwise omit the field.
    - Include `date: YYYY.MM.DD`.
    - Keep English and Chinese content aligned by meaning, not by literal wording.
    - Prefix each `updates` item with `[prefix][module]`, e.g. `[feature][settings]`, `[optimize][ide]`, or `[bugfix][compile]`. The two tags must be placed directly adjacent with no space. Use the same tag pair as the matching HTML entry.
@@ -105,7 +117,7 @@ Rewrite; do not transcribe git. Chinese RC is the content baseline.
    - Quote YAML strings that start with `[` so they remain scalars, for example `- "[bugfix][compat] Fix startup crash on HarmonyOS 2 devices during compatibility hot-fix mode"`.
    - If tracked resource copies exist under `idea/src/main/resources/change_log/`, update those copies too. Do not create or stage untracked resource copies unless the repository already tracks them.
 
-5. Update HTML changelog pages:
+6. Update HTML changelog pages:
    - Update `change_log/change_log.html`.
    - Update `change_log/change_log_cn.html`.
    - If tracked resource copies exist under `idea/src/main/resources/change_log/`, update those copies too.
@@ -114,24 +126,24 @@ Rewrite; do not transcribe git. Chinese RC is the content baseline.
    - For a patch-only change within the same `X.Y` series, reuse the existing `<ol>` and update its `<h2>` version and date, for example `3.0.21` to `3.0.22 (2026.06.27)`.
    - If the exact target version section already exists, amend that section instead of creating a duplicate.
    - Keep one aggregated HTML section per minor series.
-   - Mirror the Chinese RC capability points with the same `[prefix][module]` tag pairs. Within one patch version, do not give HTML a different inclusion set or tagging from YAML.
+   - Mirror the English RC capability points with the same `[prefix][module]` tag pairs. Within one patch version, do not give HTML a different inclusion set or tagging from YAML.
    - Before adding an entry, compare its user-facing behavior with the existing entries in the active minor-series section. If the commit only fixes, optimizes, or refines a feature point already described there, do not add another HTML entry. Apply this rule equally to the English and Chinese HTML pages, and to RC YAML for the same patch.
    - Sort entries by category within the section: `[feature]`, then `[optimize]`, then `[bugfix]`. Preserve reasonable order inside each category.
    - If an entry has another recognized prefix from the repository's commit convention, place it after the three main product categories unless the user says otherwise.
 
-6. Verify:
+7. Verify:
    - Run `git diff --check`.
    - Run a targeted version check, usually `./gradlew :idea:properties --no-daemon | rg "Plugin Version|^version:"`.
    - For changelog-only/version metadata changes, do not add JOOX Android unit tests.
    - Inspect `git diff --stat` and `git diff -- <files>` before committing.
 
-7. Commit:
+8. Commit:
    - Use the exact commit message when the user provides one.
    - Otherwise use `[other] update version to X.Y.Z`.
    - Stage only files changed for this version/changelog task.
    - Never stage unrelated user changes or untracked generated files.
 
-8. Tag:
+9. Tag:
    - Create a lightweight tag named exactly `X.Y.Z` on the completed version commit, without a `v` prefix.
    - Create the tag only after the commit and all verification succeed.
    - If the tag already resolves to the completed version commit, treat tagging as complete.
@@ -148,7 +160,7 @@ Use this workflow when the plugin version stays `X.Y.Z`. The version-update comm
 3. Move the version-update commit to `HEAD` without squashing later commits. Replay `<version-commit>..HEAD` onto the version commit's parent, then cherry-pick the original version-update commit onto the new tip. Keep each later commit separate and in its original order.
 4. After the move, update changelog files from the newly included commits using Changelog Entry Rules:
    - Re-audit any existing draft for this version, then append only later commits that are not already covered.
-   - Draft Chinese RC first; mirror meaning into English RC and both HTML pages.
+   - Draft English RC first; mirror meaning into Chinese RC and both HTML pages.
    - Update `date` to the local date. Amend the matching RC declaration and follow the HTML aggregation and category-sort rules from the version workflow. Never create a second RC declaration or HTML section for the same patch version.
 5. Amend only those changelog file changes into the version-update commit now at `HEAD`. Keep the original subject, author, and author date. Do not change `versionName`. Do not squash `<version-commit>..ORIG_HEAD` into the version commit.
 6. Recreate the lightweight `X.Y.Z` tag on the amended `HEAD` only if the old tag pointed at the version commit that was moved. If it pointed elsewhere, stop and report the conflict. Do not push.
@@ -162,7 +174,7 @@ Use this workflow when the user says `版本提交收尾` or asks to summarize c
 
 1. Resolve the version commit and original `HEAD`, then verify the version commit is an ancestor of `HEAD` and the working tree is clean.
    - Resolve the exact version tag before rewriting. If it points to the version commit being finalized, recreate it on the amended successor only after the rewrite succeeds. If it points elsewhere, stop and report the conflict.
-2. Summarize the user-visible changes in `<version-commit>..HEAD` with Changelog Entry Rules. Draft Chinese RC first, then mirror into English RC and HTML. Amend the matching RC version entry and follow the same-patch inclusion and HTML aggregation rules.
+2. Summarize the user-visible changes in `<version-commit>..HEAD` with Changelog Entry Rules. Draft English RC first, then mirror into Chinese RC and HTML. Amend the matching RC version entry and follow the same-patch inclusion and HTML aggregation rules.
 3. Keep one RC declaration per patch: amend it when the version exists, or prepend it when the version does not exist.
 4. Commit only the changelog summary as a temporary standalone commit.
 5. Rewrite the commit order so every commit after the version commit remains a separate commit in its original order, followed by the version commit at the tip.
@@ -182,7 +194,7 @@ Git amend changes the commit hash. Report the new hash as the amended successor 
 | Copy commit subjects (`AGP D8`, heartbeat, `注入运行时脱糖`) | Rewrite the user-visible result and scope |
 | Promote a commit `[feature]` (hot reload) when users only see latency | Classify by user perception |
 | Absorb profile/debug metadata into Flutter/C++ source support | Keep distinct wrong behavior on its own line |
-| Update one changelog file and leave the other three stale | Chinese RC first, then mirror the other three |
+| Update one changelog file and leave the other three stale | English RC first, then mirror the other three |
 
 ## File Checklist
 
@@ -193,6 +205,8 @@ Usually inspect or edit these files:
 - `change_log/change_log_rc_cn.yaml`
 - `change_log/change_log.html`
 - `change_log/change_log_cn.html`
+
+The bundled `scripts/detect_reinstall.py` is read-only. Run it against the release commit range before editing release metadata.
 
 Only if tracked:
 
@@ -210,3 +224,4 @@ When the Jugg repository requires a final execution checklist, include the repos
 - The exact commit message or `N/A` if no repository commit was made.
 - The exact tag and target commit, or `N/A` if no tag was created or verified.
 - The exact verification commands run.
+- The `isNeedReinstall` decision and the matched file paths, or that no known reinstall path matched.

@@ -1,14 +1,14 @@
 package com.sickworm.intellij.jugg.compiler.external
 
 import com.sickworm.intellij.jugg.compiler.CompileOutput
-import com.sickworm.intellij.jugg.project.data.ExternalBuildGeneratedLanguage
-import com.sickworm.intellij.jugg.project.data.ExternalBuildGeneratedSourceDir
-import com.sickworm.intellij.jugg.project.data.ExternalBuildInfo
-import com.sickworm.intellij.jugg.project.data.ExternalBuildInputDir
-import com.sickworm.intellij.jugg.project.data.ExternalBuildInputFilterRule
-import com.sickworm.intellij.jugg.project.data.ExternalBuildPrerequisite
-import com.sickworm.intellij.jugg.project.data.ExternalBuildType
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ExternalBuildGeneratedLanguage
+import com.sickworm.intellij.jugg.project.info.ExternalBuildGeneratedSourceDir
+import com.sickworm.intellij.jugg.project.info.ExternalBuildInfo
+import com.sickworm.intellij.jugg.project.info.ExternalBuildInputDir
+import com.sickworm.intellij.jugg.project.info.ExternalBuildInputFilterRule
+import com.sickworm.intellij.jugg.project.info.ExternalBuildPrerequisite
+import com.sickworm.intellij.jugg.project.info.ExternalBuildType
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder

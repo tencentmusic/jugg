@@ -1,10 +1,12 @@
 package com.sickworm.intellij.jugg.cmdline
 
-import com.sickworm.intellij.jugg.deploy.DeployHistoryData
-import com.sickworm.intellij.jugg.project.JuggPathManager
-import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
-import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.cmdline.base.CiConstRefBaseline
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
+import com.sickworm.intellij.jugg.project.info.ProjectInfoSerializer
+import com.sickworm.intellij.jugg.project.info.JuggProjectInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -15,6 +17,24 @@ import kotlin.test.assertFailsWith
 class CiProjectInfoTest {
     @get:Rule val temporary = TemporaryFolder()
     private val logger = StdLogger("CiProjectInfoTest")
+
+    @Test fun `baseline scan publishes the index and releases child jobs`() {
+        CmdLine()
+        val paths = JuggPathManager(temporary.newFolder("checkout"))
+        paths.stableGradleDir.mkdirs()
+        val sourceDir = File(paths.projectDir, "src").apply { mkdirs() }
+        File(sourceDir, "Values.java").writeText("public class Values { public static final int VALUE = 1; }")
+        val module = ModuleInfo.virtualModule.copy(moduleRootDir = paths.projectDir, sourceDirs = listOf(sourceDir))
+        val baseline = CiConstRefBaseline(paths, logger)
+        try {
+            runBlocking {
+                withTimeout(15_000) { baseline.build(JuggProjectInfo(mapOf("app" to module), null), null) }
+            }
+            kotlin.test.assertTrue(paths.baselineConstRefDbFile.isFile)
+        } finally {
+            baseline.close()
+        }
+    }
 
     @Test fun `included modules join primary snapshot and survive baseline relocation`() {
         val source = temporary.newFolder("source")

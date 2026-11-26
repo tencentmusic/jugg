@@ -34,6 +34,8 @@ Direct dynamic attach currently handles one main process and recreates all live 
 
 After the system loads the Jugg startup agent, it first attempts to obtain JVMTI and JNI and records the result as available or unavailable. The state remains undetermined while the app has not started or no result has been produced.
 
+When compatibility deployment is enabled for the app, the startup Agent skips Framework hooks. Incremental DEX and Android resources then use the compatibility loader after restart. The following repairs apply to ordinary deployment.
+
 After obtaining JVMTI, the Agent installs hooks on Framework entry points such as Application, Resources, and ClassLoader, changing behavior only when a known problem is detected:
 
 - If some systems initialize the ClassLoader early and delivered incremental DEX does not enter the load path, the app runtime adds the corresponding DEX during startup.

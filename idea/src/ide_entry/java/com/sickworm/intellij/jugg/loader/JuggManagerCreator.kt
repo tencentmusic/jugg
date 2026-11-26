@@ -8,7 +8,7 @@ import com.sickworm.intellij.jugg.ide.IJuggManagerCaller
 import com.sickworm.intellij.jugg.ide.logic.IdeaPlatformApi
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.platform.PlatformApi
-import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import java.io.File
 
 /**

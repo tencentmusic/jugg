@@ -22,9 +22,9 @@ import com.sickworm.intellij.jugg.compiler.IIncrementalCompileFallbackChecker
 import com.sickworm.intellij.jugg.ai.mcp.IMcpRuntime
 import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
 import com.sickworm.intellij.jugg.ai.mcp.util.LastCompileTimestampRegistry
-import com.sickworm.intellij.jugg.project.ChangedFile
-import com.sickworm.intellij.jugg.project.JuggPathManager
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.change.ChangedFile
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import org.junit.Assert
 import org.junit.Rule
 import org.junit.Test
@@ -67,18 +67,57 @@ class GetStatusMcpToolActionTest {
 
     @Test
     fun testStatusReturnsIsCompilingWhenRunnerIsBusy() {
+        val projectDir = tempFolder.newFolder("project-busy")
+        val sourceFile = File(projectDir, "Busy.kt").apply {
+            writeText("class Busy")
+            setLastModified(1_000L)
+        }
+        writeFullCompileState(projectDir, BuildTarget.ANDROID_TEST)
+        val lastCompileRegistry = LastCompileTimestampRegistry().apply {
+            setTimestamp(projectDir.absolutePath, "2026-08-08 10:00:00")
+        }
+        var refreshed = false
+        var locked = false
         val runtime = runtimeWith(
-            deployState = JuggDeployState.READY,
+            deployState = JuggDeployState(
+                JuggDeployState.State.READY_INCREMENTAL_COMPILE,
+                "ready for incremental compile",
+                IdeDeployState.ok,
+            ),
             hasDevice = true,
-            uncompiledFiles = emptyList(),
+            uncompiledFiles = listOf(
+                ChangedFile(CompileFile.Type.Kotlin, sourceFile, projectDir, ModuleInfo.virtualModule),
+            ),
+            fallbackChecker = IIncrementalCompileFallbackChecker { "Build file changed" },
             isCompiling = true,
+            statusRefresh = { refreshed = true },
+            onProjectStateLock = { locked = true },
         )
 
-        val result = GetStatusMcpToolAction().execute(emptyMap(), runtime)
+        val result = GetStatusMcpToolAction(lastCompileTimestampRegistry = lastCompileRegistry).execute(
+            mapOf("projectDir" to projectDir.absolutePath),
+            runtime,
+        )
 
         @Suppress("UNCHECKED_CAST")
         val data = result.data as Map<String, Any>
         Assert.assertEquals(true, data["isCompiling"])
+        Assert.assertEquals("ready for incremental compile", data["stateMessage"])
+        Assert.assertEquals(true, data["needFallback"])
+        @Suppress("UNCHECKED_CAST")
+        val pendingFiles = data["pendingModifiedFiles"] as Map<String, Any>
+        Assert.assertEquals(1, (pendingFiles["total"] as Number).toInt())
+        Assert.assertEquals(1, (pendingFiles["Kotlin"] as Number).toInt())
+        @Suppress("UNCHECKED_CAST")
+        val files = data["files"] as List<String>
+        Assert.assertEquals(listOf(sourceFile.absolutePath), files)
+        Assert.assertEquals("Build file changed", data["detail"])
+        Assert.assertTrue((data["lastFileModifiedTime"] as String).isNotBlank())
+        Assert.assertEquals("2026-08-08 10:00:00", data["lastCompileTime"])
+        Assert.assertEquals(true, data["enabledAndroidTest"])
+        Assert.assertEquals(true, data["hasBeenFullCompiled"])
+        Assert.assertFalse(refreshed)
+        Assert.assertFalse(locked)
     }
 
     @Test
@@ -95,6 +134,55 @@ class GetStatusMcpToolActionTest {
         @Suppress("UNCHECKED_CAST")
         val data = result.data as Map<String, Any>
         Assert.assertEquals("remote", data["executionType"])
+    }
+
+    @Test
+    fun testStatusReturnsReadOnlySnapshotWhenProjectLockIsBusy() {
+        val projectDir = tempFolder.newFolder("project-lock-busy")
+        val sourceFile = File(projectDir, "Pending.java").apply {
+            writeText("class Pending {}")
+        }
+        var refreshed = false
+        var lockAttempted = false
+        var checkedSnapshot = false
+        val fallbackChecker = object : IIncrementalCompileFallbackChecker {
+            override fun checkFallback(): String? = error("Status must not refresh deploy state when the lock is busy")
+
+            override fun checkFallback(deployState: JuggDeployState): String? {
+                checkedSnapshot = true
+                Assert.assertEquals(JuggDeployState.READY, deployState)
+                return "Project info is stale"
+            }
+        }
+        val runtime = runtimeWith(
+            deployState = JuggDeployState.READY,
+            hasDevice = true,
+            uncompiledFiles = listOf(
+                ChangedFile(CompileFile.Type.Java, sourceFile, projectDir, ModuleInfo.virtualModule),
+            ),
+            fallbackChecker = fallbackChecker,
+            statusRefresh = { refreshed = true },
+            onProjectStateLock = { lockAttempted = true },
+            projectStateLockAvailable = false,
+        )
+
+        val result = GetStatusMcpToolAction().execute(
+            mapOf("projectDir" to projectDir.absolutePath),
+            runtime,
+        )
+
+        @Suppress("UNCHECKED_CAST")
+        val data = result.data as Map<String, Any>
+        @Suppress("UNCHECKED_CAST")
+        val pendingFiles = data["pendingModifiedFiles"] as Map<String, Any>
+        Assert.assertEquals(1, (pendingFiles["total"] as Number).toInt())
+        Assert.assertEquals(listOf(sourceFile.absolutePath), data["files"])
+        Assert.assertEquals(true, data["needFallback"])
+        Assert.assertEquals("Project info is stale", data["detail"])
+        Assert.assertEquals(false, data["isCompiling"])
+        Assert.assertTrue(lockAttempted)
+        Assert.assertTrue(checkedSnapshot)
+        Assert.assertFalse(refreshed)
     }
 
     @Test
@@ -502,23 +590,23 @@ class GetStatusMcpToolActionTest {
         fallbackChecker: IIncrementalCompileFallbackChecker? = null,
         uncompiledFilesProvider: (() -> List<ChangedFile>)? = null,
         statusRefresh: () -> Unit = {},
+        onProjectStateLock: () -> Unit = {},
+        projectStateLockAvailable: Boolean = true,
         isCompiling: Boolean = false,
         executionType: String = "local",
     ): IMcpRuntime {
-        val deployStateManager = object : IDeployStateManager {
-            override fun updateDeployState(): JuggDeployState = deployState
-        }
+        val deployStateManager = Mockito.mock(IDeployStateManager::class.java)
+        Mockito.`when`(deployStateManager.deployState).thenReturn(deployState)
+        Mockito.`when`(deployStateManager.updateDeployState()).thenReturn(deployState)
         val mockDeployFileManager = Mockito.mock(DeployFileManager::class.java)
         val filesProvider = uncompiledFilesProvider ?: { uncompiledFiles }
         Mockito.`when`(mockDeployFileManager.getUncompiledFiles()).thenAnswer { filesProvider() }
         val mockDeployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
         Mockito.`when`(mockDeployTargetManager.hasDevice).thenReturn(hasDevice)
 
-        return object : IMcpRuntime {
+        return object : com.sickworm.intellij.jugg.ai.mcp.TestMcpRuntime() {
             override val logger: Logger
                 get() = Logger.getInstance("TestMcpRuntime")
-            override val project: Project
-                get() = throw UnsupportedOperationException("not used in this test")
             override val deployTargetManager: IDeployTargetManager = mockDeployTargetManager
             override val deployStateManager: IDeployStateManager = deployStateManager
             override val deployFileManager: DeployFileManager = mockDeployFileManager
@@ -541,6 +629,14 @@ class GetStatusMcpToolActionTest {
             }
             override val incrementalCompileFallbackChecker: IIncrementalCompileFallbackChecker? = fallbackChecker
             override fun refreshChangedFilesForStatus() = statusRefresh()
+            override fun <T> withProjectStateLocked(action: () -> T): T {
+                onProjectStateLock()
+                return action()
+            }
+            override fun <T : Any> tryWithProjectStateLocked(action: () -> T): T? {
+                onProjectStateLock()
+                return if (projectStateLockAvailable) action() else null
+            }
         }
     }
 

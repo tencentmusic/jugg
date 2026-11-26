@@ -34,7 +34,7 @@ class ReportIssueProgressDialog(message: String) : DialogWrapper(true) {
     }
 
     init {
-        title = "Report Jugg Issue"
+        title = "Report Jugg issue"
         isResizable = false
         init()
     }

@@ -17,7 +17,7 @@ When compilation ends in failure, `Ask AI` appears at the end of Task Output. Cl
 
 Jugg saves the logs, project context, and existing compilation and deployment artifacts when the failure occurs. Later runs do not overwrite this snapshot. The investigation guide first directs the Agent to understand how Jugg works, then analyze the saved evidence and the corresponding version's source code to provide the cause, key evidence, and actionable recommendations. It identifies specific gaps when the available material is insufficient and provides a copyable draft when an Issue is recommended.
 
-You can also click `Ask AI` in the `Jugg Plugin` group of `Jugg Running Panel`, choose `Compilation failed`, describe the problem, and select `Save Evidence and Generate Prompt`. This entry saves the current evidence at collection time.
+You can also click `Ask AI` in the `Jugg plugin` group of `Jugg Running Panel`, choose `Compilation failed`, describe the problem, and select `Save evidence and generate prompt`. This entry saves the current evidence at collection time.
 
 Evidence is saved in a separate local directory and retained for 30 days by default. Environment information and collection failure reasons are saved in the evidence manifest, which the Agent reads using the path in the prompt. The prompt explicitly permits the Agent to clone Jugg into a separate investigation directory and fetch when necessary; the investigation reads existing evidence only.
 

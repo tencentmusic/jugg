@@ -1,6 +1,6 @@
 package com.sickworm.intellij.jugg.deploy.direct
 
-import com.android.tools.deploy.proto.Deploy
+import com.sickworm.intellij.jugg.deploy.api.Deploy
 import com.sickworm.intellij.jugg.mock.TestGlobal
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -17,15 +17,6 @@ class InstallerMatryoshkaReaderTest {
     val tempFolder = TemporaryFolder()
 
     private val logger = TestGlobal.getLogger()
-
-    @Test
-    fun `resolve should use agent-alt only for 32 bit app on 64 bit installer abi`() {
-        assertEquals("agent-alt.so", InstallerAgentDollNames.resolve("arm64-v8a", Deploy.Arch.ARCH_32_BIT))
-        assertEquals("agent-alt.so", InstallerAgentDollNames.resolve("x86_64", Deploy.Arch.ARCH_32_BIT))
-        assertEquals("agent.so", InstallerAgentDollNames.resolve("arm64-v8a", Deploy.Arch.ARCH_64_BIT))
-        assertEquals("agent.so", InstallerAgentDollNames.resolve("armeabi-v7a", Deploy.Arch.ARCH_32_BIT))
-        assertEquals("agent.so", InstallerAgentDollNames.resolve("x86", Deploy.Arch.ARCH_32_BIT))
-    }
 
     @Test
     fun `extractAgentSo should return agent doll for 64 bit arch`() {

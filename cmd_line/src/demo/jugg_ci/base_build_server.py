@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""本地演示服务，分别保存基线记录和 ZIP 文件。"""
+"""Store local demo baseline records and ZIP artifacts."""
 import argparse
 from datetime import datetime, timezone
 import json
@@ -52,7 +52,7 @@ class Handler(BaseHTTPRequestHandler):
         if url.path == '/base-builds/available':
             data = [r for r in data if all(r.get(key) == query.get(key, [''])[0]
                                           for key in ('scenarioKey', 'compileCommand'))]
-        # 缺少服务端时间的历史记录排在有时间戳的记录之后。
+        # Sort records without a server timestamp after timestamped records.
         data = [dict(record, uploadedAt=record.get('uploadedAt')) for record in reversed(data)]
         data.sort(key=lambda record: record['uploadedAt'] or '', reverse=True)
         print('GET 返回列表：' + json.dumps(data, ensure_ascii=False), flush=True)
@@ -129,7 +129,7 @@ class Handler(BaseHTTPRequestHandler):
                        and re.fullmatch('[0-9a-f]{32}', record['artifactId'])
                        and record['artifactId'] not in referenced}
         root = Path(self.server.data_file).parent
-        # 先暂存待删除的 ZIP，索引保存失败时可以恢复。
+        # Stage ZIP deletions so an index write failure can be rolled back.
         staged = Path(tempfile.mkdtemp(prefix='delete-baselines-', dir=root))
         moved = []
         try:

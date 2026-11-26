@@ -9,9 +9,9 @@ import com.sickworm.intellij.jugg.compiler.isWindows
 import com.sickworm.intellij.jugg.deploy.data.IncrementalDeployDataDatabase
 import com.sickworm.intellij.jugg.git.GitManager
 import com.sickworm.intellij.jugg.mock.*
-import com.sickworm.intellij.jugg.project.ChangedFile
-import com.sickworm.intellij.jugg.project.FileChangesHandler
-import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.project.change.ChangedFile
+import com.sickworm.intellij.jugg.project.change.FileChangesHandler
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import org.junit.Before
 import org.junit.Test
 import java.io.File
@@ -270,6 +270,31 @@ class DeployHistoryManagerTest {
 
         assertNull(historyManager.getChangedFilesSinceLastFullCompiled())
         assertTrue(historyManager.hasBeenFullCompiled)
+    }
+
+    @Test
+    fun checkProjectDirChanged_clearsDeploymentCacheWithDatabase() {
+        val projectDir = Files.createTempDirectory("jugg-deploy-cache-clear").toFile()
+        try {
+            val tempPathManager = JuggPathManager(projectDir)
+            val tempFileChangesHandler = FileChangesHandler(
+                tempPathManager.projectDir, tempPathManager.juggRootDir, logger,
+            )
+            val historyManager = DeployHistoryManager(tempPathManager, tempFileChangesHandler, logger)
+
+            historyManager.checkProjectDirChanged()
+            tempPathManager.deploymentCacheDbFile.parentFile.mkdirs()
+            tempPathManager.deploymentCacheDbFile.writeText("stale-cache")
+            assertTrue(tempPathManager.deploymentCacheDbFile.exists())
+
+            tempPathManager.historyProjectDirFile.writeText("/other/project")
+            historyManager.checkProjectDirChanged()
+
+            assertFalse(tempPathManager.deploymentCacheDbFile.exists())
+            assertEquals(projectDir.canonicalFile, historyManager.historyProjectDir?.canonicalFile)
+        } finally {
+            projectDir.deleteRecursively()
+        }
     }
 
     @Test

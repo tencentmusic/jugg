@@ -1,3 +1,9 @@
+**Purpose:** Track Run immediately after a Git HEAD change.
+
+**Decision:** Refresh missed committed changes synchronously before compile prechecks.
+
+**Impact:** Avoids a no-change result before delayed IDE events complete.
+
 # Run 前同步检查 Git HEAD 方案
 
 ## 背景

@@ -1,6 +1,6 @@
 package com.sickworm.intellij.jugg.deploy.run
 
-import com.android.ddmlib.IDevice
+import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
@@ -291,7 +291,7 @@ class DeployRetryHandlerTest {
         Mockito.`when`(
             deployStateRecover.recoverDeployState(
                 device,
-                deployOptions.indicator,
+                deployOptions.progress,
                 false,
                 deployOptions.isSkipExceptOverlayCheck,
                 false,
@@ -339,7 +339,7 @@ class DeployRetryHandlerTest {
         Mockito.`when`(
             deployStateRecover.recoverDeployState(
                 device,
-                deployOptions.indicator,
+                deployOptions.progress,
                 false,
                 deployOptions.isSkipExceptOverlayCheck,
                 false,
@@ -382,7 +382,7 @@ class DeployRetryHandlerTest {
         Mockito.`when`(
             deployStateRecover.recoverDeployState(
                 device,
-                deployOptions.indicator,
+                deployOptions.progress,
                 false,
                 deployOptions.isSkipExceptOverlayCheck,
                 false,
@@ -410,7 +410,7 @@ class DeployRetryHandlerTest {
         assertEquals(true, deployRunHost.lastRedeployOptions?.isSkipExceptOverlayCheck)
         Mockito.verify(deployStateRecover).recoverDeployState(
             device,
-            deployOptions.indicator,
+            deployOptions.progress,
             false,
             deployOptions.isSkipExceptOverlayCheck,
             false,
@@ -429,7 +429,7 @@ class DeployRetryHandlerTest {
         Mockito.`when`(
             deployStateRecover.recoverDeployState(
                 device,
-                deployOptions.indicator,
+                deployOptions.progress,
                 false,
                 deployOptions.isSkipExceptOverlayCheck,
                 false,
@@ -454,7 +454,7 @@ class DeployRetryHandlerTest {
 
         Mockito.verify(deployStateRecover).recoverDeployState(
             device,
-            deployOptions.indicator,
+            deployOptions.progress,
             false,
             deployOptions.isSkipExceptOverlayCheck,
             false,
@@ -473,7 +473,7 @@ class DeployRetryHandlerTest {
         Mockito.`when`(
             deployStateRecover.recoverDeployState(
                 device,
-                deployOptions.indicator,
+                deployOptions.progress,
                 true,
                 deployOptions.isSkipExceptOverlayCheck,
                 false,
@@ -500,7 +500,7 @@ class DeployRetryHandlerTest {
         assertFalse(deployRunHost.lastRedeployOptions!!.forceDirectOverlayDeploy)
         Mockito.verify(deployStateRecover).recoverDeployState(
             device,
-            deployOptions.indicator,
+            deployOptions.progress,
             true,
             deployOptions.isSkipExceptOverlayCheck,
             false,
@@ -519,7 +519,7 @@ class DeployRetryHandlerTest {
         Mockito.`when`(
             deployStateRecover.recoverDeployState(
                 device,
-                deployOptions.indicator,
+                deployOptions.progress,
                 true,
                 deployOptions.isSkipExceptOverlayCheck,
                 false,
@@ -546,7 +546,7 @@ class DeployRetryHandlerTest {
         assertFalse(deployRunHost.lastRedeployOptions!!.forceDirectOverlayDeploy)
         Mockito.verify(deployStateRecover).recoverDeployState(
             device,
-            deployOptions.indicator,
+            deployOptions.progress,
             true,
             deployOptions.isSkipExceptOverlayCheck,
             false,
@@ -565,7 +565,7 @@ class DeployRetryHandlerTest {
         Mockito.`when`(
             deployStateRecover.recoverDeployState(
                 device,
-                deployOptions.indicator,
+                deployOptions.progress,
                 true,
                 deployOptions.isSkipExceptOverlayCheck,
                 false,
@@ -626,6 +626,7 @@ class DeployRetryHandlerTest {
             deployStateRecover = deployStateRecover,
             juggServer = Mockito.mock(JuggServer::class.java),
             deployRunHost = deployRunHost,
+            environment = TestDeployEnvironment(),
             logger = TestGlobal.getLogger(),
             adbTransportRecovery = adbTransportRecovery,
         )

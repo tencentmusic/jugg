@@ -1,21 +1,21 @@
 package com.sickworm.intellij.jugg.server
 
+import com.sickworm.intellij.jugg.compiler.ui.RunResult
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import com.intellij.openapi.diagnostic.Logger
-import com.intellij.openapi.project.Project
+import com.sickworm.intellij.jugg.compiler.listFilesRecursively
 import com.sickworm.intellij.jugg.diagnostics.IssueReportBundleBuilder
 import com.sickworm.intellij.jugg.diagnostics.IssueReportDestination
 import com.sickworm.intellij.jugg.diagnostics.IssueReportAutoUpload
 import com.sickworm.intellij.jugg.diagnostics.IssueReportUploader
+import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.git.GitManager
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
-import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.getInstance
-import com.sickworm.intellij.jugg.platform.PlatformApi
-import com.sickworm.intellij.jugg.project.JuggGlobalPathManager
-import com.sickworm.intellij.jugg.project.JuggPathManager
-import com.sickworm.intellij.jugg.project.PluginInfoReader
+import com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
+import com.sickworm.intellij.jugg.project.runtime.RuntimeInfo
 import com.sickworm.intellij.jugg.server.protocols.HotUpdateData
 import com.sickworm.intellij.jugg.server.protocols.ServerRule
 import com.sickworm.intellij.jugg.server.protocols.VersionData
@@ -30,28 +30,31 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.File
 import java.net.URLEncoder
 import java.security.MessageDigest
+import java.util.concurrent.atomic.AtomicBoolean
 
 
 /**
  * JuggServer coordinates plugin-to-backend interactions including event reporting, update checks, log upload, and remote config retrieval.
- * Collaboration: Uses [JuggServerChooser] for server failover, [OkHttpClient] for HTTP requests, [JuggSettings]/[PluginInfoReader] for runtime metadata, and [PlatformApi] for host-side integration.
+ * Collaboration: Uses [JuggServerChooser] for server failover, [OkHttpClient] for HTTP requests, and injected [RuntimeInfo] for host-neutral identity.
  * Data Contract: Request identity is derived from [projectId], [username], and [requestToken]; [afterFullCompile] increments [sessionId], and [onCompile] increments [sessionSubId].
  */
 class JuggServer(
     val projectName: String,
     private val pathManager: JuggPathManager,
-    private val coroutineScope: CoroutineScope,
+    coroutineScope: CoroutineScope,
+    private val runtimeInfo: RuntimeInfo,
     loggerArg: Logger,
     private val eventLocalStore: JuggEventLocalStore = JuggEventLocalStore(
         JuggGlobalPathManager.actionDbFile,
         loggerArg.getInstance("JuggEventLocalStore"),
     ),
-): CoroutineScope by coroutineScope {
-
-    constructor(project: Project, pathManager: JuggPathManager, coroutineScope: CoroutineScope)
-            : this(project.name, pathManager, coroutineScope, JuggLogger.getInstance(project, "JuggServer"))
+): CoroutineScope {
 
     private var logger: Logger = loggerArg.getInstance("JuggServer")
+
+    override val coroutineContext = coroutineScope.coroutineContext +
+        SupervisorJob(coroutineScope.coroutineContext[Job]) +
+        CoroutineExceptionHandler { _, throwable -> logger.warn("server task failed", throwable) }
 
     private val juggServerChooser = JuggServerChooser(logger)
     private val serverUrl: String? get() = JuggSettings.serverUrl
@@ -59,7 +62,7 @@ class JuggServer(
 
     val username: String = getUserName()
 
-    val version: String = PluginInfoReader.getPluginVersion()
+    val version: String = runtimeInfo.runtimeVersion
 
     private val projectId: String by lazy { getName(projectName) }
     private val requestToken = (pathManager.projectDir.path + "_" + username).md5.substring(0, 8)
@@ -72,8 +75,10 @@ class JuggServer(
     val issueReportDestination: IssueReportDestination get() = juggServerChooser.issueReportDestination
 
     private val client = OkHttpClient()
+    private val initialized = AtomicBoolean()
 
-    init {
+    fun initialize() {
+        if (!initialized.compareAndSet(false, true)) return
         logger.debug("init finished, version: $version, projectId: $projectId, userName: $username, requestToken: $requestToken, serverUrl: $serverUrl")
     }
 
@@ -149,7 +154,7 @@ class JuggServer(
 
     private fun ReportEventData.fillCommonData(): ReportEventData {
         version = this@JuggServer.version
-        ideVersion = PlatformApi.getIdeVersion()
+        ideVersion = this@JuggServer.runtimeInfo.hostVersion
         username = this@JuggServer.username
         projectId = this@JuggServer.projectId
         sessionId = "${this@JuggServer.sessionId}_${this@JuggServer.sessionSubId}"
@@ -207,8 +212,43 @@ class JuggServer(
         }
     }
 
-    fun setCustomServer() {
-        juggServerChooser.setCustomServer()
+    fun setCustomServer(serverUrl: String? = null) {
+        if (serverUrl == null) {
+            juggServerChooser.setCustomServer()
+        } else {
+            juggServerChooser.setCustomServer(serverUrl)
+        }
+    }
+
+    val customServerUrl: String
+        get() = juggServerChooser.customServerUrl
+
+    /** Applies the same final-failure policy for IDEA and standalone Runs. */
+    fun reportRunFailure(
+        result: RunResult, isEligible: Boolean, autoUploadFailureLogs: Boolean,
+        autoUploadFailureLogsExcludeRegex: String?, projectModuleCount: Int,
+    ) {
+        if (!autoUploadFailureLogs || !isEligible || result.isCancel) {
+            return
+        }
+        val failureSummary = (listOfNotNull(result.failedReason) + result.errorLog).joinToString("\n")
+        val excludeRegex = autoUploadFailureLogsExcludeRegex?.takeIf { it.isNotBlank() }
+        if (excludeRegex != null && runCatching { Regex(excludeRegex) }.isFailure) {
+            logger.debug("Auto upload failure logs skipped: invalid exclude regex")
+            return
+        }
+        if (!shouldAutoUploadFailureLogs(
+                autoUploadFailureLogs,
+                isEligible && !result.isCancel,
+                excludeRegex,
+                failureSummary,
+            )) {
+            return
+        }
+        val failureLines = failureSummary.lineSequence().map { it.trim() }.filter { it.isNotEmpty() }.toList()
+        val reason = failureLines.firstOrNull()
+            ?: if (result.isCompileSuccess) "Deploy failed" else "Compile failed"
+        uploadFailureLogs(reason, failureSummary.takeIf { it.isNotBlank() && it != reason }, projectModuleCount)
     }
 
     /** Uploads failure diagnostics to the available backend without affecting the run result. */
@@ -219,7 +259,8 @@ class JuggServer(
                 logger.debug("Auto upload failure logs skipped: no available backend server")
                 return@launch
             }
-            val logFiles = selectRecentFailureLogs(pathManager.logDir)
+            val logDir = if (runtimeInfo.runtimeType == "standalone") pathManager.standaloneCliLogDir else pathManager.logDir
+            val logFiles = selectRecentFailureLogs(logDir)
             if (logFiles.isEmpty()) {
                 logger.debug("Auto upload failure logs skipped: no Jugg logs found")
                 return@launch
@@ -250,6 +291,7 @@ class JuggServer(
                 projectInfoDir = pathManager.projectInfosDir,
                 logFiles = logFiles,
                 logFileLimit = 2,
+                standaloneLogDir = pathManager.standaloneCliLogDir,
                 logcat = "",
                 hookDebugLog = File(JuggGlobalPathManager.rootDir, "skills/hooks/jugg-hook-debug.log"),
                 knownSecrets = knownSecrets,
@@ -356,7 +398,7 @@ internal fun selectRecentFailureLogs(logDir: File): List<File> {
 
 
 /**
- * ReportEventData carries version, ideVersion, username, and projectId.
+ * ReportEventData carries version, host version, username, and projectId.
  */
 data class ReportEventData(
     @SerializedName("version")
@@ -379,4 +421,25 @@ data class ReportEventData(
     var detail: String?
 ) {
     constructor() : this("", "", "", "", "", "", true, 0, null)
+}
+
+fun shouldAutoUploadFailureLogs(
+    isEnabled: Boolean,
+    isEligible: Boolean,
+    excludeRegex: String?,
+    failureSummary: String,
+): Boolean {
+    if (!isEnabled || !isEligible) {
+        return false
+    }
+    val pattern = excludeRegex?.takeIf { it.isNotBlank() } ?: return true
+    val regex = runCatching { Regex(pattern) }.getOrNull() ?: return false
+    return !regex.containsMatchIn(failureSummary)
+}
+
+fun isFailureLogUploadEligible(result: RunResult, hasAttemptedDeploy: Boolean): Boolean {
+    if (result.isCancel) {
+        return false
+    }
+    return !result.isCompileSuccess || hasAttemptedDeploy && !result.isDeploySuccess
 }

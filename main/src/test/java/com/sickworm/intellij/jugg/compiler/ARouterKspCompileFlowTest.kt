@@ -5,10 +5,10 @@ import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.sickworm.intellij.jugg.compiler.source.SourceCompiler
 import com.sickworm.intellij.jugg.mock.SimpleCompileContext
 import com.sickworm.intellij.jugg.mock.StdLogger
-import com.sickworm.intellij.jugg.project.JuggPathManager
-import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
-import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
+import com.sickworm.intellij.jugg.project.info.ProjectInfoSerializer
+import com.sickworm.intellij.jugg.project.info.JuggProjectInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import org.junit.Assume.assumeTrue
 import org.junit.Ignore
 import org.junit.Rule

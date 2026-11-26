@@ -15,16 +15,22 @@ from pathlib import Path
 from typing import Any
 
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "jugg-android-dev-loop" / "scripts" / "py"))
+from jugg_paths import global_root
+
 STATE_DIR_NAME = ".state"
 HOOK_BLOCK_DISABLED_FLAG_NAME = "DISABLE_BLOCK"
 SESSION_WRITE_SEEN_KEY = "sessionWriteSeen"
 LAST_WRITE_TIME_MS_KEY = "lastWriteTimeMs"
-SESSION_WRITE_FILE_NAMES_KEY = "sessionWriteFileNames"
 PROJECT_CWD_KEY = "projectCwd"
+PROJECT_CWDS_KEY = "projectCwds"
+WORKSPACE_ROOTS_KEY = "workspaceRoots"
+AVAILABLE_PROJECTS_KEY = "availableProjects"
+SESSION_WRITE_FILES_KEY = "sessionWriteFiles"
 JUGG_TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 DEBUG_LOG_ENV = "JUGG_HOOK_DEBUG_LOG"
 DEBUG_PAYLOAD_ENV = "JUGG_HOOK_DEBUG_PAYLOAD"
-DEFAULT_DEBUG_LOG_PATH = Path.home() / ".jugg" / "skills" / "hooks" / "jugg-hook-debug.log"
+DEFAULT_DEBUG_LOG_PATH = global_root() / "skills" / "hooks" / "jugg-hook-debug.log"
 DEBUG_LOG_ROTATE_SIZE_BYTES = 1024 * 1024
 DEBUG_LOG_BACKUP_SUFFIX = ".1"
 ANDROID_SOURCE_SUFFIXES = (".java", ".kt", ".xml", ".gradle", ".gradle.kts")
@@ -65,6 +71,9 @@ FILE_PATH_KEYS = {
     "uri",
 }
 PROJECT_ROOT_MARKERS = ("settings.gradle", "settings.gradle.kts", "gradlew")
+COMPLETE_FLAG_RELATIVE_PATH = (
+    "build", "jugg", "database", "compile_context.db", "complete_flag"
+)
 
 
 def _is_truthy(value: str) -> bool:
@@ -225,6 +234,17 @@ def resolve_hook_client(client: str, payload: dict[str, Any], script: str) -> st
 def hook_state_cwd(client: str, payload: dict[str, Any]) -> str:
     if client == "cursor" and payload.get("cursor_version"):
         return str((Path.home() / ".cursor").resolve())
+    if client == "antigravity":
+        # Prefer the workspace shared by all events over the current tool's Gradle project.
+        fallback_cwd = str(Path.cwd())
+        for value in collect_strings(payload.get("workspacePaths")):
+            workspace = _directory_from_path_value(value, fallback_cwd)
+            if workspace:
+                return _find_project_root_from_path(workspace) or workspace
+        workspace_payload = {
+            key: value for key, value in payload.items() if _normalized_payload_key(key) in PROJECT_CWD_KEYS
+        }
+        return resolve_project_cwd({}, workspace_payload, fallback_cwd)
     return str(Path.cwd())
 
 
@@ -346,6 +366,88 @@ def remember_project_cwd(
     return project_cwd, True
 
 
+def canonical_path(value: str, base_cwd: str | None = None) -> str | None:
+    path = _path_from_string(value, base_cwd)
+    return str(path) if path is not None else None
+
+
+def resolve_workspace_roots(
+    state: dict[str, Any], payload: dict[str, Any], fallback_cwd: str
+) -> list[str]:
+    values: list[str] = []
+    stored = state.get(WORKSPACE_ROOTS_KEY)
+    if isinstance(stored, list):
+        values.extend(value for value in stored if isinstance(value, str))
+    values.extend(_collect_keyed_strings(payload, PROJECT_CWD_KEYS))
+    values.append(fallback_cwd)
+    roots: list[str] = []
+    for value in values:
+        directory = _directory_from_path_value(value, fallback_cwd)
+        if not directory or directory in roots:
+            continue
+        roots.append(directory)
+    return roots
+
+
+def _has_complete_flag(directory: Path) -> bool:
+    return (directory.joinpath(*COMPLETE_FLAG_RELATIVE_PATH)).is_file()
+
+
+def discover_available_projects(workspace_roots: list[str]) -> list[str]:
+    """Find Jugg projects in session workspaces without scanning unrelated paths."""
+    projects: list[str] = []
+    for root_value in workspace_roots:
+        root = Path(root_value)
+        if not root.is_dir():
+            continue
+        if _has_complete_flag(root):
+            candidates = [root]
+        else:
+            candidates = []
+            pending: list[tuple[Path, int]] = [(root, 0)]
+            while pending:
+                directory, depth = pending.pop(0)
+                if depth >= 2:
+                    continue
+                try:
+                    children = sorted(directory.iterdir(), key=lambda path: path.name)
+                except OSError:
+                    continue
+                for child in children:
+                    if not child.is_dir() or child.name.startswith("."):
+                        continue
+                    if _has_complete_flag(child):
+                        candidates.append(child)
+                        continue
+                    pending.append((child, depth + 1))
+        for candidate in candidates:
+            resolved = str(candidate.resolve())
+            if resolved not in projects:
+                projects.append(resolved)
+    return projects
+
+
+def project_cwds_for_files(file_paths: list[str], projects: list[str]) -> tuple[list[str], list[str]]:
+    matched: list[str] = []
+    unmatched: list[str] = []
+    normalized_projects = sorted((str(Path(project).resolve()) for project in projects), key=len, reverse=True)
+    for file_path in file_paths:
+        resolved = canonical_path(file_path, os.getcwd())
+        if not resolved:
+            unmatched.append(file_path)
+            continue
+        project = next(
+            (candidate for candidate in normalized_projects
+             if resolved == candidate or resolved.startswith(candidate + os.sep)),
+            None,
+        )
+        if project is None:
+            unmatched.append(resolved)
+        elif project not in matched:
+            matched.append(project)
+    return matched, unmatched
+
+
 def is_android_source_path(value: str) -> bool:
     normalized = value.strip().replace("\\", "/")
     if not normalized or "\n" in normalized:
@@ -399,7 +501,7 @@ def extract_tool_call(payload: dict[str, Any]) -> tuple[str, dict[str, Any]]:
 
 def resolve_hooks_dir(home: Path | None = None) -> Path:
     resolved_home = home if home is not None else Path.home()
-    return resolved_home / ".jugg" / "skills" / "hooks"
+    return global_root(resolved_home) / "skills" / "hooks"
 
 
 def is_hook_block_disabled(home: Path | None = None) -> bool:
@@ -440,7 +542,7 @@ def is_codebuddy_ide_payload(payload: dict[str, Any]) -> bool:
 
 
 def has_session_write_seen(state: dict[str, Any]) -> bool:
-    return bool(state.get(SESSION_WRITE_SEEN_KEY) or get_session_write_file_names(state))
+    return bool(state.get(SESSION_WRITE_SEEN_KEY) or state.get(SESSION_WRITE_FILES_KEY))
 
 
 def _extract_file_name(value: str) -> str | None:
@@ -451,34 +553,19 @@ def _extract_file_name(value: str) -> str | None:
     return name or None
 
 
-def get_session_write_file_names(state: dict[str, Any]) -> list[str]:
-    raw = state.get(SESSION_WRITE_FILE_NAMES_KEY)
-    if not isinstance(raw, list):
-        return []
-    names: list[str] = []
-    for value in raw:
-        if not isinstance(value, str):
-            continue
-        name = _extract_file_name(value)
-        if not name or name in names:
-            continue
-        names.append(name)
-    return names
-
-
 def mark_session_write_seen(state: dict[str, Any], file_paths: list[str] | None = None) -> None:
     state[SESSION_WRITE_SEEN_KEY] = True
     state[LAST_WRITE_TIME_MS_KEY] = int(time.time() * 1000)
     if not file_paths:
         return
-    names = get_session_write_file_names(state)
+    paths = state.get(SESSION_WRITE_FILES_KEY)
+    if not isinstance(paths, list):
+        paths = []
     for path in file_paths:
-        name = _extract_file_name(path)
-        if not name or name in names:
-            continue
-        names.append(name)
-    if names:
-        state[SESSION_WRITE_FILE_NAMES_KEY] = names
+        resolved = canonical_path(path, os.getcwd())
+        if resolved and resolved not in paths:
+            paths.append(resolved)
+    state[SESSION_WRITE_FILES_KEY] = paths
 
 
 def extract_status_file_names(structured: dict[str, Any]) -> list[str]:
@@ -499,6 +586,25 @@ def extract_status_file_names(structured: dict[str, Any]) -> list[str]:
     return names
 
 
+def extract_status_file_paths(structured: dict[str, Any], project_dir: str) -> set[str]:
+    data = structured.get("data", {})
+    if not isinstance(data, dict) or not isinstance(data.get("files"), list):
+        return set()
+    root = Path(project_dir).resolve()
+    paths: set[str] = set()
+    for value in data["files"]:
+        if not isinstance(value, str) or not value.strip():
+            continue
+        path = Path(value).expanduser()
+        if not path.is_absolute():
+            path = root / path
+        try:
+            paths.add(str(path.resolve(strict=False)))
+        except OSError:
+            continue
+    return paths
+
+
 def extract_last_compile_time_ms(structured: dict[str, Any]) -> int:
     data = structured.get("data", {})
     if not isinstance(data, dict):
@@ -513,14 +619,25 @@ def extract_last_compile_time_ms(structured: dict[str, Any]) -> int:
     return int(parsed_time.timestamp() * 1000)
 
 
-def session_write_needs_verification(state: dict[str, Any], structured: dict[str, Any]) -> bool:
+def session_write_needs_verification(
+    state: dict[str, Any], structured: dict[str, Any], project_dir: str | None = None
+) -> bool:
     if not has_session_write_seen(state):
         return False
-    session_file_names = get_session_write_file_names(state)
-    if session_file_names:
-        status_file_names = set(extract_status_file_names(structured))
-        if not any(name in status_file_names for name in session_file_names):
-            return False
+    session_files = state.get(SESSION_WRITE_FILES_KEY)
+    if isinstance(session_files, list) and project_dir:
+        project_root = str(Path(project_dir).resolve())
+        relevant_files = [
+            str(Path(path).resolve())
+            for path in session_files
+            if isinstance(path, str)
+            and (str(Path(path).resolve()) == project_root
+                 or str(Path(path).resolve()).startswith(project_root + os.sep))
+        ]
+        status_paths = extract_status_file_paths(structured, project_root)
+        if relevant_files and status_paths:
+            if not any(path in status_paths for path in relevant_files):
+                return False
     last_write_time_ms = safe_int(state.get(LAST_WRITE_TIME_MS_KEY, 0))
     if last_write_time_ms <= 0:
         # Legacy states only recorded a boolean write marker; keep the old conservative behavior.
@@ -533,7 +650,7 @@ def session_write_needs_verification(state: dict[str, Any], structured: dict[str
 
 
 def jugg_cli_path(home: Path) -> Path:
-    return home / ".jugg" / "bin" / "jugg.py"
+    return global_root(home) / "bin" / "jugg.py"
 
 
 def jugg_cli_command(home: Path) -> list[str]:
@@ -696,6 +813,7 @@ def read_status_snapshot(
             capture_output=True,
             text=True,
             cwd=cwd,
+            env={**os.environ, "JUGG_CALLER": "hook"},
             check=False,
             timeout=timeout_seconds,
         )

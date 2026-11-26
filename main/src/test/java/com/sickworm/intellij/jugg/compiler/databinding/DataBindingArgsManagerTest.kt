@@ -1,7 +1,7 @@
 package com.sickworm.intellij.jugg.compiler.databinding
 
-import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ModuleBuildPathInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import org.junit.Test
 import java.io.File
 import java.nio.file.Files

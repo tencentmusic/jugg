@@ -1,13 +1,15 @@
 <script setup>
+import { useData } from 'vitepress'
 import { onMounted, ref } from 'vue'
 import { resolveRedirect } from '../../scripts/redirect-rules.mjs'
 
+const { site } = useData()
 const redirecting = ref(false)
 const targetUrl = ref('')
 
 onMounted(() => {
   const currentPath = window.location.pathname
-  const target = resolveRedirect(currentPath, '/')
+  const target = resolveRedirect(currentPath, site.value.base)
   if (target) {
     redirecting.value = true
     targetUrl.value = target
@@ -30,7 +32,7 @@ onMounted(() => {
       <h1 style="font-size: 5rem; font-weight: 800; margin-bottom: 16px; color: var(--vp-c-brand-1);">404</h1>
       <p style="font-size: 1.25rem; font-weight: 500; margin-bottom: 8px;">PAGE NOT FOUND</p>
       <p style="color: var(--vp-c-text-2); margin-bottom: 32px;">The page you are looking for does not exist or has been moved.</p>
-      <a href="/" style="display: inline-block; padding: 10px 20px; border-radius: 8px; background-color: var(--vp-c-brand-1); color: white; text-decoration: none; font-weight: 500;">
+      <a :href="site.base" style="display: inline-block; padding: 10px 20px; border-radius: 8px; background-color: var(--vp-c-brand-1); color: white; text-decoration: none; font-weight: 500;">
         Go to Home
       </a>
     </div>

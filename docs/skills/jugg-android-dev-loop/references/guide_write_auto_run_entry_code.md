@@ -8,7 +8,9 @@ Auto-run entry = a method guaranteed to execute after app launch. Agent places d
 
 The entry's fully-qualified location **must be supplied by the user**; it is not auto-discoverable. Example prompt the user should provide:
 
-> "本工程调试入口/自动调试入口/自动运行调试入口为 `com.myapp.Test.run`"
+> "The auto-run debug entry for this project is `com.myapp.Test.run`."
+
+Equivalent Chinese requests using “调试入口”, “自动调试入口”, or “自动运行调试入口” must also be recognized.
 
 Rules:
 

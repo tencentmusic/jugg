@@ -3,9 +3,9 @@ package com.sickworm.intellij.jugg.compiler.source.apt
 import com.intellij.openapi.Disposable
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.mock.StdLogger
-import com.sickworm.intellij.jugg.project.data.LibraryDependency
-import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.LibraryDependency
+import com.sickworm.intellij.jugg.project.info.ModuleBuildPathInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test

@@ -1,6 +1,6 @@
 package com.sickworm.intellij.jugg.manager
 
-import com.android.ddmlib.IDevice
+import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.android.tools.deploy.proto.Deploy
 import com.android.tools.deployer.AdbClient
 import com.android.tools.idea.log.LogWrapper
@@ -10,6 +10,7 @@ import com.intellij.openapi.module.ModuleManager
 import com.sickworm.intellij.jugg.JuggManager
 import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.sickworm.intellij.jugg.compiler.CompileOutput
+import com.sickworm.intellij.jugg.compiler.ICompileContext
 import com.sickworm.intellij.jugg.compiler.MockitoFixer
 import com.sickworm.intellij.jugg.compiler.custom.CustomCompilerManager
 import com.sickworm.intellij.jugg.deploy.AdbCmdHelper
@@ -18,14 +19,20 @@ import com.sickworm.intellij.jugg.deploy.DeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.DeployStateManager
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
-import com.sickworm.intellij.jugg.deploy.IIdeDeployStateHelper
+import com.sickworm.intellij.jugg.deploy.IDeviceAdb
+import com.sickworm.intellij.jugg.deploy.IHostDeployStateResolver
 import com.sickworm.intellij.jugg.deploy.JuggDeployState
 import com.sickworm.intellij.jugg.deploy.JuggRunningTaskStatusManager
+import com.sickworm.intellij.jugg.deploy.cache.JuggDeploymentCacheStore
+import com.sickworm.intellij.jugg.deploy.IdeaDeviceAdb
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.DeployOptions
 import com.sickworm.intellij.jugg.deploy.run.IdeDeployState
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
+import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentService
+import com.sickworm.intellij.jugg.deploy.run.LegacyDeviceAdapter
+import com.sickworm.intellij.jugg.deploy.run.TestDeployEnvironment
 import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
 import com.sickworm.intellij.jugg.ide.logic.toCompileOptions
 import com.sickworm.intellij.jugg.logger.JuggLogger
@@ -38,14 +45,18 @@ import com.sickworm.intellij.jugg.mock.androidApkPackage
 import com.sickworm.intellij.jugg.mock.context
 import com.sickworm.intellij.jugg.mock.logger
 import com.sickworm.intellij.jugg.mock.projectInfo
-import com.sickworm.intellij.jugg.project.CompileContextManager
-import com.sickworm.intellij.jugg.project.FileChangesHandler
-import com.sickworm.intellij.jugg.project.JuggPathManager
-import com.sickworm.intellij.jugg.project.TaskRunnerManager
+import com.sickworm.intellij.jugg.compiler.context.CompileContextManager
+import com.sickworm.intellij.jugg.compiler.context.CompileEnvironmentSource
+import com.sickworm.intellij.jugg.compiler.context.IdeaProjectModelSource
+import com.sickworm.intellij.jugg.project.change.FileChangesHandler
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
+import com.sickworm.intellij.jugg.project.runtime.RuntimeInfo
+import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
 import com.sickworm.intellij.jugg.project.dependency.GradleProjectInfoLocalFetchManager
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import com.sickworm.intellij.jugg.project.dependency.create
 import com.sickworm.intellij.jugg.server.JuggServer
+import com.sickworm.intellij.jugg.runtime.HostTaskExecutor
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -87,8 +98,8 @@ class MockJugg(
     private val adbDeviceHelper = AdbDeviceHelper()
     private var currentApkInfos = projectInfo.apkInfos
 
-    private val ideDeployStateHelper = object : IIdeDeployStateHelper {
-        override fun getIdeDeployState(device: IDevice?, packageName: String?): IdeDeployState {
+    private val ideDeployStateHelper = object : IHostDeployStateResolver {
+        override fun resolve(device: IDevice?, packageName: String?): IdeDeployState {
             return if (adbDeviceHelper.hasLaunchedApp(packageName!!)) {
                 IdeDeployState.ok
             } else {
@@ -363,12 +374,14 @@ class MockJugg(
             }
 
             override fun getSelectedDevices(): List<IDevice> {
-                return adbDeviceHelper.getSelectedDeviceList()
+                return adbDeviceHelper.getSelectedDeviceList().map(::LegacyDeviceAdapter)
             }
 
             override fun getConnectedDevices(): List<IDevice> {
-                return adbDeviceHelper.getDeviceList()
+                return adbDeviceHelper.getDeviceList().map(::LegacyDeviceAdapter)
             }
+
+            override fun createDeviceAdb(device: IDevice): IDeviceAdb = throw UnsupportedOperationException()
 
             override fun startApp(device: IDevice): Boolean {
                 AdbCmdHelper(device, logger).startDefaultApp(projectInfo.packageName, currentApkInfos)
@@ -398,13 +411,32 @@ class MockJugg(
         fileChangesDetector = MockFileChangesDetector()
 
         deployHistoryManager = DeployHistoryManager(pathManager, fileChangesHandler, logger)
-        deployStateManager = DeployStateManager(project, deployTargetManager, deployHistoryManager, ideDeployStateHelper)
+        deployStateManager = DeployStateManager(
+            deployTargetManager,
+            deployHistoryManager,
+            ideDeployStateHelper,
+            logger,
+        )
         dependencyChangeManager = IDependencyChangeManager.create(logger)
 
-        val juggServer = JuggServer(project, JuggPathManager(File(project.basePath)), coroutineScope)
+        val juggServer = JuggServer(project.name, JuggPathManager(File(project.basePath)), coroutineScope, RuntimeInfo("idea", "test", "test", "test"), logger)
         customCompilerManager = CustomCompilerManager(pathManager.projectDir, pathManager.customCompilerDir, juggServer, logger)
-        taskRunnerManager = TaskRunnerManager(project, logger, deployStateManager, juggServer, coroutineScope)
+        taskRunnerManager = TaskRunnerManager(
+            logger,
+            deployStateManager,
+            juggServer,
+            HostTaskExecutor(project),
+            pathManager,
+            "idea",
+            "test",
+            coroutineScope,
+        )
         deployFileManager = DeployFileManager(pathManager, taskRunnerManager, logger)
+        val deploymentService = JuggDeploymentService(
+            pathManager,
+            JuggDeploymentCacheStore(pathManager.deploymentCacheDbFile, taskRunnerManager),
+            AsDeployerCompat,
+        )
 
         if (isMockCompileContextManager) {
             compileContextManager = mock(CompileContextManager::class.java)
@@ -412,34 +444,50 @@ class MockJugg(
         } else {
             val compileModuleManager = mock(ModuleManager::class.java)
             doReturn(emptyArray<com.intellij.openapi.module.Module>()).`when`(compileModuleManager).modules
-            compileContextManager = CompileContextManager(project, pathManager, deployFileManager, deployHistoryManager,
-                moduleManager = compileModuleManager, customCompilerManager = customCompilerManager)
+            val projectModelSource = IdeaProjectModelSource(
+                project,
+                pathManager,
+                moduleManager = compileModuleManager,
+                logger = logger,
+            )
+            compileContextManager = CompileContextManager(
+                pathManager = pathManager,
+                projectModelSource = projectModelSource,
+                deployFileManager = deployFileManager,
+                deployHistoryManager = deployHistoryManager,
+                customCompilerManager = customCompilerManager,
+                compileEnvironmentSource = CompileEnvironmentSource(context.androidHome, emptyList()),
+                scene = ICompileContext.Scene.IDE,
+                logger = logger,
+            )
         }
 
-        juggDeployerHelper = JuggDeployerHelper(
-            project,
-            deployTargetManager,
-            deployFileManager,
-            deployHistoryManager,
-            deployStateManager,
-            dependencyChangeManager,
-            JuggRunningTaskStatusManager(),
-            compileContextManager,
-            juggServer,
-            taskRunnerManager,
-            logger,
-        ) {
+        val installersRoot = run {
             val downloader = MockAndroidProfilerDownloader()
-            val (costTime, isInPlace) = measureTimeMillisWithResult {
-                downloader.makeSureComponentIsInPlace()
-            }
+            val (costTime, isInPlace) = measureTimeMillisWithResult { downloader.makeSureComponentIsInPlace() }
             println("makeSureComponentIsInPlace cost ${costTime}ms")
             assertTrue(isInPlace)
-
             downloader.installerFilePath.absolutePath
         }
+        juggDeployerHelper = JuggDeployerHelper(
+            deployTargetManager = deployTargetManager,
+            deployFileManager = deployFileManager,
+            deployHistoryManager = deployHistoryManager,
+            deployStateManager = deployStateManager,
+            dependencyChangeManager = dependencyChangeManager,
+            juggRunningTaskStatusManager = JuggRunningTaskStatusManager(),
+            compileContextManager = compileContextManager,
+            juggServer = juggServer,
+            taskRunnerManager = taskRunnerManager,
+            logger = logger,
+            deploymentService = deploymentService,
+            environment = TestDeployEnvironment(
+                AsDeployerCompat, installersRoot = installersRoot,
+                adbFactory = { device, deployLogger -> IdeaDeviceAdb(device, deployLogger) },
+            ),
+        )
 
-        gradleProjectInfoLocalFetchManager = GradleProjectInfoLocalFetchManager(project, pathManager, compileContextManager, taskRunnerManager, dependencyChangeManager, deployHistoryManager, logger)
+        gradleProjectInfoLocalFetchManager = GradleProjectInfoLocalFetchManager(pathManager, compileContextManager, taskRunnerManager, dependencyChangeManager, deployHistoryManager, CompileEnvironmentSource(context.androidHome, emptyList()), logger)
 
         JuggLogger.listenProjectLog(project, logger)
     }

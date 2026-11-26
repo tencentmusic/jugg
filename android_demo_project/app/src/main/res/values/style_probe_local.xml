@@ -1,0 +1,6 @@
+<resources>
+    <style name="StyleProbeLocal" parent="StyleProbeBase">
+        <!-- Case 2: change only this value to 202. -->
+        <item name="styleProbeToken">101</item>
+    </style>
+</resources>

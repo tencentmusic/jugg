@@ -1,4 +1,4 @@
-"""CI 演示共用的目录定位、阶段日志和命令执行。"""
+"""Shared paths, stage logging and subprocess helpers for CI."""
 from pathlib import Path
 import shlex
 import subprocess
@@ -25,7 +25,7 @@ def run(command, cwd=None):
 
 
 def run_logged(command, cwd, step, log_path):
-    """实时显示 Jugg 输出，同时将完整输出保存到本轮日志。"""
+    """Stream Jugg output and save a complete run log."""
     argv = list(map(str, command))
     log(step, shlex.join(argv))
     with log_path.open('w', encoding='utf-8', buffering=1) as stream, subprocess.Popen(

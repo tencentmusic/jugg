@@ -18,8 +18,7 @@ import com.sickworm.intellij.jugg.ai.mcp.viewhierarchy.LayoutDumpResult
 import com.sickworm.intellij.jugg.ai.mcp.viewhierarchy.MatchCandidate
 import com.sickworm.intellij.jugg.ai.mcp.viewhierarchy.VerifyResult
 import com.sickworm.intellij.jugg.ai.mcp.viewhierarchy.ViewHierarchyClient
-import com.sickworm.intellij.jugg.platform.PlatformApi
-import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import java.io.File
 import java.nio.charset.StandardCharsets
 
@@ -1093,7 +1092,7 @@ class LayoutVerifyMcpToolAction : McpToolAction {
     }
 
     private fun saveAutoDumpFile(runtime: IMcpRuntime, adb: IDeviceAdb, dumpResult: LayoutDumpResult): File? {
-        val projectDir = runtime.project.basePath ?: return null
+        val projectDir = runtime.projectDir.takeIf { it.isNotBlank() } ?: return null
         val dir = File(JuggPathManager(File(projectDir)).mcpFetchDir, "layout_verify")
         if (!dir.exists()) {
             dir.mkdirs()
@@ -1141,7 +1140,7 @@ class LayoutVerifyMcpToolAction : McpToolAction {
     private fun resolveOnlineDevice(runtime: IMcpRuntime): SelectedAdb? {
         val selectionResult = DeviceSelectionResolver().resolve(runtime.deployTargetManager)
         if (selectionResult !is DeviceSelectionResult.Selected) return null
-        val adb = PlatformApi.toDeviceAdb(selectionResult.device) ?: return null
+        val adb = runtime.deployTargetManager.createDeviceAdb(selectionResult.device)
         if (!adb.isOnline) return null
         return SelectedAdb(adb = adb)
     }

@@ -1,6 +1,6 @@
 ---
 title: First run
-description: Master the Jugg first run process to establish a Gradle baseline, verify console incremental signals, and understand everyday 3-second hot reloads.
+description: Establish a Gradle baseline, verify the first Run result, and understand subsequent incremental runs.
 status: active
 tags:
   - onboarding
@@ -31,35 +31,33 @@ Click Jugg Run
   -> Detect missing incremental baseline, automatically fall back to full Gradle build
   -> Install and launch the target application
   -> In the background, collect class relations, resource maps, and R files for future incremental runs
-  -> Baseline ready: subsequent code and resource modifications enter the 3-second bypass pipeline
+  -> Baseline ready: supported subsequent code and resource changes can run incrementally
 ```
 
 > [!NOTE]
-> A full Gradle build is only required on the very first run. Once the baseline is established, everyday development changes will experience instant second-level feedback.
+> The first Run needs a full Gradle build when no usable baseline exists. Later Runs can build incrementally while that baseline remains valid; build configuration or dependency changes, unsupported processing, or an explicit fallback can require another full build.
 
 ## 3. Verification: Console log characteristics
 
 Upon successful completion of the first run, the **Run** tool window at the bottom of Android Studio displays Jugg's progress:
 
 ```text
-[Jugg] Starting Jugg Run for app...
-[Jugg] Baseline not found, falling back to full Gradle build...
-[Jugg] Gradle build succeeded. Installing APK...
-[Jugg] Jugg baseline established successfully. Ready for incremental builds!
+Gradle BUILD_AND_INSTALL SUCCESSFUL in <elapsed>s.
+App launched.
 ```
 
-When you see the baseline readiness message, Jugg has successfully taken over incremental compilation for the project.
+These lines confirm that the Gradle build, installation, and launch succeeded. Baseline preparation continues in the background; they do not alone prove that incremental compilation is ready. See [Run an app](../guide/run.md) for subsequent Run results.
 
 ## 4. Everyday development: 3-second hot reload and execution paths
 
 After the baseline is established, whenever you make small changes to Java, Kotlin, XML layouts, or Assets, continue clicking **Jugg Run** (or press `Ctrl + R` / `Shift + F10`):
 
-| Modification Scenario | Jugg Decision Path | Expected Feedback Latency |
+| Modification Scenario | Jugg Decision Path | What to expect |
 |---|---|---|
-| **Modify method body / add private method** | Incrementally compiles classes and applies hot swap | **~1–3 seconds** (no app restart needed) |
-| **Modify XML layout / drawables** | Incrementally generates resource table and pushes to app sandbox | **~2–3 seconds** (refreshes immediately) |
-| **Modify class signature / add Activity** | Incrementally repackages APK and restarts target Activity | **~3–5 seconds** |
-| **Modify `build.gradle` / dependencies** | Automatically falls back to full Gradle build safely and refreshes baseline | Depends on project full build duration |
+| **Modify a method body** | Incrementally compiles changed classes; uses Hot Reload when supported | Can avoid an app restart; device compatibility or other changes can require one |
+| **Modify XML layouts / drawables** | Compiles and deploys changed resources | Refreshes Activities where supported, or restarts the app |
+| **Add a method / modify a class signature / add an Activity** | Uses Hot Fix and restarts the app when supported; falls back to Gradle when required | Process state is reset after restart; Activity declarations may also require Manifest processing |
+| **Modify `build.gradle` / dependencies** | Checks whether a full Gradle build is required and refreshes the baseline | Be ready for a full build; total time depends on the project |
 
 ## 5. When to fall back to Gradle manually
 

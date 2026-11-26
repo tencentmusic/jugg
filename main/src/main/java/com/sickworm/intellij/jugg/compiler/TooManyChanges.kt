@@ -3,7 +3,7 @@ package com.sickworm.intellij.jugg.compiler
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.ui.TooManyChangesConfirmResult
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
-import com.sickworm.intellij.jugg.project.ChangedFile
+import com.sickworm.intellij.jugg.project.change.ChangedFile
 
 /**
  * User-visible counts for a too-many-changes fallback decision.

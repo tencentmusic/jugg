@@ -2,9 +2,9 @@ package com.sickworm.intellij.jugg.deploy
 
 import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.intellij.openapi.diagnostic.Logger
-import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.compiler.ClassNode
 import com.sickworm.intellij.jugg.compiler.ClassPreparation
+import com.sickworm.intellij.jugg.project.change.ChangedFile
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.compiler.DesugarInfo
@@ -13,7 +13,7 @@ import com.sickworm.intellij.jugg.compiler.constref.ConstRefAnalyzer
 import com.sickworm.intellij.jugg.compiler.constref.ConstRefEngine
 import com.sickworm.intellij.jugg.compiler.obfuscation.ClassObfuscator
 import com.sickworm.intellij.jugg.compiler.obfuscation.MinifyInfo
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import com.sickworm.intellij.jugg.deploy.data.ConstRefEffectProvider
 import com.sickworm.intellij.jugg.deploy.data.ConstRefReadiness
 import com.sickworm.intellij.jugg.deploy.data.DeployDataGenerator
@@ -22,8 +22,8 @@ import com.sickworm.intellij.jugg.deploy.data.SourceFileManager
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.logger.getInstance
-import com.sickworm.intellij.jugg.project.IBackgroundTaskRunner
-import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
+import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
 import org.jetbrains.annotations.TestOnly
 import java.io.File
 
@@ -32,14 +32,14 @@ import java.io.File
  */
 class DeployFileManager(
     private val pathManager: JuggPathManager,
-    private var backgroundTaskRunner: IBackgroundTaskRunner,
+    private val taskRunnerManager: TaskRunnerManager,
     private val logger: Logger,
     private val constRefEngine: ConstRefEngine = ConstRefEngine(
         analyzer = ConstRefAnalyzer(logger.getInstance("ConstRefAnalyzer")),
         dbFile = pathManager.constRefSharedDbFile,
         repoFingerprintDbFile = pathManager.repoFingerprintDbFile,
         logger = logger.getInstance("ConstRefEngine"),
-        backgroundTaskRunner = backgroundTaskRunner,
+        taskRunnerManager = taskRunnerManager,
     ),
 ) {
     private val isConstRefTasksEnabled: Boolean
@@ -116,7 +116,11 @@ class DeployFileManager(
         logger.debug("add changed files, size: ${files.size}, paths: $files")
         val newFiles = stateTracker.addChangedFiles(files)
 
-        backgroundTaskRunner.runBackgroundSafe("DeployFileManager#updateSourceFiles") {
+        taskRunnerManager.runBackgroundSafe(
+            "DeployFileManager#updateSourceFiles",
+            isProjectWrite = true,
+            claimRuntimeOwner = false,
+        ) {
             sourceFileManager.updateFiles(newFiles, emptyList())
         }
         files.filter {
@@ -154,7 +158,11 @@ class DeployFileManager(
     fun removeChangedFile(files: List<File>) {
         stateTracker.removeChangedFiles(files)
 
-        backgroundTaskRunner.runBackgroundSafe("DeployFileManager#removeSourceFiles") {
+        taskRunnerManager.runBackgroundSafe(
+            "DeployFileManager#removeSourceFiles",
+            isProjectWrite = true,
+            claimRuntimeOwner = false,
+        ) {
             sourceFileManager.updateFiles(emptyList(), files.filter { !it.exists() })
         }
         files.forEach {

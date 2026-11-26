@@ -1,0 +1,4 @@
+interface:
+  display_name: "Jugg Dogfood Sync"
+  short_description: "Refresh, reanchor, verify, and promote local dogfood"
+  default_prompt: "Use $jugg-dogfood-sync to refresh the local dogfood branch."

@@ -1,0 +1,6 @@
+<resources>
+    <!-- Case 4: remove the entire parent attribute; this name has no implicit dotted parent. -->
+    <style name="StyleProbeParentRemoval" parent="StyleProbeBase">
+        <item name="android:textSize">22sp</item>
+    </style>
+</resources>

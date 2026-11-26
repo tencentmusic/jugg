@@ -79,7 +79,7 @@ Jugg Runtime identifies the APK associated with the current Resources. Host reso
 
 With Android 15 and an older Android Studio, Apply Changes may update resources without triggering a complete resource refresh and Activity recreation. Jugg Runtime supplies an ApplicationInfo update for that combination and recreates the Activity according to current deployment requirements so that the page reads the new resource state.
 
-The runtime also provides overlay-first lookup for classpath resources at the APK root. If no incremental file matches or reading fails, it continues with the original ClassLoader lookup so that auxiliary compatibility logic does not interrupt the app's existing resource loading.
+In ordinary deployment, the runtime also provides overlay-first lookup for classpath resources at the APK root. If no incremental file matches or reading fails, it continues with the original ClassLoader lookup so that auxiliary compatibility logic does not interrupt the app's existing resource loading. Compatibility deployment skips this hook; for changes to these classpath resources, use a full Gradle build and reinstall.
 
 ## How incremental artifacts take effect in the app
 

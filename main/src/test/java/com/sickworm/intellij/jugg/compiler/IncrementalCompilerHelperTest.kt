@@ -1,18 +1,21 @@
 package com.sickworm.intellij.jugg.compiler
 
+import com.sickworm.intellij.jugg.mock.SettingsFileRule
+import org.junit.Rule
 import com.sickworm.intellij.jugg.compiler.ui.TooManyChangesConfirmResult
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.IDeployStateManager
 import com.sickworm.intellij.jugg.deploy.JuggDeployState
 import com.sickworm.intellij.jugg.deploy.RecompileFiles
+import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.sickworm.intellij.jugg.deploy.data.EffectedClassNode
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.mock.logger
-import com.sickworm.intellij.jugg.project.ChangedFile
-import com.sickworm.intellij.jugg.project.IFileChangesHandler
-import com.sickworm.intellij.jugg.project.JuggPathManager
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.change.ChangedFile
+import com.sickworm.intellij.jugg.project.change.IFileChangesHandler
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import org.junit.Test
 import org.mockito.Mockito
 import org.mockito.kotlin.any
@@ -36,6 +39,10 @@ import kotlin.test.assertTrue
  * Verifies await-const-ref timing in incremental compile flow.
  */
 class IncrementalCompilerHelperTest {
+    @get:Rule
+    val settingsFileRule = SettingsFileRule()
+
+    @get:Rule val temporary = org.junit.rules.TemporaryFolder()
 
     @Test
     fun `should expose compile error details for visible logs`() {
@@ -254,17 +261,19 @@ class IncrementalCompilerHelperTest {
             parentFile.mkdirs()
             writeText("package com.example\nconst val A = 1\n")
         }
+        val oldModule = ModuleInfo.virtualModule.copy(name = "app")
+        val refreshedModule = oldModule.copy(sourceDirs = listOf(File(tempDir, "src/refreshed")))
         val changedFile = ChangedFile(
             type = CompileFile.Type.Kotlin,
             file = sourceFile,
             baseDir = tempDir,
-            module = ModuleInfo.virtualModule,
+            module = oldModule,
         )
         val compileFile = CompileFile(
             type = CompileFile.Type.Kotlin,
             file = sourceFile,
             baseDir = tempDir,
-            module = ModuleInfo.virtualModule,
+            module = oldModule,
         )
         val failResult = CompileResult(
             task = CompileTask(listOf(compileFile), File(tempDir, "task_out"), CompileStatusHolder.DEFAULT),
@@ -286,6 +295,7 @@ class IncrementalCompilerHelperTest {
         val retryResolver: IIncrementalCompileRetryResolver = mock()
         val juggDeployData: JuggDeployData = mock()
         whenever(compiler.context).thenReturn(compileContext)
+        whenever(compileContext.modules).thenReturn(mapOf(refreshedModule.name to refreshedModule))
         whenever(pathManager.stagingDir).thenReturn(File(tempDir, "staging"))
         // First compile fails, second (retry) succeeds
         whenever(compiler.compile(any())).thenReturn(failResult, successResult)
@@ -321,7 +331,10 @@ class IncrementalCompilerHelperTest {
         // retryResolver.resolve() called once for the first failure; not called on retry round
         verify(retryResolver, Mockito.times(1)).resolve(any())
         // compiler.compile() called twice: first round + retry round
-        verify(compiler, Mockito.times(2)).compile(any())
+        val taskCaptor = argumentCaptor<CompileTask>()
+        verify(compiler, Mockito.times(2)).compile(taskCaptor.capture())
+        assertEquals(oldModule, taskCaptor.firstValue.files.single().module)
+        assertEquals(refreshedModule, taskCaptor.secondValue.files.single().module)
     }
 
     @Test
@@ -412,6 +425,7 @@ class IncrementalCompilerHelperTest {
         val fileChangesHandler: IFileChangesHandler = mock()
         val retryResolver: IIncrementalCompileRetryResolver = mock()
         val juggDeployData: JuggDeployData = mock()
+        val targetDevice: IDevice = mock()
         whenever(compiler.context).thenReturn(compileContext)
         whenever(compileContext.mappingFile).thenReturn(null)
         whenever(compileContext.isMinified).thenReturn(false)
@@ -424,7 +438,7 @@ class IncrementalCompilerHelperTest {
             val files = invocation.getArgument<List<File>>(0)
             files.map { file -> changedFile(file, tempDir) }
         }
-        whenever(deployStateManager.updateDeployState()).thenReturn(JuggDeployState.READY)
+        whenever(deployStateManager.updateDeployState(targetDevice)).thenReturn(JuggDeployState.READY)
         doNothing().whenever(deployFileManager).updateUncompiledFiles(any(), any())
         doNothing().whenever(deployFileManager).addStagingFiles(any())
         doNothing().whenever(deployFileManager).awaitConstRefAnalysis(any())
@@ -445,7 +459,15 @@ class IncrementalCompilerHelperTest {
             }
         }
 
-        val helper = buildHelper(compiler, pathManager, deployStateManager, deployFileManager, fileChangesHandler, retryResolver)
+        val helper = buildHelper(
+            compiler,
+            pathManager,
+            deployStateManager,
+            deployFileManager,
+            fileChangesHandler,
+            retryResolver,
+            targetDevice,
+        )
         helper.compile(
             undeployedFiles = listOf(callerChanged),
             uiHandler = CompileUiHandler.DEFAULT,
@@ -456,6 +478,7 @@ class IncrementalCompilerHelperTest {
         verify(compiler, Mockito.times(2)).compile(taskCaptor.capture())
         val secondRoundPaths = taskCaptor.allValues[1].files.map { it.file.absolutePath }.toSet()
         assertEquals(setOf(defFile.absolutePath), secondRoundPaths)
+        verify(deployStateManager, never()).updateDeployState()
     }
 
     @Test
@@ -845,20 +868,26 @@ class IncrementalCompilerHelperTest {
 
     @Test
     fun `should continue compile when user confirms too many changes`() {
-        val fixture = continueCompileTooManyFixture()
-        val uiHandler = mock<CompileUiHandler>()
-        whenever(uiHandler.confirmTooManyChanges(any())).thenReturn(TooManyChangesConfirmResult.CONTINUE)
-        whenever(uiHandler.createCompileStatusHolder()).thenReturn(CompileStatusHolder.DEFAULT)
-        val result = withLoweredSourceFilePointLimit(2) {
-            fixture.helper.compile(
-                undeployedFiles = listOf(fixture.triggerChanged),
-                uiHandler = uiHandler,
-                compileStatusHolder = CompileStatusHolder.DEFAULT,
-            )
+        val previous = JuggSettings.isConfirmFallbackWhenTooManyChanges
+        JuggSettings.isConfirmFallbackWhenTooManyChanges = false
+        try {
+            val fixture = continueCompileTooManyFixture()
+            val uiHandler = mock<CompileUiHandler>()
+            whenever(uiHandler.confirmTooManyChanges(any())).thenReturn(TooManyChangesConfirmResult.CONTINUE)
+            whenever(uiHandler.createCompileStatusHolder()).thenReturn(CompileStatusHolder.DEFAULT)
+            val result = withLoweredSourceFilePointLimit(2) {
+                fixture.helper.compile(
+                    undeployedFiles = listOf(fixture.triggerChanged),
+                    uiHandler = uiHandler,
+                    compileStatusHolder = CompileStatusHolder.DEFAULT,
+                )
+            }
+            assertTrue(result.isSuccess)
+            verify(uiHandler).confirmTooManyChanges(any())
+            verify(fixture.compiler, Mockito.times(2)).compile(any())
+        } finally {
+            JuggSettings.isConfirmFallbackWhenTooManyChanges = previous
         }
-        assertTrue(result.isSuccess)
-        verify(uiHandler).confirmTooManyChanges(any())
-        verify(fixture.compiler, Mockito.times(2)).compile(any())
     }
 
     @Test
@@ -985,6 +1014,7 @@ class IncrementalCompilerHelperTest {
         deployFileManager: DeployFileManager,
         fileChangesHandler: IFileChangesHandler,
         retryResolver: IIncrementalCompileRetryResolver,
+        targetDevice: IDevice? = null,
     ) = IncrementalCompilerHelper(
         compiler = compiler,
         pathManager = pathManager,
@@ -993,5 +1023,6 @@ class IncrementalCompilerHelperTest {
         fileChangesHandler = fileChangesHandler,
         retryResolver = retryResolver,
         loggerArg = logger,
+        targetDevice = targetDevice,
     )
 }

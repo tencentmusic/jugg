@@ -3,18 +3,18 @@ package com.sickworm.intellij.jugg.manager
 import com.intellij.execution.RunManager
 import com.intellij.execution.RunnerAndConfigurationSettings
 import com.intellij.execution.configurations.ConfigurationFactory
-import com.intellij.execution.configurations.RunConfiguration
 import com.intellij.mock.MockProject
 import com.intellij.openapi.diagnostic.Logger
-import com.intellij.openapi.module.Module
-import com.intellij.openapi.project.Project
+import com.intellij.openapi.wm.ToolWindow
+import com.intellij.openapi.wm.ToolWindowManager
 import com.sickworm.intellij.jugg.JuggManager
-import com.sickworm.intellij.jugg.compiler.BuildTarget
 import com.sickworm.intellij.jugg.compiler.JuggCompilerHelper
+import com.sickworm.intellij.jugg.compiler.context.CompileContextManager
+import com.sickworm.intellij.jugg.compiler.context.IdeaCompileEnvironmentSource
+import com.sickworm.intellij.jugg.compiler.context.IdeaProjectModelSource
 import com.sickworm.intellij.jugg.compiler.custom.CustomCompilerManager
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.DeployStateManager
-import com.sickworm.intellij.jugg.deploy.FullBuildInfo
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.deploy.IJuggRunningTaskStatusManager
@@ -22,48 +22,51 @@ import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.IdeVersion
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
+import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentService
 import com.sickworm.intellij.jugg.deploy.run.SuggestRunConfiguration
 import com.sickworm.intellij.jugg.ide.JuggConfigurationType
+import com.sickworm.intellij.jugg.ide.JuggControlPanelHost
 import com.sickworm.intellij.jugg.ide.JuggRunConfiguration
 import com.sickworm.intellij.jugg.ide.SyncEvent
+import com.sickworm.intellij.jugg.ide.logic.IdeSyncProblemResolver
 import com.sickworm.intellij.jugg.mock.TestGlobal
-import com.sickworm.intellij.jugg.project.CompileContextManager
-import com.sickworm.intellij.jugg.project.ChangedFile
-import com.sickworm.intellij.jugg.project.GitFileChangesDetector
-import com.sickworm.intellij.jugg.project.IFileChangesDetector
-import com.sickworm.intellij.jugg.project.IFileChangesHandler
-import com.sickworm.intellij.jugg.project.CustomConfigManager
-import com.sickworm.intellij.jugg.project.JuggPathManager
-import com.sickworm.intellij.jugg.project.TaskRunnerManager
+import com.sickworm.intellij.jugg.project.change.FileChangeManager
+import com.sickworm.intellij.jugg.project.change.GitFileChangesDetector
+import com.sickworm.intellij.jugg.project.change.IFileChangeMonitor
+import com.sickworm.intellij.jugg.project.change.IFileChangesHandler
 import com.sickworm.intellij.jugg.project.dependency.GradleProjectInfoLocalFetchManager
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
-import com.sickworm.intellij.jugg.ide.logic.IdeSyncProblemResolver
-import com.sickworm.intellij.jugg.server.JuggHotUpdateDownloader
+import com.sickworm.intellij.jugg.project.info.JuggProjectInfo
+import com.sickworm.intellij.jugg.project.info.ModuleBuildPathInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
+import com.sickworm.intellij.jugg.project.runtime.ProjectCustomConfigManager
+import com.sickworm.intellij.jugg.project.runtime.RuntimeInfo
+import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
+import com.sickworm.intellij.jugg.server.IdeaHotUpdateCoordinator
 import com.sickworm.intellij.jugg.server.JuggServer
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestCoroutineScheduler
 import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.BeforeClass
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import org.mockito.kotlin.any
 import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import java.io.File
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicInteger
-import java.util.concurrent.atomic.AtomicReference
-import kotlin.test.assertEquals
-import kotlin.test.assertSame
-import kotlin.test.assertTrue
+import javax.swing.SwingUtilities
 
+/**
+ * Verifies the Jugg lifecycle entry points create and recover IDEA run configurations from Sync.
+ */
 class JuggManagerRunConfigurationSyncTest {
-
-    private val priorityImplField = AsDeployerCompat::class.java.getDeclaredField("priorityImpl").apply {
-        isAccessible = true
-    }
-    private var originalPriorityImpl: Any? = null
 
     companion object {
         @BeforeClass
@@ -73,914 +76,126 @@ class JuggManagerRunConfigurationSyncTest {
         }
     }
 
+    @get:Rule
+    val temporaryFolder = TemporaryFolder()
+
+    private val priorityImplField = AsDeployerCompat::class.java.getDeclaredField("priorityImpl").apply {
+        isAccessible = true
+    }
+    private var originalPriorityImpl: Any? = null
+
     @After
     fun tearDown() {
         originalPriorityImpl?.let { priorityImplField.set(null, it) }
     }
 
     @Test
-    fun `file change processing should not block run configuration sync`() {
-        val filterStarted = CountDownLatch(1)
-        val releaseFilter = CountDownLatch(1)
-        val fileChangesHandler = mock<IFileChangesHandler>()
-        whenever(fileChangesHandler.filter(any())).thenAnswer {
-            filterStarted.countDown()
-            releaseFilter.await(5, TimeUnit.SECONDS)
-            emptyList<ChangedFile>()
-        }
-        val fixture = createFixture(fileChangesHandler)
-        whenever(fixture.asDeployerCompat.getSuggestRunConfigurations(any(), any(), any(), any()))
-            .thenReturn(emptyList())
-        val fileChangeError = AtomicReference<Throwable?>()
-        val fileChangeThread = Thread {
-            try {
-                fixture.invokeProcessFileChanged()
-            } catch (error: Throwable) {
-                fileChangeError.set(error)
-            }
-        }
-        fileChangeThread.start()
-        assertTrue(filterStarted.await(1, TimeUnit.SECONDS))
+    fun `sync creates the suggestion configuration and makes the jugg tool window available`() {
+        val fixture = createFixture()
+        fixture.suggestions += suggestion("app", "debug")
 
-        val syncFinished = CountDownLatch(1)
-        val syncError = AtomicReference<Throwable?>()
-        val syncThread = Thread {
-            try {
-                fixture.invokeSync()
-            } catch (error: Throwable) {
-                syncError.set(error)
-            } finally {
-                syncFinished.countDown()
-            }
-        }
-        syncThread.start()
+        fixture.manager.onSyncEvent(SyncEvent.SUCCEEDED)
+        SwingUtilities.invokeAndWait {}
 
-        try {
-            assertTrue(syncFinished.await(500, TimeUnit.MILLISECONDS))
-        } finally {
-            releaseFilter.countDown()
-            fileChangeThread.join(1_000L)
-            syncThread.join(1_000L)
-        }
-        fileChangeError.get()?.let { throw AssertionError("File change processing failed", it) }
-        syncError.get()?.let { throw AssertionError("Run configuration sync failed", it) }
+        verify(fixture.toolWindow).setAvailable(true)
+        assertEquals(1, fixture.settings.size)
+        assertEquals("./gradlew :app:assembleDebug", fixture.settings.single().compileCommand())
+        assertEquals("jugg:app", fixture.settings.single().name)
     }
 
     @Test
-    fun `concurrent run configuration syncs should not create duplicates`() {
-        val firstSyncStarted = CountDownLatch(1)
-        val releaseFirstSync = CountDownLatch(1)
-        val invocationCount = AtomicInteger()
+    fun `sync without suggestions falls back to a single project info configuration`() {
         val fixture = createFixture()
-        whenever(fixture.asDeployerCompat.getSuggestRunConfigurations(any(), any(), any(), any())).thenAnswer {
-            if (invocationCount.incrementAndGet() == 1) {
-                firstSyncStarted.countDown()
-                releaseFirstSync.await(5, TimeUnit.SECONDS)
-            }
-            listOf(
-                SuggestRunConfiguration(
-                    moduleName = "app",
-                    compileCommand = "./gradlew :app:assembleDebug",
-                    outputApkPath = "app/build/outputs/apk/debug/*.apk",
-                    variantName = "debug",
-                ),
-            )
-        }
-        val errors = listOf(AtomicReference<Throwable?>(), AtomicReference<Throwable?>())
-        val firstThread = Thread { invokeSync(fixture, errors[0]) }
-        val secondThread = Thread { invokeSync(fixture, errors[1]) }
 
-        firstThread.start()
-        assertTrue(firstSyncStarted.await(1, TimeUnit.SECONDS))
-        secondThread.start()
-        releaseFirstSync.countDown()
-        firstThread.join(1_000L)
-        secondThread.join(1_000L)
+        fixture.manager.onSyncEvent(SyncEvent.SUCCEEDED)
+        SwingUtilities.invokeAndWait {}
 
-        errors.forEach { error ->
-            error.get()?.let { throw AssertionError("Run configuration sync failed", it) }
-        }
+        verify(fixture.toolWindow).setAvailable(true)
+        assertEquals(1, fixture.settings.size)
+        assertEquals("./gradlew :app:assembleDebug", fixture.settings.single().compileCommand())
+    }
+
+    @Test
+    fun `sync retry reads fresh suggestions and creates the configuration once`() {
+        val fixture = createFixture(ModuleInfo.Type.Unknown)
+        fixture.suggestions.clear()
+
+        fixture.manager.onSyncEvent(SyncEvent.SUCCEEDED)
+
+        assertTrue(fixture.settings.isEmpty())
+        fixture.suggestions += suggestion("app", "release")
+        fixture.scheduler.advanceTimeBy(2_001L)
+        fixture.scheduler.runCurrent()
+
+        assertEquals(1, fixture.settings.size)
+        assertEquals("./gradlew :app:assembleRelease", fixture.settings.single().compileCommand())
+        SwingUtilities.invokeAndWait {}
+        verify(fixture.toolWindow).setAvailable(true)
+    }
+
+    @Test
+    fun `repeated sync does not duplicate the suggestion configuration`() {
+        val fixture = createFixture()
+        fixture.suggestions += suggestion("app", "debug")
+
+        fixture.manager.onSyncEvent(SyncEvent.SUCCEEDED)
+        fixture.manager.onSyncEvent(SyncEvent.SUCCEEDED)
+
         assertEquals(1, fixture.settings.size)
     }
 
     @Test
-    fun sync_multipleModules_keepGeneratedTargetsIndependent() {
-        val fixture = createFixture()
-        val modules = listOf("skin", "app", "feature")
-        whenever(fixture.asDeployerCompat.getSuggestRunConfigurations(any(), any(), any(), any())).thenReturn(
-            modules.map { module ->
-                SuggestRunConfiguration(
-                    moduleName = module,
-                    compileCommand = "./gradlew :$module:assembleDebug",
-                    outputApkPath = "$module/build/outputs/apk/debug/*.apk",
-                    variantName = "debug",
-                )
-            },
+    fun `recoverDeployContext consumes startup runtime owner change`() {
+        val projectDir = temporaryFolder.newFolder("owner_recover_project")
+        val pathManager = JuggPathManager(projectDir)
+        pathManager.runtimeOwnerFile.parentFile.mkdirs()
+        pathManager.runtimeOwnerFile.writeText(
+            """{"runtimeType":"standalone","runtimeVersion":"test","pid":1,"claimedAt":1}""",
         )
 
-        fixture.invokeSync()
-        fixture.invokeSync()
+        val ideaTaskRunnerManager = com.sickworm.intellij.jugg.createTestTaskRunnerManager(pathManager)
+        ideaTaskRunnerManager.runProjectWriteLocked("Initialize CLI run configuration") {}
+        val fixture = createFixture(projectDirOverride = projectDir, taskRunnerManagerOverride = ideaTaskRunnerManager)
 
-        assertEquals(modules.map { "jugg:$it" }, fixture.settings.map { it.name })
-        modules.forEach { module ->
-            val setting = fixture.settings.single { it.name == "jugg:$module" }
-            assertEquals("./gradlew :$module:assembleDebug", setting.compileCommand())
-            assertEquals("$module/build/outputs/apk/debug/*.apk", setting.outputApkName())
-        }
-    }
+        fixture.manager.recoverDeployContext()
 
-    @Test
-    fun sync_firstGeneratedConfiguration_usesLegacyModuleName() {
-        val fixture = createFixture()
-        whenever(fixture.asDeployerCompat.getSuggestRunConfigurations(any(), any(), any(), any())).thenReturn(
-            listOf(
-                SuggestRunConfiguration(
-                    moduleName = "app",
-                    compileCommand = "./gradlew :app:assembleDevDebug",
-                    outputApkPath = "app/build/outputs/apk/dev/debug/*.apk",
-                    variantName = "devDebug",
-                ),
-            ),
-        )
-
-        fixture.invokeSync()
-
-        assertEquals(listOf("jugg:app"), fixture.settings.map { it.name })
-        assertSame(fixture.settings.single(), fixture.selectedConfiguration)
-    }
-
-    @Test
-    fun sync_selectedNonJuggConfiguration_createsWithoutChangingSelection() {
-        val fixture = createFixture()
-        fixture.addConfiguration(
-            name = "jugg:app",
-            compileCommand = "./gradlew :app:assembleDevDebug",
-            outputApkName = "app/build/outputs/apk/dev/debug/*.apk",
-        )
-        val androidConfiguration = mock<RunnerAndConfigurationSettings>()
-        fixture.selectedConfiguration = androidConfiguration
-        whenever(fixture.asDeployerCompat.getSuggestRunConfigurations(any(), any(), any(), any())).thenReturn(
-            listOf(
-                SuggestRunConfiguration(
-                    moduleName = "app",
-                    compileCommand = "./gradlew :app:assembleRelease",
-                    outputApkPath = "app/build/outputs/apk/release/*.apk",
-                    variantName = "release",
-                ),
-            ),
-        )
-
-        fixture.invokeSync()
-
-        assertEquals(listOf("jugg:app", "jugg:app:release"), fixture.settings.map { it.name })
-        assertSame(androidConfiguration, fixture.selectedConfiguration)
-    }
-
-    @Test
-    fun sync_activeBuildVariantChanged_createsAndSelectsVariantConfiguration() {
-        val fixture = createFixture()
-        val debug = fixture.addConfiguration(
-            name = "jugg:app",
-            compileCommand = "./gradlew :app:assembleDebug",
-            outputApkName = "app/build/outputs/apk/debug/*.apk",
-        )
-        fixture.selectedConfiguration = debug
-        whenever(fixture.deployHistoryManager.getFullBuildInfo()).thenReturn(
-            FullBuildInfo("./gradlew :app:assembleDebug", BuildTarget.APP, 1L),
-        )
-        whenever(fixture.asDeployerCompat.getSuggestRunConfigurations(any(), any(), any(), any())).thenReturn(
-            listOf(
-                SuggestRunConfiguration(
-                    moduleName = "app",
-                    compileCommand = "./gradlew :app:assembleRelease",
-                    outputApkPath = "app/build/outputs/apk/release/*.apk",
-                    variantName = "release",
-                ),
-            ),
-        )
-
-        fixture.invokeSync()
-
-        assertEquals(2, fixture.settings.size)
-        assertEquals("jugg:app:release", fixture.settings.last().name)
-        assertEquals("./gradlew :app:assembleRelease", fixture.selectedConfiguration?.compileCommand())
-    }
-
-    @Test
-    fun sync_uppercaseActiveBuildVariant_createsAndSelectsVariantConfiguration() {
-        val fixture = createFixture()
-        val bux = fixture.addConfiguration(
-            name = "jugg:app",
-            compileCommand = "./gradlew :app:assembleBux1V71Debug",
-            outputApkName = "app/build/outputs/apk/bux1V71/debug/*.apk",
-        )
-        fixture.selectedConfiguration = bux
-        whenever(fixture.asDeployerCompat.getSuggestRunConfigurations(any(), any(), any(), any())).thenReturn(
-            listOf(
-                SuggestRunConfiguration(
-                    moduleName = "app",
-                    compileCommand = "./gradlew :app:assembleCuxCommonDebug",
-                    outputApkPath = "app/build/outputs/apk/cuxCommon/debug/*.apk",
-                    variantName = "CuxCommonDebug",
-                ),
-            ),
-        )
-
-        fixture.invokeSync()
-
-        assertEquals(2, fixture.settings.size)
-        assertEquals("jugg:app:CuxCommonDebug", fixture.settings.last().name)
-        assertEquals("./gradlew :app:assembleCuxCommonDebug", fixture.selectedConfiguration?.compileCommand())
-    }
-
-    @Test
-    fun sync_activeBuildVariantUnchanged_keepsSelectedConfiguration() {
-        val fixture = createFixture()
-        val debug = fixture.addConfiguration(
-            name = "jugg:app",
-            compileCommand = "./gradlew :app:assembleDebug",
-            outputApkName = "app/build/outputs/apk/debug/*.apk",
-        )
-        fixture.selectedConfiguration = debug
-        whenever(fixture.deployHistoryManager.getFullBuildInfo()).thenReturn(
-            FullBuildInfo("./gradlew :app:assembleDebug", BuildTarget.APP, 1L),
-        )
-        whenever(fixture.asDeployerCompat.getSuggestRunConfigurations(any(), any(), any(), any())).thenReturn(
-            listOf(
-                SuggestRunConfiguration(
-                    moduleName = "app",
-                    compileCommand = "./gradlew :app:assembleDebug",
-                    outputApkPath = "app/build/outputs/apk/debug/*.apk",
-                    variantName = "debug",
-                ),
-            ),
-        )
-
-        fixture.invokeSync()
-
-        assertEquals(1, fixture.settings.size)
-        assertSame(debug, fixture.selectedConfiguration)
-    }
-
-    @Test
-    fun sync_customTaskForActiveVariant_keepsSelectedConfiguration() {
-        val fixture = createFixture()
-        val deploy = fixture.addConfiguration(
-            name = "jugg:app",
-            compileCommand = "gradlew.bat :app:deployDebug --stacktrace",
-            outputApkName = "app/build/deploy/*_arm64.apk",
-        )
-        fixture.selectedConfiguration = deploy
-        whenever(fixture.asDeployerCompat.getSuggestRunConfigurations(any(), any(), any(), any())).thenReturn(
-            listOf(
-                SuggestRunConfiguration(
-                    moduleName = "app",
-                    compileCommand = "./gradlew :app:assembleDebug",
-                    outputApkPath = "app/build/outputs/apk/debug/*.apk",
-                    variantName = "debug",
-                ),
-            ),
-        )
-
-        fixture.invokeSync()
-
-        assertSame(deploy, fixture.selectedConfiguration)
-        assertEquals("gradlew.bat :app:deployDebug --stacktrace", deploy.compileCommand())
-    }
-
-    @Test
-    fun sync_activeBuildVariantUnchanged_preservesCustomGradleArguments() {
-        val fixture = createFixture()
-        val debug = fixture.addConfiguration(
-            name = "jugg:app:debug",
-            compileCommand = "./gradlew :app:assembleDebug --offline -Pchannel=dev",
-            outputApkName = "app/build/outputs/apk/debug/*.apk",
-        )
-        fixture.selectedConfiguration = debug
-        whenever(fixture.asDeployerCompat.getSuggestRunConfigurations(any(), any(), any(), any())).thenReturn(
-            listOf(
-                SuggestRunConfiguration(
-                    moduleName = "app",
-                    compileCommand = "./gradlew :app:assembleDebug",
-                    outputApkPath = "app/build/outputs/apk/debug/*.apk",
-                    variantName = "debug",
-                ),
-            ),
-        )
-
-        fixture.invokeSync()
-
-        assertEquals(1, fixture.settings.size)
-        assertSame(debug, fixture.selectedConfiguration)
-        assertEquals("./gradlew :app:assembleDebug --offline -Pchannel=dev", debug.compileCommand())
-    }
-
-    @Test
-    fun sync_customGradleTaskWithArguments_preservesConfiguration() {
-        val fixture = createFixture()
-        val debug = fixture.addConfiguration(
-            name = "jugg:app:debug",
-            compileCommand = "./gradlew :app:packageDebug --offline",
-            outputApkName = "app/build/outputs/apk/debug/*.apk",
-        )
-        fixture.selectedConfiguration = debug
-        whenever(fixture.asDeployerCompat.getSuggestRunConfigurations(any(), any(), any(), any())).thenReturn(
-            listOf(
-                SuggestRunConfiguration(
-                    moduleName = "app",
-                    compileCommand = "./gradlew :app:packageDebug",
-                    outputApkPath = "app/build/outputs/apk/debug/*.apk",
-                    variantName = "debug",
-                ),
-            ),
-        )
-
-        fixture.invokeSync()
-
-        assertEquals(1, fixture.settings.size)
-        assertSame(debug, fixture.selectedConfiguration)
-        assertEquals("./gradlew :app:packageDebug --offline", debug.compileCommand())
-    }
-
-    @Test
-    fun sync_existingConfiguration_preservesGeneratedStyleOutputApkPath() {
-        val fixture = createFixture()
-        val debug = fixture.addConfiguration(
-            name = "jugg:app:debug",
-            compileCommand = "./gradlew :app:assembleDebug",
-            outputApkName = "app/build/outputs/apk/debug/*.apk",
-        )
-        whenever(fixture.asDeployerCompat.getSuggestRunConfigurations(any(), any(), any(), any())).thenReturn(
-            listOf(
-                SuggestRunConfiguration(
-                    moduleName = "app",
-                    compileCommand = "./gradlew :app:assembleDebug",
-                    outputApkPath = "build/app/outputs/apk/debug/*.apk",
-                    variantName = "debug",
-                ),
-            ),
-        )
-
-        fixture.invokeSync()
-
-        assertEquals("app/build/outputs/apk/debug/*.apk", debug.outputApkName())
-    }
-
-    @Test
-    fun sync_existingManualConfiguration_preservesOutputApkPath() {
-        val fixture = createFixture()
-        val debug = fixture.addConfiguration(
-            name = "jugg:app:debug",
-            compileCommand = "./gradlew :app:assembleDebug",
-            outputApkName = "artifacts/custom-debug.apk",
-        )
-        whenever(fixture.asDeployerCompat.getSuggestRunConfigurations(any(), any(), any(), any())).thenReturn(
-            listOf(
-                SuggestRunConfiguration(
-                    moduleName = "app",
-                    compileCommand = "./gradlew :app:assembleDebug",
-                    outputApkPath = "build/app/outputs/apk/debug/*.apk",
-                    variantName = "debug",
-                ),
-            ),
-        )
-
-        fixture.invokeSync()
-
-        assertEquals("artifacts/custom-debug.apk", debug.outputApkName())
-    }
-
-    @Test
-    fun sync_activeBuildVariantChanged_selectsExistingVariantConfiguration() {
-        val fixture = createFixture()
-        val release = fixture.addConfiguration(
-            name = "jugg:app:release",
-            compileCommand = "./gradlew :app:assembleRelease",
-            outputApkName = "app/build/outputs/apk/release/*.apk",
-        )
-        val debug = fixture.addConfiguration(
-            name = "jugg:app:debug",
-            compileCommand = "./gradlew :app:assembleDebug",
-            outputApkName = "app/build/outputs/apk/debug/*.apk",
-        )
-        fixture.selectedConfiguration = release
-        whenever(fixture.deployHistoryManager.getFullBuildInfo()).thenReturn(
-            FullBuildInfo("./gradlew :app:assembleRelease", BuildTarget.APP, 1L),
-        )
-        whenever(fixture.asDeployerCompat.getSuggestRunConfigurations(any(), any(), any(), any())).thenReturn(
-            listOf(
-                SuggestRunConfiguration(
-                    moduleName = "app",
-                    compileCommand = "./gradlew :app:assembleDebug",
-                    outputApkPath = "app/build/outputs/apk/debug/*.apk",
-                    variantName = "debug",
-                ),
-            ),
-        )
-
-        fixture.invokeSync()
-
-        assertEquals(2, fixture.settings.size)
-        assertSame(debug, fixture.selectedConfiguration)
-    }
-
-    @Test
-    fun sync_activeBuildVariantChanged_keepsSelectedWhenOnlyTargetHasCustomGradleArguments() {
-        val fixture = createFixture()
-        val release = fixture.addConfiguration(
-            name = "jugg:app:release",
-            compileCommand = "./gradlew :app:assembleRelease",
-            outputApkName = "app/build/outputs/apk/release/*.apk",
-        )
-        val debug = fixture.addConfiguration(
-            name = "jugg:app:debug",
-            compileCommand = "./gradlew :app:assembleDebug --offline",
-            outputApkName = "app/build/outputs/apk/debug/*.apk",
-        )
-        fixture.selectedConfiguration = release
-        whenever(fixture.asDeployerCompat.getSuggestRunConfigurations(any(), any(), any(), any())).thenReturn(
-            listOf(
-                SuggestRunConfiguration(
-                    moduleName = "app",
-                    compileCommand = "./gradlew :app:assembleDebug",
-                    outputApkPath = "app/build/outputs/apk/debug/*.apk",
-                    variantName = "debug",
-                ),
-            ),
-        )
-
-        fixture.invokeSync()
-
-        assertEquals(2, fixture.settings.size)
-        assertSame(release, fixture.selectedConfiguration)
-        assertEquals("./gradlew :app:assembleDebug --offline", debug.compileCommand())
-    }
-
-    @Test
-    fun sync_variantSwitch_keepsSelectedCustomGradleTaskConfiguration() {
-        val fixture = createFixture()
-        val debug = fixture.addConfiguration(
-            name = "jugg:app:debug",
-            compileCommand = "./gradlew :app:packageDebug",
-            outputApkName = "app/build/outputs/apk/debug/*.apk",
-        )
-        val release = fixture.addConfiguration(
-            name = "jugg:app:release",
-            compileCommand = "./gradlew :app:packageRelease --offline",
-            outputApkName = "app/build/outputs/apk/release/*.apk",
-        )
-        fixture.selectedConfiguration = debug
-        whenever(fixture.asDeployerCompat.getSuggestRunConfigurations(any(), any(), any(), any())).thenReturn(
-            listOf(
-                SuggestRunConfiguration(
-                    moduleName = "app",
-                    compileCommand = "./gradlew :app:packageRelease",
-                    outputApkPath = "app/build/outputs/apk/release/*.apk",
-                    variantName = "release",
-                ),
-            ),
-        )
-
-        fixture.invokeSync()
-
-        assertEquals(2, fixture.settings.size)
-        assertSame(debug, fixture.selectedConfiguration)
-        assertEquals("./gradlew :app:packageRelease --offline", release.compileCommand())
-    }
-
-    @Test
-    fun sync_variantSwitch_keepsSelectedCustomTaskWithVariantLikeSuffix() {
-        val fixture = createFixture()
-        val custom = fixture.addConfiguration(
-            name = "jugg:app:debug",
-            compileCommand = "./gradlew :app:uploadDebug",
-            outputApkName = "artifacts/custom.apk",
-        )
-        fixture.selectedConfiguration = custom
-        whenever(fixture.asDeployerCompat.getSuggestRunConfigurations(any(), any(), any(), any())).thenReturn(
-            listOf(
-                SuggestRunConfiguration(
-                    moduleName = "app",
-                    compileCommand = "./gradlew :app:assembleRelease",
-                    outputApkPath = "app/build/outputs/apk/release/*.apk",
-                    variantName = "release",
-                ),
-            ),
-        )
-
-        fixture.invokeSync()
-
-        assertSame(custom, fixture.selectedConfiguration)
-    }
-
-    @Test
-    fun sync_variantSwitch_keepsSelectedAssembleCommandWithCustomArguments() {
-        val fixture = createFixture()
-        val custom = fixture.addConfiguration(
-            name = "jugg:app:debug",
-            compileCommand = "./gradlew :app:assembleDebug --offline",
-            outputApkName = "app/build/outputs/apk/debug/*.apk",
-        )
-        fixture.selectedConfiguration = custom
-        whenever(fixture.asDeployerCompat.getSuggestRunConfigurations(any(), any(), any(), any())).thenReturn(
-            listOf(
-                SuggestRunConfiguration(
-                    moduleName = "app",
-                    compileCommand = "./gradlew :app:assembleRelease",
-                    outputApkPath = "app/build/outputs/apk/release/*.apk",
-                    variantName = "release",
-                ),
-            ),
-        )
-
-        fixture.invokeSync()
-
-        assertSame(custom, fixture.selectedConfiguration)
-    }
-
-    @Test
-    fun sync_variantSwitch_keepsSelectedRootCustomTask() {
-        val fixture = createFixture()
-        val custom = fixture.addConfiguration(
-            name = "jugg:app:debug",
-            compileCommand = "./gradlew happyBuild",
-            outputApkName = "artifacts/custom.apk",
-        )
-        fixture.selectedConfiguration = custom
-        whenever(fixture.asDeployerCompat.getSuggestRunConfigurations(any(), any(), any(), any())).thenReturn(
-            listOf(
-                SuggestRunConfiguration(
-                    moduleName = "app",
-                    compileCommand = "./gradlew :app:assembleRelease",
-                    outputApkPath = "app/build/outputs/apk/release/*.apk",
-                    variantName = "release",
-                ),
-            ),
-        )
-
-        fixture.invokeSync()
-
-        assertSame(custom, fixture.selectedConfiguration)
-    }
-
-    @Test
-    fun sync_switchingBackToPersistedVariant_selectsExistingConfiguration() {
-        val fixture = createFixture()
-        val prodDebug = fixture.addConfiguration(
-            name = "jugg:app:prodDebug",
-            compileCommand = "./gradlew :app:assembleProdDebug",
-            outputApkName = "app/build/outputs/apk/prod/debug/*.apk",
-        )
-        val devStaging = fixture.addConfiguration(
-            name = "jugg:app:devStaging",
-            compileCommand = "./gradlew :app:assembleDevStaging",
-            outputApkName = "app/build/outputs/apk/dev/staging/*.apk",
-        )
-        fixture.selectedConfiguration = prodDebug
-        whenever(fixture.deployHistoryManager.getFullBuildInfo()).thenReturn(
-            FullBuildInfo("./gradlew :app:assembleProdDebug", BuildTarget.APP, 1L),
-        )
-        whenever(fixture.asDeployerCompat.getSuggestRunConfigurations(any(), any(), any(), any()))
-            .thenReturn(
-                listOf(
-                    SuggestRunConfiguration(
-                        moduleName = "app",
-                        compileCommand = "./gradlew :app:assembleDevStaging",
-                        outputApkPath = "app/build/outputs/apk/dev/staging/*.apk",
-                        variantName = "devStaging",
-                    ),
-                ),
-            )
-            .thenReturn(
-                listOf(
-                    SuggestRunConfiguration(
-                        moduleName = "app",
-                        compileCommand = "./gradlew :app:assembleProdDebug",
-                        outputApkPath = "app/build/outputs/apk/prod/debug/*.apk",
-                        variantName = "prodDebug",
-                    ),
-                ),
-            )
-
-        fixture.invokeSync()
-        fixture.invokeSync()
-
-        assertSame(prodDebug, fixture.selectedConfiguration)
-        assertEquals(2, fixture.settings.size)
-        assertSame(devStaging, fixture.settings.last())
-    }
-
-    @Test
-    fun sync_selectedJuggConfigurationWithoutFullBuildHistory_switchesConfiguration() {
-        val fixture = createFixture()
-        val debug = fixture.addConfiguration(
-            name = "jugg:app:debug",
-            compileCommand = "./gradlew :app:assembleDebug",
-            outputApkName = "app/build/outputs/apk/debug/*.apk",
-        )
-        fixture.selectedConfiguration = debug
-        whenever(fixture.asDeployerCompat.getSuggestRunConfigurations(any(), any(), any(), any())).thenReturn(
-            listOf(
-                SuggestRunConfiguration(
-                    moduleName = "app",
-                    compileCommand = "./gradlew :app:assembleRelease",
-                    outputApkPath = "app/build/outputs/apk/release/*.apk",
-                    variantName = "release",
-                ),
-            ),
-        )
-
-        fixture.invokeSync()
-
-        assertEquals(2, fixture.settings.size)
-        assertEquals("./gradlew :app:assembleRelease", fixture.selectedConfiguration?.compileCommand())
-    }
-
-    @Test
-    fun sync_multiTaskSuggestion_preservesSelectedConfiguration() {
-        val fixture = createFixture()
-        val debug = fixture.addConfiguration(
-            name = "jugg:app:debug",
-            compileCommand = "./gradlew :app:packageDebug --offline",
-            outputApkName = "app/build/outputs/apk/debug/*.apk",
-        )
-        fixture.selectedConfiguration = debug
-        whenever(fixture.asDeployerCompat.getSuggestRunConfigurations(any(), any(), any(), any())).thenReturn(
-            listOf(
-                SuggestRunConfiguration(
-                    moduleName = "app",
-                    compileCommand = "./gradlew clean :app:packageRelease",
-                    outputApkPath = "app/build/outputs/apk/release/*.apk",
-                    variantName = "release",
-                ),
-            ),
-        )
-
-        fixture.invokeSync()
-
-        assertEquals(2, fixture.settings.size)
-        assertSame(debug, fixture.selectedConfiguration)
-    }
-
-    @Test
-    fun skippedSync_activeBuildVariantChanged_selectsExistingVariantConfiguration() {
-        val fixture = createFixture()
-        val release = fixture.addConfiguration(
-            name = "jugg:app:release",
-            compileCommand = "./gradlew :app:assembleRelease",
-            outputApkName = "app/build/outputs/apk/release/*.apk",
-        )
-        val debug = fixture.addConfiguration(
-            name = "jugg:app:debug",
-            compileCommand = "./gradlew :app:assembleDebug",
-            outputApkName = "app/build/outputs/apk/debug/*.apk",
-        )
-        fixture.selectedConfiguration = release
-        whenever(fixture.deployHistoryManager.getFullBuildInfo()).thenReturn(
-            FullBuildInfo("./gradlew :app:assembleRelease", BuildTarget.APP, 1L),
-        )
-        whenever(fixture.asDeployerCompat.getSuggestRunConfigurations(any(), any(), any(), any())).thenReturn(
-            listOf(
-                SuggestRunConfiguration(
-                    moduleName = "app",
-                    compileCommand = "./gradlew :app:assembleDebug",
-                    outputApkPath = "app/build/outputs/apk/debug/*.apk",
-                    variantName = "debug",
-                ),
-            ),
-        )
-
-        fixture.manager.onSyncEvent(SyncEvent.SKIPPED)
-
-        assertSame(debug, fixture.selectedConfiguration)
-    }
-
-    @Test
-    fun sync_duplicateCompileCommands_createsSingleConfiguration() {
-        val fixture = createFixture()
-        val debug = fixture.addConfiguration(
-            name = "jugg:app:debug",
-            compileCommand = "./gradlew :app:assembleDebug",
-            outputApkName = "app/build/outputs/apk/debug/*.apk",
-        )
-        fixture.selectedConfiguration = debug
-        whenever(fixture.deployHistoryManager.getFullBuildInfo()).thenReturn(
-            FullBuildInfo("./gradlew :app:assembleDebug", BuildTarget.APP, 1L),
-        )
-        whenever(fixture.asDeployerCompat.getSuggestRunConfigurations(any(), any(), any(), any())).thenReturn(
-            listOf(
-                SuggestRunConfiguration(
-                    moduleName = "app",
-                    compileCommand = "./gradlew :app:assembleRelease",
-                    outputApkPath = "app/build/outputs/apk/release/*.apk",
-                    variantName = "release",
-                ),
-                SuggestRunConfiguration(
-                    moduleName = "app",
-                    compileCommand = "./gradlew :app:assembleRelease",
-                    outputApkPath = "SMCommon/app/build/outputs/apk/release/*.apk",
-                    variantName = "release",
-                ),
-            ),
-        )
-
-        fixture.invokeSync()
-
-        assertEquals(2, fixture.settings.size)
-        assertEquals("app/build/outputs/apk/release/*.apk", fixture.selectedConfiguration?.outputApkName())
-    }
-
-    @Test
-    fun suggestRunConfiguration_compositeBuildUsesUniqueGradleModulePath() {
-        val rootModule = SuggestRunConfiguration.resolveModuleName(
-            ideModuleName = "JuggDuplicateAppModules.app",
-            rootProjectName = "JuggDuplicateAppModules",
-        )
-        val includedModule = SuggestRunConfiguration.resolveModuleName(
-            ideModuleName = "SMCommon.app",
-            rootProjectName = "JuggDuplicateAppModules",
-        )
-        val newIdeRootModule = SuggestRunConfiguration.resolveModuleName(
-            ideModuleName = "JuggDuplicateAppModules.app.main",
-            rootProjectName = "JuggDuplicateAppModules",
-        )
-        val newIdeIncludedModule = SuggestRunConfiguration.resolveModuleName(
-            ideModuleName = "SMCommon.app.main",
-            rootProjectName = "JuggDuplicateAppModules",
-        )
-        val sameNamedRootModule = SuggestRunConfiguration.resolveModuleName(
-            ideModuleName = "app.main",
-            rootProjectName = "app",
-        )
-
-        assertEquals("app", rootModule)
-        assertEquals("SMCommon.app", includedModule)
-        assertEquals("app", newIdeRootModule)
-        assertEquals("SMCommon.app", newIdeIncludedModule)
-        assertEquals("app", sameNamedRootModule)
-        assertEquals(
-            "./gradlew :app:assembleDevDebug",
-            SuggestRunConfiguration.createCompileCommand(":app", "assembleDevDebug"),
-        )
-        assertEquals(
-            "./gradlew :SMCommon:app:assembleDevDebug",
-            SuggestRunConfiguration.createCompileCommand(":SMCommon:app", "assembleDevDebug"),
-        )
-    }
-
-    @Test
-    fun suggestRunConfiguration_dottedGradleModulePathPreservesSegmentName() {
-        assertEquals(
-            "./gradlew :zxphone5.0:assembleGooglePlayDev",
-            SuggestRunConfiguration.createCompileCommand(":zxphone5.0", "assembleGooglePlayDev"),
-        )
-    }
-
-    @Test
-    fun suggestRunConfiguration_gradleIdentityIgnoresIdeSourceSetSuffix() {
-        assertEquals(
-            "app",
-            SuggestRunConfiguration.resolveGradleModuleName(
-                gradleProjectPath = ":app",
-                gradleBuildRoot = "/repo",
-                projectDir = File("/repo"),
-                externalProjectId = "Root:app:debug",
-            ),
-        )
-        assertEquals(
-            "SMCommon.app",
-            SuggestRunConfiguration.resolveGradleModuleName(
-                gradleProjectPath = ":app",
-                gradleBuildRoot = "/repo/SMCommon",
-                projectDir = File("/repo"),
-                externalProjectId = "SMCommon:app:main~",
-            ),
-        )
-    }
-
-    @Test
-    fun suggestRunConfiguration_gradleTaskPathPreservesProjectPathSegments() {
-        assertEquals(
-            ":zxphone5.0",
-            SuggestRunConfiguration.resolveGradleModulePath(
-                gradleProjectPath = ":zxphone5.0",
-                gradleBuildRoot = "/repo",
-                projectDir = File("/repo"),
-                externalProjectId = "Root:zxphone5.0:main",
-            ),
-        )
-        assertEquals(
-            ":SMCommon:feature.api:app",
-            SuggestRunConfiguration.resolveGradleModulePath(
-                gradleProjectPath = ":feature.api:app",
-                gradleBuildRoot = "/repo/SMCommon",
-                projectDir = File("/repo"),
-                externalProjectId = "SMCommon:feature.api:app:main",
-            ),
-        )
-    }
-
-    @Test
-    fun suggestRunConfiguration_gradleIdentityFailureFallsBackToLegacyModuleName() {
-        val module = mock<Module>()
-        val project = mock<Project>()
-        whenever(module.name).thenReturn("Root.app.debug")
-        whenever(project.name).thenReturn("Root")
-        whenever(project.basePath).thenReturn("/repo")
-
-        assertEquals("app.debug", SuggestRunConfiguration.resolveModuleName(module, project))
-        assertEquals(":app:debug", SuggestRunConfiguration.resolveGradleModulePath(module, project))
-    }
-
-    @Test
-    fun sync_newIdeMainSourceSet_selectsNormalizedVariantConfiguration() {
-        val fixture = createFixture()
-        val debug = fixture.addConfiguration(
-            name = "jugg:app",
-            compileCommand = "./gradlew :app:assembleDebug",
-            outputApkName = "app/build/outputs/apk/debug/*.apk",
-        )
-        fixture.selectedConfiguration = debug
-        whenever(fixture.deployHistoryManager.getFullBuildInfo()).thenReturn(
-            FullBuildInfo("./gradlew :app:assembleDebug", BuildTarget.APP, 1L),
-        )
-        val moduleName = SuggestRunConfiguration.resolveModuleName(
-            ideModuleName = "JuggDuplicateAppModules.app.main",
-            rootProjectName = "JuggDuplicateAppModules",
-        )
-        val compileCommand = SuggestRunConfiguration.createCompileCommand(":app", "assembleDevDebug")
-        whenever(fixture.asDeployerCompat.getSuggestRunConfigurations(any(), any(), any(), any())).thenReturn(
-            listOf(
-                SuggestRunConfiguration(
-                    moduleName = moduleName,
-                    compileCommand = compileCommand,
-                    outputApkPath = "app/build/outputs/apk/dev/debug/*.apk",
-                    variantName = "devDebug",
-                ),
-            ),
-        )
-
-        fixture.invokeSync()
-
-        assertEquals("app", moduleName)
-        assertEquals("./gradlew :app:assembleDevDebug", compileCommand)
-        assertEquals("jugg:app:devDebug", fixture.selectedConfiguration?.name)
-    }
-
-    @Test
-    fun sync_dottedGradleModulePath_selectsActiveVariantConfiguration() {
-        val fixture = createFixture()
-        val debug = fixture.addConfiguration(
-            name = "jugg:zxphone5.0:googlePlayDebug",
-            compileCommand = "./gradlew :zxphone5.0:assembleGooglePlayDebug",
-            outputApkName = "zxphone5.0/build/outputs/apk/googlePlay/debug/*.apk",
-        )
-        fixture.selectedConfiguration = debug
-        whenever(fixture.deployHistoryManager.getFullBuildInfo()).thenReturn(
-            FullBuildInfo("./gradlew :zxphone5.0:assembleGooglePlayDebug", BuildTarget.APP, 1L),
-        )
-        whenever(fixture.asDeployerCompat.getSuggestRunConfigurations(any(), any(), any(), any())).thenReturn(
-            listOf(
-                SuggestRunConfiguration(
-                    moduleName = "zxphone5.0",
-                    compileCommand = "./gradlew :zxphone5.0:assembleGooglePlayDev",
-                    outputApkPath = "zxphone5.0/build/outputs/apk/googlePlay/dev/*.apk",
-                    variantName = "googlePlayDev",
-                ),
-            ),
-        )
-
-        fixture.invokeSync()
-
-        assertEquals("./gradlew :zxphone5.0:assembleGooglePlayDev", fixture.selectedConfiguration?.compileCommand())
+        assertEquals(null, ideaTaskRunnerManager.consumeRuntimeOwnerChange())
     }
 
     private fun createFixture(
-        fileChangesHandler: IFileChangesHandler = mock(),
+        moduleType: ModuleInfo.Type = ModuleInfo.Type.Application,
+        projectDirOverride: File? = null,
+        taskRunnerManagerOverride: TaskRunnerManager? = null,
     ): Fixture {
+        val projectDir = projectDirOverride ?: temporaryFolder.newFolder("sync_project")
         val runManager = mock<RunManager>()
+        val settings = mutableListOf<RunnerAndConfigurationSettings>()
+        var selectedConfiguration: RunnerAndConfigurationSettings? = null
+        val templates = mutableMapOf<ConfigurationFactory, com.intellij.execution.configurations.RunConfiguration>()
+        val toolWindow = mock<ToolWindow>()
+        val toolWindowManager = mock<ToolWindowManager>()
+        whenever(toolWindowManager.getToolWindow(JuggControlPanelHost.TOOL_WINDOW_ID)).thenReturn(toolWindow)
         val project = object : MockProject(null, {}) {
             @Suppress("UNCHECKED_CAST")
             override fun <T : Any?> getService(serviceClass: Class<T>): T? {
                 if (serviceClass == RunManager::class.java) {
                     return runManager as T
                 }
+                if (serviceClass == ToolWindowManager::class.java) {
+                    return toolWindowManager as T
+                }
                 return super.getService(serviceClass)
             }
 
-            override fun getBasePath(): String = "/tmp/jugg-run-configuration-sync-test"
+            override fun getBasePath(): String = projectDir.absolutePath
         }
-        val settings = mutableListOf<RunnerAndConfigurationSettings>()
-        val templates = mutableMapOf<ConfigurationFactory, RunConfiguration>()
-        var selectedConfiguration: RunnerAndConfigurationSettings? = null
         whenever(runManager.getConfigurationSettingsList(JuggConfigurationType::class.java))
             .thenAnswer { settings.toList() }
         whenever(runManager.createConfiguration(any<String>(), any<ConfigurationFactory>())).thenAnswer { invocation ->
             val name = invocation.getArgument<String>(0)
             val factory = invocation.getArgument<ConfigurationFactory>(1)
             val template = templates.getOrPut(factory) { factory.createTemplateConfiguration(project) }
-            val configuration = factory.createConfiguration(name, template) as JuggRunConfiguration
-            wrapSettings(configuration)
+            wrapSettings(factory.createConfiguration(name, template) as JuggRunConfiguration)
         }
         doAnswer { invocation ->
             settings.add(invocation.getArgument(0))
@@ -992,131 +207,115 @@ class JuggManagerRunConfigurationSyncTest {
             null
         }.whenever(runManager).selectedConfiguration = any()
 
-        val pathManager = mock<JuggPathManager>()
-        whenever(pathManager.projectDir).thenReturn(File(project.basePath))
-        val deployHistoryManager = mock<IDeployHistoryManager>()
+        val taskRunnerManager = taskRunnerManagerOverride ?: mock<TaskRunnerManager>().also { mocked ->
+            doAnswer { invocation -> (invocation.arguments[1] as () -> Any?).invoke() }
+                .whenever(mocked).runProjectWriteLocked<Any?>(any<String>(), any())
+            doAnswer { (it.arguments[1] as Runnable).run() }
+                .whenever(mocked).runTaskSafe(any(), any(), any(), any(), any())
+        }
+
+        val compileContextManager = mock<CompileContextManager>()
+        whenever(compileContextManager.getProjectInfo()).thenReturn(projectInfo(projectDir, moduleType))
+        val pathManager = JuggPathManager(projectDir)
+        pathManager.projectInfosDir.mkdirs()
+        pathManager.gradleProjectInfoFile.createNewFile()
+        val dependencyChangeManager = mock<IDependencyChangeManager>()
+        val gradleProjectInfoLocalFetchManager = GradleProjectInfoLocalFetchManager(
+            pathManager,
+            compileContextManager,
+            taskRunnerManager,
+            dependencyChangeManager,
+            mock<IDeployHistoryManager>(),
+            mock<IdeaCompileEnvironmentSource>(),
+            mock<Logger>(),
+        )
+        val suggestions = mutableListOf<SuggestRunConfiguration>()
         val asDeployerCompat = mock<IAsDeployerCompat>()
-        replaceAsDeployerCompat(asDeployerCompat)
+        whenever(asDeployerCompat.getSuggestRunConfigurations(any(), any(), any(), any()))
+            .thenAnswer { suggestions.toList() }
+        originalPriorityImpl = priorityImplField.get(null)
+        priorityImplField.set(
+            null,
+            Class.forName("com.sickworm.intellij.jugg.deploy.run.CompatImpl")
+                .getDeclaredConstructor(IdeVersion::class.java, Lazy::class.java)
+                .apply { isAccessible = true }
+                .newInstance(AsDeployerCompat.ideVersion, lazyOf(asDeployerCompat)),
+        )
+
+        val scheduler = TestCoroutineScheduler()
         val manager = JuggManager(
             project = project,
             pathManager = pathManager,
-            coroutineScope = CoroutineScope(Dispatchers.Unconfined),
+            coroutineScope = CoroutineScope(StandardTestDispatcher(scheduler)),
             logger = mock<Logger>(),
+            runtimeInfo = RuntimeInfo("idea", "test", "test", "0"),
             juggServer = mock<JuggServer>(),
-            juggHotUpdateDownloader = mock<JuggHotUpdateDownloader>(),
-            fileChangesHandler = fileChangesHandler,
-            fileChangesDetector = mock<IFileChangesDetector>(),
-            deployHistoryManager = deployHistoryManager,
+            ideaHotUpdateCoordinator = mock<IdeaHotUpdateCoordinator>(),
+            fileChangesHandler = mock<IFileChangesHandler>(),
+            fileChangesDetector = mock<IFileChangeMonitor>(),
+            deployHistoryManager = mock<IDeployHistoryManager>(),
             deployTargetManager = mock<IDeployTargetManager>(),
             deployStateManager = mock<DeployStateManager>(),
-            taskRunnerManager = mock<TaskRunnerManager>(),
+            taskRunnerManager = taskRunnerManager,
+            deploymentService = mock<JuggDeploymentService>(),
             customCompilerManager = mock<CustomCompilerManager>(),
             deployFileManager = mock<DeployFileManager>(),
-            compileContextManager = mock<CompileContextManager>(),
+            compileEnvironmentSource = mock<IdeaCompileEnvironmentSource>(),
+            projectModelSource = mock<IdeaProjectModelSource>(),
+            compileContextManager = compileContextManager,
             juggRunningTaskStatusManager = mock<IJuggRunningTaskStatusManager>(),
-            dependencyChangeManager = mock<IDependencyChangeManager>(),
-            gradleProjectInfoLocalFetchManager = mock<GradleProjectInfoLocalFetchManager>(),
+            dependencyChangeManager = dependencyChangeManager,
+            gradleProjectInfoLocalFetchManager = gradleProjectInfoLocalFetchManager,
             gitFileChangesDetector = mock<GitFileChangesDetector>(),
+            fileChangeManager = mock<FileChangeManager>(),
             juggDeployerHelper = mock<JuggDeployerHelper>(),
             juggCompilerHelper = mock<JuggCompilerHelper>(),
-            customConfigManager = mock<CustomConfigManager>(),
+            projectCustomConfigManager = mock<ProjectCustomConfigManager>(),
             ideSyncProblemResolver = mock<IdeSyncProblemResolver>(),
+            runManager = runManager,
         )
-        return Fixture(
-            project = project,
-            manager = manager,
-            settings = settings,
-            deployHistoryManager = deployHistoryManager,
-            asDeployerCompat = asDeployerCompat,
-            getSelectedConfiguration = { selectedConfiguration },
-            setSelectedConfiguration = { selectedConfiguration = it },
-        )
-    }
-
-    private fun createSettings(
-        project: Project,
-        name: String,
-        factory: ConfigurationFactory = JuggConfigurationType.getInstance().configurationFactories[0],
-    ): RunnerAndConfigurationSettings {
-        val configuration = JuggRunConfiguration(project, factory, name)
-        return wrapSettings(configuration)
+        return Fixture(manager, settings, suggestions, scheduler, toolWindow)
     }
 
     private fun wrapSettings(configuration: JuggRunConfiguration): RunnerAndConfigurationSettings {
-        return mock {
-            whenever(it.name).thenReturn(configuration.name)
-            whenever(it.configuration).thenReturn(configuration)
-            whenever(it.type).thenReturn(JuggConfigurationType.getInstance())
-        }
+        val settings = mock<RunnerAndConfigurationSettings>()
+        whenever(settings.name).thenReturn(configuration.name)
+        whenever(settings.configuration).thenReturn(configuration)
+        return settings
     }
 
-    private inner class Fixture(
-        val project: Project,
-        val manager: JuggManager,
-        val settings: MutableList<RunnerAndConfigurationSettings>,
-        val deployHistoryManager: IDeployHistoryManager,
-        val asDeployerCompat: IAsDeployerCompat,
-        private val getSelectedConfiguration: () -> RunnerAndConfigurationSettings?,
-        private val setSelectedConfiguration: (RunnerAndConfigurationSettings?) -> Unit,
-    ) {
-        var selectedConfiguration: RunnerAndConfigurationSettings?
-            get() = getSelectedConfiguration()
-            set(value) = setSelectedConfiguration(value)
-
-        fun addConfiguration(name: String, compileCommand: String, outputApkName: String): RunnerAndConfigurationSettings {
-            val setting = createSettings(project, name)
-            (setting.configuration as JuggRunConfiguration).state!!.apply {
-                this.compileCommand = compileCommand
-                this.outputApkName = outputApkName
-            }
-            settings.add(setting)
-            return setting
-        }
-
-        fun invokeSync() {
-            val method = JuggManager::class.java.getDeclaredMethod(
-                "tryCreateRunConfigurations",
-                Boolean::class.javaPrimitiveType,
-                Int::class.javaPrimitiveType,
-            )
-            method.isAccessible = true
-            method.invoke(manager, true, 0)
-        }
-
-        fun invokeProcessFileChanged() {
-            val method = JuggManager::class.java.getDeclaredMethod(
-                "processFileChanged",
-                List::class.java,
-                List::class.java,
-                String::class.java,
-            )
-            method.isAccessible = true
-            method.invoke(manager, listOf(File(project.basePath, "changed.kt")), emptyList<File>(), "ide")
-        }
+    private fun projectInfo(projectDir: File, moduleType: ModuleInfo.Type): JuggProjectInfo {
+        val moduleDir = File(projectDir, "app")
+        val app = ModuleInfo.virtualModule.copy(
+            name = "app",
+            moduleType = moduleType,
+            projectRootDir = projectDir,
+            moduleRootDir = moduleDir,
+            buildVariant = "debug",
+            buildPathInfo = ModuleBuildPathInfo(projectDir, moduleDir, "debug", buildDirRelativePath = ""),
+        )
+        return JuggProjectInfo(mapOf(app.name to app), agpR8Classpath = null)
     }
 
-    private fun replaceAsDeployerCompat(asDeployerCompat: IAsDeployerCompat) {
-        originalPriorityImpl = priorityImplField.get(null)
-        val compatImpl = Class.forName("com.sickworm.intellij.jugg.deploy.run.CompatImpl")
-            .getDeclaredConstructor(IdeVersion::class.java, Lazy::class.java)
-            .apply { isAccessible = true }
-            .newInstance(AsDeployerCompat.ideVersion, lazyOf(asDeployerCompat))
-        priorityImplField.set(null, compatImpl)
-    }
-
-    private fun invokeSync(fixture: Fixture, error: AtomicReference<Throwable?>) {
-        try {
-            fixture.invokeSync()
-        } catch (throwable: Throwable) {
-            error.set(throwable)
-        }
+    private fun suggestion(moduleName: String, variant: String): SuggestRunConfiguration {
+        val variantTask = variant.replaceFirstChar { it.uppercaseChar() }
+        return SuggestRunConfiguration(
+            moduleName = moduleName,
+            compileCommand = "./gradlew :$moduleName:assemble$variantTask",
+            outputApkPath = "$moduleName/build/outputs/apk/$variant/*.apk",
+            variantName = variant,
+        )
     }
 
     private fun RunnerAndConfigurationSettings.compileCommand(): String? {
-        return (configuration as JuggRunConfiguration).state?.compileCommand
+        return (configuration as? JuggRunConfiguration)?.state?.compileCommand
     }
 
-    private fun RunnerAndConfigurationSettings.outputApkName(): String? {
-        return (configuration as JuggRunConfiguration).state?.outputApkName
-    }
+    private data class Fixture(
+        val manager: JuggManager,
+        val settings: MutableList<RunnerAndConfigurationSettings>,
+        val suggestions: MutableList<SuggestRunConfiguration>,
+        val scheduler: TestCoroutineScheduler,
+        val toolWindow: ToolWindow,
+    )
 }

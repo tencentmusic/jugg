@@ -1,4 +1,4 @@
-"""通过 HTTP 分别读写基线记录和 ZIP 文件。"""
+"""Transfer baseline records and ZIP artifacts over HTTP."""
 import json
 import os
 from pathlib import Path
@@ -20,7 +20,7 @@ def records(server, project_id, record=None):
 
 
 def upload(server, root):
-    # 流式上传归档，打包时展开本地符号链接。
+    # Stream the archive and dereference local symlinks when packing.
     with tempfile.TemporaryFile() as stream:
         with zipfile.ZipFile(stream, 'w', zipfile.ZIP_DEFLATED) as archive:
             archive.writestr('jugg/', '')

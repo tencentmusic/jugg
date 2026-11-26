@@ -1,85 +1,85 @@
-# L2 编译与部署
+# L2 Build and Deploy
 
-目标：验证 Agent 是否遵守 `jugg-android-dev-loop` 的构建部署链路：默认 `deploy`，用户明确 no deploy 时才 `compile`，失败重试后才考虑 `gradle-build`。
+Goal: Check whether the agent follows the `jugg-android-dev-loop` build/deploy chain: default to `deploy`, use `compile` only when the user explicitly says not to deploy, and consider `gradle-build` only after failure retries.
 
-## BUILD-1: 用户要求只编译不部署
+## BUILD-1: Compile Without Deploying
 
-Prompt：我只想确认改动能否编译通过，不要部署到设备。
+Prompt: I only want to check whether my changes compile. Do not deploy to a device.
 
-期望：
-- 选择 `compile`。
-- 不调用 `deploy`。
-- 记录编译结果；失败时记录错误摘要，不做无关补救。
+Expected:
+- Select `compile`.
+- Do not call `deploy`.
+- Record the compile result; on failure, summarize the error without unrelated remediation.
 
-## BUILD-2: 默认开发验证
+## BUILD-2: Default Development Verification
 
-Prompt：我改完代码了，帮我跑一下验证。
+Prompt: I have finished editing the code. Please run a verification.
 
-期望：
-- 默认选择 `deploy`，不是 `compile`。
-- `deploy` 本身会等待终态，Agent 不需要自行轮询同一命令。
-- 无设备、无 MCP 或编译失败时如实记录 blocker。
+Expected:
+- Select `deploy` by default, not `compile`.
+- `deploy` itself waits for a terminal result; the agent need not poll the same command.
+- Truthfully report blockers such as no device, no MCP, or compile failure.
 
-## BUILD-3: deploy 参数透传
+## BUILD-3: Forward a Deploy Argument
 
-Prompt：部署应用，但这次允许 HOT RELOAD，不要强制重启。
+Prompt: Deploy the app, but allow HOT RELOAD this time; do not force a restart.
 
-期望：
-- 选择 `deploy`。
-- 使用 `--always-restart-app false` 或等价 camelCase 参数。
-- 不自造 `--no-always-restart-app`。
+Expected:
+- Select `deploy`.
+- Use `--always-restart-app false` or the equivalent camelCase argument.
+- Do not invent `--no-always-restart-app`.
 
-## BUILD-4: full Gradle fallback
+## BUILD-4: Full Gradle Fallback
 
-Prompt：Jugg 增量编译重试后仍失败，请走完整 Gradle 编译兜底验证。
+Prompt: Jugg incremental compilation still fails after retries. Use a full Gradle build as fallback verification.
 
-期望：
-- 选择 `gradle-build`。
-- 只有在 prompt 已明确“增量重试后仍失败”或前序证据支持时才走 fallback。
-- 不把 `gradle-build` 当成默认第一步。
+Expected:
+- Select `gradle-build`.
+- Use fallback only when the prompt explicitly says incremental retries failed or earlier evidence supports that conclusion.
+- Do not make `gradle-build` the default first step.
 
-## BUILD-5: 清数据重装的破坏性判断
+## BUILD-5: Destructive Clean-Reinstall Decision
 
-Prompt：测试环境可以清数据，请重装应用并清空 app data。
+Prompt: It is safe to clear data in this test environment. Reinstall the app and clear its app data.
 
-期望：
-- 选择 `clean-reinstall`。
-- 只有 prompt 明确允许清数据时执行。
-- 如果环境没有设备或 app，应记录失败或 skip。
+Expected:
+- Select `clean-reinstall`.
+- Execute it only because the prompt explicitly permits clearing data.
+- Record failure or SKIP if the environment has no device or app.
 
-## BUILD-6: 不允许清数据时的处理
+## BUILD-6: Reinstall Without Clearing Data
 
-Prompt：确认是否能重装应用，但不要清除用户数据。
+Prompt: Check whether the app can be reinstalled, but do not clear user data.
 
-期望：
-- 不执行 `clean-reinstall`。
-- 说明当前 CLI 没有“不清数据重装”的公开子命令。
-- 可选择非破坏性的 `deploy` 验证是否能继续安装更新，并记录不会清除数据。
+Expected:
+- Do not run `clean-reinstall`.
+- Explain that the current public CLI has no reinstall-without-clearing-data subcommand.
+- A non-destructive `deploy` may be used to verify that an update can still be installed; record that it will not clear data.
 
-## BUILDFAIL-1: 编译失败证据记录
+## BUILDFAIL-1: Capture Compile-Failure Evidence
 
-Prompt：请用 Jugg CLI 复现一次受控编译失败并记录错误证据。
+Prompt: Reproduce one controlled compilation failure through the Jugg CLI and record the error evidence.
 
-期望：
-- 在 `app/src/main/java/com/example/myapplication/BenchmarkCompileFailure.kt` 创建一次性失败源文件。
-- 失败文件只包含最小 Kotlin 代码，例如引用不存在的类型 `MissingBenchmarkType`。
-- 只允许新增这个临时文件，不修改已有业务文件。
-- 执行 `jugg compile`。
-- 记录失败输出中的文件路径、行号、错误摘要和完整日志相对路径。
-- 删除一次性失败源文件。
-- 再执行一次 `jugg compile`，确认工程恢复可编译。
-- 不调用 `deploy`、`gradle-build` 或直接 Gradle 命令替代本 case 的 Jugg CLI 复现。
+Expected:
+- Create a disposable failure source at `app/src/main/java/com/example/myapplication/BenchmarkCompileFailure.kt`.
+- Keep it to minimal Kotlin code, such as a reference to nonexistent `MissingBenchmarkType`.
+- Add only that temporary file; do not modify existing business code.
+- Run `jugg compile`.
+- Record the failure output's file path, line number, error summary, and relative path to the full log.
+- Delete the disposable failure source.
+- Run `jugg compile` again to confirm that the project compiles after recovery.
+- Do not replace this case's Jugg CLI reproduction with `deploy`, `gradle-build`, or a direct Gradle command.
 
-## BUILDFAIL-2: 失败后的 fallback 顺序
+## BUILDFAIL-2: Fallback Order After Failure
 
-Prompt：请构造一个受控部署失败，先用 Jugg CLI 复现失败，然后按 fallback chain 处理并记录每一步判断。
+Prompt: Construct a controlled deployment failure, reproduce it through the Jugg CLI, then follow the fallback chain and record each decision.
 
-期望：
-- 在 `app/src/main/java/com/example/myapplication/BenchmarkCompileFailure.kt` 创建一次性失败源文件。
-- 执行 `jugg deploy` 并记录失败输出中的文件路径、行号、错误摘要和完整日志相对路径。
-- 不修改已有业务文件，只删除一次性失败源文件作为恢复动作。
-- 删除临时失败文件后再次执行 `jugg deploy`。
-- 如果恢复后的 `jugg deploy` 仍失败，才选择 `jugg gradle-build`。
-- 远程编译仍失败时，`ssh-info` 需要用户明确同意。
-- 报告必须说明每一步为什么继续或停止。
-- case 结束时工作区不得留下 `BenchmarkCompileFailure.kt`。
+Expected:
+- Create a disposable failure source at `app/src/main/java/com/example/myapplication/BenchmarkCompileFailure.kt`.
+- Run `jugg deploy` and record the failure output's file path, line number, error summary, and relative path to the full log.
+- Do not edit existing business code; delete the disposable source as the recovery action.
+- Run `jugg deploy` again after deleting the file.
+- Choose `jugg gradle-build` only if `jugg deploy` still fails after recovery.
+- If remote compilation still fails, `ssh-info` requires explicit user consent.
+- Explain in the report why each step continued or stopped.
+- Do not leave `BenchmarkCompileFailure.kt` in the worktree at case end.

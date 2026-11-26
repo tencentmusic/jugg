@@ -11,6 +11,7 @@ interface IProcessHandler {
 
     var isCanceledByNextTask: Boolean
     val isCanceled: Boolean
+    val stdoutType: Key<*> get() = Key.create<Any>("Jugg stdout")
     var cancelAction: (() -> Unit)?
 
     fun notifyTextAvailable(text: String, outputType: Key<*>)

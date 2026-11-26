@@ -1,6 +1,6 @@
 package com.sickworm.intellij.jugg.ai.mcp.actions
 
-import com.android.ddmlib.IDevice
+import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.intellij.openapi.diagnostic.Logger
@@ -11,7 +11,6 @@ import com.sickworm.intellij.jugg.compiler.GradleCompileExecutionResult
 import com.sickworm.intellij.jugg.compiler.RemoteSshInfoResult
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
-import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.logic.IJuggConfigurationRunner
 import com.sickworm.intellij.jugg.ide.logic.JuggRunInvocationResult
@@ -24,7 +23,6 @@ import com.sickworm.intellij.jugg.ai.mcp.viewhierarchy.MatchedElementData
 import com.sickworm.intellij.jugg.ai.mcp.viewhierarchy.ViewHierarchyClient
 import com.sickworm.intellij.jugg.platform.IPlatformApi
 import com.sickworm.intellij.jugg.platform.PlatformApi
-import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
 import org.junit.After
 import org.junit.Assert
 import org.junit.Before
@@ -58,7 +56,7 @@ class TapMcpToolActionTest {
             }
         )
         val result = action.execute(
-            mapOf("projectDir" to "/tmp/test", "x" to 540, "y" to 960),
+            mapOf("projectDir" to "/tmp/test", "unit" to "px", "x" to 540, "y" to 960),
             runtime()
         )
         Assert.assertEquals(McpToolStatus.OK, result.status)
@@ -89,7 +87,7 @@ class TapMcpToolActionTest {
         )
 
         val result = action.execute(
-            mapOf("projectDir" to "/tmp/test", "x" to 10, "y" to 20),
+            mapOf("projectDir" to "/tmp/test", "unit" to "px", "x" to 10, "y" to 20),
             runtime()
         )
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
@@ -102,7 +100,7 @@ class TapMcpToolActionTest {
     fun testDefaultTapActionCoordinateMode() {
         val (action, adb) = setup()
         val result = action.execute(
-            mapOf("projectDir" to "/tmp/test", "x" to 540, "y" to 960),
+            mapOf("projectDir" to "/tmp/test", "unit" to "px", "x" to 540, "y" to 960),
             runtime()
         )
         Assert.assertEquals(McpToolStatus.OK, result.status)
@@ -113,6 +111,43 @@ class TapMcpToolActionTest {
         Assert.assertEquals(540, data["x"])
         Assert.assertEquals(960, data["y"])
         Assert.assertTrue(adb.executedCommands.contains("input tap 540 960"))
+    }
+
+    @Test
+    fun testAbsoluteCoordinatesRequireUnitBeforeDeviceAccess() {
+        val (action, adb) = setup()
+        for (gesture in listOf("tap", "long-press", "swipe")) {
+            val result = action.execute(
+                mapOf("projectDir" to "/tmp/test", "action" to gesture, "x" to 10, "y" to 20,
+                    "endX" to 30, "endY" to 40),
+                runtime(),
+            )
+            Assert.assertEquals(McpErrorCode.INVALID_PARAMS, result.errorCode)
+        }
+        Assert.assertTrue(adb.executedCommands.isEmpty())
+    }
+
+    @Test
+    fun testDpSwipeUsesOverrideDensityForBothEndpoints() {
+        val (action, adb) = setup(mapOf("wm density" to "Physical density: 480\nOverride density: 560"))
+        val result = action.execute(
+            mapOf("projectDir" to "/tmp/test", "action" to "swipe", "unit" to "dp",
+                "x" to 365.0, "y" to 798.0, "endX" to 100.5, "endY" to 200.0, "duration" to 300),
+            runtime(),
+        )
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        Assert.assertTrue(adb.executedCommands.contains("input swipe 1278 2793 352 700 300"))
+    }
+
+    @Test
+    fun testDpTapFailsWhenDensityIsUnavailable() {
+        val (action, adb) = setup()
+        val result = action.execute(
+            mapOf("projectDir" to "/tmp/test", "unit" to "dp", "x" to 10, "y" to 20),
+            runtime(),
+        )
+        Assert.assertEquals(McpToolStatus.ERROR, result.status)
+        Assert.assertTrue(adb.executedCommands.none { it.startsWith("input ") })
     }
 
     @Test
@@ -179,6 +214,7 @@ class TapMcpToolActionTest {
             mapOf(
                 "projectDir" to "/tmp/test",
                 "action" to "swipe",
+                "unit" to "px",
                 "x" to 540,
                 "y" to 1800,
                 "endX" to 540,
@@ -237,6 +273,7 @@ class TapMcpToolActionTest {
             mapOf(
                 "projectDir" to "/tmp/test",
                 "action" to "swipe",
+                "unit" to "px",
                 "x" to 10,
                 "y" to 20,
             ),
@@ -270,6 +307,7 @@ class TapMcpToolActionTest {
             mapOf(
                 "projectDir" to "/tmp/test",
                 "action" to "long-press",
+                "unit" to "px",
                 "x" to 540,
                 "y" to 960,
             ),
@@ -568,6 +606,7 @@ class TapMcpToolActionTest {
             mapOf(
                 "projectDir" to "/tmp/test",
                 "action" to "long-press",
+                "unit" to "px",
                 "x" to 540,
                 "y" to 960,
             ),
@@ -688,7 +727,7 @@ class TapMcpToolActionTest {
     fun testUnknownActionReturnsError() {
         val (action, _) = setup()
         val result = action.execute(
-            mapOf("projectDir" to "/tmp/test", "action" to "fling", "x" to 1, "y" to 2),
+            mapOf("projectDir" to "/tmp/test", "action" to "fling", "unit" to "px", "x" to 1, "y" to 2),
             runtime(),
         )
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
@@ -705,7 +744,7 @@ class TapMcpToolActionTest {
             packageName = "com.example.app",
         )
         val result = action.execute(
-            mapOf("projectDir" to "/tmp/test", "x" to 100, "y" to 200, "xPercent" to 50.0, "yPercent" to 50.0, "text" to "Login"),
+            mapOf("projectDir" to "/tmp/test", "unit" to "px", "x" to 100, "y" to 200, "xPercent" to 50.0, "yPercent" to 50.0, "text" to "Login"),
             runtime()
         )
         Assert.assertEquals(McpToolStatus.OK, result.status)
@@ -718,18 +757,36 @@ class TapMcpToolActionTest {
 
     @Test
     fun testTapNoDeviceReturnsNoDevice() {
-        PlatformApi.impl = FakePlatformApi(emptyMap())
+        PlatformApi.impl = FakePlatformApi()
         val deployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
         Mockito.`when`(deployTargetManager.getSelectedDevices()).thenReturn(emptyList())
         Mockito.`when`(deployTargetManager.getConnectedDevices()).thenReturn(emptyList())
 
         val action = TapMcpToolAction()
         val result = action.execute(
-            mapOf("projectDir" to "/tmp/test", "x" to 100, "y" to 200),
+            mapOf("projectDir" to "/tmp/test", "unit" to "px", "x" to 100, "y" to 200),
             runtime(deployTargetManager)
         )
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
         Assert.assertEquals(McpErrorCode.NO_DEVICE, result.errorCode)
+    }
+
+    @Test
+    fun testTapMultipleDevicesRequiresExplicitSerial() {
+        val first = Mockito.mock(IDevice::class.java)
+        val second = Mockito.mock(IDevice::class.java)
+        PlatformApi.impl = FakePlatformApi()
+        val deployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
+        Mockito.`when`(deployTargetManager.getSelectedDevices()).thenReturn(listOf(first, second))
+        Mockito.`when`(deployTargetManager.getConnectedDevices()).thenReturn(listOf(first, second))
+
+        val result = TapMcpToolAction().execute(
+            mapOf("projectDir" to "/tmp/test", "unit" to "px", "x" to 100, "y" to 200),
+            runtime(deployTargetManager),
+        )
+
+        Assert.assertEquals(McpToolStatus.ERROR, result.status)
+        Assert.assertEquals("MULTIPLE_DEVICE", result.errorCode)
     }
 
     @Test
@@ -752,6 +809,7 @@ class TapMcpToolActionTest {
             mapOf(
                 "projectDir" to "/tmp/test",
                 "action" to "swipe",
+                "unit" to "px",
                 "x" to 10,
                 "y" to 20,
             ),
@@ -787,7 +845,7 @@ class TapMcpToolActionTest {
         )
         var readyChecks = 0
         val result = action.execute(
-            mapOf("projectDir" to "/tmp/test", "x" to 100, "y" to 200),
+            mapOf("projectDir" to "/tmp/test", "unit" to "px", "x" to 100, "y" to 200),
             runtime(
                 isAppReadyProvider = {
                     readyChecks++
@@ -821,11 +879,12 @@ class TapMcpToolActionTest {
     ): Pair<TapMcpToolAction, FakeDeviceAdb> {
         val device = Mockito.mock(IDevice::class.java)
         val adb = FakeDeviceAdb(shellOutputs, commandBehavior)
-        PlatformApi.impl = FakePlatformApi(mapOf(device to adb))
+        PlatformApi.impl = FakePlatformApi()
 
         val deployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
         Mockito.`when`(deployTargetManager.getSelectedDevices()).thenReturn(listOf(device))
         Mockito.`when`(deployTargetManager.getConnectedDevices()).thenReturn(listOf(device))
+        Mockito.`when`(deployTargetManager.createDeviceAdb(device)).thenReturn(adb)
         if (packageName != null) {
             Mockito.`when`(deployTargetManager.getPackageName()).thenReturn(packageName)
         }
@@ -840,12 +899,10 @@ class TapMcpToolActionTest {
         isAppReadyProvider: () -> Boolean = { true },
     ): IMcpRuntime {
         val deployTargetManager = dtm ?: currentDeployTargetManager!!
-        val project = Mockito.mock(Project::class.java)
-        Mockito.`when`(project.basePath).thenReturn("/tmp/test")
-        return object : IMcpRuntime {
+        return object : com.sickworm.intellij.jugg.ai.mcp.TestMcpRuntime() {
             override val logger: com.intellij.openapi.diagnostic.Logger
                 get() = com.intellij.openapi.diagnostic.Logger.getInstance("TestMcpRuntime")
-            override val project: Project = project
+            override val projectDir: String = "/tmp/test"
             override val deployTargetManager: IDeployTargetManager = deployTargetManager
             override val forceGradleCompileHelper: ForceGradleCompileHelper = object : ForceGradleCompileHelper() {
                 override fun executeGradleCompile(autoConfirm: Boolean, useCleanAndReinstall: Boolean) {
@@ -917,19 +974,11 @@ class TapMcpToolActionTest {
         }
     }
 
-    private class FakePlatformApi(
-        private val adbByDevice: Map<IDevice, IDeviceAdb>,
-    ) : IPlatformApi {
+    private class FakePlatformApi : IPlatformApi {
         override fun showDialog(
             title: String, content: String, okButtonText: String?,
             cancelButtonText: String?, isShowCancelButton: Boolean,
         ): Boolean = false
-
-        override fun showChangeConfirmDialog(
-            diffResult: DependencyDiffResult?, isRunLater: Boolean, logger: Logger,
-        ): ConfirmResult {
-            throw UnsupportedOperationException("not used")
-        }
 
         override fun showUserAndPasswordInputDialog(
             content: String, subTitle: String?, isPassword: Boolean,
@@ -940,7 +989,7 @@ class TapMcpToolActionTest {
         override fun getGradleJdkPath(project: Project, logger: Logger): String? = null
         override fun getAndroidHomePath(logger: Logger): String? = null
         override fun getIdeVersion(): String = "test"
-        override fun toDeviceAdb(device: IDevice): IDeviceAdb? = adbByDevice[device]
+        override fun getRuntimeInfo() = com.sickworm.intellij.jugg.project.runtime.RuntimeInfo("test", "test", "test", "")
         override fun isHasRelaunchActivityIssues(device: IDeviceAdb, logger: Logger): Boolean = false
 
         override fun invokeMcp(request: com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcRequest): com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcResponse {

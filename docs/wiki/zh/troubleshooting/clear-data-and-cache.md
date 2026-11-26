@@ -21,7 +21,7 @@ tags:
 
 | 使用场景 | 入口 | 处理结果 |
 |---|---|---|
-| 在当前设备上清数据验证 | `Clean And Reinstall` | 先清数据、重装 APK，再恢复当前增量部署，一次操作完成 |
+| 在当前设备上清数据验证 | `Just clean reinstall APK` | 先清数据、重装 APK，再恢复当前增量部署，一次操作完成 |
 | 把包含当前改动的 APK 交给测试，且清数据后仍保留改动 | `Export incremental APK` | 将已编译的增量结果写入 APK 并重新签名；安装导出的 APK 后，清除 App 数据不会移除已写入 APK 的改动 |
 
 导出前需要先完成当前改动的编译，具体步骤见 [导出增量 APK](../guide/export-incremental-apk.md)。保留增量改动不等于保留 App 数据：清数据仍会移除登录态、本地数据库和业务缓存。

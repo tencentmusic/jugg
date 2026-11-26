@@ -6,7 +6,8 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.ai.skills.agents.CodexAgentInstaller
 import com.sickworm.intellij.jugg.ai.skills.agents.IAgentInstaller
 import com.sickworm.intellij.jugg.ai.skills.agents.InstallAgents
-import com.sickworm.intellij.jugg.project.JuggGlobalPathManager
+import com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager
+import com.sickworm.intellij.jugg.project.runtime.withGlobalResourceLock
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.FileOutputStream
@@ -36,14 +37,13 @@ object JuggSkillInstaller {
     }
 
     fun install(projectDir: File, selectedClients: Set<InstallClient>, logger: Logger, userHome: File): InstallSummary {
-        if (selectedClients.isEmpty()) {
-            return InstallSummary(emptyList())
+        return withGlobalResourceLock("Install Jugg skills") {
+            if (selectedClients.isEmpty()) return@withGlobalResourceLock InstallSummary(emptyList())
+            val results = selectedClients.map { client ->
+                installForClient(projectDir, client, logger, userHome)
+            }.sortedBy { it.agent }
+            InstallSummary(results)
         }
-
-        val results = selectedClients.map { client ->
-            installForClient(projectDir, client, logger, userHome)
-        }.sortedBy { it.agent }
-        return InstallSummary(results)
     }
 
     private fun installForClient(projectDir: File, client: InstallClient, logger: Logger, userHome: File): InstallAgentResult {
@@ -114,9 +114,11 @@ object JuggSkillInstaller {
     }
 
     fun ensureBundledSkillsHome(userHome: File): File {
-        val bundledSkillsHome = JuggGlobalPathManager.skillsDir(userHome)
-        extractBundledSkills(targetDir = bundledSkillsHome)
-        return bundledSkillsHome
+        return withGlobalResourceLock("Prepare bundled Jugg skills") {
+            val bundledSkillsHome = JuggGlobalPathManager.skillsDir
+            extractBundledSkills(targetDir = bundledSkillsHome)
+            bundledSkillsHome
+        }
     }
 
     private fun extractBundledSkills(targetDir: File) {
@@ -192,16 +194,22 @@ object JuggSkillInstaller {
      * Returns Result.success on success, Result.failure on error.
      */
     fun installCli(logger: Logger, userHome: File = File(System.getProperty("user.home"))): Result<Unit> {
-        return runCatching {
-            val binDir = JuggGlobalPathManager.binDir(userHome)
-            extractBundledScriptsTo(binDir)
-            if (isWindows()) {
-                normalizeWindowsCmdWrapper(binDir)
-                addWindowsCliDirToUserPath(userHome, binDir)
-            } else {
-                setExecutable(binDir)
-                createSymlink(userHome, binDir, logger)
+        val windows = isWindows()
+        val result = withGlobalResourceLock("Install Jugg CLI") {
+            runCatching {
+                val binDir = JuggGlobalPathManager.binDir
+                extractBundledScriptsTo(binDir)
+                if (windows) {
+                    normalizeWindowsCmdWrapper(binDir)
+                } else {
+                    setExecutable(binDir)
+                    createSymlink(userHome, binDir, logger)
+                }
+                binDir
             }
+        }
+        return result.mapCatching { binDir ->
+            if (windows) addWindowsCliDirToUserPath(userHome, binDir)
             logger.info("[Install Jugg CLI] installed to ${binDir.path}")
         }
     }
@@ -233,7 +241,7 @@ object JuggSkillInstaller {
     }
 
     fun resolveHooksDir(userHome: File): File {
-        return JuggGlobalPathManager.hooksDir(userHome)
+        return JuggGlobalPathManager.hooksDir
     }
 
     /**
@@ -244,21 +252,23 @@ object JuggSkillInstaller {
         logger: Logger,
         userHome: File = File(System.getProperty("user.home")),
     ): Result<Unit> {
-        return runCatching {
-            val hooksDir = resolveHooksDir(userHome)
-            hooksDir.mkdirs()
-            val flagFile = File(hooksDir, HOOK_BLOCK_DISABLED_FLAG_FILE_NAME)
-            if (disabled) {
-                if (!flagFile.exists()) {
-                    flagFile.writeText("", StandardCharsets.UTF_8)
+        return withGlobalResourceLock("Update Jugg hook state") {
+            runCatching {
+                val hooksDir = resolveHooksDir(userHome)
+                hooksDir.mkdirs()
+                val flagFile = File(hooksDir, HOOK_BLOCK_DISABLED_FLAG_FILE_NAME)
+                if (disabled) {
+                    if (!flagFile.exists()) {
+                        flagFile.writeText("", StandardCharsets.UTF_8)
+                    }
+                    logger.info("[Install Jugg Hooks] block reminders disabled via ${flagFile.path}")
+                    return@runCatching
                 }
-                logger.info("[Install Jugg Hooks] block reminders disabled via ${flagFile.path}")
-                return@runCatching
+                if (flagFile.exists() && !flagFile.delete()) {
+                    throw IOException("failed_to_delete_${flagFile.path}")
+                }
+                logger.info("[Install Jugg Hooks] block reminders enabled")
             }
-            if (flagFile.exists() && !flagFile.delete()) {
-                throw IOException("failed_to_delete_${flagFile.path}")
-            }
-            logger.info("[Install Jugg Hooks] block reminders enabled")
         }
     }
 
@@ -266,22 +276,24 @@ object JuggSkillInstaller {
      * Makes bundled hook scripts available from ~/.jugg/skills/hooks.
      */
     fun installHooks(logger: Logger, userHome: File = File(System.getProperty("user.home"))): Result<Unit> {
-        return runCatching {
-            val bundledHooksDir = File(ensureBundledSkillsHome(userHome), BUNDLED_HOOKS_DIR)
-            HOOK_SCRIPT_FILES.forEach { fileName ->
-                val sourceFile = File(bundledHooksDir, fileName)
-                if (!sourceFile.isFile) {
-                    throw FileNotFoundException("source_file_not_found_${sourceFile.path}")
-                }
-            }
-            if (!isWindows()) {
-                HOOK_SCRIPT_FILES
-                    .filter { it != "hook_common.py" }
-                    .forEach { fileName ->
-                        File(bundledHooksDir, fileName).takeIf { it.exists() }?.setExecutable(true, false)
+        return withGlobalResourceLock("Install Jugg hooks") {
+            runCatching {
+                val bundledHooksDir = File(ensureBundledSkillsHome(userHome), BUNDLED_HOOKS_DIR)
+                HOOK_SCRIPT_FILES.forEach { fileName ->
+                    val sourceFile = File(bundledHooksDir, fileName)
+                    if (!sourceFile.isFile) {
+                        throw FileNotFoundException("source_file_not_found_${sourceFile.path}")
                     }
+                }
+                if (!isWindows()) {
+                    HOOK_SCRIPT_FILES
+                        .filter { it != "hook_common.py" }
+                        .forEach { fileName ->
+                            File(bundledHooksDir, fileName).takeIf { it.exists() }?.setExecutable(true, false)
+                        }
+                }
+                logger.info("[Install Jugg Hooks] installed to ${bundledHooksDir.path}")
             }
-            logger.info("[Install Jugg Hooks] installed to ${bundledHooksDir.path}")
         }
     }
 
@@ -324,6 +336,12 @@ object JuggSkillInstaller {
             .replace("\r", "\n")
             .split("\n")
             .joinToString("\r\n")
+    }
+
+    fun relocateWindowsCliPath(newRoot: File, userHome: File) {
+        if (isWindows() && newRoot.resolve("bin/jugg.cmd").isFile) {
+            addWindowsCliDirToUserPath(userHome, newRoot.resolve("bin"))
+        }
     }
 
     private fun addWindowsCliDirToUserPath(userHome: File, binDir: File) {

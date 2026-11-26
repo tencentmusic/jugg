@@ -4,8 +4,8 @@ import com.intellij.openapi.Disposable
 import com.intellij.openapi.util.Disposer
 import com.sickworm.intellij.jugg.apk.ApkFileUnit
 import com.sickworm.intellij.jugg.logger.getInstance
-import com.sickworm.intellij.jugg.project.JuggInternalException
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.JuggInternalException
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 
 /**
  * BaseCompiler provides the shared compile template (pre-checks, custom compiler hooks, per-module execution, and result aggregation) for concrete compilers.

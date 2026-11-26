@@ -2,8 +2,8 @@ package com.sickworm.intellij.jugg.project.dependency
 
 import com.sickworm.intellij.jugg.compiler.manifest.XmlAndroidManifestInfo
 import com.sickworm.intellij.jugg.gradle.script.Utils
-import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
-import com.sickworm.intellij.jugg.project.data.LibraryDependency
+import com.sickworm.intellij.jugg.project.info.JuggProjectInfo
+import com.sickworm.intellij.jugg.project.info.LibraryDependency
 
 
 /**

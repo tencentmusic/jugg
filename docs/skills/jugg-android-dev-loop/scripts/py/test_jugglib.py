@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import json
 import os
 import sys
 import unittest
@@ -546,6 +547,23 @@ class TestSpinnerRendering(unittest.TestCase):
 
         self.assertGreaterEqual(len(writes), 2)
         self.assertTrue(writes[1].endswith(" " * len("(run 3min)")))
+
+
+class TestDeviceSerialInjection(unittest.TestCase):
+    """Request-scoped serial must reach every device-targeting MCP tool."""
+
+    def test_report_prepare_receives_device_serial_override(self):
+        original_serial = jugglib.device_serial_override
+        jugglib.set_device_serial_override("device-2")
+
+        try:
+            with patch.object(jugglib, "http_post", return_value={}) as http_post:
+                jugglib.raw_call(12320, "report-prepare", {"projectDir": "/proj"})
+        finally:
+            jugglib.set_device_serial_override(original_serial)
+
+        request = json.loads(http_post.call_args.args[1])
+        self.assertEqual("device-2", request["params"]["arguments"]["serial"])
 
 
 if __name__ == "__main__":

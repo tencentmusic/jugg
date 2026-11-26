@@ -22,7 +22,7 @@ import com.sickworm.intellij.jugg.deploy.instrument.TestFilter
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.logic.IJuggConfigurationRunner
 import com.sickworm.intellij.jugg.ide.logic.JuggRunInvocationResult
-import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import org.junit.After
 import org.junit.Assert
 import org.junit.Before
@@ -372,10 +372,8 @@ class InstrumentMcpToolActionTest {
             buildTargetOverride: BuildTarget?,
         ) -> JuggRunInvocationResult,
     ): IMcpRuntime {
-        return object : IMcpRuntime {
+        return object : com.sickworm.intellij.jugg.ai.mcp.TestMcpRuntime() {
             override val logger: Logger = Logger.getInstance("InstrumentMcpToolActionTest")
-            override val project: Project
-                get() = throw UnsupportedOperationException("not used in this test")
             override val deployTargetManager: IDeployTargetManager
                 get() = throw UnsupportedOperationException("not used in this test")
             override val forceGradleCompileHelper: ForceGradleCompileHelper = object : ForceGradleCompileHelper() {
@@ -427,6 +425,7 @@ class InstrumentMcpToolActionTest {
                     isAlwaysRestartApp: Boolean,
                     androidTestRunSpec: AndroidTestRunSpec?,
                     buildTargetOverride: BuildTarget?,
+                    targetDeviceSerial: String?,
                 ): JuggRunInvocationResult {
                     return runFirstConfiguration(
                         isRpcMode,

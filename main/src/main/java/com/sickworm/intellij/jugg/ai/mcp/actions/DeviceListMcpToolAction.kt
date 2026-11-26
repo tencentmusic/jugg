@@ -1,12 +1,12 @@
 package com.sickworm.intellij.jugg.ai.mcp.actions
 
 import com.sickworm.intellij.jugg.ai.mcp.IMcpRuntime
+import com.sickworm.intellij.jugg.ai.mcp.McpErrorCode
 import com.sickworm.intellij.jugg.ai.mcp.McpJsonSchemaObject
 import com.sickworm.intellij.jugg.ai.mcp.McpJsonSchemaProperty
 import com.sickworm.intellij.jugg.ai.mcp.McpToolDefinition
 import com.sickworm.intellij.jugg.ai.mcp.McpToolResult
 import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
-import com.sickworm.intellij.jugg.platform.PlatformApi
 
 /**
  * DeviceListMcpToolAction implements MCP tool `devices` and converts request arguments into tool execution and MCP result payloads.
@@ -20,6 +20,7 @@ class DeviceListMcpToolAction : McpToolAction {
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,
+                "serial" to McpToolSchemas.serialProperty,
             ),
             required = listOf("projectDir"),
             additionalProperties = false,
@@ -53,23 +54,38 @@ class DeviceListMcpToolAction : McpToolAction {
     )
 
     override fun execute(arguments: Map<String, Any?>, runtime: IMcpRuntime): McpToolResult {
-        return deviceListAction(runtime)
+        return deviceListAction(runtime, arguments.deviceSerial())
     }
 
-    private fun deviceListAction(runtime: IMcpRuntime): McpToolResult {
-        val selectedSerials = runtime.deployTargetManager.getSelectedDevices()
-            .mapNotNull { PlatformApi.toDeviceAdb(it)?.serial }
-            .toSet()
+    private fun deviceListAction(runtime: IMcpRuntime, targetDeviceSerial: String?): McpToolResult {
+        val selectedSerials = targetDeviceSerial?.let(::setOf)
+            ?: runCatching {
+                runtime.deployTargetManager.getSelectedDevices()
+                    .map { it.serialNumber }
+                    .toSet()
+            }.onFailure {
+                runtime.logger.debug("Read selected devices failed; list connected devices without selection", it)
+            }.getOrDefault(emptySet())
         val connectedDevices = runtime.deployTargetManager.getConnectedDevices()
-            .mapNotNull { PlatformApi.toDeviceAdb(it) }
+            .filter { targetDeviceSerial == null || it.serialNumber == targetDeviceSerial }
 
-        val devices = connectedDevices.map { adb ->
+        if (targetDeviceSerial != null && connectedDevices.isEmpty()) {
+            return McpToolResult(
+                status = McpToolStatus.ERROR,
+                message = "devices failed. Reason: Device $targetDeviceSerial is not online.",
+                data = mapOf("devices" to emptyList<Any>()),
+                artifacts = emptyList(),
+                errorCode = McpErrorCode.NO_DEVICE,
+            )
+        }
+
+        val devices = connectedDevices.map { device ->
             mapOf(
-                "serial" to adb.serial,
-                "name" to adb.displayName,
-                "isOnline" to adb.isOnline,
-                "api" to adb.api,
-                "isSelected" to selectedSerials.contains(adb.serial),
+                "serial" to device.serialNumber,
+                "name" to device.name,
+                "isOnline" to device.isOnline,
+                "api" to device.version.apiLevel,
+                "isSelected" to selectedSerials.contains(device.serialNumber),
             )
         }
 

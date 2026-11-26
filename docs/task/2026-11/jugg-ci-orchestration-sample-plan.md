@@ -1,5 +1,9 @@
 # Jugg CI 增量构建接入样本方案
 
+**Purpose** — Demonstrate CI baseline orchestration.
+**Decision** — Separate reusable build and artifact service logic from the demo scenarios.
+**Impact** — CI owners can inspect baseline eligibility and resulting APKs.
+
 ## 1. 目标与边界
 
 当前 Jugg CI 接入要求业务方自行实现三类逻辑：计算 commit 之间的变更文件、选择最近可复用的基线、判断是否允许增量构建。接入方需要理解 Jugg 内部的 Git 规则和 `ChangedFile` 识别逻辑，导致首次接入成本较高，也容易出现业务方实现与 IDE 行为不一致。

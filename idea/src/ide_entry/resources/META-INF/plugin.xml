@@ -70,15 +70,15 @@
     <actions>
         <action id="jugg.OpenControlPanelAction"
                 class="com.sickworm.intellij.jugg.ide.ui.OpenJuggControlPanelAction"
-                text="Open Jugg Control Panel"
+                text="Open Jugg control panel"
                 description="Open the Jugg project control panel"
                 icon="/res/icons/run_configuration.svg">
             <add-to-group group-id="ToolsMenu" anchor="last"/>
         </action>
         <action id="jugg.RestartAppAction"
                 class="com.sickworm.intellij.jugg.ide.ui.RestartAppAction"
-                text="Restart App"
-                description="Restart App for selected devices"
+                text="Restart app"
+                description="Restart app for selected devices"
                 icon="AllIcons.Actions.Refresh"
         >
             <add-to-group group-id="RunMenu" anchor="last"/> <!-- menu -->
@@ -88,8 +88,8 @@
 
         <action id="jugg.GradleCompileAction"
                 class="com.sickworm.intellij.jugg.ide.ui.GradleCompileAction"
-                text="(Jugg) Fallback to Gradle Compile"
-                description="(Jugg) Fallback to Gradle Compile"
+                text="(Jugg) Fallback to Gradle compile"
+                description="(Jugg) Fallback to Gradle compile"
                 icon="/res/icons/fallback.svg"
         >
             <add-to-group group-id="RunMenu" anchor="last"/> <!-- menu -->
@@ -99,23 +99,23 @@
 
         <action id="jugg.ReportIssueAction"
                 class="com.sickworm.intellij.jugg.ide.ui.ReportIssueAction"
-                text="Report Jugg Issue"
-                description="Report Jugg Issue"
+                text="Report Jugg issue"
+                description="Report Jugg issue"
                 icon="/res/icons/run_configuration.svg"
         >
         </action>
 
         <action id="jugg.InstallSkillAction"
                 class="com.sickworm.intellij.jugg.ide.ui.InstallSkillAction"
-                text="Install Jugg Skills"
+                text="Install Jugg skills"
                 description="Install Jugg skills for AI clients (Codex / Claude Code / Gemini)"
         >
         </action>
 
         <action id="jugg.CheckJuggUpdateAction"
                 class="com.sickworm.intellij.jugg.ide.ui.CheckJuggUpdateAction"
-                text="Check Jugg Update"
-                description="Check Jugg Update"
+                text="Check Jugg update"
+                description="Check Jugg update"
         >
         </action>
     </actions>

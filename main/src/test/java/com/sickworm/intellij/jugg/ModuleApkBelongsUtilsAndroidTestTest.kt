@@ -2,9 +2,9 @@ package com.sickworm.intellij.jugg
 
 import com.sickworm.intellij.jugg.apk.ApkFileUnit
 import com.sickworm.intellij.jugg.apk.ApkInfo
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
-import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
-import com.sickworm.intellij.jugg.project.data.ModuleDependency
+import com.sickworm.intellij.jugg.project.info.ModuleBuildPathInfo
+import com.sickworm.intellij.jugg.project.info.ModuleDependency
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.io.File
@@ -202,7 +202,7 @@ class ModuleApkBelongsUtilsAndroidTestTest {
             testAppId = "com.example.library1.test",
             targetPkg = "com.example.library1.test",
         ).copy(
-            moduleDependencies = listOf(com.sickworm.intellij.jugg.project.data.ModuleDependency("library1")),
+            moduleDependencies = listOf(ModuleDependency("library1")),
         )
         val modules = mapOf(appMod.name to appMod, libraryMod.name to libraryMod, testMod.name to testMod)
         val apkInfos = listOf(

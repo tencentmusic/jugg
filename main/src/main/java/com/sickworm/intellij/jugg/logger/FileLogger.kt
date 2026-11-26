@@ -77,6 +77,10 @@ class FileLogger(
         try {
             val legacyPath = legacyDir.toPath()
             restorePendingLegacyLogDir(legacyPath)
+            // The standalone child can already resolve through the IDE parent's compatibility link.
+            if (Files.exists(legacyPath) && Files.exists(dir.toPath()) && Files.isSameFile(legacyPath, dir.toPath())) {
+                return
+            }
             if (Files.isSymbolicLink(legacyPath)) {
                 replaceLegacyLogDirLink(legacyDir)
                 return
@@ -125,9 +129,8 @@ class FileLogger(
             Files.move(legacyPath, backupPath)
             createLegacyLogDirLink(legacyDir)
             Files.move(backupPath, migratedPath)
-            val isCleaned = runCatching { migratedPath.toFile().deleteRecursively() }.getOrDefault(false)
-            if (!isCleaned) {
-                logger.log(Level.FINE, "Clean migrated legacy log directory failed: $migratedPath")
+            runCatching { deleteLegacyLogPath(migratedPath) }.exceptionOrNull()?.let {
+                logger.log(Level.FINE, "Clean migrated legacy log directory failed: $migratedPath", it)
             }
         } catch (e: Exception) {
             rollbackLegacyLogDirMigration(legacyPath, backupPath, copiedPaths, e)
@@ -159,6 +162,14 @@ class FileLogger(
         }
         copiedPaths.asReversed().forEach { path -> rollback { Files.deleteIfExists(path) } }
         rollbackFailure?.let(failure::addSuppressed)
+    }
+
+    private fun deleteLegacyLogPath(path: Path) {
+        // A backup can link to active standalone logs; delete the link without traversing its target.
+        if (Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS)) {
+            Files.list(path).use { children -> children.forEach(::deleteLegacyLogPath) }
+        }
+        Files.delete(path)
     }
 
     private fun copyLegacyLogPath(source: Path, target: Path, copiedPaths: MutableList<Path>) {
@@ -215,6 +226,10 @@ class FileLogger(
     }
 
     companion object {
+
+        fun createStartupLogger(dir: File): FileLogger {
+            return FileLogger(dir, 50 * 1024 * 1024, 2, "standalone_startup.%g.log")
+        }
 
         private const val LATEST_LOG_NAME = "compile_latest.log"
         private const val LAST_LATEST_LOG_NAME = "compile_latest-1.log"

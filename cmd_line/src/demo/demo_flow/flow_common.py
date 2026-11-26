@@ -1,4 +1,4 @@
-"""连续演示共用的参数、进度和子进程调用。"""
+"""Shared arguments, progress reporting and command execution."""
 import argparse
 from contextlib import contextmanager
 import json
@@ -9,7 +9,7 @@ import sys
 from time import monotonic, sleep
 
 DEMO_FLOW = Path(__file__).resolve().parent
-# 允许直接运行演示脚本并复用 CI 脚本的命令执行。
+# Load CI command helpers when scripts are run directly.
 sys.path.insert(0, str(DEMO_FLOW.parent))
 from jugg_ci._common import HERE, run
 
@@ -38,7 +38,7 @@ def log(message):
 
 
 def run_command(command, quite, cwd=None):
-    # 静默选项只隐藏子进程输出，演示进度仍写入终端。
+    # Quiet mode suppresses child output while keeping demo progress visible.
     if not quite:
         print('+', ' '.join(map(str, command)), flush=True)
     result = subprocess.run(command, cwd=cwd,
@@ -50,13 +50,13 @@ def run_command(command, quite, cwd=None):
 
 
 def script(args, path, *arguments):
-    """以独立进程执行各脚本，走与分步操作相同的入口。"""
+    """Use the same script entry points as a manual run."""
     command = [sys.executable, str(path), *map(str, arguments)]
     run_command(command, args.quite)
 
 
 def clean_work_dir(work):
-    # 连续演示启动时清理上次使用的工作区和产物。
+    # Clear the previous demo workspace and artifacts.
     log(f'清理工作目录：{work}')
     if work.exists():
         shutil.rmtree(work)
@@ -70,7 +70,7 @@ def baseline_server(args):
         yield
         return
 
-    # 基线数据随演示工作目录一起重建，动态端口允许多份演示独立运行。
+    # Keep baseline data in this workspace and use a dynamic port for concurrent demos.
     store = args.work_dir / 'server'
     store.mkdir()
     log_path = store / 'server.log'
@@ -115,7 +115,7 @@ def prepare(args, title):
 
 
 def build(args, expected_mode):
-    # 每轮使用相同的构建参数，由演示步骤推进 Git 提交。
+    # Keep build arguments fixed as each scenario advances HEAD.
     server = ['--server', args.server] if args.server else []
     script(args, BUILD_SCRIPT, '--work-dir', args.work_dir, '--scenario', args.scenario,
            '--cmd-line', args.cmd_line, '--project-id', args.project_id, *server)
@@ -140,7 +140,7 @@ def build(args, expected_mode):
 
 
 def commit(project, files, message, quite):
-    # 只提交这一轮的场景输入。
+    # Commit only this scenario’s inputs.
     log('提交开发变更：将本场景修改保存为新的 Git 提交。')
     run_command(['git', 'add', '--', *map(str, files)], quite, cwd=project)
     run_command(['git', 'commit', '-m', message], quite, cwd=project)

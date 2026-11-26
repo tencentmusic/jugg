@@ -4,9 +4,9 @@ import com.sickworm.intellij.jugg.compiler.BuildTarget
 import com.sickworm.intellij.jugg.compiler.isWindows
 import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.gradle.script.camelCompat
-import com.sickworm.intellij.jugg.project.JuggException
-import com.sickworm.intellij.jugg.project.LocalClasspathStoragePathManager
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.JuggException
+import com.sickworm.intellij.jugg.project.runtime.LocalClasspathStoragePathManager
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import java.io.File
 
 /**
@@ -275,7 +275,7 @@ data class JuggGradleCompileOptions(
     val enableCustomApkInstallScript: Boolean = false,
     /** Project-local shell script used for app APK install and reinstall operations. */
     val customApkInstallScript: String = "",
-    /** Whether the rewritten APK should be signed by [customApkSignScript] instead of the local signing config. */
+    /** Whether the rewritten APK should be signed by [customApkSignScript]. */
     val enableCustomApkSignScript: Boolean = false,
     /** Project-local shell script used to sign the rewritten APK in place. */
     val customApkSignScript: String = "",
@@ -454,10 +454,14 @@ data class JuggGradleCompileOptions(
         val replacePasswordDesc = if (remoteSshPassword.isNotEmpty()) "(has_password)" else "(no_password)"
         val replaceScriptDesc = if (customApkInstallScript.isNotEmpty()) "(configured)" else "(not_configured)"
         val replaceSignScriptDesc = if (customApkSignScript.isNotEmpty()) "(configured)" else "(not_configured)"
-        return copy(
+        var string = copy(
             remoteSshPassword = replacePasswordDesc,
             customApkInstallScript = replaceScriptDesc,
             customApkSignScript = replaceSignScriptDesc,
         ).toString()
+        string = string.replace("remoteSshPassword=$remoteSshPassword", "remoteSshPassword=$replacePasswordDesc")
+        string = string.replace("compileCommand=$compileCommand", "compileCommand=(redacted)")
+        string = string.replace("environmentVariables=$environmentVariables", "environmentVariables=(redacted)")
+        return string
     }
 }

@@ -1,7 +1,5 @@
 package com.sickworm.intellij.jugg.ai.mcp.actions
 
-import com.sickworm.intellij.jugg.ai.mcp.DeviceSelectionResolver
-import com.sickworm.intellij.jugg.ai.mcp.DeviceSelectionResult
 import com.sickworm.intellij.jugg.ai.mcp.IMcpRuntime
 import com.sickworm.intellij.jugg.ai.mcp.McpErrorCode
 import com.sickworm.intellij.jugg.ai.mcp.McpJsonSchemaObject
@@ -15,7 +13,6 @@ import com.sickworm.intellij.jugg.ai.mcp.viewhierarchy.SourceLocation
 import com.sickworm.intellij.jugg.ai.mcp.viewhierarchy.ViewHierarchyClient
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.logger.getInstance
-import com.sickworm.intellij.jugg.platform.PlatformApi
 
 /**
  * UiFindMcpToolAction locates live UI nodes with the shared selector contract.
@@ -33,6 +30,7 @@ class UiFindMcpToolAction : McpToolAction {
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,
+                "serial" to McpToolSchemas.serialProperty,
                 "target" to McpJsonSchemaProperty(
                     type = "object",
                     description = "Element selector. All non-empty fields use AND logic.",
@@ -93,8 +91,12 @@ class UiFindMcpToolAction : McpToolAction {
             arguments["visibleOnly"] as? Boolean ?: true,
             maxResults,
         ) ?: return invalidParams("target must have at least one selector")
-        val adb = resolveOnlineAdb(runtime) ?: return noDeviceResult()
-        val preWaitResult = McpAppReadyGuard.waitBeforeRuntimeObserve(runtime, toolName)
+        val targetDeviceSerial = arguments.deviceSerial()
+        val adb = when (val result = resolveMcpSingleDevice(runtime, toolName, targetDeviceSerial)) {
+            is McpSingleDeviceResult.Selected -> result.adb
+            is McpSingleDeviceResult.Failure -> return result.result
+        }
+        val preWaitResult = McpAppReadyGuard.waitBeforeRuntimeObserve(runtime, toolName, targetDeviceSerial)
         if (!preWaitResult.isReady) {
             return preWaitResult.errorResult
                 ?: McpToolResult.internalErrorResult(toolName, "app is not ready")
@@ -119,12 +121,6 @@ class UiFindMcpToolAction : McpToolAction {
         }
         return LocateRequest(text, resourceId, contentDesc, className, visibleOnly, maxResults)
     }
-
-    private fun resolveOnlineAdb(runtime: IMcpRuntime) =
-        (DeviceSelectionResolver().resolve(runtime.deployTargetManager) as? DeviceSelectionResult.Selected)
-            ?.device
-            ?.let { PlatformApi.toDeviceAdb(it) }
-            ?.takeIf { it.isOnline }
 
     private fun executeLookup(
         runtime: IMcpRuntime,

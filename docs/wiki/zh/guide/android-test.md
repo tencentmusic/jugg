@@ -15,7 +15,7 @@ Jugg 支持以增量编译方式运行 `src/androidTest`。使用体验尽量贴
 
 首次使用前需要完成一次 AndroidTest 基线构建：
 
-1. 打开对应 App 的 Jugg Run Configuration。
+1. 打开对应 App 的 Jugg run configuration。
 2. 开启 Android Test / `enableAndroidTest`。
 3. 运行一次 Jugg Android Test 或执行一次 `jugg gradle-build`，让 Jugg 生成 app APK 与 test APK 基线。
 4. 后续修改 app 源码或 `src/androidTest` 源码时，再进入增量编译。

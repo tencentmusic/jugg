@@ -1,9 +1,10 @@
 package com.sickworm.intellij.jugg.deploy.hotreload
 
-import com.android.ddmlib.IDevice
-import com.android.tools.deploy.proto.Deploy
-import com.android.tools.deployer.model.ApkEntry
-import com.android.tools.idea.protobuf.ByteString
+import com.sickworm.intellij.jugg.deploy.api.IDevice
+import com.sickworm.intellij.jugg.deploy.api.Deploy
+import com.sickworm.intellij.jugg.deploy.api.DexComparator
+import com.sickworm.intellij.jugg.deploy.api.ApkEntry
+import com.sickworm.intellij.jugg.deploy.api.ByteString
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
@@ -22,9 +23,8 @@ import com.sickworm.intellij.jugg.deploy.direct.DirectOverlayDeployFailedExcepti
 import com.sickworm.intellij.jugg.deploy.run.ClassDeployItem
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
+import com.sickworm.intellij.jugg.deploy.run.IApplyChangesExecutor
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
-import com.sickworm.intellij.jugg.deploy.run.JuggDexClass
-import com.sickworm.intellij.jugg.deploy.run.JuggDexOverlays
 import com.sickworm.intellij.jugg.deploy.run.JuggInstallSession
 import com.sickworm.intellij.jugg.deploy.run.LaunchContext
 import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentCacheEntry
@@ -50,7 +50,7 @@ class DirectAppSandboxDeployTransportTest {
             packageName = "com.example.app",
             data = classData(),
             overlayUpdate = null,
-            asDeployerCompat = Mockito.mock(IAsDeployerCompat::class.java),
+            applyChangesExecutor = Mockito.mock(IApplyChangesExecutor::class.java),
             pids = emptyList(),
             appArch = Deploy.Arch.ARCH_64_BIT,
         )
@@ -201,7 +201,7 @@ class DirectAppSandboxDeployTransportTest {
                 packageName = "com.example.app",
                 data = classData(),
                 overlayUpdate = overlayUpdate(classData()),
-                asDeployerCompat = Mockito.mock(IAsDeployerCompat::class.java),
+                applyChangesExecutor = Mockito.mock(IApplyChangesExecutor::class.java),
                 pids = emptyList(),
                 appArch = Deploy.Arch.ARCH_64_BIT,
             )
@@ -214,7 +214,7 @@ class DirectAppSandboxDeployTransportTest {
     fun `compat payload is staged for the app to import without preparing any agent`() {
         val adb = UnavailableAdb()
         val data = compatData()
-        val compat = Mockito.mock(IAsDeployerCompat::class.java)
+        val compat = Mockito.mock(IApplyChangesExecutor::class.java)
         whenever(compat.buildOverlayId(any(), any())).thenReturn(JuggOverlayId(Any(), "next", false))
         var constructedAgents = 0
         var constructedHotReloadWriters = 0
@@ -230,7 +230,7 @@ class DirectAppSandboxDeployTransportTest {
                         packageName = "com.example.app",
                         data = data,
                         overlayUpdate = overlayUpdate(data),
-                        asDeployerCompat = compat,
+                        applyChangesExecutor = compat,
                         pids = listOf(123),
                         appArch = Deploy.Arch.ARCH_64_BIT,
                     ),
@@ -268,7 +268,7 @@ class DirectAppSandboxDeployTransportTest {
                 packageName = "com.example.app",
                 data = classData(),
                 overlayUpdate = null,
-                asDeployerCompat = Mockito.mock(IAsDeployerCompat::class.java),
+                applyChangesExecutor = Mockito.mock(IApplyChangesExecutor::class.java),
                 pids = emptyList(),
                 appArch = Deploy.Arch.ARCH_64_BIT,
             )
@@ -324,9 +324,9 @@ class DirectAppSandboxDeployTransportTest {
     ): JuggOverlayUpdate {
         return JuggOverlayUpdate(
             JuggDeploymentCacheEntry(Any(), emptyList(), baseId),
-            JuggDexOverlays(
-                (data.newClasses + data.hotFixModifiedClasses).map { it.toJuggDexClass() },
-                data.hotReloadModifiedClasses.map { it.toJuggDexClass() },
+            DexComparator.ChangedClasses(
+                (data.newClasses + data.hotFixModifiedClasses).map { it.toIncompleteDexClass() },
+                data.hotReloadModifiedClasses.map { it.toIncompleteDexClass() },
             ),
             data.overlays.associate { item ->
                 val entry = Mockito.mock(ApkEntry::class.java)
@@ -446,6 +446,7 @@ class DirectAppSandboxDeployTransportTest {
             deviceAdb = adb,
             installersRoot = "",
             installSession = Mockito.mock(JuggInstallSession::class.java),
+            deployDebugger = com.sickworm.intellij.jugg.deploy.run.NoDeployDebugger,
             deviceAbi = "arm64-v8a",
             exceptOverlayIds = emptyMap(),
             isSkipExceptOverlayCheck = false,

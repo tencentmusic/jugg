@@ -11,6 +11,7 @@ import com.sickworm.jugg.demo.testcase.databinding.DataBindingKotlinDemoActivity
 import com.sickworm.jugg.demo.testcase.kmp.KmpComposeResourceDemoActivity
 import com.sickworm.jugg.demo.testcase.ksp.MoshiDemoActivity
 import com.sickworm.jugg.demo.testcase.mcp.McpTestActivity
+import com.sickworm.jugg.demo.testcase.style.StyleMergeProbeActivity
 
 class MainActivity : AppCompatActivity() {
     companion object {
@@ -53,6 +54,10 @@ class MainActivity : AppCompatActivity() {
 
         findViewById<View>(R.id.btn_cross_module_databinding_demo).setOnClickListener {
             startActivity(Intent(this, CrossModuleDataBindingActivity::class.java))
+        }
+
+        findViewById<View>(R.id.btn_style_demo).setOnClickListener {
+            startActivity(Intent(this, StyleMergeProbeActivity::class.java))
         }
     }
 }

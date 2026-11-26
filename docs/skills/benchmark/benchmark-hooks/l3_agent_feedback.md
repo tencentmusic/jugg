@@ -1,66 +1,66 @@
 # L3 Agent Feedback
 
-目标：验证被测 Agent 的 hooks 是否已正确配置，并且能被 Agent 自己的文件变更、命令和结束会话动作真实触发。L3 不重复覆盖完整文件变更矩阵；完整新增、修改、移动、多文件同轮变更由 L2 验证。本文只保留一条新增源码 command 反馈链路和一条 stop 反馈链路。
+Goal: Check that the tested agent's hooks are configured and genuinely triggered by its own edits, commands, and session-ending action. L2 covers the full add/modify/move/multiple-file matrix. L3 retains one added-source command feedback path and one stop feedback path.
 
-## 执行规则
+## Execution Rules
 
-- 在当前 CWD 启动被测 Agent。
-- 不读取或调用 `docs/skills/hooks/*.py`、`~/.jugg/skills/hooks/*.py`。
-- 不修改 hook 源码，不启动 Android Studio。
-- 不修改真实业务代码；只允许按 case 要求新增或修改隔离触发文件，以及写入 prompt pack 同目录 `report.md`。
-- 需要触发 Jugg pending changes 的源码触发文件，必须放在 `app/src/main/java/com/example/myapplication/` 下，且只能使用 `Hook*Trigger.kt` 这类隔离文件，不要改现有业务文件。
-- 报告中的路径默认使用相对路径；hook 反馈原文中由客户端输出的绝对脚本路径可以原样保留。
-- command/stop hook 未触发、看不到对应反馈、或反馈原文无法写入报告时，判定为 `FAIL`，不要判定为 `SKIP`。例外：HOOKFB-2 中 **Codex/Claude** 的第二次 stop warning 不要求 Agent 复述（见人工确认）。
-- stop hook 必须通过 Agent 结束会话动作触发；不要使用 `jugg stop`，它不是 Jugg CLI 子命令。
-- stop hook 反馈不会出现在 shell/terminal/tool output 中；必须通过发送最终回复或结束会话动作触发。如果客户端随后用 followup/新消息把 stop hook 反馈返回给你，你必须继续本轮任务，把反馈原文追加到 `report.md` 后再第二次结束。
-- 二次放行反馈按客户端区分：command hook 与 stop hook 均适用下表。
-  - **command hook（HOOKFB-1）**：Codex/Claude 应能在上下文中看到 warning 原文；Cursor/Gemini 允许静默放行，报告记录第二次命令已执行即可。
-  - **stop hook（HOOKFB-2）**：**Codex/Claude** 的第二次 stop warning 经 `systemMessage` 发出，通常**不会进入 Agent 上下文**，改由执行人在 `report.md`「人工确认（Codex / Claude）」填写是否在客户端看到，Agent 不得因缺少该原文判 FAIL；**Cursor/Gemini** 允许静默放行，报告记录第二次结束会话已放行即可。
+- Start the agent under test in the current CWD.
+- Do not read or call `docs/skills/hooks/*.py` or `~/.jugg/skills/hooks/*.py`.
+- Do not edit hook source or start Android Studio.
+- Do not edit real business code. Only add or modify isolated trigger files required by the case, and write `report.md` beside the prompt pack.
+- Put source trigger files that create Jugg pending changes under `app/src/main/java/com/example/myapplication/`; use isolated names like `Hook*Trigger.kt`, not existing business files.
+- Use relative paths in the report by default. Absolute script paths printed by the client in verbatim hook feedback may be retained.
+- Mark `FAIL`, not `SKIP`, if a command/stop hook does not fire, its feedback is not visible, or verbatim feedback cannot be put in the report. Exception: the second stop warning in **Codex/Claude** is not required to be repeated by the agent in HOOKFB-2; see human confirmation.
+- Trigger the stop hook by the agent's session-ending action. Do not use `jugg stop`; it is not the stop-hook trigger.
+- Stop-hook feedback does not appear in shell, terminal, or tool output. Trigger it by sending a final reply or ending the session. If the client returns its feedback as a follow-up/new message, continue this case: append the verbatim feedback to `report.md`, then end a second time.
+- Repeated-command and repeated-stop allowance vary by client:
+  - **Command hook (HOOKFB-1):** Codex/Claude should show the verbatim warning in agent context. Cursor/Gemini may allow silently; recording that the second command ran is enough.
+  - **Stop hook (HOOKFB-2):** The second Codex/Claude warning is sent through `systemMessage` and usually **does not enter agent context**. A human evaluator records whether it appeared in the client in the `Human confirmation (Codex / Claude)` section of `report.md`. The agent must not mark FAIL merely because it could not repeat that warning. Cursor/Gemini may allow the second stop silently; record that the session ended.
 
-## HOOKFB-1: 新增源码后的 command hook 可见性
+## HOOKFB-1: Command-Hook Feedback After Adding Source
 
-Prompt：请验证 agent hooks 是否会被你的真实文件变更和命令动作触发。必须按以下步骤执行，并把你实际看到的 hook 反馈原文写入报告：
+Prompt: Verify that your real file edit and command actions trigger agent hooks. Follow these steps and put the verbatim feedback you actually see in the report:
 
-1. 在当前 CWD 执行一次 `jugg gradle-build` 作为 hook 状态基线；记录命令是否执行成功。如果命令失败，继续后续步骤，但在报告中保留失败输出摘要。
-2. 新增隔离源码触发文件 `app/src/main/java/com/example/myapplication/HookFeedbackAddTrigger.kt`。文件内容必须使用 `package com.example.myapplication` 并保持可编译。
-3. 连续两次执行 raw Gradle 命令：`./gradlew :app:assembleDebug`。第一次被 hook 阻断后，仍然执行第二次以验证二次放行行为。
-4. 记录两次 raw Gradle 命令后你实际收到的 hook 反馈原文、退出码和是否被阻断。
-5. 再执行一次 `jugg gradle-build`，记录它是否被 raw Gradle hook 误拦截。
-6. 将结果写入 prompt pack 同目录 `report.md`，必须包含反馈原文；不要只写总结。
+1. Run `jugg gradle-build` once in the current CWD as the hook-state baseline. Record success or retain a failure-output summary and continue.
+2. Add `app/src/main/java/com/example/myapplication/HookFeedbackAddTrigger.kt` with `package com.example.myapplication` and compilable content.
+3. Run `./gradlew :app:assembleDebug` twice in succession. Even if the first attempt is blocked, run the second to verify allowance.
+4. Record verbatim hook feedback, exit codes, and blocked/allowed state for both attempts.
+5. Run `jugg gradle-build` again and record whether the raw Gradle hook incorrectly blocked it.
+6. Write `report.md` beside the prompt pack, including feedback rather than only a summary.
 
-期望：
+Expected:
 
-- 新增隔离 Android 源码文件后，Agent 不应看到 `You modified Android source files.` 软提醒；后续第一次 raw Gradle 被阻断即证明 hook 已记录本会话写入状态。
-- 第一次 raw Gradle 尝试被 command hook 阻断，Agent 能看到原文包含 `COMMAND GATE`、`Jugg CLI verification skipped: <reason>`，退出码应体现阻断。
-- 第二次 raw Gradle 尝试应被放行。Codex/Claude 应能看到原文包含 `Allowing this repeated command attempt`；Cursor/Gemini 可静默放行，报告写明未收到第二次 warning 但命令已执行即可。
-- `jugg gradle-build` 不应被识别为 raw Gradle 拦截目标。
-- 如果 hook 没有被 Agent 真实动作触发，本 case 判定为 `FAIL`。
+- After adding the isolated Android source file, the agent should not receive the `You modified Android source files.` soft reminder. A block on the next first raw Gradle attempt proves that the hook recorded this session's write.
+- The first raw Gradle attempt is blocked by the command hook. The agent sees feedback containing `COMMAND GATE` and `Jugg CLI verification skipped: <reason>`; the exit code reflects the block.
+- The second raw Gradle attempt is allowed. Codex/Claude should see `Allowing this repeated command attempt`. Cursor/Gemini may allow silently; report that no second warning arrived but the command ran.
+- `jugg gradle-build` must not be mistaken for raw Gradle.
+- Mark this case `FAIL` if real agent actions did not trigger the hook.
 
-## HOOKFB-2: stop 真实触发与二次放行可见性
+## HOOKFB-2: Real Stop Trigger and Repeated-Allowance Visibility
 
-Prompt：请验证 stop hook 是否会被你的真实结束会话动作触发。必须按以下步骤执行，并把你实际看到的 stop hook 反馈原文写入报告：
+Prompt: Verify that your real session-ending action triggers the stop hook. Follow these steps and put the verbatim stop-hook feedback you actually see in the report:
 
-1. 在当前 CWD 执行一次 `jugg gradle-build` 作为 hook 状态基线；记录命令是否执行成功。如果命令失败，继续后续步骤，但在报告中保留失败输出摘要。
-2. 对隔离源码触发文件 `app/src/main/java/com/example/myapplication/HookStopTrigger.kt` 做一次真实文件变更。文件内容必须使用 `package com.example.myapplication` 并保持可编译。
-3. 不执行 `jugg compile`、`jugg deploy` 或 `jugg gradle-build`。
-4. 先把“准备触发第一次 stop”写入 `report.md`，然后尝试结束本次任务并发送最终回复来触发真实 stop hook。不要执行 `jugg stop`。注意：stop hook 反馈不会出现在 shell/terminal/tool output 中，不要因为工具输出里没有 stop 文案就提前判 FAIL。
-5. 如果 stop hook 正确配置，第一次结束会话会被客户端阻断，反馈中会列出 Jugg 当前 pending 文件名（最多 10 个）。如果你收到 followup/新消息形式的 stop hook 反馈，说明本 case 仍在继续，不是已经失败；此时只允许把你看到的 stop hook 反馈原文写入 `report.md`，然后立刻再次尝试结束本次任务。不要执行任何命令、文件变更、`jugg compile`、`jugg deploy`、`jugg gradle-build` 或其他验证/修复操作，必须保留 pending changes 来观测第二次 stop 行为。
-6. 第二次结束会话的期望按客户端区分：
-   - **Cursor/Gemini**：允许静默放行；无第二条反馈也可判定通过，报告中写明 Agent 未收到第二次 warning、但会话已结束即可。
-   - **Codex / Claude**：再次尝试结束会话；若会话已结束，在 `report.md` 记录「Agent 侧：第二次 stop 已放行」。**不要**因 Agent 未收到或未写出第二次 stop warning 原文而判 FAIL。由**执行人**填写下方「人工确认（Codex / Claude）」小节（Agent 可在步骤 6 末尾留出标题，由人补全）：
+1. Run `jugg gradle-build` once in the current CWD as the hook-state baseline. Record success or retain a failure-output summary and continue.
+2. Genuinely edit `app/src/main/java/com/example/myapplication/HookStopTrigger.kt`. Use `package com.example.myapplication` and keep the isolated source compilable.
+3. Do not run `jugg compile`, `jugg deploy`, or `jugg gradle-build`.
+4. Write “ready to trigger first stop” in `report.md`, then try to finish the task by sending a final reply to trigger the real stop hook. Do not run `jugg stop`. Stop-hook feedback does not appear in shell/terminal/tool output; do not mark FAIL merely because those outputs lack it.
+5. When configured correctly, the client's first stop is blocked and its feedback lists up to ten Jugg pending filenames. If feedback arrives as a follow-up/new message, the case continues: append only the verbatim stop-hook feedback you saw to `report.md`, then immediately try to end the session again. Do not run commands, edit files, compile, deploy, verify, or repair anything; retain pending changes to observe the second stop.
+6. Expected second attempt by client:
+   - **Cursor/Gemini:** Silent allowance is valid; no second feedback is required. Report that the agent received no second warning but the session ended.
+   - **Codex/Claude:** Try to end again. If the session ends, record “Agent side: second stop allowed” in `report.md`. Do **not** mark FAIL because the agent did not receive or reproduce the second warning. A **human evaluator** completes the following section (the agent may leave the heading at the end of step 6):
      ```markdown
-     ## 人工确认（Codex / Claude）
-     - 被测客户端：Codex / Claude（填写实际名称）
-     - 第二次结束会话时，是否在客户端看到 stop 二次 warning（预期含 `allowing session stop after a repeated stop attempt`）：是 / 否
-     - 备注（观察位置、截图路径等，可选）：
+     ## Human confirmation (Codex / Claude)
+     - Client under test: Codex / Claude (enter the actual client)
+     - Was the repeated-stop warning visible in the client on the second attempt (expected to contain `allowing session stop after a repeated stop attempt`)? yes / no
+     - Notes (observation location, screenshot path, optional):
      ```
 
-期望：
+Expected:
 
-- 首次结束会话应被 stop hook 阻断，Agent 能看到原文包含 `STOP GATE`、`Jugg dev loop skipped: <reason>`，并包含 `pendingModifiedFiles: HookStopTrigger.kt`。
-- 第二次结束会话应放行（会话能够结束）。
-  - **Cursor/Gemini**：重复 stop 可静默放行；报告写明 Agent 是否收到第二次 warning、会话是否已结束即可。
-  - **Codex / Claude**：Agent 链路 PASS 以「第二次能结束会话」为准；第二次 warning 是否可见由「人工确认（Codex / Claude）」记录，**不要求** Agent 复述该 warning。执行人填「否」时，在报告中标注为已知限制（`systemMessage` 未进入 Agent 上下文），不因此记 Agent FAIL。
-- 第一次 stop 被阻断后，Agent 不得响应 stop hook 要求去执行验证或清理 pending changes；本 case 必须保留 pending changes 来观测第二次 stop 行为。
-- 不得使用 `jugg stop`、直接调用 `stop.py` 或脚本模拟 stop hook。
-- 如果已经真实尝试结束会话，但客户端没有返回任何 stop hook 反馈或 followup，本 case 判定为 `FAIL`。不得仅凭 shell/terminal/tool output 缺少 stop 文案判定失败。
+- The first session-ending attempt is blocked by the stop hook. The agent sees feedback containing `STOP GATE`, `Jugg dev loop skipped: <reason>`, and `pendingModifiedFiles: HookStopTrigger.kt`.
+- The second ending attempt is allowed (the session can end).
+  - **Cursor/Gemini:** A repeated stop may be silently allowed. Report whether the agent received a second warning and whether the session ended.
+  - **Codex/Claude:** Agent-path PASS depends on the session ending on the second attempt. The `Human confirmation (Codex / Claude)` section records whether the second warning was visible; the agent need not repeat it. If the evaluator writes “no”, note a known limitation (`systemMessage` did not enter agent context), not an agent FAIL.
+- After the first stop is blocked, the agent must not comply with a stop-hook request to verify or clean pending changes. This case must retain pending changes to observe the second stop.
+- Do not use `jugg stop`, call `stop.py` directly, or simulate a stop hook through a script.
+- If a real attempt to end the session returns no stop-hook feedback or follow-up from the client, mark this case `FAIL`. Do not infer failure solely from missing stop text in shell/terminal/tool output.

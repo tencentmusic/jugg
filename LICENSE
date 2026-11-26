@@ -107,10 +107,10 @@ Open Source Software Licensed under the PNG Reference Library License version 2:
 Files：https://github.com/pnggroup/libpng/tree/v1.6.40
 License：PNG Reference Library License version 2
 	* Copyright (c) 1995-2023 The PNG Reference Library Authors.
- 	* Copyright (c) 2018-2023 Cosmin Truta.
- 	* Copyright (c) 2000-2002, 2004, 2006-2018 Glenn Randers-Pehrson.
- 	* Copyright (c) 1996-1997 Andreas Dilger.
- 	* Copyright (c) 1995-1996 Guy Eric Schalnat, Group 42, Inc.
+	* Copyright (c) 2018-2023 Cosmin Truta.
+	* Copyright (c) 2000-2002, 2004, 2006-2018 Glenn Randers-Pehrson.
+	* Copyright (c) 1996-1997 Andreas Dilger.
+	* Copyright (c) 1995-1996 Guy Eric Schalnat, Group 42, Inc.
 Details：https://github.com/pnggroup/libpng/blob/v1.6.40/LICENSE
 
 
@@ -314,7 +314,7 @@ Details：https://gitlab.ow2.org/asm/asm/-/blob/ASM_9_8/LICENSE.txt
 Files：https://github.com/JetBrains/intellij-deps-asm
 License：BSD-3-Clause
 	Copyright (c) 2000-2011 INRIA, France Telecom
- 	All rights reserved.
+	All rights reserved.
 Details：https://github.com/JetBrains/intellij-deps-asm/blob/master/LICENSE.txt
 
 3. ASM
@@ -403,7 +403,7 @@ Open Source Software Licensed under the BSD-style license:
 Files：https://github.com/hunterhacker/jdom
 License：BSD-style license
 	Copyright (C) 2000-2012 Jason Hunter & Brett McLaughlin.
- 	All rights reserved.
+	All rights reserved.
 Details：https://github.com/hunterhacker/jdom/blob/master/LICENSE.txt
 
 
@@ -706,7 +706,7 @@ Details：https://github.com/google/guava/blob/failureaccess-v1.0.1/COPYING
 37. IntelliJ fastutil fork
 Files：https://github.com/JetBrains/intellij-deps-fastutil
 License：Apache License Version 2.0
- 	Copyright 2000-2021 JetBrains s.r.o.
+	Copyright 2000-2021 JetBrains s.r.o.
 Details：https://github.com/JetBrains/intellij-deps-fastutil/blob/master/LICENSE
 
 38.IntelliJ IDEA Annotations
@@ -3118,8 +3118,3 @@ COMMON DEVELOPMENT AND DISTRIBUTION LICENSE (CDDL) Version 1.1
     shall be deemed to constitute any admission of liability.
 
 ------------------------------------------------------------------------
-
-
-
-
-

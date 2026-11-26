@@ -1,6 +1,6 @@
 package com.sickworm.intellij.jugg.ide.logic
 
-import com.sickworm.intellij.jugg.project.JuggGlobalPathManager
+import com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager
 import java.io.File
 
 /**
@@ -14,7 +14,7 @@ import java.io.File
 object TestModeManager {
 
     private val flagDir: File
-        get() = JuggGlobalPathManager.testFlagDir()
+        get() = JuggGlobalPathManager.testFlagDir
 
     private data class FlagInfo(val file: String, val description: String)
 

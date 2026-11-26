@@ -1,18 +1,13 @@
 package com.sickworm.intellij.jugg.ai.mcp.actions
 
-import com.sickworm.intellij.jugg.deploy.IDeviceAdb
-import com.sickworm.intellij.jugg.ai.mcp.DeviceSelectionResolver
-import com.sickworm.intellij.jugg.ai.mcp.DeviceSelectionResult
 import com.sickworm.intellij.jugg.ai.mcp.IMcpRuntime
 import com.sickworm.intellij.jugg.ai.mcp.McpArtifact
-import com.sickworm.intellij.jugg.ai.mcp.McpErrorCode
 import com.sickworm.intellij.jugg.ai.mcp.McpJsonSchemaObject
 import com.sickworm.intellij.jugg.ai.mcp.McpJsonSchemaProperty
 import com.sickworm.intellij.jugg.ai.mcp.McpToolDefinition
 import com.sickworm.intellij.jugg.ai.mcp.McpToolResult
 import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
-import com.sickworm.intellij.jugg.platform.PlatformApi
-import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import java.io.File
 
 /**
@@ -27,6 +22,7 @@ class ActivityStackMcpToolAction : McpToolAction {
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,
+                "serial" to McpToolSchemas.serialProperty,
             ),
             required = listOf("projectDir"),
             additionalProperties = false,
@@ -52,13 +48,15 @@ class ActivityStackMcpToolAction : McpToolAction {
     )
 
     override fun execute(arguments: Map<String, Any?>, runtime: IMcpRuntime): McpToolResult {
-        return activityStackAction(runtime)
+        return activityStackAction(runtime, arguments.deviceSerial())
     }
 
-    private fun activityStackAction(runtime: IMcpRuntime): McpToolResult {
-        val selected = resolveOnlineDevice(runtime)
-            ?: return noDeviceResult(toolName)
-        val preWaitResult = McpAppReadyGuard.waitBeforeRuntimeObserve(runtime, toolName)
+    private fun activityStackAction(runtime: IMcpRuntime, targetDeviceSerial: String?): McpToolResult {
+        val selected = when (val result = resolveMcpSingleDevice(runtime, toolName, targetDeviceSerial)) {
+            is McpSingleDeviceResult.Selected -> result
+            is McpSingleDeviceResult.Failure -> return result.result
+        }
+        val preWaitResult = McpAppReadyGuard.waitBeforeRuntimeObserve(runtime, toolName, targetDeviceSerial)
         if (!preWaitResult.isReady) {
             return preWaitResult.errorResult ?: McpToolResult.internalErrorResult(toolName, "app is not ready")
         }
@@ -165,42 +163,13 @@ class ActivityStackMcpToolAction : McpToolAction {
         return ordered
     }
 
-    /**
-     * SelectedAdb carries adb and messageDetail.
-     */
-    private data class SelectedAdb(
-        val adb: IDeviceAdb,
-    )
-
-    private fun resolveOnlineDevice(runtime: IMcpRuntime): SelectedAdb? {
-        val selectionResult = DeviceSelectionResolver().resolve(runtime.deployTargetManager)
-        if (selectionResult !is DeviceSelectionResult.Selected) {
-            return null
-        }
-        val adb = PlatformApi.toDeviceAdb(selectionResult.device) ?: return null
-        if (!adb.isOnline) {
-            return null
-        }
-        return SelectedAdb(adb = adb)
-    }
-
     private fun ensureToolDir(runtime: IMcpRuntime, toolName: String): File? {
-        val projectDir = runtime.project.basePath ?: return null
+        val projectDir = runtime.projectDir.takeIf { it.isNotBlank() } ?: return null
         val dir = File(JuggPathManager(File(projectDir)).mcpFetchDir, toolName)
         if (!dir.exists()) {
             dir.mkdirs()
         }
         return dir
-    }
-
-    private fun noDeviceResult(toolName: String): McpToolResult {
-        return McpToolResult(
-            status = McpToolStatus.ERROR,
-            message = "$toolName failed. Reason: No connected device is available.",
-            data = emptyMap<String, Any>(),
-            artifacts = emptyList(),
-            errorCode = McpErrorCode.NO_DEVICE,
-        )
     }
 
     companion object {

@@ -1,116 +1,111 @@
-# L2 instrument 高级用法
+# L2 Advanced instrument Usage
 
-目标：验证 Agent 能否正确处理 `--runner`、`--extras`，以及前置条件不满足时的正确拒绝行为。
+Goal: Check that the agent handles `--runner` and `--extras` correctly and refuses to bypass unmet prerequisites.
 
-## 前置说明
+## Preconditions
 
-所有 case 在确定前置不满足时必须记 `SKIP` 并注明原因，不得绕过条件强行执行。
+Whenever a case's prerequisite is known to be missing, record `SKIP` with the reason. Do not force execution around the condition.
 
-## INST-ADV-1: runner override
+## INST-ADV-1: Runner Override
 
-Prompt：用自定义 runner `com.example.myapplication.CustomTestRunner` 运行 `AppLogicInstrumentedTest`。
+Prompt: Run `AppLogicInstrumentedTest` with custom runner `com.example.myapplication.CustomTestRunner`.
 
-期望：
-- 先检查前置。
-- 选择 `instrument --source-path app/src/androidTest/java/com/example/myapplication/AppLogicInstrumentedTest.kt --runner com.example.myapplication.CustomTestRunner`。
-- `--runner` 完整格式为 `<testPkg>/<runner>`，但 CLI 只需要 runner FQCN。
-- 不允许使用过期 `--instrumentation-runner` 参数。
+Expected:
+- Check prerequisites first.
+- Select `instrument --source-path app/src/androidTest/java/com/example/myapplication/AppLogicInstrumentedTest.kt --runner com.example.myapplication.CustomTestRunner`.
+- The complete runner syntax is `<testPkg>/<runner>`, but the CLI needs only the runner FQCN.
+- Do not use obsolete `--instrumentation-runner`.
 
-## INST-ADV-2: extras 参数传透
+## INST-ADV-2: Forward Extras
 
-Prompt：运行 `AppLogicInstrumentedTest.extrasReceivesBenchmarkModeAndTimeout` 方法，附带 extra `"benchmark_mode=true"` 和 `"timeout=5000"`。
+Prompt: Run `AppLogicInstrumentedTest.extrasReceivesBenchmarkModeAndTimeout` with extras `benchmark_mode=true` and `timeout=5000`.
 
-期望：
-- 先检查前置。
-- 选择 `instrument --source-path app/src/androidTest/java/com/example/myapplication/AppLogicInstrumentedTest.kt --class com.example.myapplication.AppLogicInstrumentedTest --method extrasReceivesBenchmarkModeAndTimeout --extras benchmark_mode=true;timeout=5000`。
-- `--extras` 使用分号分隔 key=value 对。
-- 不允许使用 `-e` raw am instrument 风格传参。
-- 测试结果 `extrasReceivesBenchmarkModeAndTimeout` 必须 PASS；该 method 会用 `InstrumentationRegistry.getArguments()` 断言 extra 值正确到达设备端。
+Expected:
+- Check prerequisites first.
+- Select `instrument --source-path app/src/androidTest/java/com/example/myapplication/AppLogicInstrumentedTest.kt --class com.example.myapplication.AppLogicInstrumentedTest --method extrasReceivesBenchmarkModeAndTimeout --extras benchmark_mode=true;timeout=5000`.
+- `--extras` separates key=value pairs with semicolons.
+- Do not pass raw am-instrument-style `-e` arguments.
+- `extrasReceivesBenchmarkModeAndTimeout` must PASS; it asserts through `InstrumentationRegistry.getArguments()` that the values reached the device.
 
-## INST-ADV-2b: extras 值含特殊字符（分隔符冲突）
+## INST-ADV-2b: Special Characters in Extra Values
 
-Prompt：运行 `AppLogicInstrumentedTest.extrasHandlesSpecialCharacters` 方法，附带 extra `"filter=name=foo;bar"` 和 `"tags=smoke;regression"`。这些 extra 值中包含 `=` 和 `;`，可能会与 CLI 分隔符冲突。
+Prompt: Run `AppLogicInstrumentedTest.extrasHandlesSpecialCharacters` with extras `filter=name=foo;bar` and `tags=smoke;regression`. The values contain `=` and `;`, which may conflict with CLI separators.
 
-期望：
-- 先检查前置。
-- Agent 必须正确组装参数，使 `extrasHandlesSpecialCharacters` 方法 PASS。
-- 该方法会用 `InstrumentationRegistry.getArguments()` 断言：
+Expected:
+- Check prerequisites first.
+- Assemble arguments so that `extrasHandlesSpecialCharacters` passes.
+- The method asserts through `InstrumentationRegistry.getArguments()`:
   - `getArguments().getString("filter")` == `"name=foo;bar"`
   - `getArguments().getString("tags")` == `"smoke;regression"`
-- 可接受的处理方式：
-  - 使用转义（如 `--extras 'filter=name\=foo\;bar;tags=smoke;regression'`），或
-  - 使用引号包裹含特殊字符的 value，或
-  - 其他合理方式使 extra 值正确到达设备端。
-- 直接传 `--extras filter=name=foo;bar;tags=smoke;regression` 不转义的，会导致 extra 解析错误，测试 FAIL → 最高 2 分。
-- 测试 FAIL 且未识别出是 extras 特殊字符所致：最高 2 分。
+- Acceptable approaches include escaping (for example `--extras 'filter=name\=foo\;bar;tags=smoke;regression'`), quoting values that contain special characters, or another sound way to deliver the exact values to the device.
+- Passing unescaped `--extras filter=name=foo;bar;tags=smoke;regression` causes parse errors and a failing test: score at most 2.
+- If the test fails and the agent does not identify special characters in extras as the cause, score at most 2.
 
-## INST-ADV-3: runner + extras 组合
+## INST-ADV-3: Combine Runner and Extras
 
-Prompt：用 runner `com.example.myapplication.CustomTestRunner` 运行 `AppUiInstrumentedTest.mainActivityShowsTitle`，附带 extra `"log_level=debug"`。
+Prompt: Run `AppUiInstrumentedTest.mainActivityShowsTitle` with runner `com.example.myapplication.CustomTestRunner` and extra `log_level=debug`.
 
-期望：
-- 先检查前置。
-- 选择 `instrument --source-path app/src/androidTest/java/com/example/myapplication/AppUiInstrumentedTest.kt --class com.example.myapplication.AppUiInstrumentedTest --method mainActivityShowsTitle --runner com.example.myapplication.CustomTestRunner --extras log_level=debug`。
-- 所有参数都在一次 instrument 调用中完成。
+Expected:
+- Check prerequisites first.
+- Select `instrument --source-path app/src/androidTest/java/com/example/myapplication/AppUiInstrumentedTest.kt --class com.example.myapplication.AppUiInstrumentedTest --method mainActivityShowsTitle --runner com.example.myapplication.CustomTestRunner --extras log_level=debug`.
+- Supply all arguments in one instrument call.
 
-## INST-ADV-4: enabledAndroidTest=false 时的前置判断
+## INST-ADV-4: Handle enabledAndroidTest=false
 
-Prompt：运行 `AppLogicInstrumentedTest` 全部测试方法。
+Prompt: Run every method in `AppLogicInstrumentedTest`.
 
-期望：
-- 如果 `jugg status` 返回 `enabledAndroidTest=false`：
-  - 必须停止执行 `instrument`。
-  - 必须给出提示：打开 Jugg App Run Configuration，开启 Android Test / `enableAndroidTest`，执行一次 full build / `gradle-build` 建立 baseline。
-  - 记 `SKIP: enabledAndroidTest=false`。
-- 如果 `enabledAndroidTest=true`，正常执行 instrument。
-- 不得绕过前置直接执行 instrument。
+Expected:
+- If `jugg status` returns `enabledAndroidTest=false`:
+  - Do not run `instrument`.
+  - Explain how to open the Jugg App Run Configuration, enable Android Test / `enableAndroidTest`, and run a full build / `gradle-build` to establish a baseline.
+  - Record `SKIP: enabledAndroidTest=false`.
+- If `enabledAndroidTest=true`, run instrument normally.
+- Do not bypass the prerequisite.
 
-## INST-ADV-5: 缺少 --source-path 的负向验证
+## INST-ADV-5: Missing --source-path Negative Test
 
-Prompt：运行 androidTest 的 `com.example.myapplication.AppLogicInstrumentedTest` 类。
+Prompt: Run the androidTest class `com.example.myapplication.AppLogicInstrumentedTest`.
 
-期望：
-- Agent 必须补全 `--source-path`（从 class 名反查 androidTest 源文件路径）。
-- 若 Agent 直接执行 `jugg instrument --class com.example.myapplication.AppLogicInstrumentedTest`（缺 `--source-path`），应判为参数缺失。
-- 不允许用 `adb shell am instrument` 替代。
-- 不允许臆造不存在的 source-path。
+Expected:
+- Supply `--source-path` by finding the androidTest source file from the class name.
+- Calling `jugg instrument --class com.example.myapplication.AppLogicInstrumentedTest` without `--source-path` is a missing-argument error.
+- Do not replace instrument with `adb shell am instrument`.
+- Do not invent a nonexistent source path.
 
-## INST-ADV-6: source-path 指向非 androidTest 目录的负向验证
+## INST-ADV-6: Non-androidTest Source Negative Test
 
-Prompt：运行 `app/src/main/java/com/example/myapplication/MainActivity.kt` 的测试。
+Prompt: Run the test for `app/src/main/java/com/example/myapplication/MainActivity.kt`.
 
-期望：
-- Agent 应识别该路径是 `src/main/java` 而非 `src/androidTest`，不是有效 androidTest source。
-- 记 `SKIP: not an androidTest source file`。
-- 不得直接把它当 `--source-path` 传给 instrument。
+Expected:
+- Recognize that this path is under `src/main/java`, not `src/androidTest`, and is not a valid androidTest source.
+- Record `SKIP: not an androidTest source file`.
+- Do not pass the file directly as `instrument --source-path`.
 
-## INST-ADV-7: 多 class 文件且 --method 无法唯一确定 class（主动构造）
+## INST-ADV-7: Ambiguous Method in a Multi-Class File
 
-Prompt：在 `app/src/androidTest/java/com/example/myapplication/` 下新建一个名为 `MultiClassInstrumentedTest.kt` 的文件，写入两个测试类 `FirstTest` 和 `SecondTest`，两个类都包含一个名为 `testCommonBehavior` 的 @Test 方法。然后用 instrument 运行 `testCommonBehavior` 方法（不要指定 `--class`），观察结果。最后删除这个临时文件并确认恢复。
+Prompt: Create `MultiClassInstrumentedTest.kt` under `app/src/androidTest/java/com/example/myapplication/`. Put two test classes, `FirstTest` and `SecondTest`, in it, each with a `@Test` method named `testCommonBehavior`. Then attempt to run `testCommonBehavior` through instrument without `--class`, observe the result, delete the temporary file, and confirm recovery.
 
-期望：
-- 正确创建包含两个 class、同名方法的合法 androidTest 源文件。
-- 执行 `jugg instrument --source-path app/src/androidTest/java/com/example/myapplication/MultiClassInstrumentedTest.kt --method testCommonBehavior`（不带 `--class`）。
-- Agent 应识别多 class 文件中 `--method` 无法唯一确定 class：
-  - 要求用户提供 `--class` 以消除歧义，或
-  - 直接记 `SKIP: multiple classes contain method testCommonBehavior`。
-- 不得在有歧义的情况下任选一个 class 执行 instrument。
-- 完成后删除 `MultiClassInstrumentedTest.kt`，并确认文件已不存在。
+Expected:
+- Create a valid androidTest source with two classes and the same method name.
+- Run `jugg instrument --source-path app/src/androidTest/java/com/example/myapplication/MultiClassInstrumentedTest.kt --method testCommonBehavior` without `--class`.
+- Recognize that `--method` does not identify a unique class in this file: request `--class` to disambiguate or record `SKIP: multiple classes contain method testCommonBehavior`.
+- Do not pick a class arbitrarily and run instrument.
+- Delete `MultiClassInstrumentedTest.kt` and confirm that it no longer exists.
 
-## INST-ADV-8: 用 adb 跳过 jugg instrument 的违规行为
+## INST-ADV-8: Improper adb Substitution
 
-Prompt：在已部署 test APK 的设备上，直接运行 `AppLogicInstrumentedTest`。
+Prompt: Run `AppLogicInstrumentedTest` directly on a device that already has the test APK deployed.
 
-期望：
-- Agent 必须使用 `jugg instrument --source-path ...`，不得直接用 `adb shell am instrument` 替代。
-- 只有在 case 明确声明“先通过 jugg instrument 完成首次编译部署，再用 adb 做大范围回归”时才允许使用 adb。
-- 直接用 adb 替代 jugg instrument 应判为违规。
+Expected:
+- Use `jugg instrument --source-path ...`; do not substitute `adb shell am instrument`.
+- adb is allowed only when a case explicitly calls for an initial build/deploy with `jugg instrument` followed by broad regression through adb.
+- Direct substitution with adb is a violation.
 
-## INST-ADV-9: library module 的 runner + extras 组合
+## INST-ADV-9: Library Runner and Extras
 
-Prompt：用 runner `com.example.library1.test.CustomRunner` 运行 `Library1UiInstrumentedTest`，附带 extra `"suite=benchmark"`。
+Prompt: Run `Library1UiInstrumentedTest` with runner `com.example.library1.test.CustomRunner` and extra `suite=benchmark`.
 
-期望：
-- 先检查前置。
-- 选择 `instrument --source-path library1/src/androidTest/java/com/example/library1/Library1UiInstrumentedTest.kt --runner com.example.library1.test.CustomRunner --extras suite=benchmark`。
-- 正确路由到 library1 的 self-targeting Test APK。
+Expected:
+- Check prerequisites first.
+- Select `instrument --source-path library1/src/androidTest/java/com/example/library1/Library1UiInstrumentedTest.kt --runner com.example.library1.test.CustomRunner --extras suite=benchmark`.
+- Route to library1's self-targeting Test APK.

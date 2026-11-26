@@ -3,7 +3,7 @@ package com.sickworm.intellij.jugg.deploy
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.compiler.isWindows
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
-import com.sickworm.intellij.jugg.project.JuggInternalException
+import com.sickworm.intellij.jugg.JuggInternalException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

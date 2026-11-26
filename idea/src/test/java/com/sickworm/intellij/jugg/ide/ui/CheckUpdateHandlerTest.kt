@@ -6,7 +6,8 @@ import com.intellij.mock.MockProject
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.mock.DummyPropertiesComponent
 import com.sickworm.intellij.jugg.mock.TestGlobal
-import com.sickworm.intellij.jugg.project.CustomConfigManager
+import com.sickworm.intellij.jugg.project.runtime.ProjectCustomConfigManager
+import org.mockito.Mockito
 import com.sickworm.intellij.jugg.server.protocols.ProjectCustomConfig
 import com.sickworm.intellij.jugg.server.protocols.VersionData
 import org.junit.Assert.assertEquals
@@ -25,7 +26,7 @@ class CheckUpdateHandlerTest {
             init { registerService(PropertiesComponent::class.java, DummyPropertiesComponent()) }
         }
         val directory = folder.newFolder()
-        val manager = CustomConfigManager(directory, TestGlobal.getLogger())
+        val manager = Mockito.mock(ProjectCustomConfigManager::class.java)
         val config = Gson().fromJson(
             """{"defaultSettingsVersion":2,"defaultSettings":{"compileOnSave":true}}""",
             ProjectCustomConfig::class.java,
@@ -34,14 +35,13 @@ class CheckUpdateHandlerTest {
         try {
             var refreshCount = 0
             CheckUpdateHandler(project, "3.6", manager, TestGlobal.getLogger(), {
-                assertEquals(2, manager.config?.defaultSettingsVersion)
                 refreshCount++
             }).handle(
                 VersionData("3.6", false, "", emptyList(), null, config),
             )
             assertTrue(JuggSettings.compileOnSave)
             assertEquals("2", PropertiesComponent.getInstance(project).getValue("jugg.defaultSettingsVersion"))
-            assertEquals(2, manager.config?.defaultSettingsVersion)
+            Mockito.verify(manager).updateDefaultConfig(config)
             assertEquals(1, refreshCount)
         } finally {
             JuggSettings.compileOnSave = original

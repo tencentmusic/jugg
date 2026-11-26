@@ -109,6 +109,10 @@ agent push 放在部署之后，是因为 Android Studio Apply Changes 首次准
 
 不要把所有设备长期打开兼容部署。比较合适的做法是：某台设备反复出现 agent 无响应、JVMTI 不可用、资源或类加载表现不稳定时，为这台设备开启；设备更换、系统升级或环境恢复后，再关闭并重新建立部署基线。
 
+## APK 根目录的 classpath resource
+
+兼容部署会跳过 Framework hook。增量 DEX、Android 资源和 assets 在重启后由兼容加载器加载，但通过 `ClassLoader.getResource()` 读取的 APK 根目录文件没有普通部署的 overlay 查找机制。修改这类文件时，需要执行完整 Gradle 构建并重新安装 App。仅重启不能保证读到更新后的值。
+
 ## 排查入口
 
 | 现象 | 第一跳 |

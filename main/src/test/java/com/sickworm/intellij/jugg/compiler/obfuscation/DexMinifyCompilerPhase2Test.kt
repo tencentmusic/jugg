@@ -14,7 +14,7 @@ import com.sickworm.intellij.jugg.compiler.CompileTask
 import com.sickworm.intellij.jugg.compiler.source.SourceCompiler
 import com.sickworm.intellij.jugg.deploy.data.DeployDataGenerator
 import com.sickworm.intellij.jugg.mock.*
-import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
+import com.sickworm.intellij.jugg.project.info.ProjectInfoSerializer
 import org.junit.Before
 import org.junit.Test
 import java.io.File

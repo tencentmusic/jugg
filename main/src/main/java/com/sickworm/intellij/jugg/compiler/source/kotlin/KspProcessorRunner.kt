@@ -1,7 +1,7 @@
 package com.sickworm.intellij.jugg.compiler.source.kotlin
 
 import com.sickworm.intellij.jugg.compiler.*
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import org.jetbrains.kotlin.cli.common.ExitCode
 import java.io.File
 import java.io.PrintStream

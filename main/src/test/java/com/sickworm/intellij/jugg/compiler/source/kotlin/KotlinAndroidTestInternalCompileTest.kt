@@ -2,9 +2,9 @@ package com.sickworm.intellij.jugg.compiler.source.kotlin
 
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.mock.StdLogger
-import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
-import com.sickworm.intellij.jugg.project.data.ModuleDependency
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ModuleBuildPathInfo
+import com.sickworm.intellij.jugg.project.info.ModuleDependency
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder

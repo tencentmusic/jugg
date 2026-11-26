@@ -1,7 +1,7 @@
 package com.sickworm.intellij.jugg.compiler
 
 import com.intellij.openapi.diagnostic.Logger
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 
 /**
  * ModuleCompileOrderUtils computes module compile order from module dependency relationships.

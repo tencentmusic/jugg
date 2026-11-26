@@ -1,11 +1,17 @@
 ---
 name: jugg-android-dev-loop
-version: 1.0.41
-date: 2026-11-11
+version: 1.0.48
+date: 2026-11-25
 description: >-
   Use when editing source files (Java/Kotlin/XML/layout/AndroidManifest/Gradle)
-  in a Android project, or when user asks to build/deploy/verify an Android app.
-  Don't trigger on a non-Android project e.g. IntelliJ plugin project or common java/kotlin project.
+  in an Android project, building/deploying/verifying an Android app, or
+  investigating Android compilation failures or runtime problems.
+  If this skill is listed among your available skills, the user is likely using
+  Jugg incremental compilation instead of traditional Gradle builds.
+  Consider Jugg's compilation/deployment paths and limitations when diagnosing
+  build errors or runtime problems,
+  even if the user does not explicitly mention Jugg.
+  Don't trigger on non-Android projects such as IntelliJ plugins or plain Java/Kotlin projects.
 ---
 
 # Jugg Android Dev Loop
@@ -20,7 +26,7 @@ This skill use Jugg CLI to drive development loop for Android: modify → build 
 
 An **auto-run entry** is a user-designated method (e.g. `com.myapp.Test.run`) that runs automatically after app launch. Agent writes verification code into it and inspects logs/UI to confirm behavior. It is the primary verification mechanism in the Jugg dev loop.
 
-> **⚠️ Entry location is NOT auto-discoverable.** The user must declare the fully-qualified method name in the prompt (中文或 English 均可). If not declared and not visible in context, **stop and ask** — do not guess or search the codebase. To author the entry body, see `references/guide_write_auto_run_entry_code.md`.
+> **⚠️ Entry location is NOT auto-discoverable.** The user must declare the fully-qualified method name in the prompt (in any language). If not declared and not visible in context, **stop and ask** — do not guess or search the codebase. To author the entry body, see `references/guide_write_auto_run_entry_code.md`.
 
 ---
 
@@ -31,8 +37,11 @@ Collect mandatory variables before any action. For install-only requests, skip J
 | Variable | Source | Fallback |
 |----------|--------|----------|
 | `projectDir` | CLI auto-resolved from `$PWD`, or explicit `--project-dir <path>` when provided | Ask user only if neither current directory nor provided path identifies the target project |
+| `serial` | Optional global `--serial <adbSerial>` for device-related commands | Use when multiple devices are online or the requested device differs from IDEA selection |
 | `hasAutoRunEntry` | `true` only when the user has **explicitly declared** the entry's fully-qualified method (e.g. `com.myapp.Test.run`) in the prompt or current context. See **§ Auto-Run Entry**. | Default `false`. Never infer from code search. |
 | `enabledAndroidTest` | Project status context. Reuse existing credible context first, e.g. a hook block's `Jugg status` plain key-value output. If absent, run `python3 {SKILL_DIR}/scripts/jugg.py --console=json status` and read `data.enabledAndroidTest`. | Default unknown. Do not assume. |
+
+The CLI resolves the Runtime that owns `projectDir` across IDEA and standalone MCP ports. Automatic selection prefers an IDEA Runtime that owns the project; only when no matching IDEA Runtime exists does it select an owning standalone Runtime or reuse a running standalone daemon. Use `--runtime idea|standalone` to override automatic selection. A command keeps its selected Runtime for its full lifetime, including compile status polling, and does not migrate when ownership changes. If no Runtime owns the project, the CLI automatically registers it in the reused standalone daemon on the first valid request; only the absence of any standalone daemon starts a new process, with launch attempts serialized globally. Standalone build commands create the current build profile on demand before compiling. Global `--serial` overrides IDEA selection or standalone `ANDROID_SERIAL` for one device-related request. Without it, compile/status/device listing do not require one device, deploy/test commands target all selected devices, restart restarts all selected devices, and single-device operations return `MULTIPLE_DEVICE`. Reports accept but ignore `--serial` and collect all target-device logs. Standalone supports `compile`, `deploy`, `gradle-build`, `restart`, `devices`, `report`, compile status polling, and `status`; `stop` is a standalone-only local lifecycle command that stops all standalone projects without connecting to or starting a Runtime. UI, activity/log inspection, debug attach, and androidTest commands still require an IDEA Runtime unless their capability is explicitly advertised.
 
 ---
 
@@ -55,10 +64,10 @@ else:
 |----------|-------------------|---------------------------|
 | install jugg CLI | `references/guide_install_cli.md` | — |
 | androidTest / instrumented unit tests | `references/flow_android_test.md` | `references/error_patterns.md`, `references/cli_manual.md` |
-| compile/deploy | `references/flow_compile_deploy.md` | `references/error_patterns.md`, `references/policy_incremental_compile_limits.md` |
+| compile/deploy | `references/flow_compile_deploy.md` | `references/error_patterns.md`, `references/policy_incremental_compile_limits.md`, `references/special_build_environments.md` |
 | verify with auto-run entry | `references/flow_with_auto_run.md` | `references/guide_write_auto_run_entry_code.md`, `references/error_patterns.md` |
 
-Before any build command, check `references/policy_incremental_compile_limits.md`; load other supplementary references on demand.
+Before any build command, check `references/policy_incremental_compile_limits.md`. Load `references/special_build_environments.md` only when changes involve Flutter/C++(NDK), minified/release variants, non-debuggable APKs, system apps, or custom install/sign scripts; load other supplementary references on demand.
 
 ---
 
@@ -78,7 +87,7 @@ Before any build command, check `references/policy_incremental_compile_limits.md
 ### Entry
 
 ```
-python3 {SKILL_DIR}/scripts/jugg.py [--project-dir <path>] <subcommand> [options]
+python3 {SKILL_DIR}/scripts/jugg.py [--project-dir <path>] [--serial <adbSerial>] [--runtime idea|standalone] [--if-compiling wait|interrupt] <subcommand> [options]
 python3 {SKILL_DIR}/scripts/jugg.py help <subcommand>
 ```
 
@@ -92,14 +101,17 @@ Completion means the compile/deploy job reached a terminal state; CLI does not a
 | Command | Purpose | When to Use |
 |---------|---------|-------------|
 | `compile` | Compile modified sources, skip deploy | Default after ordinary source edits, including generic "verify/check modification" |
-| `deploy` | Compile + deploy to device | Need to launch/run app to inspect runtime/UI state, or perform device-side verification |
+| `deploy` | Compile + deploy to device (`--always-restart-app false` allows hot reload) | Need to launch/run app to inspect runtime/UI state, or perform device-side verification |
 | `gradle-build` | Full Gradle compile fallback | Direct fallback required by policy, or `deploy`/`compile` retries exhausted |
-| `clean-reinstall` | Clear app data(compat with apply changes) + launch device | **Only** for clean APP data |
+| `clean-reinstall` | Clear app data (compat with apply changes) + launch device | **Only** for clearing app data (never run `adb shell pm clear` or manual reinstall — they wipe Jugg incremental deploy state) |
 | `instrument` | Run androidTest | Verify android test result |
+
+- Check both `isCompileSuccess` and `isDeploySuccess` on `deploy` completion; a top-level `status=OK` alone or a 0-compiled-files message does not prove no deploy action occurred.
+- On version-code downgrade, CLI/MCP automatically uninstalls and reinstalls (clearing app data); if preserving app data matters, tell the user to run from IDEA and choose **Allow downgrade**.
 
 ```
 python3 {SKILL_DIR}/scripts/jugg.py compile
-python3 {SKILL_DIR}/scripts/jugg.py deploy
+python3 {SKILL_DIR}/scripts/jugg.py deploy [--always-restart-app false]
 python3 {SKILL_DIR}/scripts/jugg.py gradle-build
 python3 {SKILL_DIR}/scripts/jugg.py clean-reinstall
 ```
@@ -115,11 +127,15 @@ python3 {SKILL_DIR}/scripts/jugg.py instrument --source-path library1/src/androi
 
 ```
 python3 {SKILL_DIR}/scripts/jugg.py restart              # restart app
+python3 {SKILL_DIR}/scripts/jugg.py stop                 # stop all standalone Runtimes under the same Jugg root; use only when explicitly requested
 python3 {SKILL_DIR}/scripts/jugg.py status               # refresh changed files and show status summary
 python3 {SKILL_DIR}/scripts/jugg.py status --refresh-changes false  # skip changed-file refresh
 python3 {SKILL_DIR}/scripts/jugg.py status --full-info true  # return full status information and all file paths
+python3 {SKILL_DIR}/scripts/jugg.py version              # show CLI, plugin/runtime version, and host capabilities
+python3 {SKILL_DIR}/scripts/jugg.py settings [list|get|set|reset]  # inspect or update global ~/.jugg/settings.json
 python3 {SKILL_DIR}/scripts/jugg.py activity-stack       # show current Activity stack
 python3 {SKILL_DIR}/scripts/jugg.py devices              # list connected devices
+python3 {SKILL_DIR}/scripts/jugg.py report               # prepare and show the exact diagnostics archive, then upload only after explicit confirmation
 python3 {SKILL_DIR}/scripts/jugg.py wait-logs --marker '\[JUGG_AR\] DONE'  # --marker: Java Pattern regex matched against log message; block until marker/crash/timeout
 ```
 
@@ -133,6 +149,10 @@ python3 {SKILL_DIR}/scripts/jugg.py wait-logs --marker '<regex>' [--tags t1,t2] 
 For UI interaction/inspection (tap, view-locate, view-inspect, layout-dump) → read the relevant command sections in `references/cli_manual.md`.
 
 Interaction dumps remove invisible/gone subtrees and `padding`/`textColor`, prune nonsemantic wrappers, and fold offscreen descendants into inline `jugg_details` placeholders. Public virtual IDs use `_vid_`; `className` remains. Placeholders are not controls; use `--mode ui --root-layout <id>` for full details. Real children arrays put opening/closing brackets on separate lines.
+
+The interaction summary compares shown and captured node counts. Use `--mode ui` directly when checking whether a control was captured or inspecting its original hierarchy.
+
+For coordinate gestures from a layout dump, pass its `units.bounds` as `tap --unit dp|px`. Prefer a unique selector from the current layout.
 
 Use `layout-dump`'s inline `data.layout` when present; do not reread the same artifact. For large file-only results, locate a known selector or request a subtree before loading the entire tree.
 

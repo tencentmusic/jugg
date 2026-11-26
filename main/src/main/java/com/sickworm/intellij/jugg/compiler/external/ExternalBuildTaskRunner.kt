@@ -3,11 +3,11 @@ package com.sickworm.intellij.jugg.compiler.external
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.CompileTask
 import com.sickworm.intellij.jugg.compiler.isWindows
-import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
-import com.sickworm.intellij.jugg.project.data.ExternalBuildInfoRequest
-import com.sickworm.intellij.jugg.project.data.ExternalBuildInfoRequestItem
-import com.sickworm.intellij.jugg.project.data.ExternalBuildInfoUpdate
-import com.sickworm.intellij.jugg.project.data.ExternalBuildInfoUpdateResult
+import com.sickworm.intellij.jugg.project.info.ProjectInfoSerializer
+import com.sickworm.intellij.jugg.project.info.ExternalBuildInfoRequest
+import com.sickworm.intellij.jugg.project.info.ExternalBuildInfoRequestItem
+import com.sickworm.intellij.jugg.project.info.ExternalBuildInfoUpdate
+import com.sickworm.intellij.jugg.project.info.ExternalBuildInfoUpdateResult
 import java.io.File
 import java.util.ArrayDeque
 import java.util.UUID

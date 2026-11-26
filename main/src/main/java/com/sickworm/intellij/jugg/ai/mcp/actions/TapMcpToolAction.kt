@@ -1,8 +1,6 @@
 package com.sickworm.intellij.jugg.ai.mcp.actions
 
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
-import com.sickworm.intellij.jugg.ai.mcp.DeviceSelectionResolver
-import com.sickworm.intellij.jugg.ai.mcp.DeviceSelectionResult
 import com.sickworm.intellij.jugg.ai.mcp.IMcpRuntime
 import com.sickworm.intellij.jugg.ai.mcp.McpErrorCode
 import com.sickworm.intellij.jugg.ai.mcp.McpJsonSchemaObject
@@ -12,7 +10,6 @@ import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
 import com.sickworm.intellij.jugg.ai.mcp.viewhierarchy.FindAndTapResult
 import com.sickworm.intellij.jugg.ai.mcp.viewhierarchy.MatchedElementData
 import com.sickworm.intellij.jugg.ai.mcp.viewhierarchy.ViewHierarchyClient
-import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.logger.getInstance
 import kotlin.math.roundToInt
 
@@ -24,11 +21,14 @@ class TapMcpToolAction : McpToolAction {
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
-        description = "Tap, long press, or swipe on target device. Modes: coordinate (x/y), percent (xPercent/yPercent), " +
+        description = "Tap, long press, or swipe on target device. Modes: coordinate (x/y with unit dp or px), percent (xPercent/yPercent), " +
             "or element selectors (text/id/desc, optional class). id=resourceId alias, desc=contentDesc alias, class=className alias. " +
             "Mode priority: coordinate > percent > element.",
         inputSchema = McpJsonSchemaObject(
-            properties = mapOf("projectDir" to McpToolSchemas.projectDirProperty) + McpToolSchemas.tapActionProperties,
+            properties = mapOf(
+                "projectDir" to McpToolSchemas.projectDirProperty,
+                "serial" to McpToolSchemas.serialProperty,
+            ) + McpToolSchemas.tapActionProperties,
             required = listOf("projectDir"),
             additionalProperties = false,
         ),
@@ -42,24 +42,40 @@ class TapMcpToolAction : McpToolAction {
         if (validationError != null) {
             return validationError
         }
-        val selected = resolveOnlineDevice(runtime)
-            ?: run {
-                logger.warn("tap failed: no online device")
-                return noDeviceResult("tap")
+        val targetDeviceSerial = arguments.deviceSerial()
+        val selected = when (val result = resolveMcpSingleDevice(runtime, toolName, targetDeviceSerial)) {
+            is McpSingleDeviceResult.Selected -> result
+            is McpSingleDeviceResult.Failure -> {
+                logger.warn("tap failed: device selection failed")
+                return result.result
             }
-        val preWaitResult = McpAppReadyGuard.waitBeforeRuntimeObserve(runtime, toolName)
+        }
+        val preWaitResult = McpAppReadyGuard.waitBeforeRuntimeObserve(runtime, toolName, targetDeviceSerial)
         if (!preWaitResult.isReady) {
             logger.warn("tap failed: app not ready after pre-check timeout")
             return preWaitResult.errorResult ?: McpToolResult.internalErrorResult("tap", "app is not ready")
         }
         val adb = selected.adb
+        val gestureArguments = if (arguments["unit"] == "dp") {
+            val density = getScreenDensity(adb)
+                ?: return McpToolResult.internalErrorResult(toolName, "Unable to determine device density for dp coordinates")
+            arguments.mapValues { (key, value) ->
+                if (key in ABSOLUTE_COORDINATE_KEYS && value is Number) {
+                    (value.toDouble() * density).roundToInt()
+                } else {
+                    value
+                }
+            }
+        } else {
+            arguments
+        }
         val packageName = resolvePackageName(runtime)
         val topActivityStabilityResult = waitTopActivityOnResumeStable(adb)
         val actionResult = McpAppReadyGuard.executeWithRuntimeObserveRetry {
             when (action) {
-                "tap" -> executeTap(arguments, adb, packageName, logger)
-                "long-press" -> executeLongPress(arguments, adb, packageName, logger)
-                "swipe" -> executeSwipe(arguments, adb, logger)
+                "tap" -> executeTap(gestureArguments, adb, packageName, logger)
+                "long-press" -> executeLongPress(gestureArguments, adb, packageName, logger)
+                "swipe" -> executeSwipe(gestureArguments, adb, logger)
                 else -> McpToolResult(
                     status = McpToolStatus.ERROR,
                     message = "tap failed. Reason: Unsupported action: $action. Use tap, long-press, or swipe.",
@@ -90,6 +106,13 @@ class TapMcpToolAction : McpToolAction {
         val text = arguments["text"] as? String
         val resourceId = arguments.resolveId()
         val contentDesc = arguments.resolveDesc()
+        val unit = arguments["unit"]
+        if (x != null && y != null && unit != "dp" && unit != "px") {
+            return invalidModeResult("Absolute coordinates require unit dp or px.")
+        }
+        if (unit != null && (x == null || y == null)) {
+            return invalidModeResult("The unit parameter requires absolute x and y coordinates.")
+        }
 
         return when (action) {
             "tap", "long-press" -> {
@@ -521,7 +544,7 @@ class TapMcpToolAction : McpToolAction {
                 McpToolResult(
                     status = McpToolStatus.ERROR,
                     message = "tap failed. Reason: ${serverResult.matchCount} elements matched. " +
-                        "Use coordinate mode (x+y) or percent mode (xPercent+yPercent) to tap the intended element.",
+                        "Use candidate coordinates with unit=px or use percent mode (xPercent+yPercent).",
                     data = linkedMapOf<String, Any>(
                         "action" to action,
                         "matchCount" to serverResult.matchCount,
@@ -631,6 +654,14 @@ class TapMcpToolAction : McpToolAction {
         return if (width != null && height != null) ScreenSize(width, height) else null
     }
 
+    private fun getScreenDensity(adb: IDeviceAdb): Double? {
+        val densityByType = adb.execAdbShellCmd("wm density").lineSequence()
+            .mapNotNull { DENSITY_PATTERN.matchEntire(it.trim()) }
+            .associate { it.groupValues[1] to it.groupValues[2].toIntOrNull() }
+        val dpi = if ("Override" in densityByType) densityByType["Override"] else densityByType["Physical"]
+        return dpi?.takeIf { it > 0 }?.div(160.0)
+    }
+
     private fun percentToCoordinate(percent: Double, edgeSize: Int): Int {
         if (edgeSize <= 0) {
             return 0
@@ -647,10 +678,12 @@ class TapMcpToolAction : McpToolAction {
         return !text.isNullOrBlank() || !resourceId.isNullOrBlank() || !contentDesc.isNullOrBlank()
     }
 
-    private fun invalidModeResult(): McpToolResult {
+    private fun invalidModeResult(
+        reason: String = "No valid tap mode detected. Provide (x+y with unit), (xPercent+yPercent), or (text/resourceId/contentDesc).",
+    ): McpToolResult {
         return McpToolResult(
             status = McpToolStatus.ERROR,
-            message = "tap failed. Reason: No valid tap mode detected. Provide (x+y), (xPercent+yPercent), or (text/resourceId/contentDesc).",
+            message = "tap failed. Reason: $reason",
             data = emptyMap<String, Any>(),
             artifacts = emptyList(),
             errorCode = McpErrorCode.INVALID_PARAMS,
@@ -737,28 +770,6 @@ class TapMcpToolAction : McpToolAction {
                 )
             }
         }
-    }
-
-    private fun resolveOnlineDevice(runtime: IMcpRuntime): SelectedAdb? {
-        val selectionResult = DeviceSelectionResolver().resolve(runtime.deployTargetManager)
-        if (selectionResult !is DeviceSelectionResult.Selected) {
-            return null
-        }
-        val adb = PlatformApi.toDeviceAdb(selectionResult.device) ?: return null
-        if (!adb.isOnline) {
-            return null
-        }
-        return SelectedAdb(adb = adb)
-    }
-
-    private fun noDeviceResult(toolName: String): McpToolResult {
-        return McpToolResult(
-            status = McpToolStatus.ERROR,
-            message = "$toolName failed. Reason: No connected device is available.",
-            data = emptyMap<String, Any>(),
-            artifacts = emptyList(),
-            errorCode = McpErrorCode.NO_DEVICE,
-        )
     }
 
     private fun waitTopActivityOnResumeStable(adb: IDeviceAdb): TopActivityStabilityResult {
@@ -909,6 +920,8 @@ class TapMcpToolAction : McpToolAction {
         private val TOP_ACTIVITY_KEYWORDS = listOf("topResumedActivity", "mResumedActivity", "mFocusedActivity")
         private val STATE_PATTERN = Regex("\\bstate=([A-Za-z_]+)\\b")
         private val SIZE_PATTERN = Regex("""(\d+)\s*x\s*(\d+)""")
+        private val DENSITY_PATTERN = Regex("""(Physical|Override) density:\s*(\d+)""")
+        private val ABSOLUTE_COORDINATE_KEYS = setOf("x", "y", "endX", "endY")
         private const val DEFAULT_LONG_PRESS_DURATION_MS = 500
         private const val DEFAULT_SWIPE_DURATION_MS = 300
         private const val MIN_DURATION_MS = 50

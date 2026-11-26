@@ -140,6 +140,11 @@ object JuggLogger {
         map[project.instanceKey]?.fileLogger?.resetLatestCompileLog()
     }
 
+    @Synchronized
+    fun resetLatestCompileLog(instanceKey: String) {
+        map[instanceKey]?.fileLogger?.resetLatestCompileLog()
+    }
+
     /** Waits for queued file logs before evidence is copied, without holding the global lifecycle lock. */
     fun flushProjectLog(project: Project) {
         ensureKey(project.instanceKey).fileLogger.logger.handlers.forEach { it.flush() }
@@ -182,7 +187,8 @@ object JuggLogger {
 
 fun Logger.getInstance(tag: String): Logger {
     return when (this) {
-        is LogDispatcher -> JuggLogger.getInstance(this.instanceKey, tag)
+        is LogDispatcher -> if (instanceKey == "global") JuggLogger.getGlobalLogger(tag)
+            else JuggLogger.getInstance(instanceKey, tag)
         is ITestStdoutLogger -> this.deriveTag(tag)
         else -> this
     }

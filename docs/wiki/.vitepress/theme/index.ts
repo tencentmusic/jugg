@@ -21,11 +21,11 @@ export default {
       'not-found': () => h(NotFound)
     })
   },
-  enhanceApp({ router }) {
+  enhanceApp({ router, siteData }) {
     if (!inBrowser) return
 
     // Quick client-side redirect if hitting a legacy or missing route
-    const target = resolveRedirect(window.location.pathname)
+    const target = resolveRedirect(window.location.pathname, siteData.value.base)
     if (target) {
       window.location.replace(target + window.location.search + window.location.hash)
       return

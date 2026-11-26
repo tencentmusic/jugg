@@ -3,9 +3,9 @@ package com.sickworm.intellij.jugg.cmdline.base
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.cmdline.baselineConstRefDbFile
 import com.sickworm.intellij.jugg.cmdline.createBaselineConstRefEngine
-import com.sickworm.intellij.jugg.project.CoroutineBackgroundTaskRunner
-import com.sickworm.intellij.jugg.project.JuggPathManager
-import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
+import com.sickworm.intellij.jugg.cmdline.CmdLineTaskRuntime
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
+import com.sickworm.intellij.jugg.project.info.JuggProjectInfo
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.currentCoroutineContext
@@ -69,13 +69,15 @@ internal class CiConstRefBaseline(private val paths: JuggPathManager, private va
             generatedDirs + module.buildPathInfo.buildDir
         }.map { it.absoluteFile.normalize() }.toSet()
 
+        val runtime = CmdLineTaskRuntime(paths, CoroutineScope(currentCoroutineContext()), logger)
         val engine = paths.createBaselineConstRefEngine(
-            CoroutineBackgroundTaskRunner(CoroutineScope(currentCoroutineContext())), logger, scratchDbFile,
+            runtime.taskRunnerManager, logger, scratchDbFile,
         )
         try {
             engine.scanBaseline(sourceDirs, excludedDirs)
         } finally {
             engine.dispose()
+            runtime.dispose()
         }
     }
 }

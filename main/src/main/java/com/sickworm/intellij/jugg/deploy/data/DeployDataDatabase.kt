@@ -12,8 +12,8 @@ import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.jvmti_agent.BuildConfig
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.logger.getInstance
-import com.sickworm.intellij.jugg.project.JuggException
-import com.sickworm.intellij.jugg.project.JuggInternalException
+import com.sickworm.intellij.jugg.JuggException
+import com.sickworm.intellij.jugg.JuggInternalException
 import java.io.File
 import java.util.zip.ZipFile
 
@@ -119,6 +119,19 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
         apkFiles: List<ApkFileUnit>,
         helper: DeployDataDatabaseSqLiteHelper
     ): List<ParsedApkUpdateResult> {
+        val isUnchanged = try {
+            helper.isApksUnchanged(apkFiles.map { it.apkFile })
+        } catch (e: Exception) {
+            logger.debug("Fast APK unchanged check failed, fallback to normal parsing: ${e.message}")
+            false
+        }
+        if (isUnchanged) {
+            logger.debug("APK files unchanged, skip APK parsing")
+            return apkFiles.map {
+                ParsedApkUpdateResult.success(ParsedApkDiffResult(it.apkFile, updatedApkInfos = 0))
+            }
+        }
+
         // Determine whether to use an independent process for parsing.
         val launcher = ApkParserProcessLauncher(logger)
         val useIsolatedProcess = launcher.shouldUseIsolatedProcess(apkFiles)

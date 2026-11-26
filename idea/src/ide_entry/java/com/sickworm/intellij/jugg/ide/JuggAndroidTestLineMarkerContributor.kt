@@ -61,7 +61,7 @@ class JuggAndroidTestLineMarkerContributor : RunLineMarkerContributor() {
         return Info(
             lineMarkerIcon(),
             arrayOf(createRunAction(annotatedElement)),
-        ) { "Run Android Test with Jugg" }
+        ) { "Run Android test with Jugg" }
     }
 
     private fun findAnnotatedElement(element: PsiElement): PsiElement? {
@@ -109,7 +109,7 @@ class JuggAndroidTestLineMarkerContributor : RunLineMarkerContributor() {
     }
 
     private fun createRunAction(annotatedElement: PsiElement): AnAction {
-        return object : AnAction("Run Test by Jugg", null, lineMarkerIcon()) {
+        return object : AnAction("Run test by Jugg", null, lineMarkerIcon()) {
             override fun actionPerformed(e: AnActionEvent) {
                 val project = annotatedElement.project
                 val appSettings = JuggAndroidTestAppRunConfigurationSelector.firstEnabledAndroidTestSettings(project)
@@ -188,7 +188,7 @@ class JuggAndroidTestLineMarkerContributor : RunLineMarkerContributor() {
         ): Icon = icon
 
         internal fun createRunAction(icon: Icon): AnAction {
-            return object : AnAction("Run Test by Jugg", null, icon) {
+            return object : AnAction("Run test by Jugg", null, icon) {
                 override fun actionPerformed(e: AnActionEvent) = Unit
             }
         }
@@ -449,13 +449,13 @@ class JuggAndroidTestLineMarkerContributor : RunLineMarkerContributor() {
             NotificationGroupManager.getInstance()
                 .getNotificationGroup("Jugg Notification")
                 .createNotification(
-                    "Enable Android Test required",
-                    "To run Android Instrumentation Tests with Jugg, please enable " +
-                            "'Enable incremental Android Test' in the Jugg Run Configuration " +
+                    "Enable Android test required",
+                    "To run Android instrumentation tests with Jugg, please enable " +
+                            "'Enable incremental Android test' in the Jugg run configuration " +
                             "and run a full Gradle compile once.",
                     NotificationType.INFORMATION,
                 )
-                .addAction(object : AnAction("Open Run Configuration") {
+                .addAction(object : AnAction("Open run configuration") {
                     override fun actionPerformed(e: AnActionEvent) {
                         com.intellij.execution.impl.EditConfigurationsDialog(project).show()
                     }

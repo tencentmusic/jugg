@@ -39,7 +39,7 @@ class RemoteCommandDialog(
     }
 
     init {
-        title = "Run Remote Command"
+        title = "Run remote command"
         setOKButtonText("Run")
         isOKActionEnabled = false
         commandTextArea.document.addDocumentListener(object : DocumentAdapter() {

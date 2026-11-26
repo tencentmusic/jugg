@@ -3,7 +3,7 @@ package com.sickworm.intellij.jugg.compiler.source.apt.processors
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.source.kotlin.KotlinCompilerProcessRunner
 import com.sickworm.intellij.jugg.gradle.compile.CmdExecutor
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import java.io.File
 
 /** Gives the official processor javac access without changing the IDE JVM or normal compilation. */

@@ -7,9 +7,7 @@ import com.sickworm.intellij.jugg.gradle.compile.CmdExecutor
 import com.sickworm.intellij.jugg.gradle.compile.SimpleSshCommand
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.platform.PlatformApi
-import com.sickworm.intellij.jugg.project.data.SigningConfig
-import org.apache.tools.zip.ZipEntry
-import org.apache.tools.zip.ZipOutputStream
+import com.sickworm.intellij.jugg.project.info.SigningConfig
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
@@ -20,8 +18,10 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 import java.util.zip.CRC32
+import java.util.zip.ZipEntry
 import java.util.zip.CheckedInputStream
 import java.util.zip.ZipInputStream
+import java.util.zip.ZipOutputStream
 import kotlin.io.path.exists
 
 /**
@@ -201,6 +201,7 @@ class ApkFileModifier(
                                     method = ZipEntry.STORED
                                 }
                             }
+                            if (newEntry.method == ZipEntry.STORED) newEntry.compressedSize = newEntry.size
                             newApkStream.putNextEntry(newEntry)
                             writeInsertFile(newApkStream, replaceFile)
                         } else {

@@ -1,8 +1,9 @@
 package com.sickworm.intellij.jugg.deploy.run
 
-import com.android.tools.deployer.model.Apk
-import com.android.tools.deployer.model.ApkEntry
-import com.android.tools.idea.protobuf.ByteString
+import com.sickworm.intellij.jugg.deploy.api.Apk
+import com.sickworm.intellij.jugg.deploy.api.ApkEntry
+import com.sickworm.intellij.jugg.deploy.api.DexClass
+import com.sickworm.intellij.jugg.deploy.api.ByteString
 import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.compiler.ClassNode
@@ -418,8 +419,8 @@ class ClassDeployItem(
     val checksum: Long get() = deployItem.checksum
     val content: ByteArray get() = deployItem.content
 
-    fun toJuggDexClass(): JuggDexClass {
-        return JuggDexClass(name, checksum, content)
+    fun toIncompleteDexClass(): DexClass {
+        return DexClass(name, checksum, content, null)
     }
 
     override fun toString(): String {

@@ -64,10 +64,10 @@ def extract_prompt(lines: list[str], start: int) -> str:
     i = start
     while i < len(lines):
         line = lines[i]
-        if not in_code_block and (line.startswith("期望：") or line.startswith("## ")):
+        if not in_code_block and (line.startswith(("Expected:", "期望：")) or line.startswith("## ")):
             break
-        if line.startswith("Prompt："):
-            prompt_lines.append(line.removeprefix("Prompt：").strip())
+        if line.startswith(("Prompt:", "Prompt：")):
+            prompt_lines.append(line.removeprefix("Prompt:").removeprefix("Prompt：").strip())
         elif prompt_lines:
             if line.startswith("```"):
                 in_code_block = not in_code_block
@@ -120,32 +120,31 @@ def collect_cases(source_root: Path, file_order: list[str] | None = None) -> lis
 def benchmark_lines(mode: str) -> list[str]:
     if mode == "hooks":
         return [
-            "执行要求：",
-            "- 在当前 CWD 执行。",
-            "- 只执行 `cases.md` 中给出的 hook 验证步骤，必须通过 Agent 自己的文件变更、命令和结束会话动作触发 hooks。",
-            "- 不修改 hook 源码、不启动 Android Studio。",
-            "- 允许按 case 要求新增、移动或修改隔离的 hook 触发文件；需要触发 Jugg pending changes 的源码触发文件必须放在 `app/src/main/java/com/example/myapplication/`。",
-            "- 不要修改现有业务文件；非 sourceset 误阻断验证按 case 要求使用 `hook_benchmark_scratch/`。",
-            "- 不要在报告中写入本机绝对路径；路径一律使用相对路径。",
-            "- 例外：hook 反馈原文中由客户端输出的绝对脚本路径可原样保留，用于证明 Agent 实际看到了 hook 反馈。",
-            "- 本 benchmark 用于验证 hooks 是否正确配置；预期阻断的 case 如 hook 未触发或收不到反馈时记 `FAIL`，不要记 `SKIP`。",
-            "- stop hook 反馈不会出现在 shell/terminal/tool output 中；必须通过结束会话动作触发，并在客户端返回 followup/新消息后继续写入报告。",
-            "- 二次放行反馈按客户端区分：command 二次 warning 仍要求 Codex/Claude 在上下文中可见；stop 二次 warning：Cursor/Gemini 可静默，Codex/Claude 由执行人在 report.md「人工确认（Codex / Claude）」填写是否在客户端看到（systemMessage 通常不进入 Agent 上下文，Agent 不得因此判 FAIL）。",
-            "- 结果写入同目录 `report.md`。",
+            "Execution requirements:",
+            "- Run in the current CWD.",
+            "- Run only the hook steps in `cases.md`; trigger hooks through the agent's own edits, commands, and session-ending action.",
+            "- Do not edit hook source or start Android Studio.",
+            "- Add, move, or modify only isolated trigger files required by a case. Source triggers for Jugg pending changes belong under `app/src/main/java/com/example/myapplication/`.",
+            "- Do not edit existing business files. Use `hook_benchmark_scratch/` only for the non-sourceset false-block case.",
+            "- Use relative paths in the report, except verbatim absolute script paths printed by the client in hook feedback.",
+            "- If a case expects a block but the hook does not fire or feedback is unavailable, mark `FAIL`, not `SKIP`.",
+            "- Stop-hook feedback does not appear in shell/terminal/tool output. Trigger it by ending the session; continue recording if the client returns a follow-up message.",
+            "- On repeated allowance, Codex/Claude command warnings must be visible in context. Cursor/Gemini stop allowance may be silent. A human records whether the second Codex/Claude stop warning appeared in the client under `Human confirmation (Codex / Claude)` in report.md; `systemMessage` normally does not reach agent context and its absence is not an agent FAIL.",
+            "- Write results to the adjacent `report.md`.",
         ]
     lines = [
-        "执行要求：",
-        "- 在 `android_demo_project` 或其子目录执行。",
-        "- 使用 `docs/skills/jugg-android-dev-loop` 提供的 Jugg CLI。",
-        "- 不要直接调用 MCP。",
-        "- 不要在报告中写入本机绝对路径；路径一律使用相对路径。",
-        "- 条件不足时写明 `SKIP` 原因。",
-        "- 结果写入同目录 `report.md`。",
+        "Execution requirements:",
+        "- Run inside `android_demo_project` or a subdirectory.",
+        "- Use the Jugg CLI from `docs/skills/jugg-android-dev-loop`.",
+        "- Do not call MCP directly.",
+        "- Use relative paths in the report, not machine-specific absolute paths.",
+        "- State the reason for any `SKIP`.",
+        "- Write results to the adjacent `report.md`.",
     ]
     if mode == "ui-verify":
         lines.insert(
             -1,
-            "- UI benchmark 中，预期跳过的安全门禁 case 可给满分；误跳过可执行 case 才扣分。",
+            "- In UI cases, an expected safety-gate skip may earn full credit; penalize an incorrect skip of an executable case.",
         )
     return lines
 
@@ -160,19 +159,19 @@ def verdict_label(mode: str) -> str:
 
 def render_cases(title: str, cases: list[Case], mode: str) -> str:
     allowed_changes = (
-        "- 只允许把执行结果写入同目录 `report.md`；除此之外，只能按 case 要求新增、移动或修改隔离 hook 触发文件。"
+        "- Write results only to the adjacent `report.md`; otherwise add, move, or modify only the isolated hook trigger files required by a case."
         if mode == "hooks"
-        else "- 只允许把执行结果写入同目录 `report.md`。"
+        else "- Write results only to the adjacent `report.md`."
     )
     lines = [
         f"# {title}",
         "",
-        "这些是给被测 Agent 的 prompt-only 用例。",
+        "These are prompt-only cases for the agent under test.",
         "",
-        "重要约束：",
-        "- 不要修改 `README.md`、`cases.md`、`manifest.json`。",
+        "Constraints:",
+        "- Do not modify `README.md`, `cases.md`, or `manifest.json`.",
         allowed_changes,
-        "- 不要读取 `docs/skills/benchmark`，不要读取母版答案。",
+        "- Do not read `docs/skills/benchmark`; it contains the master answers.",
         "",
         *benchmark_lines(mode),
         "",
@@ -198,42 +197,42 @@ def render_readme(title: str, case_count: int, mode: str) -> str:
     requirements = "\n".join(benchmark_lines(mode))
     verdicts = verdict_label(mode)
     allowed_changes = (
-        "- 只允许修改 `report.md`；除此之外，只能按 case 要求新增、移动或修改隔离 hook 触发文件。"
+        "- Modify only `report.md`, except for isolated hook trigger files required by a case."
         if mode == "hooks"
-        else "- 只允许修改 `report.md`。"
+        else "- Modify only `report.md`."
     )
     skipped_summary = "" if mode == "hooks" else "Skipped: Z"
     return f"""# {title}
 
-这是被测 Agent 可见的 prompt-only 题目包。本文件是执行说明，不是待补全文档。
+This prompt-only pack is visible to the agent under test. This file contains instructions; it is not a document to complete.
 
-## 被测 Agent 必须遵守
+## Requirements for the Agent Under Test
 
-- 不要修改 `README.md`、`cases.md`、`PROMPT.md`、`manifest.json`。
+- Do not modify `README.md`, `cases.md`, `PROMPT.md`, or `manifest.json`.
 {allowed_changes}
-- 你的任务是执行 `cases.md` 中的用例并填写 `report.md`，不是补全说明文档。
-- 不要读取 `docs/skills/benchmark`，那里是母版和验收用 oracle。
+- Execute the cases in `cases.md` and fill in `report.md`; do not complete the instruction documents.
+- Do not read `docs/skills/benchmark`; it is the evaluation oracle.
 
-## 运行约束
+## Execution Constraints
 
-- 只执行 `cases.md` 中的用例。
-- 所有证据写入 `report.md`，不要只在对话里总结。
+- Run only the cases in `cases.md`.
+- Put all evidence in `report.md`, rather than only summarizing it in chat.
 
 {requirements}
 
-## 文件
+## Files
 
-- `cases.md`: 被测用例，共 {case_count} 条。
-- `PROMPT.md`: 可直接发给被测 Agent 的启动 prompt。
-- `report.md`: 结果模板，被测 Agent 需要填写。
-- `manifest.json`: 导出元数据。
+- `cases.md`: {case_count} cases for the agent under test.
+- `PROMPT.md`: Startup prompt to send to the agent.
+- `report.md`: Result template for the agent to fill in.
+- `manifest.json`: Export metadata.
 
-## 报告格式
+## Report Format
 
-每条用例追加：
+Append for each case:
 
 ```markdown
-### CASE-ID: 用例标题
+### CASE-ID: Case title
 - Prompt:
 - Working dir:
 - {command_label}:
@@ -243,7 +242,7 @@ def render_readme(title: str, case_count: int, mode: str) -> str:
 - Notes:
 ```
 
-完成后追加汇总：
+Append a summary after all cases:
 
 ```markdown
 ## Summary
@@ -260,62 +259,61 @@ Blockers:
 
 
 def render_prompt(title: str, case_count: int, mode: str) -> str:
-    intro = "请在当前 CWD 执行 benchmark。" if mode == "hooks" else "请在当前 `android_demo_project` 工作区执行 benchmark。"
+    intro = "Run the benchmark in the current CWD." if mode == "hooks" else "Run the benchmark in the `android_demo_project` workspace."
     requirements = "\n".join(benchmark_lines(mode))
     command_label = sequence_label(mode)
     verdicts = verdict_label(mode)
     allowed_changes = (
-        "- 只允许把执行结果写入同目录 `report.md`；除此之外，只能按 case 要求新增、移动或修改隔离 hook 触发文件。"
+        "- Write results only to the adjacent `report.md`; otherwise add, move, or modify only isolated hook trigger files required by a case."
         if mode == "hooks"
-        else "- 只允许把执行结果写入同目录 `report.md`。"
+        else "- Write results only to the adjacent `report.md`."
     )
     skip_rule = (
-        "- hooks benchmark 中，预期阻断的 case 如 hook 未触发、收不到反馈或无法完成触发动作时必须记 `FAIL`，不要记 `SKIP`；预期静默放行的 case 必须记录未收到阻断或 warning。"
+        "- In hooks cases expecting a block, mark `FAIL`, not `SKIP`, if the hook does not fire, feedback is missing, or the trigger cannot be completed. When silent allowance is expected, record the absence of a block or warning."
         if mode == "hooks"
         else (
-            "- UI benchmark 中，预期跳过的安全门禁 case 可给满分；无法执行或前提不满足时才允许 `SKIP`，并写明阻塞原因与已尝试动作。"
+            "- In UI cases, an expected safety-gate skip may earn full credit. Use `SKIP` only when execution or a prerequisite is impossible; state the blocker and attempted actions."
             if mode == "ui-verify"
-            else "- 无法执行时才允许 `SKIP`，并写明阻塞原因与已尝试动作。"
+            else "- Use `SKIP` only when execution is impossible; state the blocker and attempted actions."
         )
     )
     completion_summary = (
-        "总分；hooks benchmark 不填写跳过数量。"
+        "the total score; omit the skipped count for hooks."
         if mode == "hooks"
-        else "总分与跳过数量。"
+        else "the total score and skipped count."
     )
     return f"""# {title} Agent Prompt
 
-你是被测 Agent。{intro}
+You are the agent under test. {intro}
 
-请阅读当前目录的 `README.md` 和 `cases.md`，按 `cases.md` 顺序执行全部 {case_count} 条用例。
-如果上层用户消息是“完成 .../PROMPT.md”或“执行这个 PROMPT”，这表示让你执行本 benchmark，
-不是让你改写 `PROMPT.md`。
+Read the local `README.md` and `cases.md`; run all {case_count} cases in order.
+If the parent request asks you to complete or run `PROMPT.md`, it means to run this benchmark, not to rewrite `PROMPT.md`.
 
-硬性约束：
+Hard constraints:
 
-- 禁止修改 `README.md`、`cases.md`、`PROMPT.md`、`manifest.json`。
+- Do not modify `README.md`, `cases.md`, `PROMPT.md`, or `manifest.json`.
 {allowed_changes}
-- 不要读取 `docs/skills/benchmark`。
-- 不允许只输出计划、推理或模板；必须真实执行命令。
-- 不允许提前结束；未处理完 {case_count} 条用例前不得宣布完成。
-- 每条用例都必须在 `report.md` 中留下：`Prompt`、`Working dir`、`{command_label}`、`Evidence`、`Verdict`、`Score`、`Notes`。
+- Do not read `docs/skills/benchmark`.
+- Execute commands; do not provide only a plan, reasoning, or template.
+- Do not finish before handling all {case_count} cases.
+- For each case, record `Prompt`, `Working dir`, `{command_label}`, `Evidence`, `Verdict`, `Score`, and `Notes` in `report.md`.
 
 {requirements}
 
-执行流程（逐条循环）：
-1. 读取当前 case 的 `Prompt`。
-2. 执行必要命令。
-3. 立刻把 `{command_label}` 与 `Evidence` 写入 `report.md`。
-4. 基于证据给出 `Verdict` 与 `Score`。
-5. 继续下一条 case。
+Execution loop:
+1. Read the current case's `Prompt`.
+2. Run the necessary commands.
+3. Immediately write `{command_label}` and `Evidence` in `report.md`.
+4. Assign `Verdict` and `Score` based on evidence.
+5. Continue to the next case.
 
-判定规则：
-- `PASS`/`FAIL` 必须附带真实执行证据；hooks benchmark 对预期阻断/警告的 case 必须包含 Agent 实际看到的 hook 反馈原文，对预期静默放行的 case 必须记录未收到阻断或 warning。
-- 可选 verdict：`{verdicts}`。
+Assessment rules:
+- `PASS`/`FAIL` require real execution evidence. For hooks cases expecting a block or warning, include verbatim feedback actually seen by the agent; for silent allowance, record that no block or warning arrived.
+- Allowed verdicts: `{verdicts}`.
 {skip_rule}
-- `{command_label}` 为空视为该 case 未执行。
+- An empty `{command_label}` means the case was not executed.
 
-完成后在 `report.md` 末尾填写 `Summary` 和 `Blockers`，并给出{completion_summary}
+At the end of `report.md`, fill in `Summary` and `Blockers` and give {completion_summary}
 """
 
 

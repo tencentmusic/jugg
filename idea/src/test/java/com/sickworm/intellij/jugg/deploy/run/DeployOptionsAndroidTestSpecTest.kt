@@ -1,6 +1,6 @@
 package com.sickworm.intellij.jugg.deploy.run
 
-import com.android.ddmlib.IDevice
+import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull

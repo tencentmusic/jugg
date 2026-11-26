@@ -1,0 +1,5 @@
+<resources>
+    <style name="StyleProbeConfiguration" parent="StyleProbeBase">
+        <item name="android:textColor">#FFAA00AA</item>
+    </style>
+</resources>

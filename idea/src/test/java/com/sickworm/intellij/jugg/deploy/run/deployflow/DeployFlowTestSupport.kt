@@ -1,6 +1,6 @@
 package com.sickworm.intellij.jugg.deploy.run.deployflow
 
-import com.android.ddmlib.IDevice
+import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Computable
@@ -12,7 +12,7 @@ import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.deploy.DeployStateManager
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
-import com.sickworm.intellij.jugg.deploy.IIdeDeployStateHelper
+import com.sickworm.intellij.jugg.deploy.IHostDeployStateResolver
 import com.sickworm.intellij.jugg.deploy.JuggRunningTaskStatusManager
 import com.sickworm.intellij.jugg.deploy.data.ParsedDex
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
@@ -20,12 +20,15 @@ import com.sickworm.intellij.jugg.deploy.run.DeployOptions
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
-import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentService
+import com.sickworm.intellij.jugg.deploy.run.TestDeployEnvironment
+import com.sickworm.intellij.jugg.deploy.run.applychanges.CustomApkInstallScriptRunner
+import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.jvmti_agent.BuildConfig
 import com.sickworm.intellij.jugg.mock.TestGlobal
 import com.sickworm.intellij.jugg.mock.context
-import com.sickworm.intellij.jugg.project.CompileContextManager
-import com.sickworm.intellij.jugg.project.TaskRunnerManager
+import com.sickworm.intellij.jugg.logger.JuggLogger
+import com.sickworm.intellij.jugg.compiler.context.CompileContextManager
+import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import com.sickworm.intellij.jugg.server.JuggServer
 import kotlinx.coroutines.CompletableDeferred
@@ -179,6 +182,7 @@ internal object DeployFlowTestSupport {
 
         val compileContext = Mockito.mock(ICompileContext::class.java)
         Mockito.`when`(compileContext.isDebuggable).thenReturn(true)
+        Mockito.`when`(compileContext.deployedFiles).thenAnswer { deployFileManager.getDeployedFiles() }
         val compileContextManager = Mockito.mock(CompileContextManager::class.java)
         Mockito.`when`(compileContextManager.compileContext).thenReturn(compileContext)
 
@@ -188,20 +192,19 @@ internal object DeployFlowTestSupport {
         val ideaLogger = TestGlobal.getLogger()
         val deviceAdbFactory: (IDevice, Logger) -> IDeviceAdb = { _, _ -> virtualDevice.asIDeviceAdb() }
         val deployStateRecover = DeployFlowRecoverFixtureHooks(
-            project = project,
             deployTargetManager = deployTargetManager,
             deployFileManager = deployFileManager,
             deployHistoryManager = deployHistoryManager,
             deployStateManager = deployStateManager,
             deployRunHost = recoverRunHost,
-            deploymentService = JuggDeploymentService,
+            deploymentService = DeployFlowMockBackend.deploymentService,
             deviceAdbFactory = deviceAdbFactory,
+            isDirectOverlayEnabled = JuggSettings.isEnableDirectOverlayDeploy,
             logger = ideaLogger,
             ideDeployStateHelper = ideDeployStateHelper,
             afterRecoverSuccess = afterRecoverSuccess,
         )
         val helper = JuggDeployerHelper(
-            project = project,
             deployTargetManager = deployTargetManager,
             deployFileManager = deployFileManager,
             deployHistoryManager = deployHistoryManager,
@@ -212,10 +215,12 @@ internal object DeployFlowTestSupport {
             juggServer = Mockito.mock(JuggServer::class.java),
             taskRunnerManager = taskRunnerManager,
             logger = ideaLogger,
-            deploymentService = JuggDeploymentService,
-            deviceAdbFactory = deviceAdbFactory,
-            installPathProvider = installPathProvider,
-            asDeployerCompat = asDeployerCompat,
+            deploymentService = DeployFlowMockBackend.deploymentService,
+            environment = TestDeployEnvironment(asDeployerCompat, installersRoot = installPathProvider.compute(),
+                isDirectOverlayEnabled = JuggSettings.isEnableDirectOverlayDeploy, adbFactory = deviceAdbFactory,
+                customApkInstaller = { script, applicationId, apks, launchContext, logger ->
+                    CustomApkInstallScriptRunner(project, script, launchContext, logger).run(applicationId, apks)
+                }),
             stateRecover = deployStateRecover,
         )
         recoverRunHost.bind(helper)
@@ -226,13 +231,13 @@ internal object DeployFlowTestSupport {
         project: Project,
         deployTargetManager: IDeployTargetManager,
         deployHistoryManager: IDeployHistoryManager,
-        ideDeployStateHelper: IIdeDeployStateHelper,
+        ideDeployStateHelper: IHostDeployStateResolver,
     ): DeployStateManager {
         return DeployStateManager(
-            project = project,
             deployTargetManager = deployTargetManager,
             deployHistoryManager = deployHistoryManager,
-            ideDeployStateHelper = ideDeployStateHelper,
+            hostDeployStateResolver = ideDeployStateHelper,
+            logger = JuggLogger.getInstance(project, "DeployStateManager"),
         )
     }
 

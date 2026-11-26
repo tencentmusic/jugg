@@ -1,83 +1,83 @@
 # L2 Unit: view-locate
 
-目标：验证 Agent 能用 `view-locate` 完成元素定位，并正确处理多匹配、不存在、不可见和 contentDescription 场景。
+Goal: Check that the agent locates elements with `view-locate` and handles multiple matches, missing and invisible elements, and content descriptions correctly.
 
-## LOC-1: 文本精确定位
+## LOC-1: Exact Text Match
 
-Prompt：在 McpTestActivity 找到文本为 `Unique MCP Target` 的按钮。
+Prompt: Find the button labeled `Unique MCP Target` on McpTestActivity.
 
-期望：
-- 选择 `view-locate --text "Unique MCP Target"`。
-- 返回唯一元素的 bounds/中心点。
+Expected:
+- Select `view-locate --text "Unique MCP Target"`.
+- Return bounds or center coordinates for the unique element.
 
-## LOC-2: resourceId 定位
+## LOC-2: Resource-ID Match
 
-Prompt：找到 resource id 为 `btn_mcp_resource_target` 的按钮。
+Prompt: Find the button with resource ID `btn_mcp_resource_target`.
 
-期望：
-- 选择 `view-locate --resource-id btn_mcp_resource_target`。
-- 不使用旧参数 `--id`。
+Expected:
+- Select `view-locate --resource-id btn_mcp_resource_target`.
+- Do not use obsolete `--id`.
 
-## LOC-3: contentDescription 定位
+## LOC-3: Content-Description Match
 
-Prompt：找到 content description 为 `mcp-resource-target` 的元素。
+Prompt: Find the element with content description `mcp-resource-target`.
 
-期望：
-- 选择 `view-locate --content-desc mcp-resource-target`。
-- 不把 contentDescription 当成 text。
+Expected:
+- Select `view-locate --content-desc mcp-resource-target`.
+- Do not treat contentDescription as text.
 
-## LOC-4: 多匹配文本
+## LOC-4: Multiple Text Matches
 
-Prompt：定位文本为 `Repeat Tap Target` 的元素。
+Prompt: Locate the element labeled `Repeat Tap Target`.
 
-期望：
-- 选择 `view-locate --text "Repeat Tap Target"`。
-- 如果返回 `matchCount > 1` 或候选列表，应报告歧义，不随机选一个。
+Expected:
+- Select `view-locate --text "Repeat Tap Target"`.
+- If `matchCount > 1` or a candidate list is returned, report the ambiguity rather than picking one randomly.
 
-## LOC-5: 不存在元素
+## LOC-5: Missing Element
 
-Prompt：确认页面上不存在文本为 `NonExistentElementXYZ` 的元素。
+Prompt: Confirm that the page has no element labeled `NonExistentElementXYZ`.
 
-期望：
-- 选择 `view-locate --text "NonExistentElementXYZ"`。
-- 未找到是预期结果；不得改成模糊匹配。
+Expected:
+- Select `view-locate --text "NonExistentElementXYZ"`.
+- “Not found” is the expected result; do not switch to fuzzy matching.
 
-## LOC-6: 可见元素优先
+## LOC-6: Prefer Visible Elements
 
-Prompt：定位文本为 `Visibility Tap Target` 的可见按钮。
+Prompt: Locate the visible button labeled `Visibility Tap Target`.
 
-期望：
-- 选择 `view-locate --text "Visibility Tap Target"`。
-- 隐藏的 `btn_mcp_visibility_hidden` 不应被当作可点击目标。
+Expected:
+- Select `view-locate --text "Visibility Tap Target"`.
+- Do not treat hidden `btn_mcp_visibility_hidden` as a tappable target.
 
-## LOC-7: 深层嵌套文本
+## LOC-7: Deeply Nested Text
 
-Prompt：找到文本为 `Nested Label` 的元素。
+Prompt: Find the element labeled `Nested Label`.
 
-期望：
-- 选择 `view-locate --text "Nested Label"`。
-- 记录它在父容器中的实际位置。
+Expected:
+- Select `view-locate --text "Nested Label"`.
+- Record its actual position within the parent container.
 
-## LOC-8: 图标 contentDescription
+## LOC-8: Icon Content Description
 
-Prompt：找到 content description 为 `mcp icon` 的图标。
+Prompt: Find the icon with content description `mcp icon`.
 
-期望：
-- 选择 `view-locate --content-desc "mcp icon"`。
-- 如果当前滚动位置不可见，应先说明需要页面状态或使用 `layout-dump` 取证。
+Expected:
+- Select `view-locate --content-desc "mcp icon"`.
+- If it is offscreen at the current scroll position, state that page state or `layout-dump` evidence is needed.
 
-## LOC-9: 屏幕外元素
+## LOC-9: Offscreen Element
 
-Prompt：找到文本为 `Swipe End Marker` 的元素。
+Prompt: Find the element labeled `Swipe End Marker`.
 
-期望：
-- 先尝试 `view-locate --text "Swipe End Marker"`。
-- 如果不可见，应报告当前视口未命中；不能假造坐标。
+Expected:
+- Try `view-locate --text "Swipe End Marker"` first.
+- If it is not visible, report the current viewport miss; do not invent coordinates.
 
-## LOC-10: selector 缺失
+## LOC-10: Missing Selector
 
-Prompt：验证元素定位命令没有 selector 时不会成功。
+Prompt: Verify that an element-location command without a selector cannot succeed.
 
-期望：
-- Agent 应知道 `view-locate` 需要 `--text`、`--resource-id` 或 `--content-desc`。
-- 若执行缺参命令，应把参数错误判为预期失败。
+Expected:
+- Know that `view-locate` requires `--text`, `--resource-id`, or `--content-desc`.
+- If it is run without one, classify the argument error as the expected failure.

@@ -3,8 +3,8 @@ package com.sickworm.intellij.jugg.gradle.compile
 import com.sickworm.intellij.jugg.compiler.copyResource
 import com.sickworm.intellij.jugg.compiler.isMac
 import com.sickworm.intellij.jugg.gradle.compile.SyncFileCommand.Companion.getRsyncArguments
-import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
-import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.project.info.ModuleBuildPathInfo
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import java.io.File
 
 

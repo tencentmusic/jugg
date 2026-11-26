@@ -17,9 +17,9 @@ import com.sickworm.intellij.jugg.compiler.CompileResult
 import com.sickworm.intellij.jugg.compiler.CompileStatusHolder
 import com.sickworm.intellij.jugg.compiler.CompileTask
 import com.sickworm.intellij.jugg.mock.SimpleCompileContext
-import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
-import com.sickworm.intellij.jugg.project.data.Variant
+import com.sickworm.intellij.jugg.project.info.ModuleBuildPathInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.Variant
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -184,7 +184,11 @@ class DexMinifyCompilerVariantMinifyTest {
             kotlinPluginOptions = emptyList(),
             externalBuildInfos = emptyList(),
             variants = listOf("debug", "release").map { name ->
-                Variant(name, null, if (name == buildVariant) minifyEnabled else !minifyEnabled)
+                Variant(
+                    name = name,
+                    signingConfigName = null,
+                    minifyEnabled = if (name == buildVariant) minifyEnabled else !minifyEnabled,
+                )
             },
         )
     }

@@ -51,6 +51,12 @@ Installation replaces the old process and overlay baseline. Jugg clears deployme
 
 When the current Run Configuration enables a custom APK install script, the project script performs the "install the updated APK" step for ordinary apps. Jugg still requires the script to install the APK supplied by the current run and rebuilds the deployment cache only after checksum verification passes. Android test APKs do not use this script.
 
+## Installing an older version
+
+When the APK has a lower `versionCode` than the installed app, a manual IDE Run or Debug offers three choices: **Allow downgrade** retries installation with `adb install -d` while keeping application data; **Uninstall and reinstall** deletes the existing app and its data before installing; **Cancel** leaves the existing app installed and ends this installation attempt.
+
+On both IDEA and standalone runtimes, the CLI automatically uninstalls and reinstalls the app when installation fails because the installed version is newer. This deletes application data. The CLI does not enable `adb install -d` by default and has no option to select a downgrade policy. Android documents `-d` for debuggable applications. Custom APK installation scripts choose their own installation options, and an explicit Clean Reinstall still clears app data.
+
 ## Difference between APK update and Gradle fallback
 
 Both paths install an APK, but they regenerate different scopes.

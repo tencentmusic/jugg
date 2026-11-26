@@ -7,6 +7,9 @@ plugins {
 }
 
 test {
+    def juggTestRootDir = file("$buildDir/test-jugg-home")
+    systemProperty "jugg.root.dir", juggTestRootDir.absolutePath
+    doFirst { juggTestRootDir.deleteDir() }
     minHeapSize = "512m" // initial heap size
     maxHeapSize = "8192m" // maximum heap size
 }
@@ -31,16 +34,41 @@ repositories {
     }
 }
 
+def generatedRuntimeInfoDir = layout.buildDirectory.dir('generated/runtime-info')
+def generateRuntimeInfo = tasks.register('generateRuntimeInfo') {
+    def outputFile = generatedRuntimeInfoDir.map { it.file('META-INF/JUGG_PLUGIN_INFO.MF') }
+    inputs.property('runtimeVersion', rootProject.pluginVersion)
+    inputs.property('releaseBuildId', rootProject.releaseBuildId)
+    outputs.file(outputFile)
+    doLast {
+        def target = outputFile.get().asFile
+        target.parentFile.mkdirs()
+        target.text = """Version: ${rootProject.pluginVersion}
+Compile-Date: ${new java.text.SimpleDateFormat('yyyy-MM-dd HH:mm:ss').format(rootProject.releaseBuildDateValue)}
+Compile-Timestamp: ${rootProject.releaseBuildId}
+Release-Build-Id: ${rootProject.releaseBuildId}
+"""
+    }
+}
+
+sourceSets.main.resources.srcDir(generatedRuntimeInfoDir)
+tasks.named('processResources').configure { dependsOn(generateRuntimeInfo) }
+
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
 
     implementation(project(':main')) {
         exclude group: 'androidx.databinding'
     }
+    implementation project(':deploy_compat:interface')
+    implementation project(':deploy_compat:standalone_deployer')
     implementation project(':platform_compat:base_api')
+    implementation "com.google.code.gson:gson:2.10.1"
 
     testImplementation "junit:junit:4.12"
     testImplementation "org.jetbrains.kotlin:kotlin-test:1.9.23"
+    testImplementation "com.google.code.gson:gson:2.10.1"
+    testImplementation "org.mockito:mockito-core:5.4.0"
 
     // pin Java 11 databinding jars (same as :main). 8.7.3 is class file 61.0 and fails on Java 11:
     // android/databinding/parser/XMLParser$ElementContext has been compiled by a more recent version
@@ -52,5 +80,17 @@ dependencies {
     implementation 'org.slf4j:slf4j-nop:1.7.36'
 }
 
+configurations.runtimeClasspath {
+    exclude group: 'com.android.tools', module: 'repository'
+    exclude group: 'net.java.dev.jna'
+    resolutionStrategy.force 'androidx.databinding:databinding-compiler:7.4.2',
+            'androidx.databinding:databinding-compiler-common:7.4.2',
+            'androidx.databinding:databinding-common:7.4.2'
+}
+
 // Apply external distribution and packaging configuration
 apply from: 'cmdline-distribution.gradle'
+
+tasks.named('test').configure {
+    dependsOn(tasks.named('installDist'))
+}

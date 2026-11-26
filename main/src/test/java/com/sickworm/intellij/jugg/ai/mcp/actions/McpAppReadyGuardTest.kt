@@ -121,12 +121,11 @@ class McpAppReadyGuardTest {
     }
 
     private fun runtime(isAppReadyProvider: () -> Boolean): IMcpRuntime {
-        val project = Mockito.mock(Project::class.java)
         val deployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
-        return object : IMcpRuntime {
+        return object : com.sickworm.intellij.jugg.ai.mcp.TestMcpRuntime() {
             override val logger: com.intellij.openapi.diagnostic.Logger
                 get() = com.intellij.openapi.diagnostic.Logger.getInstance("McpAppReadyGuardTest")
-            override val project: Project = project
+            override val projectDir: String = "/tmp/test"
             override val deployTargetManager: IDeployTargetManager = deployTargetManager
             override val forceGradleCompileHelper: ForceGradleCompileHelper = object : ForceGradleCompileHelper() {
                 override fun executeGradleCompile(autoConfirm: Boolean, useCleanAndReinstall: Boolean) {

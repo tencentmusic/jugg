@@ -1,93 +1,93 @@
-# 采集 Jugg 问题现场
+# Collect a Jugg issue snapshot
 
-把**本文件全文**发给当前 Android 工程里的 AI 助手（Cursor / Claude Code / Codex / Trae 等）并让它执行。
+Send **this entire file** to an AI assistant in the affected Android project (Cursor, Claude Code, Codex, Trae, etc.) and ask it to follow the instructions.
 
-采集结束后会自动打开结果文件夹。把桌面上的 `jugg_scene_*.zip` 发回维护者即可，不要在对话里粘贴二进制内容。
+When collection finishes, the result folder opens automatically. Send the `jugg_scene_*.zip` on the desktop to the maintainer. Do not paste binary contents into the chat.
 
-Windows 需要本机已安装 [Git for Windows](https://git-scm.com/download/win)（用它的 bash 跑官方脚本），或可用 WSL。
+On Windows, install [Git for Windows](https://git-scm.com/download/win) to run the official script with Bash, or use WSL.
 
 ---
 
-## Agent 指令
+## Agent instructions
 
-你现在只做 Jugg 现场采集，不是修 bug、不是改代码、不是重新编译。
+Your only task is to collect the Jugg issue snapshot. Do not fix the bug, change code, or rebuild.
 
-**禁止：**
+**Do not:**
 
-- 修改任何源码、Gradle、配置、资源、Manifest
-- 再次 Run / Build / Deploy / 安装 / 卸载 / 清数据 / Clear Jugg Build / 重启 App
-- 使用 `--skip-adb` 或 `--no-open`
-- 把 zip 或 APK/DEX 内容 cat 到对话里
-- 把官方脚本改写成另一份实现，或内联一份本地副本顶替下载
+- Change source, Gradle files, configuration, resources, or the Manifest.
+- Run, build, deploy, install, uninstall, clear app data, clear the Jugg build, or restart the app.
+- Use `--skip-adb` or `--no-open`.
+- Print a ZIP, APK, or DEX into the chat.
+- Rewrite the official script or substitute an inline local copy for the downloaded script.
 
-这些操作会覆盖现场。手机保持解锁，USB 调试保持开启，采集期间不要操作 App。
+These actions can overwrite the evidence. Keep the device unlocked and USB debugging enabled; do not interact with the app during collection.
 
-沙箱拦文件、网络、adb 或 USB 设备时，申请本机完整权限后重试，不要改成跳过 adb，也不要手写采集逻辑。
+If a sandbox blocks files, the network, adb, or USB devices, request full local access and retry. Do not skip adb or handwrite collection logic.
 
-### 1. 定位工程
+### 1. Locate the project
 
-1. 当前工作区根目录若存在 `build/jugg/`，就用它。
-2. 否则在工作区内最多 4 层查找 `build/jugg` 目录；只命中一个就用其父目录作为工程根。
-3. 找不到就停下来问用户工程路径，不要编造目录，不要继续采集。
-4. 已知应用包名时带 `--package-name`；多设备且用户指定了设备时带 `--device-serial`。不要猜错包名；不确定就让脚本自动推断。
+1. Use the current workspace root if it contains `build/jugg/`.
+2. Otherwise, search the workspace to a maximum depth of four levels for `build/jugg`. If exactly one directory matches, use its parent as the project root.
+3. If none matches, stop and ask the user for the project path. Do not invent a path or continue collection.
+4. Add `--package-name` if the app package is known. If multiple devices are connected and the user specified a device, add `--device-serial`. Do not guess the package name; let the script detect it if uncertain.
 
-### 2. 下载官方脚本并执行
+### 2. Download and run the official script
 
-只使用开源仓库里的脚本，不要改内容：
+Use only the unmodified script from the open-source repository:
 
-- 首选：https://raw.githubusercontent.com/tencentmusic/jugg/main/tools/collect_jugg_scene.command
-- 若 404 或下载失败：https://raw.githubusercontent.com/tencentmusic/jugg/develop/tools/collect_jugg_scene.command
+- First choice: https://raw.githubusercontent.com/tencentmusic/jugg/main/tools/collect_jugg_scene.command
+- If that returns 404 or download fails: https://raw.githubusercontent.com/tencentmusic/jugg/develop/tools/collect_jugg_scene.command
 
-保存后校验文件以 `#!/usr/bin/env bash` 开头，且包含 `collect_jugg_scene`。下载失败就停止，告诉用户需要能访问 GitHub raw。
+After saving it, check that it starts with `#!/usr/bin/env bash` and contains `collect_jugg_scene`. If both downloads fail, stop and tell the user that GitHub raw access is needed.
 
-下载示例：
+Example download:
 
 ```bash
 curl.exe -fsSL "https://raw.githubusercontent.com/tencentmusic/jugg/main/tools/collect_jugg_scene.command" -o "$TEMP/collect_jugg_scene.command"
 ```
 
-macOS / Linux 把 `curl.exe` 换成 `curl`，输出路径换成 `/tmp/collect_jugg_scene.command`。Windows 路径交给 Git Bash 时转成 `/c/Users/...` 这种 Unix 路径。
+On macOS or Linux, replace `curl.exe` with `curl` and use `/tmp/collect_jugg_scene.command` as the destination. When passing a Windows path to Git Bash, convert it to a Unix-style path such as `/c/Users/...`.
 
-输出目录优先用桌面：
+Prefer the desktop as the output root:
 
-- macOS / Linux：`$HOME/Desktop`，没有桌面再用 `$HOME`
-- Windows：`[Environment]::GetFolderPath('Desktop')`，Git Bash 下也可用 `$HOME/Desktop` 或 `$HOME/OneDrive/Desktop`
+- macOS / Linux: `$HOME/Desktop`, or `$HOME` if no desktop directory exists.
+- Windows: `[Environment]::GetFolderPath('Desktop')`; `$HOME/Desktop` or `$HOME/OneDrive/Desktop` may also work in Git Bash.
 
-执行（把工程路径和桌面路径换成实际值）：
+Run this command, replacing the project and desktop paths with their actual values:
 
 ```bash
 bash "<SCRIPT_PATH>" "<ANDROID_PROJECT_ROOT>" --output-root "<DESKTOP_DIR>" --zip
 ```
 
-如果脚本报 `unknown argument: --zip`，说明远端还是旧版，去掉 `--zip` 再跑一次，然后把生成的 `jugg_scene_*` 目录打成同名 zip。
+If the script reports `unknown argument: --zip`, the remote script is an older version. Retry once without `--zip`, then archive the generated `jugg_scene_*` directory as a ZIP with the same base name.
 
-Windows 用 Git Bash 跑同一条命令，例如：
+On Windows, run the same command with Git Bash, for example:
 
 ```powershell
 & "$env:ProgramFiles\Git\bin\bash.exe" -lc "bash '<SCRIPT_PATH>' '<ANDROID_PROJECT_ROOT>' --output-root '<DESKTOP_DIR>' --zip"
 ```
 
-Git Bash 找不到时再试：
+If Git Bash is not there, try:
 
 1. `%LOCALAPPDATA%\Programs\Git\bin\bash.exe`
 2. `wsl.exe bash "<SCRIPT_PATH>" ... --zip`
 
-没有 bash / WSL 就停止，请用户安装 Git for Windows。不要用 PowerShell 重写采集脚本。
+If neither Bash nor WSL is available, stop and ask the user to install Git for Windows. Do not rewrite the collection script in PowerShell.
 
-脚本结束后如果文件管理器没有打开，再补一次：
+If the file manager does not open after the script finishes, open the result once:
 
-- macOS：`open -R "<ZIP_PATH>"`，没有 zip 则 `open "<OUT_DIR>"`
-- Windows：`explorer.exe /select,"<NATIVE_ZIP_OR_DIR>"`，不行就打开目录
-- Linux：`xdg-open "<OUT_DIR>"`
+- macOS: `open -R "<ZIP_PATH>"`, or `open "<OUT_DIR>"` if there is no ZIP.
+- Windows: `explorer.exe /select,"<NATIVE_ZIP_OR_DIR>"`, or open the directory if selection fails.
+- Linux: `xdg-open "<OUT_DIR>"`.
 
-### 3. 完成后告诉用户
+### 3. Report the result to the user
 
-读输出目录里的 `summary.txt`、`manifest.txt`、`meta/adb_resolution.txt`、`meta/adb_targets.txt`。回复时只说明：
+Read `summary.txt`, `manifest.txt`, `meta/adb_resolution.txt`, and `meta/adb_targets.txt` in the output directory. Report only:
 
-- 工程路径
-- `jugg_scene_*` 目录路径
-- zip 路径（若生成成功）
-- adb 是否找到、采集了几台设备、是否拉到了设备 APK / overlay
-- 请用户把文件管理器中打开的 zip（或整个 `jugg_scene_*` 目录）发给维护者
+- The project path.
+- The `jugg_scene_*` directory path.
+- The ZIP path, if created.
+- Whether adb was found, how many devices were collected, and whether device APKs or overlays were retrieved.
+- A request to send the ZIP opened in the file manager (or the entire `jugg_scene_*` directory) to the maintainer.
 
-本地文件缺失时如实说缺了什么，仍然把已采集到的 zip/目录交给用户。不要尝试补跑 Jugg 来生成现场。
+If local files are missing, say exactly what is missing and still hand over the collected ZIP or directory. Do not rerun Jugg to recreate evidence.

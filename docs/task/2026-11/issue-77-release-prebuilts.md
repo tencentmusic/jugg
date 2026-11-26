@@ -26,9 +26,5 @@ Linux 和 Windows 在 macOS 上仅取得构建与目标格式证据，未在相�
 |---|---|
 
 | darwin | `cf0198a16fdafa95542fb15716b44256ffe8d29d8641d2918cd3838be870d8fb` |
-| linux | `b8de0752cfa490e72d3766943b733aaf5880ba360bf236aa920c3872549daf43` |
-| windows | `1cd261048297f551048d85dfc52c1ccc707d7ed0f7f1db1df4aab0e91263dc79` |
-
-## 本分支集成
-
-保留本分支无版本后缀的资源路径。Linux 和 Windows 使用 `6f62c53b` 的兼容修正产物，分别恢复 GLIBC 2.14 与 Windows Vista 目标；macOS 产物不变。仅同步预编译工具，不引入源分支的原生构建脚本。验证采用 LFS 内容哈希与 Gradle JAR 资源核对；未执行 Linux/Windows 原生运行验证。
+| linux | `882ea64187324ebd4d7e4ea8130d19003bc2343af1e9554bf62fa170c6147871` |
+| windows | `69462cf3c153ed0e50b6defef24471c179df20cfa95def05a044cb26f06a8fbd` |

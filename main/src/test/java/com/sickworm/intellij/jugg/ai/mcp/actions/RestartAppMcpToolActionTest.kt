@@ -1,6 +1,6 @@
 package com.sickworm.intellij.jugg.ai.mcp.actions
 
-import com.android.ddmlib.IDevice
+import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
@@ -9,7 +9,6 @@ import com.sickworm.intellij.jugg.compiler.GradleCompileExecutionResult
 import com.sickworm.intellij.jugg.compiler.RemoteSshInfoResult
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
-import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.logic.IJuggConfigurationRunner
 import com.sickworm.intellij.jugg.ide.logic.JuggRunInvocationResult
@@ -17,7 +16,6 @@ import com.sickworm.intellij.jugg.ai.mcp.IMcpRuntime
 import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
 import com.sickworm.intellij.jugg.platform.IPlatformApi
 import com.sickworm.intellij.jugg.platform.PlatformApi
-import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
 import org.junit.After
 import org.junit.Assert
 import org.junit.Before
@@ -76,6 +74,26 @@ class RestartAppMcpToolActionTest {
     }
 
     @Test
+    fun testRestartAllSelectedDevicesByDefault() {
+        val first = Mockito.mock(IDevice::class.java)
+        val second = Mockito.mock(IDevice::class.java)
+        PlatformApi.impl = FakePlatformApi()
+        val deployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
+        Mockito.`when`(deployTargetManager.getTargetDevices(null)).thenReturn(listOf(first, second))
+        Mockito.`when`(deployTargetManager.restartApp(first)).thenReturn(true)
+        Mockito.`when`(deployTargetManager.restartApp(second)).thenReturn(true)
+
+        val result = RestartAppMcpToolAction().execute(
+            mapOf("projectDir" to "/tmp/test"),
+            runtimeWithManager(deployTargetManager),
+        )
+
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        Mockito.verify(deployTargetManager).restartApp(first)
+        Mockito.verify(deployTargetManager).restartApp(second)
+    }
+
+    @Test
     fun testRestartFailsWhenExplicitAppReadyWaitTimesOut() {
         McpAppReadyGuard.postTimeoutOverrideForTest = 5L
         McpAppReadyGuard.postPollIntervalOverrideForTest = 1L
@@ -100,7 +118,7 @@ class RestartAppMcpToolActionTest {
         )
 
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
-        Assert.assertTrue(result.message.contains(CompileJobManager.compileLogPath(runtime)))
+        Assert.assertTrue(result.message.contains(runtime.compileLatestLogPath))
         Assert.assertFalse(result.message.contains("build/jugg/log"))
     }
 
@@ -110,21 +128,20 @@ class RestartAppMcpToolActionTest {
     ): Pair<IMcpRuntime, IDeployTargetManager> {
         val device = Mockito.mock(IDevice::class.java)
         val adb = FakeDeviceAdb()
-        PlatformApi.impl = FakePlatformApi(mapOf(device to adb))
+        PlatformApi.impl = FakePlatformApi()
 
         val deployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
         Mockito.`when`(deployTargetManager.getSelectedDevices()).thenReturn(listOf(device))
         Mockito.`when`(deployTargetManager.getConnectedDevices()).thenReturn(listOf(device))
+        Mockito.`when`(deployTargetManager.createDeviceAdb(device)).thenReturn(adb)
+        Mockito.`when`(deployTargetManager.getTargetDevices(null)).thenReturn(listOf(device))
         Mockito.`when`(deployTargetManager.getPackageName()).thenReturn("com.example.app")
         Mockito.`when`(deployTargetManager.restartApp(device)).thenReturn(restartSuccess)
 
-        val project = Mockito.mock(Project::class.java)
-        Mockito.`when`(project.basePath).thenReturn("/tmp/test")
-
-        val runtime = object : IMcpRuntime {
+        val runtime = object : com.sickworm.intellij.jugg.ai.mcp.TestMcpRuntime() {
             override val logger: com.intellij.openapi.diagnostic.Logger
                 get() = com.intellij.openapi.diagnostic.Logger.getInstance("RestartAppMcpToolActionTest")
-            override val project: Project = project
+            override val projectDir: String = "/tmp/test"
             override val deployTargetManager: IDeployTargetManager = deployTargetManager
             override val forceGradleCompileHelper: ForceGradleCompileHelper = object : ForceGradleCompileHelper() {
                 override fun executeGradleCompile(autoConfirm: Boolean, useCleanAndReinstall: Boolean) {
@@ -154,11 +171,31 @@ class RestartAppMcpToolActionTest {
         return runtime to deployTargetManager
     }
 
-    private class FakeDeviceAdb : IDeviceAdb {
+    private fun runtimeWithManager(deployTargetManager: IDeployTargetManager): IMcpRuntime {
+        return object : com.sickworm.intellij.jugg.ai.mcp.TestMcpRuntime() {
+            override val logger: Logger = Logger.getInstance("RestartAppMcpToolActionTest")
+            override val projectDir: String = "/tmp/test"
+            override val deployTargetManager: IDeployTargetManager = deployTargetManager
+            override val forceGradleCompileHelper: ForceGradleCompileHelper = object : ForceGradleCompileHelper() {
+                override fun executeGradleCompile(autoConfirm: Boolean, useCleanAndReinstall: Boolean) = Unit
+                override fun executeGradleCompileBlocking(
+                    autoConfirm: Boolean,
+                    useCleanAndReinstall: Boolean,
+                ): GradleCompileExecutionResult = throw UnsupportedOperationException("not used")
+                override fun resolveExecutionType(): String = "local"
+                override fun requestRemoteSshInfo(requestedBy: String, reason: String): RemoteSshInfoResult =
+                    throw UnsupportedOperationException("not used")
+            }
+            override val juggConfigurationRunner: IJuggConfigurationRunner = FakeJuggConfigurationRunner()
+        }
+    }
+
+    private class FakeDeviceAdb(
+        override val serial: String = "emulator-5554",
+    ) : IDeviceAdb {
         val executedCommands = mutableListOf<String>()
         override val displayName: String? = "fake_device"
         override val api: Int = 34
-        override val serial: String = "emulator-5554"
         override val isOnline: Boolean = true
 
         override fun execAdbShellCmd(cmd: String): String {
@@ -176,9 +213,7 @@ class RestartAppMcpToolActionTest {
         override fun getProperty(name: String): String? = null
     }
 
-    private class FakePlatformApi(
-        private val adbByDevice: Map<IDevice, IDeviceAdb>,
-    ) : IPlatformApi {
+    private class FakePlatformApi : IPlatformApi {
         override fun showDialog(
             title: String,
             content: String,
@@ -186,14 +221,6 @@ class RestartAppMcpToolActionTest {
             cancelButtonText: String?,
             isShowCancelButton: Boolean,
         ): Boolean = false
-
-        override fun showChangeConfirmDialog(
-            diffResult: DependencyDiffResult?,
-            isRunLater: Boolean,
-            logger: Logger,
-        ): ConfirmResult {
-            throw UnsupportedOperationException("not used")
-        }
 
         override fun showUserAndPasswordInputDialog(
             content: String,
@@ -210,8 +237,7 @@ class RestartAppMcpToolActionTest {
         override fun getAndroidHomePath(logger: Logger): String? = null
 
         override fun getIdeVersion(): String = "test"
-
-        override fun toDeviceAdb(device: IDevice): IDeviceAdb? = adbByDevice[device]
+        override fun getRuntimeInfo() = com.sickworm.intellij.jugg.project.runtime.RuntimeInfo("test", "test", "test", "")
 
         override fun isHasRelaunchActivityIssues(device: IDeviceAdb, logger: Logger): Boolean = false
 

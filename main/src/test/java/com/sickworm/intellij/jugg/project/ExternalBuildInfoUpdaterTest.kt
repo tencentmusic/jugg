@@ -1,11 +1,11 @@
 package com.sickworm.intellij.jugg.project
 
-import com.sickworm.intellij.jugg.project.data.ExternalBuildInfo
-import com.sickworm.intellij.jugg.project.data.ExternalBuildInputDir
-import com.sickworm.intellij.jugg.project.data.ExternalBuildInputFilterRule
-import com.sickworm.intellij.jugg.project.data.ExternalBuildInfoUpdate
-import com.sickworm.intellij.jugg.project.data.ExternalBuildType
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ExternalBuildInfo
+import com.sickworm.intellij.jugg.project.info.ExternalBuildInputDir
+import com.sickworm.intellij.jugg.project.info.ExternalBuildInputFilterRule
+import com.sickworm.intellij.jugg.project.info.ExternalBuildInfoUpdate
+import com.sickworm.intellij.jugg.project.info.ExternalBuildType
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import org.junit.Test
 import java.io.File
 import kotlin.test.assertEquals

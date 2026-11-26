@@ -11,13 +11,13 @@ import com.sickworm.intellij.jugg.compiler.Result
 import com.sickworm.intellij.jugg.compiler.resolveApkOwnerModule
 import com.sickworm.intellij.jugg.compiler.toCancelResult
 import com.sickworm.intellij.jugg.gradle.compile.crc32
-import com.sickworm.intellij.jugg.project.data.ExternalBuildGeneratedLanguage
-import com.sickworm.intellij.jugg.project.data.ExternalBuildGeneratedSourceDir
-import com.sickworm.intellij.jugg.project.data.ExternalBuildInfo
-import com.sickworm.intellij.jugg.project.data.ExternalBuildInfoRequestItem
-import com.sickworm.intellij.jugg.project.data.ExternalBuildPrerequisite
-import com.sickworm.intellij.jugg.project.data.ExternalBuildType
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ExternalBuildInfo
+import com.sickworm.intellij.jugg.project.info.ExternalBuildInfoRequestItem
+import com.sickworm.intellij.jugg.project.info.ExternalBuildType
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ExternalBuildGeneratedLanguage
+import com.sickworm.intellij.jugg.project.info.ExternalBuildGeneratedSourceDir
+import com.sickworm.intellij.jugg.project.info.ExternalBuildPrerequisite
 import java.io.File
 import java.util.zip.ZipFile
 

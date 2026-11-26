@@ -13,11 +13,11 @@ import com.sickworm.intellij.jugg.deploy.instrument.LibraryTestApkBackfillPlan
 import com.sickworm.intellij.jugg.deploy.run.instrument.LibraryTestApkBackfillHelper
 import com.sickworm.intellij.jugg.gradle.compile.GradleCompileResult
 import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
-import com.sickworm.intellij.jugg.project.CompileContextManager
-import com.sickworm.intellij.jugg.project.JuggPathManager
-import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
-import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.compiler.context.CompileContextManager
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
+import com.sickworm.intellij.jugg.project.info.JuggProjectInfo
+import com.sickworm.intellij.jugg.project.info.ModuleBuildPathInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Rule

@@ -129,7 +129,7 @@ public class FileUtil {
         if (SDK_INT >= Build.VERSION_CODES.M) {
             if (context.checkSelfPermission(PERMISSION_WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
                 LogUtils.i(FILES_OPERATION, "ensurePermissionGranted: permission NOT granted ! " + PERMISSION_WRITE_EXTERNAL_STORAGE);
-                throw new RuntimeException(FILES_OPERATION + " : No file permissions ! [应用没有被授予文件读写权限，请到设置页面手动开启]");
+                throw new RuntimeException(FILES_OPERATION + " : No file permissions! [Grant the app file read/write permission manually in Settings]");
             }
         }
     }

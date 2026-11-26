@@ -4,18 +4,13 @@ import com.google.gson.JsonArray
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
-import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.logger.getInstance
-import com.sickworm.intellij.jugg.ai.mcp.DeviceSelectionResolver
-import com.sickworm.intellij.jugg.ai.mcp.DeviceSelectionResult
 import com.sickworm.intellij.jugg.ai.mcp.IMcpRuntime
 import com.sickworm.intellij.jugg.ai.mcp.McpArtifact
-import com.sickworm.intellij.jugg.ai.mcp.McpErrorCode
 import com.sickworm.intellij.jugg.ai.mcp.McpToolResult
 import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
 import com.sickworm.intellij.jugg.ai.mcp.viewhierarchy.ViewHierarchyClient
-import com.sickworm.intellij.jugg.platform.PlatformApi
-import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import java.io.File
 import java.nio.charset.StandardCharsets
 
@@ -38,9 +33,12 @@ internal object LayoutDumpHelper {
         rootLayout: String? = null,
         isIncludeGone: Boolean = false,
         isAllWindows: Boolean = false,
+        targetDeviceSerial: String? = null,
         mode: String,
     ): McpToolResult {
-        return when (val output = dumpInternal(runtime, callerToolName, rootLayout, isIncludeGone, isAllWindows, mode)) {
+        return when (val output = dumpInternal(
+            runtime, callerToolName, rootLayout, isIncludeGone, isAllWindows, targetDeviceSerial, mode,
+        )) {
             is DumpInternalResult.Failure -> output.result
             is DumpInternalResult.Success -> output.toPublicResult()
         }
@@ -56,17 +54,20 @@ internal object LayoutDumpHelper {
         rootLayout: String? = null,
         isIncludeGone: Boolean = false,
         isAllWindows: Boolean = false,
+        targetDeviceSerial: String? = null,
         mode: String = "ui",
     ): DumpInternalResult {
         val logger = runtime.logger.getInstance("LayoutDumpHelper")
 
-        val selected = resolveOnlineDevice(runtime)
-            ?: run {
-                logger.warn("$callerToolName: no online device")
-                return DumpInternalResult.Failure(noDeviceResult(callerToolName))
+        val selected = when (val result = resolveMcpSingleDevice(runtime, callerToolName, targetDeviceSerial)) {
+            is McpSingleDeviceResult.Selected -> result
+            is McpSingleDeviceResult.Failure -> {
+                logger.warn("$callerToolName: device selection failed")
+                return DumpInternalResult.Failure(result.result)
             }
+        }
 
-        val preWaitResult = McpAppReadyGuard.waitBeforeRuntimeObserve(runtime, callerToolName)
+        val preWaitResult = McpAppReadyGuard.waitBeforeRuntimeObserve(runtime, callerToolName, targetDeviceSerial)
         if (!preWaitResult.isReady) {
             logger.warn("$callerToolName: app not ready after pre-check retries")
             return DumpInternalResult.Failure(preWaitResult.errorResult
@@ -152,7 +153,12 @@ internal object LayoutDumpHelper {
                 val content = if (mode == "ui") uiContent else converter.serialize(outputJson)
                 if (outputFile != localJsonFile) outputFile.writeText(content, StandardCharsets.UTF_8)
 
-                val summary = buildSummaryMessage(outputJson)
+                val capturedNodeCount = if (mode == "interaction") {
+                    countNodes(uiJson.getAsJsonArrayOrEmpty("windows"))
+                } else {
+                    null
+                }
+                val summary = buildSummaryMessage(outputJson, capturedNodeCount)
                 val contentBytes = content.toByteArray(StandardCharsets.UTF_8).size
                 val output = DumpInternalResult.Success(
                     summary = summary,
@@ -204,17 +210,8 @@ internal object LayoutDumpHelper {
 
     // --- Internal utilities ---
 
-    private data class SelectedAdb(val adb: IDeviceAdb)
-
-    private fun resolveOnlineDevice(runtime: IMcpRuntime): SelectedAdb? {
-        val selectionResult = DeviceSelectionResolver().resolve(runtime.deployTargetManager)
-        if (selectionResult !is DeviceSelectionResult.Selected) return null
-        val adb = PlatformApi.toDeviceAdb(selectionResult.device) ?: return null
-        return if (adb.isOnline) SelectedAdb(adb) else null
-    }
-
     private fun ensureToolDir(runtime: IMcpRuntime, toolName: String): File? {
-        val projectDir = runtime.project.basePath ?: return null
+        val projectDir = runtime.projectDir.takeIf { it.isNotBlank() } ?: return null
         val dir = File(JuggPathManager(File(projectDir)).mcpFetchDir, toolName)
         if (!dir.exists()) dir.mkdirs()
         return dir
@@ -223,16 +220,7 @@ internal object LayoutDumpHelper {
     private fun resolvePackageName(runtime: IMcpRuntime): String? =
         runCatching { runtime.deployTargetManager.getPackageName().takeIf { it.isNotBlank() } }.getOrNull()
 
-    private fun noDeviceResult(toolName: String) = McpToolResult(
-        status = McpToolStatus.ERROR,
-        message = "$toolName failed. Reason: No connected device is available.",
-        data = emptyMap<String, Any>(),
-        artifacts = emptyList(),
-        errorCode = McpErrorCode.NO_DEVICE,
-    )
-
-    private fun buildSummaryMessage(element: JsonElement): String {
-        val root = element.asJsonObjectOrNull() ?: return "0 windows (top: unknown), 0 nodes, not truncated"
+    private fun buildSummaryMessage(root: JsonObject, capturedNodeCount: Int?): String {
         val windows = root.getAsJsonArrayOrEmpty("windows")
         val windowCount = windows.size()
         val topTitle = windows.firstOrNullObject()?.get("title")?.asStringOrNull()?.takeIf { it.isNotBlank() } ?: "unknown"
@@ -242,7 +230,11 @@ internal object LayoutDumpHelper {
         val truncatedText = if (truncated) "truncated" else "not truncated"
         val warnings = root.getAsJsonArrayOrEmpty("warnings").mapNotNull { it.asStringOrNull() }
         val diagnostic = if (warnings.isEmpty()) "" else "; incomplete hierarchy: ${warnings.joinToString("; ")}"
-        return "$windowCount windows (top: $topTitle), $nodeCount nodes, $clickableCount clickable, $truncatedText$diagnostic"
+        val coverage = capturedNodeCount?.let {
+            ". $nodeCount of $it captured nodes shown in interaction mode. Use --mode ui to verify the captured hierarchy."
+        }.orEmpty()
+        return "$windowCount windows (top: $topTitle), $nodeCount nodes, $clickableCount clickable, " +
+            "$truncatedText$diagnostic$coverage"
     }
 
     private fun countNodes(windows: JsonArray): Int {

@@ -2,12 +2,15 @@ package com.sickworm.intellij.jugg.deploy.instrument
 
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.git.IGitManager
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class LibraryTestApkBuildHistoryTest {
@@ -52,6 +55,38 @@ class LibraryTestApkBuildHistoryTest {
         assertEquals(2, records.size)
         assertEquals(":library1:assembleDebugAndroidTest", records.first { it.buildVariant == "debugAndroidTest" }.gradleTask)
         assertEquals(2000L, records.first { it.buildVariant == "debugAndroidTest" }.compiledAt)
+    }
+
+    @Test
+    fun `concurrent history instances preserve all records`() {
+        val recordDir = temp.newFolder("shared-records")
+        val projectDir = temp.newFolder("shared-project")
+        val gitInfoProvider = { GitProjectInfo(projectName = "demo", projectKey = "shared-project") }
+        val first = LibraryTestApkBuildHistory(projectDir, recordDir, gitInfoProvider = gitInfoProvider)
+        val second = LibraryTestApkBuildHistory(projectDir, recordDir, gitInfoProvider = gitInfoProvider)
+        val start = CountDownLatch(1)
+        val firstThread = Thread {
+            start.await(5, TimeUnit.SECONDS)
+            repeat(25) { index ->
+                first.record(record("first$index.androidTest", "debugAndroidTest", index.toLong(), ":first$index:assembleDebugAndroidTest"))
+            }
+        }
+        val secondThread = Thread {
+            start.await(5, TimeUnit.SECONDS)
+            repeat(25) { index ->
+                second.record(record("second$index.androidTest", "debugAndroidTest", index.toLong(), ":second$index:assembleDebugAndroidTest"))
+            }
+        }
+
+        firstThread.start()
+        secondThread.start()
+        start.countDown()
+        firstThread.join(10_000)
+        secondThread.join(10_000)
+
+        assertFalse(firstThread.isAlive)
+        assertFalse(secondThread.isAlive)
+        assertEquals(50, first.load().records.size)
     }
 
     @Test
@@ -223,6 +258,9 @@ class LibraryTestApkBuildHistoryTest {
         override val userName: String? = null
         override fun getUncommittedFiles(): List<File> = emptyList()
         override fun getChangedFiles(oldCommit: String, newCommit: String): List<File> = emptyList()
+        override fun resolveCommit(commit: String): Nothing = error("Unexpected commit lookup")
+        override fun findNearestFirstParentCommit(targetCommit: String, candidateCommits: Set<String>): Nothing =
+            error("Unexpected first-parent lookup")
         override fun getLastCommitHash(): String? = null
         override fun filterChangedFiles(commitHash: String, files: List<File>): List<File> = emptyList()
         override fun getLastCommitFileContent(commitId: String, file: File, outputFile: File): Boolean = false

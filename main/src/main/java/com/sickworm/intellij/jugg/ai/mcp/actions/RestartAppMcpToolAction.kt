@@ -1,8 +1,5 @@
 package com.sickworm.intellij.jugg.ai.mcp.actions
 
-import com.android.ddmlib.IDevice
-import com.sickworm.intellij.jugg.ai.mcp.DeviceSelectionResolver
-import com.sickworm.intellij.jugg.ai.mcp.DeviceSelectionResult
 import com.sickworm.intellij.jugg.ai.mcp.IMcpRuntime
 import com.sickworm.intellij.jugg.ai.mcp.McpErrorCode
 import com.sickworm.intellij.jugg.ai.mcp.McpJsonSchemaObject
@@ -19,10 +16,11 @@ class RestartAppMcpToolAction : McpToolAction {
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
-        description = "Restart app process on IDE selected device(s).",
+        description = "Restart app process on the resolved target devices.",
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,
+                "serial" to McpToolSchemas.serialProperty,
                 "waitAppReadyAfterSuccess" to McpToolSchemas.waitAppReadyAfterSuccessProperty,
             ),
             required = listOf("projectDir"),
@@ -33,23 +31,36 @@ class RestartAppMcpToolAction : McpToolAction {
 
     override fun execute(arguments: Map<String, Any?>, runtime: IMcpRuntime): McpToolResult {
         val waitAppReadyAfterSuccess = arguments["waitAppReadyAfterSuccess"] as? Boolean ?: false
-        return restartAppAction(runtime, waitAppReadyAfterSuccess)
+        return restartAppAction(runtime, waitAppReadyAfterSuccess, arguments.deviceSerial())
     }
 
-    private fun restartAppAction(runtime: IMcpRuntime, waitAppReadyAfterSuccess: Boolean): McpToolResult {
-        val targetDevice = resolveOnlineDevice(runtime) ?: return noDeviceResult()
-        val isSuccess = runtime.deployTargetManager.restartApp(targetDevice)
-        if (!isSuccess) {
+    private fun restartAppAction(
+        runtime: IMcpRuntime,
+        waitAppReadyAfterSuccess: Boolean,
+        targetDeviceSerial: String?,
+    ): McpToolResult {
+        val targetDevices = runtime.deployTargetManager.getTargetDevices(targetDeviceSerial)
+        if (targetDevices.isEmpty()) {
+            val reason = targetDeviceSerial?.let { "Device $it is not online." }
+                ?: "No connected device is available."
+            return noDeviceResult(reason)
+        }
+        val failedDevices = targetDevices.filterNot { device ->
+            runCatching { runtime.deployTargetManager.restartApp(device) }.getOrDefault(false)
+        }
+        if (failedDevices.isNotEmpty()) {
             return McpToolResult(
                 status = McpToolStatus.ERROR,
-                message = "restart failed. Reason: Failed to restart app. Please check log in ${CompileJobManager.compileLogPath(runtime)}",
+                message = "restart failed. Reason: Failed to restart app on " +
+                    failedDevices.joinToString { it.serialNumber } +
+                    ". Please check log in ${runtime.compileLatestLogPath}",
                 data = emptyMap<String, Any>(),
                 artifacts = emptyList(),
                 errorCode = McpErrorCode.INTERNAL_ERROR,
             )
         }
         if (waitAppReadyAfterSuccess) {
-            val waitResult = McpAppReadyGuard.waitAfterMutating(runtime, toolName)
+            val waitResult = McpAppReadyGuard.waitAfterMutating(runtime, toolName, targetDeviceSerial)
             if (!waitResult.isReady) {
                 return McpToolResult(
                     status = McpToolStatus.ERROR,
@@ -68,24 +79,22 @@ class RestartAppMcpToolAction : McpToolAction {
             errorCode = null,
         ).also {
             // Record restart completion as deploy timestamp baseline for wait-logs.
-            runCatching { runtime.project.basePath }
-                .getOrNull()
-                ?.let { dir -> LastDeployTimestampRegistry.INSTANCE.recordNow(dir) }
+            runtime.projectDir.takeIf { it.isNotBlank() }
+                ?.let { dir ->
+                    LastDeployTimestampRegistry.INSTANCE.recordNow(dir, targetDeviceSerial)
+                    if (targetDeviceSerial == null) {
+                        targetDevices.forEach { device ->
+                            LastDeployTimestampRegistry.INSTANCE.recordNow(dir, device.serialNumber)
+                        }
+                    }
+                }
         }
     }
 
-    private fun resolveOnlineDevice(runtime: IMcpRuntime): IDevice? {
-        val selectionResult = DeviceSelectionResolver().resolve(runtime.deployTargetManager)
-        if (selectionResult !is DeviceSelectionResult.Selected) {
-            return null
-        }
-        return selectionResult.device
-    }
-
-    private fun noDeviceResult(): McpToolResult {
+    private fun noDeviceResult(reason: String): McpToolResult {
         return McpToolResult(
             status = McpToolStatus.ERROR,
-            message = "restart failed. Reason: No connected device is available.",
+            message = "restart failed. Reason: $reason",
             data = emptyMap<String, Any>(),
             artifacts = emptyList(),
             errorCode = McpErrorCode.NO_DEVICE,

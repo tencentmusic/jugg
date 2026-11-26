@@ -1,6 +1,8 @@
 package com.sickworm.intellij.jugg.ai.skills
 
 import com.google.gson.GsonBuilder
+import com.google.gson.JsonElement
+import com.google.gson.JsonPrimitive
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
@@ -8,7 +10,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.ai.skills.agents.AgentHookConfigStyle
 import com.sickworm.intellij.jugg.ai.skills.agents.AgentHookTarget
 import com.sickworm.intellij.jugg.ai.skills.agents.InstallAgents
-import com.sickworm.intellij.jugg.project.JuggGlobalPathManager
+import com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
@@ -25,6 +27,35 @@ object JuggHookInstaller {
     private const val MATCHER_ALL = "*"
     private const val CLIENT_OPTION = "--client"
     private val gson = GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create()
+
+    /** Updates only Jugg-managed hook paths in known agent configuration files. */
+    fun relocateManagedPaths(oldRoot: File, newRoot: File, userHome: File) {
+        val replacements = listOf("skills/hooks", "bin/jugg").flatMap { suffix ->
+            val oldPath = File(oldRoot, suffix).path.replace('\\', '/')
+            val newPath = hookPath(File(newRoot.canonicalFile, suffix).path.replace('\\', '/'))
+            listOf(hookPath(oldPath), oldPath).distinct().map { it to newPath }
+        }
+        InstallAgents.allInstallers().flatMap { it.resolveHookTargets(userHome) }
+            .map { it.settingsFile }.distinct().filter { it.isFile }.forEach { file ->
+                val json = JsonParser.parseString(file.readText())
+                val updated = relocateHookElement(json, replacements)
+                if (updated != json) writeAtomically(file, gson.toJson(updated))
+            }
+    }
+
+    private fun relocateHookElement(element: JsonElement, replacements: List<Pair<String, String>>): JsonElement {
+        return when {
+            element.isJsonObject -> JsonObject().apply {
+                element.asJsonObject.entrySet().forEach { (key, value) -> add(key, relocateHookElement(value, replacements)) }
+            }
+            element.isJsonArray -> JsonArray().apply {
+                element.asJsonArray.forEach { add(relocateHookElement(it, replacements)) }
+            }
+            element.isJsonPrimitive && element.asJsonPrimitive.isString -> JsonPrimitive(
+                replacements.fold(element.asString) { text, (old, new) -> text.replace(old, new) })
+            else -> element
+        }
+    }
 
     /** Installs hook configuration for Claude. */
     fun installForClaude(
@@ -45,10 +76,10 @@ object JuggHookInstaller {
         logger: Logger,
         pythonCommand: String,
     ): HookInstallSummary {
-        val startScriptPath = File(JuggGlobalPathManager.hooksDir(userHome), "start.py").absolutePath
-        val stopScriptPath = File(JuggGlobalPathManager.hooksDir(userHome), "stop.py").absolutePath
-        val editScriptPath = File(JuggGlobalPathManager.hooksDir(userHome), "edit.py").absolutePath
-        val commandScriptPath = File(JuggGlobalPathManager.hooksDir(userHome), "command.py").absolutePath
+        val startScriptPath = File(JuggGlobalPathManager.hooksDir, "start.py").absolutePath
+        val stopScriptPath = File(JuggGlobalPathManager.hooksDir, "stop.py").absolutePath
+        val editScriptPath = File(JuggGlobalPathManager.hooksDir, "edit.py").absolutePath
+        val commandScriptPath = File(JuggGlobalPathManager.hooksDir, "command.py").absolutePath
         val targets = resolveTargets(clients, userHome, startScriptPath, stopScriptPath,
             editScriptPath, commandScriptPath, pythonCommand)
         val results = targets.map { target ->
@@ -99,8 +130,12 @@ object JuggHookInstaller {
             }
     }
 
+    private fun hookPath(path: String): String =
+        if (System.getProperty("os.name").lowercase().contains("windows")) path else
+            path.replace("\\", "\\\\").replace("\"", "\\\"").replace("$", "\\$").replace("`", "\\`")
+
     private fun buildHookCommand(pythonCommand: String, scriptPath: String, clientArgument: String): String {
-        val normalizedScriptPath = scriptPath.replace('\\', '/')
+        val normalizedScriptPath = hookPath(scriptPath.replace('\\', '/'))
         return "$pythonCommand \"$normalizedScriptPath\" $CLIENT_OPTION $clientArgument"
     }
 
@@ -669,7 +704,7 @@ object JuggHookInstaller {
     }
 
     private fun String?.isManagedJuggCommand(): Boolean {
-        return this != null && contains(".jugg")
+        return this != null && (contains(".jugg") || contains("/skills/hooks/"))
     }
 }
 

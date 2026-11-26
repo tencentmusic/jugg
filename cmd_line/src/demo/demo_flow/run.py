@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""在同一工作区顺序运行所有 CI 场景，每轮推进一次 Git 提交。"""
+"""Run CI scenarios sequentially in one checkout, advancing HEAD each round."""
 import json
 import re
 import zipfile
@@ -9,7 +9,7 @@ from flow_common import arguments, baseline_server, build, commit, install, log,
 
 
 def configure_project(project, quite):
-    # 演示 Jugg 源码目录之外的自定义 Gradle 输入也会影响 APK。
+    # Exercise custom Gradle inputs outside Jugg source roots.
     config = project / 'config.json'
     config.write_text(json.dumps({'message': 'initial config'}, indent=2) + '\n')
     build_file = project / 'app/build.gradle'
@@ -55,7 +55,7 @@ def modify_many_files(project, quite):
     directory = project / 'app/src/main/java/com/example/myapplication/cidemo'
     directory.mkdir(parents=True)
     files = []
-    # 调整构建脚本中的文件数上限时，同步调整此处的演示文件数。
+    # Keep the fixture size in sync with the CI file limit.
     for index in range(101):
         source = directory / f'CiDemo{index}.java'
         source.write_text('package com.example.myapplication.cidemo;\n'
@@ -88,7 +88,7 @@ def modify_route(project, quite):
 
 
 def check_config_apk(result):
-    # 直接读取 APK，验证自定义构建输入已经更新。
+    # Read the APK to verify the custom input was updated.
     apks = sorted(Path(result['apkDir']).glob('*.apk'))
     with zipfile.ZipFile(apks[0]) as archive:
         actual = json.loads(archive.read('assets/config.json'))
@@ -121,7 +121,7 @@ def run_scenarios(args):
         if result['reason'] != reason and not recovered:
             raise RuntimeError(f'Unexpected decision for {title}: {result["reason"]}')
         results.append(result)
-        # 每轮完成即保存结果，保留已有的验收记录。
+        # Persist each result as soon as the scenario completes.
         (args.work_dir / 'flow-results.json').write_text(json.dumps(results, ensure_ascii=False, indent=2))
     check_config_apk(results[-1])
     install(args, results[-1])

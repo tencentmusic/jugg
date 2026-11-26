@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.ai.mcp.actions
 
-import com.sickworm.intellij.jugg.deploy.JuggDeployState
+import com.sickworm.intellij.jugg.ai.mcp.DeviceSelectionResolver
+import com.sickworm.intellij.jugg.ai.mcp.DeviceSelectionResult
 import com.sickworm.intellij.jugg.ai.mcp.IMcpRuntime
 import com.sickworm.intellij.jugg.ai.mcp.McpJsonSchemaObject
 import com.sickworm.intellij.jugg.ai.mcp.McpJsonSchemaProperty
@@ -9,9 +10,10 @@ import com.sickworm.intellij.jugg.ai.mcp.McpToolResult
 import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
 import com.sickworm.intellij.jugg.compiler.BuildTarget
 import com.sickworm.intellij.jugg.deploy.FullBuildInfoSerializer
+import com.sickworm.intellij.jugg.deploy.JuggDeployState
 import com.sickworm.intellij.jugg.ai.mcp.util.LastCompileTimestampRegistry
-import com.sickworm.intellij.jugg.project.ChangedFile
-import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.project.change.ChangedFile
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import java.io.File
 import java.time.Instant
 import java.time.ZoneId
@@ -38,6 +40,7 @@ class GetStatusMcpToolAction(
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,
+                "serial" to McpToolSchemas.serialProperty,
                 REFRESH_CHANGES_PARAM to McpJsonSchemaProperty(
                     type = "boolean",
                     description = "When true, refresh git-tracked changed files before reading status. Default is true.",
@@ -131,21 +134,56 @@ class GetStatusMcpToolAction(
     )
 
     override fun execute(arguments: Map<String, Any?>, runtime: IMcpRuntime): McpToolResult {
+        if (runtime.juggConfigurationRunner.isCompiling) {
+            return executeSnapshot(arguments, runtime, refreshChanges = false, updateDeployState = false)
+        }
+        return runtime.tryWithProjectStateLocked {
+            executeSnapshot(arguments, runtime, refreshChanges = true, updateDeployState = true)
+        } ?: executeSnapshot(arguments, runtime, refreshChanges = false, updateDeployState = false)
+    }
+
+    private fun executeSnapshot(
+        arguments: Map<String, Any?>,
+        runtime: IMcpRuntime,
+        refreshChanges: Boolean,
+        updateDeployState: Boolean,
+    ): McpToolResult {
         val fullInfo = arguments[FULL_INFO_PARAM] as? Boolean ?: false
-        if (shouldRefreshChanges(arguments)) {
+        if (refreshChanges && shouldRefreshChanges(arguments)) {
             runtime.refreshChangedFilesForStatus()
         }
 
-        val deployState = runtime.deployStateManager?.updateDeployState()
-            ?: return McpToolResult.internalErrorResult(toolName, "deploy state manager is unavailable")
+        val deployStateManager = runtime.deployStateManager
+        val targetDeviceSerial = arguments.deviceSerial()
+        val targetSelection = targetDeviceSerial?.let {
+            DeviceSelectionResolver().resolve(runtime.deployTargetManager, it)
+        }
+        val targetDevice = (targetSelection as? DeviceSelectionResult.Selected)?.device
+        val deployState = (if (targetDevice != null) {
+            if (updateDeployState) deployStateManager?.updateDeployState(targetDevice)
+            else deployStateManager?.getDeployState(targetDevice)
+        } else if (targetDeviceSerial != null) {
+            JuggDeployState(
+                state = JuggDeployState.State.NOTHING_CAN_DO,
+                msg = (targetSelection as? DeviceSelectionResult.NoDevice)?.messageDetail
+                    ?: "Device $targetDeviceSerial is not online.",
+                ideDeployState = com.sickworm.intellij.jugg.deploy.run.IdeDeployState.ok,
+            )
+        } else if (updateDeployState) {
+            deployStateManager?.updateDeployState()
+        } else {
+            deployStateManager?.deployState
+        })
+            ?: JuggDeployState(
+                state = JuggDeployState.State.READY_FULL_COMPILE,
+                msg = "standalone runtime is ready for Gradle baseline",
+                ideDeployState = com.sickworm.intellij.jugg.deploy.run.IdeDeployState.ok,
+            )
 
-        val deployFileManager = runtime.deployFileManager
-            ?: return McpToolResult.internalErrorResult(toolName, "deploy file manager is unavailable")
-
-        val fallbackReason: String? = runtime.incrementalCompileFallbackChecker?.checkFallback()
+        val fallbackReason: String? = runtime.incrementalCompileFallbackChecker?.checkFallback(deployState)
         val needFallback = fallbackReason != null || deployState.state == JuggDeployState.State.READY_FULL_COMPILE
 
-        val uncompiledFiles: List<ChangedFile> = deployFileManager.getUncompiledFiles()
+        val uncompiledFiles: List<ChangedFile> = runtime.deployFileManager?.getUncompiledFiles().orEmpty()
 
         val countsByType = uncompiledFiles
             .groupingBy { it.type.name }
@@ -180,14 +218,13 @@ class GetStatusMcpToolAction(
         } else {
             ""
         }
-        val projectDir = (arguments["projectDir"] as? String)
-            ?: runCatching { runtime.project.basePath }.getOrNull()
+        val projectDir = (arguments["projectDir"] as? String) ?: runtime.projectDir.takeIf { it.isNotBlank() }
         val lastCompileTime = projectDir?.let { lastCompileTimestampRegistry.getTimestamp(it) } ?: ""
         val enabledAndroidTest = projectDir?.let { isAndroidTestEnabledAtLastFullBuild(it) } ?: false
         val hasBeenFullCompiled = projectDir?.let { hasBeenFullCompiled(File(it)) } ?: false
 
         val data: Map<String, Any> = mapOf(
-            "hasDevice" to (runtime.deployTargetManager.hasDevice),
+            "hasDevice" to if (targetDeviceSerial == null) runtime.deployTargetManager.hasDevice else targetDevice != null,
             "needFallback" to needFallback,
             "executionType" to runtime.forceGradleCompileHelper.resolveExecutionType(),
             "stateMessage" to deployState.msg,

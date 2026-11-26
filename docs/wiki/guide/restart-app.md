@@ -30,7 +30,7 @@ Use Jugg's Restart action in Android Studio. From a terminal or an agent, run:
 jugg restart
 ```
 
-Restart affects only the app associated with the current Jugg Run Configuration. It does not recompile or clear app data.
+Restart affects only the app associated with the current Jugg run configuration. It does not recompile or clear app data.
 
 The launch target falls back in the order launch Activity, then HOME Activity. If the app has neither, Restart has no page to bring up and does not start some other regular Activity; it only runs `am force-stop <package>` and says so in the log. That is Restart's final fallback, and app data is still preserved.
 

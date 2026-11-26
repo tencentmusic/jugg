@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.ai.mcp
 
 import com.google.gson.Gson
+import com.google.gson.GsonBuilder
 import com.google.gson.JsonParser
 import com.google.gson.JsonSyntaxException
 import com.sickworm.intellij.jugg.logger.JuggLogger
@@ -11,6 +12,7 @@ import com.sun.net.httpserver.HttpServer
 import java.io.IOException
 import java.net.BindException
 import java.net.InetSocketAddress
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
 /**
@@ -28,16 +30,21 @@ object McpLocalServer {
     private val SUPPORTED_PROTOCOL_VERSIONS = setOf("2025-06-18", "2025-11-25")
 
     private var server: HttpServer? = null
+    private var executor: ExecutorService? = null
     private var actualPort: Int = PORT_START
+    @Volatile
+    private var externalActivityListener: () -> Unit = {}
     private val gson = Gson()
+    private val settingsGson = GsonBuilder().serializeNulls().create()
 
     private val logger = JuggLogger.getGlobalLogger("McpLocalServer")
 
-    fun start() {
+    fun start(onExternalActivity: () -> Unit = {}) {
         if (server != null) {
             logger.debug("start: Server is already running")
             return
         }
+        externalActivityListener = onExternalActivity
 
         var lastException: IOException? = null
         for (port in PORT_START..PORT_END) {
@@ -45,7 +52,8 @@ object McpLocalServer {
                 server = HttpServer.create(InetSocketAddress(port), 0)
                 server?.let { httpServer ->
                     httpServer.createContext(CONTEXT_PATH, McpRequestHandler())
-                    httpServer.executor = Executors.newFixedThreadPool(4)
+                    executor = Executors.newFixedThreadPool(4)
+                    httpServer.executor = executor
                     httpServer.start()
                     actualPort = port
                     logger.debug("start: MCP Local Server started on port $port")
@@ -71,6 +79,9 @@ object McpLocalServer {
             server = null
             logger.debug("MCP Local Server stopped")
         }
+        executor?.shutdownNow()
+        executor = null
+        externalActivityListener = {}
     }
 
     fun isRunning(): Boolean {
@@ -88,6 +99,8 @@ object McpLocalServer {
     private class McpRequestHandler : HttpHandler {
         override fun handle(exchange: HttpExchange) {
             try {
+                runCatching { externalActivityListener() }
+                    .onFailure { logger.warn("MCP external activity callback failed", it) }
 
                 when (exchange.requestMethod) {
                     "GET" -> handleGetRequest(exchange)
@@ -151,7 +164,6 @@ object McpLocalServer {
             }
 
             val requestBody = exchange.requestBody.bufferedReader().use { it.readText() }
-            logger.debug("[MCP][IN ] $requestBody")
 
             if (requestBody.isBlank()) {
                 val errorResponse = McpJsonRpcResponse(
@@ -180,6 +192,15 @@ object McpLocalServer {
                 }
 
                 val jsonObject = jsonElement.asJsonObject
+                val paramsForLog = jsonObject["params"]?.takeIf { it.isJsonObject }?.asJsonObject
+                if (paramsForLog?.get("name")?.asString == "settings") {
+                    val logged = jsonObject.deepCopy()
+                    logged.getAsJsonObject("params")["arguments"]?.takeIf { it.isJsonObject }?.asJsonObject?.remove("value")
+                    logger.debug("[MCP][IN ] $logged")
+                } else {
+                    logger.debug("[MCP][IN ] $requestBody")
+                }
+
 
                 if (!jsonObject.has("method")) {
                     logger.debug("[MCP] client response or notification envelope without method; return 202")
@@ -198,7 +219,8 @@ object McpLocalServer {
                 }
 
                 val response = PlatformApi.invokeMcp(request)
-                sendJsonResponse(exchange, 200, response)
+                sendJsonResponse(exchange, 200, response, includeNulls =
+                    (request.params as? Map<*, *>)?.get("name") == "settings")
             } catch (e: JsonSyntaxException) {
                 val errorResponse = McpJsonRpcResponse(
                     error = McpJsonRpcError(
@@ -240,8 +262,8 @@ object McpLocalServer {
             exchange.sendResponseHeaders(statusCode, -1)
         }
 
-        private fun sendJsonResponse(exchange: HttpExchange, statusCode: Int, response: McpJsonRpcResponse) {
-            val responseJson = gson.toJson(response)
+        private fun sendJsonResponse(exchange: HttpExchange, statusCode: Int, response: McpJsonRpcResponse, includeNulls: Boolean = false) {
+            val responseJson = (if (includeNulls) settingsGson else gson).toJson(response)
             logger.debug("[MCP][OUT][${statusCode}] $responseJson")
             val responseBytes = responseJson.toByteArray(Charsets.UTF_8)
 

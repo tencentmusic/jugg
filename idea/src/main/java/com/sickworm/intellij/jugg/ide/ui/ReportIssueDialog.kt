@@ -33,7 +33,7 @@ class ReportIssueDialog(
         get() = candidateCheckBoxes.filterValues { it.isSelected }.keys.map { it.path }.toSet()
 
     init {
-        title = "Report Jugg Issue"
+        title = "Report Jugg issue"
         saveLocallyCheckBox.addActionListener { updateOkButtonText() }
         updateOkButtonText()
         init()
@@ -82,6 +82,6 @@ class ReportIssueDialog(
     }
 
     private fun updateOkButtonText() {
-        setOKButtonText(if (saveLocallyCheckBox.isSelected) "Create Diagnostics Bundle" else "Upload logs")
+        setOKButtonText(if (saveLocallyCheckBox.isSelected) "Create diagnostics bundle" else "Upload logs")
     }
 }

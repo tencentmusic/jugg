@@ -6,6 +6,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.mockito.kotlin.mock
+import java.io.File
 import java.util.zip.ZipFile
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -92,6 +93,7 @@ class IssueReportBundleBuilderTest {
             projectSummary = mapOf("moduleCount" to 2),
             projectInfoDir = projectInfoDir,
             logFiles = listOf(log),
+            standaloneLogDir = null,
             logFileLimit = 10,
             logcat = "device log",
             hookDebugLog = hookDebugLog,
@@ -147,6 +149,43 @@ class IssueReportBundleBuilderTest {
             assertFalse("apt-secret" in gradleProjectInfoText)
             assertFalse("signing-secret" in gradleProjectInfoText)
             assertFalse("key-secret" in gradleProjectInfoText)
+        }
+    }
+
+    @Test
+    fun `report keeps ten newest logs across idea and standalone cli directories`() {
+        val root = temporaryFolder.newFolder()
+        val projectDir = root.resolve("project").apply { mkdirs() }
+        val logDir = projectDir.resolve("build/jugg/log").apply { mkdirs() }
+        val standaloneLogDir = logDir.resolve("standlone_cli").apply { mkdirs() }
+        val files = (1..11).flatMap { index ->
+            listOf(
+                createLog(logDir, "idea-$index.log", index * 2L - 1),
+                createLog(standaloneLogDir, "standalone-$index.log", index * 2L),
+            )
+        }
+        val builder = IssueReportBundleBuilder(root.resolve("output"), projectDir, root.resolve("home"), mock<Logger>())
+        val logFiles = IssueReportBundleBuilder.selectRecentLogFiles(logDir, standaloneLogDir)
+        val candidates = builder.prepare(
+            environment = emptyMap(),
+            projectSummary = emptyMap(),
+            logFiles = logFiles,
+            standaloneLogDir = standaloneLogDir,
+            logcat = "",
+        )
+
+        assertEquals(10, logFiles.size)
+        assertFalse(files[0] in logFiles)
+        assertFalse(files[1] in logFiles)
+        assertTrue(logFiles.any { it.parentFile == logDir })
+        assertTrue(logFiles.any { it.parentFile == standaloneLogDir })
+        assertTrue(candidates.any { it.path == "diagnostics/logs/standlone_cli/standalone-11.log" })
+    }
+
+    private fun createLog(dir: File, name: String, modifiedAt: Long): File {
+        return dir.resolve(name).apply {
+            writeText(name)
+            setLastModified(modifiedAt)
         }
     }
 

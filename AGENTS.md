@@ -1,139 +1,142 @@
-# Jugg AI 知识库
+# Jugg AI knowledge base
 
-## 编码要求
-- 代码注释要求使用英文，不允许出现中文。知识库和任务方案文档使用中文。
-- 坚持最简设计（奥卡姆剃刀原则）：严禁过度设计，优先编写最少、最直接的代码以降低认知负担。
-  - 严禁非必要抽象：禁止仅为了外部调用而暴露内部实现细节；严禁为只有一个实现类且只有一个方法的类抽象出接口（Interface）。
-  - 保持实体精简：如无业务或架构上的明确必要，勿增加新的类、对象或数据库实体。
-- 遵循 Best-effort 原则：
-  - 面对已确认的版本差异、外部 API、工具链或非完整数据时，优先使用与当前环境匹配的实现；不可用时优先复用已有且契约一致的备用实现，无法形成最小有效结果时明确失败。
-  - 辅助信息或增强能力失败时应局部收口，只舍弃受影响的能力，保留其他有效结果，避免局部故障扩大到整个对象或流程。
-  - 降级只调整导致失败的最小因素，例如更换实现、跳过不兼容能力、修正参数或使用安全缺省值；复用原有流程，并保持结果和状态契约。
-  - 仅对已知且可恢复的错误重试；重试必须改变失败条件并设置次数上限，无专门设计时最多重试一次。
-  - 按影响范围记录失败原因和采用的降级方式；备用实现仍失败时保留最终异常，禁止吞掉错误或伪造成功。
-- 增量能力优先原则：
-  - 评估编译器、注解处理器或兼容能力时，不能因为存在潜在正确性风险，就默认让整个模块或整个流程回退完整 Gradle；必须先评估局部适配、局部失效、保留未受影响文件增量编译等方案。
-  - “可回退到 Gradle”是已有的用户主动操作或故障兜底能力，不得把它当作替代方案设计的默认答案。只有在明确证明当前路径无法形成最小有效结果，且局部降级无法满足契约时，才建议自动回退，并说明具体失败边界、影响范围和增量收益损失。
-  - 方案评估必须同时说明：正常场景保留多少增量收益、失败场景如何局部收口、用户已有的主动降级入口如何复用；禁止只以“保证正确”为理由牺牲整个模块的增量编译。
-- 遵循 YAGNI 原则：
-  - 只为已确认的需求、兼容差异和失败模式编写代码，禁止为假设场景提前增加配置、扩展点、数据结构或通用框架。
-  - Bugfix 应定位实际 behavior owner 和失败边界，只修改解决问题所必需的逻辑；不得混入无关的重构、清理、优化或行为调整。
-  - 兼容逻辑必须有明确的触发条件，并优先在输入、读取、调用或序列化边界完成适配；未命中条件的原有路径应保持不变。
-  - 优先保留既有调用链、公共契约、状态语义和数据格式；旧数据能够确定性恢复时，兼容读取或提供安全缺省值，避免无必要的失效、迁移或完整重建。
-  - 补丁优先复用现有类型和流程，通过局部条件、参数或小型私有方法实现；新增状态保持最小作用域，兼容原因不明显时添加英文注释。除非形成明确业务或架构边界，不为单个修复引入额外抽象或配置。
-  - 变更影响面应与问题范围一致；验证应覆盖失败行为和未命中补丁条件的原有正常路径，是否新增自动化测试及其落点遵循 `06_testing.md`。
-- 遵循验证先行：先取得失败证据；通过测试价值门禁的行为采用 TDD，并优先使用 Mockito 隔离外部依赖，禁止为测试侵入生产代码。
-- 代码结构要求信息，表意明确。原则上新增方法不允许代码嵌套 >= 4 层，方法行数 > 50 行
-- 接口命名统一以 `I` 开头；默认实现使用去掉 `I` 前缀后的名称，例如 `IDeployHistoryManager` 的默认实现为 `DeployHistoryManager`
-- 当提及落地为方案时，统一按创建月份保存到 `docs/task/YYYY-MM/`
-- Kotlin 编码准则：优先使用非空类型；优先提供可选参数而非新重载函数；如果所有调用处都提供了参数，不优先声明可选参数
-- 日志调用过长时，只在消息字符串的 `+` 处换行，续行相对调用缩进 8 个空格，异常参数与最后一段消息放在同一行；禁止把简单日志调用按左括号、消息、异常、右括号拆成多行。
+## Language and coding requirements
+
+- Use sentence case for English UI buttons, menus, dialog titles, labels, checkboxes, and messages. Preserve proper names and acronyms such as Jugg, Gradle, Android Studio, APK, CLI, and AI. Match UI names in user documentation; keep action IDs, configuration keys, and protocol fields unchanged.
+
+- Write code comments in English; Chinese comments are not allowed. Write current maintainer documentation in English in `docs/ai/`, the sole current knowledge base. Respond in Chinese when the user communicates in Chinese.
+- Write new Wiki facts in the English root page first, then synchronize the Chinese `docs/wiki/zh/` mirror in the same task. Keep both routes and structures aligned.
+- Keep code and structure as simple as possible (Occam's razor). Prefer the smallest direct implementation and avoid unnecessary cognitive load.
+  - Do not expose internal implementation details solely for external calls. Do not extract an interface for a class with one implementation and one method.
+  - Do not add classes, objects, or database entities without a clear business or architectural need.
+- Follow the best-effort principle:
+  - For confirmed version differences, external APIs, toolchains, or incomplete data, use an implementation compatible with the current environment. If unavailable, reuse an existing fallback with the same contract. Fail explicitly when no minimum valid result is possible.
+  - Contain failures of auxiliary information or enhancements locally: omit only the affected capability and preserve other valid results.
+  - Change only the factor causing a failure when falling back, such as the implementation, an incompatible capability, a parameter, or a safe default. Reuse the original flow and preserve result and state contracts.
+  - Retry only known, recoverable errors. A retry must change the failure condition and have a limit; without a specific design, retry at most once.
+  - Record the failure cause and fallback at the scope affected. If the fallback also fails, preserve the final exception; never swallow errors or fabricate success.
+- Prefer incremental capability:
+  - Before falling back an entire module or flow to Gradle, evaluate local adaptation, local invalidation, and incremental compilation of unaffected files.
+  - Recommend automatic Gradle fallback only when the current path cannot produce a minimum valid result and local degradation cannot preserve its contract; state the failure boundary, scope, and lost incremental benefit.
+  - Explain retained incremental benefit, failure containment, and reuse of existing manual fallback controls.
+- Follow YAGNI:
+  - Implement only confirmed requirements, compatibility differences, and failure modes. Do not preemptively add configuration, extension points, data structures, or general frameworks for hypothetical cases.
+  - For a bug fix, locate the actual behavior owner and failure boundary; change only the logic needed to solve the problem. Do not mix in unrelated refactoring, cleanup, optimization, or behavior changes.
+  - Compatibility logic needs an explicit trigger. Adapt at the input, read, call, or serialization boundary where possible; preserve the original path when the trigger does not apply.
+  - Preserve existing call chains, public contracts, state semantics, and data formats where possible. When old data can be recovered deterministically, read it compatibly or provide a safe default instead of invalidating, migrating, or rebuilding it unnecessarily.
+  - Prefer existing types and flows, local conditions, parameters, or small private methods. Keep new state in the narrowest scope. Add an English comment when a compatibility reason is not obvious. Do not add abstractions or configuration for a single fix without a clear business or architectural boundary.
+  - Match the change surface to the problem. Verify both the failure behavior and the normal path where the patch does not apply. Follow `06_testing.md` when deciding whether and where to add automated tests.
+- Verify before implementing: obtain failure evidence first. Use TDD for behavior that passes the test-value gate, preferably isolating external dependencies with Mockito. Do not change production code solely to enable a test.
+- Keep code structure clear and expressive. As a rule, new methods should have fewer than four nesting levels and at most 50 lines.
+- Prefix interface names with `I`; name a default implementation by removing that prefix, for example `IDeployHistoryManager` and `DeployHistoryManager`.
+- Save new task plans and investigation records in `docs/task/YYYY-MM/` for their creation month. Write the body in the language in which the actual reviewer can judge it most accurately; if no reviewer is specified, use the current user's language. When the body is not English, begin with a concise English `Purpose / Decision / Impact` abstract for search and cross-language handoff. The abstract does not replace review of the full body. If the reviewer needs a full English plan, write the body in English. Do not keep a second full-language mirror of a historical task record. Move durable product facts and architectural constraints into the current English maintainer documentation when the task is done.
+- When integrating a branch into `develop/4.0`, run `tools/check_english_first_diff.py` on the incoming diff and record each new Chinese item's classification, English landing page or exception, and unresolved facts. Preserve branch-only product facts while verifying them against current code; old task records, localization, diagnostic matchers, and meaningful test inputs are not automatic language violations. Follow `docs/ai/97_maintenance_manual.md` §13.
+- For Kotlin, prefer non-null types and optional parameters over new overloads. Do not declare an optional parameter merely when every caller already supplies it.
+- When a log call is long, break lines only at `+` in the message string. Indent continuation lines eight spaces relative to the call, and keep the exception argument on the same line as the last message segment. Do not split a simple log call at the opening parenthesis, message, exception, and closing parenthesis:
   ```kotlin
   logger.warn("message bla bla bla" +
           "details", exception)
   ```
-- 新增或修改日志后，提交前必须对照上述示例检查本次 diff 中的日志格式，不得以通用 Kotlin 格式化结果为准。
-- 日志打印规范：统一使用 `JuggLogger`，日志等级定义：
-    - `error`：永远不使用
-    - `warn`：用户可见，发生非预期错误时打印
-    - `info`：用户可见，关键流程，且需要展示到输出
-    - `debug`：用户不可见，开发者排查使用，打印到 log 文件
-    - `trace`：受开关控制，默认关闭，用于高频日志
+- After adding or changing logs, compare their formatting in this diff against the example before committing. Do not defer to generic Kotlin formatting.
+- Use `JuggLogger` for logging:
+  - `error`: never use.
+  - `warn`: user-visible unexpected failure.
+  - `info`: user-visible key flow that should appear in output.
+  - `debug`: developer diagnostics in the log file, not user-visible.
+  - `trace`: high-frequency logging behind a switch, off by default.
 
-## 测试与验证要求
+## Testing and verification
 
-> [06_testing.md](docs/ai_knowledge/06_testing.md) 是验证证据、测试价值、L0～L3 分层、TDD、落点和存量治理的唯一权威细则。
+> [06_testing.md](docs/ai/06_testing.md) is the sole authority for verification evidence, test value, L0–L3 layers, TDD, test placement, and existing-test maintenance.
 
-- 所有开发任务都必须提供与风险匹配的验证证据；自动化测试只是验证方式之一。
-- 新增或保留自动化测试前必须先通过测试价值门禁。测试应保护独立、稳定、可能被真实破坏的可观察行为；纯实现细节、简单透传和无可判定结果默认不测试。测试价值门禁高于 TDD 的形式要求和测试分层。
-- feature / bugfix 必须先取得失败证据。存在有价值的自动化断言时，先定位 behavior owner、写失败测试，再修改生产代码；若自动化只能绑定实现细节或引入测试专用 seam，则不新增测试，必须记录复现证据、原因和替代验证。
-- optimize / refactor 先列出已有回归 owner；仅在稳定行为缺少保护时补测试。涉及 deploy / compile 编排时，必须包含 L3 或已有等价 Flow 回归。
-- 禁止为测试在生产代码新增仅服务于 mock 的 `provider` / `supplier` / `factory` / `override` lambda、函数类型参数、可变闭包或默认 lambda 参数。替换外部依赖应使用有业务语义的接口或类并正常依赖注入。
-- 完成开发后必须执行已选定的定向测试或替代验证；禁止无 `--tests` 过滤的全量 `:main:test` / `:idea:test`。编译验证可使用 `./gradlew :idea:compileKotlin`。
+- Every development task needs verification evidence matching its risk. Automated tests are only one possible form of evidence.
+- Apply the test-value gate before adding or retaining an automated test. A test should protect independent, stable, observable behavior that a real change could break. Do not normally test pure implementation details, simple pass-through logic, or behavior without an adjudicable result. The value gate takes precedence over formal TDD and test-layer requirements.
+- For a feature or bug fix, first obtain failure evidence. If there is a valuable automated assertion, identify the behavior owner, write a failing test, then change production code. If automation would bind to implementation details or require a test-only seam, do not add the test; record the reproduction, the reason, and alternative verification.
+- For optimization or refactoring, identify existing regression owners first; add a test only for stable behavior that lacks protection. Changes to deploy/compile orchestration require L3 or an existing equivalent Flow regression.
+- Do not add test-only `provider`, `supplier`, `factory`, or `override` lambdas, function-type parameters, mutable closures, or default lambda parameters to production code merely for mocking. Replace external dependencies through a business-meaningful interface or class and normal dependency injection.
+- Run the selected targeted tests or alternative verification after development. Never run unfiltered `:main:test` or `:idea:test`; compilation can use `./gradlew :idea:compileKotlin`.
 
-## commit 规范
+## Commit conventions
 
-1. 每次完成任务后，只提交本次改动。提交信息必须用英文，标题格式为 `[prefix][module] subject`，两个 tag 紧挨着、各只出现一次；`subject` 以小写字母开头且结尾不用句号。
-2. 按用户可观察行为选择前缀：
-   - `[bugfix]`：既有能力出现漏洞、异常行为或与预期不符的结果。
-   - `[feature]`：新增用户可感知的能力。
-   - `[optimize]`：原行为正确且可用，在可读性、容错性、稳定性、便利性、性能或耗时上产生用户可感知的改善；不适用于工程构建优化。
-   - `[refactor]` / `[docs]` / `[test]` / `[other]`：分别用于无行为变化的重构、纯文档、仅测试及其他改动。
-3. 二级 `[module]` 标记改动的**功能领域**，不是 Gradle 模块名、文件目录或任务状态。优先选下面已有的最具体 tag；一个提交横跨多个领域时选主要行为 owner，无主次且互不相关的改动拆成不同提交。tag 使用小写英文，可用空格分词，不新增同义词：
-   - 编译与项目：`[compile]`（Jugg 增量编译）、`[native build]`（Flutter/C++ 外部构建）、`[dependency incremental]`（依赖增量）、`[kmp opt-in]`（KMP opt-in）、`[hilt]`（Hilt）、`[project]`（Gradle 项目模型与信息读取）。
-   - 部署：`[deploy]`（通用安装与热部署）、`[system app]`（系统应用及 rootless 部署）、`[custom install]`（自定义 APK 安装脚本）。
-   - IDE 与工具：`[ide]`（运行配置、任务编排及 IDE 界面）、`[settings]`（用户设置与控制面板设置）、`[compat]`（Android Studio 版本适配）、`[mcp]`（MCP 工具）、`[cli]`（命令行）、`[ci]`（持续集成）、`[agent]`（Agent 集成与安装）、`[diagnostics]`（日志、问题报告与诊断）。
-   - 工程与内容：`[build]`（仓库构建、CI 与打包，不用于插件运行时编译）、`[release]`（版本与发布）、`[test suite]`（测试基础设施）、`[wiki]`（用户 Wiki）、`[docs]`（其他文档）、`[repo]`（仓库级规则与维护）。
-   - 新增领域确实无法归入现有 tag 时，先确定稳定名称及职责，再更新此列表和贡献指南。
-4. 标题优先描述用户场景和可观察结果，不描述内部实现；没有直接用户时，从调用方、维护者、Agent 或运维人员视角描述。`[bugfix]` 默认使用 `[bugfix][module] fix <problem manifestation> when/after/for <scenario>`，不得默认套用 `prevent ... from ...`；`[optimize]` 推荐使用 `[optimize][module] <improvement outcome> when/for <scenario>`，不得仅通过措辞把实际 bugfix 归类为 optimize。
-5. 标题无法充分说明原因和实现时，在空行后的正文中使用自然语言补充；仅在正文较长时使用 `Problem:`、`Cause:`、`Solution:` 等小标题。
-6. 本次提交如有对应 Github issue，则在 commit message 最后增加 "Fixes #{issue_id}" 关联。
+1. When code or documentation changes pass the required verification, commit only the current task's changes by default unless the user asks not to commit; do not commit unverified or failing changes.
+2. Stage only the exact files changed for the task (`git add -- <paths>`); never use `git add -A` or `git add .`. If the index already has unrelated staged changes, or a touched file already contained unrelated uncommitted edits, skip committing and explain why.
+3. Write the commit message in English with title `[prefix][module] subject`; the tags are adjacent and each appears once, and the subject starts with a lowercase letter and has no trailing period.
+4. Choose the prefix by user-observable behavior:
+   - `[bugfix]`: an existing capability has a defect, unexpected behavior, or a result contrary to expectations.
+   - `[feature]`: a new user-visible capability.
+   - `[optimize]`: an observable gain in readability, fault tolerance, reliability, convenience, performance, or time for behavior that was already correct and usable; not for build-system optimization.
+   - `[refactor]`, `[docs]`, `[test]`, and `[other]`: no-behavior refactoring, documentation only, tests only, and other changes respectively.
+5. The secondary `[module]` describes a functional domain, not a Gradle module, directory, or task state. Choose the most specific existing tag. For a cross-domain change, use the primary behavior owner; split unrelated changes with no primary owner. Use lowercase English and these stable names:
+   - Compilation and projects: `[compile]`, `[native build]`, `[dependency incremental]`, `[kmp opt-in]`, `[hilt]`, `[project]`.
+   - Deployment: `[deploy]`, `[system app]`, `[custom install]`.
+   - IDE and tools: `[ide]`, `[settings]`, `[compat]`, `[mcp]`, `[cli]`, `[ci]` (CI build orchestration), `[agent]`, `[diagnostics]`.
+   - Engineering and content: `[build]` (repository build, CI, packaging), `[release]`, `[test suite]`, `[wiki]`, `[docs]`, `[repo]`.
+   - Before adding a domain that fits none of these tags, define its stable name and responsibility and update this list and the contribution guide.
+6. Prefer a title describing the user scenario and observable outcome, not internal implementation. If there is no direct user, write from the caller, maintainer, Agent, or operator perspective. A `[bugfix]` title normally follows `[bugfix][module] fix <problem manifestation> when/after/for <scenario>`, not `prevent ... from ...` by default. An `[optimize]` title should describe the improvement for a scenario; wording alone must not disguise a bug fix as optimization.
+7. If the title cannot explain both cause and implementation, add a natural-language body after a blank line. Use `Problem:`, `Cause:`, or `Solution:` headings only for longer bodies.
 
-## PR 共建规范
+## Pull request collaboration
 
-- PR 目标分支默认为 `main`；维护者或用户明确指定其他目标分支时按其要求调整。
-- PR 分支使用 `<type>/<topic>`：`type` 与主要改动的提交前缀一致，取 `feature`、`bugfix`、`optimize`、`refactor`、`docs`、`test` 或 `other`；`topic` 用简短的小写英文 kebab-case 描述场景，例如 `bugfix/idea-home-compat`。
-- 除同仓库 `develop/<版本号>` 分支合入 `main` 的发布分支合并 PR 外，每个 PR 都要新增或更新一份 `docs/task/YYYY-MM/*.md` 任务方案并随 PR 提交，描述中 `Task plan` 栏位必须链接到 PR 分支上的该文件。小型改动可以写简短方案；已有仓库外方案需先移入仓库，并在完成时更新方案与实际改动、验证结果的差异。
-- `Task Plan` 自动检查覆盖所有 PR 目标分支；发布分支合并 PR 免查，其余 PR 校验方案文件在本 PR 中新增或更新，且描述中的链接指向该文件。
-- 一个 PR 解决一个问题；描述中说明用户场景、关联 Issue（如有）、验证证据和未完成的验证。PR 的 `./gradlew :idea:buildPlugin` 自动检查不代替定向测试或替代验证。由维护者 review 并决定合并。
+- Target `main` by default unless the maintainer or user specifies another branch.
+- PR branches use `<type>/<topic>`: the type matches the primary commit prefix (`feature`, `bugfix`, `optimize`, `refactor`, `docs`, `test`, or `other`), and the topic is concise lowercase kebab-case, for example `bugfix/idea-home-compat`.
+- Except for a same-repository release PR merging `develop/<version>` into `main`, every PR adds or updates a task plan under `docs/task/YYYY-MM/` and links to that file on the PR branch in its `Task plan` field. Small changes may use short plans. Move an external plan into the repository first and reconcile it with actual changes and verification at completion.
+- The automated Task Plan check applies to every PR target. Release-branch merge PRs are exempt; other PRs must change the linked plan in the same PR.
+- Solve one problem per PR and describe the user scenario, related Issue when applicable, verification evidence, and unfinished checks. The automated `./gradlew :idea:buildPlugin` check does not replace targeted tests or alternative verification. The maintainer reviews and decides whether to merge.
 
-## GitHub Issue URL 读取
+## Reading a GitHub Issue URL
 
-- 用户提供 `https://github.com/{owner}/{repo}/issues/{number}` URL 时，优先执行：
-  `python3 tools/fetch_github_issue.py <issue-url>`。
-- 脚本只读取 Issue、评论、标签、状态和 Jugg Report ID，不执行 GitHub 写操作。
-- Token 只允许通过环境变量 `GITHUB_TOKEN` 提供，禁止写入仓库、命令参数、Issue 或对话。
-- 脚本读取失败时，再使用内置 Browser 作为回退；不得因为脚本失败伪造 Issue 内容。
+- For a URL of the form `https://github.com/{owner}/{repo}/issues/{number}`, first run `python3 tools/fetch_github_issue.py <issue-url>`.
+- The script reads the Issue, comments, labels, status, and Jugg Report ID; it performs no GitHub writes.
+- Supply a token only through the `GITHUB_TOKEN` environment variable. Never put it in the repository, command arguments, Issue, or conversation.
+- If the script fails, use the built-in Browser as a fallback. Never invent Issue contents because the script failed.
 
-## 问题排查流程
+## Runtime investigation
 
-**收到插件运行时问题排查任务时如，增量编译失败，Android runtime crash，部署失败，流程不符合预期等，按照以下流程指引排查：**
+For plugin runtime problems such as incremental compilation failure, Android runtime crashes, deployment failure, or unexpected flow:
 
-1. **读取排查手册**：读取 `docs/ai_knowledge/09_plugin_runtime_debug.md`，掌握日志结构与常见根因。
-2. **读取现场日志**：已有 ASK AI 快照或历史现场时，优先读取其中同一任务的日志；否则根据手册中的路径规则，从 `{projectDir}/build/jugg/log/compile_latest.log` 定位实际故障时间窗。后续运行的最新日志不能替代原始现场。
-3. **结合项目知识定位**：对照日志中的 `[ClassName]` 标签与错误时间戳，结合 Jugg 增量编译知识得出根因，不得只依赖错误信息表面描述。
+1. Read `docs/ai/09_plugin_runtime_debug.md` for log structure and common root causes.
+2. Prefer the same-task logs in an existing ASK AI snapshot or preserved incident. Otherwise follow the path rules from `{projectDir}/build/jugg/log/compile_latest.log` to the actual failure window. A later Run's latest log cannot replace the original incident.
+3. Compare `[ClassName]` tags and timestamps with the relevant incremental-compilation knowledge to identify the root cause. Do not rely only on the surface error message.
 
+## Mandatory AI workflow
 
-## ⚠️ AI 必须遵守：强制工作流
+**Complete steps 1 and 2 in order for every task. Do not read code or use Edit/Write tools before completing step 1 and the documentation location in step 2. At task completion, output the checklist in step 3.**
 
-**执行任务时必须依次完成第 1～2 步；未完成第 1 步及第 2 步的文档定位前，禁止读取代码或调用 Edit/Write 工具。任务完成时按第 3 步的适用范围输出结果与执行清单。**
+Even when a question names a path outside this project (such as `AndroidStudioProjects/`), do not skip this workflow. Errors such as missing `R` classes, dex merge failures, or Gradle upgrade failures may involve Jugg incremental compilation; read the documentation before concluding relevance.
 
-> 即使问题涉及外部项目的文件路径（如 `AndroidStudioProjects/` 下的文件），也不得跳过此流程。编译错误（如 R 类找不到、dex merge 失败、Gradle 版本升级后的异常）很可能由 Jugg 增量编译行为引起，必须先读文档确认相关性，再得出结论。
+### 1. First read in a new session
 
-### 1) 新会话首次必读/未读补读
+- [00_overview.md](docs/ai/00_overview.md)
+- [99_index.md](docs/ai/99_index.md)
 
-- [00_overview.md](docs/ai_knowledge/00_overview.md)
-- [99_index.md](docs/ai_knowledge/99_index.md)
+### 2. Investigate by task
 
-### 2) 按任务深挖（按需）
+- First locate paths and classes in [98_code_map.md](docs/ai/98_code_map.md).
+- Then follow the recommended search order and topical catalog in `99_index.md`; read only the relevant topic, never the whole knowledge base at once.
+- For API capability or behavior judgments, inspect the corresponding implementation rather than relying only on documentation.
 
-- 先查路径/类名： [98_code_map.md](docs/ai_knowledge/98_code_map.md)
-- 再按 `99_index.md` 的”推荐检索顺序”与”专题文档目录”展开单个专题文档（禁止一次性全量加载）
-- 涉及接口能力或行为判断时，优先检查对应实现文件，不只依赖文档描述
+List every document actually read in steps 1 and 2 under `Basis` in the step 3 checklist.
 
-使用第三步开发执行清单时，第 1～2 步实际读取的所有文档必须统一列入“依据”。
+### 3. Execute and respond
 
-### 3) 执行与响应
+For external read-only Android investigations guided by [local-agent-investigation-guide.md](.agents/skills/issue-handler/references/local-agent-investigation-guide.md), use that guide's concise conclusion, key evidence, and next action without the development checklist; prerequisite reading and evidence requirements still apply. Repository development, maintenance, and other tasks must include this exact section. Combine verification evidence according to task type; omit meaningless `N/A` entries:
 
-由 [local-agent-investigation-guide.md](.agents/skills/issue-handler/references/local-agent-investigation-guide.md) 引导、仅分析现有现场的外部 Android 工程调查，按该指南输出简洁结论、关键依据和下一步，无需附下述开发执行清单；前置知识阅读和证据要求仍适用。本仓库开发、维护及其他任务继续使用下述清单。
-
-除上述外部只读调查外，每次任务完成时必须附上以下固定格式的 section，不得省略。验证内容按任务类型合并表述，不展开无意义的 `N/A` 项：
-
-```
-### 📋 本次执行清单
-- 依据：[实际读取的文档；关键代码、日志或其他定位证据]
-- 验证：[失败证据；测试价值判断；测试 owner/层级或替代验证；最终结果]
-- 文档：[已同步内容及一致性检查 / 不涉及功能或架构变更]
-- 提交：[commit hash + message / 未产生改动]
+```text
+### 📋 Task execution checklist
+- Basis: [documents actually read; key code, logs, or other location evidence]
+- Verification: [failure evidence; test-value judgment; test owner/layer or alternative verification; final result]
+- Documentation: [synchronized content and consistency checks / no functional or architectural change]
+- Commit: [commit hash + message / no changes produced]
 ```
 
-### 4) 文档更新（按需）
+### 4. Update documentation when needed
 
-1. 如果本次任务涉及功能或架构改动，同步更新 [ai_knowledge](docs/ai_knowledge) 文档。
-2. [Wiki](docs/wiki) 是面向普通 Android 开发者的使用手册和产品介绍，不是 `ai_knowledge` 的用户版。只有改动使用户现有的操作说明、支持范围、可见结果、使用限制或排查建议失准，或新增能力缺少必要的使用入口时，才更新 Wiki；先指出受影响页面和具体失准之处。仅有内部实现、类/调用链、缓存结构、测试策略或任务方案变化，不触发 Wiki 更新。
-3. 按读者要解决的问题定位页面，不因同一主题涉及多个目录就批量同步：
-   - UI 入口、文案或操作步骤变化：检查 `guide`；首次安装和配置流程检查 `onboarding`。只有支持范围或操作结果也变化时，才检查 `capabilities`。
-   - 支持场景、触发条件、前置要求、回退方式或用户可见结果变化：检查 `capabilities`。
-   - 已落地的机制或方案方向变化，且影响用户理解“为什么这样工作”或判断使用边界：检查 `concepts`。仅调整实施方案或内部架构时不更新。
-   - 用户可观察的故障现象、判断依据或恢复步骤变化：检查 `troubleshooting`；公开命令、参数、配置项或兼容范围变化：检查 `reference`。
-4. 只修改直接受影响的现有页面和必要的导航/链接；现有页面无法承载必要的用户信息时才新增页面。不为凑齐 `guide`、`capabilities`、`concepts` 三类页面而扩写，不复述源码、AI 知识库或任务方案。实际修改 Wiki 时遵循 `10_wiki_authoring.md` 的中英文镜像与写作规则；未修改时在执行清单中简述判断依据。
+After changing code, check whether affected facts in the [knowledge base](docs/ai) need updating; synchronize them in the same task. Add new knowledge only when it provides:
+
+- An essential code entry point or behavior owner.
+- A cross-file flow or state transition.
+- A non-obvious cross-file constraint or diagnostic interpretation boundary.
+
+Keep implementation-local reasons in nearby English code comments. A code change alone does not justify a knowledge-base addition. Read `docs/ai/97_maintenance_manual.md` when editing `docs/ai/` or when placement is unclear. If no knowledge-base change is needed, explain why in the task checklist.
+
+For functional or architectural changes, check [docs/wiki](docs/wiki) for affected user pages and update them when applicable.

@@ -22,8 +22,9 @@ import com.sickworm.intellij.jugg.ai.skills.JuggHookInstaller
 import com.sickworm.intellij.jugg.ai.skills.JuggSkillInstaller
 import com.sickworm.intellij.jugg.ai.skills.PythonRuntimeResolver
 import com.sickworm.intellij.jugg.ai.skills.agents.InstallAgents
-import com.sickworm.intellij.jugg.project.JuggGlobalPathManager
-import com.sickworm.intellij.jugg.project.TaskRunnerManager
+import com.sickworm.intellij.jugg.ide.logic.StandaloneBundleInstallService
+import com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager
+import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
 import java.awt.FlowLayout
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
@@ -55,7 +56,7 @@ class InstallJuggSkillsDialog(
     private val panel = JPanel(GridBagLayout())
 
     init {
-        title = "Install Jugg Skills"
+        title = "Install Jugg skills"
 
         val constraints = GridBagConstraints().apply {
             gridx = 0
@@ -119,7 +120,7 @@ class InstallJuggSkillsDialog(
 
     /** Builds the CLI install row with a fixed path hint. */
     private fun buildCliRow(): JPanel {
-        return rowPanel(installCliCheckBox, toTildePath(JuggGlobalPathManager.binDir(userHome), userHome))
+        return rowPanel(installCliCheckBox, toTildePath(JuggGlobalPathManager.binDir, userHome))
     }
 
     /** Builds the hook install row with target Claude settings paths. */
@@ -158,7 +159,7 @@ class InstallJuggSkillsDialog(
     }
 
     override fun createLeftSideActions(): Array<Action> {
-        return arrayOf(object : AbstractAction("Manual Setup Guide") {
+        return arrayOf(object : AbstractAction("Manual setup guide") {
             override fun actionPerformed(e: ActionEvent?) {
                 try {
                     val outputFile = exportAndInstallSkills(projectDir, userHome)
@@ -167,7 +168,7 @@ class InstallJuggSkillsDialog(
                     FileEditorManager.getInstance(project).openFile(virtualFile, true)
                     close(CLOSE_EXIT_CODE)
                 } catch (t: Throwable) {
-                    Messages.showErrorDialog("Failed to create guide file: ${t.message}", "Agent Setup Guide")
+                    Messages.showErrorDialog("Failed to create guide file: ${t.message}", "Agent setup guide")
                 }
             }
         })
@@ -194,14 +195,14 @@ class InstallJuggSkillsDialog(
     companion object {
         internal fun descriptionHtml(): String {
             return "<html><body style='width:640px;color:#808080'>" +
-                "Jugg Skills use Jugg CLI to enable AI agents (Claude Code, Codex, etc.) to drive the full " +
+                "Jugg skills use Jugg CLI to enable AI agents (Claude Code, Codex, etc.) to drive the full " +
                 "Android dev loop: edit → incremental compile → deploy → verify, without manual intervention." +
                 "</body></html>"
         }
 
         internal fun selectAgentsTitle(): String = "Select agents to install:"
 
-        internal fun additionalOptionsTitle(): String = "Additional options: (Recommended)"
+        internal fun additionalOptionsTitle(): String = "Additional options: (recommended)"
 
         private fun toTildePath(file: File, home: File): String {
             val homePath = home.canonicalPath
@@ -210,7 +211,7 @@ class InstallJuggSkillsDialog(
         }
 
         internal fun hooksInstallPathHint(userHome: File = File(System.getProperty("user.home"))): String {
-            return toTildePath(JuggGlobalPathManager.hooksDir(userHome), userHome)
+            return toTildePath(JuggGlobalPathManager.hooksDir, userHome)
         }
 
         /**
@@ -256,50 +257,58 @@ class InstallJuggSkillsDialog(
             if (options.isEmpty) {
                 return
             }
-            taskRunnerManager.runTaskSafe("Install Jugg Skills", {
-                val shouldInstallCli = options.requiresCli
-                val runtimeSummary = installRuntimeComponents(options, logger)
-                val skillClients = options.skillClients()
-                val skillSummary = if (skillClients.isNotEmpty()) {
-                    JuggSkillInstaller.install(projectDir, skillClients, logger)
-                } else {
-                    InstallSummary(emptyList())
-                }
-                val title: String = if ((skillSummary.results.isEmpty() || skillSummary.isAllSuccess) &&
-                    (runtimeSummary.results.isEmpty() || runtimeSummary.isAllSuccess)
-                ) {
-                    "Install Completed"
-                } else {
-                    "Install Completed with Issues"
-                }
-                val hasIssues = title != "Install Completed"
-                ApplicationManager.getApplication().invokeLater {
-                    val displayText = buildInstallResultText(
-                        options,
-                        shouldInstallCli,
-                        skillSummary,
-                        runtimeSummary,
-                    )
-                    if (hasIssues) {
-                        Messages.showWarningDialog(project, displayText, title)
+            taskRunnerManager.runTaskSafe("Install Jugg skills", {
+                try {
+                    val shouldInstallCli = options.requiresCli
+                    val runtimeSummary = installRuntimeComponents(options, logger)
+                    val skillClients = options.skillClients()
+                    val skillSummary = if (skillClients.isNotEmpty()) {
+                        JuggSkillInstaller.install(projectDir, skillClients, logger)
                     } else {
-                        Messages.showInfoMessage(project, displayText, title)
+                        InstallSummary(emptyList())
                     }
-                    if (shouldPromptCcSwitchSetup(options, runtimeSummary)) {
-                        promptCcSwitchSetup(project, File(System.getProperty("user.home")), logger)
+                    val title: String = if ((skillSummary.results.isEmpty() || skillSummary.isAllSuccess) &&
+                        (runtimeSummary.results.isEmpty() || runtimeSummary.isAllSuccess)
+                    ) {
+                        "Install completed"
+                    } else {
+                        "Install completed with issues"
                     }
+                    val hasIssues = title != "Install completed"
+                    ApplicationManager.getApplication().invokeLater {
+                        val displayText = buildInstallResultText(
+                            options,
+                            shouldInstallCli,
+                            skillSummary,
+                            runtimeSummary,
+                        )
+                        if (hasIssues) {
+                            Messages.showWarningDialog(project, displayText, title)
+                        } else {
+                            Messages.showInfoMessage(project, displayText, title)
+                        }
+                        if (shouldPromptCcSwitchSetup(options, runtimeSummary)) {
+                            promptCcSwitchSetup(project, File(System.getProperty("user.home")), logger)
+                        }
+                    }
+                } catch (error: Throwable) {
+                    logger.warn("[Install Jugg Skills] failed", error)
+                    ApplicationManager.getApplication().invokeLater {
+                        val message = error.message?.takeIf(String::isNotBlank) ?: error.javaClass.simpleName
+                        Messages.showErrorDialog(project, message, "Install Failed")
+                    }
+                    throw error
                 }
-            }, isNeedShowIndicator = true, isBlockIncrementalCompile = false)
+            }, isProjectWrite = false, isBlockIncrementalCompile = false)
         }
 
-        /** Installs CLI first (no Python needed), then hooks after Python runtime preflight. */
+        /** Installs the standalone runtime and CLI before configuring optional hooks. */
         private fun installRuntimeComponents(options: InstallOptions, logger: Logger): HookInstallSummary {
             if (!options.requiresCli) {
                 JuggSkillInstaller.setHookBlockDisabled(disabled = true, logger)
                 return HookInstallSummary(emptyList())
             }
-            // CLI does not require Python — install it first so the user can fix
-            // Python later without re-running the full install flow.
+            StandaloneBundleInstallService.install()
             JuggSkillInstaller.installCli(logger).getOrThrow()
             if (!options.requiresHooks) {
                 JuggSkillInstaller.setHookBlockDisabled(disabled = true, logger)
@@ -363,7 +372,7 @@ class InstallJuggSkillsDialog(
                 val hookReason: String
                 if (options.requiresHooks) {
                     if (hookStatus == null) {
-                        hookStatusText = "SKIP"
+                        hookStatusText = "Skip"
                         hookReason = ""
                     } else {
                         hookStatusText = formatDisplayStatus(hookStatus.status)
@@ -393,7 +402,7 @@ class InstallJuggSkillsDialog(
                 if (runtimeErrors.isNotEmpty()) {
                     val errorMessages = runtimeErrors.mapNotNull { it.reason ?: it.status }
                     appendLine("━━━━━━━━━━━━━━━━━━━━")
-                    appendLine("⚠ Runtime Error:")
+                    appendLine("⚠ Runtime error:")
                     errorMessages.forEach { msg -> appendLine("  $msg") }
                     appendLine("━━━━━━━━━━━━━━━━━━━━")
                     appendLine()
@@ -423,11 +432,11 @@ class InstallJuggSkillsDialog(
                 "Add Jugg hooks to Common Config to keep them active. Open the Common Config JSON now?"
         }
 
-        internal fun ccSwitchSetupTitle(): String = "[Optional] CC Switch Setup"
+        internal fun ccSwitchSetupTitle(): String = "[Optional] CC Switch setup"
 
-        internal fun ccSwitchSetupCancelText(): String = "No, Thanks"
+        internal fun ccSwitchSetupCancelText(): String = "No, thanks"
 
-        internal fun ccSwitchSetupConfirmText(): String = "Yes, Open JSON"
+        internal fun ccSwitchSetupConfirmText(): String = "Yes, open JSON"
 
         private fun shouldPromptCcSwitchSetup(options: InstallOptions, hookSummary: HookInstallSummary): Boolean {
             return hookSummary.isAllSuccess && options.requiresHooks && InstallClient.CLAUDE in options.hookClients()
@@ -470,7 +479,7 @@ class InstallJuggSkillsDialog(
                             }
                             val virtualFile = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(outputFile)
                             if (virtualFile == null) {
-                                Messages.showErrorDialog(project, "Failed to locate exported Common Config file.", "CC Switch Setup")
+                                Messages.showErrorDialog(project, "Failed to locate exported Common Config file.", "CC Switch setup")
                             } else {
                                 FileEditorManager.getInstance(project).openFile(virtualFile, true)
                             }
@@ -479,7 +488,7 @@ class InstallJuggSkillsDialog(
                     .onFailure {
                         ApplicationManager.getApplication().invokeLater {
                             if (!project.isDisposed) {
-                                Messages.showErrorDialog(project, "Failed to export Common Config: ${it.message}", "CC Switch Setup")
+                                Messages.showErrorDialog(project, "Failed to export Common Config: ${it.message}", "CC Switch setup")
                             }
                         }
                     }
@@ -494,8 +503,8 @@ class InstallJuggSkillsDialog(
         private fun formatDisplayStatus(raw: String): String {
             return when (raw.lowercase()) {
                 "ok", "already_installed", "success" -> "OK"
-                "skip", "skipped" -> "SKIP"
-                "fail", "failed", "error" -> "FAIL"
+                "skip", "skipped" -> "Skip"
+                "fail", "failed", "error" -> "Fail"
                 else -> raw.uppercase()
             }
         }

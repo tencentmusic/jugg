@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.manager
 
+import com.intellij.execution.RunManager
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.JuggManager
@@ -7,6 +8,9 @@ import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.sickworm.intellij.jugg.compiler.BuildTarget
 import com.sickworm.intellij.jugg.compiler.ICompileContext
 import com.sickworm.intellij.jugg.compiler.JuggCompilerHelper
+import com.sickworm.intellij.jugg.compiler.context.CompileContextManager
+import com.sickworm.intellij.jugg.compiler.context.IdeaCompileEnvironmentSource
+import com.sickworm.intellij.jugg.compiler.context.IdeaProjectModelSource
 import com.sickworm.intellij.jugg.compiler.custom.CustomCompilerManager
 import com.sickworm.intellij.jugg.deploy.CompileContextInfo
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
@@ -15,21 +19,23 @@ import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.deploy.IJuggRunningTaskStatusManager
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
+import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentService
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.logic.IdeSyncProblemResolver
 import com.sickworm.intellij.jugg.mock.TestGlobal
-import com.sickworm.intellij.jugg.project.CompileContextManager
-import com.sickworm.intellij.jugg.project.CustomConfigManager
-import com.sickworm.intellij.jugg.project.GitFileChangesDetector
-import com.sickworm.intellij.jugg.project.IFileChangesDetector
-import com.sickworm.intellij.jugg.project.IFileChangesHandler
-import com.sickworm.intellij.jugg.project.JuggPathManager
-import com.sickworm.intellij.jugg.project.TaskRunnerManager
-import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
+import com.sickworm.intellij.jugg.project.change.FileChangeManager
+import com.sickworm.intellij.jugg.project.change.GitFileChangesDetector
+import com.sickworm.intellij.jugg.project.change.IFileChangeMonitor
+import com.sickworm.intellij.jugg.project.change.IFileChangesHandler
+import com.sickworm.intellij.jugg.project.info.JuggProjectInfo
 import com.sickworm.intellij.jugg.project.dependency.GradleProjectInfoLocalFetchManager
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
+import com.sickworm.intellij.jugg.project.runtime.ProjectCustomConfigManager
+import com.sickworm.intellij.jugg.project.runtime.RuntimeInfo
+import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
+import com.sickworm.intellij.jugg.server.IdeaHotUpdateCoordinator
 import com.sickworm.intellij.jugg.server.JuggServer
-import com.sickworm.intellij.jugg.server.JuggHotUpdateDownloader
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import org.junit.Rule
@@ -38,6 +44,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.mockito.kotlin.any
 import org.mockito.kotlin.anyOrNull
+import org.mockito.kotlin.clearInvocations
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.inOrder
 import org.mockito.kotlin.mock
@@ -63,9 +70,9 @@ class JuggManagerFullBuildFlowTest {
     fun deselectingCompiledInputReleasesCompilerStateButOrdinarySelectionKeepsIt() {
         val files = mock<DeployFileManager>()
         val source = temporaryFolder.newFile("strings.xml")
-        val changed = com.sickworm.intellij.jugg.project.ChangedFile(
+        val changed = com.sickworm.intellij.jugg.project.change.ChangedFile(
             com.sickworm.intellij.jugg.compiler.CompileFile.Type.Resource, source, temporaryFolder.root,
-            com.sickworm.intellij.jugg.project.data.ModuleInfo.virtualModule)
+            com.sickworm.intellij.jugg.project.info.ModuleInfo.virtualModule)
         whenever(files.getCompiledFiles()).thenReturn(listOf(changed))
         val contextManager = mock<CompileContextManager>()
         whenever(contextManager.compileContext).thenReturn(mock<ICompileContext>())
@@ -84,8 +91,9 @@ class JuggManagerFullBuildFlowTest {
             kotlin.test.assertTrue(manager.applyFileSelection(listOf(changed), setOf(source.absolutePath)))
             kotlin.test.assertSame(replacement, helper.juggCompiler)
         }
-        helper.dispose()
-        com.intellij.openapi.util.Disposer.dispose(manager)
+        helper.juggCompiler?.let(com.intellij.openapi.util.Disposer::dispose)
+        org.mockito.Mockito.doNothing().`when`(helper).close()
+        manager.dispose()
     }
 
     private fun fileSelectionManager(
@@ -99,15 +107,19 @@ class JuggManagerFullBuildFlowTest {
         whenever(paths.projectDir).thenReturn(temporaryFolder.root)
         return JuggManager(
             project = project, pathManager = paths, logger = TestGlobal.logger,
-            juggServer = mock(), juggHotUpdateDownloader = mock(),
+            juggServer = mock(), ideaHotUpdateCoordinator = mock(),
+            runtimeInfo = RuntimeInfo("idea", "test", "test", "0"),
+            deploymentService = mock(), compileEnvironmentSource = mock(), projectModelSource = mock(),
+            fileChangeManager = mock(), runManager = mock(),
             fileChangesHandler = mock(), fileChangesDetector = mock(),
             deployHistoryManager = mock(), deployTargetManager = mock(),
-            deployStateManager = mock(), taskRunnerManager = mock(),
+            deployStateManager = mock(), taskRunnerManager = com.sickworm.intellij.jugg.createTestTaskRunnerManager(
+                JuggPathManager(temporaryFolder.root)),
             customCompilerManager = mock(), deployFileManager = files,
             compileContextManager = contextManager, juggRunningTaskStatusManager = mock(),
             dependencyChangeManager = mock(), gradleProjectInfoLocalFetchManager = mock(),
             gitFileChangesDetector = mock(), juggDeployerHelper = mock(),
-            juggCompilerHelper = compilerHelper, customConfigManager = mock(), ideSyncProblemResolver = mock(),
+            juggCompilerHelper = compilerHelper, projectCustomConfigManager = mock(), ideSyncProblemResolver = mock(),
         )
     }
 
@@ -135,30 +147,37 @@ class JuggManagerFullBuildFlowTest {
         val coroutineScope = CoroutineScope(Dispatchers.Unconfined)
         val logger = mock<Logger>()
         val gradleProjectInfoLocalFetchManager = mock<GradleProjectInfoLocalFetchManager>()
+        whenever(gradleProjectInfoLocalFetchManager.waitForRemoteInitUpdate()).thenReturn(true)
         val manager = JuggManager(
             project = project,
             pathManager = pathManager,
             coroutineScope = coroutineScope,
             logger = logger,
+            runtimeInfo = RuntimeInfo("idea", "test", "test", "0"),
             juggServer = mock<JuggServer>(),
-            juggHotUpdateDownloader = mock<JuggHotUpdateDownloader>(),
+            ideaHotUpdateCoordinator = mock<IdeaHotUpdateCoordinator>(),
             fileChangesHandler = mock<IFileChangesHandler>(),
-            fileChangesDetector = mock<IFileChangesDetector>(),
+            fileChangesDetector = mock<IFileChangeMonitor>(),
             deployHistoryManager = deployHistoryManager,
             deployTargetManager = mock<IDeployTargetManager>(),
             deployStateManager = mock<DeployStateManager>(),
             taskRunnerManager = mock<TaskRunnerManager>(),
+            deploymentService = mock<JuggDeploymentService>(),
             customCompilerManager = mock<CustomCompilerManager>(),
             deployFileManager = mock<DeployFileManager>(),
+            compileEnvironmentSource = mock<IdeaCompileEnvironmentSource>(),
+            projectModelSource = mock<IdeaProjectModelSource>(),
             compileContextManager = compileContextManager,
             juggRunningTaskStatusManager = mock<IJuggRunningTaskStatusManager>(),
             dependencyChangeManager = mock<IDependencyChangeManager>(),
             gradleProjectInfoLocalFetchManager = gradleProjectInfoLocalFetchManager,
             gitFileChangesDetector = mock<GitFileChangesDetector>(),
+            fileChangeManager = mock<FileChangeManager>(),
             juggDeployerHelper = mock<JuggDeployerHelper>(),
             juggCompilerHelper = juggCompilerHelper,
-            customConfigManager = mock<CustomConfigManager>(),
+            projectCustomConfigManager = mock<ProjectCustomConfigManager>(),
             ideSyncProblemResolver = mock<IdeSyncProblemResolver>(),
+            runManager = mock<RunManager>(),
         )
 
         manager.initIncrementalCompileAfterFullBuild(1L, options)
@@ -169,6 +188,15 @@ class JuggManagerFullBuildFlowTest {
             verify(juggCompilerHelper).fetchClasspath(any(), any(), anyOrNull(), any())
         }
         verify(deployHistoryManager, never()).deleteDeployHistory()
+
+        clearInvocations(gradleProjectInfoLocalFetchManager, compileContextManager, juggCompilerHelper)
+        whenever(gradleProjectInfoLocalFetchManager.waitForRemoteInitUpdate()).thenReturn(false)
+
+        manager.initIncrementalCompileAfterFullBuild(1L, options)
+
+        verify(gradleProjectInfoLocalFetchManager).waitForRemoteInitUpdate()
+        verify(compileContextManager, never()).getProjectInfo()
+        verify(juggCompilerHelper, never()).fetchClasspath(any(), any(), anyOrNull(), any())
     }
 
     @Test
@@ -212,14 +240,15 @@ class JuggManagerFullBuildFlowTest {
         whenever(options.compileCommand).thenReturn("./gradlew :app:assembleDebug")
         val taskRunnerManager = mock<TaskRunnerManager>()
         val dependencyChangeManager = mock<IDependencyChangeManager>()
+        val compileEnvironmentSource = mock<IdeaCompileEnvironmentSource>()
         val files = mock<DeployFileManager>()
         val gradleProjectInfoLocalFetchManager = GradleProjectInfoLocalFetchManager(
-            project,
             pathManager,
             compileContextManager,
             taskRunnerManager,
             dependencyChangeManager,
             deployHistoryManager,
+            compileEnvironmentSource,
             logger,
         )
         val manager = JuggManager(
@@ -227,25 +256,31 @@ class JuggManagerFullBuildFlowTest {
             pathManager = pathManager,
             coroutineScope = CoroutineScope(Dispatchers.Unconfined),
             logger = logger,
+            runtimeInfo = RuntimeInfo("idea", "test", "test", "0"),
             juggServer = mock<JuggServer>(),
-            juggHotUpdateDownloader = mock<JuggHotUpdateDownloader>(),
+            ideaHotUpdateCoordinator = mock<IdeaHotUpdateCoordinator>(),
             fileChangesHandler = mock<IFileChangesHandler>(),
-            fileChangesDetector = mock<IFileChangesDetector>(),
+            fileChangesDetector = mock<IFileChangeMonitor>(),
             deployHistoryManager = deployHistoryManager,
             deployTargetManager = deployTargetManager,
             deployStateManager = mock<DeployStateManager>(),
             taskRunnerManager = taskRunnerManager,
+            deploymentService = mock<JuggDeploymentService>(),
             customCompilerManager = mock<CustomCompilerManager>(),
             deployFileManager = files,
+            compileEnvironmentSource = compileEnvironmentSource,
+            projectModelSource = mock<IdeaProjectModelSource>(),
             compileContextManager = compileContextManager,
             juggRunningTaskStatusManager = mock<IJuggRunningTaskStatusManager>(),
             dependencyChangeManager = dependencyChangeManager,
             gradleProjectInfoLocalFetchManager = gradleProjectInfoLocalFetchManager,
             gitFileChangesDetector = mock<GitFileChangesDetector>(),
+            fileChangeManager = mock<FileChangeManager>(),
             juggDeployerHelper = mock<JuggDeployerHelper>(),
             juggCompilerHelper = mock<JuggCompilerHelper>(),
-            customConfigManager = mock<CustomConfigManager>(),
+            projectCustomConfigManager = mock<ProjectCustomConfigManager>(),
             ideSyncProblemResolver = ideSyncProblemResolver,
+            runManager = mock<RunManager>(),
         )
 
         assertFullBuildRefreshesPendingFiles(manager, files, options)
@@ -260,9 +295,9 @@ class JuggManagerFullBuildFlowTest {
     ) {
         val tracker = com.sickworm.intellij.jugg.deploy.DeployFileStateTracker()
         val source = temporaryFolder.newFile("Pending.kt")
-        tracker.addChangedFiles(listOf(com.sickworm.intellij.jugg.project.ChangedFile(
+        tracker.addChangedFiles(listOf(com.sickworm.intellij.jugg.project.change.ChangedFile(
             com.sickworm.intellij.jugg.compiler.CompileFile.Type.Kotlin, source, temporaryFolder.root,
-            com.sickworm.intellij.jugg.project.data.ModuleInfo.virtualModule)))
+            com.sickworm.intellij.jugg.project.info.ModuleInfo.virtualModule)))
         whenever(files.getUndeployedFiles()).thenAnswer { tracker.getUndeployedFiles() }
         org.mockito.kotlin.doAnswer {
             tracker.resetKeepingRecentUncompiled(it.getArgument(2))

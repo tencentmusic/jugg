@@ -24,7 +24,7 @@ class InstallJuggSkillsDialogTest {
     @Test
     fun sectionTitles_shouldExposeAdditionalOptionsTitle() {
         assertEquals("Select agents to install:", InstallJuggSkillsDialog.selectAgentsTitle())
-        assertEquals("Additional options: (Recommended)", InstallJuggSkillsDialog.additionalOptionsTitle())
+        assertEquals("Additional options: (recommended)", InstallJuggSkillsDialog.additionalOptionsTitle())
         assertEquals("~/.jugg/skills/hooks", InstallJuggSkillsDialog.hooksInstallPathHint())
     }
 
@@ -139,7 +139,7 @@ class InstallJuggSkillsDialogTest {
         )
 
         assertTrue(display.contains("Install summary (1 agent):"))
-        assertTrue(display.contains("- claude | skill: SKIP | hook: OK"))
+        assertTrue(display.contains("- claude | skill: Skip | hook: OK"))
     }
 
     @Test
@@ -201,9 +201,9 @@ class InstallJuggSkillsDialogTest {
 
     @Test
     fun ccSwitchSetupPrompt_shouldExplainHowToUseExportedConfig() {
-        assertEquals("[Optional] CC Switch Setup", InstallJuggSkillsDialog.ccSwitchSetupTitle())
-        assertEquals("No, Thanks", InstallJuggSkillsDialog.ccSwitchSetupCancelText())
-        assertEquals("Yes, Open JSON", InstallJuggSkillsDialog.ccSwitchSetupConfirmText())
+        assertEquals("[Optional] CC Switch setup", InstallJuggSkillsDialog.ccSwitchSetupTitle())
+        assertEquals("No, thanks", InstallJuggSkillsDialog.ccSwitchSetupCancelText())
+        assertEquals("Yes, open JSON", InstallJuggSkillsDialog.ccSwitchSetupConfirmText())
         assertEquals(
             "CC Switch or CC Switch CLI config was found.\n\n" +
                 "CC Switch overwrites Claude hooks when switching models, causing Jugg hooks to stop working.\n\n" +

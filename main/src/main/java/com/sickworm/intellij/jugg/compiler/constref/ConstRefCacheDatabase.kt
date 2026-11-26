@@ -1317,6 +1317,14 @@ class ConstRefCacheDatabase internal constructor(
         }
     }
 
+    private fun recreateDatabaseAfterRuntimeCorruption(throwable: Throwable) {
+        withDbWriteLock {
+            logger.warn("ConstRefCacheDatabase recreate db after runtime corruption: " +
+                    "dbFile=${dbFile.absolutePath}", throwable)
+            recreateDatabase()
+        }
+    }
+
     private fun ensureSchema(connection: Connection) {
         connection.createStatement().use { statement ->
             statement.executeUpdate(
@@ -2322,7 +2330,15 @@ class ConstRefCacheDatabase internal constructor(
     }
 
     private inline fun <T> withConnection(block: (Connection) -> T): T {
-        return block(ensureSharedConnectionLocked())
+        try {
+            return block(ensureSharedConnectionLocked())
+        } catch (t: Throwable) {
+            if (!isCorruptDatabaseError(t)) {
+                throw t
+            }
+            recreateDatabaseAfterRuntimeCorruption(t)
+            return block(ensureSharedConnectionLocked())
+        }
     }
 
     private inline fun <T> withWriteConnection(block: (Connection) -> T): T {

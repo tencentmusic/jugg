@@ -5,6 +5,7 @@ import com.sickworm.intellij.jugg.compiler.ClassNode
 import com.sickworm.intellij.jugg.mock.buildDir
 import com.sickworm.intellij.jugg.mock.logger
 import com.sickworm.intellij.jugg.mock.projectInfo
+import junit.framework.TestCase.assertFalse
 import junit.framework.TestCase.assertTrue
 import org.junit.Test
 import java.io.File
@@ -416,6 +417,26 @@ class DeployDataDatabaseSqLiteHelperTest {
         assertEquals(expected.removedClasses.size, actual.removedClasses.size)
     }
 
+
+    @Test
+    fun testIsApksUnchanged() {
+        val helper = DeployDataDatabaseSqLiteHelper(dbFile, logger)
+        helper.init()
+
+        val parsedApk = buildParsedApk("app-unchanged.apk", "Lcom/example/A;")
+        assertFalse(helper.isApksUnchanged(listOf(parsedApk.apkFile)))
+
+        helper.saveParsedApk(parsedApk, ParsedApkDiffResult(parsedApk.apkFile, updatedApkInfos = 1, isFullUpdate = true))
+        assertTrue(helper.isApksUnchanged(listOf(parsedApk.apkFile)))
+
+        // Adding another APK not in apk_info should invalidate the fast path.
+        val secondApk = buildParsedApk("app-second.apk", "Lcom/example/B;")
+        assertFalse(helper.isApksUnchanged(listOf(parsedApk.apkFile, secondApk.apkFile)))
+
+        // Updating mtime should invalidate the fast path.
+        parsedApk.apkFile.setLastModified(parsedApk.apkFile.lastModified() + 2_000L)
+        assertFalse(helper.isApksUnchanged(listOf(parsedApk.apkFile)))
+    }
 
     @BeforeTest
     fun deleteDatabase() {

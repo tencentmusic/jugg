@@ -13,7 +13,7 @@ import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextField
 import com.intellij.util.ui.JBUI
 import com.sickworm.intellij.jugg.ide.controlpanel.JuggEvent
-import com.sickworm.intellij.jugg.project.ChangedFile
+import com.sickworm.intellij.jugg.project.change.ChangedFile
 import java.awt.BorderLayout
 import java.awt.GridLayout
 import java.awt.event.MouseAdapter
@@ -44,7 +44,7 @@ class FileChangeManagerDialog(
     private val content = JPanel(BorderLayout(JBUI.scale(8), JBUI.scale(8)))
 
     init {
-        title = "File Change Manager"
+        title = "File change manager"
         isModal = false
         setOKButtonText("Confirm")
         content.preferredSize = JBUI.size(600, 420)

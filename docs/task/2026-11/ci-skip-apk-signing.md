@@ -1,5 +1,9 @@
 # CI 增量 APK 跳过签名
 
+**Purpose** — Support CI pipelines with a separate signer.
+**Decision** — Allow explicit signing deferral on incremental APK rewrites.
+**Impact** — The pipeline owns signing and verification before installation.
+
 ## 场景与约定
 
 Demo CI 的增量 runner 没有 keystore，最终 APK 由流水线下游统一重签。CI 原始日志显示增量编译成功，但 APK 更新因 `/root/.android/debug.keystore` 不可见而失败，随后走完整 Gradle 构建。

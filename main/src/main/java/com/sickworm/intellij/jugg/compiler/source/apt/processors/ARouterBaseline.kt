@@ -4,7 +4,7 @@ import com.sickworm.intellij.jugg.compiler.ICompileContext
 import com.sickworm.intellij.jugg.compiler.source.apt.AptSourceAnalysis
 import com.sickworm.intellij.jugg.org.objectweb.asm.ClassReader
 import com.sickworm.intellij.jugg.org.objectweb.asm.tree.ClassNode
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import java.io.File
 
 /** Associates round sources with current business classes, keeping lookups within this round. */

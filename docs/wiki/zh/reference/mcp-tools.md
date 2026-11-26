@@ -40,30 +40,41 @@ tags:
 
 ## 公开工具
 
-当前注册的公开 MCP tool 共 18 个。
+当前注册的公开 MCP tool 共 20 个。
 
 | Tool | 主要参数 | 用途 |
 |---|---|---|
+| `settings` | `action`、`key?`、文本 `value?`、布尔 `confirm?` | 全局类型化设置；受保护修改必须显式确认。 |
 | `version` | 无 | 返回 Jugg 插件版本。 |
 | `list-projects` | 无 | 列出当前 IDE 已初始化项目。 |
 | `restart` | `projectDir`、`waitAppReadyAfterSuccess` | 重启目标 App；没有 launch/HOME Activity 时只执行 `am force-stop`。 |
 | `compile` | `projectDir` | 仅编译不部署。 |
 | `deploy` | `projectDir`、`alwaysRestartApp`、`waitAppReadyAfterSuccess` | 编译并部署。 |
 | `clean-reinstall` | `projectDir`、`waitAppReadyAfterSuccess` | 清数据并重装 APK。 |
-| `gradle-build` | `projectDir`、`waitAppReadyAfterSuccess` | 强制 Gradle 构建并走后续安装/启动链路。 |
+| `gradle-build` | `projectDir`、`waitAppReadyAfterSuccess` | 强制 Gradle 构建，并继续安装/启动。 |
 | `instrument` | `projectDir`、`sourcePath`、`class`、`method`、`runner`、`extras` | 从 androidTest 源文件锚点运行测试。 |
 | `get-compile-status` | `projectDir`、`jobId`、`waitTimeoutMs` | 查询异步编译任务状态。 |
 | `ssh-info` | `projectDir`、`reason`、`requestedBy` | 申请远端 SSH 排障信息。 |
+| `report-prepare` | `projectDir`、兼容参数 `serial` | 生成诊断包；忽略 serial 并收集全部目标设备日志。 |
+| `report-upload` | `projectDir`、`reportId`、`sha256` | 上传已确认且校验未变化的诊断包。 |
 | `devices` | `projectDir` | 列出设备并标记 selected。 |
 | `layout-dump` | `projectDir`、`mode`、`rootLayout`、`includeGone`、`allWindows` | 导出 interaction/ui 稀疏 JSON。 |
 | `view-locate` | `projectDir`、`target` | 查找 UI 元素位置。 |
 | `view-inspect` | `projectDir`、`target`、`expressions` | 反射读取 View 只读属性，含 getter、Kotlin property 和 public 字段。 |
 | `activity-stack` | `projectDir` | 读取 Activity 栈。 |
-| `tap` | `projectDir`、坐标/百分比/元素 selector | 执行 tap、long-press 或 swipe。 |
+| `tap` | `projectDir`、带 `unit`（`dp` 或 `px`）的坐标、百分比或元素 selector | 执行 tap、long-press 或 swipe。 |
 | `status` | `projectDir`、`refreshChanges` | 查询部署状态和未编译文件摘要。 |
 | `wait-logs` | `projectDir`、`marker`、`tags`、`timeoutMs` | 等待 App 日志 marker、crash 或 timeout。 |
 
-`version` 和 `list-projects` 不需要 `projectDir`。其他工具都需要项目绝对路径。
+`version`、`list-projects` 和 `settings` 不需要 `projectDir`。项目工具需要绝对项目路径。`settings` 在显式收到 `confirm=true` 前返回 `CONFIRMATION_REQUIRED` 和 Android Studio 的提示。
+
+## 多设备行为
+
+- `compile`、`status`、`devices` 不要求唯一设备。
+- `deploy`、`clean-reinstall`、`instrument` 未传 serial 时处理全部目标设备。
+- `restart` 未传 serial 时重启全部目标设备。
+- UI、Activity 栈和日志等待等单设备工具发现多个目标设备时返回 `MULTIPLE_DEVICE`，不会转成 HTTP 500。
+- `report-prepare` 兼容但忽略 serial，尽力收集全部目标设备的错误日志。
 
 ## 编译类异步行为
 
@@ -89,6 +100,8 @@ tags:
 ```
 
 调用 `get-compile-status`，直到 `data.status` 为 `success`、`failed`、`canceled` 或 `unknown`。终态会返回 `isCompileSuccess` 和 `isDeploySuccess`；失败时可能附带 `detail`、`detailLength`、`detailTruncated`。
+
+`deploy` 成功但本轮没有编译源码时，消息只说明没有源码变化，不表示安装、恢复或其它部署动作未执行。最近一次含文件变化的部署详情只在当前 Runtime 会话内可用。
 
 ## UI 工具行为
 
@@ -126,6 +139,7 @@ interaction 在窗口外分支中保留首个节点，并以仅含 `jugg_details
 | `PROJECT_NOT_INITIALIZED` | 项目未完成 Jugg 初始化。错误信息会给出请求路径和当前已初始化项目。 |
 | `NO_DEPLOY_BASELINE` | 缺少部署或 full build 基线。 |
 | `NO_DEVICE` | 无可用设备。 |
+| `MULTIPLE_DEVICE` | 单设备操作发现多个目标设备，需要显式指定 serial。 |
 | `DEVICE_NOT_INTERACTIVE` | 设备息屏或非交互态。 |
 | `APP_NOT_FOREGROUND` | 目标 App 不在前台。 |
 | `UI_HIERARCHY_INCOMPLETE` | 当前窗口的 UI 层级采集不完整，无法断言目标元素不存在。 |

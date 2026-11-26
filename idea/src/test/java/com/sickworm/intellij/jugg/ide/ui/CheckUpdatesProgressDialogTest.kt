@@ -24,7 +24,7 @@ class CheckUpdatesProgressDialogTest {
         SwingUtilities.invokeAndWait {
             try {
                 assertEquals(
-                    "Jugg backend server is unavailable. Configure a Custom Server in Jugg Settings.",
+                    "Jugg backend server is unavailable. Configure a custom server in Jugg settings.",
                     dialog.statusText(),
                 )
             } finally {

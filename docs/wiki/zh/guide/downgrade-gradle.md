@@ -20,14 +20,14 @@ Jugg 默认先尝试增量。当当前修改需要完整 Gradle 链路确认，�
 |---|---|
 | Yes | 本轮改走 Gradle 编译，完成后安装并启动 App |
 | No | 取消本轮运行 |
-| Clean And Reinstall | 清理 App 数据并重装 APK |
+| Just clean reinstall APK | 清理 App 数据并重装 APK |
 | Export incremental APK | 导出当前已经编译过的增量 APK |
 
 这个场景常见于两种情况：你确实想刷新基线，或者只是误点了一次 Run。误点时选 No 即可。
 
 ## 主动点击降级按钮
 
-如果你明确要完整 Gradle 构建，可以点击 IDE 里的 `(Jugg) Fallback to Gradle Compile`。终端或 Agent 场景可以执行：
+如果你明确要完整 Gradle 构建，可以点击 IDE 里的 `(Jugg) Fallback to Gradle compile`。终端或 Agent 场景可以执行：
 
 ```bash
 jugg gradle-build
@@ -42,7 +42,7 @@ jugg gradle-build
 
 Gradle 成功后，Jugg 会重新读取 APK、classpath、mapping 和资源基线。后续小改动仍然可以继续 Jugg Run。
 
-无文件变化的回退确认框和主动降级确认框中，可以勾选 `clean gradle cache on fallback`。本轮会先执行 Gradle `clean`，再执行原构建任务，并禁用 Gradle build cache、强制重新执行任务。该选择只对本轮生效，不修改保存的运行配置。
+无文件变化的回退确认框和主动降级确认框中，可以勾选 `Clean Gradle cache on fallback`。本轮会先执行 Gradle `clean`，再执行原构建任务，并禁用 Gradle build cache、强制重新执行任务。该选择只对本轮生效，不修改保存的运行配置。
 
 清理范围由工程的 `clean` 任务决定；位于该范围之外的生成器缓存需要按工程提供的方式清理。清理后重建的耗时取决于各工具可复用的中间产物。
 
@@ -54,7 +54,7 @@ Gradle 成功后，Jugg 会重新读取 APK、classpath、mapping 和资源基�
 
 ## build 文件变化弹窗
 
-修改 `build.gradle`、`settings.gradle` 或依赖声明后，Jugg 可能展示依赖变化确认框。如果同时有过多源码变化，Jugg 会先询问是否继续大规模增量；只有选择 `Continue Incremental Compile` 后，才继续展示 build 文件变化。
+修改 `build.gradle`、`settings.gradle` 或依赖声明后，Jugg 可能展示依赖变化确认框。如果同时有过多源码变化，Jugg 会先询问是否继续大规模增量；只有选择 `Continue incremental compile` 后，才继续展示 build 文件变化。
 
 | 选择 | 什么时候选 |
 |---|---|
@@ -72,7 +72,7 @@ Gradle 成功后，Jugg 会重新读取 APK、classpath、mapping 和资源基�
 | 选择 | 结果 |
 |---|---|
 | Fallback to Gradle | 本轮改走完整构建。按钮立刻可点 |
-| Continue Incremental Compile | 仅本轮继续增量。按钮会先倒计时 2 秒 |
+| Continue incremental compile | 仅本轮继续增量。按钮会先倒计时 2 秒 |
 | 关闭弹窗 | 取消本轮运行 |
 
 MCP、CLI 和状态查询不会弹出这张确认框，会直接改走 Gradle。

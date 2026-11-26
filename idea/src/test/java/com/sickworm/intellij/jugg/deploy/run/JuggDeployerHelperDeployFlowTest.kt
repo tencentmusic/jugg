@@ -45,6 +45,85 @@ import java.nio.channels.InterruptedByTimeoutException
 class JuggDeployerHelperDeployFlowTest {
 
     @Test
+    fun `instrumentation flow checks JVMTI for the source selected second test APK`() {
+        assertInstrumentationJvmtiPackage(matchingModule = true)
+    }
+
+    @Test
+    fun `instrumentation flow skips JVMTI when no test APK is available`() {
+        assertInstrumentationJvmtiPackage(matchingModule = false)
+    }
+
+    private fun assertInstrumentationJvmtiPackage(matchingModule: Boolean) {
+        val projectDir = java.nio.file.Files.createTempDirectory("jvmti-test-target").toFile()
+        try {
+            val sourceRoot = projectDir.resolve("library/src/androidTest/kotlin").apply { mkdirs() }
+            val source = sourceRoot.resolve("LibraryTest.kt").apply { writeText("class LibraryTest") }
+            val first = ApkInfo(File("first.apk"), "example.first.test").copy(instrumentationTargetPackage = "example.first")
+            val selected = ApkInfo(File("library.apk"), "example.library.test").copy(instrumentationTargetPackage = "example.library.test")
+            val module = com.sickworm.intellij.jugg.project.info.ModuleInfo.virtualModule.copy(
+                name = "library.androidTest", moduleType = com.sickworm.intellij.jugg.project.info.ModuleInfo.Type.Library,
+                moduleRootDir = projectDir.resolve("library"), projectRootDir = projectDir,
+                sourceDirs = listOf(sourceRoot), buildVariant = "debugAndroidTest",
+                applicationId = selected.applicationId, instrumentationTargetPackage = selected.instrumentationTargetPackage,
+            )
+            val data = JuggDeployData.forDryDeploy(if (matchingModule) listOf(first, selected) else listOf(first.copy(instrumentationTargetPackage = null)))
+            val contexts = Mockito.mock(com.sickworm.intellij.jugg.compiler.context.CompileContextManager::class.java)
+            val projectInfo = com.sickworm.intellij.jugg.project.info.JuggProjectInfo(
+                if (matchingModule) mapOf(module.name to module) else emptyMap(), null,
+            )
+            whenever(contexts.getProjectInfo()).thenReturn(projectInfo)
+            whenever(contexts.compileContext).thenReturn(Mockito.mock(com.sickworm.intellij.jugg.compiler.ICompileContext::class.java))
+            val adb = Mockito.mock(IDeviceAdb::class.java)
+            val environment = Mockito.mock(IDeployHost::class.java)
+            whenever(environment.createDeviceAdb(any(), any())).thenReturn(adb)
+            val handler = Mockito.mock(CompileUiHandler::class.java)
+            whenever(handler.isDebugRun).thenReturn(true)
+            val launchContext = Mockito.mock(LaunchContext::class.java)
+            whenever(launchContext.deviceAdb).thenReturn(adb)
+            whenever(launchContext.compileUiHandler).thenReturn(handler)
+            whenever(launchContext.withSkipExceptOverlayCheck(any())).thenReturn(launchContext)
+            val tasks = Mockito.mock(com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager::class.java)
+            whenever(tasks.runAsyncSafe<Boolean>(any(), any())).thenReturn(kotlinx.coroutines.CompletableDeferred(true))
+            val checkedPackages = mutableListOf<String>()
+            Mockito.mockConstruction(LaunchContextFactory::class.java) { factory, _ ->
+                whenever(factory.create(any(), any(), any(), any(), any(), any(), any(), any())).thenReturn(launchContext)
+            }.use {
+                Mockito.mockConstruction(com.sickworm.intellij.jugg.deploy.SliceDeployHelper::class.java) { helper, _ ->
+                    whenever(helper.get(any())).thenReturn(100 to 100)
+                }.use {
+                    Mockito.mockConstruction(com.sickworm.intellij.jugg.deploy.run.applychanges.JuggDeployTask::class.java) { task, _ ->
+                        whenever(task.run(any())).thenReturn(LaunchResult(true, 0, null, emptyMap()))
+                    }.use {
+                        Mockito.mockConstruction(com.sickworm.intellij.jugg.deploy.JuggJvmtiAgentManagerHelper::class.java) { helper, _ ->
+                            whenever(helper.isHasJvmtiCompatIssue(any(), any(), any(), any())).thenAnswer {
+                                checkedPackages.add(it.getArgument(2))
+                                false
+                            }
+                        }.use {
+                            val orchestrator = JuggDeployOrchestrator(
+                                Mockito.mock(com.sickworm.intellij.jugg.deploy.IDeployTargetManager::class.java),
+                                Mockito.mock(com.sickworm.intellij.jugg.deploy.IDeployHistoryManager::class.java),
+                                Mockito.mock(com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager::class.java),
+                                contexts, Mockito.mock(com.sickworm.intellij.jugg.server.JuggServer::class.java), tasks,
+                                Mockito.mock(IJuggDeployerDeploymentService::class.java), environment, logger,
+                            )
+                            val result = orchestrator.execute(JuggDeployRunTaskRequest(
+                                Mockito.mock(com.sickworm.intellij.jugg.deploy.api.IDevice::class.java), data, handler,
+                                androidTestRunSpec = com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec(null, null, sourcePath = if (matchingModule) source.path else null),
+                            ))
+                            assertTrue(result.success)
+                        }
+                    }
+                }
+            }
+            assertEquals(if (matchingModule) listOf(selected.instrumentationTargetPackage) else emptyList<String>(), checkedPackages)
+        } finally {
+            projectDir.deleteRecursively()
+        }
+    }
+
+    @Test
     fun `JVMTI retry checks the launched app instead of unrelated self targeting tests`() {
         assertJvmtiTargetStatus(available = true, launchTestPackage = false)
     }
@@ -209,7 +288,7 @@ class JuggDeployerHelperDeployFlowTest {
             fixture.compatBoundary.optimisticSwapInvokeCount >= 1,
         )
         assertEquals(
-            1,
+            0,
             fixture.virtualDevice.shellCommands.count {
                 it == "dumpsys package ${DeployFlowOverlaySeed.packageName()}"
             },
@@ -733,7 +812,7 @@ class JuggDeployerHelperDeployFlowTest {
             assertEquals(3, fixture.compatBoundary.optimisticSwapInvokeCount)
             assertEquals(listOf(false, false, true), fixture.compatBoundary.optimisticSwapRestartArgs)
             assertEquals(
-                1,
+                0,
                 fixture.virtualDevice.shellCommands.count {
                     it == "dumpsys package ${DeployFlowOverlaySeed.packageName()}"
                 },
@@ -828,9 +907,10 @@ class JuggDeployerHelperDeployFlowTest {
             assertNotEquals(fixture.seededOverlayId, committedOverlayId)
             assertEquals(
                 committedOverlayId,
-                JuggDeploymentService.loadEntry(
+                DeployFlowMockBackend.deploymentService.loadEntry(
                     fixture.device.serialNumber,
                     DeployFlowOverlaySeed.packageName(),
+                    fixture.compatBoundary,
                     AdbLogWrapper(logger),
                 )
                     ?.overlayId?.sha,
@@ -875,9 +955,10 @@ class JuggDeployerHelperDeployFlowTest {
             assertEquals(fixture.seededOverlayId, fixture.virtualDevice.readOverlayId())
             assertEquals(
                 fixture.seededOverlayId,
-                JuggDeploymentService.loadEntry(
+                DeployFlowMockBackend.deploymentService.loadEntry(
                     fixture.device.serialNumber,
                     DeployFlowOverlaySeed.packageName(),
+                    fixture.compatBoundary,
                     AdbLogWrapper(logger),
                 )
                     ?.overlayId?.sha,
@@ -980,7 +1061,7 @@ class JuggDeployerHelperDeployFlowTest {
             adb = fixture.virtualDevice.asIDeviceAdb(),
             logger = logger,
             deployHistoryManager = fixture.deployHistoryManager,
-            deploymentService = JuggDeploymentService,
+            deploymentService = DeployFlowMockBackend.deploymentService,
         )
         assertEquals(
             DirectOverlayStateCheckResult.MATCHED,

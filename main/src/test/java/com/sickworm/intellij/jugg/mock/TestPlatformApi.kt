@@ -1,14 +1,12 @@
 package com.sickworm.intellij.jugg.mock
 
-import com.android.ddmlib.IDevice
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
-import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
 import com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcRequest
 import com.sickworm.intellij.jugg.ai.mcp.McpJsonRpcResponse
 import com.sickworm.intellij.jugg.platform.IPlatformApi
-import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
+import com.sickworm.intellij.jugg.project.runtime.RuntimeInfo
 import java.io.File
 
 class TestPlatformApi : IPlatformApi {
@@ -19,14 +17,6 @@ class TestPlatformApi : IPlatformApi {
         cancelButtonText: String?,
         isShowCancelButton: Boolean
     ): Boolean {
-        TODO("Not yet implemented")
-    }
-
-    override fun showChangeConfirmDialog(
-        diffResult: DependencyDiffResult?,
-        isRunLater: Boolean,
-        logger: Logger
-    ): ConfirmResult {
         TODO("Not yet implemented")
     }
 
@@ -59,8 +49,8 @@ class TestPlatformApi : IPlatformApi {
         TODO("Not yet implemented")
     }
 
-    override fun toDeviceAdb(device: IDevice): IDeviceAdb? {
-        return null
+    override fun getRuntimeInfo(): RuntimeInfo {
+        return RuntimeInfo("test", "test", "test", "")
     }
 
     override fun isHasRelaunchActivityIssues(

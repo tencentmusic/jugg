@@ -10,10 +10,12 @@ def run_jugg_command(args, cwd): return subprocess.run(args, cwd=cwd, text=True,
 def select_nearest_base(context, records):
     candidates = Path(context["work_dir"]) / "candidate-commits.json"; candidates.write_text(json.dumps({"commits": [r["baseCommit"] for r in records]}))
     output = Path(context["work_dir"]) / "base-result.json"
+    if output.exists():
+        output.unlink()
     result = run_jugg_command([context["cmd_line"], "cmd=findNearestBaseCommit", f"projectDir={context['project_dir']}", f"targetCommit={context['target_commit']}", f"candidateCommitsFile={candidates}", f"output={output}"], context["project_dir"])
-    return json.loads(output.read_text()) if output.exists() else None
+    return json.loads(output.read_text()) if result.returncode == 0 and output.exists() else None
 def filter_changed_files(document, context): return document.get("files", [])
-def should_use_incremental(changed_files, context): return bool(changed_files) and all(f["type"] not in context.get("blocked_types", {"BuildFile"}) for f in changed_files)
+def should_use_incremental(changed_files, context): return bool(changed_files) and all(f["type"] not in context.get("blocked_types", {"BuildFile", "Unknown"}) for f in changed_files)
 def save_base_build(record, artifacts): context = artifacts; context["save_record"](record)
 def build(context):
     records = filter_compatible_base_builds(load_base_builds(context), context)

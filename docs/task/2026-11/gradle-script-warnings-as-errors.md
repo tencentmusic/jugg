@@ -1,5 +1,9 @@
 # Gradle Kotlin DSL 严格警告检查兼容修复
 
+**Purpose** — Support strict Kotlin DSL builds.
+**Decision** — Remove or locally suppress warnings in injected scripts.
+**Impact** — Baseline creation respects the project warning policy.
+
 ## 问题与边界
 
 报告 `5dfa0b8b`（Jugg 3.6.7-release）在用户开启 `org.gradle.kotlin.dsl.allWarningsAsErrors=true` 时，Jugg 注入脚本的 9 条警告被提升为错误。基线构建失败后反复进入 `not gradle compile yet`，无法开始增量编译。

@@ -8,7 +8,7 @@ import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.org.objectweb.asm.ClassReader
 import com.sickworm.intellij.jugg.org.objectweb.asm.ClassVisitor
 import com.sickworm.intellij.jugg.org.objectweb.asm.Opcodes
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import java.io.File
 import java.util.ArrayDeque
 import java.util.zip.ZipFile

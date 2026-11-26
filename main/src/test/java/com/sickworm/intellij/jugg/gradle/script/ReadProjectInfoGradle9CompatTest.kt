@@ -3,8 +3,8 @@ package com.sickworm.intellij.jugg.gradle.script
 import com.googlecode.d2j.node.DexFileNode
 import com.googlecode.d2j.reader.MultiDexFileReader
 import com.intellij.openapi.diagnostic.Logger
-import com.sickworm.intellij.jugg.project.JuggPathManager
-import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
+import com.sickworm.intellij.jugg.project.info.ProjectInfoSerializer
 import org.mockito.Mockito.mock
 import org.junit.Assume
 import org.junit.Test
@@ -18,6 +18,11 @@ import kotlin.test.assertTrue
 class ReadProjectInfoGradle9CompatTest : ReadProjectInfoGradleCompatTestBase() {
 
     override val gradleVersion = "9.2.1"
+
+    @Test
+    fun generatedScript_shouldUseSelectedVariantMinSdk() {
+        assertSelectedVariantMinSdk("android-app-agp90")
+    }
 
     @Test
     fun generatedScript_shouldRunOnGradle921AndCollectFileDependencies() {

@@ -1,3 +1,9 @@
+**Purpose:** Track the excessive-change confirmation option.
+
+**Decision:** Preserve a default-on confirmation and allow direct Gradle fallback.
+
+**Impact:** Affects IDE settings and shared compile prechecks.
+
 # 文件变化过多时降级确认（Run Panel 开关）方案
 
 ## 需求背景

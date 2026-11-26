@@ -4,8 +4,8 @@ import com.intellij.openapi.Disposable
 import com.sickworm.intellij.jugg.apk.ApkFileUnit
 import com.sickworm.intellij.jugg.compiler.Result
 import com.sickworm.intellij.jugg.compiler.*
-import com.sickworm.intellij.jugg.project.JuggInternalException
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.JuggInternalException
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import java.io.File
 
 /**

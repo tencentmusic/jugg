@@ -1,3 +1,9 @@
+**Purpose:** Track Gemini and Anti-gravity hook compatibility.
+
+**Decision:** Keep Gemini CLI and existing Anti-gravity configuration separate.
+
+**Impact:** Adds compatible skill and named-hook installation.
+
 # Gemini 与 anti-gravity Hook 兼容方案
 
 ## 背景

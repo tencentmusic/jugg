@@ -21,12 +21,14 @@ class LayoutDumpMcpToolAction : McpToolAction {
             "Artifacts up to 16 KiB also return the complete object in data.layout; use it without rereading the file. " +
             "For larger layouts, read relevant file lines or use rootLayout/view-locate instead of loading the whole tree. " +
             "interaction (default) prunes nodes for page browsing; ui preserves the captured tree for UI validation. " +
+            "The interaction summary compares shown and captured node counts. Use ui to check missing controls or hierarchy. " +
             "Interaction keeps the first offscreen node and replaces its descendants with a jugg_details placeholder; " +
             "use ui with rootLayout to expand them. " +
             "Supports rootLayout, includeGone, and allWindows.",
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,
+                "serial" to McpToolSchemas.serialProperty,
                 "mode" to McpJsonSchemaProperty(
                     type = "string",
                     description = "interaction removes invisible/gone subtrees and padding/textColor, keeps className, prunes " +
@@ -68,6 +70,6 @@ class LayoutDumpMcpToolAction : McpToolAction {
         // Accept both new ("includeGone") and legacy ("isIncludeGone") param names.
         val includeGone = (arguments["includeGone"] ?: arguments["isIncludeGone"]) as? Boolean ?: false
         val allWindows = (arguments["allWindows"] ?: arguments["isAllWindows"]) as? Boolean ?: false
-        return LayoutDumpHelper.dump(runtime, toolName, rootLayout, includeGone, allWindows, mode as String)
+        return LayoutDumpHelper.dump(runtime, toolName, rootLayout, includeGone, allWindows, arguments.deviceSerial(), mode as String)
     }
 }

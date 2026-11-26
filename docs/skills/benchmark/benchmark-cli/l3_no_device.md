@@ -1,98 +1,98 @@
-# L3 无设备场景
+# L3 No-Device Scenario
 
-目标：验证 Agent 在无 Android 设备时能区分“仍可执行”“应失败”“应跳过”的 CLI，不把所有问题都归因于 CLI 不可用。
+Goal: Check whether the agent distinguishes CLI commands that still work, should fail, or should be skipped without an Android device, instead of treating every issue as an unavailable CLI.
 
-执行条件：MCP 端口可用，但 `devices` 返回空列表。
+Execution condition: An MCP endpoint is available, but `devices` returns an empty list.
 
-如果真实环境存在在线设备，本文件全部 case 记为环境性 `SKIP`，并从有效总分分母中排除。
+If a real device is online, mark every case in this file as environmental `SKIP` and exclude them from the effective-total denominator.
 
-## NODEV-1: 无设备列表
+## NODEV-1: Empty Device List
 
-Prompt：当前没有连接设备，请列出设备并给出结论。
+Prompt: No device is connected. List devices and state the conclusion.
 
-期望：
-- 选择 `devices`。
-- 空设备列表是有效结果。
+Expected:
+- Select `devices`.
+- An empty device list is a valid result.
 
-## NODEV-2: 状态检查
+## NODEV-2: Status Check
 
-Prompt：没有设备时查看 Jugg 状态。
+Prompt: Inspect Jugg status when no device is connected.
 
-期望：
-- 选择 `status`。
-- 记录 `hasDevice=false` 或等价信息。
+Expected:
+- Select `status`.
+- Record `hasDevice=false` or equivalent information.
 
-## NODEV-3: 仅编译
+## NODEV-3: Compile Only
 
-Prompt：无设备环境下只验证源码能否编译。
+Prompt: Verify that the source compiles in a no-device environment.
 
-期望：
-- 选择 `compile`。
-- 不因为无设备直接跳过编译。
+Expected:
+- Select `compile`.
+- Do not skip compilation merely because there is no device.
 
-## NODEV-4: Gradle 编译
+## NODEV-4: Gradle Build
 
-Prompt：无设备环境下执行完整 Gradle 编译验证。
+Prompt: Run a full Gradle build in a no-device environment.
 
-期望：
-- 选择 `gradle-build`。
-- 如果真实输出失败，按编译错误记录；不要预设一定因无设备失败。
+Expected:
+- Select `gradle-build`.
+- If the actual result fails, record the compile error; do not assume beforehand that no device must cause failure.
 
-## NODEV-5: deploy
+## NODEV-5: Deploy
 
-Prompt：无设备环境下尝试部署。
+Prompt: Attempt a deployment without a device.
 
-期望：
-- 选择 `deploy`。
-- 编译可能先执行；最终部署阶段可失败。
-- 记录失败位置，不把它当成 parser 失败。
+Expected:
+- Select `deploy`.
+- Compilation may run first; the final deployment step may fail.
+- Record the failure point; do not call it a parser failure.
 
-## NODEV-6: clean-reinstall
+## NODEV-6: Clean Reinstall
 
-Prompt：无设备环境下清数据重装。
+Prompt: Perform a clean reinstall without a device.
 
-期望：
-- 若 prompt 没有明确允许清数据，直接 `SKIP: destructive`。
-- 若明确允许，选择 `clean-reinstall` 并记录无设备失败。
-- 不改用未列入公开清单的子命令。
+Expected:
+- If the prompt does not explicitly permit clearing data, record `SKIP: destructive`.
+- If it explicitly permits it, select `clean-reinstall` and record the no-device failure.
+- Do not switch to a subcommand outside the public list.
 
-## NODEV-7: restart
+## NODEV-7: Restart
 
-Prompt：无设备环境下重启 app。
+Prompt: Restart the app without a device.
 
-期望：
-- 选择 `restart`。
-- 记录无设备或 app 不可用错误。
+Expected:
+- Select `restart`.
+- Record the no-device or app-unavailable error.
 
-## NODEV-8: UI 观察类命令
+## NODEV-8: UI Observation Commands
 
-Prompt：无设备环境下导出布局、定位元素、读取属性。
+Prompt: Export the layout, locate an element, and inspect its properties without a device.
 
-期望：
-- `layout-dump`、`view-locate`、`view-inspect` 都应失败或 skip。
-- Agent 不能改用截图、录屏或 adb。
+Expected:
+- `layout-dump`, `view-locate`, and `view-inspect` should each fail or be skipped.
+- Do not switch to screenshots, screen recordings, or adb.
 
-## NODEV-9: tap
+## NODEV-9: Tap
 
-Prompt：无设备环境下点击屏幕中心。
+Prompt: Tap the center of the screen without a device.
 
-期望：
-- 由于无设备，应记录失败或 `SKIP: no device`。
-- 不执行过期 `--xp` / `--yp` 参数。
+Expected:
+- Record a failure or `SKIP: no device`.
+- Do not use obsolete `--xp` or `--yp` arguments.
 
-## NODEV-10: instrument
+## NODEV-10: Instrument
 
-Prompt：无设备环境下运行一个存在的 androidTest source。
+Prompt: Run an existing androidTest source without a device.
 
-期望：
-- 选择 `instrument --source-path library1/src/androidTest/java/com/example/library1/Library1LogicInstrumentedTest.kt`。
-- 若测试 APK 可编译但运行阶段失败，应记录无设备/运行失败。
-- 不猜 package，不改用非公开参数。
+Expected:
+- Select `instrument --source-path library1/src/androidTest/java/com/example/library1/Library1LogicInstrumentedTest.kt`.
+- If the test APK compiles but execution fails, record the no-device or runtime failure.
+- Do not guess a package or switch to nonpublic arguments.
 
-## NODEV-11: wait-logs
+## NODEV-11: Wait for Logs
 
-Prompt：无设备环境下等待 `[JUGG_BENCH] MAIN_ACTIVITY_READY` 日志。
+Prompt: Wait for the `[JUGG_BENCH] MAIN_ACTIVITY_READY` log without a device.
 
-期望：
-- 选择 `wait-logs --marker ... --timeout-ms ...`。
-- 记录无设备或 timeout/crash/marker 结果；不能 hang。
+Expected:
+- Select `wait-logs --marker ... --timeout-ms ...`.
+- Record the no-device error or timeout/crash/marker result; do not hang.

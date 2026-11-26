@@ -1,7 +1,7 @@
 package com.sickworm.intellij.jugg.project
 
-import com.sickworm.intellij.jugg.project.data.ExternalBuildInfoUpdate
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ExternalBuildInfoUpdate
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 
 /** Persists task-local external build metadata and returns the effective module snapshot. */
 interface IExternalBuildInfoUpdater {

@@ -11,10 +11,10 @@ import com.sickworm.intellij.jugg.compiler.withDependencyName
 import com.sickworm.intellij.jugg.compiler.withRPackageName
 import com.sickworm.intellij.jugg.mock.SimpleCompileContext
 import com.sickworm.intellij.jugg.mock.mockParentDisposable
-import com.sickworm.intellij.jugg.project.JuggException
-import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
-import com.sickworm.intellij.jugg.project.data.ModuleDependency
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.JuggException
+import com.sickworm.intellij.jugg.project.info.ModuleBuildPathInfo
+import com.sickworm.intellij.jugg.project.info.ModuleDependency
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import org.junit.Test
 import java.io.File
 import java.nio.file.Files

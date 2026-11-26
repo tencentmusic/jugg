@@ -3,7 +3,7 @@
 package com.sickworm.intellij.jugg.gradle
 
 import com.sickworm.intellij.jugg.compiler.JuggCompilerHelper
-import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
+import com.sickworm.intellij.jugg.project.info.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
 import com.sickworm.intellij.jugg.gradle.compile.RemoteGradleCompileClient
 import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
@@ -12,7 +12,7 @@ import com.sickworm.intellij.jugg.ide.bean.SyncMode
 import com.sickworm.intellij.jugg.ide.logic.toCompileOptions
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.mock.*
-import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import org.json.JSONObject
 import org.junit.BeforeClass
 import org.junit.Assume.assumeTrue
@@ -25,7 +25,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertFailsWith
-import com.sickworm.intellij.jugg.project.JuggException
+import com.sickworm.intellij.jugg.JuggException
 import com.google.gson.Gson
 import java.nio.file.Files
 import java.util.Base64

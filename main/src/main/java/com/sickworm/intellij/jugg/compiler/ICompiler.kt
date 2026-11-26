@@ -9,11 +9,11 @@ import com.sickworm.intellij.jugg.ModuleApkBelongs
 import com.sickworm.intellij.jugg.apk.ApkFileUnit
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.deploy.run.normalizeTargetApkPaths
-import com.sickworm.intellij.jugg.project.JuggInternalException
-import com.sickworm.intellij.jugg.project.ChangedFile
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
-import com.sickworm.intellij.jugg.project.data.ExternalBuildInfoUpdate
-import com.sickworm.intellij.jugg.project.data.SigningConfig
+import com.sickworm.intellij.jugg.JuggInternalException
+import com.sickworm.intellij.jugg.project.change.ChangedFile
+import com.sickworm.intellij.jugg.project.info.ExternalBuildInfoUpdate
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.SigningConfig
 import java.io.File
 
 /**
@@ -357,6 +357,12 @@ interface ICompileContext {
     val deployedFiles: List<CompileOutput>
     /** APK singing config */
     val signingConfig: SigningConfig?
+
+    /**
+     * Resolves the signing config for [apkInfo].
+     * Defaults to [signingConfig] for regular app APKs and fallback cases.
+     */
+    fun getSigningConfig(apkInfo: ApkInfo): SigningConfig? = signingConfig
 
     /** compile temporary incremental storage directory */
     val incrementalDataDir: File

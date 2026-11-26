@@ -17,7 +17,7 @@ tags:
 
 Jugg 在失败时保存当次日志、工程上下文和现有编译部署产物，后续运行不会覆盖这份现场。Agent 通过调查指南先了解 Jugg 的工作方式，再结合保存的现场和对应版本源码分析，给出原因、关键依据和可执行的建议。已有材料不足时会指出具体缺失项；需要提交 Issue 时提供可复制的草稿。
 
-也可以从 `Jugg Running Panel` 的 `Jugg Plugin` 分组点击 `Ask AI`，选择 `Compilation failed`，填写问题描述后选择 `Save Evidence and Generate Prompt`。这条入口保存的是采集时的当前现场。
+也可以从 `Jugg Running Panel` 的 `Jugg plugin` 分组点击 `Ask AI`，选择 `Compilation failed`，填写问题描述后选择 `Save evidence and generate prompt`。这条入口保存的是采集时的当前现场。
 
 现场保存在本机独立目录，默认保留 30 天。环境信息和采集失败原因保存在现场清单中，Agent 会按 prompt 中的路径读取。prompt 显式允许 Agent 在独立调查目录 clone Jugg，必要时 fetch；调查阶段只读取现有证据。
 

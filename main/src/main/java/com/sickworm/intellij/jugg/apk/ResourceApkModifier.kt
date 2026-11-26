@@ -5,7 +5,7 @@ import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.jvmti_agent.BuildConfig
 import com.sickworm.intellij.jugg.logger.getInstance
-import com.sickworm.intellij.jugg.project.data.SigningConfig
+import com.sickworm.intellij.jugg.project.info.SigningConfig
 import java.io.File
 import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
@@ -85,6 +85,7 @@ class ResourceApkModifier(
 
     private fun updateAtomically(copyPublishedApk: Boolean, update: (File) -> Unit) {
         resourceApkFile.parentFile.mkdirs()
+        // A fresh path avoids reusing a stale ZipFS URI after a failed update; publish only after it closes.
         val tempApk = Files.createTempFile(
             resourceApkFile.parentFile.toPath(),
             ".${resourceApkFile.name}.",

@@ -1,5 +1,9 @@
 # Jugg CI ConstRef 基线复用
 
+**Purpose** — Carry constant-reference analysis across CI jobs.
+**Decision** — Ship a portable index with each Gradle baseline.
+**Impact** — Incremental jobs can recompile callers across source roots.
+
 > 核对日期 2026-11-21。本方案替换同名的首版交接稿：去掉 Gradle 期间预扫和旧仓库键迁移，把改动拆成三个提交，并处理评审发现的两处漏补编（§2.3）。
 
 ## 1. 问题

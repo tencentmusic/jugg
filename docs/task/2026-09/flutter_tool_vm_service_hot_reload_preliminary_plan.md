@@ -1,7 +1,7 @@
 # Flutter Tool VM Service Hot Reload 初步实现方案
 
-> 日期：2026-09-13  
-> 状态：初步方案，未进入实现  
+> 日期：2026-09-13
+> 状态：初步方案，未进入实现
 > 目标：评估 Jugg 复用 Flutter Tool Hot Reload 能力的实现方式、边界和成本。
 
 ## 1. 背景

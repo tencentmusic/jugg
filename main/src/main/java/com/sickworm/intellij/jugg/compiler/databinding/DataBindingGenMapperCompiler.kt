@@ -6,8 +6,8 @@ import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.source.JavaCompilerInvoker
 import com.sickworm.intellij.jugg.compiler.source.kotlin.KotlinCompilerInvoker
 import com.sickworm.intellij.jugg.logger.TimeLogger
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import com.sickworm.intellij.jugg.logger.getInstance
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import java.io.File
 import java.util.*
 

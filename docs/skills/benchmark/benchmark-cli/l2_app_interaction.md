@@ -1,85 +1,85 @@
-# L2 应用控制与交互
+# L2 App Control and Interaction
 
-目标：验证 Agent 能安全使用 `restart` 和 `tap`，并在没有安全目标时选择跳过，而不是盲点坐标。
+Goal: Check whether the agent uses `restart` and `tap` safely, skipping when there is no safe target instead of tapping arbitrary coordinates.
 
-## McpTestActivity 路由
+## McpTestActivity Route
 
-涉及 `McpTestActivity` 或该页面内元素的 case，先执行：
+For a case involving `McpTestActivity` or its elements, first run:
 
 ```bash
 jugg restart && sleep 2 && jugg tap --text "MCP Test Page"
 ```
 
-路由后必须用 `activity-stack` 或 `layout-dump` 确认已进入 `McpTestActivity`。路由失败或确认失败时记 `SKIP: page route failed`，不得直接执行目标 selector。
+Then confirm `McpTestActivity` through `activity-stack` or `layout-dump`. If routing or confirmation fails, record `SKIP: page route failed`; do not execute the target selector.
 
-## APP-1: 重启应用
+## APP-1: Restart the App
 
-Prompt：重启当前 app，然后确认前台 Activity。
+Prompt: Restart the current app, then confirm the foreground Activity.
 
-期望：
-- 先选择 `restart`。
-- 再用 `activity-stack` 记录重启后的前台 Activity。
-- 无设备或 app 未安装时记录错误，不改用 adb。
+Expected:
+- Select `restart` first.
+- Use `activity-stack` to record the foreground Activity after restart.
+- If there is no device or the app is not installed, record the error; do not switch to adb.
 
-## TAP-1: 安全文本点击
+## TAP-1: Safe Text Tap
 
-Prompt：在 McpTestActivity 点击文本为 `Unique MCP Target` 的按钮。
+Prompt: In McpTestActivity, tap the button whose text is `Unique MCP Target`.
 
-期望：
-- 先执行 McpTestActivity 路由命令。
-- 路由后用 `activity-stack` 或 `layout-dump` 记录 gate 证据。
-- 选择 `tap --text "Unique MCP Target"`。
-- 不先做无意义截图。
+Expected:
+- Run the McpTestActivity route first.
+- Record gate evidence with `activity-stack` or `layout-dump` after routing.
+- Select `tap --text "Unique MCP Target"`.
+- Do not take an unnecessary screenshot first.
 
-## TAP-2: resourceId 点击
+## TAP-2: Resource-ID Tap
 
-Prompt：点击 resource id 为 `btn_mcp_resource_target` 的按钮。
+Prompt: Tap the button with resource ID `btn_mcp_resource_target`.
 
-期望：
-- 先执行 McpTestActivity 路由命令，并记录 gate 证据。
-- 选择 `tap --resource-id btn_mcp_resource_target`。
-- 不使用过期 `--id`。
+Expected:
+- Run the McpTestActivity route and record gate evidence first.
+- Select `tap --resource-id btn_mcp_resource_target`.
+- Do not use obsolete `--id`.
 
-## TAP-3: 百分比点击
+## TAP-3: Percent-Based Tap
 
-Prompt：测试环境已确认页面左侧空白点 `x=10%, y=50%` 点击无副作用，请点击该位置。
+Prompt: This test environment has confirmed that tapping the blank area on the left at `x=10%, y=50%` has no side effect. Tap there.
 
-期望：
-- 选择 `tap --x-percent 10 --y-percent 50`。
-- 不使用过期 `--xp` / `--yp`。
-- 如果 prompt 未声明安全性，应跳过坐标点击。
+Expected:
+- Select `tap --x-percent 10 --y-percent 50`.
+- Do not use obsolete `--xp` or `--yp`.
+- Skip coordinate tapping if the prompt does not establish safety.
 
-## TAP-4: 长按
+## TAP-4: Long Press
 
-Prompt：测试环境已确认页面左侧空白点 `x=10%, y=50%` 长按无副作用，请在该位置长按 500ms。
+Prompt: This test environment has confirmed that a long press in the blank area on the left at `x=10%, y=50%` has no side effect. Press there for 500 ms.
 
-期望：
-- 选择 `tap --action long-press --x-percent 10 --y-percent 50 --duration 500`。
-- 没有安全声明时记 `SKIP: no safe target`。
+Expected:
+- Select `tap --action long-press --x-percent 10 --y-percent 50 --duration 500`.
+- Without a safety statement, record `SKIP: no safe target`.
 
-## TAP-5: 滑动
+## TAP-5: Swipe
 
-Prompt：在 McpTestActivity 的可滑动区域从下往上滑动。
+Prompt: Swipe upward in the scrollable region of McpTestActivity.
 
-期望：
-- 先执行 McpTestActivity 路由命令。
-- 再通过 `layout-dump` 确认可滑动区域存在。
-- 选择 `tap --action swipe`，并提供起点和终点百分比或坐标。
-- 百分比参数使用 `--x-percent`、`--y-percent`、`--end-x-percent`、`--end-y-percent`。
+Expected:
+- Run the McpTestActivity route first.
+- Confirm that a scrollable region exists through `layout-dump`.
+- Select `tap --action swipe` with start and end percentages or coordinates.
+- Use `--x-percent`, `--y-percent`, `--end-x-percent`, and `--end-y-percent` for percentages.
 
-## TAP-6: 多匹配元素
+## TAP-6: Multiple Matching Elements
 
-Prompt：点击文本为 `Repeat Tap Target` 的按钮。
+Prompt: Tap the button whose text is `Repeat Tap Target`.
 
-期望：
-- 先执行 McpTestActivity 路由命令，并记录 gate 证据。
-- 选择 `tap --text "Repeat Tap Target"`。
-- 如果 CLI 返回多匹配，应记录候选并判为需要 disambiguation，而不是随机点击。
+Expected:
+- Run the McpTestActivity route and record gate evidence first.
+- Select `tap --text "Repeat Tap Target"`.
+- If the CLI returns multiple matches, record the candidates and request disambiguation rather than tapping randomly.
 
-## TAP-7: tap 缺少目标
+## TAP-7: Missing Tap Target
 
-Prompt：验证空 tap 请求不会被当成成功。
+Prompt: Verify that an empty tap request is not treated as success.
 
-期望：
-- Agent 应知道 `tap` 至少需要坐标、百分比或元素 selector。
-- 若执行空 `tap`，应把参数错误判为预期失败。
+Expected:
+- The agent should know that `tap` requires coordinates, percentages, or an element selector.
+- If it runs an empty `tap`, classify the argument error as an expected failure.

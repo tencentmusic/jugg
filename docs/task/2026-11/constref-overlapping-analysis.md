@@ -1,5 +1,9 @@
 # 修复 ConstRef 重叠分析漏跟编
 
+**Purpose** — Preserve pending constant changes across overlapping analyses.
+**Decision** — Keep existing unacknowledged changes when later analysis finds an empty delta.
+**Impact** — Future queries can still discover callers.
+
 ## 场景
 
 IDE 一次保存多个文件，或 CI 同时提交多个源码文件做增量编译时，后台分析与编译触发的按需分析可能选中同一个常量定义文件。后台先将定义从旧值写成新值并登记跟编差异。按需分析随后读到同一个新值，得出空差异，原先会清掉该文件的待跟编记录。引用方因此继续使用基线中内联的旧值。

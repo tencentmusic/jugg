@@ -288,16 +288,16 @@ def report_group(index: int, group: Sequence[Alignment]) -> List[str]:
     old = [item.reference for item in group if item.reference]
     new = [item.final for item in group if item.final]
     if old and new:
-        title = f"{index}. 修改（中间版 {line_range(old)} → 最终版 {line_range(new)}）"
+        title = f"{index}. Changed (reference {line_range(old)} → final {line_range(new)})"
     elif old:
-        title = f"{index}. 删除（中间版 {line_range(old)}）"
+        title = f"{index}. Deleted (reference {line_range(old)})"
     else:
-        title = f"{index}. 新增（最终版 {line_range(new)}）"
+        title = f"{index}. Added (final {line_range(new)})"
     result = [title]
     if old:
-        result.append("   - 中间版：" + "\n     ".join(line.plain for line in old))
+        result.append("   - Reference: " + "\n     ".join(line.plain for line in old))
     if new:
-        result.append("   - 最终版：" + "\n     ".join(line.raw.strip() for line in new))
+        result.append("   - Final: " + "\n     ".join(line.raw.strip() for line in new))
     return result
 
 
@@ -314,25 +314,25 @@ def write_report(path: Path, aligned: Sequence[Alignment], reference_path: Path,
     changes = group_text_changes(aligned)
     media = media_changes(aligned)
     lines = [
-        "# 文章文字差异",
+        "# Article text differences",
         "",
-        f"- 中间版：`{reference_path}`",
-        f"- 最终版：`{final_path}`",
-        "- 说明：已忽略 Markdown 标记、列表编号和空白差异；媒体占位单独列出。",
+        f"- Reference: `{reference_path}`",
+        f"- Final: `{final_path}`",
+        "- Note: Markdown markers, list numbers, and whitespace differences are ignored; media placeholders are reported separately.",
         "",
-        f"共 {len(changes)} 处正文增删改。",
+        f"Text change groups: {len(changes)}.",
         "",
     ]
     for index, group in enumerate(changes, 1):
         lines.extend(report_group(index, group))
         lines.append("")
     if media:
-        lines.extend(["## 媒体占位差异", ""])
+        lines.extend(["## Media placeholder differences", ""])
         for item in media:
             if item.reference:
-                lines.append(f"- 中间版 L{item.reference.line_no} 有占位，最终版纯文本中未找到：{item.reference.raw.strip()}")
+                lines.append(f"- Reference L{item.reference.line_no} has a placeholder absent from final text: {item.reference.raw.strip()}")
             elif item.final:
-                lines.append(f"- 最终版 L{item.final.line_no} 新增图片占位，但中间版没有可复用的图片路径：{item.final.raw.strip()}")
+                lines.append(f"- Final L{item.final.line_no} adds an image placeholder without a reusable reference path: {item.final.raw.strip()}")
         lines.append("")
     path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
     return len(changes)

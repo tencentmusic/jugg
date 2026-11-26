@@ -1,6 +1,6 @@
 package com.sickworm.intellij.jugg.ide.logic
 
-import com.android.ddmlib.IDevice
+import com.sickworm.intellij.jugg.deploy.api.IDevice
 import com.google.gson.Gson
 import com.intellij.execution.runners.ExecutionUtil
 import com.intellij.openapi.diagnostic.Logger
@@ -19,12 +19,16 @@ import com.sickworm.intellij.jugg.deploy.LastChangedDeploySnapshot
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.deploy.IJuggRunningTaskStatusManager
+import com.sickworm.intellij.jugg.deploy.getTargetDeviceSerialList
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestResultModel
 import com.sickworm.intellij.jugg.deploy.run.DeployOptions
+import com.sickworm.intellij.jugg.deploy.run.DeployProgress
 import com.sickworm.intellij.jugg.deploy.run.DeployTaskResult
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
+import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
+import com.sickworm.intellij.jugg.deploy.run.IdeVersion
 import com.sickworm.intellij.jugg.ide.controlpanel.JuggControlPanelModel
 import com.sickworm.intellij.jugg.ide.controlpanel.JuggEvent
 import com.sickworm.intellij.jugg.ide.bean.IProcessHandler
@@ -33,9 +37,12 @@ import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.ide.ui.ProcessHandlerLoggerWrapper
 import com.sickworm.intellij.jugg.ide.ui.JuggControlPanelController
 import com.sickworm.intellij.jugg.logger.JuggLogger
-import com.sickworm.intellij.jugg.project.ILastCompileProjectRegistry
-import com.sickworm.intellij.jugg.project.LastCompileProjectRegistry
+import com.sickworm.intellij.jugg.project.runtime.ILastCompileProjectRegistry
+import com.sickworm.intellij.jugg.project.runtime.LastCompileProjectRegistry
+import com.sickworm.intellij.jugg.project.runtime.ProjectCustomConfigManager
+import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
+import com.sickworm.intellij.jugg.server.isFailureLogUploadEligible
 import com.sickworm.intellij.jugg.server.JuggServer
 import java.io.File
 import java.io.PrintWriter
@@ -50,6 +57,8 @@ private typealias JuggEventLevel = JuggEvent.Level
 private typealias JuggEventPhase = JuggEvent.Phase
 private typealias JuggEventSource = JuggEvent.Source
 private typealias JuggEventStatus = JuggEvent.Status
+
+private val QUAIL_4_VERSION = IdeVersion("Android Studio Quail 4", "AI", "261.26222.65")
 
 /**
  * Implementation of compilation and deployment.
@@ -69,6 +78,9 @@ class JuggRunningTask(
     private val initIncrementalCompileTask: () -> Unit,
     baseCompileUiHandler: CompileUiHandler,
     private val eventModel: JuggControlPanelModel,
+    private val taskRunnerManager: TaskRunnerManager,
+    private val projectCustomConfigManager: ProjectCustomConfigManager,
+    private val recoverAfterRuntimeOwnerChange: () -> Boolean,
     private val androidTestRunSpec: AndroidTestRunSpec? = null,
     private val lastCompileProjectRegistry: ILastCompileProjectRegistry = LastCompileProjectRegistry.INSTANCE,
     private val logger: Logger = JuggLogger.getInstance(project, "JuggRunningTask"),
@@ -108,22 +120,33 @@ class JuggRunningTask(
         private set
 
     override fun run(indicator: ProgressIndicator) {
-        val loggerListener = createRunProjectLogListener(processHandler)
-        var isNeedResetHasRun = false
-        try {
+        taskRunnerManager.runProjectWriteLocked("Run Jugg") {
             if (TestModeManager.isRuntimeTestEnabled()) {
                 RuntimeMockUtils.runTest(logger)
-                return
+                return@runProjectWriteLocked
             }
+            val loggerListener = createRunProjectLogListener(processHandler)
+            JuggLogger.recreateLogFileIfDeleted(project)
+            // Start forwarding INFO logs before ownership recovery so switch notices appear in the Run console.
+            JuggLogger.listenProjectLog(project, loggerListener)
+            try {
+                projectCustomConfigManager.refresh()
+                runLocked(indicator, recoverAfterRuntimeOwnerChange())
+            } finally {
+                JuggLogger.stopListenProjectLog(project, loggerListener)
+            }
+        }
+    }
 
+    private fun runLocked(indicator: ProgressIndicator, runtimeOwnerChanged: Boolean) {
+        var isNeedResetHasRun = false
+        try {
             controlPanelController?.refresh()
 
-            statusManager.isProjectSwitchedThisRun =
+            statusManager.isProjectSwitchedThisRun = statusManager.isProjectSwitchedThisRun || runtimeOwnerChanged ||
                 lastCompileProjectRegistry.detectSwitch(options.projectRootPath)
 
             dependencyChangeManager.onStartBuilding()
-            JuggLogger.recreateLogFileIfDeleted(project)
-            JuggLogger.listenProjectLog(project, loggerListener)
             juggServer.onCompile()
 
             isRunning = true
@@ -179,12 +202,12 @@ class JuggRunningTask(
             if (isNeedResetHasRun) {
                 statusManager.resetHasRun()
             } else {
-                statusManager.setHasRun(deployTargetManager.getDeviceNameList())
+                statusManager.setHasRun(deployTargetManager.getTargetDeviceSerialList(compileUiHandler.targetDeviceSerial))
             }
+            statusManager.isProjectSwitchedThisRun = false
             if (!hasTerminalEvent && isCanceled) {
                 finishEvent(JuggEventCategory.COMPILE, JuggEventStatus.CANCELED, "Jugg task canceled")
             }
-            JuggLogger.stopListenProjectLog(project, loggerListener)
             stop(indicator)
             controlPanelController?.refresh()
         }
@@ -197,9 +220,11 @@ class JuggRunningTask(
                 compileUiHandler.showRunWindow()
             }
             val toolWindowManager: ToolWindowManager = ToolWindowManager.getInstance(project)
-            toolWindowManager.getToolWindow("Run")?.let {
-                val icon = ExecutionUtil.getLiveIndicator(it.icon)
-                it.setIcon(icon)
+            if (AsDeployerCompat.ideVersion < QUAIL_4_VERSION) {
+                toolWindowManager.getToolWindow("Run")?.let {
+                    val icon = ExecutionUtil.getLiveIndicator(it.icon)
+                    it.setIcon(icon)
+                }
             }
         }
     }
@@ -307,14 +332,16 @@ class JuggRunningTask(
                 isCompileSuccess = true, isDeploySuccess = false, isNeedResetHasRun = true, isCancel = processHandler.isCanceled)
         }
 
-        val devices = deployTargetManager.getSelectedDevices()
+        val devices = deployTargetManager.getTargetDevices(compileUiHandler.targetDeviceSerial)
         if (devices.isEmpty()) {
             val deployType = if (compileTaskResult.isGradleCompile) {
                 "installing"
             } else {
                 "deploying"
             }
-            val failedReason = "No device found. Stop $deployType."
+            val failedReason = compileUiHandler.targetDeviceSerial?.let {
+                "Device $it is not connected. Stop $deployType."
+            } ?: "No device found. Stop $deployType."
             logger.warn(failedReason)
             failedAndActiveRunWindowIfNotCanceled()
 
@@ -445,7 +472,7 @@ class JuggRunningTask(
                 isLastDevice = isLastDevice,
                 isMultipleDevices = isMultipleDevices,
                 processHandler = processHandler,
-                indicator = indicator,
+                progress = DeployProgress { text -> indicator.text = text },
                 isInstall = compileTaskResult.isGradleCompile,
                 compileUiHandler = compileUiHandler,
                 customApkInstallScript = options.customApkInstallScript.takeIf {
@@ -515,27 +542,8 @@ class JuggRunningTask(
     }
 
     private fun uploadFailureLogsIfNeeded(result: RunResult, isEligible: Boolean) {
-        if (!autoUploadFailureLogs || !isEligible || result.isCancel) {
-            return
-        }
-        val failureSummary = (listOfNotNull(result.failedReason) + result.errorLog).joinToString("\n")
-        val excludeRegex = autoUploadFailureLogsExcludeRegex?.takeIf { it.isNotBlank() }
-        if (excludeRegex != null && runCatching { Regex(excludeRegex) }.isFailure) {
-            logger.debug("Auto upload failure logs skipped: invalid exclude regex")
-            return
-        }
-        if (!shouldAutoUploadFailureLogs(
-                autoUploadFailureLogs,
-                isEligible && !result.isCancel,
-                excludeRegex,
-                failureSummary,
-            )) {
-            return
-        }
-        val failureLines = failureSummary.lineSequence().map { it.trim() }.filter { it.isNotEmpty() }.toList()
-        val reason = failureLines.firstOrNull()
-            ?: if (result.isCompileSuccess) "Deploy failed" else "Compile failed"
-        juggServer.uploadFailureLogs(reason, failureSummary.takeIf { it.isNotBlank() && it != reason }, projectModuleCount)
+        juggServer.reportRunFailure(result, isEligible, autoUploadFailureLogs,
+            autoUploadFailureLogsExcludeRegex, projectModuleCount)
     }
 
     private fun recordCompileStarted(isGradleCompile: Boolean, fallbackReason: String?) {
@@ -687,27 +695,6 @@ internal fun shouldDetachProcessOnTaskStop(isProcessCanceled: Boolean): Boolean 
     return !isProcessCanceled
 }
 
-internal fun shouldAutoUploadFailureLogs(
-    isEnabled: Boolean,
-    isEligible: Boolean,
-    excludeRegex: String?,
-    failureSummary: String,
-): Boolean {
-    if (!isEnabled || !isEligible) {
-        return false
-    }
-    val pattern = excludeRegex?.takeIf { it.isNotBlank() } ?: return true
-    val regex = runCatching { Regex(pattern) }.getOrNull() ?: return false
-    return !regex.containsMatchIn(failureSummary)
-}
-
-internal fun isFailureLogUploadEligible(result: RunResult, hasAttemptedDeploy: Boolean): Boolean {
-    if (result.isCancel) {
-        return false
-    }
-    return !result.isCompileSuccess || hasAttemptedDeploy && !result.isDeploySuccess
-}
-
 internal fun buildDeployFailureReason(results: List<DeployTaskResult>): String {
     return results.filterNot { it.isSuccess }
         .joinToString(", ") { it.failedReason ?: "deploy failed" }
@@ -782,5 +769,5 @@ private val IDevice.desc: String get() {
             "model: ${model}, " +
             "version: ${version}, " +
             "isOnline: ${isOnline}, " +
-            "clients: ${clients.size}"
+            "clients: $clientCount"
 }

@@ -246,7 +246,7 @@ task 缺失或关键属性无法读取时，输出明确的 unsupported reason �
 4. 修改 `ExternalBuildCompiler` 仅消费 stripped collector output。
 5. 执行定向 L1/Internal Flow/Gradle compat 测试。
 6. 使用双 native module 实际工程完成 L3：核对任务列表、产物 hash、安装和运行结果。
-7. 同步 [02_compile_core.md](../../ai_knowledge/02_compile_core.md)、[02_compile_resource.md](../../ai_knowledge/02_compile_resource.md)、[03_deploy_core.md](../../ai_knowledge/03_deploy_core.md)，并检查中英文 Wiki 的 SO 更新页面是否需要同步。
+7. 同步 [02_compile_core.md](../../ai/02_compile_core.md)、[02_compile_resource.md](../../ai/02_compile_resource.md)、[03_deploy_core.md](../../ai/03_deploy_core.md)，并检查中英文 Wiki 的 SO 更新页面是否需要同步。
 
 ## 12. 范围边界
 

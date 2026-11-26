@@ -1,9 +1,9 @@
 package com.sickworm.intellij.jugg.deploy.direct
 
+import com.sickworm.intellij.jugg.deploy.api.DexComparator
+import com.sickworm.intellij.jugg.deploy.api.DexClass
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentCacheEntry
-import com.sickworm.intellij.jugg.deploy.run.JuggDexClass
-import com.sickworm.intellij.jugg.deploy.run.JuggDexOverlays
 import com.sickworm.intellij.jugg.deploy.run.JuggOverlayFile
 import com.sickworm.intellij.jugg.deploy.run.JuggOverlayId
 import com.sickworm.intellij.jugg.deploy.run.JuggOverlayUpdate
@@ -22,10 +22,10 @@ class DirectOverlayWriteRequestBuilderTest {
         val baseId = JuggOverlayId(raw = Any(), sha = "base", isBaseInstall = false)
         val nextId = JuggOverlayId(raw = Any(), sha = "next", isBaseInstall = false)
         whenever(compat.buildOverlayId(eq(baseId), any())).thenReturn(nextId)
-        val clazz = JuggDexClass("com/example/Foo", 1L, byteArrayOf(1))
+        val clazz = DexClass("com/example/Foo", 1L, byteArrayOf(1), null)
         val overlayUpdate = JuggOverlayUpdate(
             cachedDump = JuggDeploymentCacheEntry(raw = Any(), apks = emptyList(), overlayId = baseId),
-            dexOverlays = JuggDexOverlays(listOf(clazz), listOf(clazz)),
+            dexOverlays = DexComparator.ChangedClasses(listOf(clazz), listOf(clazz)),
             fileOverlays = emptyMap(),
             raw = Any(),
         )
@@ -33,7 +33,7 @@ class DirectOverlayWriteRequestBuilderTest {
         val prepared = DirectOverlayWriteRequestBuilder().build(
             packageName = "com.example",
             overlayUpdate = overlayUpdate,
-            asDeployerCompat = compat,
+            applyChangesExecutor = compat,
             isFullResourcePush = false,
         )
 

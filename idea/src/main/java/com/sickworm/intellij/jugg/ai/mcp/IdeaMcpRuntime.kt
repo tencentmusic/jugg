@@ -1,7 +1,6 @@
 package com.sickworm.intellij.jugg.ai.mcp
 
 import com.intellij.openapi.diagnostic.Logger
-import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.compiler.ForceGradleCompileHelper
 import com.sickworm.intellij.jugg.compiler.IIncrementalCompileFallbackChecker
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
@@ -11,12 +10,15 @@ import com.sickworm.intellij.jugg.ide.logic.IJuggConfigurationRunner
 import com.sickworm.intellij.jugg.loader.JuggInitializer
 import com.sickworm.intellij.jugg.ai.mcp.actions.ListProjectsMcpToolAction
 import com.sickworm.intellij.jugg.ai.mcp.actions.McpToolActionRegistry
-import com.sickworm.intellij.jugg.project.GitFileChangesDetector
-import com.sickworm.intellij.jugg.project.ProjectDirNormalizer
+import com.sickworm.intellij.jugg.project.change.GitFileChangesDetector
+import java.io.File
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
+import com.sickworm.intellij.jugg.project.runtime.ProjectDirNormalizer
+import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
 
 class IdeaMcpRuntime(
     override val logger: Logger,
-    override val project: Project,
+    override val projectDir: String,
     override val deployTargetManager: IDeployTargetManager,
     override val deployStateManager: IDeployStateManager,
     override val forceGradleCompileHelper: ForceGradleCompileHelper,
@@ -24,10 +26,32 @@ class IdeaMcpRuntime(
     override val deployFileManager: DeployFileManager,
     override val incrementalCompileFallbackChecker: IIncrementalCompileFallbackChecker,
     private val gitFileChangesDetector: GitFileChangesDetector,
+    private val taskRunnerManager: TaskRunnerManager,
+    private val recoverAfterRuntimeOwnerChange: () -> Boolean,
 ) : IMcpRuntime {
+
+    override val compileLatestLogPath: String = File(JuggPathManager(File(projectDir)).logDir, "compile_latest.log").absolutePath
 
     override fun refreshChangedFilesForStatus() {
         gitFileChangesDetector.updateChangedFiles()
+    }
+
+    override fun <T> withProjectStateLocked(action: () -> T): T {
+        return taskRunnerManager.runProjectWriteLocked("Read Jugg status") {
+            recoverAfterRuntimeOwnerChange()
+            action()
+        }
+    }
+
+    override fun <T : Any> tryWithProjectStateLocked(action: () -> T): T? {
+        return taskRunnerManager.tryRunProjectWriteLocked("Read Jugg status") {
+            recoverAfterRuntimeOwnerChange()
+            action()
+        }
+    }
+
+    override fun isAppReadyDeploy(): Boolean {
+        return deployStateManager.updateDeployState().isReadyDeploy
     }
 
     companion object {

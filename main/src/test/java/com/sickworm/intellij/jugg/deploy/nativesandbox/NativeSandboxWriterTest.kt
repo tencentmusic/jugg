@@ -90,6 +90,50 @@ class NativeSandboxWriterTest {
     }
 
     @Test
+    fun `backup directory failure stops publication before later libraries`() {
+        withLargeNative { first, source ->
+            val second = DeployItem.fileBackedNativeLib(
+                name = "lib/arm64-v8a/libsecond.so", checksum = 2L,
+                file = source, apkPath = "/tmp/base.apk",
+            )
+            val root = Files.createTempDirectory("jugg-native-publish").toFile()
+            try {
+                val overlay = File(root, "code_cache/.overlay/base.apk/lib/arm64-v8a")
+                val pending = File(root, "code_cache/.jugg_native_stage/session/pending/base.apk/lib/arm64-v8a")
+                val blockedBackup = File(root, "code_cache/.jugg_native_stage/session/backup/base.apk/lib")
+                overlay.mkdirs()
+                pending.mkdirs()
+                blockedBackup.parentFile.mkdirs()
+                blockedBackup.writeText("not a directory")
+                listOf("liblarge.so", "libsecond.so").forEach { name ->
+                    File(overlay, name).writeText("old-$name")
+                    File(pending, name).writeText("new-$name")
+                }
+                val writer = NativeSandboxWriter(RecordingAdb(), shellSandbox(root),
+                    Mockito.mock(Logger::class.java), Mockito.mock(NativeLibraryDelta::class.java))
+
+                val failure = assertFailsWith<NativeSandboxDeployException> {
+                    writer.publish(request(first).copy(files = listOf(first, second)))
+                }
+
+                assertEquals(NativeSandboxDeployStep.COPY, failure.step)
+                listOf("liblarge.so", "libsecond.so").forEach { name ->
+                    assertEquals("old-$name", File(overlay, name).readText())
+                    assertEquals("new-$name", File(pending, name).readText())
+                }
+                assertTrue(blockedBackup.delete())
+                writer.publish(request(first).copy(files = listOf(first, second)))
+                listOf("liblarge.so", "libsecond.so").forEach { name ->
+                    assertEquals("new-$name", File(overlay, name).readText())
+                    assertFalse(File(pending, name).exists())
+                }
+            } finally {
+                root.deleteRecursively()
+            }
+        }
+    }
+
+    @Test
     fun `unknown apk scope fails before pushing`() {
         withLargeNative { item, _ ->
             val adb = RecordingAdb()

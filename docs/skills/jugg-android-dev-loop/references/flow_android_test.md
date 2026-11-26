@@ -70,7 +70,7 @@ executed command=`{{jugg instrument --source-path ...|adb shell am instrument ..
 Result: `{{PASS|FAIL|INCONCLUSIVE}}`. deploy result: `{{true|false|unknown}}`, instrument result: `{{PASS|FAIL|SKIP|unknown}}`. {{short reason}}
 ```
 
-中文模板：
+Chinese output template:
 
 ```
 # Jugg AndroidTest 结果 

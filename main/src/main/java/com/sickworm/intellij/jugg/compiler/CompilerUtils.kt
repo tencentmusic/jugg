@@ -1,12 +1,15 @@
 package com.sickworm.intellij.jugg.compiler
 
 import com.intellij.openapi.diagnostic.Logger
-import com.sickworm.intellij.jugg.project.JuggGlobalPathManager
+import com.sickworm.intellij.jugg.project.runtime.JuggGlobalPathManager
+import com.sickworm.intellij.jugg.project.runtime.withGlobalResourceLock
 import java.io.BufferedReader
 import java.io.File
 import java.io.IOException
 import java.io.InputStreamReader
+import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.util.*
 
 /**
@@ -96,25 +99,43 @@ fun List<File>.relativePathForPrintSafe(baseDirPath: File): List<File> {
 }
 
 fun copyResource(resourcePath: String): File {
-    val storePath = JuggGlobalPathManager.resourceFile(resourcePath)
-    val isAlwaysUpdate = false
-    if (storePath.exists() && !isAlwaysUpdate) {
-        return storePath
-    }
-    val parent = storePath.parentFile
-        ?: throw IOException("Invalid Jugg resource path: $resourcePath")
-    try {
-        Files.createDirectories(parent.toPath())
-    } catch (e: IOException) {
-        throw IOException("Failed to create Jugg resource directory: ${parent.absolutePath}", e)
-    }
-    JuggCompiler::class.java.getResource(resourcePath)!!.openStream().use { ins ->
-        storePath.outputStream().use { ous ->
-            ins.copyTo(ous)
+    return withGlobalResourceLock("Extract runtime resource") {
+        val storePath = JuggGlobalPathManager.resourceFile(resourcePath)
+        if (storePath.exists()) {
+            return@withGlobalResourceLock storePath
         }
+        val parent = storePath.parentFile
+            ?: throw IOException("Invalid Jugg resource path: $resourcePath")
+        try {
+            Files.createDirectories(parent.toPath())
+        } catch (e: IOException) {
+            throw IOException("Failed to create Jugg resource directory: ${parent.absolutePath}", e)
+        }
+        val tempFile = File(parent, "${storePath.name}.${UUID.randomUUID()}.tmp")
+        try {
+            JuggCompiler::class.java.getResource(resourcePath)!!.openStream().use { input ->
+                tempFile.outputStream().use { output -> input.copyTo(output) }
+            }
+            moveResourceAtomically(tempFile, storePath)
+        } finally {
+            tempFile.delete()
+        }
+        storePath.setExecutable(true)
+        storePath
     }
-    storePath.setExecutable(true)
-    return storePath
+}
+
+private fun moveResourceAtomically(source: File, target: File) {
+    try {
+        Files.move(
+            source.toPath(),
+            target.toPath(),
+            StandardCopyOption.REPLACE_EXISTING,
+            StandardCopyOption.ATOMIC_MOVE,
+        )
+    } catch (_: AtomicMoveNotSupportedException) {
+        Files.move(source.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING)
+    }
 }
 
 private val osName = System.getProperty("os.name").lowercase(Locale.getDefault())

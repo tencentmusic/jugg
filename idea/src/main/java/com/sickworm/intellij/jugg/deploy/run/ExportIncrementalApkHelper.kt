@@ -9,7 +9,7 @@ import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.toDeployItem
 import com.sickworm.intellij.jugg.ide.ui.CommonErrorDialog
 import com.sickworm.intellij.jugg.ide.ui.DirectorySelector
-import com.sickworm.intellij.jugg.project.TaskRunnerManager
+import com.sickworm.intellij.jugg.project.runtime.TaskRunnerManager
 import java.io.File
 
 class ExportIncrementalApkHelper(

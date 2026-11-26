@@ -1,7 +1,7 @@
 package com.sickworm.intellij.jugg.compiler
 
-import com.sickworm.intellij.jugg.project.BaseCompileContext
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.compiler.context.BaseCompileContext
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import org.junit.Test
 import java.io.File
 import kotlin.test.assertNotNull

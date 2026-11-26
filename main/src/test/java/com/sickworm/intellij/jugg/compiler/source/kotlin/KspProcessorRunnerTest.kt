@@ -2,9 +2,9 @@ package com.sickworm.intellij.jugg.compiler.source.kotlin
 
 import com.sickworm.intellij.jugg.compiler.ICompileContext
 import com.sickworm.intellij.jugg.mock.StdLogger
-import com.sickworm.intellij.jugg.project.data.KspInfo
-import com.sickworm.intellij.jugg.project.data.LibraryDependency
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.KspInfo
+import com.sickworm.intellij.jugg.project.info.LibraryDependency
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test

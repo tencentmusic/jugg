@@ -5,7 +5,7 @@ import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.sickworm.intellij.jugg.compiler.BuildTarget
 import com.sickworm.intellij.jugg.mock.logger
 import com.sickworm.intellij.jugg.mock.mockModule
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import org.junit.After
 import org.junit.Before
 import org.junit.Test

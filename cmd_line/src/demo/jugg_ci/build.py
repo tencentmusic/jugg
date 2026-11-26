@@ -1,39 +1,5 @@
 #!/usr/bin/env python3
-"""Jugg demo 的 CI 构建编排入口。
-
-直接运行本脚本即可构建，所有业务配置集中在文件头的常量和策略方法区。
-主流程：准备 cmd_line → 查询祖先基线 → 过滤变更 → 增量或 Gradle 构建
-→ 上传 Gradle 基线 → 输出 build-result.json。
-命令执行位于 _common.py，HTTP 调用位于 demo_flow/baseline_service.py，文件忽略规则在 filter_changed_files()。
-
-本文件函数调用树
-
-main
-└── build
-    ├── make_scenario_key                       # 生成缓存 key，包含 Gradle 任务和本地配置摘要，用于隔离不同构建缓存
-    ├── validate_and_get_target_commit          # 确认工作区 clean，并获取目标提交 commit
-    ├── choose_baseline                         # 匹配可用基线
-    │   ├── find_nearest_candidates             # 选择最近的候选基线
-    │   │   ├── resolve_repository_root
-    │   │   └── find_nearest_commit
-    │   │       └── jugg('findNearestBaseCommit')
-    │   └── evaluate_baseline_candidate         # 评估候选基线是否可用
-    │       ├── relocate_baseline
-    │       │   └── relocate
-    │       ├── jugg('getChangedFiles')         # 获取 jugg 视角的变更文件，带类型
-    │       ├── resolve_repository_root
-    │       ├── filter_changed_files            # 主动过滤不影响构建的未知用途文件，未过滤会触发 jugg 降级
-    │       ├── check_changed_files_fallback    # 确认变更的文件清单是否需要降级（数量、文件类型）
-    │       └── check_changed_content_fallback  # 根据业务配置的规则（差异、注解、插桩黑名单），确认变更内容是否需要降级
-    │           ├── get_repository_diff
-    │           └── detect_repo_fallback_reason
-    │               ├── find_diff_annotation
-    │               │   └── find_annotation
-    │               └── find_annotation
-    ├── jugg('buildIncrementalApk')             # 结果 1：增量编译
-    ├── jugg('buildGradleBase')                 # 结果 2：降级编译
-    └── publish_baseline                        # 如果是降级编译，上传新的基线到服务器
-"""
+"""Build the current commit using a compatible CI baseline or Gradle."""
 import argparse
 from contextlib import suppress
 from datetime import datetime, timezone
@@ -50,37 +16,37 @@ import zipfile
 
 from _common import HERE, log, run, run_logged
 
-# 允许直接从任意目录运行 build.py 并加载发行包的 HTTP 模块。
+# Load the packaged HTTP client when invoked from another directory.
 sys.path.insert(0, str(HERE))
 from demo_flow.baseline_service import download as download_artifact, records as api, upload as upload_artifact
 
-# -------------------- 业务配置：按当前工程和 CI 环境修改 --------------------
+# Project and CI configuration
 DEFAULT_SERVER = 'http://127.0.0.1:18766'
 SCENARIOS = {
-    # 演示工程将各模块的构建产物集中到根目录的 build/<模块名>。
+    # Module outputs live under the root build directory.
     'debug': ('assembleDebug', 'build/app/outputs/apk/debug/app-debug.apk'),
     'release': ('bundleReleaseToApk', 'build/app/outputs/bundle/release/duplicated-app.apk'),
 }
 
 
-# 文件数上限由 CI 接入方制定，超过 100 个时重新建立 Gradle 基线。
+# The CI policy chooses the maximum incremental file count.
 MAX_INCREMENTAL_FILES = 100
-# 两组规则分别匹配注解变更行和变更源码全文，接入时按项目的注解处理或插桩需求配置。
+# Match either changed annotation lines or all changed source text.
 DIFF_FALLBACK_ANNOTATIONS = (
-    'Keep',  # 仅 release 启用 R8，注解增删需要重新计算保留规则。
-    # 'Route',  # ARouter 已支持路由新增和修改，删除类上的最后一个路由注解需要 Gradle。
-    # 'BindingAdapter',  # Jugg 有 Data Binding 增量处理路径。
-    # 'Composable', 'Preview', 'Parcelize',  # Jugg 复用工程的 Compose 和 Parcelize 编译插件。
-    # 'OptIn', 'HiddenFromObjC',  # Jugg 增量编译复用工程的 KMP opt-in 配置。
+    'Keep',  # The release build uses R8 and must recompute keep rules.
+    # 'Route',  # Removing the last route on a class requires Gradle.
+    # 'BindingAdapter',  # Handled by incremental Data Binding.
+    # 'Composable', 'Preview', 'Parcelize',  # Project compiler plugins are reused.
+    # 'OptIn', 'HiddenFromObjC',  # Project KMP opt-ins are reused.
 )
 FULL_FALLBACK_ANNOTATIONS = (
-    # 'BindView', 'BindString', 'OnClick',  # Jugg 支持 ButterKnife 增量生成，demo 的 BV 是 BindView 的别名。
-    # 'JsonClass', 'Json',  # demo 的 Moshi 适配器使用 Jugg 支持的 KSP1 路径。
-    # Hilt 已有生成物可用于入口转换，注入图变化仍需运行 Gradle 的注解处理。
+    # 'BindView', 'BindString', 'OnClick',  # BV aliases BindView in the demo.
+    # 'JsonClass', 'Json',  # The demo uses Moshi with KSP1.
+    # Hilt graph changes require annotation processing by Gradle.
     'Inject', 'AndroidEntryPoint', 'HiltAndroidApp',
 )
 
-# 是否跳过签名。如果是构建后在后续步骤签名，则可以设置为 True
+# Enable when downstream CI signs the delivered APK.
 SKIP_SIGN = False
 LOCAL_JUGG_CI_PATH = HERE.parent / 'bin/cmd_line'
 CUSTOM_COMPILER_JARS = (
@@ -90,7 +56,7 @@ CUSTOM_COMPILER_JARS = (
 
 
 def filter_changed_files(project, files):
-    # 演示工程只将根目录 README 视为与 APK 无关的输入。
+    # Only the root README is explicitly excluded from APK inputs.
     ignored = [f for f in files if Path(f['file']) == project / 'README.md']
     if ignored:
         log(5, '编排主动忽略文档：' + ', '.join(f['file'] for f in ignored))
@@ -98,12 +64,8 @@ def filter_changed_files(project, files):
 
 
 def detect_repo_fallback_reason(diff, files, scenario):
-    """功能：识别单仓代码差异或内容是否需要降级并返回原因。
-
-    diff 是该仓库基线到目标提交的 Java/Kotlin 零上下文补丁。
-    files 是 Jugg 返回的该仓库的变更条目，包含 file、type、module 和 gitRoot。
-    """
-    # 1. 差异规则只检查补丁增删行，不扫描变更文件全文。
+    """Check the repository Java/Kotlin patch and typed file list for fallback reasons."""
+    # Diff rules only inspect added and deleted lines.
     diff_annotations = DIFF_FALLBACK_ANNOTATIONS
     if scenario != 'release':
         diff_annotations = tuple(name for name in diff_annotations if name != 'Keep')
@@ -111,7 +73,7 @@ def detect_repo_fallback_reason(diff, files, scenario):
     if annotation:
         return f'Git diff 命中业务注解 @{annotation}，需要 Gradle 重新处理'
 
-    # 2. 全文规则同时检查补丁，覆盖最后一个注解被删除的情况。
+    # Check the patch as well, to catch removal of the last annotation.
     annotation = find_diff_annotation(diff, FULL_FALLBACK_ANNOTATIONS)
     if annotation:
         return f'Git diff 命中全文规则注解 @{annotation}，需要 Gradle 重新处理'
@@ -128,7 +90,7 @@ def detect_repo_fallback_reason(diff, files, scenario):
     return None
 
 
-# -------------------- 通用构建编排：业务策略在上方配置 --------------------
+# Shared build orchestration
 
 def make_scenario_key(project, task):
     properties = project / 'local.properties'
@@ -137,14 +99,14 @@ def make_scenario_key(project, task):
 
 
 def find_diff_annotation(diff, annotations):
-    """只匹配补丁增删行，排除文件头和未变化的上下文。"""
+    """Match added or removed patch lines, excluding headers and context."""
     changed_lines = '\n'.join(line[1:] for line in diff.splitlines()
                               if line.startswith(('+', '-')) and not line.startswith(('+++', '---')))
     return find_annotation(changed_lines, annotations)
 
 
 def find_annotation(source, annotations):
-    """按配置名称匹配注解文本，支持包名及 Kotlin use-site，返回首个命中项。"""
+    """Match the first configured annotation, including qualified names and Kotlin use-site targets."""
     for annotation in annotations:
         pattern = r'@(?:[\w$]+:)?(?:[\w$]+\.)*' + re.escape(annotation) + r'(?![\w$.])'
         if re.search(pattern, source):
@@ -153,9 +115,9 @@ def find_annotation(source, annotations):
 
 
 def validate_and_get_target_commit(project):
-    # 基线按 commit 建索引，因此被 Git 管理的输入必须与该提交一致。
-    # 同时拒绝未跟踪文件；已忽略的构建输出不参与检查。
-    # local.properties 由场景标识中的摘要隔离。
+    # Commit-indexed baselines require a clean checkout including untracked files.
+    # Ignored build outputs are excluded.
+    # The scenario key includes the local.properties digest.
     if run(['git', 'status', '--porcelain', '--untracked-files=normal'], project):
         raise RuntimeError('请先提交或移走工作区改动；CI 只构建干净 checkout')
     return run(['git', 'rev-parse', 'HEAD'], project)
@@ -164,8 +126,7 @@ def validate_and_get_target_commit(project):
 
 
 def check_changed_files_fallback(files):
-    """确认变更的文件清单是否需要降级（检查文件数量、文件类型与文件存在性）"""
-    # 阈值由文件头常量控制。
+    """Check file count, types, and existence."""
     if len(files) > MAX_INCREMENTAL_FILES:
         return f'变更超过 {MAX_INCREMENTAL_FILES} 个文件'
     for change in files:
@@ -177,7 +138,7 @@ def check_changed_files_fallback(files):
 
 
 def find_nearest_commit(jugg, root, commits, target, directory):
-    """复用 Jugg 单仓 first-parent 查询；没有匹配时正常返回 None。"""
+    """Return the nearest first-parent candidate or None."""
     directory.mkdir(parents=True, exist_ok=True)
     candidates, result = directory / 'commits.json', directory / 'result.json'
     candidates.write_text(json.dumps(list(dict.fromkeys(commits))))
@@ -191,7 +152,7 @@ def find_nearest_commit(jugg, root, commits, target, directory):
 
 
 def resolve_repository_root(repo, record, project):
-    """仓库位置相对主工程；旧绝对路径利用记录中的原工程位置恢复相对关系。"""
+    """Recover repository locations relative to the original checkout for legacy records."""
     root = Path(repo['gitRoot'])
     if root.is_absolute():
         previous_project = record.get('metadata', {}).get('projectDir', str(project))
@@ -200,7 +161,7 @@ def resolve_repository_root(repo, record, project):
 
 
 def relocate_baseline(baseline, project):
-    """只调整下载副本中的源码与备份路径，不修改服务端归档或全局工具缓存。"""
+    """Relocate source and backup paths in the downloaded copy."""
     marker = baseline / 'database/project_infos.db/history_project_dir.txt'
     if not marker.exists():
         return
@@ -214,7 +175,7 @@ def relocate_baseline(baseline, project):
     replacements = {str(previous / 'build/jugg'): str(baseline.resolve())}
     for root in roots:
         replacements[str(root)] = str((current / os.path.relpath(root, previous)).resolve())
-    # 优先替换最长前缀，避免 Jugg 备份路径被当作普通工程源码路径处理。
+    # Replace the longest prefix first to distinguish backup directories from source roots.
     prefixes = sorted(replacements, key=len, reverse=True)
 
     def relocate(value):
@@ -238,13 +199,13 @@ def relocate_baseline(baseline, project):
 
 
 def find_nearest_candidates(jugg, records, target, output, project):
-    """逐仓库查找最近基线，按记录 ID 去重。"""
+    """Find nearest candidates per repository and deduplicate by record ID."""
     if not records:
         return []
     main_root = str(Path(run(['git', 'rev-parse', '--show-toplevel'], project)).resolve())
     candidates = []
     for record in records:
-        # 旧记录只提供主仓库提交，仍可沿原路径选中；下载后再由 Jugg 验证外部提交。
+        # Legacy records identify only the primary commit. Jugg checks external commits after download.
         commits = {resolve_repository_root(repo, record, project): repo['commit']
                    for repo in record.get('repositories', [])}
         commits[main_root] = record['baseCommit']
@@ -263,7 +224,7 @@ def find_nearest_candidates(jugg, records, target, output, project):
             continue
         if matched is None:
             continue
-        # GET 已按 uploadedAt 倒序返回；相同提交优先第一份记录。
+        # Records arrive newest first. Prefer the first record for a tied commit.
         record = next((record for record, commits in candidates if commits.get(root) == matched), None)
         if record is not None:
             selected.add(record['id'])
@@ -278,7 +239,7 @@ def find_nearest_candidates(jugg, records, target, output, project):
 
 
 def evaluate_baseline_candidate(jugg, record, target, directory, diff_cache, project, server, scenario):
-    """分析独立基线副本，所有候选复用同一轮 Git diff 缓存。"""
+    """Inspect an isolated baseline copy and reuse Git diffs across candidates."""
     directory.mkdir(parents=True)
     baseline, changes = directory / 'jugg', directory / 'changed-files.json'
     log(4, f'下载基线 ZIP：{record["artifactId"]}')
@@ -304,7 +265,7 @@ def evaluate_baseline_candidate(jugg, record, target, directory, diff_cache, pro
 
 
 def choose_baseline(jugg, records, target, output, project, server, scenario):
-    """先满足增量准入，再在本轮候选中选有效变更最少的一份。"""
+    """Select the eligible candidate with the fewest effective changes."""
     last = dict(base=None, reason='无兼容的祖先基线', files=[], raw_files=None, repositories=[])
     reports, diff_cache = [], {}
     eligible = []
@@ -324,7 +285,7 @@ def choose_baseline(jugg, records, target, output, project, server, scenario):
         else:
             log(5, f'跳过基线 {record["id"]}：{state["reason"]}')
     if eligible:
-        # 相同数量时保留服务的最新优先顺序，避免混合不同基线的模块产物。
+        # Keep server ordering for ties and retain a single baseline for all modules.
         selected = min(eligible, key=lambda state: len(state['files']))
         log(6, f'选中基线 {selected["base"]["id"]}，有效变更 {len(selected["files"])} 个')
         return selected
@@ -343,7 +304,7 @@ def get_repository_diff(root, base, target, cache):
 
 
 def check_changed_content_fallback(repositories, output, cache, files, scenario):
-    """按 Jugg 返回的每个仓库提交范围检查业务降级规则（代码差异与内容注解）。"""
+    """Apply source and annotation rules to each repository commit range."""
     if not repositories:
         raise ValueError('getChangedFiles 未返回 repositories，请更新 cmd_line 发行包')
     for index, repo in enumerate(repositories, 1):
@@ -351,7 +312,7 @@ def check_changed_content_fallback(repositories, output, cache, files, scenario)
         log(5, f'分析仓库 {index}/{len(repositories)}：{root}，{base} -> {target}')
         diff = get_repository_diff(root, base, target, cache)
         (output / f'source-diff-{index}.patch').write_text(diff)
-        # 按 Jugg 的 gitRoot 分组，原样交给业务规则，不按扩展名重判文件类型。
+        # Group entries by the gitRoot and type reported by Jugg.
         repo_files = [change for change in files if change['gitRoot'] == root]
         log(5, f'检查文件类型与注解：{root}，变更 {len(repo_files)} 个文件')
         reason = detect_repo_fallback_reason(diff, repo_files, scenario)
@@ -363,8 +324,8 @@ def check_changed_content_fallback(repositories, output, cache, files, scenario)
 
 
 def publish_baseline(output, target, *, project, args, metadata, scenario_key, gradle_task):
-    """先上传完整基线取得 artifactId，再独立保存 JSON 元数据。"""
-    # 只发布构建历史与目标提交一致的基线。
+    """Upload the baseline ZIP and register its artifact ID in a separate metadata request."""
+    # Publish only when build history matches the target commit.
     root = project / 'build/jugg'
     history = json.loads((root / 'database/deploy_history.db/deploy_history.json').read_text())
     if history.get('changedFiles'):
@@ -388,7 +349,7 @@ def publish_baseline(output, target, *, project, args, metadata, scenario_key, g
                   metadata=metadata,
                   repositories=[dict(gitRoot=Path(os.path.relpath(repo['gitRoot'], project)).as_posix(), commit=repo['targetCommit'])
                                 for repo in repositories.values()])
-    # 保存失败也保留本轮凭证，方便排查已上传、未登记的文件；文件生命周期由存储侧管理。
+    # Keep the upload receipt if registration fails so the artifact can be traced.
     receipt = output / 'saved-baseline.json'
     receipt.write_text(json.dumps(record, indent=2))
     log(9, f'登记基线：{artifact_id}')
@@ -398,9 +359,9 @@ def publish_baseline(output, target, *, project, args, metadata, scenario_key, g
 
 
 def build(project, work, args):
-    """执行一轮构建；Jugg 构建成功且所需归档完成后生成成功结果。"""
+    """Write a success result after the build and any required archival complete."""
     dry_run = args.dry_run
-    # 连续演示共用 checkout 和基线服务，每轮只清理本次的结果文件。
+    # The sequential demo shares its checkout and service across runs.
     result = work / ('dry-run-result.json' if dry_run else 'build-result.json')
     result.unlink(missing_ok=True)
     gradle_task, apk_path = SCENARIOS[args.scenario]
@@ -413,7 +374,7 @@ def build(project, work, args):
     target = validate_and_get_target_commit(project)
     log(1, f'工作区检查完成：commit={target}')
 
-    # 每轮单独保存变更清单、Jugg 日志和基线副本，便于回溯失败现场。
+    # Preserve each run’s change list, logs and baseline copy.
     runs_dir = work / 'runs'
     output = runs_dir / uuid.uuid4().hex
     output.mkdir(parents=True)
@@ -422,8 +383,8 @@ def build(project, work, args):
     log(2, f'使用仓库 Jugg CI 启动器：{args.cmd_line}')
 
     def jugg(command, **params):
-        # cmd_line 使用 key=value 参数协议；每个参数作为独立 argv 传入。
-        # 成功和失败均保存该阶段输出，异常交给外层判断是否降级。
+        # Pass each key=value pair as one argument.
+        # Preserve command output on both success and failure.
         step = {'findNearestBaseCommit': 3, 'getChangedFiles': 5}.get(command, 7)
         log(step, f'执行 Jugg 命令：{command}')
         started = monotonic()
@@ -436,7 +397,7 @@ def build(project, work, args):
             raise
         log(step, f'{command} 完成，耗时 {monotonic() - started:.2f}s，日志：{log_path}')
 
-    # reason 为 None 表示继续尝试增量；一旦有原因，就进入一次 Gradle 构建。
+    # A fallback reason triggers one Gradle build.
     reason = '已主动选择 Gradle 构建' if args.force_gradle else None
     files = []
     raw_files = None
@@ -445,7 +406,7 @@ def build(project, work, args):
     repositories = []
     if reason is None:
         try:
-            # 先筛选构建配置，再在兼容候选中找祖先，不能只按 commit 匹配。
+            # Restrict ancestor selection to compatible build configurations.
             records = [r for r in api(args.server, args.project_id)
                        if r.get('scenarioKey') == scenario_key and r.get('artifactId')
                        and all(r.get('metadata', {}).get(k) == v for k, v in metadata.items())]
@@ -457,7 +418,7 @@ def build(project, work, args):
             if reason is not None:
                 previous_baseline_dir = selection.get('jugg_dir')
             else:
-                # 连续演示从本轮目录读取选中基线的原始变更清单。
+                # The sequential demo reads the selected baseline’s original changes from this directory.
                 shutil.copy2(selection['jugg_dir'].parent / 'changed-files.json', output / 'changed-files.json')
                 log(6, f'构建决策：增量编译 {len(files)} 个文件' if files else '构建决策：无有效变更，导出基线 APK')
                 if dry_run:
@@ -474,12 +435,12 @@ def build(project, work, args):
                          customCompilerJars=os.pathsep.join(map(str, jars)), **signing_options)
 
         except (RuntimeError, OSError, ValueError, KeyError, zipfile.BadZipFile) as error:
-            # 查询、下载或增量编译失败统一进入一次 Gradle；不重试已消费的增量副本。
+            # Use Gradle once on failure. Incremental copies may already have been consumed.
             reason = 'Jugg 基线复用失败: ' + str(error)
     if reason is not None:
         log(6, ('模拟：将执行 Gradle；原因：' if dry_run else '构建决策：执行 Gradle；原因：') + reason)
         if not dry_run:
-            # 清除增量失败时可能留下的半成品，最终目录只能包含本次 Gradle 的输出。
+            # Remove partial APKs before collecting Gradle outputs.
             if apk_dir.exists():
                 shutil.rmtree(apk_dir)
             cache_option = {'previousBaselineDir': previous_baseline_dir} if previous_baseline_dir else {}
@@ -491,20 +452,20 @@ def build(project, work, args):
                 usage = mapping.with_name('usage.txt')
                 if usage.exists():
                     shutil.copy2(usage, output / 'usage.txt')
-            # 仅完整 Gradle 构建生成的新基线可登记；增量结果不作为下一轮输入。
-            # 归档失败直接让整轮失败，不能声称基线已保存。
+            # Only a full Gradle build produces the next baseline.
+            # An archival error fails the build.
             publish_baseline(output, target, project=project, args=args, metadata=metadata,
                              gradle_task=gradle_task, scenario_key=scenario_key)
         mode = 'buildGradleBase'
     else:
         mode = 'buildIncrementalApk' if files else 'reuseBaseApk'
     if dry_run:
-        # 计划只描述决策，不生成 APK 路径，也不预测实际编译是否成功。
+        # Preview reports the decision before any APK is built.
         payload = dict(dryRun=True, commit=target, plannedMode=mode, reason=reason,
                        baseCommit=base['baseCommit'] if base else None,
                        changedFileCount=len(files) if raw_files is not None else None, runDir=str(output))
     else:
-        # 信任 Jugg 的构建结果；这里只收集 APK 路径，供流水线消费。
+        # Collect the APK paths reported by the successful build.
         payload = dict(commit=target, mode=mode, reason=reason, runDir=str(output),
                        apkDir=str(apk_dir), apks=list(map(str, sorted(apk_dir.glob('*.apk')))))
     payload['baseId'] = base['id'] if base and reason is None else None

@@ -21,6 +21,8 @@ class McpToolActionRegistry(
         const val GRADLE_BUILD = "gradle-build"
         const val GET_COMPILE_STATUS = "get-compile-status"
         const val SSH_INFO = "ssh-info"
+        const val REPORT_PREPARE = "report-prepare"
+        const val REPORT_UPLOAD = "report-upload"
         const val DEVICES = "devices"
         const val SCREENSHOT = "screenshot"
         const val RECORD_START = "record-start"
@@ -33,6 +35,7 @@ class McpToolActionRegistry(
         const val TAP = "tap"
         const val GET_STATUS = "status"
         const val VERSION = "version"
+        const val SETTINGS = "settings"
         const val WAIT_LOGS = "wait-logs"
     }
 
@@ -60,6 +63,7 @@ class McpToolActionRegistry(
         val noProjectDirTools: Set<String> = setOf(
             ToolNames.LIST_PROJECTS,
             ToolNames.VERSION,
+            ToolNames.SETTINGS,
         )
 
         fun defaultActions(): List<McpToolAction> {
@@ -73,6 +77,8 @@ class McpToolActionRegistry(
                 ForceGradleCompileMcpToolAction(),
                 GetCompileStatusMcpToolAction(),
                 RequestRemoteSshInfoMcpToolAction(),
+                PrepareIssueReportMcpToolAction(),
+                UploadIssueReportMcpToolAction(),
                 DeviceListMcpToolAction(),
                 LayoutDumpMcpToolAction(),
                 UiFindMcpToolAction(),
@@ -81,6 +87,7 @@ class McpToolActionRegistry(
                 TapMcpToolAction(),
                 GetStatusMcpToolAction(),
                 VersionMcpToolAction(),
+                SettingsMcpToolAction(),
                 WaitLogsMcpToolAction(),
             )
         }

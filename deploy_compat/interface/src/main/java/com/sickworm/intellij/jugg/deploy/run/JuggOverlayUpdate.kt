@@ -1,21 +1,15 @@
 package com.sickworm.intellij.jugg.deploy.run
 
-import com.android.tools.deployer.model.ApkEntry
-import com.android.tools.idea.protobuf.ByteString
+import com.sickworm.intellij.jugg.deploy.api.ApkEntry
+import com.sickworm.intellij.jugg.deploy.api.ByteString
+import com.sickworm.intellij.jugg.deploy.api.DexComparator
 
 /**
  * Version-neutral holder for an OptimisticApkSwapper overlay update.
  */
 data class JuggOverlayUpdate(
     val cachedDump: JuggDeploymentCacheEntry,
-    val dexOverlays: JuggDexOverlays,
+    val dexOverlays: DexComparator.ChangedClasses,
     val fileOverlays: Map<ApkEntry, ByteString>,
     val raw: Any,
 )
-
-data class JuggDexOverlays(
-    val newClasses: List<JuggDexClass>,
-    val modifiedClasses: List<JuggDexClass>,
-)
-
-data class JuggDexClass(val name: String, val checksum: Long, val code: ByteArray)

@@ -1,5 +1,9 @@
 # 多仓库最近基线选择
 
+**Purpose** — Select a reusable multi-repository baseline.
+**Decision** — Evaluate first-parent candidates against eligibility rules and effective file counts.
+**Impact** — The orchestration sample can select a closer eligible baseline.
+
 ## 目标
 
 主仓库不变而外部仓库持续推进时，仅按主仓库提交和保存顺序会选到较旧的外部版本。选择优先保留增量资格，再比较有效变更文件数量，同时控制常规路径分析的候选数量。

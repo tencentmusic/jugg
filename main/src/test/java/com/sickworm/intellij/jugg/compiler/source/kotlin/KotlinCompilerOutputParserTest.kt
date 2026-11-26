@@ -2,7 +2,7 @@ package com.sickworm.intellij.jugg.compiler.source.kotlin
 
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.CompileFile
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import org.junit.Test
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.verify

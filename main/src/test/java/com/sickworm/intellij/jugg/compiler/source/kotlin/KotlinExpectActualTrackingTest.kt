@@ -2,8 +2,8 @@ package com.sickworm.intellij.jugg.compiler.source.kotlin
 
 import com.sickworm.intellij.jugg.mock.AssembleAndroidProjectOnce
 import com.sickworm.intellij.jugg.mock.logger
-import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ModuleBuildPathInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import org.jetbrains.kotlin.cli.common.ExitCode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals

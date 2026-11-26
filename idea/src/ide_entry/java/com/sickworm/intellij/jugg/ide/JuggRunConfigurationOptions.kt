@@ -40,6 +40,9 @@ class JuggRunConfigurationOptions: RunConfigurationOptions() {
     /** Whether remoteSyncExcludePatterns replaces Jugg defaults. */
     var isRemoteSyncExcludePatternsCustomized by property(false)
 
+    /** Stable id of the shared project-level CLI run configuration. */
+    var cliRunConfigurationId by string()
+
     /** Whether Jugg should replace the default app APK installer with a project script. */
     var enableCustomApkInstallScript by property(false)
 

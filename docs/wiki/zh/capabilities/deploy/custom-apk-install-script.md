@@ -14,7 +14,7 @@ tags:
 
 ## 启用方式
 
-打开 Jugg Run Configuration，勾选 `Enable custom APK install script`。勾选后，下方会出现单行高度的脚本输入框；未勾选时显示开关及其右侧帮助按钮，现有安装行为不变。
+打开 Jugg run configuration，勾选 `Enable custom APK install script`。勾选后，下方会出现单行高度的脚本输入框；未勾选时显示开关及其右侧帮助按钮，现有安装行为不变。
 
 脚本在本地工程根目录执行。macOS/Linux 使用 Bash，Windows 使用 `cmd.exe`。即使启用了远程编译，脚本也会在连接 Android 设备的本地 IDE 主机执行。
 

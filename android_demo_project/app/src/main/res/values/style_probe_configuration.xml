@@ -1,0 +1,6 @@
+<resources>
+    <style name="StyleProbeConfiguration" parent="StyleProbeBase">
+        <!-- Case 5: change to #FF0000FF; on API 31+ the v31 style still wins. -->
+        <item name="android:textColor">#FFFF0000</item>
+    </style>
+</resources>

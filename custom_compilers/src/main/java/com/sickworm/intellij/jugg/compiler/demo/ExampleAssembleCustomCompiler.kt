@@ -8,7 +8,7 @@ import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.custom.ICompilerCreator
 import com.sickworm.intellij.jugg.gradle.compile.CmdExecutor
 import com.sickworm.intellij.jugg.gradle.compile.SimpleSshCommand
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 
 class ExampleAssembleCustomCompiler(context: ICompileContext, parent: Disposable) : BaseCompiler(context, parent) {
 

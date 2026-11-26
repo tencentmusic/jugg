@@ -2,8 +2,7 @@ package com.sickworm.intellij.jugg.compiler.constref
 
 import com.sickworm.intellij.jugg.mock.StdLogger
 import com.sickworm.intellij.jugg.mock.logger
-import com.sickworm.intellij.jugg.project.CoroutineBackgroundTaskRunner
-import com.sickworm.intellij.jugg.project.IBackgroundTaskRunner
+import com.sickworm.intellij.jugg.project.runtime.createTestTaskRunnerManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -90,7 +89,7 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
             analyzer = ConstRefAnalyzer(logger),
             database = database,
             logger = logger,
-            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            taskRunnerManager = createTestTaskRunnerManager(scope),
             repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
         )
         try {
@@ -137,7 +136,7 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
                 analyzer = ConstRefAnalyzer(logger),
                 database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
                 logger = logger,
-                backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+                taskRunnerManager = createTestTaskRunnerManager(scope),
                 repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
             )
             try {
@@ -174,7 +173,7 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
             analyzer = ConstRefAnalyzer(logger),
             database = database,
             logger = logger,
-            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            taskRunnerManager = createTestTaskRunnerManager(scope),
             repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
         )
         try {
@@ -218,7 +217,7 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
             analyzer = ConstRefAnalyzer(logger),
             database = database,
             logger = logger,
-            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            taskRunnerManager = createTestTaskRunnerManager(scope),
             repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
         )
         try {
@@ -279,7 +278,7 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
             analyzer = ConstRefAnalyzer(logger),
             database = database,
             logger = capturingLogger,
-            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            taskRunnerManager = createTestTaskRunnerManager(scope),
             repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
         )
         try {
@@ -344,7 +343,7 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
             analyzer = ConstRefAnalyzer(logger),
             database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
             logger = logger,
-            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            taskRunnerManager = createTestTaskRunnerManager(scope),
             repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
         )
         try {
@@ -404,7 +403,7 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
             analyzer = ConstRefAnalyzer(logger),
             database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
             logger = logger,
-            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            taskRunnerManager = createTestTaskRunnerManager(scope),
             repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
         )
         try {
@@ -460,7 +459,7 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
             analyzer = ConstRefAnalyzer(logger),
             database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
             logger = logger,
-            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            taskRunnerManager = createTestTaskRunnerManager(scope),
             repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
         )
         try {
@@ -521,7 +520,7 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
             analyzer = ConstRefAnalyzer(logger),
             database = database,
             logger = logger,
-            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            taskRunnerManager = createTestTaskRunnerManager(scope),
             repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
         )
         try {
@@ -580,7 +579,7 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
             analyzer = ConstRefAnalyzer(logger),
             database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
             logger = logger,
-            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            taskRunnerManager = createTestTaskRunnerManager(scope),
             repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
         )
         try {
@@ -648,7 +647,7 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
             analyzer = ConstRefAnalyzer(logger),
             database = database,
             logger = logger,
-            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            taskRunnerManager = createTestTaskRunnerManager(scope),
             repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
         )
         try {
@@ -704,7 +703,7 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
             analyzer = ConstRefAnalyzer(logger),
             database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
             logger = logger,
-            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            taskRunnerManager = createTestTaskRunnerManager(scope),
             repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
         )
         try {
@@ -760,7 +759,7 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
             analyzer = ConstRefAnalyzer(logger),
             database = ConstRefCacheDatabase(sharedDbFile, logger),
             logger = logger,
-            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scopeA),
+            taskRunnerManager = createTestTaskRunnerManager(scopeA),
             repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, sharedFingerprintDbFile),
         )
         try {
@@ -780,7 +779,7 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
             analyzer = ConstRefAnalyzer(logger),
             database = sharedDatabase,
             logger = logger,
-            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scopeB),
+            taskRunnerManager = createTestTaskRunnerManager(scopeB),
             repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, sharedFingerprintDbFile),
         )
         try {
@@ -831,7 +830,7 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
                 analyzer = ConstRefAnalyzer(logger),
                 database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
                 logger = logger,
-                backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+                taskRunnerManager = createTestTaskRunnerManager(scope),
                 repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
             )
             try {
@@ -908,7 +907,7 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
                 analyzer = ConstRefAnalyzer(logger),
                 database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
                 logger = logger,
-                backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+                taskRunnerManager = createTestTaskRunnerManager(scope),
                 repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
             )
             try {
@@ -966,7 +965,7 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
             analyzer = ConstRefAnalyzer(logger),
             database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
             logger = logger,
-            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            taskRunnerManager = createTestTaskRunnerManager(scope),
             repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
         )
         try {
@@ -1048,7 +1047,7 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
             analyzer = ConstRefAnalyzer(logger),
             database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
             logger = logger,
-            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            taskRunnerManager = createTestTaskRunnerManager(scope),
             repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
         )
         try {
@@ -1116,7 +1115,7 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
             analyzer = analyzer,
             database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
             logger = logger,
-            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            taskRunnerManager = createTestTaskRunnerManager(scope),
             repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
         )
         try {
@@ -1183,7 +1182,7 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
                 analyzer = ConstRefAnalyzer(logger),
                 database = ConstRefCacheDatabase(sharedDbFile, logger),
                 logger = logger,
-                backgroundTaskRunner = CoroutineBackgroundTaskRunner(scopeA),
+                taskRunnerManager = createTestTaskRunnerManager(scopeA),
                 repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, sharedFingerprintDbFile),
             )
             try {
@@ -1213,7 +1212,7 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
                 analyzer = ConstRefAnalyzer(logger),
                 database = ConstRefCacheDatabase(sharedDbFile, logger),
                 logger = logger,
-                backgroundTaskRunner = CoroutineBackgroundTaskRunner(scopeB),
+                taskRunnerManager = createTestTaskRunnerManager(scopeB),
                 repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, sharedFingerprintDbFile),
             )
             try {
@@ -1291,7 +1290,7 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
             analyzer = ConstRefAnalyzer(logger),
             database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
             logger = logger,
-            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            taskRunnerManager = createTestTaskRunnerManager(scope),
             repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
         )
         try {
@@ -1335,7 +1334,7 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
             analyzer = ConstRefAnalyzer(logger),
             database = database,
             logger = logger,
-            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            taskRunnerManager = createTestTaskRunnerManager(scope),
             repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
         )
         val lockReady = CountDownLatch(1)
@@ -1380,7 +1379,7 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
             analyzer = ConstRefAnalyzer(logger),
             database = database,
             logger = logger,
-            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            taskRunnerManager = createTestTaskRunnerManager(scope),
             repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
         )
         try {
@@ -1424,7 +1423,7 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
             analyzer = ConstRefAnalyzer(logger),
             database = database,
             logger = logger,
-            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            taskRunnerManager = createTestTaskRunnerManager(scope),
             repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
         )
         try {
@@ -1460,7 +1459,7 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
             analyzer = ConstRefAnalyzer(logger),
             database = database,
             logger = logger,
-            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            taskRunnerManager = createTestTaskRunnerManager(scope),
             repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
         )
         try {
@@ -1512,7 +1511,7 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
             analyzer = ConstRefAnalyzer(logger),
             database = database,
             logger = logger,
-            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            taskRunnerManager = createTestTaskRunnerManager(scope),
             repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
         )
         try {
@@ -1561,7 +1560,7 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
             analyzer = ConstRefAnalyzer(logger),
             database = database,
             logger = logger,
-            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            taskRunnerManager = createTestTaskRunnerManager(scope),
             repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
         )
         try {
@@ -1603,9 +1602,7 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
             analyzer = ConstRefAnalyzer(logger),
             database = database,
             logger = logger,
-            backgroundTaskRunner = StartupDelayBackgroundTaskRunner(
-                delegate = CoroutineBackgroundTaskRunner(scope),
-            ),
+            taskRunnerManager = createTestTaskRunnerManager(scope),
             repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
             startupStabilizationDelayMs = 500L,
         )
@@ -1660,7 +1657,7 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
                 analyzer = ConstRefAnalyzer(logger),
                 database = database,
                 logger = capturingLogger,
-                backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+                taskRunnerManager = createTestTaskRunnerManager(scope),
                 repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
                 startupStabilizationDelayMs = 0L,
             )
@@ -1732,7 +1729,7 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
             analyzer = ConstRefAnalyzer(logger),
             database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
             logger = capturingLogger,
-            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            taskRunnerManager = createTestTaskRunnerManager(scope),
             repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
         )
         try {
@@ -1790,7 +1787,7 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
             analyzer = analyzer,
             database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
             logger = capturingLogger,
-            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            taskRunnerManager = createTestTaskRunnerManager(scope),
             repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
             startupStabilizationDelayMs = 0L,
         )
@@ -1840,7 +1837,7 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
             analyzer = analyzer,
             database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
             logger = capturingLogger,
-            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            taskRunnerManager = createTestTaskRunnerManager(scope),
             repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
         )
         try {
@@ -1865,7 +1862,7 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
             analyzer = ConstRefAnalyzer(logger),
             database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
             logger = logger,
-            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            taskRunnerManager = createTestTaskRunnerManager(scope),
             repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
         )
         try {
@@ -1902,7 +1899,7 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
                 analyzer = ConstRefAnalyzer(logger),
                 database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
                 logger = logger,
-                backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+                taskRunnerManager = createTestTaskRunnerManager(scope),
                 repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
             )
             try {
@@ -1946,7 +1943,7 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
                 analyzer = ConstRefAnalyzer(logger),
                 database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
                 logger = logger,
-                backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+                taskRunnerManager = createTestTaskRunnerManager(scope),
                 repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
             )
             try {
@@ -1988,7 +1985,7 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
                 analyzer = ConstRefAnalyzer(logger),
                 database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
                 logger = logger,
-                backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+                taskRunnerManager = createTestTaskRunnerManager(scope),
                 repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
             )
             try {
@@ -2020,7 +2017,7 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
                 analyzer = ConstRefAnalyzer(logger),
                 database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
                 logger = logger,
-                backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+                taskRunnerManager = createTestTaskRunnerManager(scope),
                 repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
             )
             try {
@@ -2114,7 +2111,7 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
             analyzer = ConstRefAnalyzer(logger),
             database = database,
             logger = logger,
-            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            taskRunnerManager = createTestTaskRunnerManager(scope),
             repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
         )
         try {
@@ -2185,7 +2182,7 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
             analyzer = slowAnalyzer,
             database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
             logger = logger,
-            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            taskRunnerManager = createTestTaskRunnerManager(scope),
             repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
         )
         try {
@@ -2252,7 +2249,7 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
             analyzer = ConstRefAnalyzer(logger),
             database = database,
             logger = logger,
-            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            taskRunnerManager = createTestTaskRunnerManager(scope),
             repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
         )
         try {
@@ -2334,7 +2331,7 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
             analyzer = failingAnalyzer,
             database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
             logger = logger,
-            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            taskRunnerManager = createTestTaskRunnerManager(scope),
             repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
         )
         try {
@@ -2368,7 +2365,7 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
             analyzer = failingAnalyzer,
             database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
             logger = logger,
-            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            taskRunnerManager = createTestTaskRunnerManager(scope),
             repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
         )
         try {
@@ -2401,7 +2398,7 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
             analyzer = ConstRefAnalyzer(logger),
             database = database,
             logger = logger,
-            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            taskRunnerManager = createTestTaskRunnerManager(scope),
             repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
         )
         try {
@@ -2443,7 +2440,7 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
             analyzer = ConstRefAnalyzer(logger),
             database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
             logger = logger,
-            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            taskRunnerManager = createTestTaskRunnerManager(scope),
             repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
         )
         try {
@@ -2487,7 +2484,4 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
         )
     }
 
-    private class StartupDelayBackgroundTaskRunner(
-        private val delegate: CoroutineBackgroundTaskRunner,
-    ) : IBackgroundTaskRunner by delegate
 }

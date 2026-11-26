@@ -210,7 +210,7 @@ Compose live literals 在 demo 中始终开启，单独不足以触发。
 
 ## JOOX 工程 Jugg CLI 实验（2026-09-04）
 
-工程：`/Users/wormchen/IdeaProjects/joox/JOOX_Android_4`  
+工程：`/Users/wormchen/IdeaProjects/joox/JOOX_Android_4`<br>
 IDEA runtime，`kotlin_version=2.0.21`，Gradle fallback 为 remote。
 
 `release/9.11` 没有这套播放器类。已 stash `LocalDebugLoginHelper.kt`，切到 `origin/feature/9.11/136687964_player_vinyl_style`，本地分支名 `jugg-repro-024addca`。远程 `gradle-build` 本身 `BUILD SUCCESSFUL`（约 417s / 再跑 68s），CLI 因无设备 install 报 ERROR，不影响增量 classpath。结束后已切回 `release/9.11` 并 stash pop。

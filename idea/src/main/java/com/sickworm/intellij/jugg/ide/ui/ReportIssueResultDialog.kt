@@ -23,8 +23,8 @@ class ReportIssueResultDialog(
     private val onRetry: (() -> Unit)? = null,
 ) : DialogWrapper(true) {
     init {
-        title = "Jugg Issue Report"
-        setOKButtonText("Copy Result and Close")
+        title = "Jugg issue report"
+        setOKButtonText("Copy result and close")
         init()
     }
 
@@ -38,7 +38,7 @@ class ReportIssueResultDialog(
             })
         }
         if (uploadResult?.isSuccess == false && onRetry != null) {
-            actions.add(object : DialogWrapperAction("Retry Upload") {
+            actions.add(object : DialogWrapperAction("Retry upload") {
                 override fun doAction(e: java.awt.event.ActionEvent?) {
                     close(CANCEL_EXIT_CODE)
                     onRetry.invoke()
@@ -52,7 +52,7 @@ class ReportIssueResultDialog(
     override fun createCenterPanel(): JComponent {
         val message = when {
             uploadResult == null -> "Diagnostics bundle saved locally."
-            uploadResult.isSuccess -> "Report uploaded. Report ID: ${uploadResult.reportId}"
+            uploadResult.isSuccess -> "Report uploaded. Jugg Report ID: ${uploadResult.reportId}"
             else -> "Upload failed: ${uploadResult.errorMessage}"
         }
         return JPanel(BorderLayout()).apply {

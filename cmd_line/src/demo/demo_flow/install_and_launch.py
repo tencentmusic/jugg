@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""安装指定构建轮次的 APK 并启动演示应用。"""
+"""Install the APKs from one build and launch the demo."""
 import argparse
 from pathlib import Path
 
@@ -14,7 +14,7 @@ def main():
     apks = sorted(directory.glob('*.apk'))
     if not apks or any(p.stat().st_size == 0 for p in apks):
         parser.error(f'No nonempty APK set found: {directory}')
-    # 将本轮 APK 一起传给 adb，兼容 split APK。
+    # Pass all APKs together to support split installs.
     run(['adb', 'install-multiple', '-r', *apks], directory)
     run(['adb', 'shell', 'am', 'start', '-n', 'com.example.myapplication/.MainActivity'], directory)
 

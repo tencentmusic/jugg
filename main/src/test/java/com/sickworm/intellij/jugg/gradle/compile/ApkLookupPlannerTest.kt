@@ -3,8 +3,8 @@ package com.sickworm.intellij.jugg.gradle.compile
 import com.sickworm.intellij.jugg.compiler.BuildTarget
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.bean.SyncMode
-import com.sickworm.intellij.jugg.project.JuggPathManager
-import com.sickworm.intellij.jugg.project.LocalClasspathStoragePathManager
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
+import com.sickworm.intellij.jugg.project.runtime.LocalClasspathStoragePathManager
 import org.junit.Test
 import java.io.File
 import java.nio.file.Files

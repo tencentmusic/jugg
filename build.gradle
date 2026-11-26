@@ -1,5 +1,5 @@
 import org.gradle.internal.jvm.Jvm
-import java.util.Properties
+import java.text.SimpleDateFormat
 
 plugins {
     id 'org.jetbrains.intellij' version '1.10.1' apply false
@@ -7,11 +7,16 @@ plugins {
 //    id 'org.jetbrains.kotlin.jvm' version '2.1.21' apply false
 }
 
-def versionName = '3.6.9'
+def versionName = '4.0.6'
 def gitBranch = 'git rev-parse --abbrev-ref HEAD'.execute().text.trim().replace('/', '_')
 def gitBranchPrefix = gitBranch == 'main' ? 'release' : (gitBranch.startsWith('develop') ? 'SNAPSHOT' : gitBranch + '-SNAPSHOT')
 def pluginVersionArg = "${versionName}-${gitBranchPrefix}"
+def releaseBuildDate = new Date()
+def releaseBuildFormat = new SimpleDateFormat('yyyyMMddHHmmssSSS')
+releaseBuildFormat.timeZone = TimeZone.getTimeZone('UTC')
+def releaseBuildIdArg = System.getenv('JUGG_RELEASE_BUILD_ID') ?: "${releaseBuildFormat.format(releaseBuildDate)}-${'git rev-parse --short=12 HEAD'.execute().text.trim()}"
 println("Plugin Version: $pluginVersionArg")
+println("Release Build ID: $releaseBuildIdArg")
 
 ext {
     // see: https://plugins.jetbrains.com/docs/intellij/android-studio.html#android-studio-releases-listing
@@ -21,11 +26,13 @@ ext {
     ide_version = '223.7571.182' // Android Studio Giraffe
 //    ide_version = '231.9225.16' // Android Studio Hedgehog, needs Kotlin 1.9.0 and remove Kotlin Android extension plugin
 
-    agentVersion = "1.0.93"
+    agentVersion = "1.0.95"
     agentBundleDir = new File(project.projectDir, "jvmti_agent/build/outputs/bundle/")
     agentGeneratedSourceDir = new File(project.projectDir, "jvmti_agent/build/generated/source/buildConfig/release")
 
     pluginVersion = pluginVersionArg
+    releaseBuildId = releaseBuildIdArg
+    releaseBuildDateValue = releaseBuildDate
 
     getDirCommitId = { path ->
         def command = "git -C $rootDir log -n 1 --format=%h -- $path"

@@ -172,6 +172,51 @@ class FileLoggerTest {
     }
 
     @Test
+    fun `standalone log alias through the IDE link preserves the active directory`() {
+        legacyLogDir.parentFile.mkdirs()
+        logDir.mkdirs()
+        Files.createSymbolicLink(legacyLogDir.toPath(), logDir.toPath())
+        val standaloneDir = logDir.resolve("standlone_cli")
+        val fileLogger = FileLogger(standaloneDir)
+        try {
+            fileLogger.logger.info("standalone incident")
+            fileLogger.logger.handlers.forEach { it.flush() }
+            val incident = standaloneDir.resolve("compile_incident.log").apply { writeText("saved incident") }
+
+            fileLogger.linkLegacyLogDir(legacyLogDir.resolve("standlone_cli"))
+            fileLogger.recreateIfDeleted()
+
+            assertFalse(Files.isSymbolicLink(standaloneDir.toPath()))
+            assertEquals("saved incident", incident.readText())
+            assertEquals(standaloneDir.canonicalFile, legacyLogDir.resolve("standlone_cli").canonicalFile)
+        } finally {
+            fileLogger.dispose()
+        }
+    }
+
+    @Test
+    fun `IDE parent migration preserves logs linked by an earlier standalone runtime`() {
+        val standaloneDir = logDir.resolve("standlone_cli")
+        val standaloneLogger = FileLogger(standaloneDir)
+        val ideaLogger = FileLogger(logDir)
+        try {
+            standaloneLogger.linkLegacyLogDir(legacyLogDir.resolve("standlone_cli"))
+            val incident = standaloneDir.resolve("compile_incident.log").apply { writeText("saved incident") }
+            val legacyIncident = legacyLogDir.resolve("compile_idea_incident.log").apply { writeText("IDE incident") }
+
+            ideaLogger.linkLegacyLogDir(legacyLogDir)
+
+            assertEquals("saved incident", incident.readText())
+            assertEquals("IDE incident", logDir.resolve(legacyIncident.name).readText())
+            assertEquals(logDir.canonicalFile, legacyLogDir.canonicalFile)
+            assertEquals(standaloneDir.canonicalFile, legacyLogDir.resolve("standlone_cli").canonicalFile)
+        } finally {
+            ideaLogger.dispose()
+            standaloneLogger.dispose()
+        }
+    }
+
+    @Test
     fun `should migrate existing legacy log directory`() {
         legacyLogDir.resolve("compile_old.log").apply {
             parentFile.mkdirs()

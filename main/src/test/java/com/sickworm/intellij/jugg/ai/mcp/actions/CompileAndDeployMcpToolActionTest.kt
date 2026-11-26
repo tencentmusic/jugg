@@ -3,7 +3,6 @@ package com.sickworm.intellij.jugg.ai.mcp.actions
 import com.intellij.execution.ExecutionResult
 import com.intellij.execution.Executor
 import com.intellij.execution.configurations.RunProfile
-import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.deploy.instrument.AndroidTestRunSpec
 import com.sickworm.intellij.jugg.compiler.ForceGradleCompileHelper
@@ -23,8 +22,6 @@ import org.junit.After
 import org.junit.Assert
 import org.junit.Before
 import org.junit.Test
-import org.mockito.kotlin.mock
-import org.mockito.kotlin.whenever
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.Paths
@@ -70,7 +67,7 @@ class CompileAndDeployMcpToolActionTest {
         Assert.assertEquals(true, data["isFinal"])
         Assert.assertEquals("failed", data["status"])
         Assert.assertEquals("local", data["executionType"])
-        Assert.assertEquals(CompileJobManager.compileLogPath(runtime), data["logPath"])
+        Assert.assertEquals(runtime.compileLatestLogPath, data["logPath"])
         Assert.assertFalse(data.containsKey("isCompileSuccess"))
         Assert.assertFalse(data.containsKey("isDeploySuccess"))
         Assert.assertFalse(result.artifacts.isEmpty())
@@ -142,7 +139,7 @@ class CompileAndDeployMcpToolActionTest {
         Assert.assertEquals(true, data["isCompileSuccess"])
         Assert.assertEquals(true, data["isDeploySuccess"])
         Assert.assertEquals("local", data["executionType"])
-        Assert.assertEquals(CompileJobManager.compileLogPath(runtime), data["logPath"])
+        Assert.assertEquals(runtime.compileLatestLogPath, data["logPath"])
         Assert.assertFalse(data.containsKey("detail"))
         Assert.assertFalse(data.containsKey("detailLength"))
         Assert.assertFalse(data.containsKey("detailTruncated"))
@@ -150,7 +147,7 @@ class CompileAndDeployMcpToolActionTest {
     }
 
     @Test
-    fun testLogPathUsesRegisteredProjectLogDirectory() {
+    fun testLogPathUsesHostRuntimeLogDirectory() {
         val runtime = runtimeWithResult(
             JuggRunInvocationResult(
                 isSuccess = true,
@@ -158,15 +155,16 @@ class CompileAndDeployMcpToolActionTest {
             ),
         )
         val logDir = Files.createTempDirectory("jugg_mcp_log").toFile()
-        JuggLogger.register(runtime.project, logDir)
+        val logRuntime = object : com.sickworm.intellij.jugg.ai.mcp.IMcpRuntime by runtime {
+            override val compileLatestLogPath = File(logDir, "compile_latest.log").absolutePath
+        }
         try {
-            val result = CompileAndDeployMcpToolAction().execute(emptyMap(), runtime)
+            val result = CompileAndDeployMcpToolAction().execute(emptyMap(), logRuntime)
 
             @Suppress("UNCHECKED_CAST")
             val data = result.data as Map<String, Any>
             Assert.assertEquals(File(logDir, "compile_latest.log").absolutePath, data["logPath"])
         } finally {
-            JuggLogger.unregister(runtime.project)
             logDir.deleteRecursively()
         }
     }
@@ -235,7 +233,7 @@ class CompileAndDeployMcpToolActionTest {
         Assert.assertEquals(false, data["isFinal"])
         Assert.assertEquals("running", data["status"])
         Assert.assertEquals("local", data["executionType"])
-        Assert.assertEquals(CompileJobManager.compileLogPath(runtime), data["logPath"])
+        Assert.assertEquals(runtime.compileLatestLogPath, data["logPath"])
         val jobId = data["jobId"] as String
         Assert.assertTrue(jobId.isNotBlank())
         Assert.assertTrue(result.message.contains("get-compile-status"))
@@ -387,13 +385,10 @@ class CompileAndDeployMcpToolActionTest {
         isAppReadyProvider: () -> Boolean = { true },
         projectDir: String = "/fake/project",
     ): IMcpRuntime {
-        val project = mock<Project>()
-        whenever(project.basePath).thenReturn(projectDir)
-        return object : IMcpRuntime {
+        return object : com.sickworm.intellij.jugg.ai.mcp.TestMcpRuntime() {
             override val logger: com.intellij.openapi.diagnostic.Logger
                 get() = com.intellij.openapi.diagnostic.Logger.getInstance("TestMcpRuntime")
-            override val project: Project
-                get() = project
+            override val projectDir: String = projectDir
 
             override val deployTargetManager: IDeployTargetManager
                 get() = throw UnsupportedOperationException("not used in this test")
@@ -445,13 +440,9 @@ class CompileAndDeployMcpToolActionTest {
         runFirstConfiguration: (isAlwaysRestartApp: Boolean) -> JuggRunInvocationResult,
         isAppReadyProvider: () -> Boolean = { true },
     ): IMcpRuntime {
-        val project = mock<Project>()
-        whenever(project.basePath).thenReturn("/fake/project")
-        return object : IMcpRuntime {
+        return object : com.sickworm.intellij.jugg.ai.mcp.TestMcpRuntime() {
             override val logger: com.intellij.openapi.diagnostic.Logger
                 get() = com.intellij.openapi.diagnostic.Logger.getInstance("TestMcpRuntime")
-            override val project: Project
-                get() = project
 
             override val deployTargetManager: IDeployTargetManager
                 get() = throw UnsupportedOperationException("not used in this test")
@@ -697,6 +688,64 @@ class CompileAndDeployMcpToolActionTest {
     }
 
     @Test
+    fun testDeployWithoutChangedFilesReportsCompletedDeploymentWithoutIdeSession() {
+        val projectDir = "/fake/project/deploy-without-changes"
+        val runtime = runtimeWithResult(
+            JuggRunInvocationResult(
+                isSuccess = true,
+                runResult = RunResult(
+                    isGradleCompile = false,
+                    isCompileSuccess = true,
+                    isDeploySuccess = true,
+                    isCancel = false,
+                ),
+            ),
+            projectDir = projectDir,
+        )
+
+        val result = CompileAndDeployMcpToolAction.deployAction(
+            runtime = runtime,
+            toolName = McpToolActionRegistry.ToolNames.DEPLOY,
+        )
+
+        Assert.assertEquals(McpToolStatus.OK, result.status)
+        Assert.assertTrue(result.message.startsWith("deploy executed successfully. Deployed files (total: 0). No pending file changes."))
+        Assert.assertTrue(result.message.contains("Last deployment details are unavailable in this IDE session."))
+        Assert.assertTrue(result.message.contains("already deployed"))
+    }
+
+    @Test
+    fun testDeployMessageReadsChangedFileHistoryAfterDeploymentCompletes() {
+        val projectDir = "/fake/project/post-deploy-message"
+        val runtime = runtimeWithRunner(
+            runFirstConfiguration = {
+                LastChangedDeployRegistry.INSTANCE.record(
+                    projectDir = projectDir,
+                    files = listOf(File("$projectDir/app/src/main/java/Foo.kt")),
+                )
+                JuggRunInvocationResult(
+                    isSuccess = true,
+                    runResult = RunResult(
+                        isGradleCompile = false,
+                        isCompileSuccess = true,
+                        isDeploySuccess = true,
+                        isCancel = false,
+                    ),
+                )
+            },
+            projectDir = projectDir,
+        )
+
+        val result = CompileAndDeployMcpToolAction.deployAction(
+            runtime = runtime,
+            toolName = McpToolActionRegistry.ToolNames.DEPLOY,
+        )
+
+        Assert.assertTrue(result.message.contains("Last successful deployment with file changes:"))
+        Assert.assertTrue(result.message.contains("files (1): Foo.kt"))
+    }
+
+    @Test
     fun testNoPendingDeployShowsLastSuccessfulChangedDeployment() {
         val runtime = runtimeWithResult(
             JuggRunInvocationResult(
@@ -724,7 +773,7 @@ class CompileAndDeployMcpToolActionTest {
         )
 
         Assert.assertEquals(McpToolStatus.OK, result.status)
-        Assert.assertTrue(result.message.contains("All changes currently detected by Jugg are already deployed."))
+        Assert.assertTrue(result.message.contains("Deployed files (total: 0). No pending file changes."))
         Assert.assertTrue(result.message.contains("Last successful deployment with file changes:"))
         Assert.assertTrue(result.message.contains("deployedAt:"))
         Assert.assertTrue(result.message.contains("ago)"))

@@ -6,8 +6,8 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.apk.BuildToolsVersionComparator
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
-import com.sickworm.intellij.jugg.project.JuggException
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.JuggException
+import com.sickworm.intellij.jugg.project.info.ModuleInfo
 import java.io.File
 import java.nio.file.FileSystem
 import java.nio.file.spi.FileSystemProvider
@@ -49,6 +49,7 @@ class JavaCompilerInvoker {
     ): CompileResult {
         logger.debug("compile options: $options")
 
+        // A fresh manager releases classpath JAR handles after this run, allowing Gradle clean on Windows.
         var fileManager = compiler.getStandardFileManager(null, null, null)
         var compileItems = task.files.map {
             val fileObject = fileManager.getJavaFileObjectsFromFiles(listOf(it.file)).first()

@@ -11,8 +11,7 @@ import com.sickworm.intellij.jugg.ai.mcp.McpJsonSchemaProperty
 import com.sickworm.intellij.jugg.ai.mcp.McpToolDefinition
 import com.sickworm.intellij.jugg.ai.mcp.McpToolResult
 import com.sickworm.intellij.jugg.ai.mcp.McpToolStatus
-import com.sickworm.intellij.jugg.platform.PlatformApi
-import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.project.runtime.JuggPathManager
 import java.awt.RenderingHints
 import java.awt.image.BufferedImage
 import java.io.File
@@ -202,7 +201,7 @@ class ScreenshotMcpToolAction : McpToolAction {
         if (selectionResult !is DeviceSelectionResult.Selected) {
             return null
         }
-        val adb = PlatformApi.toDeviceAdb(selectionResult.device) ?: return null
+        val adb = runtime.deployTargetManager.createDeviceAdb(selectionResult.device)
         if (!adb.isOnline) {
             return null
         }
@@ -210,7 +209,7 @@ class ScreenshotMcpToolAction : McpToolAction {
     }
 
     private fun ensureToolDir(runtime: IMcpRuntime, toolName: String): File? {
-        val projectDir = runtime.project.basePath ?: return null
+        val projectDir = runtime.projectDir.takeIf { it.isNotBlank() } ?: return null
         val dir = File(JuggPathManager(File(projectDir)).mcpFetchDir, toolName)
         if (!dir.exists()) {
             dir.mkdirs()
