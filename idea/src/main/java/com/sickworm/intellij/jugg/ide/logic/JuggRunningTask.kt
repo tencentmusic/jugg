@@ -121,28 +121,32 @@ class JuggRunningTask(
 
     override fun run(indicator: ProgressIndicator) {
         taskRunnerManager.runProjectWriteLocked("Run Jugg") {
-            projectCustomConfigManager.refresh()
-            runLocked(indicator, recoverAfterRuntimeOwnerChange())
+            if (TestModeManager.isRuntimeTestEnabled()) {
+                RuntimeMockUtils.runTest(logger)
+                return@runProjectWriteLocked
+            }
+            val loggerListener = createRunProjectLogListener(processHandler)
+            JuggLogger.recreateLogFileIfDeleted(project)
+            // Start forwarding INFO logs before ownership recovery so switch notices appear in the Run console.
+            JuggLogger.listenProjectLog(project, loggerListener)
+            try {
+                projectCustomConfigManager.refresh()
+                runLocked(indicator, recoverAfterRuntimeOwnerChange())
+            } finally {
+                JuggLogger.stopListenProjectLog(project, loggerListener)
+            }
         }
     }
 
     private fun runLocked(indicator: ProgressIndicator, runtimeOwnerChanged: Boolean) {
-        val loggerListener = createRunProjectLogListener(processHandler)
         var isNeedResetHasRun = false
         try {
-            if (TestModeManager.isRuntimeTestEnabled()) {
-                RuntimeMockUtils.runTest(logger)
-                return
-            }
-
             controlPanelController?.refresh()
 
             statusManager.isProjectSwitchedThisRun = statusManager.isProjectSwitchedThisRun || runtimeOwnerChanged ||
                 lastCompileProjectRegistry.detectSwitch(options.projectRootPath)
 
             dependencyChangeManager.onStartBuilding()
-            JuggLogger.recreateLogFileIfDeleted(project)
-            JuggLogger.listenProjectLog(project, loggerListener)
             juggServer.onCompile()
 
             isRunning = true
@@ -204,7 +208,6 @@ class JuggRunningTask(
             if (!hasTerminalEvent && isCanceled) {
                 finishEvent(JuggEventCategory.COMPILE, JuggEventStatus.CANCELED, "Jugg task canceled")
             }
-            JuggLogger.stopListenProjectLog(project, loggerListener)
             stop(indicator)
             controlPanelController?.refresh()
         }

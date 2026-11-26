@@ -144,8 +144,30 @@ class JuggManagerRunConfigurationSyncTest {
         assertEquals(1, fixture.settings.size)
     }
 
-    private fun createFixture(moduleType: ModuleInfo.Type = ModuleInfo.Type.Application): Fixture {
-        val projectDir = temporaryFolder.newFolder("sync_project")
+    @Test
+    fun `recoverDeployContext consumes startup runtime owner change`() {
+        val projectDir = temporaryFolder.newFolder("owner_recover_project")
+        val pathManager = JuggPathManager(projectDir)
+        pathManager.runtimeOwnerFile.parentFile.mkdirs()
+        pathManager.runtimeOwnerFile.writeText(
+            """{"runtimeType":"standalone","runtimeVersion":"test","pid":1,"claimedAt":1}""",
+        )
+
+        val ideaTaskRunnerManager = com.sickworm.intellij.jugg.createTestTaskRunnerManager(pathManager)
+        ideaTaskRunnerManager.runProjectWriteLocked("Initialize CLI run configuration") {}
+        val fixture = createFixture(projectDirOverride = projectDir, taskRunnerManagerOverride = ideaTaskRunnerManager)
+
+        fixture.manager.recoverDeployContext()
+
+        assertEquals(null, ideaTaskRunnerManager.consumeRuntimeOwnerChange())
+    }
+
+    private fun createFixture(
+        moduleType: ModuleInfo.Type = ModuleInfo.Type.Application,
+        projectDirOverride: File? = null,
+        taskRunnerManagerOverride: TaskRunnerManager? = null,
+    ): Fixture {
+        val projectDir = projectDirOverride ?: temporaryFolder.newFolder("sync_project")
         val runManager = mock<RunManager>()
         val settings = mutableListOf<RunnerAndConfigurationSettings>()
         var selectedConfiguration: RunnerAndConfigurationSettings? = null
@@ -185,11 +207,12 @@ class JuggManagerRunConfigurationSyncTest {
             null
         }.whenever(runManager).selectedConfiguration = any()
 
-        val taskRunnerManager = mock<TaskRunnerManager>()
-        doAnswer { invocation -> (invocation.arguments[1] as () -> Any?).invoke() }
-            .whenever(taskRunnerManager).runProjectWriteLocked<Any?>(any<String>(), any())
-        doAnswer { (it.arguments[1] as Runnable).run() }
-            .whenever(taskRunnerManager).runTaskSafe(any(), any(), any(), any(), any())
+        val taskRunnerManager = taskRunnerManagerOverride ?: mock<TaskRunnerManager>().also { mocked ->
+            doAnswer { invocation -> (invocation.arguments[1] as () -> Any?).invoke() }
+                .whenever(mocked).runProjectWriteLocked<Any?>(any<String>(), any())
+            doAnswer { (it.arguments[1] as Runnable).run() }
+                .whenever(mocked).runTaskSafe(any(), any(), any(), any(), any())
+        }
 
         val compileContextManager = mock<CompileContextManager>()
         whenever(compileContextManager.getProjectInfo()).thenReturn(projectInfo(projectDir, moduleType))

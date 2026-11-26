@@ -400,4 +400,66 @@ class JuggRunningTaskTest {
             JuggLogger.unregister(project)
         }
     }
+
+    @Test
+    fun `owner switch info log during recovery is forwarded to run console`() {
+        val projectPath = temporaryFolder.newFolder().absolutePath
+        val project = mock<Project>()
+        whenever(project.basePath).thenReturn(projectPath)
+        val toolWindowManager = mock<ToolWindowManager>()
+        whenever(project.getService(ToolWindowManager::class.java)).thenReturn(toolWindowManager)
+        JuggLogger.register(project, File(projectPath, "logs"))
+        try {
+            val compiler = mock<JuggCompilerHelper>()
+            whenever(compiler.compile(any(), any(), any())).thenReturn(CompileTaskResult(true, true, false, 0))
+            val targets = mock<IDeployTargetManager>()
+            whenever(targets.getTargetDevices(null)).thenReturn(emptyList())
+            val handler = mock<CompileUiHandler>()
+            val consoleLines = mutableListOf<String>()
+            val processHandler = mock<IProcessHandler>()
+            Mockito.doAnswer { invocation ->
+                consoleLines.add(invocation.getArgument<String>(0))
+                null
+            }.whenever(processHandler).notifyTextAvailable(any(), any())
+            whenever(handler.processHandler).thenReturn(processHandler)
+            whenever(handler.progressIndicator).thenReturn(mock())
+            val options = mock<JuggGradleCompileOptions>()
+            whenever(options.projectRootPath).thenReturn(projectPath)
+            val taskLogger = JuggLogger.getInstance(project, "JuggManager")
+            val task = JuggRunningTask(
+                options = options,
+                project = project,
+                juggServer = mock(),
+                deployTargetManager = targets,
+                dependencyChangeManager = mock(),
+                statusManager = mock(),
+                deployHistoryManager = mock(),
+                juggCompileHelper = compiler,
+                juggDeployHelper = mock(),
+                initIncrementalCompileTask = {},
+                baseCompileUiHandler = handler,
+                eventModel = JuggControlPanelModel(),
+                lastCompileProjectRegistry = mock(),
+                logger = JuggLogger.getInstance(project, "JuggRunningTask"),
+                taskRunnerManager = com.sickworm.intellij.jugg.createTestTaskRunnerManager(
+                    com.sickworm.intellij.jugg.project.runtime.JuggPathManager(File(projectPath))),
+                projectCustomConfigManager = mock(),
+                recoverAfterRuntimeOwnerChange = {
+                    taskLogger.info("Recovering project state after runtime ownership changed: idea -> idea")
+                    true
+                },
+                projectModuleCount = 0,
+            )
+
+            task.run(mock())
+            SwingUtilities.invokeAndWait { }
+
+            assertTrue(
+                "Expected ownership recovery info in console, got: $consoleLines",
+                consoleLines.any { it.contains("Recovering project state after runtime ownership changed: idea -> idea") },
+            )
+        } finally {
+            JuggLogger.unregister(project)
+        }
+    }
 }

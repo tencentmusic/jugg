@@ -395,6 +395,8 @@ class JuggManager @TestOnly constructor(
 
     @TestOnly
     fun recoverDeployContext() {
+        // Startup disk recovery already synchronizes memory state with the current runtime owner.
+        taskRunnerManager.consumeRuntimeOwnerChange()
         JuggSettingsProjectEffects(pathManager, deployHistoryManager).apply()
         recoverDeployContextFromDisk()
     }
