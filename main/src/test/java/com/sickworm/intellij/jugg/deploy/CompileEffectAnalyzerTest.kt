@@ -60,7 +60,7 @@ class CompileEffectAnalyzerTest {
             libraryDependencies = listOf(LibraryDependency("dependency", dependencyJar)),
         )
         val generator = mock<DeployDataGenerator>()
-        whenever(generator.getDesugarInfo(any(), any())).thenReturn(
+        whenever(generator.getDesugarInfo(any(), any(), any())).thenReturn(
             DesugarInfo(listOf("Lcom/sickworm/intellij/jugg/deploy/ClassFileLookupHelper;"), emptyMap(), false, null),
         )
         val analyzer = CompileEffectAnalyzer(pathManager, generator, mock(), mock())
@@ -238,7 +238,7 @@ class CompileEffectAnalyzerTest {
         )
         val childBytes = childClass.readBytes()
         val deployDataGenerator = mock<DeployDataGenerator>()
-        whenever(deployDataGenerator.getDesugarInfo(any(), any())).thenReturn(
+        whenever(deployDataGenerator.getDesugarInfo(any(), any(), any())).thenReturn(
             DesugarInfo(
                 allInterfacesWithDefaultMethod = listOf(
                     "Lcom/sickworm/jugg/demo/testcase/defaultinterface/ParentOverrideChildInterface;",
@@ -315,7 +315,7 @@ class CompileEffectAnalyzerTest {
         )
         val compileFile = CompileFile(CompileFile.Type.Class, childClass, javaClassPath, appModule)
         val deployDataGenerator = mock<DeployDataGenerator>()
-        whenever(deployDataGenerator.getDesugarInfo(any(), any())).thenReturn(
+        whenever(deployDataGenerator.getDesugarInfo(any(), any(), any())).thenReturn(
             DesugarInfo(
                 allInterfacesWithDefaultMethod = emptyList(),
                 coreLibraryRewriteClassMap = emptyMap(),

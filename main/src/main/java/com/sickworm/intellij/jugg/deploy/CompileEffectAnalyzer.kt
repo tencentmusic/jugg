@@ -135,7 +135,8 @@ class CompileEffectAnalyzer(
         apkFile: File,
     ): DesugarInfo {
         TimeLogger.start("getDesugarInfo")
-        val desugarInfo = deployDataGenerator.getDesugarInfo(preparation.analysis, apkFile)
+        val stagingDefaultInterfaces = findStagingDefaultInterfaces()
+        val desugarInfo = deployDataGenerator.getDesugarInfo(preparation.analysis, apkFile, stagingDefaultInterfaces)
         val defaultInterfaces = desugarInfo.allInterfacesWithDefaultMethod
         logger.debug("getAllDesugarClasspath all defaultInterfaces: $defaultInterfaces")
         val interfaceFiles = getClassFilesByName(defaultInterfaces, moduleInfo, moduleInfos)
@@ -157,6 +158,31 @@ class CompileEffectAnalyzer(
         }
         TimeLogger.end("getDesugarInfo", logger)
         return desugarInfo
+    }
+
+    /**
+     * Collects interfaces that already produced desugared companion dex files in current staging
+     * before this compile round is committed to deploy history.
+     */
+    private fun findStagingDefaultInterfaces(): Set<String> {
+        val stagingClassesDir = File(pathManager.stagingDir, "classes")
+        if (!stagingClassesDir.isDirectory) {
+            return emptySet()
+        }
+        return stagingClassesDir.walkTopDown()
+            .filter { it.isFile && it.extension == "dex" }
+            .mapNotNull { file ->
+                val relativePath = file.relativeTo(stagingClassesDir).path.replace('\\', '/')
+                val descriptor = "L${relativePath.removeSuffix(".dex")};"
+                when {
+                    descriptor.endsWith(desugarDefaultInterfaceSuffix) ->
+                        descriptor.interfaceNameFromDesugaredDefaultMethodClass
+                    descriptor.endsWith(desugarDefaultInterfaceSuffix2) ->
+                        descriptor.interfaceNameFromDesugaredDefaultMethodClass2
+                    else -> null
+                }
+            }
+            .toSet()
     }
 
     /** Resolves the complete external superclass chain required by D8 method dispatch analysis. */

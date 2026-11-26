@@ -113,7 +113,11 @@ class ResourceApkGeneratorTest {
             changedGenericSignatureClasses: List<ClassNode>,
             maybeMinifiedRemoveClasses: ParsedDex?,
         ): List<EffectedClassNode> = unsupported()
-        override fun getAllInterfacesWithDefaultMethod(interfaces: List<String>, staticInvocations: List<String>): List<String> = unsupported()
+        override fun getAllInterfacesWithDefaultMethod(
+            interfaces: List<String>,
+            staticInvocations: List<String>,
+            extraDefaultInterfaces: Set<String>,
+        ): List<String> = unsupported()
         override fun getCoreLibraryRewriteClassMap(apkFile: File): Map<String, String> = unsupported()
         override fun isEnableDesugared(): Boolean = unsupported()
 

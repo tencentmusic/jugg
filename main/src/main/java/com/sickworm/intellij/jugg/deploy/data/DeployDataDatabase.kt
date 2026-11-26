@@ -48,7 +48,11 @@ interface IDeployDataDatabase {
                                   maybeMinifiedRemoveClasses: ParsedDex?,
                                   ): List<EffectedClassNode>
 
-    fun getAllInterfacesWithDefaultMethod(interfaces: List<String>, staticInvocations: List<String>): List<String>
+    fun getAllInterfacesWithDefaultMethod(
+        interfaces: List<String>,
+        staticInvocations: List<String>,
+        extraDefaultInterfaces: Set<String> = emptySet(),
+    ): List<String>
 
     fun getCoreLibraryRewriteClassMap(apkFile: File): Map<String, String>
 
@@ -340,10 +344,18 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
         return effectClassNodesMap.values.toList() + minifyEffectClassNodes.values.toList()
     }
 
-    override fun getAllInterfacesWithDefaultMethod(interfaces: List<String>, staticInvocations: List<String>): List<String> {
+    override fun getAllInterfacesWithDefaultMethod(
+        interfaces: List<String>,
+        staticInvocations: List<String>,
+        extraDefaultInterfaces: Set<String>,
+    ): List<String> {
         val result = mutableSetOf<String>()
         val incStaticInvocationResult = incDeployedDatabase.tryFindDefaultInterfaces(emptyList(), staticInvocations)
         result.addAll(incStaticInvocationResult)
+        if (extraDefaultInterfaces.isNotEmpty()) {
+            interfaces.filterTo(result) { it in extraDefaultInterfaces }
+            staticInvocations.filterTo(result) { it in extraDefaultInterfaces }
+        }
 
         database.values.forEach {
             val allInterfacesMap = it.getAllInterfacesOfClass(interfaces, staticInvocations, incDeployedDatabase.deployedClasses)
@@ -351,9 +363,15 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
             result.addAll(incInterfaceResult)
             val apkInterfaceResult = it.filterDefaultInterfaces(allInterfacesMap.keys)
             result.addAll(apkInterfaceResult)
+            val extraInterfaceResult = if (extraDefaultInterfaces.isEmpty()) {
+                emptyList()
+            } else {
+                allInterfacesMap.keys.filter { key -> key in extraDefaultInterfaces }
+            }
+            result.addAll(extraInterfaceResult)
 
-            // finds all parent interfaces
-            apkInterfaceResult.forEach { interfaceName ->
+            // Include child interfaces along the hierarchy so D8 sees the full default-method chain.
+            (apkInterfaceResult + extraInterfaceResult).forEach { interfaceName ->
                 var forbidDeadLoopCount = 1000 // avoid dead loop, but I don't think it will trigger :)
                 var currentInterfaceName: String? = interfaceName
                 while (forbidDeadLoopCount > 0 && currentInterfaceName != null) {

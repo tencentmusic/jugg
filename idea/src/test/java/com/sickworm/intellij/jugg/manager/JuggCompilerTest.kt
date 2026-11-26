@@ -229,6 +229,117 @@ class JuggCompilerTest {
         assertFalse(parsedDex.methodRefs.any { it.key.owner.endsWith(desugarDefaultInterfaceSuffix) })
     }
 
+    @Test
+    fun testAddedDefaultInterfaceMethodSynthesizesBridgeOnImpl() {
+        val packagePath = "com/sickworm/jugg/demo/testcase/defaultinterface"
+        val interfaceFile = File(assetsAndroidDir, "library1/src/main/java/$packagePath/AddedDefaultMethodInterface.java")
+        val hostFile = File(assetsAndroidDir, "app/src/main/java/$packagePath/AddedDefaultMethodHost.java")
+        val patchedInterface = """
+            package com.sickworm.jugg.demo.testcase.defaultinterface;
+
+            public interface AddedDefaultMethodInterface {
+                void onChanged();
+
+                default void onEntryReturned(String value) {
+                }
+            }
+        """.trimIndent() + "\n"
+        val patchedHost = """
+            package com.sickworm.jugg.demo.testcase.defaultinterface;
+
+            public class AddedDefaultMethodHost {
+                private final AddedDefaultMethodInterface listener = new AddedDefaultMethodInterface() {
+                    @Override
+                    public void onChanged() {
+                        // incremental
+                    }
+                };
+
+                public AddedDefaultMethodInterface getListener() {
+                    return listener;
+                }
+            }
+        """.trimIndent() + "\n"
+
+        val originalInterface = interfaceFile.readBytes()
+        val originalHost = hostFile.readBytes()
+        try {
+            interfaceFile.writeText(patchedInterface)
+            hostFile.writeText(patchedHost)
+
+            jugg.notifyFileChanges(listOf(interfaceFile, hostFile))
+            jugg.compileChangedFiles()
+            assertTrue(jugg.deployFileManager.getUncompiledFiles().isEmpty())
+
+            val interfaceDex = File(jugg.pathManager.stagingDir, "classes/$packagePath/AddedDefaultMethodInterface.dex")
+            val companionDex = File(
+                jugg.pathManager.stagingDir,
+                "classes/$packagePath/AddedDefaultMethodInterface\$-CC.dex",
+            )
+            val implDex = File(jugg.pathManager.stagingDir, "classes/$packagePath/AddedDefaultMethodHost\$1.dex")
+            assertTrue(interfaceDex.isFile, "Missing desugared interface DEX")
+            assertTrue(companionDex.isFile, "Missing desugared interface companion DEX (\$-CC)")
+            assertTrue(implDex.isFile, "Missing implementing anonymous class DEX")
+
+            val interfaceNode = ApkParser().parseDexFiles(listOf(interfaceDex))
+                .classDeployItems.single().classNodes.single()
+            val desugaredInterfaceMethod = interfaceNode.methods.find { it.name == "onEntryReturned" }
+            assertTrue(
+                desugaredInterfaceMethod != null && desugaredInterfaceMethod.isAbstract,
+                "Expected desugared interface method onEntryReturned to be abstract, actual=${interfaceNode.methods}",
+            )
+
+            val implNode = ApkParser().parseDexFiles(listOf(implDex))
+                .classDeployItems.single().classNodes.single()
+            val bridgeMethod = implNode.methods.find { it.name == "onEntryReturned" }
+            assertTrue(
+                bridgeMethod != null && !bridgeMethod.isAbstract,
+                "Expected D8 to synthesize concrete bridge method onEntryReturned on AddedDefaultMethodHost\$1, actual methods=${implNode.methods}",
+            )
+        } finally {
+            interfaceFile.writeBytes(originalInterface)
+            hostFile.writeBytes(originalHost)
+        }
+    }
+
+    @Test
+    fun testAddedDefaultInterfaceMethodOnlySynthesizesBridgeOnEffectedImpl() {
+        val packagePath = "com/sickworm/jugg/demo/testcase/defaultinterface"
+        val interfaceFile = File(assetsAndroidDir, "library1/src/main/java/$packagePath/AddedDefaultMethodInterface.java")
+        val patchedInterface = """
+            package com.sickworm.jugg.demo.testcase.defaultinterface;
+
+            public interface AddedDefaultMethodInterface {
+                void onChanged();
+
+                default void onEntryReturned(String value) {
+                }
+            }
+        """.trimIndent() + "\n"
+
+        val originalInterface = interfaceFile.readBytes()
+        try {
+            interfaceFile.writeText(patchedInterface)
+
+            jugg.notifyFileChanges(listOf(interfaceFile))
+            jugg.compileChangedFiles()
+            assertTrue(jugg.deployFileManager.getUncompiledFiles().isEmpty())
+
+            val implDex = File(jugg.pathManager.stagingDir, "classes/$packagePath/AddedDefaultMethodHost\$1.dex")
+            assertTrue(implDex.isFile, "Expected effected implementing class DEX to be recompiled")
+
+            val implNode = ApkParser().parseDexFiles(listOf(implDex))
+                .classDeployItems.single().classNodes.single()
+            val bridgeMethod = implNode.methods.find { it.name == "onEntryReturned" }
+            assertTrue(
+                bridgeMethod != null && !bridgeMethod.isAbstract,
+                "Expected D8 to synthesize concrete bridge method onEntryReturned on effected AddedDefaultMethodHost\$1, actual methods=${implNode.methods}",
+            )
+        } finally {
+            interfaceFile.writeBytes(originalInterface)
+        }
+    }
+
     // java static method, skip because I don't have static method on demo project, and
     // I need to implement auto-build on demo project apk first
 

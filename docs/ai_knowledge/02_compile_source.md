@@ -1,6 +1,6 @@
 # 编译系统：源码编译链（Java/Kotlin/Dex）
 
-> 最后核对：2026-10-19
+> 最后核对：2026-11-26
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -47,7 +47,7 @@
 | JuggApt generated Java/Kotlin | `JuggAptCompiler` | `KotlinCompiler`, `JavaCompiler` | 会登记到 `ICompileContext.addChangedFile()`，避免落盘后本轮失败导致下轮漏编译 |
 | DataBinding mapper Java | `SourceDataBindingProcessor` | `JavaCompiler` | Kotlin 源和 JuggApt Kotlin 会参与 mapper 处理输入 |
 | Kotlin 编译输出 Java | `KotlinCompiler` | `JavaCompiler` | Kotlin 先编译，KAPT 等输出的 Java 再进入 Java 阶段 |
-| Class 输出 | `KotlinCompiler`, `JavaCompiler`, 原始 Class 输入 | `DexCompiler` | class 编译失败时不会继续 dex；失败结果会 quick fail 其余文件 |
+| Class 输出 | `KotlinCompiler`, `JavaCompiler`, 原始 Class 输入 | `DexCompiler`, 模块 Gradle 基线目录 | class 编译失败时不会继续 dex；成功后会写回模块 Gradle 基线目录（Java 由 `JavaCompilerInvoker` 复制回 `javaClassPath`，Kotlin 非 KAPT 直接 `-d` 输出到 `kotlinClassPath`），供下游模块与 `ClassFileLookupHelper` 直接复用 |
 | Dex 输出 | `DexCompiler` | `DexMinifyCompiler` 或部署数据转换 | 非 minified 直接输出；minified 先输出到 `un_minify` 再重映射 |
 | `targetApkPaths` | `DexCompiler`, `JavaCompilerInvoker`, `DexFileMerger` | 部署分流 | dex merge 会合并输入 dex 的 targetApkPaths 并保留并集 |
 | Compose generated common/platform Kotlin | `ComposeResourceGeneratorBridge` | `KotlinCompilerInvoker` | 所有 generated 文件同批输入；common 文件通过 typed `Options.commonSourceFiles` 显式转为 `-Xmulti-platform -Xcommon-sources=...` |
@@ -141,8 +141,8 @@ DexCompiler
   -> TransformerCompiler 消费显式 ClassPreparation，不重新读取 program class
   -> Hilt Android 入口命中时改写为对应 Hilt_* 生成父类；未命中保持原文件
   -> 选择 D8 minApi：使用当前 module 归属 APK 的 owner variant minSdk（base APK 用 application，split 用 dynamic feature）；minSdk 不可读时回落 21
-  -> 从 APK/deploy DB 查找 `$-CC` / `$DefaultImpls` 对应的 default interface
-  -> 把这些 baseline class 复制到临时 D8 classpath
+  -> 从 APK/deploy DB 以及当前 `staging/classes` 中已生成的 `$-CC.dex` / `$DefaultImpls.dex` 查找 default interface
+  -> 把这些 baseline class（含本轮已写回基线目录的新版接口 class）复制到临时 D8 classpath
   -> APK 中存在 `j$.*` 时查找工程 coreLibraryDesugaring 的 `desugar.json`
   -> 使用项目 AGP D8；API 不兼容或执行失败时回退内置 D8
 ```
@@ -181,6 +181,7 @@ ARouter 的比较基线、pending 生命周期及完整 Gradle 构建恢复边�
 - JuggApt 降级只重试一次，且只在直接源码诊断指向本轮 JuggApt 产物时触发；普通 Kotlin/Java 编译失败不会进入该分支。
 - Kotlin 编译失败时，非 Kotlin 输入会被标记为 skipped，避免 Java 阶段在缺少 Kotlin class 的情况下继续产生误导性错误。
 - Java 编译每次调用都创建并关闭独立的 `StandardJavaFileManager`。该对象会缓存 classpath 中的 Jar 句柄；若跨编译长期复用，Windows 上执行 Gradle clean 时可能无法删除 `R.jar` 等中间产物。关闭失败只记录 warn，不改变已经完成的编译结果。
+- Java/Kotlin 增量编译成功后都会把 `.class` 写回模块 Gradle 基线目录：`JavaCompilerInvoker` 先输出到 `task.outputDir` 再复制到 `module.buildPathInfo.javaClassPath`，`KotlinCompilerInvoker` 非 KAPT 编译直接以 `module.buildPathInfo.kotlinClassPath` 为 `-d` 目录再拷贝到 `task.outputDir`。因此 `ClassFileLookupHelper` 查询 `module.buildPathInfo.allClassPath` 时能直接读到本轮已编完模块的新版 `.class`，无需额外查 Jugg 临时目录。
 - Android Java 的平台 API 以依赖中首个 `android.jar` 对应的 SDK 为基准，不能只把该 JAR 放入普通 `-cp`：宿主 JDK 9+ 的 `java.lang.Module` 等类型会参与解析，使通配导入的业务同名类出现歧义，也可能放过 Android 不支持的 JDK API。`JavaCompilerInvoker` 在非 `JavaLibrary` 且依赖含 `android.jar` 时隔离平台；普通 JavaLibrary、依赖不含该 JAR 的调用保持宿主 JDK 解析。
 - Java 平台隔离按 **source** 版本分支：source ≤ 8 通过 `StandardLocation.PLATFORM_CLASS_PATH` 指定 Android 引导类路径，兼容较高的 bytecode target；source ≥ 9 使用 `--system none`，并将同 SDK 的 `core-for-system-modules.jar` ZIP 文件系统视图通过 `MODULE_PATH` 注册为自动模块 `java.base`。ZIP 挂载显式选择 scheme 为 `jar` 的 provider，并使用 `Path` 重载独立打开，避免 IntelliJ 默认文件系统 provider 接管后错误返回本机文件系统。旧 SDK 缺少该文件时使用 `android.jar` 加 lambda 桩作为最小平台。只添加 `--system none` 会因缺少平台类失败，命令行 `-bootclasspath` / `--system` 也存在 target 版本限制，不应直接套用单一参数。平台文件系统随本次 javac 文件管理器一起关闭，不复制 JAR、不新增磁盘缓存；APT 处理器仍在宿主 JVM 运行。
 - 平台隔离准备失败时记录 warn，释放本轮已打开的资源，以新的 javac 文件管理器继续使用宿主 JDK 平台类；只有 Android 平台注册成功后才添加 `--system none`，避免降级残留禁用 JDK 的参数或部分模块位置。资源关闭异常只记录 warn，不覆盖真实编译结果。该降级仅舍弃本轮 Android 平台隔离，真实源码错误仍按原流程返回，不因普通编译错误自动重试或切换平台。
