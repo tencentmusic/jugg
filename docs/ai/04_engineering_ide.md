@@ -59,7 +59,7 @@ IDE `AskAiInvestigation` owns the Panel form and the failed-compilation console 
 
 Panel collection runs through `TaskRunnerManager.runTaskSafe` without taking the project write lock (`isProjectWrite = false`), and copies staging/deployed records under the `DeployFileManager` monitor. It reads selected-device logcat once via DDMLib (`logcat -b all -d -v threadtime -t 20000`, five-second no-output timeout), avoiding ADB restart/retry; a failed device loses only its own evidence. See `05_utilities.md` for snapshot/flush contracts.
 
-The Running Panel Host initially shows an initializing placeholder. `JuggManager.init()` calls `controlPanelController.onManagerReady()` after shared runtime initialization to mount the real Panel; Controller clear removes it on disposal. On the first Run per project in the IDE session, `JuggRunningTask.checkAndMarkFirstRun()` actively opens the Run window; Sync/retry first-run state does not reopen it.
+The Running Panel Host initially shows an initializing placeholder. `JuggManager.init()` calls `controlPanelController.onManagerReady()` after shared runtime initialization to mount the real Panel; Controller clear removes it on disposal. On the first Run per project lifecycle (cleared on `JuggManager.dispose()`), `JuggRunningTask.checkAndMarkFirstRun()` actively opens the Run window, including RPC/MCP runs; Sync/retry first-run state does not reopen it.
 
 ## Investigation guide
 

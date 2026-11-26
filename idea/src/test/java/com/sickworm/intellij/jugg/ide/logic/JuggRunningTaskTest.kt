@@ -292,6 +292,32 @@ class JuggRunningTaskTest {
     }
 
     @Test
+    fun `checkAndMarkFirstRun resets when same project path is reopened as a new project instance`() {
+        JuggRunningTask.resetHasRunProjects()
+        val firstOpen = Mockito.mock(com.intellij.openapi.project.Project::class.java)
+        Mockito.`when`(firstOpen.basePath).thenReturn("/path/to/project1")
+        val reopened = Mockito.mock(com.intellij.openapi.project.Project::class.java)
+        Mockito.`when`(reopened.basePath).thenReturn("/path/to/project1")
+
+        assertTrue(JuggRunningTask.checkAndMarkFirstRun(firstOpen))
+        assertFalse(JuggRunningTask.checkAndMarkFirstRun(firstOpen))
+        assertTrue(JuggRunningTask.checkAndMarkFirstRun(reopened))
+    }
+
+    @Test
+    fun `clearFirstRun resets first run state for closed project`() {
+        JuggRunningTask.resetHasRunProjects()
+        val project = Mockito.mock(com.intellij.openapi.project.Project::class.java)
+        Mockito.`when`(project.basePath).thenReturn("/path/to/project1")
+
+        assertTrue(JuggRunningTask.checkAndMarkFirstRun(project))
+        assertFalse(JuggRunningTask.checkAndMarkFirstRun(project))
+
+        JuggRunningTask.clearFirstRun(project)
+        assertTrue(JuggRunningTask.checkAndMarkFirstRun(project))
+    }
+
+    @Test
     fun `normal run detaches process when task stops`() {
         assertTrue(shouldDetachProcessOnTaskStop(isProcessCanceled = false))
     }

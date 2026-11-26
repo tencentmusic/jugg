@@ -6,6 +6,9 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.execution.process.ProcessOutputType
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.wm.ToolWindow
+import com.intellij.openapi.wm.ToolWindowManager
+import javax.swing.SwingUtilities
 import com.sickworm.intellij.jugg.deploy.instrument.InstrumentationEvent
 import com.sickworm.intellij.jugg.deploy.run.JuggInstallSession.PromptAction
 import com.sickworm.intellij.jugg.compiler.ui.TooManyChangesConfirmResult
@@ -168,5 +171,26 @@ class JuggCompileUiHandlerTest {
         handler.onDeployUiMessage("Android Test Results Matrix")
 
         Assert.assertTrue(captured.any { it.contains("Android Test Results Matrix") })
+    }
+
+    @Test
+    fun `showRunWindow activates Run tool window in rpc mode`() {
+        val project = Mockito.mock(Project::class.java)
+        val toolWindowManager = Mockito.mock(ToolWindowManager::class.java)
+        val runToolWindow = Mockito.mock(ToolWindow::class.java)
+        Mockito.`when`(project.getService(ToolWindowManager::class.java)).thenReturn(toolWindowManager)
+        Mockito.`when`(toolWindowManager.getToolWindow("Run")).thenReturn(runToolWindow)
+        val handler = JuggCompileUiHandler(
+            project = project,
+            isForceGradleCompile = false,
+            isRpcMode = true,
+            juggGradleCompileOptions = Mockito.mock(JuggGradleCompileOptions::class.java),
+            logger = Logger.getInstance("JuggCompileUiHandlerTest"),
+        )
+
+        handler.showRunWindow()
+        SwingUtilities.invokeAndWait {}
+
+        Mockito.verify(runToolWindow).activate(null)
     }
 }

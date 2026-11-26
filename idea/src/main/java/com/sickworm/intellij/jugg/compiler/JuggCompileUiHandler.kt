@@ -143,9 +143,6 @@ open class JuggCompileUiHandler(
     }
 
     override fun ensureRunWindowCreated() {
-        if (isRpcMode) {
-            return
-        }
         SwingUtilities.invokeLater {
             val manager = RunContentManager.getInstance(project)
             val executor = DefaultRunExecutor.getRunExecutorInstance()
@@ -168,9 +165,6 @@ open class JuggCompileUiHandler(
     }
 
     override fun showRunWindow() {
-        if (isRpcMode) {
-            return
-        }
         SwingUtilities.invokeLater {
             val toolWindowManager: ToolWindowManager = ToolWindowManager.getInstance(project)
             toolWindowManager.getToolWindow("Run")?.activate(null)

@@ -49,6 +49,7 @@ import java.io.PrintWriter
 import java.io.StringWriter
 import java.util.Collections
 import java.util.UUID
+import java.util.WeakHashMap
 import javax.swing.SwingUtilities
 import org.jetbrains.annotations.TestOnly
 
@@ -648,14 +649,22 @@ class JuggRunningTask(
 
     companion object {
 
-        private val hasRunProjects = Collections.synchronizedSet(mutableSetOf<String>())
+        private val hasRunProjects = Collections.synchronizedSet(
+            Collections.newSetFromMap(WeakHashMap<Project, Boolean>())
+        )
 
         /**
-         * Checks whether the given [project] runs for the first time in this IDE session and marks it as run.
+         * Checks whether the given [project] runs for the first time in this project lifecycle and marks it as run.
          */
         fun checkAndMarkFirstRun(project: Project): Boolean {
-            val key = project.basePath ?: project.name
-            return hasRunProjects.add(key)
+            return hasRunProjects.add(project)
+        }
+
+        /**
+         * Clears the first-run record for [project] when the project closes.
+         */
+        fun clearFirstRun(project: Project) {
+            hasRunProjects.remove(project)
         }
 
         @TestOnly

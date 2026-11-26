@@ -1066,6 +1066,7 @@ class JuggManager @TestOnly constructor(
 
     override fun dispose() {
         logger.debug("project ${pathManager.projectDir} dispose")
+        JuggRunningTask.clearFirstRun(project)
         controlPanelController.clear()
         gradleProjectInfoLocalFetchManager.close()
         customCompilerManager.close()
