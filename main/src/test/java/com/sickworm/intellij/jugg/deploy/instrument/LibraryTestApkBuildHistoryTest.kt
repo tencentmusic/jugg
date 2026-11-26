@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.deploy.instrument
 
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.git.FirstParentCommitMatch
 import com.sickworm.intellij.jugg.git.IGitManager
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import org.junit.Rule
@@ -223,6 +224,8 @@ class LibraryTestApkBuildHistoryTest {
         override val userName: String? = null
         override fun getUncommittedFiles(): List<File> = emptyList()
         override fun getChangedFiles(oldCommit: String, newCommit: String): List<File> = emptyList()
+        override fun resolveCommit(commit: String): String = commit
+        override fun findNearestFirstParentCommit(targetCommit: String, candidateCommits: Set<String>): FirstParentCommitMatch? = null
         override fun getLastCommitHash(): String? = null
         override fun filterChangedFiles(commitHash: String, files: List<File>): List<File> = emptyList()
         override fun getLastCommitFileContent(commitId: String, file: File, outputFile: File): Boolean = false
