@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.compiler.overlay
 
 import com.intellij.openapi.util.Disposer
+import com.sickworm.intellij.jugg.aapt2.Aapt2DaemonInvoker
 import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.overlay.ARSC_FILE_NAME
@@ -12,7 +13,11 @@ import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import java.io.File
+import java.util.zip.ZipEntry
+import java.util.zip.ZipFile
+import java.util.zip.ZipOutputStream
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 open class ResourceCompileTest {
@@ -547,5 +552,131 @@ open class ResourceCompileTest {
             assertTrue(it.file.exists())
             assertTrue(it.file.length() > 0)
         }
+    }
+
+    @Test
+    fun compileOverrideExistingStyleItemsAndParent() {
+        val styleResDir = File(buildDir, "style_override_res").apply {
+            deleteRecursively()
+            mkdirs()
+        }
+        val defaultXml = writeStyleXml(
+            styleResDir,
+            "values/styles.xml",
+            """
+                <resources>
+                    <style name="AppTheme">
+                        <item name="colorPrimary">#FF112233</item>
+                        <item name="android:textColor">#FF123456</item>
+                    </style>
+                </resources>
+            """.trimIndent(),
+        )
+        val v31Xml = writeStyleXml(
+            styleResDir,
+            "values-v31/styles.xml",
+            """
+                <resources>
+                    <style name="AppTheme" parent="Theme.AppCompat.Light.DarkActionBar">
+                        <item name="android:textColor">#FF654321</item>
+                    </style>
+                </resources>
+            """.trimIndent(),
+        )
+
+        val firstTask = CompileTask(
+            listOf(defaultXml, v31Xml).map {
+                CompileFile(CompileFile.Type.Resource, it, styleResDir, mockModule)
+            },
+            stagingDir,
+        )
+        stagingDir.clearDir()
+        val firstResult = resourceOverlayCompiler.compile(firstTask)
+        checkArscResult(firstTask, firstResult, 0, isRJavaChanged = false)
+
+        val firstArsc = firstResult.outputs.first { it.relativeFile.path == ARSC_FILE_NAME }.file
+        val firstBlock = extractStyleBlock(dumpCompiledResources(firstArsc), "AppTheme")
+        assertTrue(firstBlock.contains("() (style) size=2"), firstBlock)
+        assertFalse(firstBlock.substringBefore("(v31)").contains("parent="), firstBlock)
+        assertTrue(firstBlock.contains("colorPrimary(") && firstBlock.contains("=#ff112233"), firstBlock)
+        assertTrue(firstBlock.contains("0x01010098=#ff123456"), firstBlock)
+        assertFalse(firstBlock.contains("colorPrimaryDark("), firstBlock)
+        assertFalse(firstBlock.contains("colorAccent("), firstBlock)
+        assertTrue(firstBlock.contains("(v31) (style) size=1"), firstBlock)
+        assertTrue(firstBlock.contains("0x01010098=#ff654321"), firstBlock)
+
+        val updatedV31Xml = writeStyleXml(
+            styleResDir,
+            "values-v31/styles.xml",
+            """
+                <resources>
+                    <style name="AppTheme" parent="Theme.AppCompat.Light.DarkActionBar">
+                        <item name="android:textColor">#FFAA00AA</item>
+                    </style>
+                </resources>
+            """.trimIndent(),
+        )
+        val secondTask = CompileTask(
+            listOf(CompileFile(CompileFile.Type.Resource, updatedV31Xml, styleResDir, mockModule)),
+            stagingDir,
+        )
+        stagingDir.clearDir()
+        val secondResult = resourceOverlayCompiler.compile(secondTask)
+        checkArscResult(secondTask, secondResult, 0, isRJavaChanged = false)
+
+        val secondArsc = secondResult.outputs.first { it.relativeFile.path == ARSC_FILE_NAME }.file
+        val secondBlock = extractStyleBlock(dumpCompiledResources(secondArsc), "AppTheme")
+        assertTrue(secondBlock.contains("() (style) size=2"), secondBlock)
+        assertTrue(secondBlock.contains("0x01010098=#ff123456"), secondBlock)
+        assertTrue(secondBlock.contains("(v31) (style) size=1"), secondBlock)
+        assertTrue(secondBlock.contains("0x01010098=#ffaa00aa"), secondBlock)
+        assertFalse(secondBlock.contains("#ff654321"), secondBlock)
+    }
+
+    private fun writeStyleXml(resRoot: File, relativePath: String, content: String): File {
+        return File(resRoot, relativePath).apply {
+            parentFile.mkdirs()
+            writeText(content)
+        }
+    }
+
+    private fun dumpCompiledResources(arscFile: File): String {
+        val baselineApk = getContext().apkInfos.first().baseApk!!.apkFile
+        val manifestBytes = ZipFile(baselineApk).use { zip ->
+            zip.getInputStream(zip.getEntry("AndroidManifest.xml")).readBytes()
+        }
+        val tempApk = File(buildDir, "style_override_dump.apk").apply { delete() }
+        ZipOutputStream(tempApk.outputStream()).use { zos ->
+            zos.putNextEntry(ZipEntry("AndroidManifest.xml"))
+            zos.write(manifestBytes)
+            zos.closeEntry()
+            zos.putNextEntry(ZipEntry(ARSC_FILE_NAME))
+            zos.write(arscFile.readBytes())
+            zos.closeEntry()
+        }
+        val errorFile = File(buildDir, "style_override_dump.err").apply { delete() }
+        val process = ProcessBuilder(
+            Aapt2DaemonInvoker.getEmbeddedAapt2().absolutePath,
+            "dump",
+            "resources",
+            tempApk.absolutePath,
+        )
+            .redirectError(errorFile)
+            .start()
+        val output = process.inputStream.bufferedReader().use { it.readText() }
+        val exitCode = process.waitFor()
+        val error = if (errorFile.exists()) errorFile.readText() else ""
+        assertEquals(0, exitCode, error)
+        return output
+    }
+
+    private fun extractStyleBlock(dump: String, styleName: String): String {
+        val lines = dump.lineSequence().toList()
+        val startIndex = lines.indexOfFirst { it.trim().endsWith("style/$styleName") }
+        assertTrue(startIndex >= 0, "style/$styleName not found in resources dump")
+        val endIndex = ((startIndex + 1) until lines.size)
+            .firstOrNull { lines[it].trim().startsWith("resource ") || lines[it].trim().startsWith("type ") }
+            ?: lines.size
+        return lines.subList(startIndex, endIndex).joinToString("\n")
     }
 }
