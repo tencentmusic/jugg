@@ -89,6 +89,33 @@ class ListProjectsMcpToolActionTest {
         Assert.assertEquals(false, readBooleanProperty(projects.first(), "hasBeenFullCompiled"))
     }
 
+    @Test
+    fun listProjectsReturnsHasBeenFullCompiledTrueForRootlessSubmoduleGitHistory() {
+        val rootlessProject = tempFolder.newFolder("rootless_multi_git")
+        val pathManager = JuggPathManager(rootlessProject)
+        writeOnlyFullBuildInfo(rootlessProject)
+        File(pathManager.compileContextDbDir, "complete_flag").createNewFile()
+        DeployHistoryData(
+            fullCompileGitCommitHash = null,
+            subModulesFullCompileGitCommitHash = mapOf(File(rootlessProject, "repoA").absolutePath to "abc123"),
+            incDeployTimes = 0,
+            changedFiles = emptyMap(),
+        ).save(File(pathManager.deployHistoryDbDir, "deploy_history.json"))
+
+        PlatformApi.impl = FakePlatformApi(
+            initializedProjectDirs = listOf(rootlessProject),
+        )
+
+        val result = ListProjectsMcpToolAction().executeGlobal()
+
+        @Suppress("UNCHECKED_CAST")
+        val data = result.data as Map<String, Any>
+        @Suppress("UNCHECKED_CAST")
+        val projects = data["projects"] as List<Any>
+
+        Assert.assertEquals(true, readBooleanProperty(projects.first(), "hasBeenFullCompiled"))
+    }
+
     private fun writeFullCompileState(projectDir: File) {
         val pathManager = JuggPathManager(projectDir)
         writeOnlyFullBuildInfo(projectDir)

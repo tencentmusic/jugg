@@ -310,4 +310,166 @@ class DeployHistoryManagerTest {
         result = historyManager.filterUnchangedFiles(listOf(settingsGradle))
         assertEquals(1, result.size)
     }
+
+    @Test
+    fun rootlessMultiGitRepoRecoversAndTracksChangesAcrossRestart() {
+        val tempRoot = Files.createTempDirectory("jugg_rootless_multi_git").toFile()
+        try {
+            val repoA = File(tempRoot, "repoA").apply { mkdirs() }
+            val repoB = File(tempRoot, "repoB").apply { mkdirs() }
+            val noGitDir = File(tempRoot, "noGitModule").apply { mkdirs() }
+            val rootBuildFile = File(tempRoot, "settings.gradle").apply { writeText("include ':repoA', ':repoB'") }
+
+            val fileA = File(repoA, "src/A.kt").apply {
+                parentFile.mkdirs()
+                writeText("class A")
+            }
+            val buildFileA = File(repoA, "build.gradle").apply { writeText("// repoA baseline") }
+            val fileB = File(repoB, "src/B.kt").apply {
+                parentFile.mkdirs()
+                writeText("class B")
+            }
+            File(noGitDir, "src/Local.kt").apply {
+                parentFile.mkdirs()
+                writeText("class Local")
+            }
+
+            initSubGitRepo(repoA, "init repoA")
+            initSubGitRepo(repoB, "init repoB")
+
+            val tempPathManager = JuggPathManager(tempRoot)
+            val tempFileChangesHandler = FileChangesHandler(tempPathManager.projectDir, tempPathManager.juggRootDir, logger)
+            val moduleA = mockModule.copy(name = "repoA", moduleRootDir = repoA, projectRootDir = tempRoot)
+            val moduleB = mockModule.copy(name = "repoB", moduleRootDir = repoB, projectRootDir = tempRoot)
+            val moduleNoGit = mockModule.copy(name = "noGitModule", moduleRootDir = noGitDir, projectRootDir = tempRoot)
+            val modules = mapOf(
+                moduleA.name to moduleA,
+                moduleB.name to moduleB,
+                moduleNoGit.name to moduleNoGit,
+            )
+            val apkFile = File(tempRoot, "repoA/build/app-debug.apk").apply {
+                parentFile.mkdirs()
+                writeText("apk")
+            }
+            val apkInfos = listOf(
+                com.sickworm.intellij.jugg.apk.ApkInfo(apkFile, "com.example.multi"),
+            )
+
+            val historyManager = DeployHistoryManager(tempPathManager, tempFileChangesHandler, logger)
+            assertFalse(historyManager.isRecoverFeatureAvailable)
+            assertFalse(historyManager.hasBeenFullCompiled)
+
+            historyManager.reInitAfterFullCompiled(
+                FullBuildInfo("./gradlew :repoA:assembleDebug", BuildTarget.APP, System.currentTimeMillis()),
+                apkInfos,
+                modules,
+                System.currentTimeMillis(),
+            )
+            assertTrue(historyManager.isRecoverFeatureAvailable)
+            assertTrue(historyManager.hasBeenFullCompiled)
+
+            val persisted = historyManager.getDeployHistoryData()
+            assertNotNull(persisted)
+            assertNull(persisted.fullCompileGitCommitHash)
+            assertEquals(
+                setOf(repoA.absolutePath, repoB.absolutePath),
+                persisted.subModulesFullCompileGitCommitHash?.keys,
+            )
+
+            // Modify repoA uncommitted and commit a new change in repoB while IDE is closed.
+            fileA.writeText("class AModified")
+            fileB.writeText("class BCommitted")
+            GitManager(repoB).addAllAndCommit("update B")
+
+            // Simulate IDE restart with a brand-new DeployHistoryManager instance.
+            val restartedManager = DeployHistoryManager(tempPathManager, tempFileChangesHandler, logger)
+            assertTrue(restartedManager.isRecoverFeatureAvailable)
+            assertTrue(restartedManager.hasBeenFullCompiled)
+
+            val recovered = restartedManager.tryGetContextRecoverInfoFromDb(isOnInit = true)
+            assertNotNull(recovered)
+            assertEquals(
+                setOf(fileA.canonicalPath, fileB.canonicalPath),
+                recovered.changedFiles.map { it.canonicalPath }.toSet(),
+            )
+
+            // Incremental deploy updates CRC records so next recovery reports no pending changes.
+            val deployedChangedFiles = listOf(
+                ChangedFile(CompileFile.Type.Kotlin, fileA, repoA, moduleA),
+                ChangedFile(CompileFile.Type.Kotlin, fileB, repoB, moduleB),
+            )
+            restartedManager.beforeIncrementalCompile(deployedChangedFiles)
+            restartedManager.updateHistoryOnAfterDeployed(emptyList())
+            val recoveredAfterDeploy = restartedManager.tryGetContextRecoverInfoFromDb(isOnInit = true)
+            assertNotNull(recoveredAfterDeploy)
+            assertTrue(recoveredAfterDeploy.changedFiles.isEmpty())
+
+            // filterUnchangedFiles checks submodule repos and keeps non-git root files conservative.
+            val unchangedInA = restartedManager.filterUnchangedFiles(listOf(buildFileA, rootBuildFile))
+            assertEquals(listOf(buildFileA), unchangedInA)
+
+            // getLastBuildFiles resolves baseline build file content from submodule git commit.
+            buildFileA.writeText("// repoA modified")
+            val lastBuildFiles = restartedManager.getLastBuildFiles(
+                listOf(ChangedFile(CompileFile.Type.BuildFile, buildFileA, repoA, moduleA)),
+            )
+            assertEquals("// repoA baseline", lastBuildFiles.single().second?.readText())
+        } finally {
+            tempRoot.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun rootlessMultiGitRepoClearsHistoryWhenSubmoduleCommitIsMissingOnInit() {
+        val tempRoot = Files.createTempDirectory("jugg_rootless_missing_commit").toFile()
+        try {
+            val repoA = File(tempRoot, "repoA").apply { mkdirs() }
+            File(repoA, "src/A.kt").apply {
+                parentFile.mkdirs()
+                writeText("class A")
+            }
+            initSubGitRepo(repoA, "init repoA")
+
+            val tempPathManager = JuggPathManager(tempRoot)
+            val tempFileChangesHandler = FileChangesHandler(tempPathManager.projectDir, tempPathManager.juggRootDir, logger)
+            val moduleA = mockModule.copy(name = "repoA", moduleRootDir = repoA, projectRootDir = tempRoot)
+            val apkFile = File(tempRoot, "repoA/build/app-debug.apk").apply {
+                parentFile.mkdirs()
+                writeText("apk")
+            }
+            val apkInfos = listOf(
+                com.sickworm.intellij.jugg.apk.ApkInfo(apkFile, "com.example.multi"),
+            )
+
+            val historyManager = DeployHistoryManager(tempPathManager, tempFileChangesHandler, logger)
+            historyManager.reInitAfterFullCompiled(
+                FullBuildInfo("./gradlew :repoA:assembleDebug", BuildTarget.APP, System.currentTimeMillis()),
+                apkInfos,
+                mapOf(moduleA.name to moduleA),
+                System.currentTimeMillis(),
+            )
+            assertTrue(historyManager.hasBeenFullCompiled)
+
+            // Recreate repoA git history so the saved commit hash no longer exists.
+            GitManager(repoA).deleteGit()
+            initSubGitRepo(repoA, "fresh repoA commit")
+
+            val restartedManager = DeployHistoryManager(tempPathManager, tempFileChangesHandler, logger)
+            assertTrue(restartedManager.isRecoverFeatureAvailable)
+            assertTrue(restartedManager.hasBeenFullCompiled)
+            assertNull(restartedManager.tryGetContextRecoverInfoFromDb(isOnInit = true))
+            assertFalse(restartedManager.hasBeenFullCompiled)
+        } finally {
+            tempRoot.deleteRecursively()
+        }
+    }
+
+    private fun initSubGitRepo(dir: File, commitMessage: String) {
+        val subGit = GitManager(dir)
+        subGit.init()
+        File(dir, ".git/config").appendText(
+            "\n[user]\n\tname = Jugg Test\n\temail = jugg@example.com\n",
+        )
+        subGit.addAllAndCommit(commitMessage)
+    }
 }

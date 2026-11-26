@@ -89,5 +89,5 @@ internal fun hasBeenFullCompiled(projectDir: File): Boolean {
     }
     val deployHistoryFile = File(pathManager.deployHistoryDbDir, "deploy_history.json")
     val deployHistoryData = DeployHistoryData.load(deployHistoryFile, isUseCache = false)
-    return deployHistoryData?.fullCompileGitCommitHash != null
+    return deployHistoryData?.hasValidGitHistory == true
 }

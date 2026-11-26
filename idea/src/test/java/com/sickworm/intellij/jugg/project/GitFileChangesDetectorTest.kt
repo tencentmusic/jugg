@@ -378,6 +378,65 @@ class GitFileChangesDetectorTest {
         assertTrue(!missingFile.exists())
     }
 
+    @Test
+    fun rootlessMultiGitRepoDetectsSubmoduleHeadChangeAndRollback() {
+        val workspaceRoot = temporaryFolder.newFolder("rootless_workspace")
+        val repoA = File(workspaceRoot, "repoA").apply { mkdirs() }
+        val repoB = File(workspaceRoot, "repoB").apply { mkdirs() }
+        val fileA = File(repoA, "A.kt").apply { writeText("class A") }
+        File(repoB, "B.kt").apply { writeText("class B") }
+        initGitRepository(repoA)
+        initGitRepository(repoB)
+
+        val moduleA = ModuleInfo.virtualModule.copy(name = "repoA", moduleRootDir = repoA, projectRootDir = workspaceRoot)
+        val moduleB = ModuleInfo.virtualModule.copy(name = "repoB", moduleRootDir = repoB, projectRootDir = workspaceRoot)
+        val modules = mapOf(moduleA.name to moduleA, moduleB.name to moduleB)
+
+        val historyDb = DeployHistoryDb(workspaceRoot, File(workspaceRoot, "build/history"), mock(), TestGlobal.getLogger()).also {
+            it.resetHistoryAfterFullCompiled(modules, System.currentTimeMillis())
+        }
+        val historyManager = mock<IDeployHistoryManager>()
+        whenever(historyManager.isRecoverFeatureAvailable).thenAnswer { historyDb.isAvailable }
+        whenever(historyManager.getChangedFilesSinceLastFullCompiled()).thenAnswer {
+            historyDb.getChangedFilesSinceLastFullCompiled(isOnInit = false)
+        }
+        whenever(historyManager.filterUnchangedFiles(any())).thenAnswer {
+            historyDb.filterUnchangedFiles(it.getArgument(0))
+        }
+
+        val fileManager = createFileManager(workspaceRoot)
+        val detector = GitFileChangesDetector(historyManager, fileManager, mock(), TestGlobal.getLogger())
+        detector.init(workspaceRoot, modules)
+
+        fileA.writeText("class AModified")
+        fileManager.addChangedFile(listOf(changedFile(fileA)))
+        fileA.writeText("class A")
+
+        val missedInB = File(repoB, "MissedB.kt").apply { writeText("class MissedB") }
+        GitManager(repoB).addAllAndCommit("add MissedB in repoB")
+
+        detector.startListen(object : FileChangesListener {
+            override fun onFileChanges(changedFiles: List<File>, deletedFiles: List<File>) {
+                fileManager.removeChangedFile(deletedFiles)
+                fileManager.addChangedFile(changedFiles.map { changedFile(it) })
+            }
+        })
+
+        assertEquals(GitFileChangesDetector.GitRefreshResult.REFRESHED, detector.refreshFileChangesIfHeadChanged())
+        assertEquals(listOf(missedInB), fileManager.getUncompiledFiles().map { it.file })
+        assertEquals(GitFileChangesDetector.GitRefreshResult.NO_HEAD_CHANGE, detector.refreshFileChangesIfHeadChanged())
+    }
+
+    private fun initGitRepository(rootDir: File) {
+        val gitManager = GitManager(rootDir)
+        gitManager.init()
+        File(rootDir, ".git/config").appendText(
+            "\n[user]\n\tname = Jugg Test\n\temail = jugg@example.com\n"
+        )
+        File(rootDir, ".gitignore").writeText("build/\n")
+        gitManager.addAllAndCommit("initial")
+    }
+
     private fun createGitRepository(): File {
         val rootDir = temporaryFolder.newFolder()
         val gitManager = GitManager(rootDir)

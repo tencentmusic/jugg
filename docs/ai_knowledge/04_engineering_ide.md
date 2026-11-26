@@ -74,7 +74,7 @@ IDE project opened
      预初始化 deployment service、检查更新、自动更新 Jugg CLI、清理 MCP fetch cache
 ```
 
-`recoverDeployContext()` 只在 deploy history 有可恢复信息时生效；没有历史时应提示先跑 Gradle/full compile，而不是强行构造增量上下文。
+`recoverDeployContext()` 只在 deploy history 有可恢复信息时生效；没有历史时应提示先跑 Gradle/full compile，而不是强行构造增量上下文。根目录无 Git 但模块分布在多个独立子 Git 仓库时，全量构建按 Best-effort 记录所有有效子仓库的基线提交；重启恢复、运行时 Git 检测和 MCP `hasBeenFullCompiled` 均以根提交或非空子仓库基线为准，无 Git 模块记录 debug 跳过，任一已记录子仓库失效或丢提交时初始化期清空历史并安全降级。
 
 `JuggCliAutoUpdater` 仅在 `~/.jugg/bin` 已存在时运行，比较插件内 `docs-skills.zip` 与 `~/.jugg/skills/jugg-android-dev-loop/SKILL.md` 的 `version:`。bundled 更高才覆盖 CLI 和已安装 skill。触发条件是 `SKILL.md` 版本，不是 `CLI_VERSION`。变更规则见 `08_cli_tools_list.md` §3.7。
 
