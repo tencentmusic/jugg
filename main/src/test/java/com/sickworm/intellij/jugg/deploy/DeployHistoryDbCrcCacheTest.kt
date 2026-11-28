@@ -9,6 +9,7 @@ import java.io.File
 import java.nio.file.Files
 import java.nio.file.attribute.FileTime
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import org.junit.After
 import org.junit.Assume
@@ -94,6 +95,93 @@ class DeployHistoryDbCrcCacheTest {
         ) + commits, 0, emptyMap()).save(File(dbDir, "deploy_history.json"))
         sources.forEach { it.writeText("changed again") }
         assertTrue(history.filterUnchangedFiles(sources + added).isEmpty())
+    }
+
+    @Test
+    fun shouldPersistAndReuseCrcCacheAcrossRestart() {
+        val untrackedFile = File(repositoryDir, "sibling/assets/large.bin").apply {
+            parentFile.mkdirs()
+            writeText("aaaaaaaa")
+        }
+        val originalMtime = Files.getLastModifiedTime(untrackedFile.toPath())
+
+        createHistoryDb().resetHistoryAfterFullCompiled(emptyMap(), Long.MAX_VALUE)
+        assertTrue(File(dbDir, "crc_cache.json").exists())
+
+        // Mutate bytes while preserving exact mtime and length to prove a fresh instance reuses persisted CRC.
+        untrackedFile.writeText("bbbbbbbb")
+        Files.setLastModifiedTime(untrackedFile.toPath(), originalMtime)
+
+        val restartedDb = createHistoryDb()
+        assertEquals(emptyList(), restartedDb.getChangedFilesSinceLastFullCompiled(isOnInit = true))
+
+        // Changing mtime must invalidate the cached entry and detect the real content change.
+        Files.setLastModifiedTime(untrackedFile.toPath(), FileTime.fromMillis(originalMtime.toMillis() + 2_000))
+        val changedAfterTouch = restartedDb.getChangedFilesSinceLastFullCompiled(isOnInit = false)
+        assertEquals(listOf(untrackedFile.absoluteFile.normalize()), changedAfterTouch?.map { it.absoluteFile.normalize() })
+    }
+
+    @Test
+    fun shouldKeepCrcCacheAcrossDeleteHistoryAndPruneStaleEntriesOnFullCompile() {
+        val keptFile = File(repositoryDir, "sibling/untracked/kept.bin").apply {
+            parentFile.mkdirs()
+            writeText("11111111")
+        }
+        val removedFile = File(repositoryDir, "sibling/untracked/removed.bin").apply {
+            writeText("22222222")
+        }
+        val keptOriginalMtime = Files.getLastModifiedTime(keptFile.toPath())
+        val crcCacheFile = File(dbDir, "crc_cache.json")
+
+        val initialDb = createHistoryDb()
+        initialDb.resetHistoryAfterFullCompiled(emptyMap(), Long.MAX_VALUE)
+        val initialKeptCrc = DeployHistoryData.load(File(dbDir, "deploy_history.json"), isUseCache = false)
+            ?.changedFiles
+            ?.get(keptFile.relativeTo(projectDir).path)
+        assertTrue(initialKeptCrc != null)
+        assertTrue(crcCacheFile.exists())
+        assertTrue(crcCacheFile.readText().contains("removed.bin"))
+
+        // deleteHistory must preserve crc_cache.json so a subsequent full compile does not recompute unchanged files.
+        initialDb.deleteHistory()
+        assertTrue(crcCacheFile.exists())
+
+        // Mutate keptFile with identical mtime+size and delete removedFile; full compile must reuse keptFile CRC and prune removedFile.
+        keptFile.writeText("99999999")
+        Files.setLastModifiedTime(keptFile.toPath(), keptOriginalMtime)
+        assertTrue(removedFile.delete())
+
+        createHistoryDb().resetHistoryAfterFullCompiled(emptyMap(), Long.MAX_VALUE)
+        val reusedCrc = DeployHistoryData.load(File(dbDir, "deploy_history.json"), isUseCache = false)
+            ?.changedFiles
+            ?.get(keptFile.relativeTo(projectDir).path)
+        assertEquals(initialKeptCrc, reusedCrc)
+        assertFalse(crcCacheFile.readText().contains("removed.bin"))
+        assertTrue(crcCacheFile.readText().contains("kept.bin"))
+
+        // When all remaining files are committed, pruning removes the cache file.
+        gitManager.addAllAndCommit("commit remaining files")
+        createHistoryDb().resetHistoryAfterFullCompiled(emptyMap(), Long.MAX_VALUE)
+        assertFalse(crcCacheFile.exists())
+    }
+
+    @Test
+    fun shouldFallbackGracefullyWhenCrcCacheIsCorrupted() {
+        val untrackedFile = File(repositoryDir, "sibling/assets/corrupt_case.bin").apply {
+            parentFile.mkdirs()
+            writeText("baseline")
+        }
+        createHistoryDb().resetHistoryAfterFullCompiled(emptyMap(), Long.MAX_VALUE)
+
+        File(dbDir, "crc_cache.json").writeText("{corrupted-json")
+
+        val restartedDb = createHistoryDb()
+        assertEquals(emptyList(), restartedDb.getChangedFilesSinceLastFullCompiled(isOnInit = true))
+
+        untrackedFile.writeText("modified-content")
+        Files.setLastModifiedTime(untrackedFile.toPath(), FileTime.fromMillis(System.currentTimeMillis() + 2_000))
+        val changed = restartedDb.getChangedFilesSinceLastFullCompiled(isOnInit = false)
+        assertEquals(listOf(untrackedFile.absoluteFile.normalize()), changed?.map { it.absoluteFile.normalize() })
     }
 
     @Test

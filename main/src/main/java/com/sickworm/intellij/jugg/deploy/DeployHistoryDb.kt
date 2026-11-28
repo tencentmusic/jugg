@@ -10,15 +10,11 @@ import com.sickworm.intellij.jugg.git.GitManager
 import com.sickworm.intellij.jugg.git.IFileMatcher
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import com.sickworm.intellij.jugg.git.IGitManager
-import com.sickworm.intellij.jugg.gradle.compile.crc32
 import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.project.IFileChangesHandler
 import java.io.File
-import java.nio.file.Files
-import java.nio.file.attribute.BasicFileAttributes
-import java.nio.file.attribute.FileTime
 import java.security.MessageDigest
 
 /**
@@ -52,7 +48,7 @@ class DeployHistoryDb(
     private val tempBuildFilesDir = File(dbDir, ".build_files_tmp")
 
     private val gitManager: IGitManager = GitManager.createGitManagerAndTrySearchParent(projectDir)
-    private val crcCache = mutableMapOf<String, CrcCacheEntry>()
+    private val crcCache = FileCrcCache(File(dbDir, "crc_cache.json"), logger)
 
     private val isRootGitAvailable: Boolean
         get() = gitManager.hasInitGit && (gitManager.getLastCommitHash() != null)
@@ -141,6 +137,9 @@ class DeployHistoryDb(
             isCrcChanged(deployHistoryData, it)
         }
         logCrcDiagnostic(deployHistoryData, candidates, undeployFiles)
+        if (crcCache.isDirty) {
+            pruneAndSaveCrcCache(deployHistoryData)
+        }
         logger.debug("getChangedFilesSinceLastFullCompiled, final files: ${undeployFiles.map { it.name }}")
         return undeployFiles
     }
@@ -291,6 +290,9 @@ class DeployHistoryDb(
             DeployHistoryData(null, null, 0, emptyMap())
         }
         newDeployHistoryData.save(deployHistoryFile)
+        if (newDeployHistoryData.hasValidGitHistory) {
+            pruneAndSaveCrcCache(newDeployHistoryData)
+        }
         updateBuildFilesAfterFullBuild(newDeployHistoryData)
 
         logger.debug("resetHistoryAfterFullCompiled newDeployHistoryData: $newDeployHistoryData")
@@ -406,6 +408,9 @@ class DeployHistoryDb(
     fun updateHistoryAfterIncrementalCompile() {
         logger.debug("updateHistoryAfterIncrementalCompile")
         nextIncDeployHistoryData.save(deployHistoryFile)
+        if (nextIncDeployHistoryData.hasValidGitHistory) {
+            pruneAndSaveCrcCache(nextIncDeployHistoryData)
+        }
 
         val tempLogFile = nextIncDeployHistoryData.getDeployLogFile(true)
         val logFile = nextIncDeployHistoryData.getDeployLogFile(false)
@@ -514,29 +519,15 @@ class DeployHistoryDb(
     }
 
     private fun File.cachedCrc32(): Long {
-        val normalizedFile = absoluteFile.normalize()
-        val attributes = Files.readAttributes(
-            normalizedFile.toPath(),
-            BasicFileAttributes::class.java,
-        )
-        val cached = crcCache[normalizedFile.path]
-        if (cached != null &&
-            cached.lastModifiedTime == attributes.lastModifiedTime() &&
-            cached.length == attributes.size()
-        ) {
-            return cached.crc32
-        }
-
-        val crc = normalizedFile.crc32
-        crcCache[normalizedFile.path] = CrcCacheEntry(attributes.lastModifiedTime(), attributes.size(), crc)
-        return crc
+        return crcCache.getCrc32(this)
     }
 
-    private data class CrcCacheEntry(
-        val lastModifiedTime: FileTime,
-        val length: Long,
-        val crc32: Long,
-    )
+    private fun pruneAndSaveCrcCache(deployHistoryData: DeployHistoryData) {
+        val activePaths = deployHistoryData.changedFiles?.keys.orEmpty()
+            .map { File(projectDir, it).absoluteFile.normalize().path }
+            .toSet()
+        crcCache.pruneAndSave(activePaths)
+    }
 
     fun getLastBuildFiles(files: List<ChangedFile>): List<Pair<ChangedFile, File?>> {
         val deployHistoryData = DeployHistoryData.load(deployHistoryFile) ?: return files.map { it to null }
