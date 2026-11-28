@@ -457,10 +457,12 @@ class GradleProjectInfoReader(
         TraceLogger.start("getRuntime")
         return try {
             // Runtime project components are read separately for APK ownership.
+            // Library modules only use runtimeLibraryDependencies for compile-only JAR detection,
+            // so skip res/manifest/symbol artifact views for non-APK-owner modules.
             getDependenciesByConfig(
                 project,
                 filterName,
-                isAndroidDepend = moduleInfo.moduleType.isAndroidModule,
+                isAndroidDepend = isApkOwner,
                 isNeedProjectDependencies = false
             ).filterIsInstance<LibraryDependency>()
         } catch (exception: Exception) {

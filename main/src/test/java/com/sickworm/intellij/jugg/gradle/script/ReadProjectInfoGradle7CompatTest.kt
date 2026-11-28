@@ -103,6 +103,7 @@ class ReadProjectInfoGradle7CompatTest : ReadProjectInfoGradleCompatTestBase() {
             task = ":app:assembleDebug",
             extraArgs = listOf("--dry-run"),
             beforeRun = { fixtureDir ->
+                writeRuntimeAarMavenFixture(fixtureDir)
                 File(fixtureDir, "settings.gradle").appendText("\ninclude ':lib'\n")
                 File(fixtureDir, "app/build.gradle").appendText("\ndependencies { implementation project(':lib') }\n")
                 val libDir = File(fixtureDir, "lib")
@@ -116,6 +117,7 @@ class ReadProjectInfoGradle7CompatTest : ReadProjectInfoGradleCompatTestBase() {
                         defaultConfig { minSdkVersion 21 }
                     }
                     dependencies {
+                        implementation 'com.example:runtime-aar:1.0'
                         implementation files('runtime_lib.jar')
                         compileOnly files('framework_stub.jar')
                     }
@@ -137,9 +139,26 @@ class ReadProjectInfoGradle7CompatTest : ReadProjectInfoGradleCompatTestBase() {
                     libModule.runtimeLibraryDependencies.any { it.file.name == "runtime_lib.jar" },
                     "Library runtime dependencies must include implementation runtime_lib.jar.",
                 )
+                assertTrue(
+                    libModule.runtimeLibraryDependencies.any { it.name == RUNTIME_AAR && !it.isRes && !it.isAndroidManifest },
+                    "Library runtime dependencies must include JAR from runtime-aar.",
+                )
+                assertFalse(
+                    libModule.runtimeLibraryDependencies.any { it.isRes || it.isAndroidManifest },
+                    "Library runtime dependencies must exclude res and manifest artifacts.",
+                )
                 assertFalse(
                     libModule.runtimeLibraryDependencies.any { it.file.name == "framework_stub.jar" },
                     "Library runtime dependencies must exclude compileOnly framework_stub.jar.",
+                )
+                val appModule = projectInfo.modules.getValue("app")
+                assertTrue(
+                    appModule.runtimeLibraryDependencies.any { it.name == RUNTIME_AAR && it.isRes },
+                    "Application runtime dependencies must still include res from runtime-aar.",
+                )
+                assertTrue(
+                    appModule.runtimeLibraryDependencies.any { it.name == RUNTIME_AAR && it.isAndroidManifest },
+                    "Application runtime dependencies must still include manifest from runtime-aar.",
                 )
             },
         )
@@ -346,8 +365,51 @@ class ReadProjectInfoGradle7CompatTest : ReadProjectInfoGradleCompatTestBase() {
             "\ndependencies { implementation 'com.example:direct-lib:1.0' }\n",
         )
     }
+
+    private fun writeRuntimeAarMavenFixture(projectDir: File) {
+        val aarDir = File(projectDir, "repo/com/example/runtime-aar/1.0")
+        aarDir.mkdirs()
+        val aarFile = File(aarDir, "runtime-aar-1.0.aar")
+        java.util.zip.ZipOutputStream(aarFile.outputStream()).use { zos ->
+            zos.putNextEntry(java.util.zip.ZipEntry("AndroidManifest.xml"))
+            zos.write("""<manifest package="com.example.runtime.aar"/>""".toByteArray())
+            zos.closeEntry()
+            zos.putNextEntry(java.util.zip.ZipEntry("classes.jar"))
+            val jarBytes = java.io.ByteArrayOutputStream().also { baos ->
+                java.util.zip.ZipOutputStream(baos).use { jarZos ->
+                    jarZos.putNextEntry(java.util.zip.ZipEntry("META-INF/MANIFEST.MF"))
+                    jarZos.write("Manifest-Version: 1.0\n".toByteArray())
+                    jarZos.closeEntry()
+                }
+            }.toByteArray()
+            zos.write(jarBytes)
+            zos.closeEntry()
+            zos.putNextEntry(java.util.zip.ZipEntry("res/values/values.xml"))
+            zos.write("""<resources><string name="runtime_aar_str">ok</string></resources>""".toByteArray())
+            zos.closeEntry()
+            zos.putNextEntry(java.util.zip.ZipEntry("R.txt"))
+            zos.write("int string runtime_aar_str 0x7f010000\n".toByteArray())
+            zos.closeEntry()
+        }
+        writeFile(
+            File(aarDir, "runtime-aar-1.0.pom"),
+            """
+            <project xmlns="http://maven.apache.org/POM/4.0.0">
+                <modelVersion>4.0.0</modelVersion>
+                <groupId>com.example</groupId>
+                <artifactId>runtime-aar</artifactId>
+                <version>1.0</version>
+                <packaging>aar</packaging>
+            </project>
+            """.trimIndent(),
+        )
+        File(projectDir, "build.gradle").appendText(
+            "\nallprojects { repositories { maven { url uri(rootProject.file('repo')) } } }\n",
+        )
+    }
 }
 
 /** Mirrors GradleApplicationInjector.PARAM_ENABLE without pulling in the production class. */
 private const val PARAM_INJECT_ENABLE = "jugg.inject.application.enable"
 private const val RUNTIME_LIBRARY = "com.example:runtime-lib:1.0"
+private const val RUNTIME_AAR = "com.example:runtime-aar:1.0"
