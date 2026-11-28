@@ -8,10 +8,12 @@ import com.sickworm.intellij.jugg.compiler.custom.CustomCompilerManager
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.mock.StdLogger
+import com.sickworm.intellij.jugg.project.data.LibraryDependency
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.project.data.ModuleDependency
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.mockito.kotlin.mock
@@ -256,6 +258,75 @@ class BaseCompileContextModuleDependenciesTest {
             // Assert that KMP JVM output is successfully included in consumer module's classpath
             assertTrue(dependencies.contains(kmpJvmClasses.absolutePath))
         }
+    }
+
+    @Test
+    fun `library module compile-only framework jar precedes android jar using its own runtime dependencies`() {
+        withRoot { root ->
+            val projectDir = File(root, "main").apply { mkdirs() }
+            val runtimeLibJar = createStubJar(File(root, "libs/runtime.jar"), "androidx/room/Room.class")
+            val frameworkJar = createStubJar(File(projectDir, "app/tvos/framework.jar"), "android/media/tv/TvView.class")
+            val applicationModule = module(projectDir, File(projectDir, "app"), "app", ModuleInfo.Type.Application).copy(
+                libraryDependencies = listOf(LibraryDependency("androidx.room:room-common:2.4.2", runtimeLibJar)),
+                runtimeLibraryDependencies = listOf(LibraryDependency("androidx.room:room-common:2.4.2", runtimeLibJar)),
+            )
+            val libraryModule = module(projectDir, File(projectDir, "m_player"), "m_player", ModuleInfo.Type.Library).copy(
+                libraryDependencies = listOf(
+                    LibraryDependency("androidx.room:room-common:2.4.2", runtimeLibJar),
+                    LibraryDependency("./app/tvos/framework.jar", frameworkJar),
+                ),
+                runtimeLibraryDependencies = listOf(LibraryDependency("androidx.room:room-common:2.4.2", runtimeLibJar)),
+            )
+            val context = createContext(
+                root,
+                projectDir,
+                linkedMapOf(applicationModule.name to applicationModule, libraryModule.name to libraryModule),
+            )
+            val task = CompileTask(emptyList(), File(root, "output"), CompileStatusHolder.DEFAULT)
+
+            val libraryDeps = context.getModuleDependencies(libraryModule, task)
+            val appDeps = context.getModuleDependencies(applicationModule, task)
+            val androidJarIndex = libraryDeps.indexOf(File(root, "android-sdk/platforms/android-34/android.jar").absolutePath)
+
+            assertTrue(libraryDeps.indexOf(frameworkJar.absolutePath) in 0 until androidJarIndex)
+            assertTrue(libraryDeps.indexOf(runtimeLibJar.absolutePath) > androidJarIndex)
+            assertFalse(frameworkJar.absolutePath in appDeps)
+        }
+    }
+
+    @Test
+    fun `library module skips framework promotion when no module provides runtime dependencies`() {
+        withRoot { root ->
+            val projectDir = File(root, "main").apply { mkdirs() }
+            val frameworkJar = createStubJar(File(projectDir, "app/tvos/framework.jar"), "android/media/tv/TvView.class")
+            val applicationModule = module(projectDir, File(projectDir, "app"), "app", ModuleInfo.Type.Application)
+            val libraryModule = module(projectDir, File(projectDir, "m_player"), "m_player", ModuleInfo.Type.Library).copy(
+                libraryDependencies = listOf(LibraryDependency("./app/tvos/framework.jar", frameworkJar)),
+            )
+            val context = createContext(
+                root,
+                projectDir,
+                linkedMapOf(applicationModule.name to applicationModule, libraryModule.name to libraryModule),
+            )
+            val task = CompileTask(emptyList(), File(root, "output"), CompileStatusHolder.DEFAULT)
+
+            val libraryDeps = context.getModuleDependencies(libraryModule, task)
+            val androidJarPath = File(root, "android-sdk/platforms/android-34/android.jar").absolutePath
+
+            assertTrue(libraryDeps.indexOf(androidJarPath) in 0 until libraryDeps.indexOf(frameworkJar.absolutePath))
+        }
+    }
+
+    private fun createStubJar(jarFile: File, vararg classEntries: String): File {
+        jarFile.parentFile.mkdirs()
+        JarOutputStream(jarFile.outputStream()).use { output ->
+            classEntries.forEach { entry ->
+                output.putNextEntry(JarEntry(entry))
+                output.write(byteArrayOf(0))
+                output.closeEntry()
+            }
+        }
+        return jarFile
     }
 
     private fun withRoot(block: (File) -> Unit) {

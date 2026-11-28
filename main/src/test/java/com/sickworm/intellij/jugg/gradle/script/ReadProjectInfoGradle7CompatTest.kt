@@ -97,6 +97,55 @@ class ReadProjectInfoGradle7CompatTest : ReadProjectInfoGradleCompatTestBase() {
     }
 
     @Test
+    fun generatedScript_shouldCollectLibraryRuntimeDependenciesForCompileOnlyDetection() {
+        assertInitScriptRunsOnAndroidFixture(
+            assetDir = "android-app-agp7",
+            task = ":app:assembleDebug",
+            extraArgs = listOf("--dry-run"),
+            beforeRun = { fixtureDir ->
+                File(fixtureDir, "settings.gradle").appendText("\ninclude ':lib'\n")
+                File(fixtureDir, "app/build.gradle").appendText("\ndependencies { implementation project(':lib') }\n")
+                val libDir = File(fixtureDir, "lib")
+                writeFile(File(libDir, "src/main/AndroidManifest.xml"), """<manifest package="com.example.lib"/>""")
+                File(libDir, "runtime_lib.jar").writeBytes(byteArrayOf())
+                File(libDir, "framework_stub.jar").writeBytes(byteArrayOf())
+                writeFile(File(libDir, "build.gradle"), """
+                    apply plugin: 'com.android.library'
+                    android {
+                        compileSdkVersion 33
+                        defaultConfig { minSdkVersion 21 }
+                    }
+                    dependencies {
+                        implementation files('runtime_lib.jar')
+                        compileOnly files('framework_stub.jar')
+                    }
+                """.trimIndent())
+            },
+            afterRun = { fixtureDir, result ->
+                assertEquals(0, result.exitCode, "Gradle $gradleVersion android fixture failed.\n${result.output}")
+                val projectInfo = ProjectInfoSerializer(
+                    JuggPathManager(fixtureDir).gradleProjectInfoFile,
+                    mock(Logger::class.java),
+                ).load(isSkipVersionCheck = true)
+                assertTrue(projectInfo != null, "Project snapshot was not written. output=\n${result.output}")
+                val libModule = projectInfo.modules.getValue("lib")
+                assertTrue(
+                    libModule.libraryDependencies.any { it.file.name == "framework_stub.jar" },
+                    "Library compile dependencies must include compileOnly framework_stub.jar.",
+                )
+                assertTrue(
+                    libModule.runtimeLibraryDependencies.any { it.file.name == "runtime_lib.jar" },
+                    "Library runtime dependencies must include implementation runtime_lib.jar.",
+                )
+                assertFalse(
+                    libModule.runtimeLibraryDependencies.any { it.file.name == "framework_stub.jar" },
+                    "Library runtime dependencies must exclude compileOnly framework_stub.jar.",
+                )
+            },
+        )
+    }
+
+    @Test
     fun generatedScript_shouldNotWriteSnapshotWhenActiveAppRuntimeResolutionFails() {
         assertInitScriptRunsOnAndroidFixture(
             assetDir = "android-app-agp7",

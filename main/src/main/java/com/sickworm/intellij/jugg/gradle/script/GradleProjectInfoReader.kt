@@ -429,20 +429,26 @@ class GradleProjectInfoReader(
         return readProperty(resolved, "version")?.toString() ?: resolved?.toString()
     }
 
-    /** Reads resolved runtime library artifacts only for modules that contribute final APK contents. */
+    /** Reads resolved runtime library artifacts; APK owners fail fast when missing, library modules are best-effort. */
     private fun getRuntimeLibraryDependencies(project: Project, moduleInfo: ModuleInfo): List<LibraryDependency> {
-        if (moduleInfo.moduleType !in listOf(ModuleInfo.Type.Application, ModuleInfo.Type.DynamicFeature)) {
+        val isApkOwner = moduleInfo.moduleType in listOf(ModuleInfo.Type.Application, ModuleInfo.Type.DynamicFeature)
+        if (!isApkOwner && moduleInfo.moduleType !in listOf(ModuleInfo.Type.Library, ModuleInfo.Type.JavaLibrary)) {
             return emptyList()
         }
 
-        val canSkipRuntimeClasspath = moduleInfo.variants.isEmpty() && taskGraphGroup.isNotEmpty() && project !in taskGraphGroup
-        var filterName = "${moduleInfo.buildVariant}RuntimeClasspath"
-        if (project.configurations.names.none { filterConfigs(it, filterName) }) {
+        val canSkipRuntimeClasspath = !isApkOwner ||
+                (moduleInfo.variants.isEmpty() && taskGraphGroup.isNotEmpty() && project !in taskGraphGroup)
+        var filterName = if (moduleInfo.moduleType.isAndroidModule) {
+            "${moduleInfo.buildVariant}RuntimeClasspath"
+        } else {
+            "runtimeClasspath"
+        }
+        if (moduleInfo.moduleType.isAndroidModule && project.configurations.names.none { filterConfigs(it, filterName) }) {
             filterName = "RuntimeClasspath"
         }
         if (project.configurations.names.none { filterConfigs(it, filterName) }) {
             if (canSkipRuntimeClasspath) {
-                println("Jugg: skip missing runtime classpath for ${project.standardModuleName}: no variants or tasks")
+                println("Jugg: skip missing runtime classpath for ${project.standardModuleName}: no matching configuration")
                 return emptyList()
             }
             throw GradleException("Jugg: runtime classpath is unavailable for ${project.standardModuleName}")
@@ -451,9 +457,13 @@ class GradleProjectInfoReader(
         TraceLogger.start("getRuntime")
         return try {
             // Runtime project components are read separately for APK ownership.
-            getDependenciesByConfig(project, filterName, isAndroidDepend = true, isNeedProjectDependencies = false)
-                .filterIsInstance<LibraryDependency>()
-        } catch (exception: GradleException) {
+            getDependenciesByConfig(
+                project,
+                filterName,
+                isAndroidDepend = moduleInfo.moduleType.isAndroidModule,
+                isNeedProjectDependencies = false
+            ).filterIsInstance<LibraryDependency>()
+        } catch (exception: Exception) {
             if (!canSkipRuntimeClasspath) throw exception
             println("Jugg: skip failed runtime classpath for ${project.standardModuleName}: $exception")
             emptyList()
